@@ -1,4 +1,4 @@
-// package: teleterm.v1
+// package: teleport.lib.teleterm.v1
 // file: teleport/lib/teleterm/v1/database.proto
 
 /* tslint:disable */

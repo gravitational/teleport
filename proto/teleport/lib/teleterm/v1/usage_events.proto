@@ -14,7 +14,7 @@
 
 syntax = "proto3";
 
-package teleterm.v1;
+package teleport.lib.teleterm.v1;
 
 import "teleport/lib/prehog/v1alpha/connect.proto";
 

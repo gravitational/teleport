@@ -1,4 +1,4 @@
-// package: teleterm.v1
+// package: teleport.lib.teleterm.v1
 // file: teleport/lib/teleterm/v1/service.proto
 
 /* tslint:disable */
@@ -53,7 +53,7 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
 }
 
 interface ITerminalServiceService_IUpdateTshdEventsServerAddress extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressRequest, teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressResponse> {
-    path: "/teleterm.v1.TerminalService/UpdateTshdEventsServerAddress";
+    path: "/teleport.lib.teleterm.v1.TerminalService/UpdateTshdEventsServerAddress";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressRequest>;
@@ -62,7 +62,7 @@ interface ITerminalServiceService_IUpdateTshdEventsServerAddress extends grpc.Me
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.UpdateTshdEventsServerAddressResponse>;
 }
 interface ITerminalServiceService_IListRootClusters extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.ListClustersRequest, teleport_lib_teleterm_v1_service_pb.ListClustersResponse> {
-    path: "/teleterm.v1.TerminalService/ListRootClusters";
+    path: "/teleport.lib.teleterm.v1.TerminalService/ListRootClusters";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ListClustersRequest>;
@@ -71,7 +71,7 @@ interface ITerminalServiceService_IListRootClusters extends grpc.MethodDefinitio
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListClustersResponse>;
 }
 interface ITerminalServiceService_IListLeafClusters extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.ListLeafClustersRequest, teleport_lib_teleterm_v1_service_pb.ListClustersResponse> {
-    path: "/teleterm.v1.TerminalService/ListLeafClusters";
+    path: "/teleport.lib.teleterm.v1.TerminalService/ListLeafClusters";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ListLeafClustersRequest>;
@@ -80,7 +80,7 @@ interface ITerminalServiceService_IListLeafClusters extends grpc.MethodDefinitio
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListClustersResponse>;
 }
 interface ITerminalServiceService_IGetAllDatabases extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetAllDatabasesRequest, teleport_lib_teleterm_v1_service_pb.GetAllDatabasesResponse> {
-    path: "/teleterm.v1.TerminalService/GetAllDatabases";
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetAllDatabases";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetAllDatabasesRequest>;
@@ -89,7 +89,7 @@ interface ITerminalServiceService_IGetAllDatabases extends grpc.MethodDefinition
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetAllDatabasesResponse>;
 }
 interface ITerminalServiceService_IGetDatabases extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetDatabasesRequest, teleport_lib_teleterm_v1_service_pb.GetDatabasesResponse> {
-    path: "/teleterm.v1.TerminalService/GetDatabases";
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetDatabases";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetDatabasesRequest>;
@@ -98,7 +98,7 @@ interface ITerminalServiceService_IGetDatabases extends grpc.MethodDefinition<te
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetDatabasesResponse>;
 }
 interface ITerminalServiceService_IListDatabaseUsers extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.ListDatabaseUsersRequest, teleport_lib_teleterm_v1_service_pb.ListDatabaseUsersResponse> {
-    path: "/teleterm.v1.TerminalService/ListDatabaseUsers";
+    path: "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ListDatabaseUsersRequest>;
@@ -107,7 +107,7 @@ interface ITerminalServiceService_IListDatabaseUsers extends grpc.MethodDefiniti
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListDatabaseUsersResponse>;
 }
 interface ITerminalServiceService_IGetAllServers extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetAllServersRequest, teleport_lib_teleterm_v1_service_pb.GetAllServersResponse> {
-    path: "/teleterm.v1.TerminalService/GetAllServers";
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetAllServers";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetAllServersRequest>;
@@ -116,7 +116,7 @@ interface ITerminalServiceService_IGetAllServers extends grpc.MethodDefinition<t
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetAllServersResponse>;
 }
 interface ITerminalServiceService_IGetServers extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetServersRequest, teleport_lib_teleterm_v1_service_pb.GetServersResponse> {
-    path: "/teleterm.v1.TerminalService/GetServers";
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetServers";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetServersRequest>;
@@ -125,7 +125,7 @@ interface ITerminalServiceService_IGetServers extends grpc.MethodDefinition<tele
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetServersResponse>;
 }
 interface ITerminalServiceService_IGetAccessRequests extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetAccessRequestsRequest, teleport_lib_teleterm_v1_service_pb.GetAccessRequestsResponse> {
-    path: "/teleterm.v1.TerminalService/GetAccessRequests";
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequests";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetAccessRequestsRequest>;
@@ -134,7 +134,7 @@ interface ITerminalServiceService_IGetAccessRequests extends grpc.MethodDefiniti
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetAccessRequestsResponse>;
 }
 interface ITerminalServiceService_IGetAccessRequest extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetAccessRequestRequest, teleport_lib_teleterm_v1_service_pb.GetAccessRequestResponse> {
-    path: "/teleterm.v1.TerminalService/GetAccessRequest";
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequest";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetAccessRequestRequest>;
@@ -143,7 +143,7 @@ interface ITerminalServiceService_IGetAccessRequest extends grpc.MethodDefinitio
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetAccessRequestResponse>;
 }
 interface ITerminalServiceService_IDeleteAccessRequest extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.DeleteAccessRequestRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse> {
-    path: "/teleterm.v1.TerminalService/DeleteAccessRequest";
+    path: "/teleport.lib.teleterm.v1.TerminalService/DeleteAccessRequest";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.DeleteAccessRequestRequest>;
@@ -152,7 +152,7 @@ interface ITerminalServiceService_IDeleteAccessRequest extends grpc.MethodDefini
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
 }
 interface ITerminalServiceService_ICreateAccessRequest extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.CreateAccessRequestRequest, teleport_lib_teleterm_v1_service_pb.CreateAccessRequestResponse> {
-    path: "/teleterm.v1.TerminalService/CreateAccessRequest";
+    path: "/teleport.lib.teleterm.v1.TerminalService/CreateAccessRequest";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.CreateAccessRequestRequest>;
@@ -161,7 +161,7 @@ interface ITerminalServiceService_ICreateAccessRequest extends grpc.MethodDefini
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.CreateAccessRequestResponse>;
 }
 interface ITerminalServiceService_IReviewAccessRequest extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.ReviewAccessRequestRequest, teleport_lib_teleterm_v1_service_pb.ReviewAccessRequestResponse> {
-    path: "/teleterm.v1.TerminalService/ReviewAccessRequest";
+    path: "/teleport.lib.teleterm.v1.TerminalService/ReviewAccessRequest";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ReviewAccessRequestRequest>;
@@ -170,7 +170,7 @@ interface ITerminalServiceService_IReviewAccessRequest extends grpc.MethodDefini
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ReviewAccessRequestResponse>;
 }
 interface ITerminalServiceService_IGetRequestableRoles extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetRequestableRolesRequest, teleport_lib_teleterm_v1_service_pb.GetRequestableRolesResponse> {
-    path: "/teleterm.v1.TerminalService/GetRequestableRoles";
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetRequestableRoles";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetRequestableRolesRequest>;
@@ -179,7 +179,7 @@ interface ITerminalServiceService_IGetRequestableRoles extends grpc.MethodDefini
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetRequestableRolesResponse>;
 }
 interface ITerminalServiceService_IAssumeRole extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.AssumeRoleRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse> {
-    path: "/teleterm.v1.TerminalService/AssumeRole";
+    path: "/teleport.lib.teleterm.v1.TerminalService/AssumeRole";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.AssumeRoleRequest>;
@@ -188,7 +188,7 @@ interface ITerminalServiceService_IAssumeRole extends grpc.MethodDefinition<tele
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
 }
 interface ITerminalServiceService_IGetAllKubes extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetAllKubesRequest, teleport_lib_teleterm_v1_service_pb.GetAllKubesResponse> {
-    path: "/teleterm.v1.TerminalService/GetAllKubes";
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetAllKubes";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetAllKubesRequest>;
@@ -197,7 +197,7 @@ interface ITerminalServiceService_IGetAllKubes extends grpc.MethodDefinition<tel
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetAllKubesResponse>;
 }
 interface ITerminalServiceService_IGetKubes extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetKubesRequest, teleport_lib_teleterm_v1_service_pb.GetKubesResponse> {
-    path: "/teleterm.v1.TerminalService/GetKubes";
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetKubes";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetKubesRequest>;
@@ -206,7 +206,7 @@ interface ITerminalServiceService_IGetKubes extends grpc.MethodDefinition<telepo
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.GetKubesResponse>;
 }
 interface ITerminalServiceService_IListApps extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.ListAppsRequest, teleport_lib_teleterm_v1_service_pb.ListAppsResponse> {
-    path: "/teleterm.v1.TerminalService/ListApps";
+    path: "/teleport.lib.teleterm.v1.TerminalService/ListApps";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ListAppsRequest>;
@@ -215,7 +215,7 @@ interface ITerminalServiceService_IListApps extends grpc.MethodDefinition<telepo
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListAppsResponse>;
 }
 interface ITerminalServiceService_IAddCluster extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.AddClusterRequest, teleport_lib_teleterm_v1_cluster_pb.Cluster> {
-    path: "/teleterm.v1.TerminalService/AddCluster";
+    path: "/teleport.lib.teleterm.v1.TerminalService/AddCluster";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.AddClusterRequest>;
@@ -224,7 +224,7 @@ interface ITerminalServiceService_IAddCluster extends grpc.MethodDefinition<tele
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_cluster_pb.Cluster>;
 }
 interface ITerminalServiceService_IRemoveCluster extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.RemoveClusterRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse> {
-    path: "/teleterm.v1.TerminalService/RemoveCluster";
+    path: "/teleport.lib.teleterm.v1.TerminalService/RemoveCluster";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.RemoveClusterRequest>;
@@ -233,7 +233,7 @@ interface ITerminalServiceService_IRemoveCluster extends grpc.MethodDefinition<t
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
 }
 interface ITerminalServiceService_IListGateways extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.ListGatewaysRequest, teleport_lib_teleterm_v1_service_pb.ListGatewaysResponse> {
-    path: "/teleterm.v1.TerminalService/ListGateways";
+    path: "/teleport.lib.teleterm.v1.TerminalService/ListGateways";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.ListGatewaysRequest>;
@@ -242,7 +242,7 @@ interface ITerminalServiceService_IListGateways extends grpc.MethodDefinition<te
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.ListGatewaysResponse>;
 }
 interface ITerminalServiceService_ICreateGateway extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.CreateGatewayRequest, teleport_lib_teleterm_v1_gateway_pb.Gateway> {
-    path: "/teleterm.v1.TerminalService/CreateGateway";
+    path: "/teleport.lib.teleterm.v1.TerminalService/CreateGateway";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.CreateGatewayRequest>;
@@ -251,7 +251,7 @@ interface ITerminalServiceService_ICreateGateway extends grpc.MethodDefinition<t
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_gateway_pb.Gateway>;
 }
 interface ITerminalServiceService_IRemoveGateway extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.RemoveGatewayRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse> {
-    path: "/teleterm.v1.TerminalService/RemoveGateway";
+    path: "/teleport.lib.teleterm.v1.TerminalService/RemoveGateway";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.RemoveGatewayRequest>;
@@ -260,7 +260,7 @@ interface ITerminalServiceService_IRemoveGateway extends grpc.MethodDefinition<t
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
 }
 interface ITerminalServiceService_IRestartGateway extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.RestartGatewayRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse> {
-    path: "/teleterm.v1.TerminalService/RestartGateway";
+    path: "/teleport.lib.teleterm.v1.TerminalService/RestartGateway";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.RestartGatewayRequest>;
@@ -269,7 +269,7 @@ interface ITerminalServiceService_IRestartGateway extends grpc.MethodDefinition<
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
 }
 interface ITerminalServiceService_ISetGatewayTargetSubresourceName extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.SetGatewayTargetSubresourceNameRequest, teleport_lib_teleterm_v1_gateway_pb.Gateway> {
-    path: "/teleterm.v1.TerminalService/SetGatewayTargetSubresourceName";
+    path: "/teleport.lib.teleterm.v1.TerminalService/SetGatewayTargetSubresourceName";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.SetGatewayTargetSubresourceNameRequest>;
@@ -278,7 +278,7 @@ interface ITerminalServiceService_ISetGatewayTargetSubresourceName extends grpc.
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_gateway_pb.Gateway>;
 }
 interface ITerminalServiceService_ISetGatewayLocalPort extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.SetGatewayLocalPortRequest, teleport_lib_teleterm_v1_gateway_pb.Gateway> {
-    path: "/teleterm.v1.TerminalService/SetGatewayLocalPort";
+    path: "/teleport.lib.teleterm.v1.TerminalService/SetGatewayLocalPort";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.SetGatewayLocalPortRequest>;
@@ -287,7 +287,7 @@ interface ITerminalServiceService_ISetGatewayLocalPort extends grpc.MethodDefini
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_gateway_pb.Gateway>;
 }
 interface ITerminalServiceService_IGetAuthSettings extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetAuthSettingsRequest, teleport_lib_teleterm_v1_auth_settings_pb.AuthSettings> {
-    path: "/teleterm.v1.TerminalService/GetAuthSettings";
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetAuthSettings";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetAuthSettingsRequest>;
@@ -296,7 +296,7 @@ interface ITerminalServiceService_IGetAuthSettings extends grpc.MethodDefinition
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_auth_settings_pb.AuthSettings>;
 }
 interface ITerminalServiceService_IGetCluster extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.GetClusterRequest, teleport_lib_teleterm_v1_cluster_pb.Cluster> {
-    path: "/teleterm.v1.TerminalService/GetCluster";
+    path: "/teleport.lib.teleterm.v1.TerminalService/GetCluster";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.GetClusterRequest>;
@@ -305,7 +305,7 @@ interface ITerminalServiceService_IGetCluster extends grpc.MethodDefinition<tele
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_cluster_pb.Cluster>;
 }
 interface ITerminalServiceService_ILogin extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.LoginRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse> {
-    path: "/teleterm.v1.TerminalService/Login";
+    path: "/teleport.lib.teleterm.v1.TerminalService/Login";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.LoginRequest>;
@@ -314,7 +314,7 @@ interface ITerminalServiceService_ILogin extends grpc.MethodDefinition<teleport_
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
 }
 interface ITerminalServiceService_ILoginPasswordless extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.LoginPasswordlessRequest, teleport_lib_teleterm_v1_service_pb.LoginPasswordlessResponse> {
-    path: "/teleterm.v1.TerminalService/LoginPasswordless";
+    path: "/teleport.lib.teleterm.v1.TerminalService/LoginPasswordless";
     requestStream: true;
     responseStream: true;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.LoginPasswordlessRequest>;
@@ -323,7 +323,7 @@ interface ITerminalServiceService_ILoginPasswordless extends grpc.MethodDefiniti
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.LoginPasswordlessResponse>;
 }
 interface ITerminalServiceService_ILogout extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.LogoutRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse> {
-    path: "/teleterm.v1.TerminalService/Logout";
+    path: "/teleport.lib.teleterm.v1.TerminalService/Logout";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.LogoutRequest>;
@@ -332,7 +332,7 @@ interface ITerminalServiceService_ILogout extends grpc.MethodDefinition<teleport
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
 }
 interface ITerminalServiceService_ITransferFile extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.FileTransferRequest, teleport_lib_teleterm_v1_service_pb.FileTransferProgress> {
-    path: "/teleterm.v1.TerminalService/TransferFile";
+    path: "/teleport.lib.teleterm.v1.TerminalService/TransferFile";
     requestStream: false;
     responseStream: true;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.FileTransferRequest>;
@@ -341,7 +341,7 @@ interface ITerminalServiceService_ITransferFile extends grpc.MethodDefinition<te
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.FileTransferProgress>;
 }
 interface ITerminalServiceService_IReportUsageEvent extends grpc.MethodDefinition<teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse> {
-    path: "/teleterm.v1.TerminalService/ReportUsageEvent";
+    path: "/teleport.lib.teleterm.v1.TerminalService/ReportUsageEvent";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_usage_events_pb.ReportUsageEventRequest>;

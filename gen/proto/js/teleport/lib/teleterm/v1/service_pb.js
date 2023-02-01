@@ -33,67 +33,67 @@ var teleport_lib_teleterm_v1_server_pb = require('../../../../teleport/lib/telet
 goog.object.extend(proto, teleport_lib_teleterm_v1_server_pb);
 var teleport_lib_teleterm_v1_usage_events_pb = require('../../../../teleport/lib/teleterm/v1/usage_events_pb.js');
 goog.object.extend(proto, teleport_lib_teleterm_v1_usage_events_pb);
-goog.exportSymbol('proto.teleterm.v1.AddClusterRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.AssumeRoleRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.CreateAccessRequestRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.CreateAccessRequestResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.CreateGatewayRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.CredentialInfo', null, global);
-goog.exportSymbol('proto.teleterm.v1.DeleteAccessRequestRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.EmptyResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.FileTransferDirection', null, global);
-goog.exportSymbol('proto.teleterm.v1.FileTransferProgress', null, global);
-goog.exportSymbol('proto.teleterm.v1.FileTransferRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetAccessRequestRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetAccessRequestResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetAccessRequestsRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetAccessRequestsResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetAllDatabasesRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetAllDatabasesResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetAllKubesRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetAllKubesResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetAllServersRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetAllServersResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetAuthSettingsRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetClusterRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetDatabasesRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetDatabasesResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetKubesRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetKubesResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetRequestableRolesRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetRequestableRolesResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetServersRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.GetServersResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.ListAppsRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.ListAppsResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.ListClustersRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.ListClustersResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.ListDatabaseUsersRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.ListDatabaseUsersResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.ListGatewaysRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.ListGatewaysResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.ListLeafClustersRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.LoginPasswordlessRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit', null, global);
-goog.exportSymbol('proto.teleterm.v1.LoginPasswordlessRequest.RequestCase', null, global);
-goog.exportSymbol('proto.teleterm.v1.LoginPasswordlessResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.LoginRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.LoginRequest.LocalParams', null, global);
-goog.exportSymbol('proto.teleterm.v1.LoginRequest.ParamsCase', null, global);
-goog.exportSymbol('proto.teleterm.v1.LoginRequest.SsoParams', null, global);
-goog.exportSymbol('proto.teleterm.v1.LogoutRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.PasswordlessPrompt', null, global);
-goog.exportSymbol('proto.teleterm.v1.RemoveClusterRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.RemoveGatewayRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.RestartGatewayRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.ReviewAccessRequestRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.ReviewAccessRequestResponse', null, global);
-goog.exportSymbol('proto.teleterm.v1.SetGatewayLocalPortRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.UpdateTshdEventsServerAddressRequest', null, global);
-goog.exportSymbol('proto.teleterm.v1.UpdateTshdEventsServerAddressResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.AddClusterRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.AssumeRoleRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.CreateGatewayRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.CredentialInfo', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.EmptyResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.FileTransferDirection', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.FileTransferProgress', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.FileTransferRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetAccessRequestRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetAccessRequestResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetAllKubesRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetAllKubesResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetAllServersRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetAllServersResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetClusterRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetDatabasesRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetDatabasesResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetKubesRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetKubesResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetServersRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.GetServersResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListAppsRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListAppsResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListClustersRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListClustersResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListGatewaysRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListGatewaysResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.ListLeafClustersRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.RequestCase', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginRequest.ParamsCase', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.LogoutRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.PasswordlessPrompt', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.RemoveClusterRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.RemoveGatewayRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.RestartGatewayRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest', null, global);
+goog.exportSymbol('proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse', null, global);
 /**
  * Generated by JsPbCodeGenerator.
  * @param {Array=} opt_data Optional initial data array, typically from a
@@ -104,16 +104,16 @@ goog.exportSymbol('proto.teleterm.v1.UpdateTshdEventsServerAddressResponse', nul
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.EmptyResponse = function(opt_data) {
+proto.teleport.lib.teleterm.v1.EmptyResponse = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.EmptyResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.EmptyResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.EmptyResponse.displayName = 'proto.teleterm.v1.EmptyResponse';
+  proto.teleport.lib.teleterm.v1.EmptyResponse.displayName = 'proto.teleport.lib.teleterm.v1.EmptyResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -125,16 +125,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.RemoveClusterRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.RemoveClusterRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.RemoveClusterRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.RemoveClusterRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.RemoveClusterRequest.displayName = 'proto.teleterm.v1.RemoveClusterRequest';
+  proto.teleport.lib.teleterm.v1.RemoveClusterRequest.displayName = 'proto.teleport.lib.teleterm.v1.RemoveClusterRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -146,16 +146,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetClusterRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.GetClusterRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.GetClusterRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetClusterRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetClusterRequest.displayName = 'proto.teleterm.v1.GetClusterRequest';
+  proto.teleport.lib.teleterm.v1.GetClusterRequest.displayName = 'proto.teleport.lib.teleterm.v1.GetClusterRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -167,16 +167,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.LogoutRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.LogoutRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.LogoutRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.LogoutRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.LogoutRequest.displayName = 'proto.teleterm.v1.LogoutRequest';
+  proto.teleport.lib.teleterm.v1.LogoutRequest.displayName = 'proto.teleport.lib.teleterm.v1.LogoutRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -188,16 +188,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetAccessRequestRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.GetAccessRequestRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetAccessRequestRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetAccessRequestRequest.displayName = 'proto.teleterm.v1.GetAccessRequestRequest';
+  proto.teleport.lib.teleterm.v1.GetAccessRequestRequest.displayName = 'proto.teleport.lib.teleterm.v1.GetAccessRequestRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -209,16 +209,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetAccessRequestsRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.GetAccessRequestsRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetAccessRequestsRequest.displayName = 'proto.teleterm.v1.GetAccessRequestsRequest';
+  proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest.displayName = 'proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -230,16 +230,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetAccessRequestResponse = function(opt_data) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestResponse = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.GetAccessRequestResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetAccessRequestResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetAccessRequestResponse.displayName = 'proto.teleterm.v1.GetAccessRequestResponse';
+  proto.teleport.lib.teleterm.v1.GetAccessRequestResponse.displayName = 'proto.teleport.lib.teleterm.v1.GetAccessRequestResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -251,16 +251,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetAccessRequestsResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.GetAccessRequestsResponse.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.GetAccessRequestsResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetAccessRequestsResponse.displayName = 'proto.teleterm.v1.GetAccessRequestsResponse';
+  proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.displayName = 'proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -272,16 +272,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.DeleteAccessRequestRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.DeleteAccessRequestRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.DeleteAccessRequestRequest.displayName = 'proto.teleterm.v1.DeleteAccessRequestRequest';
+  proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest.displayName = 'proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -293,16 +293,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.CreateAccessRequestRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.CreateAccessRequestRequest.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.CreateAccessRequestRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.CreateAccessRequestRequest.displayName = 'proto.teleterm.v1.CreateAccessRequestRequest';
+  proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.displayName = 'proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -314,16 +314,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.CreateAccessRequestResponse = function(opt_data) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.CreateAccessRequestResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.CreateAccessRequestResponse.displayName = 'proto.teleterm.v1.CreateAccessRequestResponse';
+  proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse.displayName = 'proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -335,16 +335,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.AssumeRoleRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.AssumeRoleRequest.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.AssumeRoleRequest.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.AssumeRoleRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.AssumeRoleRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.AssumeRoleRequest.displayName = 'proto.teleterm.v1.AssumeRoleRequest';
+  proto.teleport.lib.teleterm.v1.AssumeRoleRequest.displayName = 'proto.teleport.lib.teleterm.v1.AssumeRoleRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -356,16 +356,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetRequestableRolesRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.GetRequestableRolesRequest.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.GetRequestableRolesRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetRequestableRolesRequest.displayName = 'proto.teleterm.v1.GetRequestableRolesRequest';
+  proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.displayName = 'proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -377,16 +377,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetRequestableRolesResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.GetRequestableRolesResponse.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.GetRequestableRolesResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetRequestableRolesResponse.displayName = 'proto.teleterm.v1.GetRequestableRolesResponse';
+  proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.displayName = 'proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -398,16 +398,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.ReviewAccessRequestRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.ReviewAccessRequestRequest.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.ReviewAccessRequestRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.ReviewAccessRequestRequest.displayName = 'proto.teleterm.v1.ReviewAccessRequestRequest';
+  proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.displayName = 'proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -419,16 +419,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.ReviewAccessRequestResponse = function(opt_data) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.ReviewAccessRequestResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.ReviewAccessRequestResponse.displayName = 'proto.teleterm.v1.ReviewAccessRequestResponse';
+  proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse.displayName = 'proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -440,16 +440,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.CredentialInfo = function(opt_data) {
+proto.teleport.lib.teleterm.v1.CredentialInfo = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.CredentialInfo, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.CredentialInfo, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.CredentialInfo.displayName = 'proto.teleterm.v1.CredentialInfo';
+  proto.teleport.lib.teleterm.v1.CredentialInfo.displayName = 'proto.teleport.lib.teleterm.v1.CredentialInfo';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -461,16 +461,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.LoginPasswordlessResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.LoginPasswordlessResponse.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.LoginPasswordlessResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.LoginPasswordlessResponse.displayName = 'proto.teleterm.v1.LoginPasswordlessResponse';
+  proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.displayName = 'proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -482,16 +482,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.LoginPasswordlessRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, proto.teleterm.v1.LoginPasswordlessRequest.oneofGroups_);
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.oneofGroups_);
 };
-goog.inherits(proto.teleterm.v1.LoginPasswordlessRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.LoginPasswordlessRequest.displayName = 'proto.teleterm.v1.LoginPasswordlessRequest';
+  proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.displayName = 'proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -503,16 +503,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit = function(opt_data) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.displayName = 'proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit';
+  proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.displayName = 'proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -524,16 +524,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse = function(opt_data) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.displayName = 'proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse';
+  proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.displayName = 'proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -545,16 +545,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse = function(opt_data) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.displayName = 'proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse';
+  proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.displayName = 'proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -566,16 +566,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.FileTransferRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.FileTransferRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.FileTransferRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.FileTransferRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.FileTransferRequest.displayName = 'proto.teleterm.v1.FileTransferRequest';
+  proto.teleport.lib.teleterm.v1.FileTransferRequest.displayName = 'proto.teleport.lib.teleterm.v1.FileTransferRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -587,16 +587,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.FileTransferProgress = function(opt_data) {
+proto.teleport.lib.teleterm.v1.FileTransferProgress = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.FileTransferProgress, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.FileTransferProgress, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.FileTransferProgress.displayName = 'proto.teleterm.v1.FileTransferProgress';
+  proto.teleport.lib.teleterm.v1.FileTransferProgress.displayName = 'proto.teleport.lib.teleterm.v1.FileTransferProgress';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -608,16 +608,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.LoginRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, null, proto.teleterm.v1.LoginRequest.oneofGroups_);
+proto.teleport.lib.teleterm.v1.LoginRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, proto.teleport.lib.teleterm.v1.LoginRequest.oneofGroups_);
 };
-goog.inherits(proto.teleterm.v1.LoginRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.LoginRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.LoginRequest.displayName = 'proto.teleterm.v1.LoginRequest';
+  proto.teleport.lib.teleterm.v1.LoginRequest.displayName = 'proto.teleport.lib.teleterm.v1.LoginRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -629,16 +629,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.LoginRequest.LocalParams = function(opt_data) {
+proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.LoginRequest.LocalParams, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.LoginRequest.LocalParams.displayName = 'proto.teleterm.v1.LoginRequest.LocalParams';
+  proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.displayName = 'proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -650,16 +650,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.LoginRequest.SsoParams = function(opt_data) {
+proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.LoginRequest.SsoParams, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.LoginRequest.SsoParams.displayName = 'proto.teleterm.v1.LoginRequest.SsoParams';
+  proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.displayName = 'proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -671,16 +671,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.AddClusterRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.AddClusterRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.AddClusterRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.AddClusterRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.AddClusterRequest.displayName = 'proto.teleterm.v1.AddClusterRequest';
+  proto.teleport.lib.teleterm.v1.AddClusterRequest.displayName = 'proto.teleport.lib.teleterm.v1.AddClusterRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -692,16 +692,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.ListAppsRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.ListAppsRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.ListAppsRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.ListAppsRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.ListAppsRequest.displayName = 'proto.teleterm.v1.ListAppsRequest';
+  proto.teleport.lib.teleterm.v1.ListAppsRequest.displayName = 'proto.teleport.lib.teleterm.v1.ListAppsRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -713,16 +713,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.ListClustersRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.ListClustersRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.ListClustersRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.ListClustersRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.ListClustersRequest.displayName = 'proto.teleterm.v1.ListClustersRequest';
+  proto.teleport.lib.teleterm.v1.ListClustersRequest.displayName = 'proto.teleport.lib.teleterm.v1.ListClustersRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -734,16 +734,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.ListClustersResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.ListClustersResponse.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.ListClustersResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.ListClustersResponse.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.ListClustersResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.ListClustersResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.ListClustersResponse.displayName = 'proto.teleterm.v1.ListClustersResponse';
+  proto.teleport.lib.teleterm.v1.ListClustersResponse.displayName = 'proto.teleport.lib.teleterm.v1.ListClustersResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -755,16 +755,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetAllDatabasesRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.GetAllDatabasesRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetAllDatabasesRequest.displayName = 'proto.teleterm.v1.GetAllDatabasesRequest';
+  proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest.displayName = 'proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -776,16 +776,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetDatabasesRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.GetDatabasesRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetDatabasesRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetDatabasesRequest.displayName = 'proto.teleterm.v1.GetDatabasesRequest';
+  proto.teleport.lib.teleterm.v1.GetDatabasesRequest.displayName = 'proto.teleport.lib.teleterm.v1.GetDatabasesRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -797,16 +797,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.ListLeafClustersRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.ListLeafClustersRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.ListLeafClustersRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.ListLeafClustersRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.ListLeafClustersRequest.displayName = 'proto.teleterm.v1.ListLeafClustersRequest';
+  proto.teleport.lib.teleterm.v1.ListLeafClustersRequest.displayName = 'proto.teleport.lib.teleterm.v1.ListLeafClustersRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -818,16 +818,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetAllDatabasesResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.GetAllDatabasesResponse.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.GetAllDatabasesResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetAllDatabasesResponse.displayName = 'proto.teleterm.v1.GetAllDatabasesResponse';
+  proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.displayName = 'proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -839,16 +839,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.ListDatabaseUsersRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.ListDatabaseUsersRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.ListDatabaseUsersRequest.displayName = 'proto.teleterm.v1.ListDatabaseUsersRequest';
+  proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest.displayName = 'proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -860,16 +860,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.ListDatabaseUsersResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.ListDatabaseUsersResponse.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.ListDatabaseUsersResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.ListDatabaseUsersResponse.displayName = 'proto.teleterm.v1.ListDatabaseUsersResponse';
+  proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.displayName = 'proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -881,16 +881,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.CreateGatewayRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.CreateGatewayRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.CreateGatewayRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.CreateGatewayRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.CreateGatewayRequest.displayName = 'proto.teleterm.v1.CreateGatewayRequest';
+  proto.teleport.lib.teleterm.v1.CreateGatewayRequest.displayName = 'proto.teleport.lib.teleterm.v1.CreateGatewayRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -902,16 +902,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.ListGatewaysRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.ListGatewaysRequest.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.ListGatewaysRequest = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.ListGatewaysRequest.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.ListGatewaysRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.ListGatewaysRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.ListGatewaysRequest.displayName = 'proto.teleterm.v1.ListGatewaysRequest';
+  proto.teleport.lib.teleterm.v1.ListGatewaysRequest.displayName = 'proto.teleport.lib.teleterm.v1.ListGatewaysRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -923,16 +923,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.ListGatewaysResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.ListGatewaysResponse.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.ListGatewaysResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.ListGatewaysResponse.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.ListGatewaysResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.ListGatewaysResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.ListGatewaysResponse.displayName = 'proto.teleterm.v1.ListGatewaysResponse';
+  proto.teleport.lib.teleterm.v1.ListGatewaysResponse.displayName = 'proto.teleport.lib.teleterm.v1.ListGatewaysResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -944,16 +944,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.RemoveGatewayRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.RemoveGatewayRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.RemoveGatewayRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.RemoveGatewayRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.RemoveGatewayRequest.displayName = 'proto.teleterm.v1.RemoveGatewayRequest';
+  proto.teleport.lib.teleterm.v1.RemoveGatewayRequest.displayName = 'proto.teleport.lib.teleterm.v1.RemoveGatewayRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -965,16 +965,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.RestartGatewayRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.RestartGatewayRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.RestartGatewayRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.RestartGatewayRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.RestartGatewayRequest.displayName = 'proto.teleterm.v1.RestartGatewayRequest';
+  proto.teleport.lib.teleterm.v1.RestartGatewayRequest.displayName = 'proto.teleport.lib.teleterm.v1.RestartGatewayRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -986,16 +986,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.displayName = 'proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest';
+  proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest.displayName = 'proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -1007,16 +1007,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.SetGatewayLocalPortRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.SetGatewayLocalPortRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.SetGatewayLocalPortRequest.displayName = 'proto.teleterm.v1.SetGatewayLocalPortRequest';
+  proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest.displayName = 'proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -1028,16 +1028,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetAllServersRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.GetAllServersRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.GetAllServersRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetAllServersRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetAllServersRequest.displayName = 'proto.teleterm.v1.GetAllServersRequest';
+  proto.teleport.lib.teleterm.v1.GetAllServersRequest.displayName = 'proto.teleport.lib.teleterm.v1.GetAllServersRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -1049,16 +1049,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetAllServersResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.GetAllServersResponse.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.GetAllServersResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.GetAllServersResponse.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.GetAllServersResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetAllServersResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetAllServersResponse.displayName = 'proto.teleterm.v1.GetAllServersResponse';
+  proto.teleport.lib.teleterm.v1.GetAllServersResponse.displayName = 'proto.teleport.lib.teleterm.v1.GetAllServersResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -1070,16 +1070,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetServersRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.GetServersRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.GetServersRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetServersRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetServersRequest.displayName = 'proto.teleterm.v1.GetServersRequest';
+  proto.teleport.lib.teleterm.v1.GetServersRequest.displayName = 'proto.teleport.lib.teleterm.v1.GetServersRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -1091,16 +1091,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetServersResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.GetServersResponse.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.GetServersResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.GetServersResponse.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.GetServersResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetServersResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetServersResponse.displayName = 'proto.teleterm.v1.GetServersResponse';
+  proto.teleport.lib.teleterm.v1.GetServersResponse.displayName = 'proto.teleport.lib.teleterm.v1.GetServersResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -1112,16 +1112,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetDatabasesResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.GetDatabasesResponse.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.GetDatabasesResponse.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.GetDatabasesResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetDatabasesResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetDatabasesResponse.displayName = 'proto.teleterm.v1.GetDatabasesResponse';
+  proto.teleport.lib.teleterm.v1.GetDatabasesResponse.displayName = 'proto.teleport.lib.teleterm.v1.GetDatabasesResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -1133,16 +1133,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetAllKubesRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.GetAllKubesRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.GetAllKubesRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetAllKubesRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetAllKubesRequest.displayName = 'proto.teleterm.v1.GetAllKubesRequest';
+  proto.teleport.lib.teleterm.v1.GetAllKubesRequest.displayName = 'proto.teleport.lib.teleterm.v1.GetAllKubesRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -1154,16 +1154,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetAllKubesResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.GetAllKubesResponse.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.GetAllKubesResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.GetAllKubesResponse.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.GetAllKubesResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetAllKubesResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetAllKubesResponse.displayName = 'proto.teleterm.v1.GetAllKubesResponse';
+  proto.teleport.lib.teleterm.v1.GetAllKubesResponse.displayName = 'proto.teleport.lib.teleterm.v1.GetAllKubesResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -1175,16 +1175,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetKubesRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.GetKubesRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.GetKubesRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetKubesRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetKubesRequest.displayName = 'proto.teleterm.v1.GetKubesRequest';
+  proto.teleport.lib.teleterm.v1.GetKubesRequest.displayName = 'proto.teleport.lib.teleterm.v1.GetKubesRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -1196,16 +1196,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetKubesResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.GetKubesResponse.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.GetKubesResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.GetKubesResponse.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.GetKubesResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetKubesResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetKubesResponse.displayName = 'proto.teleterm.v1.GetKubesResponse';
+  proto.teleport.lib.teleterm.v1.GetKubesResponse.displayName = 'proto.teleport.lib.teleterm.v1.GetKubesResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -1217,16 +1217,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.ListAppsResponse = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleterm.v1.ListAppsResponse.repeatedFields_, null);
+proto.teleport.lib.teleterm.v1.ListAppsResponse = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.ListAppsResponse.repeatedFields_, null);
 };
-goog.inherits(proto.teleterm.v1.ListAppsResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.ListAppsResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.ListAppsResponse.displayName = 'proto.teleterm.v1.ListAppsResponse';
+  proto.teleport.lib.teleterm.v1.ListAppsResponse.displayName = 'proto.teleport.lib.teleterm.v1.ListAppsResponse';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -1238,16 +1238,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.GetAuthSettingsRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.GetAuthSettingsRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.GetAuthSettingsRequest.displayName = 'proto.teleterm.v1.GetAuthSettingsRequest';
+  proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest.displayName = 'proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -1259,16 +1259,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressRequest = function(opt_data) {
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.UpdateTshdEventsServerAddressRequest, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.displayName = 'proto.teleterm.v1.UpdateTshdEventsServerAddressRequest';
+  proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest.displayName = 'proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -1280,16 +1280,16 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressResponse = function(opt_data) {
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
-goog.inherits(proto.teleterm.v1.UpdateTshdEventsServerAddressResponse, jspb.Message);
+goog.inherits(proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
   /**
    * @public
    * @override
    */
-  proto.teleterm.v1.UpdateTshdEventsServerAddressResponse.displayName = 'proto.teleterm.v1.UpdateTshdEventsServerAddressResponse';
+  proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse.displayName = 'proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse';
 }
 
 
@@ -1307,8 +1307,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.EmptyResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.EmptyResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.EmptyResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.EmptyResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -1317,11 +1317,11 @@ proto.teleterm.v1.EmptyResponse.prototype.toObject = function(opt_includeInstanc
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.EmptyResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.EmptyResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.EmptyResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.EmptyResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
 
   };
@@ -1337,23 +1337,23 @@ proto.teleterm.v1.EmptyResponse.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.EmptyResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.EmptyResponse}
  */
-proto.teleterm.v1.EmptyResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.EmptyResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.EmptyResponse;
-  return proto.teleterm.v1.EmptyResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.EmptyResponse;
+  return proto.teleport.lib.teleterm.v1.EmptyResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.EmptyResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.EmptyResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.EmptyResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.EmptyResponse}
  */
-proto.teleterm.v1.EmptyResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.EmptyResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -1373,9 +1373,9 @@ proto.teleterm.v1.EmptyResponse.deserializeBinaryFromReader = function(msg, read
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.EmptyResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.EmptyResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.EmptyResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.EmptyResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -1383,11 +1383,11 @@ proto.teleterm.v1.EmptyResponse.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.EmptyResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.EmptyResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.EmptyResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.EmptyResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
 };
 
@@ -1408,8 +1408,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.RemoveClusterRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.RemoveClusterRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.RemoveClusterRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.RemoveClusterRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -1418,11 +1418,11 @@ proto.teleterm.v1.RemoveClusterRequest.prototype.toObject = function(opt_include
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.RemoveClusterRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.RemoveClusterRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.RemoveClusterRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.RemoveClusterRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -1438,23 +1438,23 @@ proto.teleterm.v1.RemoveClusterRequest.toObject = function(includeInstance, msg)
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.RemoveClusterRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.RemoveClusterRequest}
  */
-proto.teleterm.v1.RemoveClusterRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.RemoveClusterRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.RemoveClusterRequest;
-  return proto.teleterm.v1.RemoveClusterRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.RemoveClusterRequest;
+  return proto.teleport.lib.teleterm.v1.RemoveClusterRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.RemoveClusterRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.RemoveClusterRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.RemoveClusterRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.RemoveClusterRequest}
  */
-proto.teleterm.v1.RemoveClusterRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.RemoveClusterRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -1478,9 +1478,9 @@ proto.teleterm.v1.RemoveClusterRequest.deserializeBinaryFromReader = function(ms
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.RemoveClusterRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.RemoveClusterRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.RemoveClusterRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.RemoveClusterRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -1488,11 +1488,11 @@ proto.teleterm.v1.RemoveClusterRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.RemoveClusterRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.RemoveClusterRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.RemoveClusterRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.RemoveClusterRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -1508,16 +1508,16 @@ proto.teleterm.v1.RemoveClusterRequest.serializeBinaryToWriter = function(messag
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.RemoveClusterRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.RemoveClusterRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.RemoveClusterRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.RemoveClusterRequest} returns this
  */
-proto.teleterm.v1.RemoveClusterRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.RemoveClusterRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -1538,8 +1538,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetClusterRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetClusterRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetClusterRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetClusterRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -1548,11 +1548,11 @@ proto.teleterm.v1.GetClusterRequest.prototype.toObject = function(opt_includeIns
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetClusterRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetClusterRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetClusterRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetClusterRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -1568,23 +1568,23 @@ proto.teleterm.v1.GetClusterRequest.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetClusterRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetClusterRequest}
  */
-proto.teleterm.v1.GetClusterRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetClusterRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetClusterRequest;
-  return proto.teleterm.v1.GetClusterRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetClusterRequest;
+  return proto.teleport.lib.teleterm.v1.GetClusterRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetClusterRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetClusterRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetClusterRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetClusterRequest}
  */
-proto.teleterm.v1.GetClusterRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetClusterRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -1608,9 +1608,9 @@ proto.teleterm.v1.GetClusterRequest.deserializeBinaryFromReader = function(msg, 
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetClusterRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetClusterRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetClusterRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetClusterRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -1618,11 +1618,11 @@ proto.teleterm.v1.GetClusterRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetClusterRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetClusterRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetClusterRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetClusterRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -1638,16 +1638,16 @@ proto.teleterm.v1.GetClusterRequest.serializeBinaryToWriter = function(message, 
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.GetClusterRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.GetClusterRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetClusterRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetClusterRequest} returns this
  */
-proto.teleterm.v1.GetClusterRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.GetClusterRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -1668,8 +1668,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.LogoutRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.LogoutRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.LogoutRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.LogoutRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -1678,11 +1678,11 @@ proto.teleterm.v1.LogoutRequest.prototype.toObject = function(opt_includeInstanc
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.LogoutRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.LogoutRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LogoutRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.LogoutRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -1698,23 +1698,23 @@ proto.teleterm.v1.LogoutRequest.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.LogoutRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.LogoutRequest}
  */
-proto.teleterm.v1.LogoutRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.LogoutRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.LogoutRequest;
-  return proto.teleterm.v1.LogoutRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.LogoutRequest;
+  return proto.teleport.lib.teleterm.v1.LogoutRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.LogoutRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.LogoutRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.LogoutRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.LogoutRequest}
  */
-proto.teleterm.v1.LogoutRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.LogoutRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -1738,9 +1738,9 @@ proto.teleterm.v1.LogoutRequest.deserializeBinaryFromReader = function(msg, read
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.LogoutRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.LogoutRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.LogoutRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.LogoutRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -1748,11 +1748,11 @@ proto.teleterm.v1.LogoutRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.LogoutRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.LogoutRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LogoutRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.LogoutRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -1768,16 +1768,16 @@ proto.teleterm.v1.LogoutRequest.serializeBinaryToWriter = function(message, writ
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.LogoutRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.LogoutRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.LogoutRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LogoutRequest} returns this
  */
-proto.teleterm.v1.LogoutRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.LogoutRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -1798,8 +1798,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetAccessRequestRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetAccessRequestRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetAccessRequestRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetAccessRequestRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -1808,11 +1808,11 @@ proto.teleterm.v1.GetAccessRequestRequest.prototype.toObject = function(opt_incl
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetAccessRequestRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAccessRequestRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAccessRequestRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
     accessRequestId: jspb.Message.getFieldWithDefault(msg, 2, "")
@@ -1829,23 +1829,23 @@ proto.teleterm.v1.GetAccessRequestRequest.toObject = function(includeInstance, m
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetAccessRequestRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAccessRequestRequest}
  */
-proto.teleterm.v1.GetAccessRequestRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetAccessRequestRequest;
-  return proto.teleterm.v1.GetAccessRequestRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetAccessRequestRequest;
+  return proto.teleport.lib.teleterm.v1.GetAccessRequestRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetAccessRequestRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAccessRequestRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetAccessRequestRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAccessRequestRequest}
  */
-proto.teleterm.v1.GetAccessRequestRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -1873,9 +1873,9 @@ proto.teleterm.v1.GetAccessRequestRequest.deserializeBinaryFromReader = function
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetAccessRequestRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetAccessRequestRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetAccessRequestRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetAccessRequestRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -1883,11 +1883,11 @@ proto.teleterm.v1.GetAccessRequestRequest.prototype.serializeBinary = function()
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetAccessRequestRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetAccessRequestRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAccessRequestRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -1910,16 +1910,16 @@ proto.teleterm.v1.GetAccessRequestRequest.serializeBinaryToWriter = function(mes
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.GetAccessRequestRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.GetAccessRequestRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetAccessRequestRequest} returns this
  */
-proto.teleterm.v1.GetAccessRequestRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -1928,16 +1928,16 @@ proto.teleterm.v1.GetAccessRequestRequest.prototype.setClusterUri = function(val
  * optional string access_request_id = 2;
  * @return {string}
  */
-proto.teleterm.v1.GetAccessRequestRequest.prototype.getAccessRequestId = function() {
+proto.teleport.lib.teleterm.v1.GetAccessRequestRequest.prototype.getAccessRequestId = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetAccessRequestRequest} returns this
  */
-proto.teleterm.v1.GetAccessRequestRequest.prototype.setAccessRequestId = function(value) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestRequest.prototype.setAccessRequestId = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -1958,8 +1958,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetAccessRequestsRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetAccessRequestsRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -1968,11 +1968,11 @@ proto.teleterm.v1.GetAccessRequestsRequest.prototype.toObject = function(opt_inc
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetAccessRequestsRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAccessRequestsRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -1988,23 +1988,23 @@ proto.teleterm.v1.GetAccessRequestsRequest.toObject = function(includeInstance, 
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetAccessRequestsRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest}
  */
-proto.teleterm.v1.GetAccessRequestsRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetAccessRequestsRequest;
-  return proto.teleterm.v1.GetAccessRequestsRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest;
+  return proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetAccessRequestsRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetAccessRequestsRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest}
  */
-proto.teleterm.v1.GetAccessRequestsRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -2028,9 +2028,9 @@ proto.teleterm.v1.GetAccessRequestsRequest.deserializeBinaryFromReader = functio
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetAccessRequestsRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetAccessRequestsRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -2038,11 +2038,11 @@ proto.teleterm.v1.GetAccessRequestsRequest.prototype.serializeBinary = function(
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetAccessRequestsRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAccessRequestsRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -2058,16 +2058,16 @@ proto.teleterm.v1.GetAccessRequestsRequest.serializeBinaryToWriter = function(me
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.GetAccessRequestsRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetAccessRequestsRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest} returns this
  */
-proto.teleterm.v1.GetAccessRequestsRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestsRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -2088,8 +2088,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetAccessRequestResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetAccessRequestResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetAccessRequestResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetAccessRequestResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -2098,11 +2098,11 @@ proto.teleterm.v1.GetAccessRequestResponse.prototype.toObject = function(opt_inc
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetAccessRequestResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAccessRequestResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAccessRequestResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     request: (f = msg.getRequest()) && teleport_lib_teleterm_v1_access_request_pb.AccessRequest.toObject(includeInstance, f)
   };
@@ -2118,23 +2118,23 @@ proto.teleterm.v1.GetAccessRequestResponse.toObject = function(includeInstance, 
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetAccessRequestResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAccessRequestResponse}
  */
-proto.teleterm.v1.GetAccessRequestResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetAccessRequestResponse;
-  return proto.teleterm.v1.GetAccessRequestResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetAccessRequestResponse;
+  return proto.teleport.lib.teleterm.v1.GetAccessRequestResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetAccessRequestResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAccessRequestResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetAccessRequestResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAccessRequestResponse}
  */
-proto.teleterm.v1.GetAccessRequestResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -2159,9 +2159,9 @@ proto.teleterm.v1.GetAccessRequestResponse.deserializeBinaryFromReader = functio
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetAccessRequestResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetAccessRequestResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetAccessRequestResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetAccessRequestResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -2169,11 +2169,11 @@ proto.teleterm.v1.GetAccessRequestResponse.prototype.serializeBinary = function(
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetAccessRequestResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetAccessRequestResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAccessRequestResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getRequest();
   if (f != null) {
@@ -2188,28 +2188,28 @@ proto.teleterm.v1.GetAccessRequestResponse.serializeBinaryToWriter = function(me
 
 /**
  * optional AccessRequest request = 1;
- * @return {?proto.teleterm.v1.AccessRequest}
+ * @return {?proto.teleport.lib.teleterm.v1.AccessRequest}
  */
-proto.teleterm.v1.GetAccessRequestResponse.prototype.getRequest = function() {
-  return /** @type{?proto.teleterm.v1.AccessRequest} */ (
+proto.teleport.lib.teleterm.v1.GetAccessRequestResponse.prototype.getRequest = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.AccessRequest} */ (
     jspb.Message.getWrapperField(this, teleport_lib_teleterm_v1_access_request_pb.AccessRequest, 1));
 };
 
 
 /**
- * @param {?proto.teleterm.v1.AccessRequest|undefined} value
- * @return {!proto.teleterm.v1.GetAccessRequestResponse} returns this
+ * @param {?proto.teleport.lib.teleterm.v1.AccessRequest|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.GetAccessRequestResponse} returns this
 */
-proto.teleterm.v1.GetAccessRequestResponse.prototype.setRequest = function(value) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestResponse.prototype.setRequest = function(value) {
   return jspb.Message.setWrapperField(this, 1, value);
 };
 
 
 /**
  * Clears the message field making it undefined.
- * @return {!proto.teleterm.v1.GetAccessRequestResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetAccessRequestResponse} returns this
  */
-proto.teleterm.v1.GetAccessRequestResponse.prototype.clearRequest = function() {
+proto.teleport.lib.teleterm.v1.GetAccessRequestResponse.prototype.clearRequest = function() {
   return this.setRequest(undefined);
 };
 
@@ -2218,7 +2218,7 @@ proto.teleterm.v1.GetAccessRequestResponse.prototype.clearRequest = function() {
  * Returns whether this field is set.
  * @return {boolean}
  */
-proto.teleterm.v1.GetAccessRequestResponse.prototype.hasRequest = function() {
+proto.teleport.lib.teleterm.v1.GetAccessRequestResponse.prototype.hasRequest = function() {
   return jspb.Message.getField(this, 1) != null;
 };
 
@@ -2229,7 +2229,7 @@ proto.teleterm.v1.GetAccessRequestResponse.prototype.hasRequest = function() {
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.GetAccessRequestsResponse.repeatedFields_ = [1];
+proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.repeatedFields_ = [1];
 
 
 
@@ -2246,8 +2246,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetAccessRequestsResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetAccessRequestsResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -2256,11 +2256,11 @@ proto.teleterm.v1.GetAccessRequestsResponse.prototype.toObject = function(opt_in
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetAccessRequestsResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAccessRequestsResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     requestsList: jspb.Message.toObjectList(msg.getRequestsList(),
     teleport_lib_teleterm_v1_access_request_pb.AccessRequest.toObject, includeInstance)
@@ -2277,23 +2277,23 @@ proto.teleterm.v1.GetAccessRequestsResponse.toObject = function(includeInstance,
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetAccessRequestsResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse}
  */
-proto.teleterm.v1.GetAccessRequestsResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetAccessRequestsResponse;
-  return proto.teleterm.v1.GetAccessRequestsResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse;
+  return proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetAccessRequestsResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetAccessRequestsResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse}
  */
-proto.teleterm.v1.GetAccessRequestsResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -2318,9 +2318,9 @@ proto.teleterm.v1.GetAccessRequestsResponse.deserializeBinaryFromReader = functi
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetAccessRequestsResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetAccessRequestsResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -2328,11 +2328,11 @@ proto.teleterm.v1.GetAccessRequestsResponse.prototype.serializeBinary = function
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetAccessRequestsResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAccessRequestsResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getRequestsList();
   if (f.length > 0) {
@@ -2347,38 +2347,38 @@ proto.teleterm.v1.GetAccessRequestsResponse.serializeBinaryToWriter = function(m
 
 /**
  * repeated AccessRequest requests = 1;
- * @return {!Array<!proto.teleterm.v1.AccessRequest>}
+ * @return {!Array<!proto.teleport.lib.teleterm.v1.AccessRequest>}
  */
-proto.teleterm.v1.GetAccessRequestsResponse.prototype.getRequestsList = function() {
-  return /** @type{!Array<!proto.teleterm.v1.AccessRequest>} */ (
+proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.prototype.getRequestsList = function() {
+  return /** @type{!Array<!proto.teleport.lib.teleterm.v1.AccessRequest>} */ (
     jspb.Message.getRepeatedWrapperField(this, teleport_lib_teleterm_v1_access_request_pb.AccessRequest, 1));
 };
 
 
 /**
- * @param {!Array<!proto.teleterm.v1.AccessRequest>} value
- * @return {!proto.teleterm.v1.GetAccessRequestsResponse} returns this
+ * @param {!Array<!proto.teleport.lib.teleterm.v1.AccessRequest>} value
+ * @return {!proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse} returns this
 */
-proto.teleterm.v1.GetAccessRequestsResponse.prototype.setRequestsList = function(value) {
+proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.prototype.setRequestsList = function(value) {
   return jspb.Message.setRepeatedWrapperField(this, 1, value);
 };
 
 
 /**
- * @param {!proto.teleterm.v1.AccessRequest=} opt_value
+ * @param {!proto.teleport.lib.teleterm.v1.AccessRequest=} opt_value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.AccessRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.AccessRequest}
  */
-proto.teleterm.v1.GetAccessRequestsResponse.prototype.addRequests = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleterm.v1.AccessRequest, opt_index);
+proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.prototype.addRequests = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleport.lib.teleterm.v1.AccessRequest, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.GetAccessRequestsResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse} returns this
  */
-proto.teleterm.v1.GetAccessRequestsResponse.prototype.clearRequestsList = function() {
+proto.teleport.lib.teleterm.v1.GetAccessRequestsResponse.prototype.clearRequestsList = function() {
   return this.setRequestsList([]);
 };
 
@@ -2399,8 +2399,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.DeleteAccessRequestRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.DeleteAccessRequestRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -2409,11 +2409,11 @@ proto.teleterm.v1.DeleteAccessRequestRequest.prototype.toObject = function(opt_i
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.DeleteAccessRequestRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.DeleteAccessRequestRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     rootClusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
     accessRequestId: jspb.Message.getFieldWithDefault(msg, 2, "")
@@ -2430,23 +2430,23 @@ proto.teleterm.v1.DeleteAccessRequestRequest.toObject = function(includeInstance
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.DeleteAccessRequestRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest}
  */
-proto.teleterm.v1.DeleteAccessRequestRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.DeleteAccessRequestRequest;
-  return proto.teleterm.v1.DeleteAccessRequestRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest;
+  return proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.DeleteAccessRequestRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.DeleteAccessRequestRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest}
  */
-proto.teleterm.v1.DeleteAccessRequestRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -2474,9 +2474,9 @@ proto.teleterm.v1.DeleteAccessRequestRequest.deserializeBinaryFromReader = funct
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.DeleteAccessRequestRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.DeleteAccessRequestRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -2484,11 +2484,11 @@ proto.teleterm.v1.DeleteAccessRequestRequest.prototype.serializeBinary = functio
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.DeleteAccessRequestRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.DeleteAccessRequestRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getRootClusterUri();
   if (f.length > 0) {
@@ -2511,16 +2511,16 @@ proto.teleterm.v1.DeleteAccessRequestRequest.serializeBinaryToWriter = function(
  * optional string root_cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.DeleteAccessRequestRequest.prototype.getRootClusterUri = function() {
+proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest.prototype.getRootClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.DeleteAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest} returns this
  */
-proto.teleterm.v1.DeleteAccessRequestRequest.prototype.setRootClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest.prototype.setRootClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -2529,16 +2529,16 @@ proto.teleterm.v1.DeleteAccessRequestRequest.prototype.setRootClusterUri = funct
  * optional string access_request_id = 2;
  * @return {string}
  */
-proto.teleterm.v1.DeleteAccessRequestRequest.prototype.getAccessRequestId = function() {
+proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest.prototype.getAccessRequestId = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.DeleteAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest} returns this
  */
-proto.teleterm.v1.DeleteAccessRequestRequest.prototype.setAccessRequestId = function(value) {
+proto.teleport.lib.teleterm.v1.DeleteAccessRequestRequest.prototype.setAccessRequestId = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -2549,7 +2549,7 @@ proto.teleterm.v1.DeleteAccessRequestRequest.prototype.setAccessRequestId = func
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.CreateAccessRequestRequest.repeatedFields_ = [3,4,5];
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.repeatedFields_ = [3,4,5];
 
 
 
@@ -2566,8 +2566,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.CreateAccessRequestRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -2576,11 +2576,11 @@ proto.teleterm.v1.CreateAccessRequestRequest.prototype.toObject = function(opt_i
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.CreateAccessRequestRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.CreateAccessRequestRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     rootClusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
     reason: jspb.Message.getFieldWithDefault(msg, 2, ""),
@@ -2601,23 +2601,23 @@ proto.teleterm.v1.CreateAccessRequestRequest.toObject = function(includeInstance
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.CreateAccessRequestRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest}
  */
-proto.teleterm.v1.CreateAccessRequestRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.CreateAccessRequestRequest;
-  return proto.teleterm.v1.CreateAccessRequestRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest;
+  return proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.CreateAccessRequestRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.CreateAccessRequestRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest}
  */
-proto.teleterm.v1.CreateAccessRequestRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -2658,9 +2658,9 @@ proto.teleterm.v1.CreateAccessRequestRequest.deserializeBinaryFromReader = funct
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.CreateAccessRequestRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -2668,11 +2668,11 @@ proto.teleterm.v1.CreateAccessRequestRequest.prototype.serializeBinary = functio
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.CreateAccessRequestRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.CreateAccessRequestRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getRootClusterUri();
   if (f.length > 0) {
@@ -2717,16 +2717,16 @@ proto.teleterm.v1.CreateAccessRequestRequest.serializeBinaryToWriter = function(
  * optional string root_cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.getRootClusterUri = function() {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.getRootClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.CreateAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest} returns this
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.setRootClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.setRootClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -2735,16 +2735,16 @@ proto.teleterm.v1.CreateAccessRequestRequest.prototype.setRootClusterUri = funct
  * optional string reason = 2;
  * @return {string}
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.getReason = function() {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.getReason = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.CreateAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest} returns this
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.setReason = function(value) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.setReason = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -2753,16 +2753,16 @@ proto.teleterm.v1.CreateAccessRequestRequest.prototype.setReason = function(valu
  * repeated string roles = 3;
  * @return {!Array<string>}
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.getRolesList = function() {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.getRolesList = function() {
   return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 3));
 };
 
 
 /**
  * @param {!Array<string>} value
- * @return {!proto.teleterm.v1.CreateAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest} returns this
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.setRolesList = function(value) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.setRolesList = function(value) {
   return jspb.Message.setField(this, 3, value || []);
 };
 
@@ -2770,18 +2770,18 @@ proto.teleterm.v1.CreateAccessRequestRequest.prototype.setRolesList = function(v
 /**
  * @param {string} value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.CreateAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest} returns this
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.addRoles = function(value, opt_index) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.addRoles = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 3, value, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.CreateAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest} returns this
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.clearRolesList = function() {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.clearRolesList = function() {
   return this.setRolesList([]);
 };
 
@@ -2790,16 +2790,16 @@ proto.teleterm.v1.CreateAccessRequestRequest.prototype.clearRolesList = function
  * repeated string suggested_reviewers = 4;
  * @return {!Array<string>}
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.getSuggestedReviewersList = function() {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.getSuggestedReviewersList = function() {
   return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
 };
 
 
 /**
  * @param {!Array<string>} value
- * @return {!proto.teleterm.v1.CreateAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest} returns this
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.setSuggestedReviewersList = function(value) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.setSuggestedReviewersList = function(value) {
   return jspb.Message.setField(this, 4, value || []);
 };
 
@@ -2807,56 +2807,56 @@ proto.teleterm.v1.CreateAccessRequestRequest.prototype.setSuggestedReviewersList
 /**
  * @param {string} value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.CreateAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest} returns this
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.addSuggestedReviewers = function(value, opt_index) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.addSuggestedReviewers = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.CreateAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest} returns this
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.clearSuggestedReviewersList = function() {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.clearSuggestedReviewersList = function() {
   return this.setSuggestedReviewersList([]);
 };
 
 
 /**
  * repeated ResourceID resource_ids = 5;
- * @return {!Array<!proto.teleterm.v1.ResourceID>}
+ * @return {!Array<!proto.teleport.lib.teleterm.v1.ResourceID>}
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.getResourceIdsList = function() {
-  return /** @type{!Array<!proto.teleterm.v1.ResourceID>} */ (
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.getResourceIdsList = function() {
+  return /** @type{!Array<!proto.teleport.lib.teleterm.v1.ResourceID>} */ (
     jspb.Message.getRepeatedWrapperField(this, teleport_lib_teleterm_v1_access_request_pb.ResourceID, 5));
 };
 
 
 /**
- * @param {!Array<!proto.teleterm.v1.ResourceID>} value
- * @return {!proto.teleterm.v1.CreateAccessRequestRequest} returns this
+ * @param {!Array<!proto.teleport.lib.teleterm.v1.ResourceID>} value
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest} returns this
 */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.setResourceIdsList = function(value) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.setResourceIdsList = function(value) {
   return jspb.Message.setRepeatedWrapperField(this, 5, value);
 };
 
 
 /**
- * @param {!proto.teleterm.v1.ResourceID=} opt_value
+ * @param {!proto.teleport.lib.teleterm.v1.ResourceID=} opt_value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.ResourceID}
+ * @return {!proto.teleport.lib.teleterm.v1.ResourceID}
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.addResourceIds = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 5, opt_value, proto.teleterm.v1.ResourceID, opt_index);
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.addResourceIds = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 5, opt_value, proto.teleport.lib.teleterm.v1.ResourceID, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.CreateAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest} returns this
  */
-proto.teleterm.v1.CreateAccessRequestRequest.prototype.clearResourceIdsList = function() {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestRequest.prototype.clearResourceIdsList = function() {
   return this.setResourceIdsList([]);
 };
 
@@ -2877,8 +2877,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.CreateAccessRequestResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.CreateAccessRequestResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -2887,11 +2887,11 @@ proto.teleterm.v1.CreateAccessRequestResponse.prototype.toObject = function(opt_
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.CreateAccessRequestResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.CreateAccessRequestResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     request: (f = msg.getRequest()) && teleport_lib_teleterm_v1_access_request_pb.AccessRequest.toObject(includeInstance, f)
   };
@@ -2907,23 +2907,23 @@ proto.teleterm.v1.CreateAccessRequestResponse.toObject = function(includeInstanc
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.CreateAccessRequestResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse}
  */
-proto.teleterm.v1.CreateAccessRequestResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.CreateAccessRequestResponse;
-  return proto.teleterm.v1.CreateAccessRequestResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse;
+  return proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.CreateAccessRequestResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.CreateAccessRequestResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse}
  */
-proto.teleterm.v1.CreateAccessRequestResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -2948,9 +2948,9 @@ proto.teleterm.v1.CreateAccessRequestResponse.deserializeBinaryFromReader = func
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.CreateAccessRequestResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.CreateAccessRequestResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -2958,11 +2958,11 @@ proto.teleterm.v1.CreateAccessRequestResponse.prototype.serializeBinary = functi
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.CreateAccessRequestResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.CreateAccessRequestResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getRequest();
   if (f != null) {
@@ -2977,28 +2977,28 @@ proto.teleterm.v1.CreateAccessRequestResponse.serializeBinaryToWriter = function
 
 /**
  * optional AccessRequest request = 1;
- * @return {?proto.teleterm.v1.AccessRequest}
+ * @return {?proto.teleport.lib.teleterm.v1.AccessRequest}
  */
-proto.teleterm.v1.CreateAccessRequestResponse.prototype.getRequest = function() {
-  return /** @type{?proto.teleterm.v1.AccessRequest} */ (
+proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse.prototype.getRequest = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.AccessRequest} */ (
     jspb.Message.getWrapperField(this, teleport_lib_teleterm_v1_access_request_pb.AccessRequest, 1));
 };
 
 
 /**
- * @param {?proto.teleterm.v1.AccessRequest|undefined} value
- * @return {!proto.teleterm.v1.CreateAccessRequestResponse} returns this
+ * @param {?proto.teleport.lib.teleterm.v1.AccessRequest|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse} returns this
 */
-proto.teleterm.v1.CreateAccessRequestResponse.prototype.setRequest = function(value) {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse.prototype.setRequest = function(value) {
   return jspb.Message.setWrapperField(this, 1, value);
 };
 
 
 /**
  * Clears the message field making it undefined.
- * @return {!proto.teleterm.v1.CreateAccessRequestResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse} returns this
  */
-proto.teleterm.v1.CreateAccessRequestResponse.prototype.clearRequest = function() {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse.prototype.clearRequest = function() {
   return this.setRequest(undefined);
 };
 
@@ -3007,7 +3007,7 @@ proto.teleterm.v1.CreateAccessRequestResponse.prototype.clearRequest = function(
  * Returns whether this field is set.
  * @return {boolean}
  */
-proto.teleterm.v1.CreateAccessRequestResponse.prototype.hasRequest = function() {
+proto.teleport.lib.teleterm.v1.CreateAccessRequestResponse.prototype.hasRequest = function() {
   return jspb.Message.getField(this, 1) != null;
 };
 
@@ -3018,7 +3018,7 @@ proto.teleterm.v1.CreateAccessRequestResponse.prototype.hasRequest = function() 
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.AssumeRoleRequest.repeatedFields_ = [2,3];
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.repeatedFields_ = [2,3];
 
 
 
@@ -3035,8 +3035,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.AssumeRoleRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.AssumeRoleRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.AssumeRoleRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -3045,11 +3045,11 @@ proto.teleterm.v1.AssumeRoleRequest.prototype.toObject = function(opt_includeIns
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.AssumeRoleRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.AssumeRoleRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.AssumeRoleRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     rootClusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
     accessRequestIdsList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f,
@@ -3067,23 +3067,23 @@ proto.teleterm.v1.AssumeRoleRequest.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.AssumeRoleRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.AssumeRoleRequest}
  */
-proto.teleterm.v1.AssumeRoleRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.AssumeRoleRequest;
-  return proto.teleterm.v1.AssumeRoleRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.AssumeRoleRequest;
+  return proto.teleport.lib.teleterm.v1.AssumeRoleRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.AssumeRoleRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.AssumeRoleRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.AssumeRoleRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.AssumeRoleRequest}
  */
-proto.teleterm.v1.AssumeRoleRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -3115,9 +3115,9 @@ proto.teleterm.v1.AssumeRoleRequest.deserializeBinaryFromReader = function(msg, 
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.AssumeRoleRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.AssumeRoleRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.AssumeRoleRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -3125,11 +3125,11 @@ proto.teleterm.v1.AssumeRoleRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.AssumeRoleRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.AssumeRoleRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.AssumeRoleRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getRootClusterUri();
   if (f.length > 0) {
@@ -3159,16 +3159,16 @@ proto.teleterm.v1.AssumeRoleRequest.serializeBinaryToWriter = function(message, 
  * optional string root_cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.AssumeRoleRequest.prototype.getRootClusterUri = function() {
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.prototype.getRootClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.AssumeRoleRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.AssumeRoleRequest} returns this
  */
-proto.teleterm.v1.AssumeRoleRequest.prototype.setRootClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.prototype.setRootClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -3177,16 +3177,16 @@ proto.teleterm.v1.AssumeRoleRequest.prototype.setRootClusterUri = function(value
  * repeated string access_request_ids = 2;
  * @return {!Array<string>}
  */
-proto.teleterm.v1.AssumeRoleRequest.prototype.getAccessRequestIdsList = function() {
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.prototype.getAccessRequestIdsList = function() {
   return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 2));
 };
 
 
 /**
  * @param {!Array<string>} value
- * @return {!proto.teleterm.v1.AssumeRoleRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.AssumeRoleRequest} returns this
  */
-proto.teleterm.v1.AssumeRoleRequest.prototype.setAccessRequestIdsList = function(value) {
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.prototype.setAccessRequestIdsList = function(value) {
   return jspb.Message.setField(this, 2, value || []);
 };
 
@@ -3194,18 +3194,18 @@ proto.teleterm.v1.AssumeRoleRequest.prototype.setAccessRequestIdsList = function
 /**
  * @param {string} value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.AssumeRoleRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.AssumeRoleRequest} returns this
  */
-proto.teleterm.v1.AssumeRoleRequest.prototype.addAccessRequestIds = function(value, opt_index) {
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.prototype.addAccessRequestIds = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 2, value, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.AssumeRoleRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.AssumeRoleRequest} returns this
  */
-proto.teleterm.v1.AssumeRoleRequest.prototype.clearAccessRequestIdsList = function() {
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.prototype.clearAccessRequestIdsList = function() {
   return this.setAccessRequestIdsList([]);
 };
 
@@ -3214,16 +3214,16 @@ proto.teleterm.v1.AssumeRoleRequest.prototype.clearAccessRequestIdsList = functi
  * repeated string drop_request_ids = 3;
  * @return {!Array<string>}
  */
-proto.teleterm.v1.AssumeRoleRequest.prototype.getDropRequestIdsList = function() {
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.prototype.getDropRequestIdsList = function() {
   return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 3));
 };
 
 
 /**
  * @param {!Array<string>} value
- * @return {!proto.teleterm.v1.AssumeRoleRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.AssumeRoleRequest} returns this
  */
-proto.teleterm.v1.AssumeRoleRequest.prototype.setDropRequestIdsList = function(value) {
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.prototype.setDropRequestIdsList = function(value) {
   return jspb.Message.setField(this, 3, value || []);
 };
 
@@ -3231,18 +3231,18 @@ proto.teleterm.v1.AssumeRoleRequest.prototype.setDropRequestIdsList = function(v
 /**
  * @param {string} value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.AssumeRoleRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.AssumeRoleRequest} returns this
  */
-proto.teleterm.v1.AssumeRoleRequest.prototype.addDropRequestIds = function(value, opt_index) {
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.prototype.addDropRequestIds = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 3, value, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.AssumeRoleRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.AssumeRoleRequest} returns this
  */
-proto.teleterm.v1.AssumeRoleRequest.prototype.clearDropRequestIdsList = function() {
+proto.teleport.lib.teleterm.v1.AssumeRoleRequest.prototype.clearDropRequestIdsList = function() {
   return this.setDropRequestIdsList([]);
 };
 
@@ -3253,7 +3253,7 @@ proto.teleterm.v1.AssumeRoleRequest.prototype.clearDropRequestIdsList = function
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.GetRequestableRolesRequest.repeatedFields_ = [2];
+proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.repeatedFields_ = [2];
 
 
 
@@ -3270,8 +3270,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetRequestableRolesRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetRequestableRolesRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -3280,11 +3280,11 @@ proto.teleterm.v1.GetRequestableRolesRequest.prototype.toObject = function(opt_i
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetRequestableRolesRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetRequestableRolesRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
     resourceIdsList: jspb.Message.toObjectList(msg.getResourceIdsList(),
@@ -3302,23 +3302,23 @@ proto.teleterm.v1.GetRequestableRolesRequest.toObject = function(includeInstance
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetRequestableRolesRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest}
  */
-proto.teleterm.v1.GetRequestableRolesRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetRequestableRolesRequest;
-  return proto.teleterm.v1.GetRequestableRolesRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest;
+  return proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetRequestableRolesRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetRequestableRolesRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest}
  */
-proto.teleterm.v1.GetRequestableRolesRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -3347,9 +3347,9 @@ proto.teleterm.v1.GetRequestableRolesRequest.deserializeBinaryFromReader = funct
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetRequestableRolesRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetRequestableRolesRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -3357,11 +3357,11 @@ proto.teleterm.v1.GetRequestableRolesRequest.prototype.serializeBinary = functio
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetRequestableRolesRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetRequestableRolesRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -3385,54 +3385,54 @@ proto.teleterm.v1.GetRequestableRolesRequest.serializeBinaryToWriter = function(
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.GetRequestableRolesRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetRequestableRolesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest} returns this
  */
-proto.teleterm.v1.GetRequestableRolesRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
 
 /**
  * repeated ResourceID resource_ids = 2;
- * @return {!Array<!proto.teleterm.v1.ResourceID>}
+ * @return {!Array<!proto.teleport.lib.teleterm.v1.ResourceID>}
  */
-proto.teleterm.v1.GetRequestableRolesRequest.prototype.getResourceIdsList = function() {
-  return /** @type{!Array<!proto.teleterm.v1.ResourceID>} */ (
+proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.prototype.getResourceIdsList = function() {
+  return /** @type{!Array<!proto.teleport.lib.teleterm.v1.ResourceID>} */ (
     jspb.Message.getRepeatedWrapperField(this, teleport_lib_teleterm_v1_access_request_pb.ResourceID, 2));
 };
 
 
 /**
- * @param {!Array<!proto.teleterm.v1.ResourceID>} value
- * @return {!proto.teleterm.v1.GetRequestableRolesRequest} returns this
+ * @param {!Array<!proto.teleport.lib.teleterm.v1.ResourceID>} value
+ * @return {!proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest} returns this
 */
-proto.teleterm.v1.GetRequestableRolesRequest.prototype.setResourceIdsList = function(value) {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.prototype.setResourceIdsList = function(value) {
   return jspb.Message.setRepeatedWrapperField(this, 2, value);
 };
 
 
 /**
- * @param {!proto.teleterm.v1.ResourceID=} opt_value
+ * @param {!proto.teleport.lib.teleterm.v1.ResourceID=} opt_value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.ResourceID}
+ * @return {!proto.teleport.lib.teleterm.v1.ResourceID}
  */
-proto.teleterm.v1.GetRequestableRolesRequest.prototype.addResourceIds = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 2, opt_value, proto.teleterm.v1.ResourceID, opt_index);
+proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.prototype.addResourceIds = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 2, opt_value, proto.teleport.lib.teleterm.v1.ResourceID, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.GetRequestableRolesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest} returns this
  */
-proto.teleterm.v1.GetRequestableRolesRequest.prototype.clearResourceIdsList = function() {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesRequest.prototype.clearResourceIdsList = function() {
   return this.setResourceIdsList([]);
 };
 
@@ -3443,7 +3443,7 @@ proto.teleterm.v1.GetRequestableRolesRequest.prototype.clearResourceIdsList = fu
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.GetRequestableRolesResponse.repeatedFields_ = [1,2];
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.repeatedFields_ = [1,2];
 
 
 
@@ -3460,8 +3460,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetRequestableRolesResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetRequestableRolesResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -3470,11 +3470,11 @@ proto.teleterm.v1.GetRequestableRolesResponse.prototype.toObject = function(opt_
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetRequestableRolesResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetRequestableRolesResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     rolesList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f,
     applicableRolesList: (f = jspb.Message.getRepeatedField(msg, 2)) == null ? undefined : f
@@ -3491,23 +3491,23 @@ proto.teleterm.v1.GetRequestableRolesResponse.toObject = function(includeInstanc
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetRequestableRolesResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse}
  */
-proto.teleterm.v1.GetRequestableRolesResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetRequestableRolesResponse;
-  return proto.teleterm.v1.GetRequestableRolesResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse;
+  return proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetRequestableRolesResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetRequestableRolesResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse}
  */
-proto.teleterm.v1.GetRequestableRolesResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -3535,9 +3535,9 @@ proto.teleterm.v1.GetRequestableRolesResponse.deserializeBinaryFromReader = func
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetRequestableRolesResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetRequestableRolesResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -3545,11 +3545,11 @@ proto.teleterm.v1.GetRequestableRolesResponse.prototype.serializeBinary = functi
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetRequestableRolesResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetRequestableRolesResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getRolesList();
   if (f.length > 0) {
@@ -3572,16 +3572,16 @@ proto.teleterm.v1.GetRequestableRolesResponse.serializeBinaryToWriter = function
  * repeated string roles = 1;
  * @return {!Array<string>}
  */
-proto.teleterm.v1.GetRequestableRolesResponse.prototype.getRolesList = function() {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.prototype.getRolesList = function() {
   return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 1));
 };
 
 
 /**
  * @param {!Array<string>} value
- * @return {!proto.teleterm.v1.GetRequestableRolesResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse} returns this
  */
-proto.teleterm.v1.GetRequestableRolesResponse.prototype.setRolesList = function(value) {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.prototype.setRolesList = function(value) {
   return jspb.Message.setField(this, 1, value || []);
 };
 
@@ -3589,18 +3589,18 @@ proto.teleterm.v1.GetRequestableRolesResponse.prototype.setRolesList = function(
 /**
  * @param {string} value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.GetRequestableRolesResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse} returns this
  */
-proto.teleterm.v1.GetRequestableRolesResponse.prototype.addRoles = function(value, opt_index) {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.prototype.addRoles = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 1, value, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.GetRequestableRolesResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse} returns this
  */
-proto.teleterm.v1.GetRequestableRolesResponse.prototype.clearRolesList = function() {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.prototype.clearRolesList = function() {
   return this.setRolesList([]);
 };
 
@@ -3609,16 +3609,16 @@ proto.teleterm.v1.GetRequestableRolesResponse.prototype.clearRolesList = functio
  * repeated string applicable_roles = 2;
  * @return {!Array<string>}
  */
-proto.teleterm.v1.GetRequestableRolesResponse.prototype.getApplicableRolesList = function() {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.prototype.getApplicableRolesList = function() {
   return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 2));
 };
 
 
 /**
  * @param {!Array<string>} value
- * @return {!proto.teleterm.v1.GetRequestableRolesResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse} returns this
  */
-proto.teleterm.v1.GetRequestableRolesResponse.prototype.setApplicableRolesList = function(value) {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.prototype.setApplicableRolesList = function(value) {
   return jspb.Message.setField(this, 2, value || []);
 };
 
@@ -3626,18 +3626,18 @@ proto.teleterm.v1.GetRequestableRolesResponse.prototype.setApplicableRolesList =
 /**
  * @param {string} value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.GetRequestableRolesResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse} returns this
  */
-proto.teleterm.v1.GetRequestableRolesResponse.prototype.addApplicableRoles = function(value, opt_index) {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.prototype.addApplicableRoles = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 2, value, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.GetRequestableRolesResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse} returns this
  */
-proto.teleterm.v1.GetRequestableRolesResponse.prototype.clearApplicableRolesList = function() {
+proto.teleport.lib.teleterm.v1.GetRequestableRolesResponse.prototype.clearApplicableRolesList = function() {
   return this.setApplicableRolesList([]);
 };
 
@@ -3648,7 +3648,7 @@ proto.teleterm.v1.GetRequestableRolesResponse.prototype.clearApplicableRolesList
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.repeatedFields_ = [4];
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.repeatedFields_ = [4];
 
 
 
@@ -3665,8 +3665,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.ReviewAccessRequestRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -3675,11 +3675,11 @@ proto.teleterm.v1.ReviewAccessRequestRequest.prototype.toObject = function(opt_i
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.ReviewAccessRequestRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     rootClusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
     state: jspb.Message.getFieldWithDefault(msg, 2, ""),
@@ -3699,23 +3699,23 @@ proto.teleterm.v1.ReviewAccessRequestRequest.toObject = function(includeInstance
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.ReviewAccessRequestRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest}
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.ReviewAccessRequestRequest;
-  return proto.teleterm.v1.ReviewAccessRequestRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest;
+  return proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.ReviewAccessRequestRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.ReviewAccessRequestRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest}
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -3755,9 +3755,9 @@ proto.teleterm.v1.ReviewAccessRequestRequest.deserializeBinaryFromReader = funct
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.ReviewAccessRequestRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -3765,11 +3765,11 @@ proto.teleterm.v1.ReviewAccessRequestRequest.prototype.serializeBinary = functio
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.ReviewAccessRequestRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getRootClusterUri();
   if (f.length > 0) {
@@ -3813,16 +3813,16 @@ proto.teleterm.v1.ReviewAccessRequestRequest.serializeBinaryToWriter = function(
  * optional string root_cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.prototype.getRootClusterUri = function() {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.prototype.getRootClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.ReviewAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest} returns this
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.prototype.setRootClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.prototype.setRootClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -3831,16 +3831,16 @@ proto.teleterm.v1.ReviewAccessRequestRequest.prototype.setRootClusterUri = funct
  * optional string state = 2;
  * @return {string}
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.prototype.getState = function() {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.prototype.getState = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.ReviewAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest} returns this
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.prototype.setState = function(value) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.prototype.setState = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -3849,16 +3849,16 @@ proto.teleterm.v1.ReviewAccessRequestRequest.prototype.setState = function(value
  * optional string reason = 3;
  * @return {string}
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.prototype.getReason = function() {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.prototype.getReason = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.ReviewAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest} returns this
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.prototype.setReason = function(value) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.prototype.setReason = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -3867,16 +3867,16 @@ proto.teleterm.v1.ReviewAccessRequestRequest.prototype.setReason = function(valu
  * repeated string roles = 4;
  * @return {!Array<string>}
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.prototype.getRolesList = function() {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.prototype.getRolesList = function() {
   return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 4));
 };
 
 
 /**
  * @param {!Array<string>} value
- * @return {!proto.teleterm.v1.ReviewAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest} returns this
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.prototype.setRolesList = function(value) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.prototype.setRolesList = function(value) {
   return jspb.Message.setField(this, 4, value || []);
 };
 
@@ -3884,18 +3884,18 @@ proto.teleterm.v1.ReviewAccessRequestRequest.prototype.setRolesList = function(v
 /**
  * @param {string} value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.ReviewAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest} returns this
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.prototype.addRoles = function(value, opt_index) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.prototype.addRoles = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 4, value, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.ReviewAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest} returns this
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.prototype.clearRolesList = function() {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.prototype.clearRolesList = function() {
   return this.setRolesList([]);
 };
 
@@ -3904,16 +3904,16 @@ proto.teleterm.v1.ReviewAccessRequestRequest.prototype.clearRolesList = function
  * optional string access_request_id = 5;
  * @return {string}
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.prototype.getAccessRequestId = function() {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.prototype.getAccessRequestId = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.ReviewAccessRequestRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest} returns this
  */
-proto.teleterm.v1.ReviewAccessRequestRequest.prototype.setAccessRequestId = function(value) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestRequest.prototype.setAccessRequestId = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
 };
 
@@ -3934,8 +3934,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.ReviewAccessRequestResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.ReviewAccessRequestResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -3944,11 +3944,11 @@ proto.teleterm.v1.ReviewAccessRequestResponse.prototype.toObject = function(opt_
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.ReviewAccessRequestResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ReviewAccessRequestResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     request: (f = msg.getRequest()) && teleport_lib_teleterm_v1_access_request_pb.AccessRequest.toObject(includeInstance, f)
   };
@@ -3964,23 +3964,23 @@ proto.teleterm.v1.ReviewAccessRequestResponse.toObject = function(includeInstanc
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.ReviewAccessRequestResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse}
  */
-proto.teleterm.v1.ReviewAccessRequestResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.ReviewAccessRequestResponse;
-  return proto.teleterm.v1.ReviewAccessRequestResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse;
+  return proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.ReviewAccessRequestResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.ReviewAccessRequestResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse}
  */
-proto.teleterm.v1.ReviewAccessRequestResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -4005,9 +4005,9 @@ proto.teleterm.v1.ReviewAccessRequestResponse.deserializeBinaryFromReader = func
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.ReviewAccessRequestResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.ReviewAccessRequestResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -4015,11 +4015,11 @@ proto.teleterm.v1.ReviewAccessRequestResponse.prototype.serializeBinary = functi
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.ReviewAccessRequestResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ReviewAccessRequestResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getRequest();
   if (f != null) {
@@ -4034,28 +4034,28 @@ proto.teleterm.v1.ReviewAccessRequestResponse.serializeBinaryToWriter = function
 
 /**
  * optional AccessRequest request = 1;
- * @return {?proto.teleterm.v1.AccessRequest}
+ * @return {?proto.teleport.lib.teleterm.v1.AccessRequest}
  */
-proto.teleterm.v1.ReviewAccessRequestResponse.prototype.getRequest = function() {
-  return /** @type{?proto.teleterm.v1.AccessRequest} */ (
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse.prototype.getRequest = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.AccessRequest} */ (
     jspb.Message.getWrapperField(this, teleport_lib_teleterm_v1_access_request_pb.AccessRequest, 1));
 };
 
 
 /**
- * @param {?proto.teleterm.v1.AccessRequest|undefined} value
- * @return {!proto.teleterm.v1.ReviewAccessRequestResponse} returns this
+ * @param {?proto.teleport.lib.teleterm.v1.AccessRequest|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse} returns this
 */
-proto.teleterm.v1.ReviewAccessRequestResponse.prototype.setRequest = function(value) {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse.prototype.setRequest = function(value) {
   return jspb.Message.setWrapperField(this, 1, value);
 };
 
 
 /**
  * Clears the message field making it undefined.
- * @return {!proto.teleterm.v1.ReviewAccessRequestResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse} returns this
  */
-proto.teleterm.v1.ReviewAccessRequestResponse.prototype.clearRequest = function() {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse.prototype.clearRequest = function() {
   return this.setRequest(undefined);
 };
 
@@ -4064,7 +4064,7 @@ proto.teleterm.v1.ReviewAccessRequestResponse.prototype.clearRequest = function(
  * Returns whether this field is set.
  * @return {boolean}
  */
-proto.teleterm.v1.ReviewAccessRequestResponse.prototype.hasRequest = function() {
+proto.teleport.lib.teleterm.v1.ReviewAccessRequestResponse.prototype.hasRequest = function() {
   return jspb.Message.getField(this, 1) != null;
 };
 
@@ -4085,8 +4085,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.CredentialInfo.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.CredentialInfo.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.CredentialInfo.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.CredentialInfo.toObject(opt_includeInstance, this);
 };
 
 
@@ -4095,11 +4095,11 @@ proto.teleterm.v1.CredentialInfo.prototype.toObject = function(opt_includeInstan
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.CredentialInfo} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.CredentialInfo} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.CredentialInfo.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.CredentialInfo.toObject = function(includeInstance, msg) {
   var f, obj = {
     username: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -4115,23 +4115,23 @@ proto.teleterm.v1.CredentialInfo.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.CredentialInfo}
+ * @return {!proto.teleport.lib.teleterm.v1.CredentialInfo}
  */
-proto.teleterm.v1.CredentialInfo.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.CredentialInfo.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.CredentialInfo;
-  return proto.teleterm.v1.CredentialInfo.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.CredentialInfo;
+  return proto.teleport.lib.teleterm.v1.CredentialInfo.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.CredentialInfo} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.CredentialInfo} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.CredentialInfo}
+ * @return {!proto.teleport.lib.teleterm.v1.CredentialInfo}
  */
-proto.teleterm.v1.CredentialInfo.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.CredentialInfo.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -4155,9 +4155,9 @@ proto.teleterm.v1.CredentialInfo.deserializeBinaryFromReader = function(msg, rea
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.CredentialInfo.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.CredentialInfo.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.CredentialInfo.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.CredentialInfo.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -4165,11 +4165,11 @@ proto.teleterm.v1.CredentialInfo.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.CredentialInfo} message
+ * @param {!proto.teleport.lib.teleterm.v1.CredentialInfo} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.CredentialInfo.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.CredentialInfo.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getUsername();
   if (f.length > 0) {
@@ -4185,16 +4185,16 @@ proto.teleterm.v1.CredentialInfo.serializeBinaryToWriter = function(message, wri
  * optional string username = 1;
  * @return {string}
  */
-proto.teleterm.v1.CredentialInfo.prototype.getUsername = function() {
+proto.teleport.lib.teleterm.v1.CredentialInfo.prototype.getUsername = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.CredentialInfo} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.CredentialInfo} returns this
  */
-proto.teleterm.v1.CredentialInfo.prototype.setUsername = function(value) {
+proto.teleport.lib.teleterm.v1.CredentialInfo.prototype.setUsername = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -4205,7 +4205,7 @@ proto.teleterm.v1.CredentialInfo.prototype.setUsername = function(value) {
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.LoginPasswordlessResponse.repeatedFields_ = [2];
+proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.repeatedFields_ = [2];
 
 
 
@@ -4222,8 +4222,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.LoginPasswordlessResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.LoginPasswordlessResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -4232,15 +4232,15 @@ proto.teleterm.v1.LoginPasswordlessResponse.prototype.toObject = function(opt_in
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.LoginPasswordlessResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginPasswordlessResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     prompt: jspb.Message.getFieldWithDefault(msg, 1, 0),
     credentialsList: jspb.Message.toObjectList(msg.getCredentialsList(),
-    proto.teleterm.v1.CredentialInfo.toObject, includeInstance)
+    proto.teleport.lib.teleterm.v1.CredentialInfo.toObject, includeInstance)
   };
 
   if (includeInstance) {
@@ -4254,23 +4254,23 @@ proto.teleterm.v1.LoginPasswordlessResponse.toObject = function(includeInstance,
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.LoginPasswordlessResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse}
  */
-proto.teleterm.v1.LoginPasswordlessResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.LoginPasswordlessResponse;
-  return proto.teleterm.v1.LoginPasswordlessResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse;
+  return proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.LoginPasswordlessResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.LoginPasswordlessResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse}
  */
-proto.teleterm.v1.LoginPasswordlessResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -4278,12 +4278,12 @@ proto.teleterm.v1.LoginPasswordlessResponse.deserializeBinaryFromReader = functi
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
-      var value = /** @type {!proto.teleterm.v1.PasswordlessPrompt} */ (reader.readEnum());
+      var value = /** @type {!proto.teleport.lib.teleterm.v1.PasswordlessPrompt} */ (reader.readEnum());
       msg.setPrompt(value);
       break;
     case 2:
-      var value = new proto.teleterm.v1.CredentialInfo;
-      reader.readMessage(value,proto.teleterm.v1.CredentialInfo.deserializeBinaryFromReader);
+      var value = new proto.teleport.lib.teleterm.v1.CredentialInfo;
+      reader.readMessage(value,proto.teleport.lib.teleterm.v1.CredentialInfo.deserializeBinaryFromReader);
       msg.addCredentials(value);
       break;
     default:
@@ -4299,9 +4299,9 @@ proto.teleterm.v1.LoginPasswordlessResponse.deserializeBinaryFromReader = functi
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.LoginPasswordlessResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.LoginPasswordlessResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -4309,11 +4309,11 @@ proto.teleterm.v1.LoginPasswordlessResponse.prototype.serializeBinary = function
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.LoginPasswordlessResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginPasswordlessResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getPrompt();
   if (f !== 0.0) {
@@ -4327,7 +4327,7 @@ proto.teleterm.v1.LoginPasswordlessResponse.serializeBinaryToWriter = function(m
     writer.writeRepeatedMessage(
       2,
       f,
-      proto.teleterm.v1.CredentialInfo.serializeBinaryToWriter
+      proto.teleport.lib.teleterm.v1.CredentialInfo.serializeBinaryToWriter
     );
   }
 };
@@ -4335,56 +4335,56 @@ proto.teleterm.v1.LoginPasswordlessResponse.serializeBinaryToWriter = function(m
 
 /**
  * optional PasswordlessPrompt prompt = 1;
- * @return {!proto.teleterm.v1.PasswordlessPrompt}
+ * @return {!proto.teleport.lib.teleterm.v1.PasswordlessPrompt}
  */
-proto.teleterm.v1.LoginPasswordlessResponse.prototype.getPrompt = function() {
-  return /** @type {!proto.teleterm.v1.PasswordlessPrompt} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
+proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.prototype.getPrompt = function() {
+  return /** @type {!proto.teleport.lib.teleterm.v1.PasswordlessPrompt} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
 };
 
 
 /**
- * @param {!proto.teleterm.v1.PasswordlessPrompt} value
- * @return {!proto.teleterm.v1.LoginPasswordlessResponse} returns this
+ * @param {!proto.teleport.lib.teleterm.v1.PasswordlessPrompt} value
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse} returns this
  */
-proto.teleterm.v1.LoginPasswordlessResponse.prototype.setPrompt = function(value) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.prototype.setPrompt = function(value) {
   return jspb.Message.setProto3EnumField(this, 1, value);
 };
 
 
 /**
  * repeated CredentialInfo credentials = 2;
- * @return {!Array<!proto.teleterm.v1.CredentialInfo>}
+ * @return {!Array<!proto.teleport.lib.teleterm.v1.CredentialInfo>}
  */
-proto.teleterm.v1.LoginPasswordlessResponse.prototype.getCredentialsList = function() {
-  return /** @type{!Array<!proto.teleterm.v1.CredentialInfo>} */ (
-    jspb.Message.getRepeatedWrapperField(this, proto.teleterm.v1.CredentialInfo, 2));
+proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.prototype.getCredentialsList = function() {
+  return /** @type{!Array<!proto.teleport.lib.teleterm.v1.CredentialInfo>} */ (
+    jspb.Message.getRepeatedWrapperField(this, proto.teleport.lib.teleterm.v1.CredentialInfo, 2));
 };
 
 
 /**
- * @param {!Array<!proto.teleterm.v1.CredentialInfo>} value
- * @return {!proto.teleterm.v1.LoginPasswordlessResponse} returns this
+ * @param {!Array<!proto.teleport.lib.teleterm.v1.CredentialInfo>} value
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse} returns this
 */
-proto.teleterm.v1.LoginPasswordlessResponse.prototype.setCredentialsList = function(value) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.prototype.setCredentialsList = function(value) {
   return jspb.Message.setRepeatedWrapperField(this, 2, value);
 };
 
 
 /**
- * @param {!proto.teleterm.v1.CredentialInfo=} opt_value
+ * @param {!proto.teleport.lib.teleterm.v1.CredentialInfo=} opt_value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.CredentialInfo}
+ * @return {!proto.teleport.lib.teleterm.v1.CredentialInfo}
  */
-proto.teleterm.v1.LoginPasswordlessResponse.prototype.addCredentials = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 2, opt_value, proto.teleterm.v1.CredentialInfo, opt_index);
+proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.prototype.addCredentials = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 2, opt_value, proto.teleport.lib.teleterm.v1.CredentialInfo, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.LoginPasswordlessResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse} returns this
  */
-proto.teleterm.v1.LoginPasswordlessResponse.prototype.clearCredentialsList = function() {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessResponse.prototype.clearCredentialsList = function() {
   return this.setCredentialsList([]);
 };
 
@@ -4398,12 +4398,12 @@ proto.teleterm.v1.LoginPasswordlessResponse.prototype.clearCredentialsList = fun
  * @private {!Array<!Array<number>>}
  * @const
  */
-proto.teleterm.v1.LoginPasswordlessRequest.oneofGroups_ = [[1,2,3]];
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.oneofGroups_ = [[1,2,3]];
 
 /**
  * @enum {number}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.RequestCase = {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.RequestCase = {
   REQUEST_NOT_SET: 0,
   INIT: 1,
   PIN: 2,
@@ -4411,10 +4411,10 @@ proto.teleterm.v1.LoginPasswordlessRequest.RequestCase = {
 };
 
 /**
- * @return {proto.teleterm.v1.LoginPasswordlessRequest.RequestCase}
+ * @return {proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.RequestCase}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.prototype.getRequestCase = function() {
-  return /** @type {proto.teleterm.v1.LoginPasswordlessRequest.RequestCase} */(jspb.Message.computeOneofCase(this, proto.teleterm.v1.LoginPasswordlessRequest.oneofGroups_[0]));
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.prototype.getRequestCase = function() {
+  return /** @type {proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.RequestCase} */(jspb.Message.computeOneofCase(this, proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.oneofGroups_[0]));
 };
 
 
@@ -4432,8 +4432,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.LoginPasswordlessRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -4442,15 +4442,15 @@ proto.teleterm.v1.LoginPasswordlessRequest.prototype.toObject = function(opt_inc
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.LoginPasswordlessRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginPasswordlessRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    init: (f = msg.getInit()) && proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.toObject(includeInstance, f),
-    pin: (f = msg.getPin()) && proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.toObject(includeInstance, f),
-    credential: (f = msg.getCredential()) && proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.toObject(includeInstance, f)
+    init: (f = msg.getInit()) && proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.toObject(includeInstance, f),
+    pin: (f = msg.getPin()) && proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.toObject(includeInstance, f),
+    credential: (f = msg.getCredential()) && proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -4464,23 +4464,23 @@ proto.teleterm.v1.LoginPasswordlessRequest.toObject = function(includeInstance, 
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.LoginPasswordlessRequest;
-  return proto.teleterm.v1.LoginPasswordlessRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest;
+  return proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.LoginPasswordlessRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -4488,18 +4488,18 @@ proto.teleterm.v1.LoginPasswordlessRequest.deserializeBinaryFromReader = functio
     var field = reader.getFieldNumber();
     switch (field) {
     case 1:
-      var value = new proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit;
-      reader.readMessage(value,proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.deserializeBinaryFromReader);
+      var value = new proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit;
+      reader.readMessage(value,proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.deserializeBinaryFromReader);
       msg.setInit(value);
       break;
     case 2:
-      var value = new proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse;
-      reader.readMessage(value,proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.deserializeBinaryFromReader);
+      var value = new proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse;
+      reader.readMessage(value,proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.deserializeBinaryFromReader);
       msg.setPin(value);
       break;
     case 3:
-      var value = new proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse;
-      reader.readMessage(value,proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.deserializeBinaryFromReader);
+      var value = new proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse;
+      reader.readMessage(value,proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.deserializeBinaryFromReader);
       msg.setCredential(value);
       break;
     default:
@@ -4515,9 +4515,9 @@ proto.teleterm.v1.LoginPasswordlessRequest.deserializeBinaryFromReader = functio
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.LoginPasswordlessRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -4525,18 +4525,18 @@ proto.teleterm.v1.LoginPasswordlessRequest.prototype.serializeBinary = function(
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.LoginPasswordlessRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginPasswordlessRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getInit();
   if (f != null) {
     writer.writeMessage(
       1,
       f,
-      proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.serializeBinaryToWriter
+      proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.serializeBinaryToWriter
     );
   }
   f = message.getPin();
@@ -4544,7 +4544,7 @@ proto.teleterm.v1.LoginPasswordlessRequest.serializeBinaryToWriter = function(me
     writer.writeMessage(
       2,
       f,
-      proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.serializeBinaryToWriter
+      proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.serializeBinaryToWriter
     );
   }
   f = message.getCredential();
@@ -4552,7 +4552,7 @@ proto.teleterm.v1.LoginPasswordlessRequest.serializeBinaryToWriter = function(me
     writer.writeMessage(
       3,
       f,
-      proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.serializeBinaryToWriter
+      proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.serializeBinaryToWriter
     );
   }
 };
@@ -4574,8 +4574,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.toObject(opt_includeInstance, this);
 };
 
 
@@ -4584,11 +4584,11 @@ proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.prototyp
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -4604,23 +4604,23 @@ proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.toObject
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit;
-  return proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit;
+  return proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -4644,9 +4644,9 @@ proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.deserial
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -4654,11 +4654,11 @@ proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.prototyp
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit} message
+ * @param {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -4674,16 +4674,16 @@ proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.serializ
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit} returns this
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -4704,8 +4704,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -4714,11 +4714,11 @@ proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.prototyp
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     pin: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -4734,23 +4734,23 @@ proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.toObject
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse;
-  return proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse;
+  return proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -4774,9 +4774,9 @@ proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.deserial
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -4784,11 +4784,11 @@ proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.prototyp
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getPin();
   if (f.length > 0) {
@@ -4804,16 +4804,16 @@ proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.serializ
  * optional string pin = 1;
  * @return {string}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.prototype.getPin = function() {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.prototype.getPin = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse} returns this
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.prototype.setPin = function(value) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse.prototype.setPin = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -4834,8 +4834,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -4844,11 +4844,11 @@ proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.p
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     index: jspb.Message.getFieldWithDefault(msg, 1, 0)
   };
@@ -4864,23 +4864,23 @@ proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.t
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse;
-  return proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse;
+  return proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -4904,9 +4904,9 @@ proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.d
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -4914,11 +4914,11 @@ proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.p
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getIndex();
   if (f !== 0) {
@@ -4934,44 +4934,44 @@ proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.s
  * optional int64 index = 1;
  * @return {number}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.prototype.getIndex = function() {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.prototype.getIndex = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
 };
 
 
 /**
  * @param {number} value
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse} returns this
  */
-proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.prototype.setIndex = function(value) {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse.prototype.setIndex = function(value) {
   return jspb.Message.setProto3IntField(this, 1, value);
 };
 
 
 /**
  * optional LoginPasswordlessRequestInit init = 1;
- * @return {?proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit}
+ * @return {?proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.prototype.getInit = function() {
-  return /** @type{?proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit} */ (
-    jspb.Message.getWrapperField(this, proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit, 1));
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.prototype.getInit = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit} */ (
+    jspb.Message.getWrapperField(this, proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit, 1));
 };
 
 
 /**
- * @param {?proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit|undefined} value
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest} returns this
+ * @param {?proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest} returns this
 */
-proto.teleterm.v1.LoginPasswordlessRequest.prototype.setInit = function(value) {
-  return jspb.Message.setOneofWrapperField(this, 1, proto.teleterm.v1.LoginPasswordlessRequest.oneofGroups_[0], value);
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.prototype.setInit = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 1, proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.oneofGroups_[0], value);
 };
 
 
 /**
  * Clears the message field making it undefined.
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest} returns this
  */
-proto.teleterm.v1.LoginPasswordlessRequest.prototype.clearInit = function() {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.prototype.clearInit = function() {
   return this.setInit(undefined);
 };
 
@@ -4980,35 +4980,35 @@ proto.teleterm.v1.LoginPasswordlessRequest.prototype.clearInit = function() {
  * Returns whether this field is set.
  * @return {boolean}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.prototype.hasInit = function() {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.prototype.hasInit = function() {
   return jspb.Message.getField(this, 1) != null;
 };
 
 
 /**
  * optional LoginPasswordlessPINResponse pin = 2;
- * @return {?proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse}
+ * @return {?proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.prototype.getPin = function() {
-  return /** @type{?proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse} */ (
-    jspb.Message.getWrapperField(this, proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse, 2));
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.prototype.getPin = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse} */ (
+    jspb.Message.getWrapperField(this, proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse, 2));
 };
 
 
 /**
- * @param {?proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse|undefined} value
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest} returns this
+ * @param {?proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest} returns this
 */
-proto.teleterm.v1.LoginPasswordlessRequest.prototype.setPin = function(value) {
-  return jspb.Message.setOneofWrapperField(this, 2, proto.teleterm.v1.LoginPasswordlessRequest.oneofGroups_[0], value);
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.prototype.setPin = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 2, proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.oneofGroups_[0], value);
 };
 
 
 /**
  * Clears the message field making it undefined.
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest} returns this
  */
-proto.teleterm.v1.LoginPasswordlessRequest.prototype.clearPin = function() {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.prototype.clearPin = function() {
   return this.setPin(undefined);
 };
 
@@ -5017,35 +5017,35 @@ proto.teleterm.v1.LoginPasswordlessRequest.prototype.clearPin = function() {
  * Returns whether this field is set.
  * @return {boolean}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.prototype.hasPin = function() {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.prototype.hasPin = function() {
   return jspb.Message.getField(this, 2) != null;
 };
 
 
 /**
  * optional LoginPasswordlessCredentialResponse credential = 3;
- * @return {?proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse}
+ * @return {?proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.prototype.getCredential = function() {
-  return /** @type{?proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse} */ (
-    jspb.Message.getWrapperField(this, proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse, 3));
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.prototype.getCredential = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse} */ (
+    jspb.Message.getWrapperField(this, proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse, 3));
 };
 
 
 /**
- * @param {?proto.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse|undefined} value
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest} returns this
+ * @param {?proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest} returns this
 */
-proto.teleterm.v1.LoginPasswordlessRequest.prototype.setCredential = function(value) {
-  return jspb.Message.setOneofWrapperField(this, 3, proto.teleterm.v1.LoginPasswordlessRequest.oneofGroups_[0], value);
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.prototype.setCredential = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 3, proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.oneofGroups_[0], value);
 };
 
 
 /**
  * Clears the message field making it undefined.
- * @return {!proto.teleterm.v1.LoginPasswordlessRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest} returns this
  */
-proto.teleterm.v1.LoginPasswordlessRequest.prototype.clearCredential = function() {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.prototype.clearCredential = function() {
   return this.setCredential(undefined);
 };
 
@@ -5054,7 +5054,7 @@ proto.teleterm.v1.LoginPasswordlessRequest.prototype.clearCredential = function(
  * Returns whether this field is set.
  * @return {boolean}
  */
-proto.teleterm.v1.LoginPasswordlessRequest.prototype.hasCredential = function() {
+proto.teleport.lib.teleterm.v1.LoginPasswordlessRequest.prototype.hasCredential = function() {
   return jspb.Message.getField(this, 3) != null;
 };
 
@@ -5075,8 +5075,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.FileTransferRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.FileTransferRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.FileTransferRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -5085,11 +5085,11 @@ proto.teleterm.v1.FileTransferRequest.prototype.toObject = function(opt_includeI
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.FileTransferRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.FileTransferRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.FileTransferRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
     login: jspb.Message.getFieldWithDefault(msg, 2, ""),
@@ -5110,23 +5110,23 @@ proto.teleterm.v1.FileTransferRequest.toObject = function(includeInstance, msg) 
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.FileTransferRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.FileTransferRequest}
  */
-proto.teleterm.v1.FileTransferRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.FileTransferRequest;
-  return proto.teleterm.v1.FileTransferRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.FileTransferRequest;
+  return proto.teleport.lib.teleterm.v1.FileTransferRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.FileTransferRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.FileTransferRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.FileTransferRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.FileTransferRequest}
  */
-proto.teleterm.v1.FileTransferRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -5154,7 +5154,7 @@ proto.teleterm.v1.FileTransferRequest.deserializeBinaryFromReader = function(msg
       msg.setDestination(value);
       break;
     case 6:
-      var value = /** @type {!proto.teleterm.v1.FileTransferDirection} */ (reader.readEnum());
+      var value = /** @type {!proto.teleport.lib.teleterm.v1.FileTransferDirection} */ (reader.readEnum());
       msg.setDirection(value);
       break;
     default:
@@ -5170,9 +5170,9 @@ proto.teleterm.v1.FileTransferRequest.deserializeBinaryFromReader = function(msg
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.FileTransferRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.FileTransferRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.FileTransferRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -5180,11 +5180,11 @@ proto.teleterm.v1.FileTransferRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.FileTransferRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.FileTransferRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.FileTransferRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -5235,16 +5235,16 @@ proto.teleterm.v1.FileTransferRequest.serializeBinaryToWriter = function(message
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.FileTransferRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.FileTransferRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.FileTransferRequest} returns this
  */
-proto.teleterm.v1.FileTransferRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -5253,16 +5253,16 @@ proto.teleterm.v1.FileTransferRequest.prototype.setClusterUri = function(value) 
  * optional string login = 2;
  * @return {string}
  */
-proto.teleterm.v1.FileTransferRequest.prototype.getLogin = function() {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.getLogin = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.FileTransferRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.FileTransferRequest} returns this
  */
-proto.teleterm.v1.FileTransferRequest.prototype.setLogin = function(value) {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.setLogin = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -5271,16 +5271,16 @@ proto.teleterm.v1.FileTransferRequest.prototype.setLogin = function(value) {
  * optional string hostname = 3;
  * @return {string}
  */
-proto.teleterm.v1.FileTransferRequest.prototype.getHostname = function() {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.getHostname = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.FileTransferRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.FileTransferRequest} returns this
  */
-proto.teleterm.v1.FileTransferRequest.prototype.setHostname = function(value) {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.setHostname = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -5289,16 +5289,16 @@ proto.teleterm.v1.FileTransferRequest.prototype.setHostname = function(value) {
  * optional string source = 4;
  * @return {string}
  */
-proto.teleterm.v1.FileTransferRequest.prototype.getSource = function() {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.getSource = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.FileTransferRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.FileTransferRequest} returns this
  */
-proto.teleterm.v1.FileTransferRequest.prototype.setSource = function(value) {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.setSource = function(value) {
   return jspb.Message.setProto3StringField(this, 4, value);
 };
 
@@ -5307,34 +5307,34 @@ proto.teleterm.v1.FileTransferRequest.prototype.setSource = function(value) {
  * optional string destination = 5;
  * @return {string}
  */
-proto.teleterm.v1.FileTransferRequest.prototype.getDestination = function() {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.getDestination = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.FileTransferRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.FileTransferRequest} returns this
  */
-proto.teleterm.v1.FileTransferRequest.prototype.setDestination = function(value) {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.setDestination = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
 };
 
 
 /**
  * optional FileTransferDirection direction = 6;
- * @return {!proto.teleterm.v1.FileTransferDirection}
+ * @return {!proto.teleport.lib.teleterm.v1.FileTransferDirection}
  */
-proto.teleterm.v1.FileTransferRequest.prototype.getDirection = function() {
-  return /** @type {!proto.teleterm.v1.FileTransferDirection} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.getDirection = function() {
+  return /** @type {!proto.teleport.lib.teleterm.v1.FileTransferDirection} */ (jspb.Message.getFieldWithDefault(this, 6, 0));
 };
 
 
 /**
- * @param {!proto.teleterm.v1.FileTransferDirection} value
- * @return {!proto.teleterm.v1.FileTransferRequest} returns this
+ * @param {!proto.teleport.lib.teleterm.v1.FileTransferDirection} value
+ * @return {!proto.teleport.lib.teleterm.v1.FileTransferRequest} returns this
  */
-proto.teleterm.v1.FileTransferRequest.prototype.setDirection = function(value) {
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.setDirection = function(value) {
   return jspb.Message.setProto3EnumField(this, 6, value);
 };
 
@@ -5355,8 +5355,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.FileTransferProgress.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.FileTransferProgress.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.FileTransferProgress.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.FileTransferProgress.toObject(opt_includeInstance, this);
 };
 
 
@@ -5365,11 +5365,11 @@ proto.teleterm.v1.FileTransferProgress.prototype.toObject = function(opt_include
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.FileTransferProgress} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.FileTransferProgress} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.FileTransferProgress.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.FileTransferProgress.toObject = function(includeInstance, msg) {
   var f, obj = {
     percentage: jspb.Message.getFieldWithDefault(msg, 1, 0)
   };
@@ -5385,23 +5385,23 @@ proto.teleterm.v1.FileTransferProgress.toObject = function(includeInstance, msg)
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.FileTransferProgress}
+ * @return {!proto.teleport.lib.teleterm.v1.FileTransferProgress}
  */
-proto.teleterm.v1.FileTransferProgress.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.FileTransferProgress.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.FileTransferProgress;
-  return proto.teleterm.v1.FileTransferProgress.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.FileTransferProgress;
+  return proto.teleport.lib.teleterm.v1.FileTransferProgress.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.FileTransferProgress} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.FileTransferProgress} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.FileTransferProgress}
+ * @return {!proto.teleport.lib.teleterm.v1.FileTransferProgress}
  */
-proto.teleterm.v1.FileTransferProgress.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.FileTransferProgress.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -5425,9 +5425,9 @@ proto.teleterm.v1.FileTransferProgress.deserializeBinaryFromReader = function(ms
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.FileTransferProgress.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.FileTransferProgress.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.FileTransferProgress.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.FileTransferProgress.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -5435,11 +5435,11 @@ proto.teleterm.v1.FileTransferProgress.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.FileTransferProgress} message
+ * @param {!proto.teleport.lib.teleterm.v1.FileTransferProgress} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.FileTransferProgress.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.FileTransferProgress.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getPercentage();
   if (f !== 0) {
@@ -5455,16 +5455,16 @@ proto.teleterm.v1.FileTransferProgress.serializeBinaryToWriter = function(messag
  * optional uint32 percentage = 1;
  * @return {number}
  */
-proto.teleterm.v1.FileTransferProgress.prototype.getPercentage = function() {
+proto.teleport.lib.teleterm.v1.FileTransferProgress.prototype.getPercentage = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
 };
 
 
 /**
  * @param {number} value
- * @return {!proto.teleterm.v1.FileTransferProgress} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.FileTransferProgress} returns this
  */
-proto.teleterm.v1.FileTransferProgress.prototype.setPercentage = function(value) {
+proto.teleport.lib.teleterm.v1.FileTransferProgress.prototype.setPercentage = function(value) {
   return jspb.Message.setProto3IntField(this, 1, value);
 };
 
@@ -5478,22 +5478,22 @@ proto.teleterm.v1.FileTransferProgress.prototype.setPercentage = function(value)
  * @private {!Array<!Array<number>>}
  * @const
  */
-proto.teleterm.v1.LoginRequest.oneofGroups_ = [[2,3]];
+proto.teleport.lib.teleterm.v1.LoginRequest.oneofGroups_ = [[2,3]];
 
 /**
  * @enum {number}
  */
-proto.teleterm.v1.LoginRequest.ParamsCase = {
+proto.teleport.lib.teleterm.v1.LoginRequest.ParamsCase = {
   PARAMS_NOT_SET: 0,
   LOCAL: 2,
   SSO: 3
 };
 
 /**
- * @return {proto.teleterm.v1.LoginRequest.ParamsCase}
+ * @return {proto.teleport.lib.teleterm.v1.LoginRequest.ParamsCase}
  */
-proto.teleterm.v1.LoginRequest.prototype.getParamsCase = function() {
-  return /** @type {proto.teleterm.v1.LoginRequest.ParamsCase} */(jspb.Message.computeOneofCase(this, proto.teleterm.v1.LoginRequest.oneofGroups_[0]));
+proto.teleport.lib.teleterm.v1.LoginRequest.prototype.getParamsCase = function() {
+  return /** @type {proto.teleport.lib.teleterm.v1.LoginRequest.ParamsCase} */(jspb.Message.computeOneofCase(this, proto.teleport.lib.teleterm.v1.LoginRequest.oneofGroups_[0]));
 };
 
 
@@ -5511,8 +5511,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.LoginRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.LoginRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.LoginRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.LoginRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -5521,15 +5521,15 @@ proto.teleterm.v1.LoginRequest.prototype.toObject = function(opt_includeInstance
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.LoginRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.LoginRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    local: (f = msg.getLocal()) && proto.teleterm.v1.LoginRequest.LocalParams.toObject(includeInstance, f),
-    sso: (f = msg.getSso()) && proto.teleterm.v1.LoginRequest.SsoParams.toObject(includeInstance, f)
+    local: (f = msg.getLocal()) && proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.toObject(includeInstance, f),
+    sso: (f = msg.getSso()) && proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -5543,23 +5543,23 @@ proto.teleterm.v1.LoginRequest.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.LoginRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest}
  */
-proto.teleterm.v1.LoginRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.LoginRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.LoginRequest;
-  return proto.teleterm.v1.LoginRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.LoginRequest;
+  return proto.teleport.lib.teleterm.v1.LoginRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.LoginRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.LoginRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest}
  */
-proto.teleterm.v1.LoginRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.LoginRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -5571,13 +5571,13 @@ proto.teleterm.v1.LoginRequest.deserializeBinaryFromReader = function(msg, reade
       msg.setClusterUri(value);
       break;
     case 2:
-      var value = new proto.teleterm.v1.LoginRequest.LocalParams;
-      reader.readMessage(value,proto.teleterm.v1.LoginRequest.LocalParams.deserializeBinaryFromReader);
+      var value = new proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams;
+      reader.readMessage(value,proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.deserializeBinaryFromReader);
       msg.setLocal(value);
       break;
     case 3:
-      var value = new proto.teleterm.v1.LoginRequest.SsoParams;
-      reader.readMessage(value,proto.teleterm.v1.LoginRequest.SsoParams.deserializeBinaryFromReader);
+      var value = new proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams;
+      reader.readMessage(value,proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.deserializeBinaryFromReader);
       msg.setSso(value);
       break;
     default:
@@ -5593,9 +5593,9 @@ proto.teleterm.v1.LoginRequest.deserializeBinaryFromReader = function(msg, reade
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.LoginRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.LoginRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.LoginRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.LoginRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -5603,11 +5603,11 @@ proto.teleterm.v1.LoginRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.LoginRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.LoginRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.LoginRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -5621,7 +5621,7 @@ proto.teleterm.v1.LoginRequest.serializeBinaryToWriter = function(message, write
     writer.writeMessage(
       2,
       f,
-      proto.teleterm.v1.LoginRequest.LocalParams.serializeBinaryToWriter
+      proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.serializeBinaryToWriter
     );
   }
   f = message.getSso();
@@ -5629,7 +5629,7 @@ proto.teleterm.v1.LoginRequest.serializeBinaryToWriter = function(message, write
     writer.writeMessage(
       3,
       f,
-      proto.teleterm.v1.LoginRequest.SsoParams.serializeBinaryToWriter
+      proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.serializeBinaryToWriter
     );
   }
 };
@@ -5651,8 +5651,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.LoginRequest.LocalParams.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.LoginRequest.LocalParams.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.toObject(opt_includeInstance, this);
 };
 
 
@@ -5661,11 +5661,11 @@ proto.teleterm.v1.LoginRequest.LocalParams.prototype.toObject = function(opt_inc
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.LoginRequest.LocalParams} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginRequest.LocalParams.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.toObject = function(includeInstance, msg) {
   var f, obj = {
     user: jspb.Message.getFieldWithDefault(msg, 1, ""),
     password: jspb.Message.getFieldWithDefault(msg, 2, ""),
@@ -5683,23 +5683,23 @@ proto.teleterm.v1.LoginRequest.LocalParams.toObject = function(includeInstance, 
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.LoginRequest.LocalParams}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams}
  */
-proto.teleterm.v1.LoginRequest.LocalParams.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.LoginRequest.LocalParams;
-  return proto.teleterm.v1.LoginRequest.LocalParams.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams;
+  return proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.LoginRequest.LocalParams} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.LoginRequest.LocalParams}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams}
  */
-proto.teleterm.v1.LoginRequest.LocalParams.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -5731,9 +5731,9 @@ proto.teleterm.v1.LoginRequest.LocalParams.deserializeBinaryFromReader = functio
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.LoginRequest.LocalParams.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.LoginRequest.LocalParams.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -5741,11 +5741,11 @@ proto.teleterm.v1.LoginRequest.LocalParams.prototype.serializeBinary = function(
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.LoginRequest.LocalParams} message
+ * @param {!proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginRequest.LocalParams.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getUser();
   if (f.length > 0) {
@@ -5775,16 +5775,16 @@ proto.teleterm.v1.LoginRequest.LocalParams.serializeBinaryToWriter = function(me
  * optional string user = 1;
  * @return {string}
  */
-proto.teleterm.v1.LoginRequest.LocalParams.prototype.getUser = function() {
+proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.prototype.getUser = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.LoginRequest.LocalParams} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams} returns this
  */
-proto.teleterm.v1.LoginRequest.LocalParams.prototype.setUser = function(value) {
+proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.prototype.setUser = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -5793,16 +5793,16 @@ proto.teleterm.v1.LoginRequest.LocalParams.prototype.setUser = function(value) {
  * optional string password = 2;
  * @return {string}
  */
-proto.teleterm.v1.LoginRequest.LocalParams.prototype.getPassword = function() {
+proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.prototype.getPassword = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.LoginRequest.LocalParams} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams} returns this
  */
-proto.teleterm.v1.LoginRequest.LocalParams.prototype.setPassword = function(value) {
+proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.prototype.setPassword = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -5811,16 +5811,16 @@ proto.teleterm.v1.LoginRequest.LocalParams.prototype.setPassword = function(valu
  * optional string token = 3;
  * @return {string}
  */
-proto.teleterm.v1.LoginRequest.LocalParams.prototype.getToken = function() {
+proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.prototype.getToken = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.LoginRequest.LocalParams} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams} returns this
  */
-proto.teleterm.v1.LoginRequest.LocalParams.prototype.setToken = function(value) {
+proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams.prototype.setToken = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -5841,8 +5841,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.LoginRequest.SsoParams.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.LoginRequest.SsoParams.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.toObject(opt_includeInstance, this);
 };
 
 
@@ -5851,11 +5851,11 @@ proto.teleterm.v1.LoginRequest.SsoParams.prototype.toObject = function(opt_inclu
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.LoginRequest.SsoParams} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginRequest.SsoParams.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.toObject = function(includeInstance, msg) {
   var f, obj = {
     providerType: jspb.Message.getFieldWithDefault(msg, 1, ""),
     providerName: jspb.Message.getFieldWithDefault(msg, 2, "")
@@ -5872,23 +5872,23 @@ proto.teleterm.v1.LoginRequest.SsoParams.toObject = function(includeInstance, ms
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.LoginRequest.SsoParams}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams}
  */
-proto.teleterm.v1.LoginRequest.SsoParams.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.LoginRequest.SsoParams;
-  return proto.teleterm.v1.LoginRequest.SsoParams.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams;
+  return proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.LoginRequest.SsoParams} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.LoginRequest.SsoParams}
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams}
  */
-proto.teleterm.v1.LoginRequest.SsoParams.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -5916,9 +5916,9 @@ proto.teleterm.v1.LoginRequest.SsoParams.deserializeBinaryFromReader = function(
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.LoginRequest.SsoParams.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.LoginRequest.SsoParams.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -5926,11 +5926,11 @@ proto.teleterm.v1.LoginRequest.SsoParams.prototype.serializeBinary = function() 
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.LoginRequest.SsoParams} message
+ * @param {!proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.LoginRequest.SsoParams.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getProviderType();
   if (f.length > 0) {
@@ -5953,16 +5953,16 @@ proto.teleterm.v1.LoginRequest.SsoParams.serializeBinaryToWriter = function(mess
  * optional string provider_type = 1;
  * @return {string}
  */
-proto.teleterm.v1.LoginRequest.SsoParams.prototype.getProviderType = function() {
+proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.prototype.getProviderType = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.LoginRequest.SsoParams} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams} returns this
  */
-proto.teleterm.v1.LoginRequest.SsoParams.prototype.setProviderType = function(value) {
+proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.prototype.setProviderType = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -5971,16 +5971,16 @@ proto.teleterm.v1.LoginRequest.SsoParams.prototype.setProviderType = function(va
  * optional string provider_name = 2;
  * @return {string}
  */
-proto.teleterm.v1.LoginRequest.SsoParams.prototype.getProviderName = function() {
+proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.prototype.getProviderName = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.LoginRequest.SsoParams} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams} returns this
  */
-proto.teleterm.v1.LoginRequest.SsoParams.prototype.setProviderName = function(value) {
+proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams.prototype.setProviderName = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -5989,44 +5989,44 @@ proto.teleterm.v1.LoginRequest.SsoParams.prototype.setProviderName = function(va
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.LoginRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.LoginRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.LoginRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest} returns this
  */
-proto.teleterm.v1.LoginRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.LoginRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
 
 /**
  * optional LocalParams local = 2;
- * @return {?proto.teleterm.v1.LoginRequest.LocalParams}
+ * @return {?proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams}
  */
-proto.teleterm.v1.LoginRequest.prototype.getLocal = function() {
-  return /** @type{?proto.teleterm.v1.LoginRequest.LocalParams} */ (
-    jspb.Message.getWrapperField(this, proto.teleterm.v1.LoginRequest.LocalParams, 2));
+proto.teleport.lib.teleterm.v1.LoginRequest.prototype.getLocal = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams} */ (
+    jspb.Message.getWrapperField(this, proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams, 2));
 };
 
 
 /**
- * @param {?proto.teleterm.v1.LoginRequest.LocalParams|undefined} value
- * @return {!proto.teleterm.v1.LoginRequest} returns this
+ * @param {?proto.teleport.lib.teleterm.v1.LoginRequest.LocalParams|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest} returns this
 */
-proto.teleterm.v1.LoginRequest.prototype.setLocal = function(value) {
-  return jspb.Message.setOneofWrapperField(this, 2, proto.teleterm.v1.LoginRequest.oneofGroups_[0], value);
+proto.teleport.lib.teleterm.v1.LoginRequest.prototype.setLocal = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 2, proto.teleport.lib.teleterm.v1.LoginRequest.oneofGroups_[0], value);
 };
 
 
 /**
  * Clears the message field making it undefined.
- * @return {!proto.teleterm.v1.LoginRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest} returns this
  */
-proto.teleterm.v1.LoginRequest.prototype.clearLocal = function() {
+proto.teleport.lib.teleterm.v1.LoginRequest.prototype.clearLocal = function() {
   return this.setLocal(undefined);
 };
 
@@ -6035,35 +6035,35 @@ proto.teleterm.v1.LoginRequest.prototype.clearLocal = function() {
  * Returns whether this field is set.
  * @return {boolean}
  */
-proto.teleterm.v1.LoginRequest.prototype.hasLocal = function() {
+proto.teleport.lib.teleterm.v1.LoginRequest.prototype.hasLocal = function() {
   return jspb.Message.getField(this, 2) != null;
 };
 
 
 /**
  * optional SsoParams sso = 3;
- * @return {?proto.teleterm.v1.LoginRequest.SsoParams}
+ * @return {?proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams}
  */
-proto.teleterm.v1.LoginRequest.prototype.getSso = function() {
-  return /** @type{?proto.teleterm.v1.LoginRequest.SsoParams} */ (
-    jspb.Message.getWrapperField(this, proto.teleterm.v1.LoginRequest.SsoParams, 3));
+proto.teleport.lib.teleterm.v1.LoginRequest.prototype.getSso = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams} */ (
+    jspb.Message.getWrapperField(this, proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams, 3));
 };
 
 
 /**
- * @param {?proto.teleterm.v1.LoginRequest.SsoParams|undefined} value
- * @return {!proto.teleterm.v1.LoginRequest} returns this
+ * @param {?proto.teleport.lib.teleterm.v1.LoginRequest.SsoParams|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest} returns this
 */
-proto.teleterm.v1.LoginRequest.prototype.setSso = function(value) {
-  return jspb.Message.setOneofWrapperField(this, 3, proto.teleterm.v1.LoginRequest.oneofGroups_[0], value);
+proto.teleport.lib.teleterm.v1.LoginRequest.prototype.setSso = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 3, proto.teleport.lib.teleterm.v1.LoginRequest.oneofGroups_[0], value);
 };
 
 
 /**
  * Clears the message field making it undefined.
- * @return {!proto.teleterm.v1.LoginRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.LoginRequest} returns this
  */
-proto.teleterm.v1.LoginRequest.prototype.clearSso = function() {
+proto.teleport.lib.teleterm.v1.LoginRequest.prototype.clearSso = function() {
   return this.setSso(undefined);
 };
 
@@ -6072,7 +6072,7 @@ proto.teleterm.v1.LoginRequest.prototype.clearSso = function() {
  * Returns whether this field is set.
  * @return {boolean}
  */
-proto.teleterm.v1.LoginRequest.prototype.hasSso = function() {
+proto.teleport.lib.teleterm.v1.LoginRequest.prototype.hasSso = function() {
   return jspb.Message.getField(this, 3) != null;
 };
 
@@ -6093,8 +6093,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.AddClusterRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.AddClusterRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.AddClusterRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.AddClusterRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -6103,11 +6103,11 @@ proto.teleterm.v1.AddClusterRequest.prototype.toObject = function(opt_includeIns
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.AddClusterRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.AddClusterRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.AddClusterRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.AddClusterRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     name: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -6123,23 +6123,23 @@ proto.teleterm.v1.AddClusterRequest.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.AddClusterRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.AddClusterRequest}
  */
-proto.teleterm.v1.AddClusterRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.AddClusterRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.AddClusterRequest;
-  return proto.teleterm.v1.AddClusterRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.AddClusterRequest;
+  return proto.teleport.lib.teleterm.v1.AddClusterRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.AddClusterRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.AddClusterRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.AddClusterRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.AddClusterRequest}
  */
-proto.teleterm.v1.AddClusterRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.AddClusterRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -6163,9 +6163,9 @@ proto.teleterm.v1.AddClusterRequest.deserializeBinaryFromReader = function(msg, 
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.AddClusterRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.AddClusterRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.AddClusterRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.AddClusterRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -6173,11 +6173,11 @@ proto.teleterm.v1.AddClusterRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.AddClusterRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.AddClusterRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.AddClusterRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.AddClusterRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getName();
   if (f.length > 0) {
@@ -6193,16 +6193,16 @@ proto.teleterm.v1.AddClusterRequest.serializeBinaryToWriter = function(message, 
  * optional string name = 1;
  * @return {string}
  */
-proto.teleterm.v1.AddClusterRequest.prototype.getName = function() {
+proto.teleport.lib.teleterm.v1.AddClusterRequest.prototype.getName = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.AddClusterRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.AddClusterRequest} returns this
  */
-proto.teleterm.v1.AddClusterRequest.prototype.setName = function(value) {
+proto.teleport.lib.teleterm.v1.AddClusterRequest.prototype.setName = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -6223,8 +6223,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.ListAppsRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.ListAppsRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.ListAppsRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.ListAppsRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -6233,11 +6233,11 @@ proto.teleterm.v1.ListAppsRequest.prototype.toObject = function(opt_includeInsta
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.ListAppsRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.ListAppsRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListAppsRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.ListAppsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -6253,23 +6253,23 @@ proto.teleterm.v1.ListAppsRequest.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.ListAppsRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.ListAppsRequest}
  */
-proto.teleterm.v1.ListAppsRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.ListAppsRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.ListAppsRequest;
-  return proto.teleterm.v1.ListAppsRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.ListAppsRequest;
+  return proto.teleport.lib.teleterm.v1.ListAppsRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.ListAppsRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.ListAppsRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.ListAppsRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.ListAppsRequest}
  */
-proto.teleterm.v1.ListAppsRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.ListAppsRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -6293,9 +6293,9 @@ proto.teleterm.v1.ListAppsRequest.deserializeBinaryFromReader = function(msg, re
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.ListAppsRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.ListAppsRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.ListAppsRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.ListAppsRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -6303,11 +6303,11 @@ proto.teleterm.v1.ListAppsRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.ListAppsRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.ListAppsRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListAppsRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.ListAppsRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -6323,16 +6323,16 @@ proto.teleterm.v1.ListAppsRequest.serializeBinaryToWriter = function(message, wr
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.ListAppsRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.ListAppsRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.ListAppsRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ListAppsRequest} returns this
  */
-proto.teleterm.v1.ListAppsRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.ListAppsRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -6353,8 +6353,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.ListClustersRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.ListClustersRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.ListClustersRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.ListClustersRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -6363,11 +6363,11 @@ proto.teleterm.v1.ListClustersRequest.prototype.toObject = function(opt_includeI
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.ListClustersRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.ListClustersRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListClustersRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.ListClustersRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
 
   };
@@ -6383,23 +6383,23 @@ proto.teleterm.v1.ListClustersRequest.toObject = function(includeInstance, msg) 
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.ListClustersRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.ListClustersRequest}
  */
-proto.teleterm.v1.ListClustersRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.ListClustersRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.ListClustersRequest;
-  return proto.teleterm.v1.ListClustersRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.ListClustersRequest;
+  return proto.teleport.lib.teleterm.v1.ListClustersRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.ListClustersRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.ListClustersRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.ListClustersRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.ListClustersRequest}
  */
-proto.teleterm.v1.ListClustersRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.ListClustersRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -6419,9 +6419,9 @@ proto.teleterm.v1.ListClustersRequest.deserializeBinaryFromReader = function(msg
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.ListClustersRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.ListClustersRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.ListClustersRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.ListClustersRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -6429,11 +6429,11 @@ proto.teleterm.v1.ListClustersRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.ListClustersRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.ListClustersRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListClustersRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.ListClustersRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
 };
 
@@ -6444,7 +6444,7 @@ proto.teleterm.v1.ListClustersRequest.serializeBinaryToWriter = function(message
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.ListClustersResponse.repeatedFields_ = [1];
+proto.teleport.lib.teleterm.v1.ListClustersResponse.repeatedFields_ = [1];
 
 
 
@@ -6461,8 +6461,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.ListClustersResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.ListClustersResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.ListClustersResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.ListClustersResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -6471,11 +6471,11 @@ proto.teleterm.v1.ListClustersResponse.prototype.toObject = function(opt_include
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.ListClustersResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.ListClustersResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListClustersResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.ListClustersResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     clustersList: jspb.Message.toObjectList(msg.getClustersList(),
     teleport_lib_teleterm_v1_cluster_pb.Cluster.toObject, includeInstance)
@@ -6492,23 +6492,23 @@ proto.teleterm.v1.ListClustersResponse.toObject = function(includeInstance, msg)
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.ListClustersResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.ListClustersResponse}
  */
-proto.teleterm.v1.ListClustersResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.ListClustersResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.ListClustersResponse;
-  return proto.teleterm.v1.ListClustersResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.ListClustersResponse;
+  return proto.teleport.lib.teleterm.v1.ListClustersResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.ListClustersResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.ListClustersResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.ListClustersResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.ListClustersResponse}
  */
-proto.teleterm.v1.ListClustersResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.ListClustersResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -6533,9 +6533,9 @@ proto.teleterm.v1.ListClustersResponse.deserializeBinaryFromReader = function(ms
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.ListClustersResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.ListClustersResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.ListClustersResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.ListClustersResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -6543,11 +6543,11 @@ proto.teleterm.v1.ListClustersResponse.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.ListClustersResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.ListClustersResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListClustersResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.ListClustersResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClustersList();
   if (f.length > 0) {
@@ -6562,38 +6562,38 @@ proto.teleterm.v1.ListClustersResponse.serializeBinaryToWriter = function(messag
 
 /**
  * repeated Cluster clusters = 1;
- * @return {!Array<!proto.teleterm.v1.Cluster>}
+ * @return {!Array<!proto.teleport.lib.teleterm.v1.Cluster>}
  */
-proto.teleterm.v1.ListClustersResponse.prototype.getClustersList = function() {
-  return /** @type{!Array<!proto.teleterm.v1.Cluster>} */ (
+proto.teleport.lib.teleterm.v1.ListClustersResponse.prototype.getClustersList = function() {
+  return /** @type{!Array<!proto.teleport.lib.teleterm.v1.Cluster>} */ (
     jspb.Message.getRepeatedWrapperField(this, teleport_lib_teleterm_v1_cluster_pb.Cluster, 1));
 };
 
 
 /**
- * @param {!Array<!proto.teleterm.v1.Cluster>} value
- * @return {!proto.teleterm.v1.ListClustersResponse} returns this
+ * @param {!Array<!proto.teleport.lib.teleterm.v1.Cluster>} value
+ * @return {!proto.teleport.lib.teleterm.v1.ListClustersResponse} returns this
 */
-proto.teleterm.v1.ListClustersResponse.prototype.setClustersList = function(value) {
+proto.teleport.lib.teleterm.v1.ListClustersResponse.prototype.setClustersList = function(value) {
   return jspb.Message.setRepeatedWrapperField(this, 1, value);
 };
 
 
 /**
- * @param {!proto.teleterm.v1.Cluster=} opt_value
+ * @param {!proto.teleport.lib.teleterm.v1.Cluster=} opt_value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.Cluster}
+ * @return {!proto.teleport.lib.teleterm.v1.Cluster}
  */
-proto.teleterm.v1.ListClustersResponse.prototype.addClusters = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleterm.v1.Cluster, opt_index);
+proto.teleport.lib.teleterm.v1.ListClustersResponse.prototype.addClusters = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleport.lib.teleterm.v1.Cluster, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.ListClustersResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ListClustersResponse} returns this
  */
-proto.teleterm.v1.ListClustersResponse.prototype.clearClustersList = function() {
+proto.teleport.lib.teleterm.v1.ListClustersResponse.prototype.clearClustersList = function() {
   return this.setClustersList([]);
 };
 
@@ -6614,8 +6614,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetAllDatabasesRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetAllDatabasesRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -6624,11 +6624,11 @@ proto.teleterm.v1.GetAllDatabasesRequest.prototype.toObject = function(opt_inclu
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetAllDatabasesRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAllDatabasesRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -6644,23 +6644,23 @@ proto.teleterm.v1.GetAllDatabasesRequest.toObject = function(includeInstance, ms
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetAllDatabasesRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest}
  */
-proto.teleterm.v1.GetAllDatabasesRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetAllDatabasesRequest;
-  return proto.teleterm.v1.GetAllDatabasesRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest;
+  return proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetAllDatabasesRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetAllDatabasesRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest}
  */
-proto.teleterm.v1.GetAllDatabasesRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -6684,9 +6684,9 @@ proto.teleterm.v1.GetAllDatabasesRequest.deserializeBinaryFromReader = function(
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetAllDatabasesRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetAllDatabasesRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -6694,11 +6694,11 @@ proto.teleterm.v1.GetAllDatabasesRequest.prototype.serializeBinary = function() 
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetAllDatabasesRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAllDatabasesRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -6714,16 +6714,16 @@ proto.teleterm.v1.GetAllDatabasesRequest.serializeBinaryToWriter = function(mess
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.GetAllDatabasesRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetAllDatabasesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest} returns this
  */
-proto.teleterm.v1.GetAllDatabasesRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.GetAllDatabasesRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -6744,8 +6744,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetDatabasesRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetDatabasesRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -6754,11 +6754,11 @@ proto.teleterm.v1.GetDatabasesRequest.prototype.toObject = function(opt_includeI
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetDatabasesRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetDatabasesRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetDatabasesRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
     limit: jspb.Message.getFieldWithDefault(msg, 2, 0),
@@ -6780,23 +6780,23 @@ proto.teleterm.v1.GetDatabasesRequest.toObject = function(includeInstance, msg) 
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetDatabasesRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetDatabasesRequest}
  */
-proto.teleterm.v1.GetDatabasesRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetDatabasesRequest;
-  return proto.teleterm.v1.GetDatabasesRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetDatabasesRequest;
+  return proto.teleport.lib.teleterm.v1.GetDatabasesRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetDatabasesRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetDatabasesRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetDatabasesRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetDatabasesRequest}
  */
-proto.teleterm.v1.GetDatabasesRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -6844,9 +6844,9 @@ proto.teleterm.v1.GetDatabasesRequest.deserializeBinaryFromReader = function(msg
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetDatabasesRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetDatabasesRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -6854,11 +6854,11 @@ proto.teleterm.v1.GetDatabasesRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetDatabasesRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetDatabasesRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetDatabasesRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -6916,16 +6916,16 @@ proto.teleterm.v1.GetDatabasesRequest.serializeBinaryToWriter = function(message
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetDatabasesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetDatabasesRequest} returns this
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -6934,16 +6934,16 @@ proto.teleterm.v1.GetDatabasesRequest.prototype.setClusterUri = function(value) 
  * optional int32 limit = 2;
  * @return {number}
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.getLimit = function() {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.getLimit = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
 };
 
 
 /**
  * @param {number} value
- * @return {!proto.teleterm.v1.GetDatabasesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetDatabasesRequest} returns this
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.setLimit = function(value) {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.setLimit = function(value) {
   return jspb.Message.setProto3IntField(this, 2, value);
 };
 
@@ -6952,16 +6952,16 @@ proto.teleterm.v1.GetDatabasesRequest.prototype.setLimit = function(value) {
  * optional string start_key = 3;
  * @return {string}
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.getStartKey = function() {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.getStartKey = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetDatabasesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetDatabasesRequest} returns this
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.setStartKey = function(value) {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.setStartKey = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -6970,16 +6970,16 @@ proto.teleterm.v1.GetDatabasesRequest.prototype.setStartKey = function(value) {
  * optional string search = 4;
  * @return {string}
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.getSearch = function() {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.getSearch = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetDatabasesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetDatabasesRequest} returns this
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.setSearch = function(value) {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.setSearch = function(value) {
   return jspb.Message.setProto3StringField(this, 4, value);
 };
 
@@ -6988,16 +6988,16 @@ proto.teleterm.v1.GetDatabasesRequest.prototype.setSearch = function(value) {
  * optional string query = 5;
  * @return {string}
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.getQuery = function() {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.getQuery = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetDatabasesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetDatabasesRequest} returns this
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.setQuery = function(value) {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.setQuery = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
 };
 
@@ -7006,16 +7006,16 @@ proto.teleterm.v1.GetDatabasesRequest.prototype.setQuery = function(value) {
  * optional string sort_by = 6;
  * @return {string}
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.getSortBy = function() {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.getSortBy = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetDatabasesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetDatabasesRequest} returns this
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.setSortBy = function(value) {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.setSortBy = function(value) {
   return jspb.Message.setProto3StringField(this, 6, value);
 };
 
@@ -7024,16 +7024,16 @@ proto.teleterm.v1.GetDatabasesRequest.prototype.setSortBy = function(value) {
  * optional string search_as_roles = 7;
  * @return {string}
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.getSearchAsRoles = function() {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.getSearchAsRoles = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetDatabasesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetDatabasesRequest} returns this
  */
-proto.teleterm.v1.GetDatabasesRequest.prototype.setSearchAsRoles = function(value) {
+proto.teleport.lib.teleterm.v1.GetDatabasesRequest.prototype.setSearchAsRoles = function(value) {
   return jspb.Message.setProto3StringField(this, 7, value);
 };
 
@@ -7054,8 +7054,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.ListLeafClustersRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.ListLeafClustersRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.ListLeafClustersRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.ListLeafClustersRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -7064,11 +7064,11 @@ proto.teleterm.v1.ListLeafClustersRequest.prototype.toObject = function(opt_incl
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.ListLeafClustersRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.ListLeafClustersRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListLeafClustersRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.ListLeafClustersRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -7084,23 +7084,23 @@ proto.teleterm.v1.ListLeafClustersRequest.toObject = function(includeInstance, m
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.ListLeafClustersRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.ListLeafClustersRequest}
  */
-proto.teleterm.v1.ListLeafClustersRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.ListLeafClustersRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.ListLeafClustersRequest;
-  return proto.teleterm.v1.ListLeafClustersRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.ListLeafClustersRequest;
+  return proto.teleport.lib.teleterm.v1.ListLeafClustersRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.ListLeafClustersRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.ListLeafClustersRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.ListLeafClustersRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.ListLeafClustersRequest}
  */
-proto.teleterm.v1.ListLeafClustersRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.ListLeafClustersRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -7124,9 +7124,9 @@ proto.teleterm.v1.ListLeafClustersRequest.deserializeBinaryFromReader = function
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.ListLeafClustersRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.ListLeafClustersRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.ListLeafClustersRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.ListLeafClustersRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -7134,11 +7134,11 @@ proto.teleterm.v1.ListLeafClustersRequest.prototype.serializeBinary = function()
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.ListLeafClustersRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.ListLeafClustersRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListLeafClustersRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.ListLeafClustersRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -7154,16 +7154,16 @@ proto.teleterm.v1.ListLeafClustersRequest.serializeBinaryToWriter = function(mes
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.ListLeafClustersRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.ListLeafClustersRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.ListLeafClustersRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ListLeafClustersRequest} returns this
  */
-proto.teleterm.v1.ListLeafClustersRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.ListLeafClustersRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -7174,7 +7174,7 @@ proto.teleterm.v1.ListLeafClustersRequest.prototype.setClusterUri = function(val
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.GetAllDatabasesResponse.repeatedFields_ = [1];
+proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.repeatedFields_ = [1];
 
 
 
@@ -7191,8 +7191,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetAllDatabasesResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetAllDatabasesResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -7201,11 +7201,11 @@ proto.teleterm.v1.GetAllDatabasesResponse.prototype.toObject = function(opt_incl
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetAllDatabasesResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAllDatabasesResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     databasesList: jspb.Message.toObjectList(msg.getDatabasesList(),
     teleport_lib_teleterm_v1_database_pb.Database.toObject, includeInstance)
@@ -7222,23 +7222,23 @@ proto.teleterm.v1.GetAllDatabasesResponse.toObject = function(includeInstance, m
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetAllDatabasesResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse}
  */
-proto.teleterm.v1.GetAllDatabasesResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetAllDatabasesResponse;
-  return proto.teleterm.v1.GetAllDatabasesResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse;
+  return proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetAllDatabasesResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetAllDatabasesResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse}
  */
-proto.teleterm.v1.GetAllDatabasesResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -7263,9 +7263,9 @@ proto.teleterm.v1.GetAllDatabasesResponse.deserializeBinaryFromReader = function
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetAllDatabasesResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetAllDatabasesResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -7273,11 +7273,11 @@ proto.teleterm.v1.GetAllDatabasesResponse.prototype.serializeBinary = function()
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetAllDatabasesResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAllDatabasesResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getDatabasesList();
   if (f.length > 0) {
@@ -7292,38 +7292,38 @@ proto.teleterm.v1.GetAllDatabasesResponse.serializeBinaryToWriter = function(mes
 
 /**
  * repeated Database databases = 1;
- * @return {!Array<!proto.teleterm.v1.Database>}
+ * @return {!Array<!proto.teleport.lib.teleterm.v1.Database>}
  */
-proto.teleterm.v1.GetAllDatabasesResponse.prototype.getDatabasesList = function() {
-  return /** @type{!Array<!proto.teleterm.v1.Database>} */ (
+proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.prototype.getDatabasesList = function() {
+  return /** @type{!Array<!proto.teleport.lib.teleterm.v1.Database>} */ (
     jspb.Message.getRepeatedWrapperField(this, teleport_lib_teleterm_v1_database_pb.Database, 1));
 };
 
 
 /**
- * @param {!Array<!proto.teleterm.v1.Database>} value
- * @return {!proto.teleterm.v1.GetAllDatabasesResponse} returns this
+ * @param {!Array<!proto.teleport.lib.teleterm.v1.Database>} value
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse} returns this
 */
-proto.teleterm.v1.GetAllDatabasesResponse.prototype.setDatabasesList = function(value) {
+proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.prototype.setDatabasesList = function(value) {
   return jspb.Message.setRepeatedWrapperField(this, 1, value);
 };
 
 
 /**
- * @param {!proto.teleterm.v1.Database=} opt_value
+ * @param {!proto.teleport.lib.teleterm.v1.Database=} opt_value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.Database}
+ * @return {!proto.teleport.lib.teleterm.v1.Database}
  */
-proto.teleterm.v1.GetAllDatabasesResponse.prototype.addDatabases = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleterm.v1.Database, opt_index);
+proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.prototype.addDatabases = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleport.lib.teleterm.v1.Database, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.GetAllDatabasesResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse} returns this
  */
-proto.teleterm.v1.GetAllDatabasesResponse.prototype.clearDatabasesList = function() {
+proto.teleport.lib.teleterm.v1.GetAllDatabasesResponse.prototype.clearDatabasesList = function() {
   return this.setDatabasesList([]);
 };
 
@@ -7344,8 +7344,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.ListDatabaseUsersRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.ListDatabaseUsersRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -7354,11 +7354,11 @@ proto.teleterm.v1.ListDatabaseUsersRequest.prototype.toObject = function(opt_inc
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.ListDatabaseUsersRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListDatabaseUsersRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     dbUri: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -7374,23 +7374,23 @@ proto.teleterm.v1.ListDatabaseUsersRequest.toObject = function(includeInstance, 
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.ListDatabaseUsersRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest}
  */
-proto.teleterm.v1.ListDatabaseUsersRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.ListDatabaseUsersRequest;
-  return proto.teleterm.v1.ListDatabaseUsersRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest;
+  return proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.ListDatabaseUsersRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.ListDatabaseUsersRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest}
  */
-proto.teleterm.v1.ListDatabaseUsersRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -7414,9 +7414,9 @@ proto.teleterm.v1.ListDatabaseUsersRequest.deserializeBinaryFromReader = functio
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.ListDatabaseUsersRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.ListDatabaseUsersRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -7424,11 +7424,11 @@ proto.teleterm.v1.ListDatabaseUsersRequest.prototype.serializeBinary = function(
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.ListDatabaseUsersRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListDatabaseUsersRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getDbUri();
   if (f.length > 0) {
@@ -7444,16 +7444,16 @@ proto.teleterm.v1.ListDatabaseUsersRequest.serializeBinaryToWriter = function(me
  * optional string db_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.ListDatabaseUsersRequest.prototype.getDbUri = function() {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest.prototype.getDbUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.ListDatabaseUsersRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest} returns this
  */
-proto.teleterm.v1.ListDatabaseUsersRequest.prototype.setDbUri = function(value) {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersRequest.prototype.setDbUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -7464,7 +7464,7 @@ proto.teleterm.v1.ListDatabaseUsersRequest.prototype.setDbUri = function(value) 
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.ListDatabaseUsersResponse.repeatedFields_ = [1];
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.repeatedFields_ = [1];
 
 
 
@@ -7481,8 +7481,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.ListDatabaseUsersResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.ListDatabaseUsersResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -7491,11 +7491,11 @@ proto.teleterm.v1.ListDatabaseUsersResponse.prototype.toObject = function(opt_in
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.ListDatabaseUsersResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListDatabaseUsersResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     usersList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
   };
@@ -7511,23 +7511,23 @@ proto.teleterm.v1.ListDatabaseUsersResponse.toObject = function(includeInstance,
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.ListDatabaseUsersResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse}
  */
-proto.teleterm.v1.ListDatabaseUsersResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.ListDatabaseUsersResponse;
-  return proto.teleterm.v1.ListDatabaseUsersResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse;
+  return proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.ListDatabaseUsersResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.ListDatabaseUsersResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse}
  */
-proto.teleterm.v1.ListDatabaseUsersResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -7551,9 +7551,9 @@ proto.teleterm.v1.ListDatabaseUsersResponse.deserializeBinaryFromReader = functi
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.ListDatabaseUsersResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.ListDatabaseUsersResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -7561,11 +7561,11 @@ proto.teleterm.v1.ListDatabaseUsersResponse.prototype.serializeBinary = function
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.ListDatabaseUsersResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListDatabaseUsersResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getUsersList();
   if (f.length > 0) {
@@ -7581,16 +7581,16 @@ proto.teleterm.v1.ListDatabaseUsersResponse.serializeBinaryToWriter = function(m
  * repeated string users = 1;
  * @return {!Array<string>}
  */
-proto.teleterm.v1.ListDatabaseUsersResponse.prototype.getUsersList = function() {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.prototype.getUsersList = function() {
   return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 1));
 };
 
 
 /**
  * @param {!Array<string>} value
- * @return {!proto.teleterm.v1.ListDatabaseUsersResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse} returns this
  */
-proto.teleterm.v1.ListDatabaseUsersResponse.prototype.setUsersList = function(value) {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.prototype.setUsersList = function(value) {
   return jspb.Message.setField(this, 1, value || []);
 };
 
@@ -7598,18 +7598,18 @@ proto.teleterm.v1.ListDatabaseUsersResponse.prototype.setUsersList = function(va
 /**
  * @param {string} value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.ListDatabaseUsersResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse} returns this
  */
-proto.teleterm.v1.ListDatabaseUsersResponse.prototype.addUsers = function(value, opt_index) {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.prototype.addUsers = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 1, value, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.ListDatabaseUsersResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse} returns this
  */
-proto.teleterm.v1.ListDatabaseUsersResponse.prototype.clearUsersList = function() {
+proto.teleport.lib.teleterm.v1.ListDatabaseUsersResponse.prototype.clearUsersList = function() {
   return this.setUsersList([]);
 };
 
@@ -7630,8 +7630,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.CreateGatewayRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.CreateGatewayRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.CreateGatewayRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.CreateGatewayRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -7640,11 +7640,11 @@ proto.teleterm.v1.CreateGatewayRequest.prototype.toObject = function(opt_include
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.CreateGatewayRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.CreateGatewayRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.CreateGatewayRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.CreateGatewayRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     targetUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
     targetUser: jspb.Message.getFieldWithDefault(msg, 2, ""),
@@ -7663,23 +7663,23 @@ proto.teleterm.v1.CreateGatewayRequest.toObject = function(includeInstance, msg)
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.CreateGatewayRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.CreateGatewayRequest}
  */
-proto.teleterm.v1.CreateGatewayRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.CreateGatewayRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.CreateGatewayRequest;
-  return proto.teleterm.v1.CreateGatewayRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.CreateGatewayRequest;
+  return proto.teleport.lib.teleterm.v1.CreateGatewayRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.CreateGatewayRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.CreateGatewayRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.CreateGatewayRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.CreateGatewayRequest}
  */
-proto.teleterm.v1.CreateGatewayRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.CreateGatewayRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -7715,9 +7715,9 @@ proto.teleterm.v1.CreateGatewayRequest.deserializeBinaryFromReader = function(ms
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.CreateGatewayRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.CreateGatewayRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.CreateGatewayRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.CreateGatewayRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -7725,11 +7725,11 @@ proto.teleterm.v1.CreateGatewayRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.CreateGatewayRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.CreateGatewayRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.CreateGatewayRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.CreateGatewayRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getTargetUri();
   if (f.length > 0) {
@@ -7766,16 +7766,16 @@ proto.teleterm.v1.CreateGatewayRequest.serializeBinaryToWriter = function(messag
  * optional string target_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.CreateGatewayRequest.prototype.getTargetUri = function() {
+proto.teleport.lib.teleterm.v1.CreateGatewayRequest.prototype.getTargetUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.CreateGatewayRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.CreateGatewayRequest} returns this
  */
-proto.teleterm.v1.CreateGatewayRequest.prototype.setTargetUri = function(value) {
+proto.teleport.lib.teleterm.v1.CreateGatewayRequest.prototype.setTargetUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -7784,16 +7784,16 @@ proto.teleterm.v1.CreateGatewayRequest.prototype.setTargetUri = function(value) 
  * optional string target_user = 2;
  * @return {string}
  */
-proto.teleterm.v1.CreateGatewayRequest.prototype.getTargetUser = function() {
+proto.teleport.lib.teleterm.v1.CreateGatewayRequest.prototype.getTargetUser = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.CreateGatewayRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.CreateGatewayRequest} returns this
  */
-proto.teleterm.v1.CreateGatewayRequest.prototype.setTargetUser = function(value) {
+proto.teleport.lib.teleterm.v1.CreateGatewayRequest.prototype.setTargetUser = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -7802,16 +7802,16 @@ proto.teleterm.v1.CreateGatewayRequest.prototype.setTargetUser = function(value)
  * optional string local_port = 3;
  * @return {string}
  */
-proto.teleterm.v1.CreateGatewayRequest.prototype.getLocalPort = function() {
+proto.teleport.lib.teleterm.v1.CreateGatewayRequest.prototype.getLocalPort = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.CreateGatewayRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.CreateGatewayRequest} returns this
  */
-proto.teleterm.v1.CreateGatewayRequest.prototype.setLocalPort = function(value) {
+proto.teleport.lib.teleterm.v1.CreateGatewayRequest.prototype.setLocalPort = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -7820,16 +7820,16 @@ proto.teleterm.v1.CreateGatewayRequest.prototype.setLocalPort = function(value) 
  * optional string target_subresource_name = 4;
  * @return {string}
  */
-proto.teleterm.v1.CreateGatewayRequest.prototype.getTargetSubresourceName = function() {
+proto.teleport.lib.teleterm.v1.CreateGatewayRequest.prototype.getTargetSubresourceName = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.CreateGatewayRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.CreateGatewayRequest} returns this
  */
-proto.teleterm.v1.CreateGatewayRequest.prototype.setTargetSubresourceName = function(value) {
+proto.teleport.lib.teleterm.v1.CreateGatewayRequest.prototype.setTargetSubresourceName = function(value) {
   return jspb.Message.setProto3StringField(this, 4, value);
 };
 
@@ -7840,7 +7840,7 @@ proto.teleterm.v1.CreateGatewayRequest.prototype.setTargetSubresourceName = func
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.ListGatewaysRequest.repeatedFields_ = [1];
+proto.teleport.lib.teleterm.v1.ListGatewaysRequest.repeatedFields_ = [1];
 
 
 
@@ -7857,8 +7857,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.ListGatewaysRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.ListGatewaysRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.ListGatewaysRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.ListGatewaysRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -7867,11 +7867,11 @@ proto.teleterm.v1.ListGatewaysRequest.prototype.toObject = function(opt_includeI
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.ListGatewaysRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.ListGatewaysRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListGatewaysRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.ListGatewaysRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterIdsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
   };
@@ -7887,23 +7887,23 @@ proto.teleterm.v1.ListGatewaysRequest.toObject = function(includeInstance, msg) 
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.ListGatewaysRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.ListGatewaysRequest}
  */
-proto.teleterm.v1.ListGatewaysRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.ListGatewaysRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.ListGatewaysRequest;
-  return proto.teleterm.v1.ListGatewaysRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.ListGatewaysRequest;
+  return proto.teleport.lib.teleterm.v1.ListGatewaysRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.ListGatewaysRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.ListGatewaysRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.ListGatewaysRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.ListGatewaysRequest}
  */
-proto.teleterm.v1.ListGatewaysRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.ListGatewaysRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -7927,9 +7927,9 @@ proto.teleterm.v1.ListGatewaysRequest.deserializeBinaryFromReader = function(msg
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.ListGatewaysRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.ListGatewaysRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.ListGatewaysRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.ListGatewaysRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -7937,11 +7937,11 @@ proto.teleterm.v1.ListGatewaysRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.ListGatewaysRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.ListGatewaysRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListGatewaysRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.ListGatewaysRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterIdsList();
   if (f.length > 0) {
@@ -7957,16 +7957,16 @@ proto.teleterm.v1.ListGatewaysRequest.serializeBinaryToWriter = function(message
  * repeated string cluster_ids = 1;
  * @return {!Array<string>}
  */
-proto.teleterm.v1.ListGatewaysRequest.prototype.getClusterIdsList = function() {
+proto.teleport.lib.teleterm.v1.ListGatewaysRequest.prototype.getClusterIdsList = function() {
   return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 1));
 };
 
 
 /**
  * @param {!Array<string>} value
- * @return {!proto.teleterm.v1.ListGatewaysRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ListGatewaysRequest} returns this
  */
-proto.teleterm.v1.ListGatewaysRequest.prototype.setClusterIdsList = function(value) {
+proto.teleport.lib.teleterm.v1.ListGatewaysRequest.prototype.setClusterIdsList = function(value) {
   return jspb.Message.setField(this, 1, value || []);
 };
 
@@ -7974,18 +7974,18 @@ proto.teleterm.v1.ListGatewaysRequest.prototype.setClusterIdsList = function(val
 /**
  * @param {string} value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.ListGatewaysRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ListGatewaysRequest} returns this
  */
-proto.teleterm.v1.ListGatewaysRequest.prototype.addClusterIds = function(value, opt_index) {
+proto.teleport.lib.teleterm.v1.ListGatewaysRequest.prototype.addClusterIds = function(value, opt_index) {
   return jspb.Message.addToRepeatedField(this, 1, value, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.ListGatewaysRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ListGatewaysRequest} returns this
  */
-proto.teleterm.v1.ListGatewaysRequest.prototype.clearClusterIdsList = function() {
+proto.teleport.lib.teleterm.v1.ListGatewaysRequest.prototype.clearClusterIdsList = function() {
   return this.setClusterIdsList([]);
 };
 
@@ -7996,7 +7996,7 @@ proto.teleterm.v1.ListGatewaysRequest.prototype.clearClusterIdsList = function()
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.ListGatewaysResponse.repeatedFields_ = [1];
+proto.teleport.lib.teleterm.v1.ListGatewaysResponse.repeatedFields_ = [1];
 
 
 
@@ -8013,8 +8013,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.ListGatewaysResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.ListGatewaysResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.ListGatewaysResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.ListGatewaysResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -8023,11 +8023,11 @@ proto.teleterm.v1.ListGatewaysResponse.prototype.toObject = function(opt_include
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.ListGatewaysResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.ListGatewaysResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListGatewaysResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.ListGatewaysResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     gatewaysList: jspb.Message.toObjectList(msg.getGatewaysList(),
     teleport_lib_teleterm_v1_gateway_pb.Gateway.toObject, includeInstance)
@@ -8044,23 +8044,23 @@ proto.teleterm.v1.ListGatewaysResponse.toObject = function(includeInstance, msg)
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.ListGatewaysResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.ListGatewaysResponse}
  */
-proto.teleterm.v1.ListGatewaysResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.ListGatewaysResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.ListGatewaysResponse;
-  return proto.teleterm.v1.ListGatewaysResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.ListGatewaysResponse;
+  return proto.teleport.lib.teleterm.v1.ListGatewaysResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.ListGatewaysResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.ListGatewaysResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.ListGatewaysResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.ListGatewaysResponse}
  */
-proto.teleterm.v1.ListGatewaysResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.ListGatewaysResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -8085,9 +8085,9 @@ proto.teleterm.v1.ListGatewaysResponse.deserializeBinaryFromReader = function(ms
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.ListGatewaysResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.ListGatewaysResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.ListGatewaysResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.ListGatewaysResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -8095,11 +8095,11 @@ proto.teleterm.v1.ListGatewaysResponse.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.ListGatewaysResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.ListGatewaysResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListGatewaysResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.ListGatewaysResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getGatewaysList();
   if (f.length > 0) {
@@ -8114,38 +8114,38 @@ proto.teleterm.v1.ListGatewaysResponse.serializeBinaryToWriter = function(messag
 
 /**
  * repeated Gateway gateways = 1;
- * @return {!Array<!proto.teleterm.v1.Gateway>}
+ * @return {!Array<!proto.teleport.lib.teleterm.v1.Gateway>}
  */
-proto.teleterm.v1.ListGatewaysResponse.prototype.getGatewaysList = function() {
-  return /** @type{!Array<!proto.teleterm.v1.Gateway>} */ (
+proto.teleport.lib.teleterm.v1.ListGatewaysResponse.prototype.getGatewaysList = function() {
+  return /** @type{!Array<!proto.teleport.lib.teleterm.v1.Gateway>} */ (
     jspb.Message.getRepeatedWrapperField(this, teleport_lib_teleterm_v1_gateway_pb.Gateway, 1));
 };
 
 
 /**
- * @param {!Array<!proto.teleterm.v1.Gateway>} value
- * @return {!proto.teleterm.v1.ListGatewaysResponse} returns this
+ * @param {!Array<!proto.teleport.lib.teleterm.v1.Gateway>} value
+ * @return {!proto.teleport.lib.teleterm.v1.ListGatewaysResponse} returns this
 */
-proto.teleterm.v1.ListGatewaysResponse.prototype.setGatewaysList = function(value) {
+proto.teleport.lib.teleterm.v1.ListGatewaysResponse.prototype.setGatewaysList = function(value) {
   return jspb.Message.setRepeatedWrapperField(this, 1, value);
 };
 
 
 /**
- * @param {!proto.teleterm.v1.Gateway=} opt_value
+ * @param {!proto.teleport.lib.teleterm.v1.Gateway=} opt_value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.Gateway}
+ * @return {!proto.teleport.lib.teleterm.v1.Gateway}
  */
-proto.teleterm.v1.ListGatewaysResponse.prototype.addGateways = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleterm.v1.Gateway, opt_index);
+proto.teleport.lib.teleterm.v1.ListGatewaysResponse.prototype.addGateways = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleport.lib.teleterm.v1.Gateway, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.ListGatewaysResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ListGatewaysResponse} returns this
  */
-proto.teleterm.v1.ListGatewaysResponse.prototype.clearGatewaysList = function() {
+proto.teleport.lib.teleterm.v1.ListGatewaysResponse.prototype.clearGatewaysList = function() {
   return this.setGatewaysList([]);
 };
 
@@ -8166,8 +8166,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.RemoveGatewayRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.RemoveGatewayRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.RemoveGatewayRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.RemoveGatewayRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -8176,11 +8176,11 @@ proto.teleterm.v1.RemoveGatewayRequest.prototype.toObject = function(opt_include
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.RemoveGatewayRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.RemoveGatewayRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.RemoveGatewayRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.RemoveGatewayRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     gatewayUri: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -8196,23 +8196,23 @@ proto.teleterm.v1.RemoveGatewayRequest.toObject = function(includeInstance, msg)
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.RemoveGatewayRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.RemoveGatewayRequest}
  */
-proto.teleterm.v1.RemoveGatewayRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.RemoveGatewayRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.RemoveGatewayRequest;
-  return proto.teleterm.v1.RemoveGatewayRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.RemoveGatewayRequest;
+  return proto.teleport.lib.teleterm.v1.RemoveGatewayRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.RemoveGatewayRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.RemoveGatewayRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.RemoveGatewayRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.RemoveGatewayRequest}
  */
-proto.teleterm.v1.RemoveGatewayRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.RemoveGatewayRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -8236,9 +8236,9 @@ proto.teleterm.v1.RemoveGatewayRequest.deserializeBinaryFromReader = function(ms
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.RemoveGatewayRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.RemoveGatewayRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.RemoveGatewayRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.RemoveGatewayRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -8246,11 +8246,11 @@ proto.teleterm.v1.RemoveGatewayRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.RemoveGatewayRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.RemoveGatewayRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.RemoveGatewayRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.RemoveGatewayRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getGatewayUri();
   if (f.length > 0) {
@@ -8266,16 +8266,16 @@ proto.teleterm.v1.RemoveGatewayRequest.serializeBinaryToWriter = function(messag
  * optional string gateway_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.RemoveGatewayRequest.prototype.getGatewayUri = function() {
+proto.teleport.lib.teleterm.v1.RemoveGatewayRequest.prototype.getGatewayUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.RemoveGatewayRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.RemoveGatewayRequest} returns this
  */
-proto.teleterm.v1.RemoveGatewayRequest.prototype.setGatewayUri = function(value) {
+proto.teleport.lib.teleterm.v1.RemoveGatewayRequest.prototype.setGatewayUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -8296,8 +8296,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.RestartGatewayRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.RestartGatewayRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.RestartGatewayRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.RestartGatewayRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -8306,11 +8306,11 @@ proto.teleterm.v1.RestartGatewayRequest.prototype.toObject = function(opt_includ
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.RestartGatewayRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.RestartGatewayRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.RestartGatewayRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.RestartGatewayRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     gatewayUri: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -8326,23 +8326,23 @@ proto.teleterm.v1.RestartGatewayRequest.toObject = function(includeInstance, msg
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.RestartGatewayRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.RestartGatewayRequest}
  */
-proto.teleterm.v1.RestartGatewayRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.RestartGatewayRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.RestartGatewayRequest;
-  return proto.teleterm.v1.RestartGatewayRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.RestartGatewayRequest;
+  return proto.teleport.lib.teleterm.v1.RestartGatewayRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.RestartGatewayRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.RestartGatewayRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.RestartGatewayRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.RestartGatewayRequest}
  */
-proto.teleterm.v1.RestartGatewayRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.RestartGatewayRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -8366,9 +8366,9 @@ proto.teleterm.v1.RestartGatewayRequest.deserializeBinaryFromReader = function(m
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.RestartGatewayRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.RestartGatewayRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.RestartGatewayRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.RestartGatewayRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -8376,11 +8376,11 @@ proto.teleterm.v1.RestartGatewayRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.RestartGatewayRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.RestartGatewayRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.RestartGatewayRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.RestartGatewayRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getGatewayUri();
   if (f.length > 0) {
@@ -8396,16 +8396,16 @@ proto.teleterm.v1.RestartGatewayRequest.serializeBinaryToWriter = function(messa
  * optional string gateway_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.RestartGatewayRequest.prototype.getGatewayUri = function() {
+proto.teleport.lib.teleterm.v1.RestartGatewayRequest.prototype.getGatewayUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.RestartGatewayRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.RestartGatewayRequest} returns this
  */
-proto.teleterm.v1.RestartGatewayRequest.prototype.setGatewayUri = function(value) {
+proto.teleport.lib.teleterm.v1.RestartGatewayRequest.prototype.setGatewayUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -8426,8 +8426,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -8436,11 +8436,11 @@ proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.prototype.toObject = fu
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     gatewayUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
     targetSubresourceName: jspb.Message.getFieldWithDefault(msg, 2, "")
@@ -8457,23 +8457,23 @@ proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.toObject = function(inc
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest}
  */
-proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest;
-  return proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest;
+  return proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest}
  */
-proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -8501,9 +8501,9 @@ proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.deserializeBinaryFromRe
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -8511,11 +8511,11 @@ proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.prototype.serializeBina
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getGatewayUri();
   if (f.length > 0) {
@@ -8538,16 +8538,16 @@ proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.serializeBinaryToWriter
  * optional string gateway_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.prototype.getGatewayUri = function() {
+proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest.prototype.getGatewayUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest} returns this
  */
-proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.prototype.setGatewayUri = function(value) {
+proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest.prototype.setGatewayUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -8556,16 +8556,16 @@ proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.prototype.setGatewayUri
  * optional string target_subresource_name = 2;
  * @return {string}
  */
-proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.prototype.getTargetSubresourceName = function() {
+proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest.prototype.getTargetSubresourceName = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest} returns this
  */
-proto.teleterm.v1.SetGatewayTargetSubresourceNameRequest.prototype.setTargetSubresourceName = function(value) {
+proto.teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest.prototype.setTargetSubresourceName = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -8586,8 +8586,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.SetGatewayLocalPortRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.SetGatewayLocalPortRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -8596,11 +8596,11 @@ proto.teleterm.v1.SetGatewayLocalPortRequest.prototype.toObject = function(opt_i
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.SetGatewayLocalPortRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.SetGatewayLocalPortRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     gatewayUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
     localPort: jspb.Message.getFieldWithDefault(msg, 2, "")
@@ -8617,23 +8617,23 @@ proto.teleterm.v1.SetGatewayLocalPortRequest.toObject = function(includeInstance
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.SetGatewayLocalPortRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest}
  */
-proto.teleterm.v1.SetGatewayLocalPortRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.SetGatewayLocalPortRequest;
-  return proto.teleterm.v1.SetGatewayLocalPortRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest;
+  return proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.SetGatewayLocalPortRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.SetGatewayLocalPortRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest}
  */
-proto.teleterm.v1.SetGatewayLocalPortRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -8661,9 +8661,9 @@ proto.teleterm.v1.SetGatewayLocalPortRequest.deserializeBinaryFromReader = funct
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.SetGatewayLocalPortRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.SetGatewayLocalPortRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -8671,11 +8671,11 @@ proto.teleterm.v1.SetGatewayLocalPortRequest.prototype.serializeBinary = functio
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.SetGatewayLocalPortRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.SetGatewayLocalPortRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getGatewayUri();
   if (f.length > 0) {
@@ -8698,16 +8698,16 @@ proto.teleterm.v1.SetGatewayLocalPortRequest.serializeBinaryToWriter = function(
  * optional string gateway_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.SetGatewayLocalPortRequest.prototype.getGatewayUri = function() {
+proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest.prototype.getGatewayUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.SetGatewayLocalPortRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest} returns this
  */
-proto.teleterm.v1.SetGatewayLocalPortRequest.prototype.setGatewayUri = function(value) {
+proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest.prototype.setGatewayUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -8716,16 +8716,16 @@ proto.teleterm.v1.SetGatewayLocalPortRequest.prototype.setGatewayUri = function(
  * optional string local_port = 2;
  * @return {string}
  */
-proto.teleterm.v1.SetGatewayLocalPortRequest.prototype.getLocalPort = function() {
+proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest.prototype.getLocalPort = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.SetGatewayLocalPortRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest} returns this
  */
-proto.teleterm.v1.SetGatewayLocalPortRequest.prototype.setLocalPort = function(value) {
+proto.teleport.lib.teleterm.v1.SetGatewayLocalPortRequest.prototype.setLocalPort = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 
@@ -8746,8 +8746,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetAllServersRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetAllServersRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetAllServersRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetAllServersRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -8756,11 +8756,11 @@ proto.teleterm.v1.GetAllServersRequest.prototype.toObject = function(opt_include
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetAllServersRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllServersRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAllServersRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetAllServersRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -8776,23 +8776,23 @@ proto.teleterm.v1.GetAllServersRequest.toObject = function(includeInstance, msg)
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetAllServersRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllServersRequest}
  */
-proto.teleterm.v1.GetAllServersRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetAllServersRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetAllServersRequest;
-  return proto.teleterm.v1.GetAllServersRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetAllServersRequest;
+  return proto.teleport.lib.teleterm.v1.GetAllServersRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetAllServersRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllServersRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetAllServersRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllServersRequest}
  */
-proto.teleterm.v1.GetAllServersRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetAllServersRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -8816,9 +8816,9 @@ proto.teleterm.v1.GetAllServersRequest.deserializeBinaryFromReader = function(ms
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetAllServersRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetAllServersRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetAllServersRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetAllServersRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -8826,11 +8826,11 @@ proto.teleterm.v1.GetAllServersRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetAllServersRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllServersRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAllServersRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetAllServersRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -8846,16 +8846,16 @@ proto.teleterm.v1.GetAllServersRequest.serializeBinaryToWriter = function(messag
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.GetAllServersRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.GetAllServersRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetAllServersRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllServersRequest} returns this
  */
-proto.teleterm.v1.GetAllServersRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.GetAllServersRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -8866,7 +8866,7 @@ proto.teleterm.v1.GetAllServersRequest.prototype.setClusterUri = function(value)
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.GetAllServersResponse.repeatedFields_ = [1];
+proto.teleport.lib.teleterm.v1.GetAllServersResponse.repeatedFields_ = [1];
 
 
 
@@ -8883,8 +8883,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetAllServersResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetAllServersResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetAllServersResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetAllServersResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -8893,11 +8893,11 @@ proto.teleterm.v1.GetAllServersResponse.prototype.toObject = function(opt_includ
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetAllServersResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllServersResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAllServersResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetAllServersResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     serversList: jspb.Message.toObjectList(msg.getServersList(),
     teleport_lib_teleterm_v1_server_pb.Server.toObject, includeInstance)
@@ -8914,23 +8914,23 @@ proto.teleterm.v1.GetAllServersResponse.toObject = function(includeInstance, msg
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetAllServersResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllServersResponse}
  */
-proto.teleterm.v1.GetAllServersResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetAllServersResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetAllServersResponse;
-  return proto.teleterm.v1.GetAllServersResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetAllServersResponse;
+  return proto.teleport.lib.teleterm.v1.GetAllServersResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetAllServersResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllServersResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetAllServersResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllServersResponse}
  */
-proto.teleterm.v1.GetAllServersResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetAllServersResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -8955,9 +8955,9 @@ proto.teleterm.v1.GetAllServersResponse.deserializeBinaryFromReader = function(m
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetAllServersResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetAllServersResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetAllServersResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetAllServersResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -8965,11 +8965,11 @@ proto.teleterm.v1.GetAllServersResponse.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetAllServersResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllServersResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAllServersResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetAllServersResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getServersList();
   if (f.length > 0) {
@@ -8984,38 +8984,38 @@ proto.teleterm.v1.GetAllServersResponse.serializeBinaryToWriter = function(messa
 
 /**
  * repeated Server servers = 1;
- * @return {!Array<!proto.teleterm.v1.Server>}
+ * @return {!Array<!proto.teleport.lib.teleterm.v1.Server>}
  */
-proto.teleterm.v1.GetAllServersResponse.prototype.getServersList = function() {
-  return /** @type{!Array<!proto.teleterm.v1.Server>} */ (
+proto.teleport.lib.teleterm.v1.GetAllServersResponse.prototype.getServersList = function() {
+  return /** @type{!Array<!proto.teleport.lib.teleterm.v1.Server>} */ (
     jspb.Message.getRepeatedWrapperField(this, teleport_lib_teleterm_v1_server_pb.Server, 1));
 };
 
 
 /**
- * @param {!Array<!proto.teleterm.v1.Server>} value
- * @return {!proto.teleterm.v1.GetAllServersResponse} returns this
+ * @param {!Array<!proto.teleport.lib.teleterm.v1.Server>} value
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllServersResponse} returns this
 */
-proto.teleterm.v1.GetAllServersResponse.prototype.setServersList = function(value) {
+proto.teleport.lib.teleterm.v1.GetAllServersResponse.prototype.setServersList = function(value) {
   return jspb.Message.setRepeatedWrapperField(this, 1, value);
 };
 
 
 /**
- * @param {!proto.teleterm.v1.Server=} opt_value
+ * @param {!proto.teleport.lib.teleterm.v1.Server=} opt_value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.Server}
+ * @return {!proto.teleport.lib.teleterm.v1.Server}
  */
-proto.teleterm.v1.GetAllServersResponse.prototype.addServers = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleterm.v1.Server, opt_index);
+proto.teleport.lib.teleterm.v1.GetAllServersResponse.prototype.addServers = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleport.lib.teleterm.v1.Server, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.GetAllServersResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllServersResponse} returns this
  */
-proto.teleterm.v1.GetAllServersResponse.prototype.clearServersList = function() {
+proto.teleport.lib.teleterm.v1.GetAllServersResponse.prototype.clearServersList = function() {
   return this.setServersList([]);
 };
 
@@ -9036,8 +9036,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetServersRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetServersRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetServersRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -9046,11 +9046,11 @@ proto.teleterm.v1.GetServersRequest.prototype.toObject = function(opt_includeIns
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetServersRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetServersRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetServersRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetServersRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
     limit: jspb.Message.getFieldWithDefault(msg, 2, 0),
@@ -9072,23 +9072,23 @@ proto.teleterm.v1.GetServersRequest.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetServersRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetServersRequest}
  */
-proto.teleterm.v1.GetServersRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetServersRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetServersRequest;
-  return proto.teleterm.v1.GetServersRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetServersRequest;
+  return proto.teleport.lib.teleterm.v1.GetServersRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetServersRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetServersRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetServersRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetServersRequest}
  */
-proto.teleterm.v1.GetServersRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetServersRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -9136,9 +9136,9 @@ proto.teleterm.v1.GetServersRequest.deserializeBinaryFromReader = function(msg, 
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetServersRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetServersRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetServersRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -9146,11 +9146,11 @@ proto.teleterm.v1.GetServersRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetServersRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetServersRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetServersRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetServersRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -9208,16 +9208,16 @@ proto.teleterm.v1.GetServersRequest.serializeBinaryToWriter = function(message, 
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.GetServersRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetServersRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetServersRequest} returns this
  */
-proto.teleterm.v1.GetServersRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -9226,16 +9226,16 @@ proto.teleterm.v1.GetServersRequest.prototype.setClusterUri = function(value) {
  * optional int32 limit = 2;
  * @return {number}
  */
-proto.teleterm.v1.GetServersRequest.prototype.getLimit = function() {
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.getLimit = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
 };
 
 
 /**
  * @param {number} value
- * @return {!proto.teleterm.v1.GetServersRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetServersRequest} returns this
  */
-proto.teleterm.v1.GetServersRequest.prototype.setLimit = function(value) {
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.setLimit = function(value) {
   return jspb.Message.setProto3IntField(this, 2, value);
 };
 
@@ -9244,16 +9244,16 @@ proto.teleterm.v1.GetServersRequest.prototype.setLimit = function(value) {
  * optional string start_key = 3;
  * @return {string}
  */
-proto.teleterm.v1.GetServersRequest.prototype.getStartKey = function() {
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.getStartKey = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetServersRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetServersRequest} returns this
  */
-proto.teleterm.v1.GetServersRequest.prototype.setStartKey = function(value) {
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.setStartKey = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -9262,16 +9262,16 @@ proto.teleterm.v1.GetServersRequest.prototype.setStartKey = function(value) {
  * optional string search = 4;
  * @return {string}
  */
-proto.teleterm.v1.GetServersRequest.prototype.getSearch = function() {
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.getSearch = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetServersRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetServersRequest} returns this
  */
-proto.teleterm.v1.GetServersRequest.prototype.setSearch = function(value) {
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.setSearch = function(value) {
   return jspb.Message.setProto3StringField(this, 4, value);
 };
 
@@ -9280,16 +9280,16 @@ proto.teleterm.v1.GetServersRequest.prototype.setSearch = function(value) {
  * optional string query = 5;
  * @return {string}
  */
-proto.teleterm.v1.GetServersRequest.prototype.getQuery = function() {
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.getQuery = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetServersRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetServersRequest} returns this
  */
-proto.teleterm.v1.GetServersRequest.prototype.setQuery = function(value) {
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.setQuery = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
 };
 
@@ -9298,16 +9298,16 @@ proto.teleterm.v1.GetServersRequest.prototype.setQuery = function(value) {
  * optional string sort_by = 6;
  * @return {string}
  */
-proto.teleterm.v1.GetServersRequest.prototype.getSortBy = function() {
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.getSortBy = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetServersRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetServersRequest} returns this
  */
-proto.teleterm.v1.GetServersRequest.prototype.setSortBy = function(value) {
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.setSortBy = function(value) {
   return jspb.Message.setProto3StringField(this, 6, value);
 };
 
@@ -9316,16 +9316,16 @@ proto.teleterm.v1.GetServersRequest.prototype.setSortBy = function(value) {
  * optional string search_as_roles = 7;
  * @return {string}
  */
-proto.teleterm.v1.GetServersRequest.prototype.getSearchAsRoles = function() {
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.getSearchAsRoles = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetServersRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetServersRequest} returns this
  */
-proto.teleterm.v1.GetServersRequest.prototype.setSearchAsRoles = function(value) {
+proto.teleport.lib.teleterm.v1.GetServersRequest.prototype.setSearchAsRoles = function(value) {
   return jspb.Message.setProto3StringField(this, 7, value);
 };
 
@@ -9336,7 +9336,7 @@ proto.teleterm.v1.GetServersRequest.prototype.setSearchAsRoles = function(value)
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.GetServersResponse.repeatedFields_ = [1];
+proto.teleport.lib.teleterm.v1.GetServersResponse.repeatedFields_ = [1];
 
 
 
@@ -9353,8 +9353,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetServersResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetServersResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetServersResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetServersResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -9363,11 +9363,11 @@ proto.teleterm.v1.GetServersResponse.prototype.toObject = function(opt_includeIn
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetServersResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetServersResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetServersResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetServersResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     agentsList: jspb.Message.toObjectList(msg.getAgentsList(),
     teleport_lib_teleterm_v1_server_pb.Server.toObject, includeInstance),
@@ -9386,23 +9386,23 @@ proto.teleterm.v1.GetServersResponse.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetServersResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetServersResponse}
  */
-proto.teleterm.v1.GetServersResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetServersResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetServersResponse;
-  return proto.teleterm.v1.GetServersResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetServersResponse;
+  return proto.teleport.lib.teleterm.v1.GetServersResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetServersResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetServersResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetServersResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetServersResponse}
  */
-proto.teleterm.v1.GetServersResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetServersResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -9435,9 +9435,9 @@ proto.teleterm.v1.GetServersResponse.deserializeBinaryFromReader = function(msg,
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetServersResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetServersResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetServersResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetServersResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -9445,11 +9445,11 @@ proto.teleterm.v1.GetServersResponse.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetServersResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetServersResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetServersResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetServersResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getAgentsList();
   if (f.length > 0) {
@@ -9478,38 +9478,38 @@ proto.teleterm.v1.GetServersResponse.serializeBinaryToWriter = function(message,
 
 /**
  * repeated Server agents = 1;
- * @return {!Array<!proto.teleterm.v1.Server>}
+ * @return {!Array<!proto.teleport.lib.teleterm.v1.Server>}
  */
-proto.teleterm.v1.GetServersResponse.prototype.getAgentsList = function() {
-  return /** @type{!Array<!proto.teleterm.v1.Server>} */ (
+proto.teleport.lib.teleterm.v1.GetServersResponse.prototype.getAgentsList = function() {
+  return /** @type{!Array<!proto.teleport.lib.teleterm.v1.Server>} */ (
     jspb.Message.getRepeatedWrapperField(this, teleport_lib_teleterm_v1_server_pb.Server, 1));
 };
 
 
 /**
- * @param {!Array<!proto.teleterm.v1.Server>} value
- * @return {!proto.teleterm.v1.GetServersResponse} returns this
+ * @param {!Array<!proto.teleport.lib.teleterm.v1.Server>} value
+ * @return {!proto.teleport.lib.teleterm.v1.GetServersResponse} returns this
 */
-proto.teleterm.v1.GetServersResponse.prototype.setAgentsList = function(value) {
+proto.teleport.lib.teleterm.v1.GetServersResponse.prototype.setAgentsList = function(value) {
   return jspb.Message.setRepeatedWrapperField(this, 1, value);
 };
 
 
 /**
- * @param {!proto.teleterm.v1.Server=} opt_value
+ * @param {!proto.teleport.lib.teleterm.v1.Server=} opt_value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.Server}
+ * @return {!proto.teleport.lib.teleterm.v1.Server}
  */
-proto.teleterm.v1.GetServersResponse.prototype.addAgents = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleterm.v1.Server, opt_index);
+proto.teleport.lib.teleterm.v1.GetServersResponse.prototype.addAgents = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleport.lib.teleterm.v1.Server, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.GetServersResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetServersResponse} returns this
  */
-proto.teleterm.v1.GetServersResponse.prototype.clearAgentsList = function() {
+proto.teleport.lib.teleterm.v1.GetServersResponse.prototype.clearAgentsList = function() {
   return this.setAgentsList([]);
 };
 
@@ -9518,16 +9518,16 @@ proto.teleterm.v1.GetServersResponse.prototype.clearAgentsList = function() {
  * optional int32 total_count = 2;
  * @return {number}
  */
-proto.teleterm.v1.GetServersResponse.prototype.getTotalCount = function() {
+proto.teleport.lib.teleterm.v1.GetServersResponse.prototype.getTotalCount = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
 };
 
 
 /**
  * @param {number} value
- * @return {!proto.teleterm.v1.GetServersResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetServersResponse} returns this
  */
-proto.teleterm.v1.GetServersResponse.prototype.setTotalCount = function(value) {
+proto.teleport.lib.teleterm.v1.GetServersResponse.prototype.setTotalCount = function(value) {
   return jspb.Message.setProto3IntField(this, 2, value);
 };
 
@@ -9536,16 +9536,16 @@ proto.teleterm.v1.GetServersResponse.prototype.setTotalCount = function(value) {
  * optional string start_key = 3;
  * @return {string}
  */
-proto.teleterm.v1.GetServersResponse.prototype.getStartKey = function() {
+proto.teleport.lib.teleterm.v1.GetServersResponse.prototype.getStartKey = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetServersResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetServersResponse} returns this
  */
-proto.teleterm.v1.GetServersResponse.prototype.setStartKey = function(value) {
+proto.teleport.lib.teleterm.v1.GetServersResponse.prototype.setStartKey = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -9556,7 +9556,7 @@ proto.teleterm.v1.GetServersResponse.prototype.setStartKey = function(value) {
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.GetDatabasesResponse.repeatedFields_ = [1];
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse.repeatedFields_ = [1];
 
 
 
@@ -9573,8 +9573,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetDatabasesResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetDatabasesResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetDatabasesResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -9583,11 +9583,11 @@ proto.teleterm.v1.GetDatabasesResponse.prototype.toObject = function(opt_include
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetDatabasesResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetDatabasesResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetDatabasesResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     agentsList: jspb.Message.toObjectList(msg.getAgentsList(),
     teleport_lib_teleterm_v1_database_pb.Database.toObject, includeInstance),
@@ -9606,23 +9606,23 @@ proto.teleterm.v1.GetDatabasesResponse.toObject = function(includeInstance, msg)
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetDatabasesResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetDatabasesResponse}
  */
-proto.teleterm.v1.GetDatabasesResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetDatabasesResponse;
-  return proto.teleterm.v1.GetDatabasesResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetDatabasesResponse;
+  return proto.teleport.lib.teleterm.v1.GetDatabasesResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetDatabasesResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetDatabasesResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetDatabasesResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetDatabasesResponse}
  */
-proto.teleterm.v1.GetDatabasesResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -9655,9 +9655,9 @@ proto.teleterm.v1.GetDatabasesResponse.deserializeBinaryFromReader = function(ms
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetDatabasesResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetDatabasesResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetDatabasesResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -9665,11 +9665,11 @@ proto.teleterm.v1.GetDatabasesResponse.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetDatabasesResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetDatabasesResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetDatabasesResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getAgentsList();
   if (f.length > 0) {
@@ -9698,38 +9698,38 @@ proto.teleterm.v1.GetDatabasesResponse.serializeBinaryToWriter = function(messag
 
 /**
  * repeated Database agents = 1;
- * @return {!Array<!proto.teleterm.v1.Database>}
+ * @return {!Array<!proto.teleport.lib.teleterm.v1.Database>}
  */
-proto.teleterm.v1.GetDatabasesResponse.prototype.getAgentsList = function() {
-  return /** @type{!Array<!proto.teleterm.v1.Database>} */ (
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse.prototype.getAgentsList = function() {
+  return /** @type{!Array<!proto.teleport.lib.teleterm.v1.Database>} */ (
     jspb.Message.getRepeatedWrapperField(this, teleport_lib_teleterm_v1_database_pb.Database, 1));
 };
 
 
 /**
- * @param {!Array<!proto.teleterm.v1.Database>} value
- * @return {!proto.teleterm.v1.GetDatabasesResponse} returns this
+ * @param {!Array<!proto.teleport.lib.teleterm.v1.Database>} value
+ * @return {!proto.teleport.lib.teleterm.v1.GetDatabasesResponse} returns this
 */
-proto.teleterm.v1.GetDatabasesResponse.prototype.setAgentsList = function(value) {
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse.prototype.setAgentsList = function(value) {
   return jspb.Message.setRepeatedWrapperField(this, 1, value);
 };
 
 
 /**
- * @param {!proto.teleterm.v1.Database=} opt_value
+ * @param {!proto.teleport.lib.teleterm.v1.Database=} opt_value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.Database}
+ * @return {!proto.teleport.lib.teleterm.v1.Database}
  */
-proto.teleterm.v1.GetDatabasesResponse.prototype.addAgents = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleterm.v1.Database, opt_index);
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse.prototype.addAgents = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleport.lib.teleterm.v1.Database, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.GetDatabasesResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetDatabasesResponse} returns this
  */
-proto.teleterm.v1.GetDatabasesResponse.prototype.clearAgentsList = function() {
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse.prototype.clearAgentsList = function() {
   return this.setAgentsList([]);
 };
 
@@ -9738,16 +9738,16 @@ proto.teleterm.v1.GetDatabasesResponse.prototype.clearAgentsList = function() {
  * optional int32 total_count = 2;
  * @return {number}
  */
-proto.teleterm.v1.GetDatabasesResponse.prototype.getTotalCount = function() {
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse.prototype.getTotalCount = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
 };
 
 
 /**
  * @param {number} value
- * @return {!proto.teleterm.v1.GetDatabasesResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetDatabasesResponse} returns this
  */
-proto.teleterm.v1.GetDatabasesResponse.prototype.setTotalCount = function(value) {
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse.prototype.setTotalCount = function(value) {
   return jspb.Message.setProto3IntField(this, 2, value);
 };
 
@@ -9756,16 +9756,16 @@ proto.teleterm.v1.GetDatabasesResponse.prototype.setTotalCount = function(value)
  * optional string start_key = 3;
  * @return {string}
  */
-proto.teleterm.v1.GetDatabasesResponse.prototype.getStartKey = function() {
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse.prototype.getStartKey = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetDatabasesResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetDatabasesResponse} returns this
  */
-proto.teleterm.v1.GetDatabasesResponse.prototype.setStartKey = function(value) {
+proto.teleport.lib.teleterm.v1.GetDatabasesResponse.prototype.setStartKey = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -9786,8 +9786,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetAllKubesRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetAllKubesRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetAllKubesRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetAllKubesRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -9796,11 +9796,11 @@ proto.teleterm.v1.GetAllKubesRequest.prototype.toObject = function(opt_includeIn
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetAllKubesRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllKubesRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAllKubesRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetAllKubesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -9816,23 +9816,23 @@ proto.teleterm.v1.GetAllKubesRequest.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetAllKubesRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllKubesRequest}
  */
-proto.teleterm.v1.GetAllKubesRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetAllKubesRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetAllKubesRequest;
-  return proto.teleterm.v1.GetAllKubesRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetAllKubesRequest;
+  return proto.teleport.lib.teleterm.v1.GetAllKubesRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetAllKubesRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllKubesRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetAllKubesRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllKubesRequest}
  */
-proto.teleterm.v1.GetAllKubesRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetAllKubesRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -9856,9 +9856,9 @@ proto.teleterm.v1.GetAllKubesRequest.deserializeBinaryFromReader = function(msg,
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetAllKubesRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetAllKubesRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetAllKubesRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetAllKubesRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -9866,11 +9866,11 @@ proto.teleterm.v1.GetAllKubesRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetAllKubesRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllKubesRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAllKubesRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetAllKubesRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -9886,16 +9886,16 @@ proto.teleterm.v1.GetAllKubesRequest.serializeBinaryToWriter = function(message,
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.GetAllKubesRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.GetAllKubesRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetAllKubesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllKubesRequest} returns this
  */
-proto.teleterm.v1.GetAllKubesRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.GetAllKubesRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -9906,7 +9906,7 @@ proto.teleterm.v1.GetAllKubesRequest.prototype.setClusterUri = function(value) {
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.GetAllKubesResponse.repeatedFields_ = [1];
+proto.teleport.lib.teleterm.v1.GetAllKubesResponse.repeatedFields_ = [1];
 
 
 
@@ -9923,8 +9923,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetAllKubesResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetAllKubesResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetAllKubesResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetAllKubesResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -9933,11 +9933,11 @@ proto.teleterm.v1.GetAllKubesResponse.prototype.toObject = function(opt_includeI
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetAllKubesResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllKubesResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAllKubesResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetAllKubesResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     kubesList: jspb.Message.toObjectList(msg.getKubesList(),
     teleport_lib_teleterm_v1_kube_pb.Kube.toObject, includeInstance)
@@ -9954,23 +9954,23 @@ proto.teleterm.v1.GetAllKubesResponse.toObject = function(includeInstance, msg) 
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetAllKubesResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllKubesResponse}
  */
-proto.teleterm.v1.GetAllKubesResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetAllKubesResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetAllKubesResponse;
-  return proto.teleterm.v1.GetAllKubesResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetAllKubesResponse;
+  return proto.teleport.lib.teleterm.v1.GetAllKubesResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetAllKubesResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllKubesResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetAllKubesResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllKubesResponse}
  */
-proto.teleterm.v1.GetAllKubesResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetAllKubesResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -9995,9 +9995,9 @@ proto.teleterm.v1.GetAllKubesResponse.deserializeBinaryFromReader = function(msg
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetAllKubesResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetAllKubesResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetAllKubesResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetAllKubesResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -10005,11 +10005,11 @@ proto.teleterm.v1.GetAllKubesResponse.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetAllKubesResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetAllKubesResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAllKubesResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetAllKubesResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getKubesList();
   if (f.length > 0) {
@@ -10024,38 +10024,38 @@ proto.teleterm.v1.GetAllKubesResponse.serializeBinaryToWriter = function(message
 
 /**
  * repeated Kube kubes = 1;
- * @return {!Array<!proto.teleterm.v1.Kube>}
+ * @return {!Array<!proto.teleport.lib.teleterm.v1.Kube>}
  */
-proto.teleterm.v1.GetAllKubesResponse.prototype.getKubesList = function() {
-  return /** @type{!Array<!proto.teleterm.v1.Kube>} */ (
+proto.teleport.lib.teleterm.v1.GetAllKubesResponse.prototype.getKubesList = function() {
+  return /** @type{!Array<!proto.teleport.lib.teleterm.v1.Kube>} */ (
     jspb.Message.getRepeatedWrapperField(this, teleport_lib_teleterm_v1_kube_pb.Kube, 1));
 };
 
 
 /**
- * @param {!Array<!proto.teleterm.v1.Kube>} value
- * @return {!proto.teleterm.v1.GetAllKubesResponse} returns this
+ * @param {!Array<!proto.teleport.lib.teleterm.v1.Kube>} value
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllKubesResponse} returns this
 */
-proto.teleterm.v1.GetAllKubesResponse.prototype.setKubesList = function(value) {
+proto.teleport.lib.teleterm.v1.GetAllKubesResponse.prototype.setKubesList = function(value) {
   return jspb.Message.setRepeatedWrapperField(this, 1, value);
 };
 
 
 /**
- * @param {!proto.teleterm.v1.Kube=} opt_value
+ * @param {!proto.teleport.lib.teleterm.v1.Kube=} opt_value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.Kube}
+ * @return {!proto.teleport.lib.teleterm.v1.Kube}
  */
-proto.teleterm.v1.GetAllKubesResponse.prototype.addKubes = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleterm.v1.Kube, opt_index);
+proto.teleport.lib.teleterm.v1.GetAllKubesResponse.prototype.addKubes = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleport.lib.teleterm.v1.Kube, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.GetAllKubesResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetAllKubesResponse} returns this
  */
-proto.teleterm.v1.GetAllKubesResponse.prototype.clearKubesList = function() {
+proto.teleport.lib.teleterm.v1.GetAllKubesResponse.prototype.clearKubesList = function() {
   return this.setKubesList([]);
 };
 
@@ -10076,8 +10076,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetKubesRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetKubesRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetKubesRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -10086,11 +10086,11 @@ proto.teleterm.v1.GetKubesRequest.prototype.toObject = function(opt_includeInsta
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetKubesRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetKubesRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetKubesRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
     limit: jspb.Message.getFieldWithDefault(msg, 2, 0),
@@ -10112,23 +10112,23 @@ proto.teleterm.v1.GetKubesRequest.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetKubesRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetKubesRequest}
  */
-proto.teleterm.v1.GetKubesRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetKubesRequest;
-  return proto.teleterm.v1.GetKubesRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetKubesRequest;
+  return proto.teleport.lib.teleterm.v1.GetKubesRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetKubesRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetKubesRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetKubesRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetKubesRequest}
  */
-proto.teleterm.v1.GetKubesRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -10176,9 +10176,9 @@ proto.teleterm.v1.GetKubesRequest.deserializeBinaryFromReader = function(msg, re
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetKubesRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetKubesRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetKubesRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -10186,11 +10186,11 @@ proto.teleterm.v1.GetKubesRequest.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetKubesRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetKubesRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetKubesRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -10248,16 +10248,16 @@ proto.teleterm.v1.GetKubesRequest.serializeBinaryToWriter = function(message, wr
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.GetKubesRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetKubesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetKubesRequest} returns this
  */
-proto.teleterm.v1.GetKubesRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -10266,16 +10266,16 @@ proto.teleterm.v1.GetKubesRequest.prototype.setClusterUri = function(value) {
  * optional int32 limit = 2;
  * @return {number}
  */
-proto.teleterm.v1.GetKubesRequest.prototype.getLimit = function() {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.getLimit = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
 };
 
 
 /**
  * @param {number} value
- * @return {!proto.teleterm.v1.GetKubesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetKubesRequest} returns this
  */
-proto.teleterm.v1.GetKubesRequest.prototype.setLimit = function(value) {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.setLimit = function(value) {
   return jspb.Message.setProto3IntField(this, 2, value);
 };
 
@@ -10284,16 +10284,16 @@ proto.teleterm.v1.GetKubesRequest.prototype.setLimit = function(value) {
  * optional string start_key = 3;
  * @return {string}
  */
-proto.teleterm.v1.GetKubesRequest.prototype.getStartKey = function() {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.getStartKey = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetKubesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetKubesRequest} returns this
  */
-proto.teleterm.v1.GetKubesRequest.prototype.setStartKey = function(value) {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.setStartKey = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -10302,16 +10302,16 @@ proto.teleterm.v1.GetKubesRequest.prototype.setStartKey = function(value) {
  * optional string search = 4;
  * @return {string}
  */
-proto.teleterm.v1.GetKubesRequest.prototype.getSearch = function() {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.getSearch = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetKubesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetKubesRequest} returns this
  */
-proto.teleterm.v1.GetKubesRequest.prototype.setSearch = function(value) {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.setSearch = function(value) {
   return jspb.Message.setProto3StringField(this, 4, value);
 };
 
@@ -10320,16 +10320,16 @@ proto.teleterm.v1.GetKubesRequest.prototype.setSearch = function(value) {
  * optional string query = 5;
  * @return {string}
  */
-proto.teleterm.v1.GetKubesRequest.prototype.getQuery = function() {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.getQuery = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetKubesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetKubesRequest} returns this
  */
-proto.teleterm.v1.GetKubesRequest.prototype.setQuery = function(value) {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.setQuery = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
 };
 
@@ -10338,16 +10338,16 @@ proto.teleterm.v1.GetKubesRequest.prototype.setQuery = function(value) {
  * optional string sort_by = 6;
  * @return {string}
  */
-proto.teleterm.v1.GetKubesRequest.prototype.getSortBy = function() {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.getSortBy = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetKubesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetKubesRequest} returns this
  */
-proto.teleterm.v1.GetKubesRequest.prototype.setSortBy = function(value) {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.setSortBy = function(value) {
   return jspb.Message.setProto3StringField(this, 6, value);
 };
 
@@ -10356,16 +10356,16 @@ proto.teleterm.v1.GetKubesRequest.prototype.setSortBy = function(value) {
  * optional string search_as_roles = 7;
  * @return {string}
  */
-proto.teleterm.v1.GetKubesRequest.prototype.getSearchAsRoles = function() {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.getSearchAsRoles = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetKubesRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetKubesRequest} returns this
  */
-proto.teleterm.v1.GetKubesRequest.prototype.setSearchAsRoles = function(value) {
+proto.teleport.lib.teleterm.v1.GetKubesRequest.prototype.setSearchAsRoles = function(value) {
   return jspb.Message.setProto3StringField(this, 7, value);
 };
 
@@ -10376,7 +10376,7 @@ proto.teleterm.v1.GetKubesRequest.prototype.setSearchAsRoles = function(value) {
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.GetKubesResponse.repeatedFields_ = [1];
+proto.teleport.lib.teleterm.v1.GetKubesResponse.repeatedFields_ = [1];
 
 
 
@@ -10393,8 +10393,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetKubesResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetKubesResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetKubesResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetKubesResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -10403,11 +10403,11 @@ proto.teleterm.v1.GetKubesResponse.prototype.toObject = function(opt_includeInst
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetKubesResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetKubesResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetKubesResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetKubesResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     agentsList: jspb.Message.toObjectList(msg.getAgentsList(),
     teleport_lib_teleterm_v1_kube_pb.Kube.toObject, includeInstance),
@@ -10426,23 +10426,23 @@ proto.teleterm.v1.GetKubesResponse.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetKubesResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetKubesResponse}
  */
-proto.teleterm.v1.GetKubesResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetKubesResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetKubesResponse;
-  return proto.teleterm.v1.GetKubesResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetKubesResponse;
+  return proto.teleport.lib.teleterm.v1.GetKubesResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetKubesResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetKubesResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetKubesResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.GetKubesResponse}
  */
-proto.teleterm.v1.GetKubesResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetKubesResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -10475,9 +10475,9 @@ proto.teleterm.v1.GetKubesResponse.deserializeBinaryFromReader = function(msg, r
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetKubesResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetKubesResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetKubesResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetKubesResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -10485,11 +10485,11 @@ proto.teleterm.v1.GetKubesResponse.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetKubesResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetKubesResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetKubesResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetKubesResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getAgentsList();
   if (f.length > 0) {
@@ -10518,38 +10518,38 @@ proto.teleterm.v1.GetKubesResponse.serializeBinaryToWriter = function(message, w
 
 /**
  * repeated Kube agents = 1;
- * @return {!Array<!proto.teleterm.v1.Kube>}
+ * @return {!Array<!proto.teleport.lib.teleterm.v1.Kube>}
  */
-proto.teleterm.v1.GetKubesResponse.prototype.getAgentsList = function() {
-  return /** @type{!Array<!proto.teleterm.v1.Kube>} */ (
+proto.teleport.lib.teleterm.v1.GetKubesResponse.prototype.getAgentsList = function() {
+  return /** @type{!Array<!proto.teleport.lib.teleterm.v1.Kube>} */ (
     jspb.Message.getRepeatedWrapperField(this, teleport_lib_teleterm_v1_kube_pb.Kube, 1));
 };
 
 
 /**
- * @param {!Array<!proto.teleterm.v1.Kube>} value
- * @return {!proto.teleterm.v1.GetKubesResponse} returns this
+ * @param {!Array<!proto.teleport.lib.teleterm.v1.Kube>} value
+ * @return {!proto.teleport.lib.teleterm.v1.GetKubesResponse} returns this
 */
-proto.teleterm.v1.GetKubesResponse.prototype.setAgentsList = function(value) {
+proto.teleport.lib.teleterm.v1.GetKubesResponse.prototype.setAgentsList = function(value) {
   return jspb.Message.setRepeatedWrapperField(this, 1, value);
 };
 
 
 /**
- * @param {!proto.teleterm.v1.Kube=} opt_value
+ * @param {!proto.teleport.lib.teleterm.v1.Kube=} opt_value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.Kube}
+ * @return {!proto.teleport.lib.teleterm.v1.Kube}
  */
-proto.teleterm.v1.GetKubesResponse.prototype.addAgents = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleterm.v1.Kube, opt_index);
+proto.teleport.lib.teleterm.v1.GetKubesResponse.prototype.addAgents = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleport.lib.teleterm.v1.Kube, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.GetKubesResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetKubesResponse} returns this
  */
-proto.teleterm.v1.GetKubesResponse.prototype.clearAgentsList = function() {
+proto.teleport.lib.teleterm.v1.GetKubesResponse.prototype.clearAgentsList = function() {
   return this.setAgentsList([]);
 };
 
@@ -10558,16 +10558,16 @@ proto.teleterm.v1.GetKubesResponse.prototype.clearAgentsList = function() {
  * optional int32 total_count = 2;
  * @return {number}
  */
-proto.teleterm.v1.GetKubesResponse.prototype.getTotalCount = function() {
+proto.teleport.lib.teleterm.v1.GetKubesResponse.prototype.getTotalCount = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
 };
 
 
 /**
  * @param {number} value
- * @return {!proto.teleterm.v1.GetKubesResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetKubesResponse} returns this
  */
-proto.teleterm.v1.GetKubesResponse.prototype.setTotalCount = function(value) {
+proto.teleport.lib.teleterm.v1.GetKubesResponse.prototype.setTotalCount = function(value) {
   return jspb.Message.setProto3IntField(this, 2, value);
 };
 
@@ -10576,16 +10576,16 @@ proto.teleterm.v1.GetKubesResponse.prototype.setTotalCount = function(value) {
  * optional string start_key = 3;
  * @return {string}
  */
-proto.teleterm.v1.GetKubesResponse.prototype.getStartKey = function() {
+proto.teleport.lib.teleterm.v1.GetKubesResponse.prototype.getStartKey = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetKubesResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetKubesResponse} returns this
  */
-proto.teleterm.v1.GetKubesResponse.prototype.setStartKey = function(value) {
+proto.teleport.lib.teleterm.v1.GetKubesResponse.prototype.setStartKey = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
 };
 
@@ -10596,7 +10596,7 @@ proto.teleterm.v1.GetKubesResponse.prototype.setStartKey = function(value) {
  * @private {!Array<number>}
  * @const
  */
-proto.teleterm.v1.ListAppsResponse.repeatedFields_ = [1];
+proto.teleport.lib.teleterm.v1.ListAppsResponse.repeatedFields_ = [1];
 
 
 
@@ -10613,8 +10613,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.ListAppsResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.ListAppsResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.ListAppsResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.ListAppsResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -10623,11 +10623,11 @@ proto.teleterm.v1.ListAppsResponse.prototype.toObject = function(opt_includeInst
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.ListAppsResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.ListAppsResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListAppsResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.ListAppsResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
     appsList: jspb.Message.toObjectList(msg.getAppsList(),
     teleport_lib_teleterm_v1_app_pb.App.toObject, includeInstance)
@@ -10644,23 +10644,23 @@ proto.teleterm.v1.ListAppsResponse.toObject = function(includeInstance, msg) {
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.ListAppsResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.ListAppsResponse}
  */
-proto.teleterm.v1.ListAppsResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.ListAppsResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.ListAppsResponse;
-  return proto.teleterm.v1.ListAppsResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.ListAppsResponse;
+  return proto.teleport.lib.teleterm.v1.ListAppsResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.ListAppsResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.ListAppsResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.ListAppsResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.ListAppsResponse}
  */
-proto.teleterm.v1.ListAppsResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.ListAppsResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -10685,9 +10685,9 @@ proto.teleterm.v1.ListAppsResponse.deserializeBinaryFromReader = function(msg, r
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.ListAppsResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.ListAppsResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.ListAppsResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.ListAppsResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -10695,11 +10695,11 @@ proto.teleterm.v1.ListAppsResponse.prototype.serializeBinary = function() {
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.ListAppsResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.ListAppsResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.ListAppsResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.ListAppsResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getAppsList();
   if (f.length > 0) {
@@ -10714,38 +10714,38 @@ proto.teleterm.v1.ListAppsResponse.serializeBinaryToWriter = function(message, w
 
 /**
  * repeated App apps = 1;
- * @return {!Array<!proto.teleterm.v1.App>}
+ * @return {!Array<!proto.teleport.lib.teleterm.v1.App>}
  */
-proto.teleterm.v1.ListAppsResponse.prototype.getAppsList = function() {
-  return /** @type{!Array<!proto.teleterm.v1.App>} */ (
+proto.teleport.lib.teleterm.v1.ListAppsResponse.prototype.getAppsList = function() {
+  return /** @type{!Array<!proto.teleport.lib.teleterm.v1.App>} */ (
     jspb.Message.getRepeatedWrapperField(this, teleport_lib_teleterm_v1_app_pb.App, 1));
 };
 
 
 /**
- * @param {!Array<!proto.teleterm.v1.App>} value
- * @return {!proto.teleterm.v1.ListAppsResponse} returns this
+ * @param {!Array<!proto.teleport.lib.teleterm.v1.App>} value
+ * @return {!proto.teleport.lib.teleterm.v1.ListAppsResponse} returns this
 */
-proto.teleterm.v1.ListAppsResponse.prototype.setAppsList = function(value) {
+proto.teleport.lib.teleterm.v1.ListAppsResponse.prototype.setAppsList = function(value) {
   return jspb.Message.setRepeatedWrapperField(this, 1, value);
 };
 
 
 /**
- * @param {!proto.teleterm.v1.App=} opt_value
+ * @param {!proto.teleport.lib.teleterm.v1.App=} opt_value
  * @param {number=} opt_index
- * @return {!proto.teleterm.v1.App}
+ * @return {!proto.teleport.lib.teleterm.v1.App}
  */
-proto.teleterm.v1.ListAppsResponse.prototype.addApps = function(opt_value, opt_index) {
-  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleterm.v1.App, opt_index);
+proto.teleport.lib.teleterm.v1.ListAppsResponse.prototype.addApps = function(opt_value, opt_index) {
+  return jspb.Message.addToRepeatedWrapperField(this, 1, opt_value, proto.teleport.lib.teleterm.v1.App, opt_index);
 };
 
 
 /**
  * Clears the list making it empty but non-null.
- * @return {!proto.teleterm.v1.ListAppsResponse} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.ListAppsResponse} returns this
  */
-proto.teleterm.v1.ListAppsResponse.prototype.clearAppsList = function() {
+proto.teleport.lib.teleterm.v1.ListAppsResponse.prototype.clearAppsList = function() {
   return this.setAppsList([]);
 };
 
@@ -10766,8 +10766,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.GetAuthSettingsRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.GetAuthSettingsRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -10776,11 +10776,11 @@ proto.teleterm.v1.GetAuthSettingsRequest.prototype.toObject = function(opt_inclu
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.GetAuthSettingsRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAuthSettingsRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     clusterUri: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -10796,23 +10796,23 @@ proto.teleterm.v1.GetAuthSettingsRequest.toObject = function(includeInstance, ms
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.GetAuthSettingsRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest}
  */
-proto.teleterm.v1.GetAuthSettingsRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.GetAuthSettingsRequest;
-  return proto.teleterm.v1.GetAuthSettingsRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest;
+  return proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.GetAuthSettingsRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.GetAuthSettingsRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest}
  */
-proto.teleterm.v1.GetAuthSettingsRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -10836,9 +10836,9 @@ proto.teleterm.v1.GetAuthSettingsRequest.deserializeBinaryFromReader = function(
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.GetAuthSettingsRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.GetAuthSettingsRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -10846,11 +10846,11 @@ proto.teleterm.v1.GetAuthSettingsRequest.prototype.serializeBinary = function() 
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.GetAuthSettingsRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.GetAuthSettingsRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getClusterUri();
   if (f.length > 0) {
@@ -10866,16 +10866,16 @@ proto.teleterm.v1.GetAuthSettingsRequest.serializeBinaryToWriter = function(mess
  * optional string cluster_uri = 1;
  * @return {string}
  */
-proto.teleterm.v1.GetAuthSettingsRequest.prototype.getClusterUri = function() {
+proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest.prototype.getClusterUri = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.GetAuthSettingsRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest} returns this
  */
-proto.teleterm.v1.GetAuthSettingsRequest.prototype.setClusterUri = function(value) {
+proto.teleport.lib.teleterm.v1.GetAuthSettingsRequest.prototype.setClusterUri = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -10896,8 +10896,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest.toObject(opt_includeInstance, this);
 };
 
 
@@ -10906,11 +10906,11 @@ proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.prototype.toObject = func
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.UpdateTshdEventsServerAddressRequest} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
     address: jspb.Message.getFieldWithDefault(msg, 1, "")
   };
@@ -10926,23 +10926,23 @@ proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.toObject = function(inclu
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.UpdateTshdEventsServerAddressRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest}
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.UpdateTshdEventsServerAddressRequest;
-  return proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest;
+  return proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.UpdateTshdEventsServerAddressRequest} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.UpdateTshdEventsServerAddressRequest}
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest}
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -10966,9 +10966,9 @@ proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.deserializeBinaryFromRead
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -10976,11 +10976,11 @@ proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.prototype.serializeBinary
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.UpdateTshdEventsServerAddressRequest} message
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
   f = message.getAddress();
   if (f.length > 0) {
@@ -10996,16 +10996,16 @@ proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.serializeBinaryToWriter =
  * optional string address = 1;
  * @return {string}
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.prototype.getAddress = function() {
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest.prototype.getAddress = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
 };
 
 
 /**
  * @param {string} value
- * @return {!proto.teleterm.v1.UpdateTshdEventsServerAddressRequest} returns this
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest} returns this
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressRequest.prototype.setAddress = function(value) {
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest.prototype.setAddress = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
 };
 
@@ -11026,8 +11026,8 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressResponse.prototype.toObject = function(opt_includeInstance) {
-  return proto.teleterm.v1.UpdateTshdEventsServerAddressResponse.toObject(opt_includeInstance, this);
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse.prototype.toObject = function(opt_includeInstance) {
+  return proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse.toObject(opt_includeInstance, this);
 };
 
 
@@ -11036,11 +11036,11 @@ proto.teleterm.v1.UpdateTshdEventsServerAddressResponse.prototype.toObject = fun
  * @param {boolean|undefined} includeInstance Deprecated. Whether to include
  *     the JSPB instance for transitional soy proto support:
  *     http://goto/soy-param-migration
- * @param {!proto.teleterm.v1.UpdateTshdEventsServerAddressResponse} msg The msg instance to transform.
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse} msg The msg instance to transform.
  * @return {!Object}
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressResponse.toObject = function(includeInstance, msg) {
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse.toObject = function(includeInstance, msg) {
   var f, obj = {
 
   };
@@ -11056,23 +11056,23 @@ proto.teleterm.v1.UpdateTshdEventsServerAddressResponse.toObject = function(incl
 /**
  * Deserializes binary data (in protobuf wire format).
  * @param {jspb.ByteSource} bytes The bytes to deserialize.
- * @return {!proto.teleterm.v1.UpdateTshdEventsServerAddressResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse}
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressResponse.deserializeBinary = function(bytes) {
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse.deserializeBinary = function(bytes) {
   var reader = new jspb.BinaryReader(bytes);
-  var msg = new proto.teleterm.v1.UpdateTshdEventsServerAddressResponse;
-  return proto.teleterm.v1.UpdateTshdEventsServerAddressResponse.deserializeBinaryFromReader(msg, reader);
+  var msg = new proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse;
+  return proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse.deserializeBinaryFromReader(msg, reader);
 };
 
 
 /**
  * Deserializes binary data (in protobuf wire format) from the
  * given reader into the given message object.
- * @param {!proto.teleterm.v1.UpdateTshdEventsServerAddressResponse} msg The message object to deserialize into.
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse} msg The message object to deserialize into.
  * @param {!jspb.BinaryReader} reader The BinaryReader to use.
- * @return {!proto.teleterm.v1.UpdateTshdEventsServerAddressResponse}
+ * @return {!proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse}
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressResponse.deserializeBinaryFromReader = function(msg, reader) {
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse.deserializeBinaryFromReader = function(msg, reader) {
   while (reader.nextField()) {
     if (reader.isEndGroup()) {
       break;
@@ -11092,9 +11092,9 @@ proto.teleterm.v1.UpdateTshdEventsServerAddressResponse.deserializeBinaryFromRea
  * Serializes the message to binary data (in protobuf wire format).
  * @return {!Uint8Array}
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressResponse.prototype.serializeBinary = function() {
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse.prototype.serializeBinary = function() {
   var writer = new jspb.BinaryWriter();
-  proto.teleterm.v1.UpdateTshdEventsServerAddressResponse.serializeBinaryToWriter(this, writer);
+  proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse.serializeBinaryToWriter(this, writer);
   return writer.getResultBuffer();
 };
 
@@ -11102,11 +11102,11 @@ proto.teleterm.v1.UpdateTshdEventsServerAddressResponse.prototype.serializeBinar
 /**
  * Serializes the given message to binary data (in protobuf wire
  * format), writing to the given BinaryWriter.
- * @param {!proto.teleterm.v1.UpdateTshdEventsServerAddressResponse} message
+ * @param {!proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse} message
  * @param {!jspb.BinaryWriter} writer
  * @suppress {unusedLocalVariables} f is only used for nested messages
  */
-proto.teleterm.v1.UpdateTshdEventsServerAddressResponse.serializeBinaryToWriter = function(message, writer) {
+proto.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
 };
 
@@ -11114,7 +11114,7 @@ proto.teleterm.v1.UpdateTshdEventsServerAddressResponse.serializeBinaryToWriter 
 /**
  * @enum {number}
  */
-proto.teleterm.v1.PasswordlessPrompt = {
+proto.teleport.lib.teleterm.v1.PasswordlessPrompt = {
   PASSWORDLESS_PROMPT_UNSPECIFIED: 0,
   PASSWORDLESS_PROMPT_PIN: 1,
   PASSWORDLESS_PROMPT_TAP: 2,
@@ -11124,10 +11124,10 @@ proto.teleterm.v1.PasswordlessPrompt = {
 /**
  * @enum {number}
  */
-proto.teleterm.v1.FileTransferDirection = {
+proto.teleport.lib.teleterm.v1.FileTransferDirection = {
   FILE_TRANSFER_DIRECTION_UNSPECIFIED: 0,
   FILE_TRANSFER_DIRECTION_DOWNLOAD: 1,
   FILE_TRANSFER_DIRECTION_UPLOAD: 2
 };
 
-goog.object.extend(exports, proto.teleterm.v1);
+goog.object.extend(exports, proto.teleport.lib.teleterm.v1);

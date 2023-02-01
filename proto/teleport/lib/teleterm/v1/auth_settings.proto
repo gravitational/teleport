@@ -14,7 +14,7 @@
 
 syntax = "proto3";
 
-package teleterm.v1;
+package teleport.lib.teleterm.v1;
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1";
 

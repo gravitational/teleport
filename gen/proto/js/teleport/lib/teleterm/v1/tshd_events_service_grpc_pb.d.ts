@@ -1,4 +1,4 @@
-// package: teleterm.v1
+// package: teleport.lib.teleterm.v1
 // file: teleport/lib/teleterm/v1/tshd_events_service.proto
 
 /* tslint:disable */
@@ -13,7 +13,7 @@ interface ITshdEventsServiceService extends grpc.ServiceDefinition<grpc.UntypedS
 }
 
 interface ITshdEventsServiceService_IRelogin extends grpc.MethodDefinition<teleport_lib_teleterm_v1_tshd_events_service_pb.ReloginRequest, teleport_lib_teleterm_v1_tshd_events_service_pb.ReloginResponse> {
-    path: "/teleterm.v1.TshdEventsService/Relogin";
+    path: "/teleport.lib.teleterm.v1.TshdEventsService/Relogin";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_tshd_events_service_pb.ReloginRequest>;
@@ -22,7 +22,7 @@ interface ITshdEventsServiceService_IRelogin extends grpc.MethodDefinition<telep
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_tshd_events_service_pb.ReloginResponse>;
 }
 interface ITshdEventsServiceService_ISendNotification extends grpc.MethodDefinition<teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationRequest, teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationResponse> {
-    path: "/teleterm.v1.TshdEventsService/SendNotification";
+    path: "/teleport.lib.teleterm.v1.TshdEventsService/SendNotification";
     requestStream: false;
     responseStream: false;
     requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationRequest>;
