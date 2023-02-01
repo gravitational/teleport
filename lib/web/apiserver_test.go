@@ -426,7 +426,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	require.NoError(t, err)
 
-	handler, err := NewHandler(Config{
+	handlerConfig := Config{
 		ClusterFeatures:                 *modules.GetModules().Features().ToProto(), // safe to dereference because ToProto creates a struct and return a pointer to it
 		Proxy:                           revTunServer,
 		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
@@ -443,7 +443,13 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		SessionControl:                  proxySessionController,
 		Router:                          router,
 		HealthCheckAppServer:            cfg.HealthCheckAppServer,
-	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
+	}
+
+	if handlerConfig.HealthCheckAppServer == nil {
+		handlerConfig.HealthCheckAppServer = func(context.Context, string, string) error { return nil }
+	}
+
+	handler, err := NewHandler(handlerConfig, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	require.NoError(t, err)
 
 	s.webServer = httptest.NewUnstartedServer(handler)
@@ -3769,11 +3775,9 @@ func TestApplicationAccessDisabled(t *testing.T) {
 
 	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 	_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
-		ResolveAppParams: ResolveAppParams{
-			FQDNHint:    "panel.example.com",
-			PublicAddr:  "panel.example.com",
-			ClusterName: "localhost",
-		},
+		FQDNHint:    "panel.example.com",
+		PublicAddr:  "panel.example.com",
+		ClusterName: "localhost",
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for application access")
@@ -3815,11 +3819,9 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 		// Create application session
 		endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 		_, err = pack.clt.PostJSON(context.Background(), endpoint, &CreateAppSessionRequest{
-			ResolveAppParams: ResolveAppParams{
-				FQDNHint:    application.publicAddr,
-				PublicAddr:  application.publicAddr,
-				ClusterName: "localhost",
-			},
+			FQDNHint:    application.publicAddr,
+			PublicAddr:  application.publicAddr,
+			ClusterName: "localhost",
 		})
 		require.NoError(t, err)
 	}
@@ -4345,11 +4347,9 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Valid request: all fields",
 			inCreateRequest: &CreateAppSessionRequest{
-				ResolveAppParams: ResolveAppParams{
-					FQDNHint:    "panel.example.com",
-					PublicAddr:  "panel.example.com",
-					ClusterName: "localhost",
-				},
+				FQDNHint:    "panel.example.com",
+				PublicAddr:  "panel.example.com",
+				ClusterName: "localhost",
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -4358,10 +4358,8 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Valid request: without FQDN",
 			inCreateRequest: &CreateAppSessionRequest{
-				ResolveAppParams: ResolveAppParams{
-					PublicAddr:  "panel.example.com",
-					ClusterName: "localhost",
-				},
+				PublicAddr:  "panel.example.com",
+				ClusterName: "localhost",
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -4370,9 +4368,7 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Valid request: only FQDN",
 			inCreateRequest: &CreateAppSessionRequest{
-				ResolveAppParams: ResolveAppParams{
-					FQDNHint: "panel.example.com",
-				},
+				FQDNHint: "panel.example.com",
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -4381,51 +4377,41 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Invalid request: only public address",
 			inCreateRequest: &CreateAppSessionRequest{
-				ResolveAppParams: ResolveAppParams{
-					PublicAddr: "panel.example.com",
-				},
+				PublicAddr: "panel.example.com",
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Invalid request: only cluster name",
 			inCreateRequest: &CreateAppSessionRequest{
-				ResolveAppParams: ResolveAppParams{
-					ClusterName: "localhost",
-				},
+				ClusterName: "localhost",
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Invalid application",
 			inCreateRequest: &CreateAppSessionRequest{
-				ResolveAppParams: ResolveAppParams{
-					FQDNHint:    "panel.example.com",
-					PublicAddr:  "invalid.example.com",
-					ClusterName: "localhost",
-				},
+				FQDNHint:    "panel.example.com",
+				PublicAddr:  "invalid.example.com",
+				ClusterName: "localhost",
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Invalid cluster name",
 			inCreateRequest: &CreateAppSessionRequest{
-				ResolveAppParams: ResolveAppParams{
-					FQDNHint:    "panel.example.com",
-					PublicAddr:  "panel.example.com",
-					ClusterName: "example.com",
-				},
+				FQDNHint:    "panel.example.com",
+				PublicAddr:  "panel.example.com",
+				ClusterName: "example.com",
 			},
 			outError: require.Error,
 		},
 		{
 			name: "Malicious request: all fields",
 			inCreateRequest: &CreateAppSessionRequest{
-				ResolveAppParams: ResolveAppParams{
-					FQDNHint:    "panel.example.com@malicious.com",
-					PublicAddr:  "panel.example.com",
-					ClusterName: "localhost",
-				},
+				FQDNHint:    "panel.example.com@malicious.com",
+				PublicAddr:  "panel.example.com",
+				ClusterName: "localhost",
 			},
 			outError:    require.NoError,
 			outFQDN:     "panel.example.com",
@@ -4434,9 +4420,7 @@ func TestCreateAppSession(t *testing.T) {
 		{
 			name: "Malicious request: only FQDN",
 			inCreateRequest: &CreateAppSessionRequest{
-				ResolveAppParams: ResolveAppParams{
-					FQDNHint: "panel.example.com@malicious.com",
-				},
+				FQDNHint: "panel.example.com@malicious.com",
 			},
 			outError: require.Error,
 		},
@@ -4473,7 +4457,7 @@ func TestCreateAppSession(t *testing.T) {
 	}
 }
 
-func TestCreateAppSessionPreflightConnection(t *testing.T) {
+func TestCreateAppSessionHealthCheckAppServer(t *testing.T) {
 	t.Parallel()
 
 	validApp, err := types.NewAppV3(types.Metadata{
@@ -4537,10 +4521,7 @@ func TestCreateAppSessionPreflightConnection(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 			_, err := pack.clt.PostJSON(s.ctx, endpoint, &CreateAppSessionRequest{
-				HealthCheckAppServer: true,
-				ResolveAppParams: ResolveAppParams{
-					FQDNHint: tc.publicAddr,
-				},
+				FQDNHint: tc.publicAddr,
 			})
 			tc.expectErr(t, err)
 		})
@@ -6676,20 +6657,21 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
-		Proxy:            revTunServer,
-		AuthServers:      utils.FromAddr(authServer.Addr()),
-		DomainName:       authServer.ClusterName(),
-		ProxyClient:      client,
-		ProxyPublicAddrs: utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
-		CipherSuites:     utils.DefaultCipherSuites(),
-		AccessPoint:      client,
-		Context:          ctx,
-		HostUUID:         proxyID,
-		Emitter:          client,
-		StaticFS:         fs,
-		ProxySettings:    &mockProxySettings{},
-		SessionControl:   sessionController,
-		Router:           router,
+		Proxy:                revTunServer,
+		AuthServers:          utils.FromAddr(authServer.Addr()),
+		DomainName:           authServer.ClusterName(),
+		ProxyClient:          client,
+		ProxyPublicAddrs:     utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
+		CipherSuites:         utils.DefaultCipherSuites(),
+		AccessPoint:          client,
+		Context:              ctx,
+		HostUUID:             proxyID,
+		Emitter:              client,
+		StaticFS:             fs,
+		ProxySettings:        &mockProxySettings{},
+		SessionControl:       sessionController,
+		Router:               router,
+		HealthCheckAppServer: func(context.Context, string, string) error { return nil },
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 

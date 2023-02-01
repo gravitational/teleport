@@ -273,11 +273,9 @@ func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) []
 	require.NotEmpty(t, p.webToken)
 
 	casReq, err := json.Marshal(web.CreateAppSessionRequest{
-		ResolveAppParams: web.ResolveAppParams{
-			FQDNHint:    publicAddr,
-			PublicAddr:  publicAddr,
-			ClusterName: clusterName,
-		},
+		FQDNHint:    publicAddr,
+		PublicAddr:  publicAddr,
+		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
 	statusCode, body, err := p.makeWebapiRequest(http.MethodPost, "sessions/app", casReq)
