@@ -526,6 +526,47 @@ version: v2`,
 	}
 }
 
+func TestUpsertVerb(t *testing.T) {
+	tests := []struct {
+		name     string
+		exists   bool
+		force    bool
+		expected string
+	}{
+		{
+			name:     "exists && force",
+			exists:   true,
+			force:    true,
+			expected: "created",
+		},
+		{
+			name:     "!exists && force",
+			exists:   false,
+			force:    true,
+			expected: "created",
+		},
+		{
+			name:     "exists && !force",
+			exists:   true,
+			force:    false,
+			expected: "updated",
+		},
+		{
+			name:     "!exists && !force",
+			exists:   false,
+			force:    false,
+			expected: "created",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := UpsertVerb(test.exists, test.force)
+			require.Equal(t, test.expected, actual)
+		})
+	}
+}
+
 // requireEqual creates an assertion function with a bound `expected` value
 // for use with table-driven tests
 func requireEqual(expected interface{}) require.ValueAssertionFunc {
