@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Detects whether protobufs are up to date.
+# Detects whether the repository is clean.
 #
 
 GIT="${GIT:-git}"
