@@ -62,6 +62,10 @@ func NewPluginV1(name string, spec PluginSpecV1, creds *PluginCredentialsV1) *Pl
 func (p *PluginV1) CheckAndSetDefaults() error {
 	p.setStaticFields()
 
+	if err := p.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if p.Kind == "" {
 		return trace.BadParameter("resource has an empty Kind field")
 	}
@@ -240,6 +244,7 @@ func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
 	if c.RefreshToken == "" {
 		return trace.BadParameter("refresh_token must be set")
 	}
+	c.Expires = c.Expires.UTC()
 
 	return nil
 }
