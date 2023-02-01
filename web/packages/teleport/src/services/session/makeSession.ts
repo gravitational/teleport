@@ -37,6 +37,7 @@ export default function makeSession(json): Session {
     cluster_name,
     server_addr,
     parties,
+    participantModes,
   } = json;
 
   const createdDate = created ? new Date(created) : null;
@@ -56,6 +57,7 @@ export default function makeSession(json): Session {
     clusterId: cluster_name,
     parties: parties ? parties.map(p => makeParticipant(p)) : [],
     addr: server_addr ? server_addr.replace(PORT_REGEX, '') : '',
+    participantModes: participantModes ?? [],
   };
 }
 

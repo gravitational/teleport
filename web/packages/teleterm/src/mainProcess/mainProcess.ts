@@ -11,12 +11,14 @@ import {
   MenuItemConstructorOptions,
   shell,
 } from 'electron';
+import { wait } from 'shared/utils/wait';
 
-import { FileStorage, Logger, RuntimeSettings } from 'teleterm/types';
+import { FileStorage, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
 import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
 import { ChildProcessAddresses } from 'teleterm/mainProcess/types';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
+import Logger from 'teleterm/logger';
 
 import {
   ConfigService,
@@ -61,8 +63,17 @@ export default class MainProcess {
   }
 
   dispose() {
+    this.killTshdProcess();
     this.sharedProcess.kill('SIGTERM');
-    this.tshdProcess.kill('SIGTERM');
+    const processesExit = Promise.all([
+      promisifyProcessExit(this.tshdProcess),
+      promisifyProcessExit(this.sharedProcess),
+    ]);
+    // sending usage events on tshd shutdown has 10 seconds timeout
+    const timeout = wait(10_000).then(() =>
+      this.logger.error('Child process(es) did not exit within 10 seconds'),
+    );
+    return Promise.race([processesExit, timeout]);
   }
 
   private _init() {
@@ -308,10 +319,41 @@ export default class MainProcess {
       });
     }
   }
+
+  /**
+   * On Windows, where POSIX signals do not exist, the only way to gracefully
+   * kill a process is to send Ctrl-Break to its console. This task is done by
+   * `tsh daemon stop` program. On Unix, the standard `SIGTERM` signal is sent.
+   */
+  private killTshdProcess() {
+    if (this.settings.platform !== 'win32') {
+      this.tshdProcess.kill('SIGTERM');
+      return;
+    }
+
+    const logger = new Logger('Daemon stop');
+    const daemonStop = spawn(
+      this.settings.tshd.binaryPath,
+      ['daemon', 'stop', `--pid=${this.tshdProcess.pid}`],
+      {
+        windowsHide: true,
+        timeout: 2_000,
+      }
+    );
+    daemonStop.on('error', error => {
+      logger.error('daemon stop process failed to start', error);
+    });
+    daemonStop.stderr.setEncoding('utf-8');
+    daemonStop.stderr.on('data', logger.error);
+  }
 }
 
 const DOCS_URL = 'https://goteleport.com/docs/use-teleport/teleport-connect/';
 
 function openDocsUrl() {
   shell.openExternal(DOCS_URL);
+}
+
+function promisifyProcessExit(childProcess: ChildProcess) {
+  return new Promise(resolve => childProcess.once('exit', resolve));
 }
