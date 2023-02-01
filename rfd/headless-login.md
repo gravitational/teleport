@@ -33,7 +33,9 @@ Some users have valid use cases for making `tsh` requests on a remote, sometimes
 
 ### Security
 
-Headless authentication should fulfill the following design principles to ensure that the system can not be easily exploited by attackers, including attackers with root access to the remote machine. With these design principles, the only possible attack would be for the attacker to issue the headless request themselves and trick the user into verifying the request with MFA. To limit the possibility of this attack, the user will always be notified of request details (`tsh` command, request id, ip address) before they can approve it with MFA.
+Headless authentication should fulfill the following design principles to ensure that the system can not be easily exploited by attackers, including attackers with root access to the remote machine.
+
+With these design principles, the only possible attack would be for the attacker to issue the headless request themselves and trick the user into verifying the request with MFA. To limit the possibility of this attack, the user will always be notified of request details (`tsh` command, request id, ip address) before they can approve it with MFA.
 
 1. **The Client does not write any keys, certificates, or session data to disk on the remote machine.**
 
@@ -41,17 +43,17 @@ When using headless authentication, Teleport clients will generate a new private
 
 This solves two problems: 1) multiple users with the same remote user will not have overlapping credentials on disk in `~/.tsh` and 2) attackers will not be able to steal a user's credentials from disk.
 
-1. **Issued certificates through headless authentication are short lived (1 minute TTL).**
+2. **Issued certificates through headless authentication are short lived (1 minute TTL).**
 
 Since the user certificates are only meant to last for a single client lifetime, the Auth server should issue the certificates with a 1 minute TTL. This will prevent faulty clients or bugs from being exploited to hold headless authenticated certificates beyond the lifetime of a normal client.
 
-1. **User must complete WebAuthn verification for each individual `tsh` request (`tsh ls`, `tsh ssh`, etc.).**
+3. **User must complete WebAuthn verification for each individual `tsh` request (`tsh ls`, `tsh ssh`, etc.).**
 
 Headless authentication, like any login mechanism, can be started by any unauthenticated user. To prevent phishing attacks, we must prompt the user to acknowledge and approve each headless authentication request with WebAuthn, since WebAuthn provides strong protection against phishing attacks. Legacy OTP MFA methods will not be supported.
 
-1. **The Server must verify that the client requesting certificates is the only client that can use the certificates.**
+4. **The Server must verify that the client requesting certificates is the only client that can use the certificates.**
 
-Depending on the headless authentication API flow, it may be split into multiple requests. It is crucial that the server verifies that the client who requested headless authentication is the only client that can use the resulting credentials. This will be accomplished with a PKCE-like flow, where the client provides their public key in the initial request, and the server ultimately issues certificates for the original client public key. Additionally, the user will be asked to sign for the public key before the server issues the certificates (TODO: is this possible)
+Depending on the headless authentication API flow, it may be split into multiple requests. It is crucial that the server verifies that the client who requested headless authentication is the only client that can use the resulting credentials. This will be accomplished with a PKCE-like flow, where the client provides their public key in the initial request, and the server ultimately issues certificates for the original client public key. Additionally, the user will be asked to sign for the public key before the server issues the certificates (TODO: is this possible without x509 certificate + TLS handshake)
 
 Note: Ideally, we would ensure that the only client that can *receive* certificates is the requesting client, but ensuring the PKCE flow above is enough to defend against attacks since the certificates are useless without the client's private key. If we want to remove the possibility of an attack attempting to intercept the certificates, we can use an HTTP websocket or gRPC stream endpoint to encapsulate the headless authentication request into a single API request. This would require some additional implementation details to be flushed out, so it is not in this initial draft design.
 
