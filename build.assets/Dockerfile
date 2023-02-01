@@ -19,7 +19,12 @@ ENV LANGUAGE="en_US.UTF-8" \
 
 # Install packages.
 # We install curl first to allow setting up the Google SDK as part of the same layer.
-RUN apt-get update -y --fix-missing && \
+# Latest git 2.18+ is required for GitHub actions
+# NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
+RUN apt-get -y update && \
+    apt-get -y install software-properties-common && \
+    add-apt-repository -y ppa:git-core/ppa && \
+    apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -y --no-install-recommends apt-utils ca-certificates curl gnupg && \
     echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \

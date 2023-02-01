@@ -1,0 +1,42 @@
+FROM centos:7
+
+ENV LANGUAGE=en_US.UTF-8 \
+    LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8 \
+    LC_CTYPE=en_US.UTF-8
+
+ARG GOLANG_VERSION
+
+ARG UID
+ARG GID
+RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
+    mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
+
+# Install dev tools (make, etc) and a Perl package needed to build OpenSSL.
+RUN yum groupinstall -y "Development Tools"
+RUN yum install -y pam-devel net-tools tree git zip libatomic perl-IPC-Cmd && \
+    yum -y install https://packages.endpointdev.com/rhel/7/os/x86_64/endpoint-repo.x86_64.rpm && \
+    yum -y install git && \
+    yum clean all
+
+# Install etcd.
+RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
+    cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
+
+# Install Go.
+RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-amd64.tar.gz | tar xz && \
+    mkdir -p /go/src/github.com/gravitational/teleport && \
+    chmod a+w /go && \
+    chmod a+w /var/lib && \
+    /opt/go/bin/go version
+
+# Install PAM module and policies for testing.
+COPY pam/ /opt/pam_teleport/
+RUN make -C /opt/pam_teleport install
+
+ENV GOPATH="/go" \
+    GOROOT="/opt/go" \
+    PATH="/opt/bin:$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
+
+VOLUME ["/go/src/github.com/gravitational/teleport"]
+EXPOSE 6600 2379 2380

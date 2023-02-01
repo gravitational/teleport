@@ -59,7 +59,7 @@ var _ = check.Suite(&EtcdSuite{})
 func (s *EtcdSuite) SetUpSuite(c *check.C) {
 	// This config must match examples/etcd/teleport.yaml
 	s.config = backend.Params{
-		"peers":         []string{"https://127.0.0.1:2379"},
+		"peers":         []string{etcdTestEndpoint()},
 		"prefix":        examplePrefix,
 		"tls_key_file":  "../../../examples/etcd/certs/client-key.pem",
 		"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
@@ -202,7 +202,7 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 	// setup
 	const maxClientMsgSize = 128
 	bk, err := New(context.Background(), backend.Params{
-		"peers":                          []string{"https://127.0.0.1:2379"},
+		"peers":                          []string{etcdTestEndpoint()},
 		"prefix":                         "/teleport",
 		"tls_key_file":                   "../../../examples/etcd/certs/client-key.pem",
 		"tls_cert_file":                  "../../../examples/etcd/certs/client-cert.pem",
@@ -227,6 +227,14 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 
 func etcdTestEnabled() bool {
 	return os.Getenv("TELEPORT_ETCD_TEST") != ""
+}
+
+func etcdTestEndpoint() string {
+	host := os.Getenv("TELEPORT_ETCD_TEST_ENDPOINT")
+	if host != "" {
+		return host
+	}
+	return "https://127.0.0.1:2379"
 }
 
 func (r fakeClock) Advance(d time.Duration) {
