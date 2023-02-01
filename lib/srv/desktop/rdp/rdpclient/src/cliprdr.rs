@@ -379,7 +379,7 @@ impl ClipboardPDUHeader {
         let typ = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
             msg_type: ClipboardPDUType::from_u16(typ)
-                .ok_or_else(|| invalid_data_error(&format!("invalid message type {:#04x}", typ)))?,
+                .ok_or_else(|| invalid_data_error(&format!("invalid message type {typ:#04x}")))?,
             msg_flags: ClipboardHeaderFlags::from_bits(payload.read_u16::<LittleEndian>()?)
                 .ok_or_else(|| invalid_data_error("invalid flags in clipboard header"))?,
             data_len: payload.read_u32::<LittleEndian>()?,
@@ -453,8 +453,7 @@ impl GeneralClipboardCapabilitySet {
         let set_type = payload.read_u16::<LittleEndian>()?;
         if set_type != ClipboardCapabilitySetType::General as u16 {
             return Err(invalid_data_error(&format!(
-                "expected general capability set (1), got {}",
-                set_type
+                "expected general capability set (1), got {set_type}"
             )));
         }
 
@@ -616,7 +615,7 @@ impl ShortFormatName {
     fn from_str(id: u32, name: &str) -> RdpResult<Self> {
         if name.len() > 32 {
             return Err(invalid_data_error(
-                format!("{} is too long for short format name", name).as_str(),
+                format!("{name} is too long for short format name").as_str(),
             ));
         }
         let mut dest = [0u8; 32];
@@ -1154,8 +1153,7 @@ mod tests {
             assert_eq!(
                 expected,
                 *c.clipboard.get(&(format as u32)).unwrap(),
-                "testing {}",
-                input,
+                "testing {input}",
             );
         }
     }

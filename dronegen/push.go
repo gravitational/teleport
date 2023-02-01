@@ -19,40 +19,14 @@ import "fmt"
 // pushCheckoutCommands builds a list of commands for Drone to check out a git commit on a push build
 func pushCheckoutCommands(b buildType) []string {
 	cloneDirectory := "/go/src/github.com/gravitational/teleport"
+
 	var commands []string
-
-	if b.hasTeleportConnect() {
-		// TODO(zmb3): remove /go/src/github.com/gravitational/webapps after webapps->teleport migration
-		commands = append(commands, `mkdir -p /go/src/github.com/gravitational/webapps`)
-	}
-
 	commands = append(commands, cloneRepoCommands(cloneDirectory, "${DRONE_COMMIT_SHA}")...)
-
 	commands = append(commands,
-		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-		`git submodule update --init webassets || true`,
 		`mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa`,
 		`ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts`,
 		`git submodule update --init e`,
-		// do a recursive submodule checkout to get both webassets and webassets/e
-		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-		`git submodule update --init --recursive webassets || true`,
 		`mkdir -pv /go/cache`,
-	)
-
-	if b.hasTeleportConnect() {
-		// TODO(zmb3): this can be removed after webapps migration
-		// clone webapps for the Teleport Connect Source code
-		commands = append(commands,
-			`cd /go/src/github.com/gravitational/webapps`,
-			`git clone https://github.com/gravitational/webapps.git .`,
-			`git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"`,
-			`git submodule update --init packages/webapps.e`,
-			`cd -`,
-		)
-	}
-
-	commands = append(commands,
 		`rm -f /root/.ssh/id_rsa`,
 	)
 
