@@ -12046,7 +12046,7 @@ func (m *Asset) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Asset proto.InternalMessageInfo
 
-// SAMLIdPServiceProviderV1
+// SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
 type SAMLIdPServiceProviderV1 struct {
 	// Header is the resource header for the SAML IdP service provider.
 	ResourceHeader `protobuf:"bytes,1,opt,name=Header,proto3,embedded=Header" json:""`
