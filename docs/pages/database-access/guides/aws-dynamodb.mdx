@@ -48,7 +48,7 @@ customers, this will be similar to `mytenant.teleport.sh`.)
 
 <Admonition type="note" title="Example Access Control">
 This guide provides an example configuration of IAM access roles as a model,
-and uses an EC2 instance to serve the Teleport Database Access service.
+and uses an EC2 instance to serve the Teleport Database Service.
 The level of access provided may not suit your needs, or may not fit your
 organization's access conventions. You should adjust the AWS IAM permissions to fit your needs.
 </Admonition>
@@ -193,14 +193,14 @@ besides Linux servers.
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Edit `/etc/teleport.yaml` to configure the database entry:
+Create a file called `/etc/teleport.yaml` with the following content:
 
 ```yaml
 version: v3
 teleport:
   nodename: CHANGEME
   data_dir: /var/lib/teleport
-  proxy_server: teleport.example.com
+  proxy_server: teleport.example.com:443
   auth_token: (=presets.tokens.first=)
   ca_pin:
   - (=presets.ca_pin=)
@@ -257,7 +257,7 @@ Create a proxy tunnel:
 $ tsh proxy db --tunnel --port 8000 --db-user=ExampleTeleportDynamoDBRole example-dynamodb
 ```
 
-You can test the connection to the database through the `aws` cli:
+You can test the connection to the database through the `aws` CLI:
 
 ```code
 $ aws dynamodb list-tables --endpoint-url=http://localhost:8000
