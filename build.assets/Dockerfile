@@ -273,7 +273,7 @@ RUN mkdir -p helm-tarball && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
 # TODO(hugoShaka): remove this backward compatible hack with teleportv13 buildbox
-RUN helm plugin install https://github.com/quintush/helm-unittest && \
+RUN helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11 && \
     mkdir -p /home/ci/.local/share/helm && \
     cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm/plugins-new && \
     chown -R ci /home/ci/.local/share/helm && \
@@ -318,7 +318,7 @@ RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.13.0" && \
+    VERSION="1.13.1" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \

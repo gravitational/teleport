@@ -107,7 +107,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpnproxyauth "github.com/gravitational/teleport/lib/srv/alpnproxy/auth"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/db"
@@ -2970,9 +2969,13 @@ type proxyListeners struct {
 	db            dbListeners
 	alpn          net.Listener
 	proxy         net.Listener
-	// gprc receives gRPC traffic that has the TLS ALPN protocol common.ProtocolProxyGRPC. This
-	// listener is only enabled when TLS routing is enabled.
-	grpc             net.Listener
+	// grpcPublic receives gRPC traffic that has the TLS ALPN protocol common.ProtocolProxyGRPCInsecure. This
+	// listener is only enabled when TLS routing is enabled and does not enforce mTLS authentication since
+	// it's used to handle cluster join requests.
+	grpcPublic net.Listener
+	// grpcMTLS receives gRPC traffic that has the TLS ALPN protocol common.ProtocolProxyGRPCSecure. This
+	// listener is only enabled when TLS routing is enabled and the gRPC server will enforce mTLS authentication.
+	grpcMTLS         net.Listener
 	reverseTunnelMux *multiplexer.Mux
 	minimalTLS       *multiplexer.WebListener
 }
@@ -3030,8 +3033,11 @@ func (l *proxyListeners) Close() {
 	if !l.db.Empty() {
 		l.db.Close()
 	}
-	if l.grpc != nil {
-		l.grpc.Close()
+	if l.grpcPublic != nil {
+		l.grpcPublic.Close()
+	}
+	if l.grpcMTLS != nil {
+		l.grpcMTLS.Close()
 	}
 	if l.proxy != nil {
 		l.proxy.Close()
@@ -3981,41 +3987,21 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 	}
 
-	var grpcServer *grpc.Server
+	var (
+		grpcServerInsecure *grpc.Server
+		grpcServerSecure   *grpc.Server
+	)
 	if alpnRouter != nil {
-		grpcServer = grpc.NewServer(
-			grpc.ChainUnaryInterceptor(
-				utils.GRPCServerUnaryErrorInterceptor,
-				proxyLimiter.UnaryServerInterceptor(),
-			),
-			grpc.ChainStreamInterceptor(
-				utils.GRPCServerStreamErrorInterceptor,
-				proxyLimiter.StreamServerInterceptor,
-			),
-			grpc.KeepaliveParams(keepalive.ServerParameters{
-				// Using an aggressive idle timeout here since this gRPC server
-				// currently only hosts the join service, which has no need for
-				// long-lived idle connections.
-				//
-				// The reason for introducing this is that teleport clients
-				// before #17685 is fixed will hold connections open
-				// indefinitely if they encounter an error during the joining
-				// process, and this seems like the best way for the server to
-				// forcibly close those connections.
-				//
-				// If another gRPC service is added here in the future, it
-				// should be alright to increase or remove this idle timeout as
-				// necessary once the client fix has been released and widely
-				// available for some time.
-				MaxConnectionIdle: 10 * time.Second,
-			}),
+		grpcServerInsecure = process.initInsecureGRPCServer(proxyLimiter, conn, listeners.grpcPublic)
+
+		grpcServerSecure, err = process.initSecureGRPCServer(
+			proxyLimiter,
+			conn,
+			listeners.grpcMTLS,
 		)
-		joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
-		proto.RegisterJoinServiceServer(grpcServer, joinServiceServer)
-		process.RegisterCriticalFunc("proxy.grpc", func() error {
-			log.Infof("Starting proxy gRPC server on %v.", listeners.grpc.Addr())
-			return trace.Wrap(grpcServer.Serve(listeners.grpc))
-		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	var alpnServer *alpnproxy.Proxy
@@ -4093,8 +4079,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if kubeServer != nil {
 				warnOnErr(kubeServer.Close(), log)
 			}
-			if grpcServer != nil {
-				grpcServer.Stop()
+			if grpcServerInsecure != nil {
+				grpcServerInsecure.Stop()
+			}
+			if grpcServerSecure != nil {
+				grpcServerSecure.Stop()
 			}
 			if alpnServer != nil {
 				warnOnErr(alpnServer.Close(), log)
@@ -4125,8 +4114,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if kubeServer != nil {
 				warnOnErr(kubeServer.Shutdown(ctx), log)
 			}
-			if grpcServer != nil {
-				grpcServer.GracefulStop()
+			if grpcServerInsecure != nil {
+				grpcServerInsecure.GracefulStop()
+			}
+			if grpcServerSecure != nil {
+				grpcServerSecure.GracefulStop()
 			}
 			if alpnServer != nil {
 				warnOnErr(alpnServer.Close(), log)
@@ -4264,7 +4256,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		tlsConfig = &tls.Config{
 			GetCertificate: m.GetCertificate,
 			NextProtos: []string{
-				string(common.ProtocolHTTP), string(common.ProtocolHTTP2), // enable HTTP/2
+				string(alpncommon.ProtocolHTTP), string(alpncommon.ProtocolHTTP2), // enable HTTP/2
 				acme.ALPNProto, // enable tls-alpn ACME challenges
 			},
 		}
@@ -4366,13 +4358,26 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 		})
 		listeners.web = webWrapper
 	}
-
-	grpcListener := alpnproxy.NewMuxListenerWrapper(nil /* serviceListener */, listeners.web)
+	// grpcInsecureListener is a listener that does not enforce mTLS authentication.
+	// It must not be used for any services that require authentication and currently
+	// it is only used by the join service which nodes rely on to join the cluster.
+	grpcInsecureListener := alpnproxy.NewMuxListenerWrapper(nil /* serviceListener */, listeners.web)
 	router.Add(alpnproxy.HandlerDecs{
-		MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolProxyGRPC),
-		Handler:   grpcListener.HandleConnection,
+		MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolProxyGRPCInsecure),
+		Handler:   grpcInsecureListener.HandleConnection,
 	})
-	listeners.grpc = grpcListener
+	listeners.grpcPublic = grpcInsecureListener
+
+	// grpcSecureListener is a listener that is used by a gRPC server that enforces
+	// mTLS authentication. It must be used for any gRPC services that require authentication.
+	grpcSecureListener := alpnproxy.NewMuxListenerWrapper(nil /* serviceListener */, listeners.web)
+	router.Add(alpnproxy.HandlerDecs{
+		MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolProxyGRPCSecure),
+		Handler:   grpcSecureListener.HandleConnection,
+		// Forward the TLS configuration to the gRPC server so that it can handle mTLS authentication.
+		ForwardTLS: true,
+	})
+	listeners.grpcMTLS = grpcSecureListener
 
 	sshProxyListener := alpnproxy.NewMuxListenerWrapper(listeners.ssh, listeners.web)
 	router.Add(alpnproxy.HandlerDecs{
@@ -5164,4 +5169,115 @@ func writeHostIDToKubeSecret(ctx context.Context, kubeBackend kubernetesBackend,
 		},
 	)
 	return trace.Wrap(err)
+}
+
+// initInsecureGRPCServer creates and registers a gRPC server that does not use mTLS for
+// authentication. This is used for the join service, which is used by nodes
+// to receive a signed certificate from the auth server.
+func (process *TeleportProcess) initInsecureGRPCServer(
+	limiter *limiter.Limiter,
+	conn *Connector,
+	listener net.Listener,
+) *grpc.Server {
+	server := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			utils.GRPCServerUnaryErrorInterceptor,
+			limiter.UnaryServerInterceptor(),
+		),
+		grpc.ChainStreamInterceptor(
+			utils.GRPCServerStreamErrorInterceptor,
+			limiter.StreamServerInterceptor,
+		),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			// Using an aggressive idle timeout here since this gRPC server
+			// currently only hosts the join service, which has no need for
+			// long-lived idle connections.
+			//
+			// The reason for introducing this is that teleport clients
+			// before #17685 is fixed will hold connections open
+			// indefinitely if they encounter an error during the joining
+			// process, and this seems like the best way for the server to
+			// forcibly close those connections.
+			//
+			// If another gRPC service is added here in the future, it
+			// should be alright to increase or remove this idle timeout as
+			// necessary once the client fix has been released and widely
+			// available for some time.
+			MaxConnectionIdle: 10 * time.Second,
+		}),
+	)
+	joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
+	proto.RegisterJoinServiceServer(server, joinServiceServer)
+	process.RegisterCriticalFunc("proxy.grpc.insecure", func() error {
+		process.log.Infof("Starting proxy gRPC server on %v.", listener.Addr())
+		return trace.Wrap(server.Serve(listener))
+	})
+	return server
+}
+
+// initSecureGRPCServer creates and registers a gRPC server that uses mTLS for
+// authentication. This is used for the gRPC Kube service, which allows users to
+// safely access Kubernetes clusters resources via Teleport without leaking certificates.
+// The gRPC server handles the mTLS because we require the client certificate to be
+// subject in order to determine his identity.
+func (process *TeleportProcess) initSecureGRPCServer(
+	limiter *limiter.Limiter,
+	conn *Connector,
+	listener net.Listener,
+) (*grpc.Server, error) {
+	if !process.Config.Proxy.Kube.Enabled {
+		return nil, nil
+	}
+
+	serverTLSConfig, err := conn.ServerIdentity.TLSConfig(process.Config.CipherSuites)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// authMiddleware authenticates request assuming TLS client authentication
+	// adds authentication information to the context
+	// and passes it to the API server
+	authMiddleware := &auth.Middleware{
+		AccessPoint: conn.Client,
+		Limiter:     limiter,
+	}
+
+	server := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			utils.GRPCServerUnaryErrorInterceptor,
+			otelgrpc.UnaryServerInterceptor(),
+			authMiddleware.UnaryInterceptor(),
+		),
+		grpc.ChainStreamInterceptor(
+			utils.GRPCServerStreamErrorInterceptor,
+			otelgrpc.StreamServerInterceptor(),
+			authMiddleware.StreamInterceptor(),
+		),
+		grpc.Creds(credentials.NewTLS(
+			copyAndConfigureTLS(serverTLSConfig, process.log, authMiddleware.AccessPoint, conn.ServerIdentity.ClusterName),
+		)),
+	)
+
+	process.RegisterCriticalFunc("proxy.grpc.secure", func() error {
+		process.log.Infof("Starting proxy gRPC server on %v.", listener.Addr())
+		return trace.Wrap(server.Serve(listener))
+	})
+	return server, nil
+}
+
+// copyAndConfigureTLS can be used to copy and modify an existing *tls.Config
+// for Teleport application proxy servers.
+func copyAndConfigureTLS(config *tls.Config, log logrus.FieldLogger, accessPoint auth.AccessCache, clusterName string) *tls.Config {
+	tlsConfig := config.Clone()
+
+	// Require clients to present a certificate
+	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+
+	// Configure function that will be used to fetch the CA that signed the
+	// client's certificate to verify the chain presented. If the client does not
+	// pass in the cluster name, this functions pulls back all CA to try and
+	// match the certificate presented against any CA.
+	tlsConfig.GetConfigForClient = auth.WithClusterCAs(tlsConfig.Clone(), accessPoint, clusterName, log)
+
+	return tlsConfig
 }

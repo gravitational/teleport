@@ -78,6 +78,21 @@ should set nodeSelector when set in values:
         timeoutSeconds: 1
       name: teleport
       ports:
+      - containerPort: 3080
+        name: tls
+        protocol: TCP
+      - containerPort: 3023
+        name: sshproxy
+        protocol: TCP
+      - containerPort: 3024
+        name: sshtun
+        protocol: TCP
+      - containerPort: 3026
+        name: kube
+        protocol: TCP
+      - containerPort: 3036
+        name: mysql
+        protocol: TCP
       - containerPort: 3000
         name: diag
         protocol: TCP
@@ -156,6 +171,21 @@ should set resources when set in values:
         timeoutSeconds: 1
       name: teleport
       ports:
+      - containerPort: 3080
+        name: tls
+        protocol: TCP
+      - containerPort: 3023
+        name: sshproxy
+        protocol: TCP
+      - containerPort: 3024
+        name: sshtun
+        protocol: TCP
+      - containerPort: 3026
+        name: kube
+        protocol: TCP
+      - containerPort: 3036
+        name: mysql
+        protocol: TCP
       - containerPort: 3000
         name: diag
         protocol: TCP
@@ -223,6 +253,21 @@ should set securityContext when set in values:
         timeoutSeconds: 1
       name: teleport
       ports:
+      - containerPort: 3080
+        name: tls
+        protocol: TCP
+      - containerPort: 3023
+        name: sshproxy
+        protocol: TCP
+      - containerPort: 3024
+        name: sshtun
+        protocol: TCP
+      - containerPort: 3026
+        name: kube
+        protocol: TCP
+      - containerPort: 3036
+        name: mysql
+        protocol: TCP
       - containerPort: 3000
         name: diag
         protocol: TCP
