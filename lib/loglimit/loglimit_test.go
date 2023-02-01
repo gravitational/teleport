@@ -111,7 +111,7 @@ func TestLogLimiter(t *testing.T) {
 				}
 				expectedLoggedSecondBatch := []string{
 					"A log 1",
-					"C log 2",
+					"C log 1",
 					"A log 1 (logs containing \"A\" were seen 4 times in the past minute)",
 				}
 				require.Equal(t, expectedLoggedFirstBatch, loggedFirstBatch, "first batch elements mismatch")
@@ -181,7 +181,7 @@ func TestLogLimiter(t *testing.T) {
 
 // toLogMessages retrieves the log messages from log entries.
 func toLogMessages(entries []*log.Entry) []string {
-	result := make([]string, 0, len(entries))
+	result := make([]string, len(entries))
 	for i, entry := range entries {
 		result[i] = entry.Message
 	}
