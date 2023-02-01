@@ -1,5 +1,18 @@
 # Changelog
 
+## 11.3.2
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed regression issue with accessing SSO apps behind application access. [#21049](https://github.com/gravitational/teleport/pull/21049)
+* Fixed regression performance issue with `tsh scp`. [#20953](https://github.com/gravitational/teleport/pull/20953)
+* Fixed issue with `tsh proxy aws --endpoint-url` not working. [#20880](https://github.com/gravitational/teleport/pull/20880)
+* Fixed issue with MongoDB queries failing on large datasets. [#21113](https://github.com/gravitational/teleport/pull/21113)
+* Updated install scripts to download binaries from new CDN location. [#21057](https://github.com/gravitational/teleport/pull/21057)
+* Updated `tsh` to detect unplugged devices when using hardware-backed keys. [#20949](https://github.com/gravitational/teleport/pull/20949)
+* Updated Elasticsearch access to explicitly require `--db-user`. (#20695) [#20919](https://github.com/gravitational/teleport/pull/20919)
+* Updated Rust to 1.67.0. [#20883](https://github.com/gravitational/teleport/pull/20883)
+
 ## 11.3.1
 
 This release of Teleport contains a security fix, as well as multiple improvements and bug fixes.
