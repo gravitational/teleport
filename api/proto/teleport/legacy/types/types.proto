@@ -4746,64 +4746,55 @@ enum RequireMFAType {
 
 // Plugin describes a single instance of a Teleport Plugin
 message PluginV1 {
-  // Kind is the plugin resource kind.
-  string Kind = 1 [(gogoproto.jsontag) = "kind"];
-  // SubKind is an optional resource subkind.
-  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
-  // Version is the resource version.
-  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // kind is the plugin resource kind.
+  string kind = 1;
+  // sub_kind is an optional resource subkind.
+  string sub_kind = 2;
+  // version is the resource version.
+  string version = 3;
 
-  // Metadata is the resource metadata.
-  Metadata Metadata = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "metadata"
-  ];
+  // metadata is the resource metadata.
+  Metadata metadata = 4 [(gogoproto.nullable) = false];
 
-  PluginSpecV1 Spec = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "spec"
-  ];
+  PluginSpecV1 spec = 5 [(gogoproto.nullable) = false];
 
-  PluginStatusV1 Status = 6 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "status"
-  ];
+  PluginStatusV1 status = 6 [(gogoproto.nullable) = false];
 
-  // Credentials are "live" credentials to the 3rd party API.
+  // credentials are "live" credentials to the 3rd party API.
   // These are considered secrets.
-  PluginCredentialsV1 Credentials = 7 [(gogoproto.jsontag) = "credentials,omitempty"];
+  PluginCredentialsV1 credentials = 7;
 }
 
 message PluginSpecV1 {
   option (gogoproto.equal) = true;
 
-  // Settings contain provider-specific plugin options.
-  oneof Settings {
+  // settings contain provider-specific plugin options.
+  oneof settings {
     // Settings for the Slack access plugin
-    PluginSlackAccessSettings SlackAccessPlugin = 1 [(gogoproto.jsontag) = "slack_access,omitempty"];
+    PluginSlackAccessSettings slack_access_plugin = 1;
   }
 }
 
 message PluginSlackAccessSettings {
   option (gogoproto.equal) = true;
 
-  string FallbackChannel = 1 [(gogoproto.jsontag) = "fallback_channel"];
+  string fallback_channel = 1;
 }
 
 message PluginInitialCredentialsV1 {
   oneof Credentials {
-    PluginOAuth2AuthorizationCodeCredentials OAuth2AuthorizationCode = 1 [(gogoproto.jsontag) = "oauth2_authorization_code,omitempty"];
+    PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
   }
 }
 
 message PluginOAuth2AuthorizationCodeCredentials {
-  string AuthorizationCode = 1 [(gogoproto.jsontag) = "authorization_code"];
-  string RedirectURI = 2 [(gogoproto.jsontag) = "redirect_uri"];
+  string authorization_code = 1;
+  string redirect_uri = 2;
 }
 
 // PluginStatus is the user-facing status for the plugin instance.
 message PluginStatusV1 {
-  PluginStatusCode Code = 1 [(gogoproto.jsontag) = "code"];
+  PluginStatusCode code = 1;
 }
 
 enum PluginStatusCode {
@@ -4826,17 +4817,16 @@ enum PluginStatusCode {
 // that are used by the plugin to authenticate to the 3rd party API.
 message PluginCredentialsV1 {
   oneof Credentials {
-    PluginOAuth2AccessTokenCredentials OAuth2AccessToken = 1 [(gogoproto.jsontag) = "oauth2_access_token,omitempty"];
+    PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
   }
 }
 
 message PluginOAuth2AccessTokenCredentials {
-  string AccessToken = 1;
-  string RefreshToken = 2;
-  google.protobuf.Timestamp ExpiresAt = 3 [
+  string access_token = 1;
+  string refresh_token = 2;
+  google.protobuf.Timestamp expires = 3 [
     (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "expires_at,omitempty"
+    (gogoproto.nullable) = false
   ];
 }
 

@@ -14,27 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package types
+package services
 
 import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
-func TestPluginWithoutSecrets(t *testing.T) {
-	spec := PluginSpecV1{
-		Settings: &PluginSpecV1_SlackAccessPlugin{
-			SlackAccessPlugin: &PluginSlackAccessSettings{
+func TestMarshalPluginRoundTrip(t *testing.T) {
+	spec := types.PluginSpecV1{
+		Settings: &types.PluginSpecV1_SlackAccessPlugin{
+			SlackAccessPlugin: &types.PluginSlackAccessSettings{
 				FallbackChannel: "#access-requests",
 			},
 		},
 	}
 
-	creds := &PluginCredentialsV1{
-		Credentials: &PluginCredentialsV1_Oauth2AccessToken{
-			Oauth2AccessToken: &PluginOAuth2AccessTokenCredentials{
+	creds := &types.PluginCredentialsV1{
+		Credentials: &types.PluginCredentialsV1_Oauth2AccessToken{
+			Oauth2AccessToken: &types.PluginOAuth2AccessTokenCredentials{
 				AccessToken:  "access_token",
 				RefreshToken: "refresh_token",
 				Expires:      time.Now().UTC(),
@@ -42,7 +45,12 @@ func TestPluginWithoutSecrets(t *testing.T) {
 		},
 	}
 
-	plugin := NewPluginV1("foobar", spec, creds)
-	plugin = plugin.WithoutSecrets().(*PluginV1)
-	require.Nil(t, plugin.Credentials)
+	plugin := types.NewPluginV1("foobar", spec, creds)
+
+	payload, err := MarshalPlugin(plugin)
+	require.NoError(t, err)
+
+	unmarshaled, err := UnmarshalPlugin(payload)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(plugin, unmarshaled))
 }

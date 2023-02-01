@@ -35,7 +35,7 @@ type Plugin interface {
 
 // PluginCredentials are the credentials embedded in Plugin
 type PluginCredentials interface {
-	GetOAuth2AccessToken() *PluginOAuth2AccessTokenCredentials
+	GetOauth2AccessToken() *PluginOAuth2AccessTokenCredentials
 }
 
 // PluginStatus is the plugin status
@@ -87,10 +87,10 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			// this should validate that credentials are not empty
 			break
 		}
-		if p.Credentials.GetOAuth2AccessToken() == nil {
+		if p.Credentials.GetOauth2AccessToken() == nil {
 			return trace.BadParameter("Slack access plugin can only be used with OAuth2 access token credential type")
 		}
-		if err := p.Credentials.GetOAuth2AccessToken().CheckAndSetDefaults(); err != nil {
+		if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -226,7 +226,7 @@ func (c *PluginOAuth2AuthorizationCodeCredentials) CheckAndSetDefaults() error {
 	if c.AuthorizationCode == "" {
 		return trace.BadParameter("authorization_code must be set")
 	}
-	if c.RedirectURI == "" {
+	if c.RedirectUri == "" {
 		return trace.BadParameter("redirect_uri must be set")
 	}
 
