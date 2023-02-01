@@ -28,6 +28,7 @@ import {
 } from 'teleport/services/userEvent';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import api from 'teleport/services/api';
+import cfg from 'teleport/config';
 
 import { useDiscover, DiscoverProvider } from './useDiscover';
 import { ResourceKind } from './Shared';
@@ -53,7 +54,9 @@ describe('emitting events', () => {
 
     wrapper = ({ children }) => (
       <MemoryRouter
-        initialEntries={[{ pathname: '/', state: { entity: 'server' } }]}
+        initialEntries={[
+          { pathname: cfg.routes.discover, state: { entity: 'server' } },
+        ]}
       >
         <ContextProvider ctx={ctx}>
           <FeaturesContextProvider value={[]}>
@@ -107,7 +110,7 @@ describe('emitting events', () => {
       result.current.onSelectResource(ResourceKind.Kubernetes);
     });
     expect(userEventService.captureDiscoverEvent).toHaveBeenCalledTimes(0);
-    expect(result.current.eventState).toStrictEqual({
+    expect(result.current.eventState).toEqual({
       id: eventId,
       currEventName: DiscoverEvent.ResourceSelection,
       resource: DiscoverEventResource.Kubernetes,
@@ -179,9 +182,22 @@ describe('emitting events', () => {
     expect(result.current.currentStep).toBe(3);
     expect(userEventService.captureDiscoverEvent).toHaveBeenCalledTimes(3);
 
-    // Should have two skipped events.
+    // Emit the current event.
     expect(userEventService.captureDiscoverEvent).toHaveBeenNthCalledWith(
       1,
+      expect.objectContaining({
+        event: DiscoverEvent.ResourceSelection,
+        eventData: {
+          id,
+          resource: DiscoverEventResource.Server,
+          stepStatus: DiscoverEventStatus.Success,
+        },
+      })
+    );
+
+    // Should have two skipped events.
+    expect(userEventService.captureDiscoverEvent).toHaveBeenNthCalledWith(
+      2,
       expect.objectContaining({
         event: DiscoverEvent.DeployService,
         eventData: {
@@ -192,26 +208,13 @@ describe('emitting events', () => {
       })
     );
     expect(userEventService.captureDiscoverEvent).toHaveBeenNthCalledWith(
-      2,
+      3,
       expect.objectContaining({
-        event: DiscoverEvent.SetUpAccess,
+        event: DiscoverEvent.PrincipalsConfigure,
         eventData: {
           id,
           resource: DiscoverEventResource.Server,
           stepStatus: DiscoverEventStatus.Skipped,
-        },
-      })
-    );
-
-    // Should also emit the current event.
-    expect(userEventService.captureDiscoverEvent).toHaveBeenNthCalledWith(
-      3,
-      expect.objectContaining({
-        event: DiscoverEvent.ResourceSelection,
-        eventData: {
-          id,
-          resource: DiscoverEventResource.Server,
-          stepStatus: DiscoverEventStatus.Success,
         },
       })
     );
