@@ -70,45 +70,77 @@ metadata:
   labels:
     name: production
 ---
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: webapp
   namespace: development
 spec:
-  containers:
-  - name: nginx
-    image: nginx:1.23
+  selector:
+    matchLabels:
+      app: nginx-webapp
+  template:
+    metadata:
+      labels:
+        app: nginx-webapp
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.23
 ---
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: webapp
   namespace: production
 spec:
-  containers:
-  - name: nginx
-    image: nginx:1.23
+  selector:
+    matchLabels:
+      app: nginx-webapp
+  template:
+    metadata:
+      labels:
+        app: nginx-webapp
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.23
 ---
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: loadbalancer
   namespace: development
 spec:
-  containers:
-  - name: nginx
-    image: nginx:1.23
+  selector:
+    matchLabels:
+      app: nginx-loadbalancer
+  template:
+    metadata:
+      labels:
+        app: nginx-loadbalancer
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.23
 ---
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: loadbalancer
   namespace: production
 spec:
-  containers:
-  - name: nginx
-    image: nginx:1.23
+  selector:
+    matchLabels:
+      app: nginx-loadbalancer
+  template:
+    metadata:
+      labels:
+        app: nginx-loadbalancer
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.23
 ```
 
 This manifest creates two namespaces, `development` and `production`, and
@@ -185,8 +217,8 @@ $ TOKEN=$(tctl nodes add --roles=kube --ttl=10000h --format=json | jq -r '.[0]')
 $ echo $TOKEN
 ```
 
-Install the Teleport Kubernetes Service in your cluster, assigning 
-<Var name="proxy-address" /> to the host and port of your Teleport Proxy Service
+Install the Teleport Kubernetes Service in your cluster, assigning <Var
+name="proxy-address" /> to the host **and port** of your Teleport Proxy Service
 (e.g., `mytenant.teleport.sh:443`):
 
 ```code
@@ -288,7 +320,7 @@ spec:
     kubernetes_resources:
       - kind: pod
         namespace: "production"
-        name: "webapp"
+        name: "^webapp-[a-z0-9-]+$"
       - kind: pod
         namespace: "development"
         name: "*"
@@ -303,8 +335,10 @@ In this role, we have defined the following `allow` rules:
 
 - `kubernetes_labels`: Allows access to Kubernetes clusters in all regions, but
   only with the `platform:minikube` label.
-- `kubernetes_resources`: Allows access to the `webapp` pod in the `production`
-  namespace and all pods in the `development` namespace.
+- `kubernetes_resources`: Allows access to pods in the `webapp` deployment in
+  the `production` namespace and all pods in the `development` namespace. Note
+  the use of a regular expression (beginning `^` and ending in `$`) to match pod
+  names that Kubernetes generates automatically.
 - `kubernetes_groups`: Authenticates the user to your Kubernetes cluster as a
   member of the Kubernetes group `developers`, which we associated with the
   `pod-viewer` Kubernetes `Role` earlier in this guide.
@@ -343,7 +377,7 @@ Kube Cluster Name Labels                         Selected
 minikube          platform=minikube region=local
 ```
 
-To access your Kubernetes cluster via Teleport, authenticate to it to update
+To access your Kubernetes cluster via Teleport, authenticate to it and update
 your kubeconfig:
 
 ```code
@@ -362,25 +396,16 @@ The output will show the `webapp` pod in the `production` namespace and both the
 `webapp` and `loadbalancer` pods in the `development` namespace:
 
 ```text
-NAMESPACE     NAME           READY   STATUS    RESTARTS   AGE
-development   loadbalancer   1/1     Running   0          65m
-development   webapp         1/1     Running   0          65m
-production    webapp         1/1     Running   0          65m
+NAMESPACE     NAME                           READY   STATUS    RESTARTS   AGE
+development   loadbalancer-000000000-00000   1/1     Running   0          36m
+development   webapp-0000000000-00000        1/1     Running   0          36m
+production    webapp-0000000000-00000        1/1     Running   0          36m
 ```
 
 You can access information about the `webapp` pod in the `production` namespace:
 
 ```code
-$ kubectl -n production get pods/webapp -o json
-```
-
-If you attempt to get information about the `loadbalancer` pod in the
-`production` namespace, you will see an error:
-
-```code
-$ kubectl -n production get pods/loadbalancer -o json
-
-Error from server (Forbidden): pods "loadbalancer" is forbidden: User "myuser" cannot get resource "pods" in API group "" in the namespace "production"
+$ kubectl -n production get pods/webapp-0000000000-00000 -o json
 ```
 
 Also note that the `kube-access` role we created earlier mapped your Teleport
