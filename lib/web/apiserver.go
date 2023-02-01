@@ -103,9 +103,10 @@ const (
 
 var metaRedirectTemplate = template.Must(template.New("meta-redirect").Parse(metaRedirectHTML))
 
-// preflightAppConnectionFunc defines a function used to preflight application
-// connections.
-type preflightAppConnectionFunc func(ctx context.Context, publicAddr string, clusterName string) error
+// healthCheckAppServerFunc defines a function used to perform a health check
+// to AppServer that can handle application requests (based on cluster name and
+// public address).
+type healthCheckAppServerFunc func(ctx context.Context, publicAddr string, clusterName string) error
 
 // Handler is HTTP web proxy handler
 type Handler struct {
@@ -118,7 +119,7 @@ type Handler struct {
 	sessionStreamPollPeriod time.Duration
 	clock                   clockwork.Clock
 	limiter                 *limiter.RateLimiter
-	preflightAppConnection  preflightAppConnectionFunc
+	healthCheckAppServer    healthCheckAppServerFunc
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
@@ -240,7 +241,7 @@ type Config struct {
 
 	// PreflightConnection is a function that checks if the proxy can handle
 	// application requests.
-	PreflightConnection preflightAppConnectionFunc
+	PreflightConnection healthCheckAppServerFunc
 }
 
 type APIHandler struct {
@@ -289,11 +290,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
 	cfg.ProxyClient = auth.WithGithubConnectorConversions(cfg.ProxyClient)
 	h := &Handler{
-		cfg:                    cfg,
-		log:                    newPackageLogger(),
-		clock:                  clockwork.NewRealClock(),
-		ClusterFeatures:        cfg.ClusterFeatures,
-		preflightAppConnection: cfg.PreflightConnection,
+		cfg:                  cfg,
+		log:                  newPackageLogger(),
+		clock:                clockwork.NewRealClock(),
+		ClusterFeatures:      cfg.ClusterFeatures,
+		healthCheckAppServer: cfg.PreflightConnection,
 	}
 
 	// for properly handling url-encoded parameter values.
@@ -459,8 +460,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		if h.preflightAppConnection == nil {
-			h.preflightAppConnection = appHandler.PreflightConnection
+		if h.healthCheckAppServer == nil {
+			h.healthCheckAppServer = appHandler.HealthCheckAppServer
 		}
 	}
 
