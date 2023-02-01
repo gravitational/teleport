@@ -86,35 +86,11 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	labels := make(map[string]string)
-	for _, label := range req.Labels {
-		labels[label.Name] = label.Value
-	}
-
-	dbSpec := types.DatabaseSpecV3{
-		Protocol: req.Protocol,
-		URI:      req.URI,
-	}
-
-	if req.AWSRDS != nil {
-		dbSpec.AWS = types.AWS{
-			AccountID: req.AWSRDS.AccountID,
-			RDS: types.RDS{
-				ResourceID: req.AWSRDS.ResourceID,
-			},
-		}
-	}
-
-	database, err := types.NewDatabaseV3(
-		types.Metadata{
-			Name:   req.Name,
-			Labels: labels,
-		}, dbSpec)
+	database, err := getNewDatabaseResource(*req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	database.SetOrigin(types.OriginDynamic)
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -141,16 +117,42 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 
 // updateDatabaseRequest contains some updatable fields of a database resource.
 type updateDatabaseRequest struct {
-	CACert string `json:"ca_cert,omitempty"`
+	// UpdateCACert is a flag to indicate that this request
+	// to update database is to only update the CA and validates
+	// the provided CA.
+	// When set to false, updates all other fields and
+	// skips updating and validating CA.
+	UpdateCACert bool       `json:"updateCaCert,omitempty"`
+	CACert       string     `json:"ca_cert,omitempty"`
+	Labels       []ui.Label `json:"labels,omitempty"`
+	URI          string     `json:"uri,omitempty"`
+	AWSRDS       *awsRDS    `json:"awsRds,omitempty"`
 }
 
 func (r *updateDatabaseRequest) checkAndSetDefaults() error {
-	if r.CACert == "" {
-		return trace.BadParameter("missing CA certificate data")
+	if r.UpdateCACert {
+		if r.CACert == "" {
+			return trace.BadParameter("missing CA certificate data")
+		}
+
+		if _, err := tlsutils.ParseCertificatePEM([]byte(r.CACert)); err != nil {
+			return trace.BadParameter("could not parse provided CA as X.509 PEM certificate")
+		}
+		return nil
 	}
 
-	if _, err := tlsutils.ParseCertificatePEM([]byte(r.CACert)); err != nil {
-		return trace.BadParameter("could not parse provided CA as X.509 PEM certificate")
+	// These fields can't be empty if set.
+	if r.AWSRDS != nil {
+		if r.AWSRDS.ResourceID == "" {
+			return trace.BadParameter("missing aws rds field resource id")
+		}
+		if r.AWSRDS.AccountID == "" {
+			return trace.BadParameter("missing aws rds field account id")
+		}
+	}
+
+	if r.Labels == nil && r.URI == "" {
+		return trace.BadParameter("missing fields to update the database")
 	}
 
 	return nil
@@ -182,7 +184,34 @@ func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	database.SetCA(req.CACert)
+	if req.UpdateCACert {
+		database.SetCA(req.CACert)
+	} else {
+		savedCA := database.GetCA()
+		savedLabels := database.GetStaticLabels()
+
+		savedOrNewURI := req.URI
+		if len(savedOrNewURI) == 0 {
+			savedOrNewURI = database.GetURI()
+		}
+
+		// Make a new database to reset the check and set defaulted fields.
+		database, err = getNewDatabaseResource(createDatabaseRequest{
+			Name:     databaseName,
+			Protocol: database.GetProtocol(),
+			URI:      savedOrNewURI,
+			Labels:   req.Labels,
+			AWSRDS:   req.AWSRDS,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		database.SetCA(savedCA)
+		if len(req.Labels) == 0 {
+			database.SetStaticLabels(savedLabels)
+		}
+	}
 
 	if err := clt.UpdateDatabase(r.Context(), database); err != nil {
 		return nil, trace.Wrap(err)
@@ -270,4 +299,38 @@ func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.
 	default:
 		return servers[0].GetDatabase(), nil
 	}
+}
+
+func getNewDatabaseResource(req createDatabaseRequest) (*types.DatabaseV3, error) {
+	labels := make(map[string]string)
+	for _, label := range req.Labels {
+		labels[label.Name] = label.Value
+	}
+
+	dbSpec := types.DatabaseSpecV3{
+		Protocol: req.Protocol,
+		URI:      req.URI,
+	}
+
+	if req.AWSRDS != nil {
+		dbSpec.AWS = types.AWS{
+			AccountID: req.AWSRDS.AccountID,
+			RDS: types.RDS{
+				ResourceID: req.AWSRDS.ResourceID,
+			},
+		}
+	}
+
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name:   req.Name,
+			Labels: labels,
+		}, dbSpec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	database.SetOrigin(types.OriginDynamic)
+
+	return database, nil
 }
