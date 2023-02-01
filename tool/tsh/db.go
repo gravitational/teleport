@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -472,7 +473,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	// "tsh db config" prints out instructions for native clients to connect to
 	// the remote proxy directly. Return errors here when direct connection
 	// does NOT work (e.g. when ALPN local proxy is required).
-	if isLocalProxyAlwaysRequired(database.Protocol) {
+	if isLocalProxyAlwaysRequired(tc, database.Protocol) {
 		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, database))
 	}
 	// MySQL requires ALPN local proxy in single port mode.
@@ -561,11 +562,15 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf, tc *client.TeleportC
 	// Some protocols (Snowflake, DynamoDB) only works in the local tunnel mode.
 	// ElasticSearch can work without the --tunnel flag, but not via `tsh db connect`.
 	localProxyTunnel := cf.LocalProxyTunnel
-	if requiresLocalProxyTunnel(db.Protocol) || db.Protocol == defaults.ProtocolElasticsearch {
+	if requiresLocalProxyTunnel(tc, db.Protocol) || db.Protocol == defaults.ProtocolElasticsearch {
 		localProxyTunnel = true
 	}
 
-	log.Debugf("Starting local proxy")
+	if localProxyTunnel {
+		log.Debug("Starting local proxy tunnel")
+	} else {
+		log.Debug("Starting local proxy")
+	}
 
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
@@ -1065,12 +1070,16 @@ func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) s
 // shouldUseLocalProxyForDatabase returns true if the ALPN local proxy should
 // be used for connecting to the provided database.
 func shouldUseLocalProxyForDatabase(tc *client.TeleportClient, db *tlsca.RouteToDatabase) bool {
-	return tc.TLSRoutingEnabled || isLocalProxyAlwaysRequired(db.Protocol)
+	return tc.TLSRoutingEnabled || isLocalProxyAlwaysRequired(tc, db.Protocol)
 }
 
 // isLocalProxyAlwaysRequired returns true for protocols that always requires
 // an ALPN local proxy.
-func isLocalProxyAlwaysRequired(protocol string) bool {
+func isLocalProxyAlwaysRequired(tc *client.TeleportClient, protocol string) bool {
+	switch tc.PrivateKeyPolicy {
+	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
+		return true
+	}
 	switch protocol {
 	case defaults.ProtocolSQLServer,
 		defaults.ProtocolSnowflake,

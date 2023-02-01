@@ -702,7 +702,7 @@ func (c *Client) DeleteAuthServer(name string) error {
 }
 
 // UpsertProxy is used by proxies to report their presence
-// to other auth servers in form of hearbeat expiring after ttl period.
+// to other auth servers in form of heartbeat expiring after ttl period.
 func (c *Client) UpsertProxy(s types.Server) error {
 	data, err := services.MarshalServer(s)
 	if err != nil {
