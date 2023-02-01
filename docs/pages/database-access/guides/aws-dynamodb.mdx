@@ -43,7 +43,11 @@ organization's access conventions. You should adjust the AWS IAM permissions to 
 
 ## Step 1/4. Create IAM roles for DynamoDB access
 
-The setup described in this guide requires two IAM roles: one associated with the EC2 instance running the Teleport Database Access service and another that can be assumed by the EC2 instance role and grants access to DynamoDB services.
+The setup described in this guide requires two IAM roles:
+- One associated with the EC2 instance running the Teleport Database Access
+  service, which lets it assume additional roles granted to the user.
+- One that can be assumed by the EC2 instance role and grants access to
+  DynamoDB services to users.
 
 ### EC2 instance role
 
