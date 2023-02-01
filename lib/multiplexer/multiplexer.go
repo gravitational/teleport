@@ -110,7 +110,7 @@ func New(cfg Config) (*Mux, error) {
 
 	ctx, cancel := context.WithCancel(cfg.Context)
 	waitContext, waitCancel := context.WithCancel(context.TODO())
-	return &Mux{
+	m := &Mux{
 		Entry: log.WithFields(log.Fields{
 			trace.Component: teleport.Component("mx", cfg.ID),
 		}),
@@ -120,7 +120,10 @@ func New(cfg Config) (*Mux, error) {
 		waitContext: waitContext,
 		waitCancel:  waitCancel,
 		logLimiter:  logLimiter,
-	}, nil
+	}
+
+	go logLimiter.Run(ctx)
+	return m, nil
 }
 
 // Mux supports having both SSH and TLS on the same listener socket
@@ -201,7 +204,6 @@ func (m *Mux) Wait() {
 // and accepts requests. Every request is served in a separate goroutine
 func (m *Mux) Serve() error {
 	defer m.waitCancel()
-	go m.logLimiter.Run(m.context)
 	for {
 		conn, err := m.Listener.Accept()
 		if err == nil {
