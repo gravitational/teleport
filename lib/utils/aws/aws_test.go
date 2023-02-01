@@ -207,7 +207,7 @@ func TestValidateRoleARNAndExtractRoleName(t *testing.T) {
 		wantError      bool
 	}{
 		{
-			name:           "sucess",
+			name:           "success",
 			inputARN:       "arn:aws:iam::123456789012:role/role-name",
 			inputPartition: "aws",
 			inputAccountID: "123456789012",
