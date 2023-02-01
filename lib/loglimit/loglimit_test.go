@@ -182,8 +182,8 @@ func TestLogLimiter(t *testing.T) {
 // toLogMessages retrieves the log messages from log entries.
 func toLogMessages(entries []*log.Entry) []string {
 	result := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		result = append(result, entry.Message)
+	for i, entry := range entries {
+		result[i] = entry.Message
 	}
 	return result
 }
