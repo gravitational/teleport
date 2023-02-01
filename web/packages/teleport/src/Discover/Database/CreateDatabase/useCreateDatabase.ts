@@ -168,7 +168,6 @@ export function useCreateDatabase(props: AgentStepProps) {
       try {
         await ctx.databaseService.updateDatabase(clusterId, {
           ...db,
-          updateCaCert: false,
         });
         setCreatedDb(db);
       } catch (err) {

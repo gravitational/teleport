@@ -6108,8 +6108,7 @@ func TestUpdateDatabase_CACert(t *testing.T) {
 		{
 			name: "valid",
 			req: updateDatabaseRequest{
-				CACert:       fakeValidTLSCert,
-				UpdateCACert: true,
+				CACert: &fakeValidTLSCert,
 			},
 			expectedStatus: http.StatusOK,
 			errAssert:      require.NoError,
@@ -6117,8 +6116,7 @@ func TestUpdateDatabase_CACert(t *testing.T) {
 		{
 			name: "empty ca_cert",
 			req: updateDatabaseRequest{
-				CACert:       "",
-				UpdateCACert: true,
+				CACert: strPtr(""),
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
@@ -6128,8 +6126,7 @@ func TestUpdateDatabase_CACert(t *testing.T) {
 		{
 			name: "invalid certificate",
 			req: updateDatabaseRequest{
-				CACert:       "Not a certificate",
-				UpdateCACert: true,
+				CACert: strPtr("Not a certificate"),
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
