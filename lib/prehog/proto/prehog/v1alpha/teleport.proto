@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package prehog.v1alpha;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha";
@@ -45,6 +46,24 @@ message SessionStartEvent {
   string user_name = 1;
   // ssh/kube/desktop, maybe db?
   string session_type = 2;
+}
+
+message UserCertificateIssuedEvent {
+  // The anonymized username/principal of the entity that requested the
+  // certificate.
+  string user_name = 1;
+  // The issued certificate TTL.
+  google.protobuf.Duration ttl = 2;
+  // If true, the certificate was requested by a bot (i.e. Machine ID) user.
+  bool is_bot = 3;
+  // If true, the certificate usage is restricted to database access.
+  bool usage_database = 4;
+  // If true, the certificate usage is restricted to app access.
+  bool usage_app = 5;
+  // If true, the certificate usage is restricted to Kubernetes access.
+  bool usage_kubernetes = 6;
+  // If true, the certificate usage is restricted to desktop access.
+  bool usage_desktop = 7;
 }
 
 message UIBannerClickEvent {
@@ -178,6 +197,8 @@ message SubmitEventRequest {
     UserLoginEvent user_login = 3;
     SSOCreateEvent sso_create = 4;
     ResourceCreateEvent resource_create = 5;
+
+    // REMOVE IN V14: Use session_start_v2 instead
     SessionStartEvent session_start = 6;
 
     UIBannerClickEvent ui_banner_click = 7;
@@ -192,6 +213,14 @@ message SubmitEventRequest {
 
     UIDiscoverStartedEvent ui_discover_started_event = 17;
     UIDiscoverResourceSelectionEvent ui_discover_resource_selection_event = 18;
+
+    UserCertificateIssuedEvent user_certificate_issued_event = 19;
+
+    // Note: semantics of SessionStartEvent type values have changed to
+    // differentiate SSH from Kubernetes exec sessions (as well as adding
+    // db/app/desktop events). The structures are the same, however, so we don't
+    // need a new message type.
+    SessionStartEvent session_start_v2 = 20;
   }
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
