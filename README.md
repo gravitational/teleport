@@ -347,6 +347,6 @@ You can see the list of companies who use Teleport in production on the Teleport
 
 ## Who Built Teleport?
 
-Teleport was created by [Gravitational Inc](https://goteleport.com). We have
+Teleport was created by [Gravitational, Inc.](https://goteleport.com). We have
 built Teleport by borrowing from our previous experiences at Rackspace. [Learn more
 about Teleport and our history](https://goteleport.com/about/).
