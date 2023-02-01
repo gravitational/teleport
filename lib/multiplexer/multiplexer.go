@@ -97,12 +97,6 @@ func New(cfg Config) (*Mux, error) {
 
 	logLimiter, err := loglimit.New(loglimit.Config{
 		LogSubstrings: errorSubstrings,
-		// ChannelSize is set to 0 (creating an unbuffered channel),
-		// since the channel is only written to when the goroutine
-		// responsible for a new connection is about to conclude its
-		// work (because an error was detected) and thus, if the
-		// sending blocks, no subsequent work is delayed.
-		ChannelSize: 0,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -42,9 +42,6 @@ type Config struct {
 	// LogSubstrings contains a list of substrings belonging to the
 	// logs that should be deduplicated.
 	LogSubstrings []string
-	// ChannelSize is the size of the channel used to send messages
-	// to the log limiter.
-	ChannelSize int
 	// Clock is a clock to override in tests, set to real time clock
 	// by default.
 	Clock clockwork.Clock
@@ -54,9 +51,6 @@ type Config struct {
 func (c *Config) checkAndSetDefaults() error {
 	if c.LogSubstrings == nil {
 		return trace.BadParameter("missing parameter LogSubstrings")
-	}
-	if c.ChannelSize < 0 {
-		return trace.BadParameter("ChannelSize must be at least 0")
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -102,13 +96,15 @@ func New(config Config) (*LogLimiter, error) {
 
 	return &LogLimiter{
 		config:    config,
-		entryCh:   make(chan *entryInfo, config.ChannelSize),
+		entryCh:   make(chan *entryInfo),
 		windows:   make(map[string]*entryInfo, len(config.LogSubstrings)),
 		cleanupCh: make(chan chan struct{}),
 	}, nil
 }
 
 // Log sends a log to the log limiter.
+// As the channel size is set to 0 (creating an unbuffered channel),
+// this call can block.
 func (l *LogLimiter) Log(entry *log.Entry, level log.Level, args ...any) {
 	l.entryCh <- &entryInfo{
 		entry:       entry,
