@@ -4820,7 +4820,6 @@ enum PluginStatusCode {
   // SLACK_NOT_IN_CHANNEL is a Slack-specific status code that indicates
   // that the bot has not been invited to a channel that it is configured to post in.
   SLACK_NOT_IN_CHANNEL = 10;
-  reserved 11 to 19; // future Slack-specific codes
 }
 
 // PluginCredentialsV1 represents "live" credentials
