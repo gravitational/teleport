@@ -776,7 +776,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// scp
 	scp := app.Command("scp", "Transfer files to a remote Node")
 	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
+	scp.Arg("from, to", "Source and destination to copy, one must be a local path and one must be a remote path").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
 	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int32Var(&cf.NodePort)
 	scp.Flag("preserve", "Preserves access and modification times from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
@@ -4317,7 +4317,6 @@ func withWarnOnDeprecatedSNI(printed *bool) updateKubeConfigOnLoginOpt {
 	return func(opt *updateKubeConfigOpt) {
 		opt.warnOnDeprecatedSNI = true
 		opt.warnSNIPrinted = printed
-
 	}
 }
 
