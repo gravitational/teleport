@@ -23,8 +23,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
-	api "github.com/gravitational/teleport/lib/teleterm/api/gen/proto/go/teleterm/v1"
 )
 
 type FileTransferProgressSender = func(progress *api.FileTransferProgress) error

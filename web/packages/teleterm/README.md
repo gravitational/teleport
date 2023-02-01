@@ -85,7 +85,7 @@ For a quick restart which restarts all processes and the `tsh` daemon, press `F6
 
 ### Generating tshd gRPC protobuf files
 
-Rebuilding them is needed only if you change any of the files in `lib/teleterm/api/proto/` dir.
+Rebuilding them is needed only if you change any of the files in `proto/teleport/lib/teleterm` dir.
 
 To rebuild and update gRPC proto files:
 
@@ -93,7 +93,7 @@ To rebuild and update gRPC proto files:
 $ make grpc
 ```
 
-Resulting files can be found in `lib/teleterm/api/gen/proto/go` for Go and `gen-proto-js` for JS.
+Resulting Go and JS files can be found in `gen/proto`.
 
 ### Generating shared process gRPC protobuf files
 

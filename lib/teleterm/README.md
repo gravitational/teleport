@@ -112,8 +112,8 @@ obtains from the root cluster.
 
 ## gRPC server
 
-The proto files live in `lib/teleterm/api/proto`. `make grpc` generates protobufs in
-`lib/teleterm/api/gen` and `gen-proto-js`.
+The proto files live in `proto/teleport/lib/teleterm`. `make grpc` generates protobufs in
+`gen/proto`.
 
 ## Refactoring efforts
 

@@ -18,7 +18,7 @@ package teleterm.v1;
 
 import "teleport/lib/prehog/v1alpha/connect.proto";
 
-option go_package = "github.com/gravitational/teleport/lib/teleterm/api/gen/proto/go/teleterm/v1";
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1";
 
 message ReportUsageEventRequest {
   string auth_cluster_id = 1;
