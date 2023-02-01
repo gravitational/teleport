@@ -256,11 +256,18 @@ subjects:
   namespace: default
 ```
 
-#### Specifying groups and users based on SAML and OIDC traits
+#### Specifying groups and users based on user traits
+
+You can specify Kubernetes groups and users for each Teleport user individually,
+rather than hardcoding this information into your Teleport roles. To do so, you
+can add template variables to Teleport your roles, and the Teleport Auth Service
+will populate them with information from each authenticating user. 
+
+##### Single Sign-On provider traits
 
 Teleport's roles map OIDC claims or SAML attributes using template variables.
-The template variable `{{external.groups}}` will be substituted to with a user's
-group list in a role definition:
+The Teleport Auth Service will substitute any template variable in the format
+`{{external.*}}` with the corresponding SAML attribute or OIDC claim:
 
 ```yaml
 kind: role
@@ -269,10 +276,67 @@ metadata:
   name: group-member
 spec:
   allow:
-    # For Alice, will be substituted with the list ["admins", "devs"]
     kubernetes_groups: ["{{external.groups}}"]
-    # For Alice, will be substituted with ["alice@example.com"]
-    kubernetes_users: ["{{external.email}}"]
+    kubernetes_users: ["{{external.kube_username}}"]
+    # ...
+```
+
+If a user authenticates to Teleport via a SAML connector, for example, and the
+user has a `kube_username` attribute with the value `myuser` and a `groups` attribute
+with values `developers` and `viewers`, the `group-member` role above will
+evaluate to the following:
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: group-member
+spec:
+  allow:
+    kubernetes_groups: ["developers", "viewers"]
+    kubernetes_users: ["myuser"]
+    # ...
+```
+
+##### Local user traits
+
+For local users, you can specify arbitrary key-value data in the `spec.traits`
+field of a `user` resource, then use the `{{internal.*}}` template variable in a
+role to refer to those traits.
+
+For example, this role fills in `kubernetes_users` and `kubernetes_groups` with
+internal traits:
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: group-member
+spec:
+  allow:
+    kubernetes_groups: ["{{internal.groups}}"]
+    kubernetes_users: ["{{internal.kube_username}}"]
+    # ...
+```
+
+You can then supply the values for these template variables when creating or
+modifying a local user. For example, this user definition includes traits
+that the Auth Service will use to populate the role definition above:
+
+```yaml
+kind: user
+version: v2
+metadata:
+  name: alice
+spec:
+  roles: 
+    - group-member
+  traits:
+    groups:
+      - developers
+      - viewers
+    kube_username:
+      - myuser
 ```
 
 ### `kubernetes_resources`
