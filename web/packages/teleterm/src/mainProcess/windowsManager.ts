@@ -59,6 +59,7 @@ export class WindowsManager {
       this.saveWindowState(window);
     });
 
+    // shows the window when the DOM is ready, so we don't have a brief flash of a blank screen
     window.once('ready-to-show', window.show);
 
     if (this.settings.dev) {
