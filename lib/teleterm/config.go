@@ -51,10 +51,6 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing network address")
 	}
 
-	if c.PrehogAddr == "" {
-		return trace.BadParameter("missing prehog address")
-	}
-
 	addr, err := utils.ParseAddr(c.Addr)
 	if err != nil {
 		return trace.Wrap(err)

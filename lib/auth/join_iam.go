@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -154,7 +155,7 @@ func validateSTSIdentityRequest(req *http.Request, challenge string, cfg *iamReg
 			challengeHeaderKey+" as a signed header", authHeader)
 	}
 
-	body, err := aws.GetAndReplaceReqBody(req)
+	body, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}

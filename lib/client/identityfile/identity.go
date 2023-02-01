@@ -595,7 +595,13 @@ func KeyFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.K
 		}
 	}
 
-	key.TrustedCerts, err = client.TrustedCertsFromCACerts(proxyHost, ident.CACerts.TLS, ident.CACerts.SSH)
+	knownHosts, err := sshutils.UnmarshalKnownHosts(ident.CACerts.SSH)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Use all Trusted certs found in the identity file.
+	key.TrustedCerts, err = client.TrustedCertsFromCACerts(ident.CACerts.TLS, knownHosts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -630,9 +636,10 @@ func NewClientStoreFromIdentityFile(identityFile, proxyAddr, clusterName string)
 
 	// Save temporary profile into the key store.
 	profile := &profile.Profile{
-		WebProxyAddr: proxyAddr,
-		SiteName:     key.ClusterName,
-		Username:     key.Username,
+		WebProxyAddr:     proxyAddr,
+		SiteName:         key.ClusterName,
+		Username:         key.Username,
+		PrivateKeyPolicy: keys.GetPrivateKeyPolicy(key.PrivateKey),
 	}
 	if err := clientStore.SaveProfile(profile, true); err != nil {
 		return nil, trace.Wrap(err)

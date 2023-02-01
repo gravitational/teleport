@@ -154,6 +154,38 @@ spec:
           {{- toYaml $proxy.extraArgs | nindent 8 }}
         {{- end }}
         ports:
+        - name: tls
+          containerPort: 3080
+          protocol: TCP
+        {{- if $proxy.enterprise }}
+        - name: proxypeering
+          containerPort: 3021
+          protocol: TCP
+        {{- end }}
+        {{- if eq $proxy.proxyListenerMode "separate" }}
+        - name: sshproxy
+          containerPort: 3023
+          protocol: TCP
+        - name: sshtun
+          containerPort: 3024
+          protocol: TCP
+        - name: kube
+          containerPort: 3026
+          protocol: TCP
+        - name: mysql
+          containerPort: 3036
+          protocol: TCP
+        {{- if $proxy.separatePostgresListener }}
+        - name: postgres
+          containerPort: 5432
+          protocol: TCP
+        {{- end }}
+        {{- if $proxy.separateMongoListener }}
+        - name: mongo
+          containerPort: 27017
+          protocol: TCP
+        {{- end }}
+        {{- end }}
         - name: diag
           containerPort: 3000
           protocol: TCP

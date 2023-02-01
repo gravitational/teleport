@@ -381,7 +381,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	}
 
 	// Some protocols require the --tunnel flag, e.g. Snowflake, DynamoDB.
-	if !cf.LocalProxyTunnel && requiresLocalProxyTunnel(routeToDatabase.Protocol) {
+	if !cf.LocalProxyTunnel && requiresLocalProxyTunnel(client, routeToDatabase.Protocol) {
 		return trace.BadParameter(formatDbCmdUnsupportedWithCondition(cf, routeToDatabase, "without the --tunnel flag"))
 	}
 
@@ -922,7 +922,11 @@ func envVarCommand(format, key, value string) (string, error) {
 }
 
 // requiresLocalProxyTunnel returns whether the given protocol requires a local proxy with the --tunnel flag.
-func requiresLocalProxyTunnel(protocol string) bool {
+func requiresLocalProxyTunnel(tc *libclient.TeleportClient, protocol string) bool {
+	switch tc.PrivateKeyPolicy {
+	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
+		return true
+	}
 	switch protocol {
 	case defaults.ProtocolSnowflake, defaults.ProtocolDynamoDB:
 		return true
