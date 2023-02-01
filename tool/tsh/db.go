@@ -554,15 +554,15 @@ func serializeDatabaseConfig(configInfo *dbConfigInfo, format string) (string, e
 func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	tc *client.TeleportClient, profile *client.ProfileStatus,
 	route *tlsca.RouteToDatabase, db types.Database, rootClusterName string,
-	req *dbLocalProxyRequirement,
+	requires *dbLocalProxyRequirement,
 ) ([]dbcmd.ConnectCommandFunc, error) {
-	if !req.localProxy {
+	if !requires.localProxy {
 		return nil, nil
 	}
-	if req.tunnel {
-		log.Debugf("Starting local proxy tunnel because: %v", strings.Join(req.tunnelReasons, ", "))
+	if requires.tunnel {
+		log.Debugf("Starting local proxy tunnel because: %v", strings.Join(requires.tunnelReasons, ", "))
 	} else {
-		log.Debugf("Starting local proxy because: %v", strings.Join(req.localProxyReasons, ", "))
+		log.Debugf("Starting local proxy because: %v", strings.Join(requires.localProxyReasons, ", "))
 	}
 
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -577,7 +577,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 		routeToDatabase:  route,
 		database:         db,
 		listener:         listener,
-		localProxyTunnel: req.tunnel,
+		localProxyTunnel: requires.tunnel,
 		rootClusterName:  rootClusterName,
 	})
 	if err != nil {
@@ -608,7 +608,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	cmdOpts := []dbcmd.ConnectCommandFunc{
 		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)),
 	}
-	if req.tunnel {
+	if requires.tunnel {
 		cmdOpts = append(cmdOpts, dbcmd.WithNoTLS())
 	}
 	return cmdOpts, nil
@@ -728,7 +728,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, route))
 	}
 
-	requires := getDBLocalProxyRequirement(tc, route, withConnectRequirements(tc, route))
+	requires := getDBLocalProxyRequirement(tc, route, withConnectRequirements(cf.Context, tc, route))
 	if err := maybeDatabaseLogin(cf, tc, profile, route, requires); err != nil {
 		return trace.Wrap(err)
 	}
@@ -868,8 +868,8 @@ func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route *tlsca.Ro
 
 // maybeDatabaseLogin checks if cert is still valid. If not valid, trigger db login logic.
 // returns a true/false indicating whether database login was triggered.
-func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, route *tlsca.RouteToDatabase, req *dbLocalProxyRequirement) error {
-	if req.localProxy && req.tunnel {
+func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, route *tlsca.RouteToDatabase, requires *dbLocalProxyRequirement) error {
+	if requires.localProxy && requires.tunnel {
 		// We only need to (possibly) login if not using a local proxy tunnel,
 		// because a local proxy tunnel will handle db login itself.
 		return nil
@@ -1068,16 +1068,16 @@ type dbLocalProxyRequirement struct {
 	tunnelReasons []string
 }
 
-// requireLocalProxy sets the local proxy requirement and appends reasons.
-func (r *dbLocalProxyRequirement) requireLocalProxy(reasons ...string) {
+// addLocalProxy sets the local proxy requirement and appends reasons.
+func (r *dbLocalProxyRequirement) addLocalProxy(reasons ...string) {
 	r.localProxy = true
 	r.localProxyReasons = append(r.localProxyReasons, reasons...)
 }
 
-// requireLocalProxyWithTunnel sets the local proxy and tunnel requirements,
+// addLocalProxyWithTunnel sets the local proxy and tunnel requirements,
 // and appends reasons for both.
-func (r *dbLocalProxyRequirement) requireLocalProxyWithTunnel(reasons ...string) {
-	r.requireLocalProxy(reasons...)
+func (r *dbLocalProxyRequirement) addLocalProxyWithTunnel(reasons ...string) {
+	r.addLocalProxy(reasons...)
 	r.tunnel = true
 	r.tunnelReasons = append(r.tunnelReasons, reasons...)
 }
@@ -1092,18 +1092,18 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route *tlsca.RouteToD
 	var out dbLocalProxyRequirement
 	switch tc.PrivateKeyPolicy {
 	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
-		out.requireLocalProxyWithTunnel(formatKeyPolicyReason(tc.PrivateKeyPolicy))
+		out.addLocalProxyWithTunnel(formatKeyPolicyReason(tc.PrivateKeyPolicy))
 	}
 
 	// Some protocols (Snowflake, DynamoDB) only works in the local tunnel mode.
 	switch route.Protocol {
 	case defaults.ProtocolSnowflake, defaults.ProtocolDynamoDB:
-		out.requireLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
+		out.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
 	case defaults.ProtocolSQLServer, defaults.ProtocolCassandra:
-		out.requireLocalProxy(formatDBProtocolReason(route.Protocol))
+		out.addLocalProxy(formatDBProtocolReason(route.Protocol))
 	case defaults.ProtocolMySQL:
 		if tc.TLSRoutingEnabled {
-			out.requireLocalProxy(fmt.Sprintf("%v and %v",
+			out.addLocalProxy(fmt.Sprintf("%v and %v",
 				formatDBProtocolReason(route.Protocol),
 				formatTLSRoutingReason(tc.SiteName)))
 		}
@@ -1116,17 +1116,33 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route *tlsca.RouteToD
 }
 
 // withConnectRequirements is requirement option fn that adds requirements specific to "tsh db connect".
-func withConnectRequirements(tc *client.TeleportClient, route *tlsca.RouteToDatabase) requireOpt {
+func withConnectRequirements(ctx context.Context, tc *client.TeleportClient, route *tlsca.RouteToDatabase) requireOpt {
 	return func(r *dbLocalProxyRequirement) {
 		if !r.localProxy && tc.TLSRoutingEnabled {
-			r.requireLocalProxy(formatTLSRoutingReason(tc.SiteName))
+			r.addLocalProxy(formatTLSRoutingReason(tc.SiteName))
 		}
 		switch route.Protocol {
 		case defaults.ProtocolElasticsearch:
 			// ElasticSearch access can work without a local proxy tunnel, but not
 			// via `tsh db connect`.
 			// (elasticsearch-sql-cli cannot be configured to use specific certs).
-			r.requireLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
+			r.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
+		}
+		if r.localProxy && r.tunnel {
+			// don't check if MFA is required, because a local proxy tunnel is
+			// already required. this avoids an extra API call.
+			return
+		}
+		// Call API and check if a user needs to use MFA to connect to the database.
+		mfaRequired, err := isMFADatabaseAccessRequired(ctx, tc, route)
+		if err != nil {
+			log.WithError(err).Debugf("error getting MFA requirement for database %v",
+				route.ServiceName)
+		} else if mfaRequired {
+			// When MFA is required, we should require a local proxy tunnel,
+			// because the local proxy tunnel can hold database MFA certs in-memory
+			// without a restricted 1-minute TTL. This is better for user experience.
+			r.addLocalProxyWithTunnel("MFA is required to connect to the database")
 		}
 	}
 }
