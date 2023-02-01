@@ -5,5 +5,5 @@ spec:
   allow:
     request:
       roles:
-        - admin
+        - editor
 version: v4
