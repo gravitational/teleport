@@ -1207,6 +1207,8 @@ go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.12.0 h1:+tsVd
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.12.0/go.mod h1:jSqjV+Knu1Jyvh+l3fx7V210Ev3HHgNQAi8YqpXaQP8=
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.11.2 h1:Us8tbCmuN16zAnK5TC69AtODLycKbwnskQzaB6DfFhc=
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.11.2/go.mod h1:GZWSQQky8AgdJj50r1KJm8oiQiIPaAX7uZCFQX9GzC8=
+go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.12.0 h1:L23MzcHDznr05xOM1Ng1F98L0nVd7hm/S7y2jW9IRB4=
+go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.12.0/go.mod h1:C+onYX2j5QH653b3wGJwowYr8jLMjBJw35QcaCQQK0U=
 go.opentelemetry.io/otel/metric v0.35.0 h1:aPT5jk/w7F9zW51L7WgRqNKDElBdyRLGuBtI5MX34e8=
 go.opentelemetry.io/otel/metric v0.35.0/go.mod h1:qAcbhaTRFU6uG8QM7dDo7XvFsWcugziq/5YI065TokQ=
 go.opentelemetry.io/otel/sdk v1.12.0 h1:8npliVYV7qc0t1FKdpU08eMnOjgPFMnriPhn0HH4q3o=
