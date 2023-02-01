@@ -1,0 +1,28 @@
+name: Protobufs up to date
+run-name: make protos-up-to-date
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  merge_group:
+
+jobs:
+  protos-up-to-date:
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    name: Protobufs up to date
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport13
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Check if protobufs are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make protos-up-to-date/host
