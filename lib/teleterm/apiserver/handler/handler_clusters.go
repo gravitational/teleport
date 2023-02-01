@@ -106,13 +106,9 @@ func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) *api.Cluster {
 	apiCluster := newAPIRootCluster(cluster.Cluster)
 
-	// Only include if they exist on the supplied cluster
-	if cluster.Features != nil {
-		apiCluster.Features = &api.Features{
-			AdvancedAccessWorkflows: cluster.Features.GetAdvancedAccessWorkflows(),
-		}
+	apiCluster.Features = &api.Features{
+		AdvancedAccessWorkflows: cluster.Features.GetAdvancedAccessWorkflows(),
 	}
-
 	apiCluster.LoggedInUser.RequestableRoles = cluster.RequestableRoles
 	apiCluster.LoggedInUser.SuggestedReviewers = cluster.SuggestedReviewers
 	apiCluster.AuthClusterId = cluster.AuthClusterID
