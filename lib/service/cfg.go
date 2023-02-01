@@ -152,8 +152,8 @@ type Config struct {
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
 
-	// Presence service is a discovery and hearbeat tracker
-	Presence services.Presence
+	// Presence service is a discovery and heartbeat tracker
+	Presence services.PresenceInternal
 
 	// Events is events service
 	Events types.Events
@@ -497,6 +497,10 @@ type ProxyConfig struct {
 	// KeyPairs are the key and certificate pairs that the proxy will load.
 	KeyPairs []KeyPairPath
 
+	// KeyPairsReloadInterval is the interval between attempts to reload
+	// x509 key pairs. If set to 0, then periodic reloading is disabled.
+	KeyPairsReloadInterval time.Duration
+
 	// ACME is ACME protocol support config
 	ACME ACME
 
@@ -522,6 +526,26 @@ type KeyPairPath struct {
 	Certificate string
 }
 
+// WebPublicAddr returns the address for the web endpoint on this proxy that
+// can be reached by clients.
+func (c ProxyConfig) WebPublicAddr() (string, error) {
+	return c.getDefaultAddr(c.WebAddr.Port(defaults.HTTPListenPort)), nil
+}
+
+func (c ProxyConfig) getDefaultAddr(port int) string {
+	host := "<proxyhost>"
+	// Try to guess the hostname from the HTTP public_addr.
+	if len(c.PublicAddrs) > 0 {
+		host = c.PublicAddrs[0].Host()
+	}
+
+	u := url.URL{
+		Scheme: "https",
+		Host:   net.JoinHostPort(host, strconv.Itoa(port)),
+	}
+	return u.String()
+}
+
 // KubeAddr returns the address for the Kubernetes endpoint on this proxy that
 // can be reached by clients.
 func (c ProxyConfig) KubeAddr() (string, error) {
@@ -531,16 +555,8 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 	if len(c.Kube.PublicAddrs) > 0 {
 		return fmt.Sprintf("https://%s", c.Kube.PublicAddrs[0].Addr), nil
 	}
-	host := "<proxyhost>"
-	// Try to guess the hostname from the HTTP public_addr.
-	if len(c.PublicAddrs) > 0 {
-		host = c.PublicAddrs[0].Host()
-	}
-	u := url.URL{
-		Scheme: "https",
-		Host:   net.JoinHostPort(host, strconv.Itoa(c.Kube.ListenAddr.Port(defaults.KubeListenPort))),
-	}
-	return u.String(), nil
+
+	return c.getDefaultAddr(c.Kube.ListenAddr.Port(defaults.KubeListenPort)), nil
 }
 
 // publicPeerAddr attempts to returns the public address the proxy advertises
@@ -869,6 +885,8 @@ type DatabaseAWS struct {
 	SecretStore DatabaseAWSSecretStore
 	// AccountID is the AWS account ID.
 	AccountID string
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
+	ExternalID string
 	// RedshiftServerless contains AWS Redshift Serverless specific settings.
 	RedshiftServerless DatabaseAWSRedshiftServerless
 }
@@ -947,7 +965,9 @@ func (d *DatabaseAD) IsEmpty() bool {
 // DatabaseAzure contains Azure database configuration.
 type DatabaseAzure struct {
 	// ResourceID is the Azure fully qualified ID for the resource.
-	ResourceID string `yaml:"resource_id,omitempty"`
+	ResourceID string
+	// IsFlexiServer is true if the database is an Azure Flexible server.
+	IsFlexiServer bool
 }
 
 // CheckAndSetDefaults validates database Active Directory configuration.
@@ -1029,8 +1049,9 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			ServerVersion: d.MySQL.ServerVersion,
 		},
 		AWS: types.AWS{
-			AccountID: d.AWS.AccountID,
-			Region:    d.AWS.Region,
+			AccountID:  d.AWS.AccountID,
+			ExternalID: d.AWS.ExternalID,
+			Region:     d.AWS.Region,
 			Redshift: types.Redshift{
 				ClusterID: d.AWS.Redshift.ClusterID,
 			},
@@ -1067,7 +1088,8 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			KDCHostName: d.AD.KDCHostName,
 		},
 		Azure: types.Azure{
-			ResourceID: d.Azure.ResourceID,
+			ResourceID:    d.Azure.ResourceID,
+			IsFlexiServer: d.Azure.IsFlexiServer,
 		},
 	})
 }
@@ -1121,7 +1143,7 @@ type App struct {
 	Rewrite *Rewrite
 
 	// AWS contains additional options for AWS applications.
-	AWS *AppAWS `yaml:"aws,omitempty"`
+	AWS *AppAWS
 
 	// Cloud identifies the cloud instance the app represents.
 	Cloud string
@@ -1280,6 +1302,9 @@ type WindowsDesktopConfig struct {
 	ListenAddr utils.NetAddr
 	// PublicAddrs is a list of advertised public addresses of the service.
 	PublicAddrs []utils.NetAddr
+	// ShowDesktopWallpaper determines whether desktop sessions will show a
+	// user-selected wallpaper vs a system-default, single-color wallpaper.
+	ShowDesktopWallpaper bool
 	// LDAP is the LDAP connection parameters.
 	LDAP LDAPConfig
 
@@ -1288,7 +1313,15 @@ type WindowsDesktopConfig struct {
 
 	// Hosts is an optional list of static Windows hosts to expose through this
 	// service.
+	// Hosts is an optional list of static, AD-connected Windows hosts. This gives users
+	// a way to specify AD-connected hosts that won't be found by the filters
+	// specified in Discovery (or if Discovery is omitted).
 	Hosts []utils.NetAddr
+
+	// NonADHosts is an optional list of static Windows hosts to expose through this
+	// service. These hosts are not part of Active Directory.
+	NonADHosts []utils.NetAddr
+
 	// ConnLimiter limits the connection and request rates.
 	ConnLimiter limiter.Config
 	// HostLabels specifies rules that are used to apply labels to Windows hosts.
@@ -1296,20 +1329,21 @@ type WindowsDesktopConfig struct {
 	Labels     map[string]string
 }
 
+// LDAPDiscoveryConfig is LDAP discovery configuration for windows desktop discovery service.
 type LDAPDiscoveryConfig struct {
 	// BaseDN is the base DN to search for desktops.
 	// Use the value '*' to search from the root of the domain,
 	// or leave blank to disable desktop discovery.
-	BaseDN string `yaml:"base_dn"`
+	BaseDN string
 	// Filters are additional LDAP filters to apply to the search.
 	// See: https://ldap.com/ldap-filters/
-	Filters []string `yaml:"filters"`
+	Filters []string
 	// LabelAttributes are LDAP attributes to apply to hosts discovered
 	// via LDAP. Teleport labels hosts by prefixing the attribute with
 	// "ldap/" - for example, a value of "location" here would result in
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
-	LabelAttributes []string `yaml:"label_attributes"`
+	LabelAttributes []string
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.
@@ -1442,7 +1476,7 @@ func ParseHeaders(headers []string) (headersOut []Header, err error) {
 // AppAWS contains additional options for AWS applications.
 type AppAWS struct {
 	// ExternalID is the AWS External ID used when assuming roles in this app.
-	ExternalID string `yaml:"external_id,omitempty"`
+	ExternalID string
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults

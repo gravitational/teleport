@@ -65,6 +65,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
@@ -84,6 +85,7 @@ func TestMain(m *testing.M) {
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
 	registerTestSQLServerEngine()
+	registerTestDynamoDBEngine()
 	os.Exit(m.Run())
 }
 
@@ -1240,6 +1242,8 @@ type testContext struct {
 	cassandra map[string]testCassandra
 	// elasticsearch is a collection of Elasticsearch databases the test uses.
 	elasticsearch map[string]testElasticsearch
+	// dynamodb is a collection of DynamoDB databases the test uses.
+	dynamodb map[string]testDynamoDB
 	// clock to override clock in tests.
 	clock clockwork.FakeClock
 }
@@ -1303,6 +1307,14 @@ type testElasticsearch struct {
 	// db is the test elasticsearch database server.
 	db *elasticsearch.TestServer
 	// resource is the resource representing this elasticsearch database.
+	resource types.Database
+}
+
+// testDynamoDB represents a single proxied DynamoDB database.
+type testDynamoDB struct {
+	// db is the test Dynamodb database server.
+	db *dynamodb.TestServer
+	// resource is the resource representing this DynamoDB database.
 	resource types.Database
 }
 
@@ -1730,6 +1742,34 @@ func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbS
 	return db, proxy, nil
 }
 
+// dynamodbClient returns a DynamoDB test client.
+func (c *testContext) dynamodbClient(ctx context.Context, teleportUser, dbService, dbUser string) (*dynamodb.Client, *alpnproxy.LocalProxy, error) {
+	route := tlsca.RouteToDatabase{
+		ServiceName: dbService,
+		Protocol:    defaults.ProtocolDynamoDB,
+		Username:    dbUser,
+	}
+
+	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	db, err := dynamodb.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient:      c.authClient,
+		AuthServer:      c.authServer,
+		Address:         proxy.GetAddr(),
+		Cluster:         c.clusterName,
+		Username:        teleportUser,
+		RouteToDatabase: route,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return db, proxy, nil
+}
+
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
 func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userName, roleName string, dbUsers, dbNames []string) (types.User, types.Role) {
@@ -1792,6 +1832,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		snowflake:     make(map[string]testSnowflake),
 		elasticsearch: make(map[string]testElasticsearch),
 		cassandra:     make(map[string]testCassandra),
+		dynamodb:      make(map[string]testDynamoDB),
 		clock:         clockwork.NewFakeClockAt(time.Now()),
 	}
 	t.Cleanup(func() { testCtx.Close() })
@@ -1859,7 +1900,11 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(testCtx.clusterName, proxyAuthClient, proxyLockWatcher)
+	proxyAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: testCtx.clusterName,
+		AccessPoint: proxyAuthClient,
+		LockWatcher: proxyLockWatcher,
+	})
 	require.NoError(t, err)
 
 	// TLS config for database proxy and database service.
@@ -1932,6 +1977,8 @@ type agentParams struct {
 	GCPSQL *mocks.GCPSQLAdminClientMock
 	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
 	OnHeartbeat func(error)
+	// CADownloader defines the CA downloader.
+	CADownloader CADownloader
 	// CloudClients is the cloud API clients for database service.
 	CloudClients clients.Clients
 	// AWSMatchers is a list of AWS databases matchers.
@@ -1953,6 +2000,11 @@ func (p *agentParams) setDefaults(c *testContext) {
 					},
 				},
 			},
+		}
+	}
+	if p.CADownloader == nil {
+		p.CADownloader = &fakeDownloader{
+			cert: []byte(fixtures.TLSCACertPEM),
 		}
 	}
 
@@ -1988,7 +2040,11 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		},
 	})
 	require.NoError(t, err)
-	dbAuthorizer, err := auth.NewAuthorizer(c.clusterName, c.authClient, lockWatcher)
+	dbAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: c.clusterName,
+		AccessPoint: c.authClient,
+		LockWatcher: lockWatcher,
+	})
 	require.NoError(t, err)
 
 	// Create test database auth tokens generator.
@@ -2031,14 +2087,13 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 				Emitter: c.emitter,
 			})
 		},
-		CADownloader: &fakeDownloader{
-			cert: []byte(fixtures.TLSCACertPEM),
-		},
-		OnReconcile:   p.OnReconcile,
-		LockWatcher:   lockWatcher,
-		CloudClients:  p.CloudClients,
-		AWSMatchers:   p.AWSMatchers,
-		AzureMatchers: p.AzureMatchers,
+		CADownloader:             p.CADownloader,
+		OnReconcile:              p.OnReconcile,
+		LockWatcher:              lockWatcher,
+		CloudClients:             p.CloudClients,
+		AWSMatchers:              p.AWSMatchers,
+		AzureMatchers:            p.AzureMatchers,
+		discoveryResourceChecker: &fakeDiscoveryResourceChecker{},
 	})
 	require.NoError(t, err)
 
@@ -2488,6 +2543,12 @@ func withAzureRedis(name string, token string) withDatabaseOption {
 		}
 		return database
 	}
+}
+
+type fakeDiscoveryResourceChecker struct {
+}
+
+func (f fakeDiscoveryResourceChecker) check(_ context.Context, _ types.Database) {
 }
 
 var dynamicLabels = types.LabelsToV2(map[string]types.CommandLabel{

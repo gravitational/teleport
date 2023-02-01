@@ -63,6 +63,8 @@ type Application interface {
 	IsAWSConsole() bool
 	// IsAzureCloud returns true if this app represents Azure Cloud instance.
 	IsAzureCloud() bool
+	// IsGCP returns true if this app represents GCP instance.
+	IsGCP() bool
 	// IsTCP returns true if this app represents a TCP endpoint.
 	IsTCP() bool
 	// GetProtocol returns the application protocol.
@@ -242,6 +244,11 @@ func (a *AppV3) IsAzureCloud() bool {
 	return a.Spec.Cloud == CloudAzure
 }
 
+// IsGCP returns true if this app is GCP instance.
+func (a *AppV3) IsGCP() bool {
+	return a.Spec.Cloud == CloudGCP
+}
+
 // IsTCP returns true if this app represents a TCP endpoint.
 func (a *AppV3) IsTCP() bool {
 	return strings.HasPrefix(a.Spec.URI, "tcp://")
@@ -328,7 +335,7 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		host = url.Host
 	}
 
-	// DEPRECATED DELETE IN 11.0 use KubeTeleportProxyALPNPrefix check only.
+	// DEPRECATED DELETE IN 14.0 use KubeTeleportProxyALPNPrefix check only.
 	if strings.HasPrefix(host, constants.KubeSNIPrefix) {
 		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
 			constants.KubeSNIPrefix, a.Spec.PublicAddr)

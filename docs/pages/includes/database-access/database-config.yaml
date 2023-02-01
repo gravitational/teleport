@@ -134,6 +134,11 @@ db_service:
       # Optional path to Kerberos configuration file. Defaults to /etc/krb5.conf.
       krb5_file: /etc/krb5.conf
 
+    # Optional configuration for Azure hosted databases.
+    azure:
+      # Resource ID for the database in Azure. This field is required for Azure Cache for Redis databases.
+      resource_id: "/subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/example-group/providers/Microsoft.Cache/Redis/example-db-name"
+
     # Static labels to assign to the database. Used in RBAC.
     static_labels:
       env: "prod"

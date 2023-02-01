@@ -433,6 +433,8 @@ const (
 	ProtocolCassandra = "cassandra"
 	// ProtocolElasticsearch is the Elasticsearch database protocol.
 	ProtocolElasticsearch = "elasticsearch"
+	// ProtocolDynamoDB is the DynamoDB database protocol.
+	ProtocolDynamoDB = "dynamodb"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -446,6 +448,7 @@ var DatabaseProtocols = []string{
 	ProtocolSQLServer,
 	ProtocolCassandra,
 	ProtocolElasticsearch,
+	ProtocolDynamoDB,
 }
 
 // ReadableDatabaseProtocol returns a more human readable string of the
@@ -470,6 +473,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Microsoft SQL Server"
 	case ProtocolCassandra:
 		return "Cassandra"
+	case ProtocolDynamoDB:
+		return "DynamoDB"
 	default:
 		// Unknown protocol. Return original string.
 		return p
@@ -840,7 +845,16 @@ const (
 	// AWSInstallerDocument is the name of the default AWS document
 	// that will be called when executing the SSM command.
 	AWSInstallerDocument = "TeleportDiscoveryInstaller"
+
+	// AWSAgentlessInstallerDocument is the name of the default AWS document
+	// that will be called when executing the SSM command .
+	AWSAgentlessInstallerDocument = "TeleportAgentlessDiscoveryInstaller"
+
 	// IAMInviteTokenName is the name of the default Teleport IAM
 	// token to use when templating the script to be executed.
 	IAMInviteTokenName = "aws-discovery-iam-token"
+
+	// SSHDConfigPath is the path to the sshd config file to modify
+	// when using the agentless installer
+	SSHDConfigPath = "/etc/ssh/sshd_config"
 )

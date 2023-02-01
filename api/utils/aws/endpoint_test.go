@@ -17,6 +17,7 @@ limitations under the License.
 package aws
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -505,6 +506,135 @@ func TestRedshiftServerlessEndpoint(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, test.expectDetails, actualDetails)
 			}
+		})
+	}
+}
+
+func TestDynamoDBURIForRegion(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		desc    string
+		region  string
+		wantURI string
+	}{
+		{
+			desc:    "region is in correct AWS partition",
+			region:  "us-east-1",
+			wantURI: "aws://dynamodb.us-east-1.amazonaws.com",
+		},
+		{
+			desc:    "china north region is in correct AWS partition",
+			region:  "cn-north-1",
+			wantURI: "aws://dynamodb.cn-north-1.amazonaws.com.cn",
+		},
+		{
+			desc:    "china northwest region is in correct AWS partition",
+			region:  "cn-northwest-1",
+			wantURI: "aws://dynamodb.cn-northwest-1.amazonaws.com.cn",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			require.Equal(t, tt.wantURI, DynamoDBURIForRegion(tt.region))
+		})
+	}
+}
+
+func TestParseDynamoDBEndpoint(t *testing.T) {
+	t.Parallel()
+	t.Run("parses valid endpoint", func(t *testing.T) {
+		t.Parallel()
+		for _, parts := range []struct {
+			services  []string
+			regions   []string
+			partition string
+		}{
+			{
+				services:  []string{DynamoDBServiceName, DynamoDBFipsServiceName, DynamoDBStreamsServiceName, DAXServiceName},
+				regions:   []string{"us-east-1", "us-gov-east-1"},
+				partition: AWSEndpointSuffix,
+			},
+			{
+				services:  []string{DynamoDBServiceName, DynamoDBStreamsServiceName, DAXServiceName},
+				regions:   []string{"cn-north-1", "cn-northwest-1"},
+				partition: AWSCNEndpointSuffix,
+			},
+		} {
+			parts := parts
+			for _, svc := range parts.services {
+				svc := svc
+				for _, region := range parts.regions {
+					region := region
+					endpoint := fmt.Sprintf("%s.%s%s", svc, region, parts.partition)
+					t.Run(endpoint, func(t *testing.T) {
+						t.Parallel()
+						info, err := ParseDynamoDBEndpoint(endpoint)
+						require.NoError(t, err)
+						wantInfo := DynamoDBEndpointInfo{
+							Service:   svc,
+							Region:    region,
+							Partition: parts.partition,
+						}
+						require.NotNil(t, info)
+						require.Equal(t, wantInfo, *info)
+					})
+				}
+			}
+		}
+	})
+
+	tests := []struct {
+		desc     string
+		services []string
+		regions  []string
+		endpoint string
+		wantInfo *DynamoDBEndpointInfo
+	}{
+		{
+			desc:     "empty uri",
+			endpoint: "",
+		},
+		{
+			desc:     "not AWS uri",
+			endpoint: "localhost",
+		},
+		{
+			desc:     "missing region",
+			endpoint: "amazonaws.com",
+		},
+		{
+			desc:     "missing china region",
+			endpoint: "amazonaws.com.cn",
+		},
+		{
+			desc:     "unrecognized service subdomain",
+			endpoint: "foo.us-east-1.amazonaws.com",
+		},
+		{
+			desc:     "unrecognized dynamodb service subdomain",
+			endpoint: "foo.dynamodb.us-east-1.amazonaws.com",
+		},
+		{
+			desc:     "unrecognized streams service subdomain",
+			endpoint: "streams.foo.us-east-1.amazonaws.com",
+		},
+		{
+			desc:     "mismatched us region and china partition",
+			endpoint: "streams.dynamodb.us-east-1.amazonaws.com.cn",
+		},
+		{
+			desc:     "mismatched china region and non-china partition",
+			endpoint: "streams.dynamodb.cn-north-1.amazonaws.com",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run("detects invalid endpoint with"+tt.desc, func(t *testing.T) {
+			t.Parallel()
+			info, err := ParseDynamoDBEndpoint(tt.endpoint)
+			require.Error(t, err, "endpoint %s should be invalid", tt.endpoint)
+			require.Nil(t, info)
 		})
 	}
 }

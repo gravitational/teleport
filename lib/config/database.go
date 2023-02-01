@@ -154,10 +154,9 @@ db_service:
       "{{ $name }}": "{{ $value }}"
     {{- end }}
   {{- end }}
-  {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions .AzureRedisDiscoveryRegions}}
+  {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions .AzureRedisDiscoveryRegions .AzureSQLServerDiscoveryRegions }}
   # Matchers for registering Azure-hosted databases.
   azure:
-  {{- end }}
   {{- if or .AzureMySQLDiscoveryRegions }}
   # Azure MySQL databases auto-discovery.
   # For more information about Azure MySQL auto-discovery: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
@@ -258,20 +257,26 @@ db_service:
       "{{ $name }}": "{{ $value }}"
     {{- end }}
   {{- end }}
+  {{- end }}
   # Lists statically registered databases proxied by this agent.
   {{- if .StaticDatabaseName }}
   databases:
   - name: {{ .StaticDatabaseName }}
     protocol: {{ .StaticDatabaseProtocol }}
+    {{- if .StaticDatabaseURI }}
     uri: {{ .StaticDatabaseURI }}
+    {{- end}}
     {{- if .DatabaseCACertFile }}
     tls:
       ca_cert_file: {{ .DatabaseCACertFile }}
     {{- end }}
-    {{- if or .DatabaseAWSRegion .DatabaseAWSRedshiftClusterID }}
+    {{- if or .DatabaseAWSRegion .DatabaseAWSRedshiftClusterID .DatabaseAWSExternalID }}
     aws:
       {{- if .DatabaseAWSRegion }}
       region: {{ .DatabaseAWSRegion }}
+      {{- end }}
+      {{- if .DatabaseAWSExternalID }}
+      external_id: {{ .DatabaseAWSExternalID }}
       {{- end }}
       {{- if .DatabaseAWSRedshiftClusterID }}
       redshift:
@@ -482,6 +487,8 @@ type DatabaseSampleFlags struct {
 	DatabaseProtocols []string
 	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
 	DatabaseAWSRegion string
+	// DatabaseAWSExternalID is an optional AWS database external ID, used when assuming roles.
+	DatabaseAWSExternalID string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
 	// DatabaseADDomain is the Active Directory domain for authentication.

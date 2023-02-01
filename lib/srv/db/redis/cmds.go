@@ -174,7 +174,7 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 		}
 
 		err := e.sessionCtx.Checker.CheckAccess(e.sessionCtx.Database,
-			services.AccessMFAParams{Verified: true},
+			services.AccessState{MFAVerified: true},
 			role.DatabaseRoleMatchers(
 				defaults.ProtocolRedis,
 				e.sessionCtx.DatabaseUser,
@@ -221,7 +221,7 @@ func (e *Engine) processAuth(ctx context.Context, cmd *redis.Cmd) error {
 		}
 
 		err := e.sessionCtx.Checker.CheckAccess(e.sessionCtx.Database,
-			services.AccessMFAParams{Verified: true},
+			services.AccessState{MFAVerified: true},
 			role.DatabaseRoleMatchers(
 				defaults.ProtocolRedis,
 				e.sessionCtx.DatabaseUser,

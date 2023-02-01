@@ -48,7 +48,7 @@ func (u *UsageLogger) report(event services.UsageAnonymizable) error {
 		return nil
 	}
 
-	return trace.Wrap(u.reporter.SubmitAnonymizedUsageEvents(event))
+	return trace.Wrap(u.reporter.AnonymizeAndSubmit(event))
 }
 
 func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
@@ -67,10 +67,30 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 			ConnectorType: e.Method,
 		}))
 	case *apievents.SessionStart:
-		// Note: session.start is only SSH.
+		// Note: session.start is only SSH and Kubernetes.
+		sessionType := types.SSHSessionKind
+		if e.KubernetesCluster != "" {
+			sessionType = types.KubernetesSessionKind
+		}
+
 		return trace.Wrap(u.report(&services.UsageSessionStart{
 			UserName:    e.User,
-			SessionType: string(types.SSHSessionKind),
+			SessionType: string(sessionType),
+		}))
+	case *apievents.DatabaseSessionStart:
+		return trace.Wrap(u.report(&services.UsageSessionStart{
+			UserName:    e.User,
+			SessionType: string(types.DatabaseSessionKind),
+		}))
+	case *apievents.AppSessionStart:
+		return trace.Wrap(u.report(&services.UsageSessionStart{
+			UserName:    e.User,
+			SessionType: string(types.AppSessionKind),
+		}))
+	case *apievents.WindowsDesktopSessionStart:
+		return trace.Wrap(u.report(&services.UsageSessionStart{
+			UserName:    e.User,
+			SessionType: string(types.WindowsDesktopSessionKind),
 		}))
 	case *apievents.GithubConnectorCreate:
 		return trace.Wrap(u.report(&services.UsageSSOCreate{

@@ -35,6 +35,17 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// maxUserAgentLen is the maximum length of a user agent that will be logged.
+	// There is no current consensus on what the maximum length of a User-Agent
+	// should be and there were reports of extremely large UAs especially from
+	// older versions of IE. 2048 was picked because it still allowed for very
+	// large UAs but keeps from causing logging issues. For reference Nginx
+	// defaults to 4k or 8k header size limits for ALL headers so 2k seems more
+	// than sufficient.
+	maxUserAgentLen = 2048
+)
+
 // AuthenticateUserRequest is a request to authenticate interactive user
 type AuthenticateUserRequest struct {
 	// Username is a username
@@ -121,7 +132,11 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) (string, error) {
 	}
 	if req.ClientMetadata != nil {
 		event.RemoteAddr = req.ClientMetadata.RemoteAddr
-		event.UserAgent = req.ClientMetadata.UserAgent
+		if len(req.ClientMetadata.UserAgent) > maxUserAgentLen {
+			event.UserAgent = req.ClientMetadata.UserAgent[:maxUserAgentLen-3] + "..."
+		} else {
+			event.UserAgent = req.ClientMetadata.UserAgent
+		}
 	}
 	if err != nil {
 		event.Code = events.UserLocalLoginFailureCode
@@ -397,18 +412,18 @@ type TrustedCerts struct {
 	// for host authorities that means base hostname of all servers,
 	// for user authorities that means organization name
 	ClusterName string `json:"domain_name"`
-	// HostCertificates is a list of SSH public keys that can be used to check
-	// host certificate signatures
-	HostCertificates [][]byte `json:"checking_keys"`
-	// TLSCertificates  is a list of TLS certificates of the certificate authority
+	// AuthorizedKeys is a list of SSH public keys in authorized_keys format
+	// that can be used to check host key signatures.
+	AuthorizedKeys [][]byte `json:"checking_keys"`
+	// TLSCertificates is a list of TLS certificates of the certificate authority
 	// of the authentication server
 	TLSCertificates [][]byte `json:"tls_certs"`
 }
 
 // SSHCertPublicKeys returns a list of trusted host SSH certificate authority public keys
 func (c *TrustedCerts) SSHCertPublicKeys() ([]ssh.PublicKey, error) {
-	out := make([]ssh.PublicKey, 0, len(c.HostCertificates))
-	for _, keyBytes := range c.HostCertificates {
+	out := make([]ssh.PublicKey, 0, len(c.AuthorizedKeys))
+	for _, keyBytes := range c.AuthorizedKeys {
 		publicKey, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -423,9 +438,9 @@ func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []TrustedCerts
 	out := make([]TrustedCerts, len(authorities))
 	for i, ca := range authorities {
 		out[i] = TrustedCerts{
-			ClusterName:      ca.GetClusterName(),
-			HostCertificates: services.GetSSHCheckingKeys(ca),
-			TLSCertificates:  services.GetTLSCerts(ca),
+			ClusterName:     ca.GetClusterName(),
+			AuthorizedKeys:  services.GetSSHCheckingKeys(ca),
+			TLSCertificates: services.GetTLSCerts(ca),
 		}
 	}
 	return out

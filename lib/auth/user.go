@@ -163,10 +163,7 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 			Type: events.UserUpdatedEvent,
 			Code: events.UserUpdateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:         ClientUsername(ctx),
-			Impersonator: ClientImpersonator(ctx),
-		},
+		UserMetadata: ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    new.GetName(),
 			Expires: new.Expiry(),

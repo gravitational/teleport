@@ -59,7 +59,7 @@ func TestDatabaseServiceHeartbeat(t *testing.T) {
 		URI:      "127.0.0.1:0",
 	})
 
-	roleWithRODBService, err := types.NewRole("ro_dbservices", types.RoleSpecV5{
+	roleWithRODBService, err := types.NewRole("ro_dbservices", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				types.NewRule(types.KindDatabaseService, services.RO()),
@@ -104,5 +104,4 @@ func TestDatabaseServiceHeartbeat(t *testing.T) {
 	}
 
 	require.Equal(t, expectedDBResourceMatcher, dbServic01.ResourceMatchers)
-
 }

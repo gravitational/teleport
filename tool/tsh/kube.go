@@ -207,18 +207,18 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 
 // RemoteExecutor defines the interface accepted by the Exec command - provided for test stubbing
 type RemoteExecutor interface {
-	Execute(method string, url *url.URL, config *restclient.Config, stdin io.Reader, stdout, stderr io.Writer, tty bool, terminalSizeQueue remotecommand.TerminalSizeQueue) error
+	Execute(ctx context.Context, method string, url *url.URL, config *restclient.Config, stdin io.Reader, stdout, stderr io.Writer, tty bool, terminalSizeQueue remotecommand.TerminalSizeQueue) error
 }
 
 // DefaultRemoteExecutor is the standard implementation of remote command execution
 type DefaultRemoteExecutor struct{}
 
-func (*DefaultRemoteExecutor) Execute(method string, url *url.URL, config *restclient.Config, stdin io.Reader, stdout, stderr io.Writer, tty bool, terminalSizeQueue remotecommand.TerminalSizeQueue) error {
+func (*DefaultRemoteExecutor) Execute(ctx context.Context, method string, url *url.URL, config *restclient.Config, stdin io.Reader, stdout, stderr io.Writer, tty bool, terminalSizeQueue remotecommand.TerminalSizeQueue) error {
 	exec, err := remotecommand.NewSPDYExecutor(config, method, url)
 	if err != nil {
 		return err
 	}
-	return exec.Stream(remotecommand.StreamOptions{
+	return exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdin:             stdin,
 		Stdout:            stdout,
 		Stderr:            stderr,
@@ -391,7 +391,7 @@ func (p *ExecOptions) Run(ctx context.Context) error {
 			TTY:       t.Raw,
 		}, scheme.ParameterCodec)
 
-		return p.Executor.Execute("POST", req.URL(), p.Config, p.In, p.Out, p.ErrOut, t.Raw, sizeQueue)
+		return p.Executor.Execute(ctx, "POST", req.URL(), p.Config, p.In, p.Out, p.ErrOut, t.Raw, sizeQueue)
 	}
 
 	return trace.Wrap(t.Safe(fn))
@@ -1103,13 +1103,7 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 		return trace.Wrap(err)
 	}
 
-	// cf.kubeConfigPath is used in tests to allow Teleport to run tsh login commands
-	// in parallel. If defined, it should take precedence over kubeconfig.PathFromEnv().
-	if path == "" && cf.kubeConfigPath != "" {
-		path = cf.kubeConfigPath
-	} else if path == "" {
-		path = kubeconfig.PathFromEnv()
-	}
+	path = getKubeConfigPath(cf, path)
 
 	// If this is a profile specific kubeconfig, we only need
 	// to put the selected kube cluster into the kubeconfig.
@@ -1125,6 +1119,17 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 	}
 
 	return trace.Wrap(kubeconfig.Update(path, *values, tc.LoadAllCAs))
+}
+
+func getKubeConfigPath(cf *CLIConf, path string) string {
+	// cf.kubeConfigPath is used in tests to allow Teleport to run tsh login commands
+	// in parallel. If defined, it should take precedence over kubeconfig.PathFromEnv().
+	if path == "" && cf.kubeConfigPath != "" {
+		path = cf.kubeConfigPath
+	} else if path == "" {
+		path = kubeconfig.PathFromEnv()
+	}
+	return path
 }
 
 // Required magic boilerplate to use the k8s encoder.

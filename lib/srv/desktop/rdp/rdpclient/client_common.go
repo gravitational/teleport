@@ -54,6 +54,10 @@ type Config struct {
 	// directory sharing.
 	AllowDirectorySharing bool
 
+	// ShowDesktopWallpaper determines whether desktop sessions will show a
+	// user-selected wallpaper vs a system-default, single-color wallpaper.
+	ShowDesktopWallpaper bool
+
 	// Log is the logger for status messages.
 	Log logrus.FieldLogger
 }

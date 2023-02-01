@@ -14,8 +14,8 @@ set -eu
 readonly MACOS_VERSION_MIN=10.13
 
 # Note: versions are the same as the corresponding git tags for each repo.
-readonly CBOR_VERSION=v0.9.0
-readonly CBOR_COMMIT=58b3319b8c3ec15171cb00f01a3a1e9d400899e1
+readonly CBOR_VERSION=v0.10.1
+readonly CBOR_COMMIT=5c1bb892c94b6ae2ef99e3c6673d5e0857242f38
 readonly CRYPTO_VERSION=OpenSSL_1_1_1s
 readonly CRYPTO_COMMIT=129058165d195e43a0ad10111b0c2e29bdf65980
 readonly FIDO2_VERSION=1.12.0
@@ -82,7 +82,6 @@ cbor_build() {
   cd "$src"
 
   cmake \
-    -DCBOR_CUSTOM_ALLOC=ON \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$dest" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_VERSION_MIN" \

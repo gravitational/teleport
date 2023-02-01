@@ -5,17 +5,19 @@ on:
     branches:
       - master
   pull_request:
+  merge_group:
 
 jobs:
   build:
     name: OS Compatibility Build
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-22.04-16core
 
     permissions:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport12
+      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport13
       env:
         GOCACHE: /tmp/gocache
 

@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/web/app"
 )
 
@@ -61,7 +62,6 @@ func TestAppAccess(t *testing.T) {
 	t.Run("JWT", bind(pack, testJWT))
 	t.Run("NoHeaderOverrides", bind(pack, testNoHeaderOverrides))
 	t.Run("AuditEvents", bind(pack, testAuditEvents))
-	t.Run("TestAppInvalidateAppSessionsOnLogout", bind(pack, testInvalidateAppSessionsOnLogout))
 
 	// This test should go last because it stops/starts app servers.
 	t.Run("TestAppServersHA", bind(pack, testServersHA))
@@ -119,9 +119,11 @@ func testForward(p *Pack, t *testing.T) {
 		},
 		{
 			desc: "invalid application session cookie, redirect to login",
-			inCookies: []*http.Cookie{{
-				Name:  app.CookieName,
-				Value: "D25C463CD27861559CC6A0A6AE54818079809AA8731CB18037B4B37A80C4FC6C"},
+			inCookies: []*http.Cookie{
+				{
+					Name:  app.CookieName,
+					Value: "D25C463CD27861559CC6A0A6AE54818079809AA8731CB18037B4B37A80C4FC6C",
+				},
 			},
 			outStatusCode: http.StatusFound,
 		},
@@ -374,12 +376,16 @@ func testRewriteHeadersRoot(p *Pack, t *testing.T) {
 	require.Equal(t, req.Header.Get("X-Teleport-Cluster"), "root")
 	require.Equal(t, req.Header.Get("X-External-Env"), "production")
 	require.Equal(t, req.Header.Get("X-Existing"), "rewritten-existing-header")
+
+	// verify these headers were not rewritten.
 	require.NotEqual(t, req.Header.Get(teleport.AppJWTHeader), "rewritten-app-jwt-header")
 	require.NotEqual(t, req.Header.Get(teleport.AppCFHeader), "rewritten-app-cf-header")
+	require.NotEqual(t, req.Header.Get(common.TeleportAPIErrorHeader), "rewritten-x-teleport-api-error")
 	require.NotEqual(t, req.Header.Get(forward.XForwardedFor), "rewritten-x-forwarded-for-header")
 	require.NotEqual(t, req.Header.Get(forward.XForwardedHost), "rewritten-x-forwarded-host-header")
 	require.NotEqual(t, req.Header.Get(forward.XForwardedProto), "rewritten-x-forwarded-proto-header")
 	require.NotEqual(t, req.Header.Get(forward.XForwardedServer), "rewritten-x-forwarded-server-header")
+	require.NotEqual(t, req.Header.Get(common.XForwardedSSL), "rewritten-x-forwarded-ssl")
 
 	// Verify JWT tokens.
 	for _, header := range []string{teleport.AppJWTHeader, teleport.AppCFHeader, "X-JWT"} {
@@ -399,19 +405,25 @@ func testRewriteHeadersLeaf(p *Pack, t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
-	require.Contains(t, resp, "X-Teleport-Cluster: leaf")
-	require.Contains(t, resp, "X-Teleport-Login: root")
-	require.Contains(t, resp, "X-Teleport-Login: ubuntu")
-	require.Contains(t, resp, "X-External-Env: production")
-	require.Contains(t, resp, "Host: example.com")
-	require.Contains(t, resp, "X-Existing: rewritten-existing-header")
-	require.NotContains(t, resp, "X-Existing: existing")
-	require.NotContains(t, resp, "rewritten-app-jwt-header")
-	require.NotContains(t, resp, "rewritten-app-cf-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-for-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-host-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-proto-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-server-header")
+
+	// Dumper app just dumps HTTP request so we should be able to read it back.
+	req, err := http.ReadRequest(bufio.NewReader(strings.NewReader(resp)))
+	require.NoError(t, err)
+	require.Equal(t, req.Host, "example.com")
+	require.Equal(t, req.Header.Get("X-Teleport-Cluster"), "leaf")
+	require.ElementsMatch(t, []string{"root", "ubuntu", "-teleport-internal-join"}, req.Header.Values("X-Teleport-Login"))
+	require.Equal(t, req.Header.Get("X-External-Env"), "production")
+	require.Equal(t, req.Header.Get("X-Existing"), "rewritten-existing-header")
+
+	// verify these headers were not rewritten.
+	require.NotEqual(t, req.Header.Get(teleport.AppJWTHeader), "rewritten-app-jwt-header")
+	require.NotEqual(t, req.Header.Get(teleport.AppCFHeader), "rewritten-app-cf-header")
+	require.NotEqual(t, req.Header.Get(common.TeleportAPIErrorHeader), "rewritten-x-teleport-api-error")
+	require.NotEqual(t, req.Header.Get(common.XForwardedSSL), "rewritten-x-forwarded-ssl")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedFor), "rewritten-x-forwarded-for-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedHost), "rewritten-x-forwarded-host-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedProto), "rewritten-x-forwarded-proto-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedServer), "rewritten-x-forwarded-server-header")
 }
 
 // testLogout verifies the session is removed from the backend when the user logs out.
@@ -550,12 +562,8 @@ func testAuditEvents(p *Pack, t *testing.T) {
 	})
 }
 
-func testInvalidateAppSessionsOnLogout(p *Pack, t *testing.T) {
-	t.Cleanup(func() {
-		// This test will invalidate the web session so init it again after the
-		// test, otherwise tests that run after this one will be getting 403's.
-		p.initWebSession(t)
-	})
+func TestInvalidateAppSessionsOnLogout(t *testing.T) {
+	p := Setup(t)
 
 	// Create an application session.
 	appCookies := p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName)
@@ -576,7 +584,7 @@ func testInvalidateAppSessionsOnLogout(p *Pack, t *testing.T) {
 	require.Equal(t, http.StatusOK, status)
 
 	// Logout from Teleport.
-	status, _, err = p.makeWebapiRequest(http.MethodDelete, "sessions", []byte{})
+	status, _, err = p.makeWebapiRequest(http.MethodDelete, "sessions/web", []byte{})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 

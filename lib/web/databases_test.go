@@ -162,7 +162,6 @@ gtLit9DL5DR5ac/CRGJt
 -----END CERTIFICATE-----`
 
 func TestUpdateDatabaseRequestParameters(t *testing.T) {
-
 	for _, test := range []struct {
 		desc      string
 		req       updateDatabaseRequest
@@ -276,7 +275,7 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 
 	ctx := context.Background()
 	user := "user"
-	roleRODatabaseServices, err := types.NewRole(services.RoleNameForUser(user), types.RoleSpecV5{
+	roleRODatabaseServices, err := types.NewRole(services.RoleNameForUser(user), types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				types.NewRule(types.KindDatabaseService,

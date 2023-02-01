@@ -473,7 +473,7 @@ func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthorityG
 		return trace.Wrap(ErrNoSignature)
 	}
 
-	signingCert, err := tlsca.ParseCertificatePEM(proxyCert)
+	signingCert, err := x509.ParseCertificate(proxyCert)
 	if err != nil {
 		return trace.Wrap(err)
 	}

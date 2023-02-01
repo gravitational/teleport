@@ -139,7 +139,7 @@ func TestExecKubeService(t *testing.T) {
 			exec, err := tt.args.executorBuilder(config, http.MethodPost, req.URL())
 			require.NoError(t, err)
 
-			err = exec.Stream(streamOpts)
+			err = exec.StreamWithContext(testCtx.ctx, streamOpts)
 			require.NoError(t, err)
 
 			require.Equal(t, fmt.Sprintf("%s\n%s", podContainerName, string(stdinContent)), stdout.String())
