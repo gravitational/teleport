@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -87,6 +88,8 @@ type TLSServerConfig struct {
 	// If StaticLabels and CloudLabels define labels with the same key,
 	// StaticLabels take precedence over CloudLabels.
 	CloudLabels labels.Importer
+	// IngressReporter reports new and active connections.
+	IngressReporter *ingress.Reporter
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -195,6 +198,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout * 2,
 			TLSConfig:         cfg.TLS,
+			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
 		},
 		heartbeats: make(map[string]*srv.Heartbeat),
 		monitoredKubeClusters: monitoredKubeClusters{
