@@ -3,6 +3,8 @@
 # Detects whether the repository is clean.
 #
 
+set -eu
+
 GIT="${GIT:-git}"
 
 main() {
