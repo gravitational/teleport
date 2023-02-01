@@ -16,6 +16,7 @@ limitations under the License.
 package loglimit
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -123,8 +124,6 @@ func TestLogLimiter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			// Create log limiter.
-			// We purposely do not call Run (running the log limiter in a goroutine)
-			// so that we can manually control which actions are performed.
 			logger, hook := logtest.NewNullLogger()
 			entry := logger.WithField("from", "loglimit")
 			clock := clockwork.NewFakeClock()
@@ -134,21 +133,22 @@ func TestLogLimiter(t *testing.T) {
 			})
 			require.NoError(t, err)
 
+			ctx, cancel := context.WithCancel(context.Background())
+			go logLimiter.Run(ctx)
+			defer cancel()
+
 			// Send first batch of logs to log limiter.
 			for _, message := range tc.logsFirstBatch {
-				logLimiter.deduplicate(&entryInfo{
-					entry:       entry,
-					level:       log.InfoLevel,
-					message:     message,
-					time:        clock.Now(),
-					occurrences: 1,
-				})
+				logLimiter.Log(entry, log.InfoLevel, message)
 			}
 
-			// Make enough time pass and run cleanup
+			notifyCh := make(chan struct{})
+			// Move the clock forward and trigger a cleanup by sending a message
+			// to the cleanup channel
 			// (ensuring that a new window starts and prior windows are logged).
 			clock.Advance(2 * time.Minute)
-			logLimiter.cleanup()
+			logLimiter.cleanupCh <- notifyCh
+			<-notifyCh
 
 			// Retrieve what was logged after the first batch.
 			loggedFirstBatch := toLogMessages(hook.AllEntries())
@@ -156,18 +156,15 @@ func TestLogLimiter(t *testing.T) {
 
 			// Send second batch of logs to log limiter.
 			for _, message := range tc.logsSecondsBatch {
-				logLimiter.deduplicate(&entryInfo{
-					entry:       entry,
-					level:       log.InfoLevel,
-					message:     message,
-					time:        clock.Now(),
-					occurrences: 1,
-				})
+				logLimiter.Log(entry, log.InfoLevel, message)
 			}
 
-			// Make enough time pass so that a new window starts and prior windows are logged.
+			// Move the clock forward and trigger a cleanup by sending a message
+			// to the cleanup channel
+			// (ensuring that a new window starts and prior windows are logged).
 			clock.Advance(2 * time.Minute)
-			logLimiter.cleanup()
+			logLimiter.cleanupCh <- notifyCh
+			<-notifyCh
 
 			// Retrieve what was logged after the second batch.
 			loggedSecondBatch := toLogMessages(hook.AllEntries())

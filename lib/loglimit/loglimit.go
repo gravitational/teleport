@@ -72,6 +72,8 @@ type LogLimiter struct {
 	// windows is a mapping from log substring to an active
 	// time window.
 	windows map[string]*entryInfo
+	// cleanupCh is used in tests to trigger `cleanup`.
+	cleanupCh chan chan struct{}
 }
 
 // entryInfo contains information about a certain log entry.
@@ -98,9 +100,10 @@ func New(cfg Config) (*LogLimiter, error) {
 	}
 
 	return &LogLimiter{
-		Config:  cfg,
-		entryCh: make(chan *entryInfo, cfg.ChannelSize),
-		windows: make(map[string]*entryInfo, len(cfg.LogSubstrings)),
+		Config:    cfg,
+		entryCh:   make(chan *entryInfo, cfg.ChannelSize),
+		windows:   make(map[string]*entryInfo, len(cfg.LogSubstrings)),
+		cleanupCh: make(chan chan struct{}),
 	}, nil
 }
 
@@ -126,6 +129,9 @@ func (l *LogLimiter) Run(ctx context.Context) {
 			l.deduplicate(e)
 		case <-t.Chan():
 			l.cleanup()
+		case notifyCh := <-l.cleanupCh:
+			l.cleanup()
+			notifyCh <- struct{}{}
 		case <-ctx.Done():
 			return
 		}
