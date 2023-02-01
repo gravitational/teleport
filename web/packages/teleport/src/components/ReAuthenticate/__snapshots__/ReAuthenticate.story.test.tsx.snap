@@ -203,7 +203,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
   position: relative;
   overflow-y: auto;
   max-height: calc(100% - 96px);
-  width: 400px;
+  width: 416px;
 }
 
 .c4 {
@@ -313,124 +313,127 @@ exports[`render failed state for re-authentication dialog 1`] = `
       class="c3"
       data-testid="dialogbox"
     >
-      <div
-        class="c4"
-        style="flex-direction: column;"
-      >
+      <form>
         <div
-          class="c5"
-          color="text.primary"
-        >
-          Verify your identity
-        </div>
-        <div
-          class="c6"
-          color="text.secondary"
-        >
-          You must first verify your identity with an already registered two-factor device before peforming this action.
-        </div>
-      </div>
-      <div
-        class="c7"
-        kind="danger"
-        width="100%"
-      >
-        an error has occurred
-      </div>
-      <div
-        class="c8"
-      >
-        <div
-          class="c9"
+          class="c4"
+          style="flex-direction: column;"
         >
           <div
-            class="c10"
-            data-testid="mfa-select"
-            width="50%"
+            class="c5"
+            color="text.primary"
           >
-            <label
-              class="c11"
-              font-size="0"
-              for="select"
-            >
-              Two-factor type
-            </label>
+            Verify your identity
+          </div>
+          <div
+            class="c6"
+            color="text.secondary"
+          >
+            You must verify your identity with one of your existing two-factor devices before performing this action.
+          </div>
+        </div>
+        <div
+          class="c7"
+          kind="danger"
+          width="100%"
+        >
+          an error has occurred
+        </div>
+        <div
+          class="c8"
+        >
+          <div
+            class="c9"
+          >
             <div
-              class="c12"
+              class="c10"
+              data-testid="mfa-select"
+              width="50%"
             >
+              <label
+                class="c11"
+                font-size="0"
+                for="select"
+              >
+                Two-factor type
+              </label>
               <div
-                class="react-select-container css-2b097c-container"
+                class="c12"
               >
                 <div
-                  class="react-select__control css-yk16xz-control"
+                  class="react-select-container css-2b097c-container"
                 >
                   <div
-                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                    class="react-select__control css-yk16xz-control"
                   >
                     <div
-                      class="react-select__single-value css-1uccc91-singleValue"
+                      class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
                     >
-                      Hardware Key
-                    </div>
-                    <input
-                      aria-autocomplete="list"
-                      class="css-62g3xt-dummyInput"
-                      id="select"
-                      readonly=""
-                      tabindex="0"
-                      value=""
-                    />
-                  </div>
-                  <div
-                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                  >
-                    <span
-                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                    />
-                    <div
-                      aria-hidden="true"
-                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                    >
-                      <svg
-                        aria-hidden="true"
-                        class="css-6q0nyr-Svg"
-                        focusable="false"
-                        height="20"
-                        viewBox="0 0 20 20"
-                        width="20"
+                      <div
+                        class="react-select__single-value css-1uccc91-singleValue"
                       >
-                        <path
-                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                        />
-                      </svg>
+                        Hardware Key
+                      </div>
+                      <input
+                        aria-autocomplete="list"
+                        class="css-62g3xt-dummyInput"
+                        id="select"
+                        readonly=""
+                        tabindex="0"
+                        value=""
+                      />
+                    </div>
+                    <div
+                      class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                    >
+                      <span
+                        class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                      />
+                      <div
+                        aria-hidden="true"
+                        class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          class="css-6q0nyr-Svg"
+                          focusable="false"
+                          height="20"
+                          viewBox="0 0 20 20"
+                          width="20"
+                        >
+                          <path
+                            d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                          />
+                        </svg>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
+            <div
+              class="c13"
+              width="50%"
+            />
           </div>
-          <div
-            class="c13"
-            width="50%"
-          />
         </div>
-      </div>
-      <div
-        class="c14"
-      >
-        <button
-          class="c15"
-          kind="primary"
+        <div
+          class="c14"
         >
-          Continue
-        </button>
-        <button
-          class="c16"
-          kind="secondary"
-        >
-          Cancel
-        </button>
-      </div>
+          <button
+            class="c15"
+            kind="primary"
+            type="submit"
+          >
+            Continue
+          </button>
+          <button
+            class="c16"
+            kind="secondary"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -616,7 +619,7 @@ exports[`render re-authentication dialog 1`] = `
   position: relative;
   overflow-y: auto;
   max-height: calc(100% - 96px);
-  width: 400px;
+  width: 416px;
 }
 
 .c4 {
@@ -726,117 +729,120 @@ exports[`render re-authentication dialog 1`] = `
       class="c3"
       data-testid="dialogbox"
     >
-      <div
-        class="c4"
-        style="flex-direction: column;"
-      >
+      <form>
         <div
-          class="c5"
-          color="text.primary"
-        >
-          Verify your identity
-        </div>
-        <div
-          class="c6"
-          color="text.secondary"
-        >
-          You must first verify your identity with an already registered two-factor device before peforming this action.
-        </div>
-      </div>
-      <div
-        class="c7"
-      >
-        <div
-          class="c8"
+          class="c4"
+          style="flex-direction: column;"
         >
           <div
-            class="c9"
-            data-testid="mfa-select"
-            width="50%"
+            class="c5"
+            color="text.primary"
           >
-            <label
-              class="c10"
-              font-size="0"
-              for="select"
-            >
-              Two-factor type
-            </label>
+            Verify your identity
+          </div>
+          <div
+            class="c6"
+            color="text.secondary"
+          >
+            You must verify your identity with one of your existing two-factor devices before performing this action.
+          </div>
+        </div>
+        <div
+          class="c7"
+        >
+          <div
+            class="c8"
+          >
             <div
-              class="c11"
+              class="c9"
+              data-testid="mfa-select"
+              width="50%"
             >
+              <label
+                class="c10"
+                font-size="0"
+                for="select"
+              >
+                Two-factor type
+              </label>
               <div
-                class="react-select-container css-2b097c-container"
+                class="c11"
               >
                 <div
-                  class="react-select__control css-yk16xz-control"
+                  class="react-select-container css-2b097c-container"
                 >
                   <div
-                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                    class="react-select__control css-yk16xz-control"
                   >
                     <div
-                      class="react-select__single-value css-1uccc91-singleValue"
+                      class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
                     >
-                      Hardware Key
-                    </div>
-                    <input
-                      aria-autocomplete="list"
-                      class="css-62g3xt-dummyInput"
-                      id="select"
-                      readonly=""
-                      tabindex="0"
-                      value=""
-                    />
-                  </div>
-                  <div
-                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                  >
-                    <span
-                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                    />
-                    <div
-                      aria-hidden="true"
-                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                    >
-                      <svg
-                        aria-hidden="true"
-                        class="css-6q0nyr-Svg"
-                        focusable="false"
-                        height="20"
-                        viewBox="0 0 20 20"
-                        width="20"
+                      <div
+                        class="react-select__single-value css-1uccc91-singleValue"
                       >
-                        <path
-                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                        />
-                      </svg>
+                        Hardware Key
+                      </div>
+                      <input
+                        aria-autocomplete="list"
+                        class="css-62g3xt-dummyInput"
+                        id="select"
+                        readonly=""
+                        tabindex="0"
+                        value=""
+                      />
+                    </div>
+                    <div
+                      class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                    >
+                      <span
+                        class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                      />
+                      <div
+                        aria-hidden="true"
+                        class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          class="css-6q0nyr-Svg"
+                          focusable="false"
+                          height="20"
+                          viewBox="0 0 20 20"
+                          width="20"
+                        >
+                          <path
+                            d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                          />
+                        </svg>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
+            <div
+              class="c12"
+              width="50%"
+            />
           </div>
-          <div
-            class="c12"
-            width="50%"
-          />
         </div>
-      </div>
-      <div
-        class="c13"
-      >
-        <button
-          class="c14"
-          kind="primary"
+        <div
+          class="c13"
         >
-          Continue
-        </button>
-        <button
-          class="c15"
-          kind="secondary"
-        >
-          Cancel
-        </button>
-      </div>
+          <button
+            class="c14"
+            kind="primary"
+            type="submit"
+          >
+            Continue
+          </button>
+          <button
+            class="c15"
+            kind="secondary"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 </div>

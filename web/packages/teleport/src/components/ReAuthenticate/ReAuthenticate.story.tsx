@@ -44,4 +44,6 @@ const props: State = {
   preferredMfaType: 'webauthn',
   onClose: () => null,
   auth2faType: 'on',
+  dialogText:
+    'You must verify your identity with one of your existing two-factor devices before performing this action.',
 };
