@@ -73,6 +73,8 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkOpenSSHCA(ca)
 	case types.JWTSigner:
 		err = checkJWTKeys(ca)
+	case types.SAMLIDPCA:
+		err = checkSAMLIDPCA(ca)
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
@@ -195,6 +197,42 @@ func checkJWTKeys(cai types.CertAuthority) error {
 		if _, err = jwt.New(cfg); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	return nil
+}
+
+// checkSAMLIDPCA checks if provided certificate authority contains a valid TLS key pair.
+// This function is used to verify the SAML IDP CA.
+func checkSAMLIDPCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+
+	if len(ca.Spec.ActiveKeys.TLS) != 1 {
+		return trace.BadParameter("SAML IDP certificate authority must contain one key pair")
+	}
+
+	pair := ca.GetTrustedTLSKeyPairs()[0]
+	if len(pair.Key) == 0 {
+		return trace.BadParameter("SAML IDP certificate authority has no private key")
+	}
+
+	if pair.KeyType == types.PrivateKeyType_RAW {
+		var err error
+		if len(pair.Cert) > 0 {
+			_, err = tls.X509KeyPair(pair.Cert, pair.Key)
+		} else {
+			_, err = utils.ParsePrivateKey(pair.Key)
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	_, err := tlsca.ParseCertificatePEM(pair.Cert)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
