@@ -397,10 +397,10 @@ func ValidateRoleARNAndExtractRoleName(roleARN, wantPartition, wantAccountID str
 		return "", trace.Wrap(err)
 	}
 	if !strings.HasPrefix(role.Resource, "role/") || role.Service != iam.ServiceName {
-		return "", trace.BadParameter("%q is not a IAM role", roleARN)
+		return "", trace.BadParameter("%q is not an IAM role", roleARN)
 	}
 	if role.Partition != wantPartition {
-		return "", trace.BadParameter("expecting AWS account partition %q but got %q", wantPartition, role.Partition)
+		return "", trace.BadParameter("expecting AWS partition %q but got %q", wantPartition, role.Partition)
 	}
 	if role.AccountID != wantAccountID {
 		return "", trace.BadParameter("expecting AWS account ID %q but got %q", wantAccountID, role.AccountID)
