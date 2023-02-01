@@ -45,7 +45,6 @@ const service = {
         cluster_name: clusterId,
         public_addr: publicAddr,
         arn: arn,
-        health_check_app_server: true,
       })
       .then(json => ({
         fqdn: json.fqdn as string,
