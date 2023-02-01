@@ -78,9 +78,19 @@ Use the `--help` flag to learn more.
 
 ## Step 2/4. Install the Teleport Desktop Service
 
-On the Linux host where you will run the Desktop Service, install Teleport (if
-you plan on running the Teleport Desktop Service on the same host as an existing Teleport
-service, you can skip this step):
+On your local system authenticated to your Teleport cluster, generate a
+short-lived join token:
+
+```code
+$ tctl tokens add --type=windowsdesktop
+The invite token: (=presets.tokens.first=)
+This token will expire in 60 minutes.
+
+This token enables Desktop Access.  See https://goteleport.com/docs/desktop-access/
+for detailed information on configuring Teleport Desktop Access with this token.
+```
+
+Copy the token to the Linux host where you will run the Desktop service as `/tmp/token`.
 
 (!docs/pages/includes/install-linux.mdx!)
 
@@ -91,6 +101,7 @@ version: v3
 teleport:
   nodename: example.teleport.com
   proxy_server: teleport-proxy.example.com:443
+  auth_token: /tmp/token
 windows_desktop_service:
   enabled: yes
   non_ad_hosts:
