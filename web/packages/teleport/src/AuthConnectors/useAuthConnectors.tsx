@@ -35,7 +35,9 @@ export default function useAuthConnectors() {
     if (isNew) {
       return ctx.resourceService.createGithubConnector(yaml).then(fetchData);
     }
-    return ctx.resourceService.updateGithubConnector(name, yaml).then(fetchData);
+    return ctx.resourceService
+      .updateGithubConnector(name, yaml)
+      .then(fetchData);
   }
 
   function remove(name: string) {
