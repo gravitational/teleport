@@ -516,7 +516,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Activating relogin on %v.", err)
+	log.Debugf("Activating relogin on error %q.", err)
 
 	// check if the error is a private key policy error.
 	if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(err); err == nil {
