@@ -3099,8 +3099,9 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 	// load profile. if no --proxy is given the currently active profile is used, otherwise
 	// fetch profile for exact proxy we are trying to connect to.
-	if err = c.LoadProfile(c.ClientStore, proxy); err != nil && !trace.IsNotFound(err) {
-		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, err)
+	profileErr := c.LoadProfile(c.ClientStore, proxy)
+	if profileErr != nil && !trace.IsNotFound(profileErr) {
+		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, profileErr)
 	}
 
 	// 3: override with the CLI flags
@@ -3264,18 +3265,20 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		}
 	}
 
-	// If we are using an idenitity file which uses a  placeholder profile, ping the webproxy
-	// for profile info and load it into the client.
-	if cf.IdentityFileIn != "" {
+	// If we are missing client profile information, ping the webproxy
+	// for proxy info and load it into the client config.
+	if profileErr != nil || cf.IdentityFileIn != "" {
 		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
-
 		_, err := tc.Ping(cf.Context)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if err := tc.SaveProfile(true); err != nil {
-			return nil, trace.Wrap(err)
+		// Identityfile uses a placeholder profile. Save missing profile info.
+		if cf.IdentityFileIn != "" {
+			if err := tc.SaveProfile(true); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 
