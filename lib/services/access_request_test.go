@@ -232,7 +232,7 @@ func TestReviewThresholds(t *testing.T) {
 	roles := make(map[string]types.Role)
 
 	for name, conditions := range roleDesc {
-		role, err := types.NewRole(name, types.RoleSpecV5{
+		role, err := types.NewRole(name, types.RoleSpecV6{
 			Allow: conditions,
 		})
 		require.NoError(t, err)
@@ -596,7 +596,6 @@ func TestMaxLength(t *testing.T) {
 
 // TestThresholdReviewFilter verifies basic filter syntax.
 func TestThresholdReviewFilter(t *testing.T) {
-
 	// test cases consist of a context, and various filter expressions
 	// which should or should not match the supplied context.
 	tts := []struct {
@@ -905,7 +904,7 @@ func TestRequestFilterConversion(t *testing.T) {
 // determined for resource access requests
 func TestRolesForResourceRequest(t *testing.T) {
 	// set up test roles
-	roleDesc := map[string]types.RoleSpecV5{
+	roleDesc := map[string]types.RoleSpecV6{
 		"db-admins": {
 			Allow: types.RoleConditions{
 				NodeLabels: types.Labels{
@@ -1087,7 +1086,7 @@ func TestPruneRequestRoles(t *testing.T) {
 	}
 
 	// set up test roles
-	roleDesc := map[string]types.RoleSpecV5{
+	roleDesc := map[string]types.RoleSpecV6{
 		"response-team": {
 			// By default has access to nothing, but can request many types of
 			// resources.
@@ -1506,7 +1505,7 @@ func TestRequestTTL(t *testing.T) {
 			require.NoError(t, err)
 			user.SetRoles([]string{"bar"})
 
-			role, err := types.NewRole("bar", types.RoleSpecV5{
+			role, err := types.NewRole("bar", types.RoleSpecV6{
 				Options: types.RoleOptions{
 					MaxSessionTTL: types.NewDuration(tt.maxSessionTTL),
 				},
@@ -1581,7 +1580,7 @@ func TestSessionTTL(t *testing.T) {
 			require.NoError(t, err)
 			user.SetRoles([]string{"bar"})
 
-			role, err := types.NewRole("bar", types.RoleSpecV5{
+			role, err := types.NewRole("bar", types.RoleSpecV6{
 				Options: types.RoleOptions{
 					MaxSessionTTL: types.NewDuration(tt.maxSessionTTL),
 				},
@@ -1605,6 +1604,78 @@ func TestSessionTTL(t *testing.T) {
 			if err == nil {
 				require.Equal(t, tt.expectedTTL, ttl)
 			}
+		})
+	}
+}
+
+type mockClusterGetter struct {
+	localCluster   types.ClusterName
+	remoteClusters map[string]types.RemoteCluster
+}
+
+func (mcg mockClusterGetter) GetClusterName(opts ...MarshalOption) (types.ClusterName, error) {
+	return mcg.localCluster, nil
+}
+func (mcg mockClusterGetter) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
+	if cluster, ok := mcg.remoteClusters[clusterName]; ok {
+		return cluster, nil
+	}
+	return nil, trace.NotFound("remote cluster %q was not found", clusterName)
+}
+
+func TestValidateAccessRequestClusterNames(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		localClusterName   string
+		remoteClusterNames []string
+		expectedInErr      string
+	}{
+		{
+			name:               "local cluster is requested",
+			localClusterName:   "someCluster",
+			remoteClusterNames: []string{},
+			expectedInErr:      "",
+		}, {
+			name:               "remote cluster is requested",
+			localClusterName:   "notTheCorrectName",
+			remoteClusterNames: []string{"someCluster"},
+			expectedInErr:      "",
+		}, {
+			name:               "unknown cluster requested",
+			localClusterName:   "notTheCorrectName",
+			remoteClusterNames: []string{"notTheCorrectClusterEither"},
+			expectedInErr:      "invalid or unknown cluster names",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			localCluster, err := types.NewClusterName(types.ClusterNameSpecV2{
+				ClusterName: tc.localClusterName,
+				ClusterID:   "someClusterID",
+			})
+			require.NoError(t, err)
+
+			remoteClusters := map[string]types.RemoteCluster{}
+			for _, remoteCluster := range tc.remoteClusterNames {
+				remoteClusters[remoteCluster], err = types.NewRemoteCluster(remoteCluster)
+				require.NoError(t, err)
+			}
+
+			mcg := mockClusterGetter{
+				localCluster:   localCluster,
+				remoteClusters: remoteClusters,
+			}
+			req, err := types.NewAccessRequestWithResources("name", "user", []string{}, []types.ResourceID{
+				{ClusterName: "someCluster"},
+			})
+			require.NoError(t, err)
+
+			err = ValidateAccessRequestClusterNames(mcg, req)
+			if tc.expectedInErr != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tc.expectedInErr)
+				return
+			}
+			require.NoError(t, err)
 		})
 	}
 }

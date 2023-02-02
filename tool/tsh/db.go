@@ -26,6 +26,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/ghodss/yaml"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -53,13 +55,12 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(listDatabasesAllClusters(cf))
 	}
 
-	// Retrieve profile to be able to show which databases user is logged into.
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	tc, err := makeClient(cf, false)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -140,20 +141,9 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 	group, groupCtx := errgroup.WithContext(cf.Context)
 	group.SetLimit(4)
 
-	dbListingsResultChan := make(chan databaseListings)
-	dbListingsCollectChan := make(chan databaseListings)
-	go func() {
-		var dbListings databaseListings
-		for {
-			select {
-			case items := <-dbListingsCollectChan:
-				dbListings = append(dbListings, items...)
-			case <-groupCtx.Done():
-				dbListingsResultChan <- dbListings
-				return
-			}
-		}
-	}()
+	// mu guards access to dbListings
+	var mu sync.Mutex
+	var dbListings databaseListings
 
 	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
 		group.Go(func() error {
@@ -168,7 +158,6 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 
-			var dbListings databaseListings
 			for _, site := range sites {
 				databases, err := proxy.FindDatabasesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
 				if err != nil {
@@ -180,17 +169,20 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 					log.Debugf("Failed to fetch user roles: %v.", err)
 				}
 
+				localDBListings := make(databaseListings, 0, len(databases))
 				for _, database := range databases {
-					dbListings = append(dbListings, databaseListing{
+					localDBListings = append(localDBListings, databaseListing{
 						Proxy:    profile.ProxyURL.Host,
 						Cluster:  site.Name,
 						roleSet:  roleSet,
 						Database: database,
 					})
 				}
+				mu.Lock()
+				dbListings = append(dbListings, localDBListings...)
+				mu.Unlock()
 			}
 
-			dbListingsCollectChan <- dbListings
 			return nil
 		})
 		return nil
@@ -203,10 +195,9 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	dbListings := <-dbListingsResultChan
 	sort.Sort(dbListings)
 
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := cf.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -275,9 +266,10 @@ func checkAndSetDBRouteDefaults(r *tlsca.RouteToDatabase) error {
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
 	// user to authenticate the connection as.
+	// Elasticsearch needs database username too.
 	if r.Username == "" {
 		switch r.Protocol {
-		case defaults.ProtocolMongoDB:
+		case defaults.ProtocolMongoDB, defaults.ProtocolElasticsearch:
 			return trace.BadParameter("please provide the database user name using the --db-user flag")
 		case defaults.ProtocolRedis:
 			// Default to "default" in the same way as Redis does. We need the username to check access on our side.
@@ -302,7 +294,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 		return trace.Wrap(err)
 	}
 
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -334,7 +326,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 	}
 
 	// Refresh the profile.
-	profile, err = client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err = tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -349,7 +341,7 @@ func onDatabaseLogout(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -469,7 +461,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -481,7 +473,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 	// "tsh db config" prints out instructions for native clients to connect to
 	// the remote proxy directly. Return errors here when direct connection
 	// does NOT work (e.g. when ALPN local proxy is required).
-	if isLocalProxyAlwaysRequired(database.Protocol) {
+	if isLocalProxyAlwaysRequired(tc, database.Protocol) {
 		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, database))
 	}
 	// MySQL requires ALPN local proxy in single port mode.
@@ -570,11 +562,15 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf, tc *client.TeleportC
 	// Some protocols (Snowflake, DynamoDB) only works in the local tunnel mode.
 	// ElasticSearch can work without the --tunnel flag, but not via `tsh db connect`.
 	localProxyTunnel := cf.LocalProxyTunnel
-	if requiresLocalProxyTunnel(db.Protocol) || db.Protocol == defaults.ProtocolElasticsearch {
+	if requiresLocalProxyTunnel(tc, db.Protocol) || db.Protocol == defaults.ProtocolElasticsearch {
 		localProxyTunnel = true
 	}
 
-	log.Debugf("Starting local proxy")
+	if localProxyTunnel {
+		log.Debug("Starting local proxy tunnel")
+	} else {
+		log.Debug("Starting local proxy")
+	}
 
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
@@ -727,7 +723,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -965,7 +961,7 @@ func isMFADatabaseAccessRequired(cf *CLIConf, tc *client.TeleportClient, databas
 // If logged into multiple databases, returns an error unless one specified
 // explicitly via --db flag.
 func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := cf.ProfileStatus()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1074,12 +1070,16 @@ func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) s
 // shouldUseLocalProxyForDatabase returns true if the ALPN local proxy should
 // be used for connecting to the provided database.
 func shouldUseLocalProxyForDatabase(tc *client.TeleportClient, db *tlsca.RouteToDatabase) bool {
-	return tc.TLSRoutingEnabled || isLocalProxyAlwaysRequired(db.Protocol)
+	return tc.TLSRoutingEnabled || isLocalProxyAlwaysRequired(tc, db.Protocol)
 }
 
 // isLocalProxyAlwaysRequired returns true for protocols that always requires
 // an ALPN local proxy.
-func isLocalProxyAlwaysRequired(protocol string) bool {
+func isLocalProxyAlwaysRequired(tc *client.TeleportClient, protocol string) bool {
+	switch tc.PrivateKeyPolicy {
+	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
+		return true
+	}
 	switch protocol {
 	case defaults.ProtocolSQLServer,
 		defaults.ProtocolSnowflake,

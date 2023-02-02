@@ -74,14 +74,15 @@ func (cfg LDAPConfig) DomainDN() string {
 	return sb.String()
 }
 
+// See: https://docs.microsoft.com/en-US/windows/security/identity-protection/access-control/security-identifiers
 const (
-	// See: https://docs.microsoft.com/en-US/windows/security/identity-protection/access-control/security-identifiers
-
 	// WritableDomainControllerGroupID is the windows security identifier for dcs with write permissions
 	WritableDomainControllerGroupID = "516"
 	// ReadOnlyDomainControllerGroupID is the windows security identifier for read only dcs
 	ReadOnlyDomainControllerGroupID = "521"
+)
 
+const (
 	// ClassComputer is the object class for computers in Active Directory
 	ClassComputer = "computer"
 	// ClassContainer is the object class for containers in Active Directory
@@ -96,6 +97,8 @@ const (
 
 	// AttrName is the name of an LDAP object
 	AttrName = "name"
+	// AttrSAMAccountName is the SAM Account name of an LDAP object
+	AttrSAMAccountName = "sAMAccountName"
 	// AttrCommonName is the common name of an LDAP object, or "CN"
 	AttrCommonName = "cn"
 	// AttrDistinguishedName is the distinguished name of an LDAP object, or "DN"
@@ -116,16 +119,20 @@ const (
 	AttrObjectCategory = "objectCategory"
 	// AttrObjectClass is the object class of an LDAP object
 	AttrObjectClass = "objectClass"
-
-	// searchPageSize is desired page size for LDAP search. In Active Directory the default search size limit is 1000 entries,
-	// so in most cases the 1000 search page size will result in the optimal amount of requests made to
-	// LDAP server.
-	searchPageSize = 1000
 )
+
+// searchPageSize is desired page size for LDAP search. In Active Directory the default search size limit is 1000 entries,
+// so in most cases the 1000 search page size will result in the optimal amount of requests made to
+// LDAP server.
+const searchPageSize = 1000
 
 // Note: if you want to browse LDAP on the Windows machine, run ADSIEdit.msc.
 
-// LDAPClient is a windows LDAP client
+// LDAPClient is a windows LDAP client.
+//
+// It does not automatically detect when the underlying connection
+// is closed. Callers should check for trace.ConnectionProblem errors
+// and provide a new client with [SetClient].
 type LDAPClient struct {
 	// Cfg is the LDAPConfig
 	Cfg LDAPConfig
@@ -171,9 +178,9 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 	defer c.mu.Unlock()
 	res, err := c.client.SearchWithPaging(req, searchPageSize)
 	if ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
-		return nil, trace.ConnectionProblem(err, "fetching LDAP object %q", dn)
+		return nil, trace.ConnectionProblem(err, "fetching LDAP object %q with filter %q: %v", dn, filter, err)
 	} else if err != nil {
-		return nil, trace.Wrap(err, "fetching LDAP object %q: %v", dn, err)
+		return nil, trace.Wrap(err, "fetching LDAP object %q with filter %q: %v", dn, filter, err)
 	}
 	return res.Entries, nil
 }

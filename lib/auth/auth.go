@@ -42,6 +42,7 @@ import (
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/google/uuid"
+	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -49,6 +50,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -74,9 +76,11 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -427,6 +431,10 @@ type Server struct {
 	samlAuthService SAMLService
 	oidcAuthService OIDCService
 
+	releaseService release.Client
+
+	loginRuleEvaluator loginrule.Evaluator
+
 	sshca.Authority
 
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
@@ -503,6 +511,9 @@ type Server struct {
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
+
+	// license is the Teleport Enterprise license used to start the auth server
+	license *liblicense.License
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -519,6 +530,32 @@ func (a *Server) SetOIDCService(svc OIDCService) {
 	a.oidcAuthService = svc
 }
 
+// SetLicense sets the license
+func (a *Server) SetLicense(license *liblicense.License) {
+	a.license = license
+}
+
+// SetReleaseService sets the release service
+func (a *Server) SetReleaseService(svc release.Client) {
+	a.releaseService = svc
+}
+
+// SetLoginRuleEvaluator sets the login rule evaluator.
+func (a *Server) SetLoginRuleEvaluator(l loginrule.Evaluator) {
+	a.loginRuleEvaluator = l
+}
+
+// GetLoginRuleEvaluator returns the login rule evaluator. It is guaranteed not
+// to return nil, if no evaluator has been installed it will return
+// [loginrule.NullEvaluator].
+func (a *Server) GetLoginRuleEvaluator() loginrule.Evaluator {
+	if a.loginRuleEvaluator == nil {
+		return loginrule.NullEvaluator{}
+	}
+	return a.loginRuleEvaluator
+}
+
+// CloseContext returns the close context
 func (a *Server) CloseContext() context.Context {
 	return a.closeCtx
 }
@@ -1042,6 +1079,8 @@ type certRequest struct {
 	awsRoleARN string
 	// azureIdentity is the Azure identity to generate certificate for.
 	azureIdentity string
+	// gcpServiceAccount is the GCP service account to generate certificate for.
+	gcpServiceAccount string
 	// dbService identifies the name of the database service requests will
 	// be routed to.
 	dbService string
@@ -1178,6 +1217,8 @@ type AppTestCertRequest struct {
 	AWSRoleARN string
 	// AzureIdentity is the optional Azure identity a user wants to assume to encode.
 	AzureIdentity string
+	// GCPServiceAccount is optional GCP service account a user wants to assume to encode.
+	GCPServiceAccount string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -1214,11 +1255,12 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
-		appSessionID:   sessionID,
-		appPublicAddr:  req.PublicAddr,
-		appClusterName: req.ClusterName,
-		awsRoleARN:     req.AWSRoleARN,
-		azureIdentity:  req.AzureIdentity,
+		appSessionID:      sessionID,
+		appPublicAddr:     req.PublicAddr,
+		appClusterName:    req.ClusterName,
+		awsRoleARN:        req.AWSRoleARN,
+		azureIdentity:     req.AzureIdentity,
+		gcpServiceAccount: req.GCPServiceAccount,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1305,7 +1347,8 @@ type AugmentUserCertificateOpts struct {
 // Used by Device Trust to add device extensions to the user certificate.
 func (a *Server) AugmentContextUserCertificates(
 	ctx context.Context,
-	authCtx *Context, opts *AugmentUserCertificateOpts) (*proto.Certs, error) {
+	authCtx *Context, opts *AugmentUserCertificateOpts,
+) (*proto.Certs, error) {
 	switch {
 	case authCtx == nil:
 		return nil, trace.BadParameter("authCtx required")
@@ -1498,6 +1541,59 @@ func (a *Server) AugmentContextUserCertificates(
 	}, nil
 }
 
+// submitCertificateIssuedEvent submits a certificate issued usage event to the
+// usage reporting service.
+func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
+	var database, app, kubernetes, desktop bool
+
+	if req.dbService != "" {
+		database = true
+	}
+
+	if req.appName != "" {
+		app = true
+	}
+
+	if req.kubernetesCluster != "" {
+		kubernetes = true
+	}
+
+	// Bot users are regular Teleport users, but have a special internal label.
+	bot := false
+	if _, ok := req.user.GetMetadata().Labels[types.BotLabel]; ok {
+		bot = true
+	}
+
+	// Unfortunately the only clue we have about Windows certs is the usage
+	// restriction: `RouteToWindowsDesktop` isn't actually passed along to the
+	// certRequest.
+	for _, usage := range req.usage {
+		switch usage {
+		case teleport.UsageWindowsDesktopOnly:
+			desktop = true
+		}
+	}
+
+	// For usage reporting, we care about the impersonator rather than the user
+	// being impersonated (if any).
+	user := req.user.GetName()
+	if req.impersonator != "" {
+		user = req.impersonator
+	}
+
+	if err := a.AnonymizeAndSubmit(&services.UsageCertificateIssued{
+		UserName:        user,
+		Ttl:             durationpb.New(req.ttl),
+		IsBot:           bot,
+		UsageDatabase:   database,
+		UsageApp:        app,
+		UsageKubernetes: kubernetes,
+		UsageDesktop:    desktop,
+	}); err != nil {
+		log.Debugf("Unable to submit certificate issued usage event: %v", err)
+	}
+}
+
 // generateUserCert generates user certificates
 func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	ctx := context.TODO()
@@ -1571,10 +1667,10 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	attestedKeyPolicy := keys.PrivateKeyPolicyNone
-	if !req.skipAttestation {
+	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if !req.skipAttestation && requiredKeyPolicy != keys.PrivateKeyPolicyNone {
 		// verify that the required private key policy for the requesting identity
 		// is met by the provided attestation statement.
-		requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 		attestedKeyPolicy, err = modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationStatement, cryptoPubKey, sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1701,6 +1797,12 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Enumerate allowed GCP service accounts.
+	gcpAccounts, err := req.checker.CheckGCPServiceAccounts(sessionTTL, req.overrideRoleTTL)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	// generate TLS certificate
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
@@ -1714,12 +1816,13 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
 		RouteToApp: tlsca.RouteToApp{
-			SessionID:     req.appSessionID,
-			PublicAddr:    req.appPublicAddr,
-			ClusterName:   req.appClusterName,
-			Name:          req.appName,
-			AWSRoleARN:    req.awsRoleARN,
-			AzureIdentity: req.azureIdentity,
+			SessionID:         req.appSessionID,
+			PublicAddr:        req.appPublicAddr,
+			ClusterName:       req.appClusterName,
+			Name:              req.appName,
+			AWSRoleARN:        req.awsRoleARN,
+			AzureIdentity:     req.azureIdentity,
+			GCPServiceAccount: req.gcpServiceAccount,
 		},
 		TeleportCluster: clusterName,
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -1735,6 +1838,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		ClientIP:                req.clientIP,
 		AWSRoleARNs:             roleARNs,
 		AzureIdentities:         azureIdentities,
+		GCPServiceAccounts:      gcpAccounts,
 		ActiveRequests:          req.activeRequests.AccessRequests,
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
@@ -1801,6 +1905,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		certs.TLSCACerts = append(certs.TLSCACerts, services.GetTLSCerts(ca)...)
 		certs.SSHCACerts = append(certs.SSHCACerts, services.GetSSHCheckingKeys(ca)...)
 	}
+
+	a.submitCertificateIssuedEvent(&req)
 
 	return certs, nil
 }
@@ -2268,9 +2374,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			Code:        events.MFADeviceDeleteEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: user,
-		},
+		UserMetadata:      ClientUserMetadataWithUser(ctx, user),
 		MFADeviceMetadata: mfaDeviceEventMetadata(deviceToDelete),
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -2371,9 +2475,7 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 			Code:        events.MFADeviceAddEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: req.username,
-		},
+		UserMetadata:      ClientUserMetadataWithUser(ctx, req.username),
 		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit add mfa device event.")
@@ -3833,12 +3935,12 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
-	pref, err := a.GetAuthPreference(ctx)
+	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch params := checker.MFAParams(pref.GetRequireMFAType()); params.Required {
+	switch state := checker.GetAccessState(authPref); state.MFARequired {
 	case services.MFARequiredAlways:
 		return &proto.IsMFARequiredResponse{Required: true}, nil
 	case services.MFARequiredNever:
@@ -3888,7 +3990,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		for _, n := range matches {
 			err := checker.CheckAccess(
 				n,
-				services.AccessMFAParams{},
+				services.AccessState{},
 				services.NewLoginMatcher(t.Node.Login),
 			)
 
@@ -3921,7 +4023,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.Wrap(notFoundErr)
 		}
 
-		noMFAAccessErr = checker.CheckAccess(cluster, services.AccessMFAParams{})
+		noMFAAccessErr = checker.CheckAccess(cluster, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_Database:
 		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
@@ -3950,7 +4052,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		)
 		noMFAAccessErr = checker.CheckAccess(
 			db,
-			services.AccessMFAParams{},
+			services.AccessState{},
 			dbRoleMatchers...,
 		)
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
@@ -3963,7 +4065,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 
 		noMFAAccessErr = checker.CheckAccess(desktops[0],
-			services.AccessMFAParams{},
+			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
 	default:
@@ -4255,6 +4357,13 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 			return keySet, trace.Wrap(err)
 		}
 		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+	case types.OpenSSHCA:
+		// OpenSSH CA only contains a SSH key pair.
+		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.SSH = append(keySet.SSH, sshKeyPair)
 	case types.JWTSigner:
 		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
 		if err != nil {
@@ -4347,6 +4456,14 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 		}
 	}
 	return trace.Wrap(a.keyStore.DeleteUnusedKeys(ctx, usedKeys))
+}
+
+// GetLicense return the license used the star the teleport enterprise auth server
+func (a *Server) GetLicense(ctx context.Context) (string, error) {
+	if a.license == nil {
+		return "", trace.NotFound("license not found")
+	}
+	return fmt.Sprintf("%s%s", a.license.CertPEM, a.license.KeyPEM), nil
 }
 
 // authKeepAliver is a keep aliver using auth server directly

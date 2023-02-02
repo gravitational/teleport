@@ -9,7 +9,7 @@ Service, or a custom configuration to deploy resource services such as the
 Teleport Kubernetes Service or Database Service.
 
 You can
-[browse the source on GitHub](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-cluster).
+[browse the source on GitHub](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/chart/teleport-cluster).
 
 The `teleport-cluster` chart runs two Teleport services:
 
@@ -116,13 +116,31 @@ Defaults to Teleport's binary default when empty: `best_effort`.
 
 | Type | Default value | Required? | `teleport.yaml` equivalent | Can be used in `custom` mode? |
 | - | - | - | - | - |
-| `string` | `otp` | Yes | `auth_service.authentication.second_factor` | ❌ |
+| `string` | `on` | Yes | `auth_service.authentication.second_factor` | ❌ |
 
 `authentication.secondFactor` controls the second factor used for local user authentication. Possible values supported by this chart
 are `off` (not recommended), `on`, `otp`, `optional` and `webauthn`.
 
-When set to `on`, `optional` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used. The configured `rp_id` defaults to
-the FQDN which is used to access the Teleport cluster cluster-wide.
+When set to `on`, `optional` or `webauthn`, the `authenticationSecondFactor.webauthn` section can also be used.
+The configured `rp_id` defaults to `clusterName`.
+
+<Admonition type="warning">
+If you set `publicAddr` for users to access the cluster under a domain different
+to [`clusterName`](#clusterName), you must manually set the webauthn [Relying
+Party Identifier (RP
+ID)](https://www.w3.org/TR/webauthn-2/#relying-party-identifier). If you don't,
+RP ID will default to `clusterName` and users will fail to register second
+factors.
+
+You can do this by setting the value
+`auth.teleportConfig.auth_service.authentication.webauthn.rp_id`.
+
+RP ID must be both a valid domain, and part of the full domain users are connecting to.
+For example, if users are accessing the cluster with the domain
+"teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
+
+Changing the RP ID will invalidate all already registered webauthn second factors.
+</Admonition>
 
 ### `authentication.webauthn`
 
@@ -270,6 +288,24 @@ These settings will not apply if [`proxyListenerMode`](#proxylistenermode) is se
 `publicAddr` controls the advertised addresses for TLS connections.
 
 When `publicAddr` is not set, the address used is [`clusterName`](#clusterName) on port 443.
+
+<Admonition type="warning">
+If you set `publicAddr` for users to access the cluster under a domain different
+to [`clusterName`](#clusterName) you must manually set the webauthn [Relying
+Party Identifier (RP
+ID)](https://www.w3.org/TR/webauthn-2/#relying-party-identifier). If you don't,
+RP ID will default to `clusterName` and users will fail to register second
+factors.
+
+You can do this by setting the value
+`auth.teleportConfig.auth_service.authentication.webauthn.rp_id`.
+
+RP ID must be both a valid domain, and part of the full domain users are connecting to.
+For example, if users are accessing the cluster with the domain
+"teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
+
+Changing the RP ID will invalidate all already registered webauthn second factors.
+</Admonition>
 
 <Tabs>
   <TabItem label="values.yaml">
@@ -595,9 +631,9 @@ It is recommended to set resource requests/limits for each container based on th
 | `string` | `nil` | ✅ |
 
 Normally the version of Teleport being used will match the version of the chart being installed. If you install chart version
-7.0.0, you'll be using Teleport 7.0.0. Upgrading the Helm chart will use the latest version from the repo.
+10.0.0, you'll be using Teleport 10.0.0. Upgrading the Helm chart will use the latest version from the repo.
 
-You can optionally override this to use a different published Teleport Docker image tag like `6.0.2` or `7`.
+You can optionally override this to use a different published Teleport Docker image tag like `10.1.2` or `11`.
 
 See our [installation guide](../../installation.mdx#docker) for information on
 Docker image versions.
@@ -605,12 +641,12 @@ Docker image versions.
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  teleportVersionOverride: "7"
+  teleportVersionOverride: "11"
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set teleportVersionOverride="7"
+  $ --set teleportVersionOverride="11"
   ```
   </TabItem>
 </Tabs>
@@ -1358,6 +1394,33 @@ See the [Teleport config file reference](../../reference/config.mdx) for more de
   ```code
   --set "log.extraFields[0]=timestamp" \
   --set "log.extraFields[1]=level"
+  ```
+  </TabItem>
+</Tabs>
+
+## `nodeSelector`
+
+| Type | Default value |
+| - | - |
+| `object` | `{}` |
+
+`nodeSelector` can be used to add a map of key-value pairs to constrain the
+nodes that Teleport pods will run on.
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector)
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  nodeSelector:
+    role: bastion
+    environment: security
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  --set nodeSelector.role=bastion \
+  --set nodeSelector.environment=security
   ```
   </TabItem>
 </Tabs>

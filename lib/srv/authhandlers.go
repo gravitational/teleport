@@ -37,6 +37,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -333,8 +334,9 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 				Code: events.AuthAttemptFailureCode,
 			},
 			UserMetadata: apievents.UserMetadata{
-				Login: conn.User(),
-				User:  teleportUser,
+				Login:         conn.User(),
+				User:          teleportUser,
+				TrustedDevice: eventDeviceMetadataFromCert(cert),
 			},
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  conn.LocalAddr().String(),
@@ -560,21 +562,23 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	}
 
 	// we don't need to check the RBAC for the node if they are only allowed to join sessions
-	if osUser == teleport.SSHSessionJoinPrincipal && auth.HasV5Role(accessChecker.Roles()) {
+	if osUser == teleport.SSHSessionJoinPrincipal && auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
 		return nil
 	}
 
-	ap, err := h.c.AccessPoint.GetAuthPreference(ctx)
+	authPref, err := h.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := accessChecker.MFAParams(ap.GetRequireMFAType())
-	_, mfaParams.Verified = cert.Extensions[teleport.CertExtensionMFAVerified]
+	state := accessChecker.GetAccessState(authPref)
+	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
 
 	// check if roles allow access to server
 	if err := accessChecker.CheckAccess(
 		h.c.Server.GetInfo(),
-		mfaParams,
+		state,
 		services.NewLoginMatcher(osUser),
 	); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",

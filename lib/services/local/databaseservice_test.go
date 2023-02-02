@@ -40,7 +40,6 @@ func TestDatabaseServices(t *testing.T) {
 	require.NoError(t, err)
 
 	service := NewDatabaseServicesService(bk)
-	presence := NewPresenceService(bk)
 
 	// Upsert some DatabaseServices.
 	ds1, err := types.NewDatabaseServiceV1(
@@ -56,7 +55,7 @@ func TestDatabaseServices(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	_, err = presence.UpsertDatabaseService(ctx, ds1)
+	_, err = service.UpsertDatabaseService(ctx, ds1)
 	require.NoError(t, err)
 
 	ds2, err := types.NewDatabaseServiceV1(
@@ -72,7 +71,7 @@ func TestDatabaseServices(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	_, err = presence.UpsertDatabaseService(ctx, ds2)
+	_, err = service.UpsertDatabaseService(ctx, ds2)
 	require.NoError(t, err)
 
 	// Replace the DS1
@@ -81,7 +80,7 @@ func TestDatabaseServices(t *testing.T) {
 		Labels: &types.Labels{"env": []string{"ds1", "ds2"}},
 	}
 	ds1.Spec.ResourceMatchers = initialResourceMatchers
-	_, err = presence.UpsertDatabaseService(ctx, ds1)
+	_, err = service.UpsertDatabaseService(ctx, ds1)
 	require.NoError(t, err)
 
 	// Remove one of the DatabaseServices
