@@ -79,9 +79,6 @@ type Announcer interface {
 
 	// GetDiscoveredServer gets a DiscoveredServer.
 	GetDiscoveredServer(context.Context, string, string) (*types.DiscoveredServerV1, error)
-
-	// DeleteDiscoveredServer deletes a DiscoveredServer.
-	DeleteDiscoveredServer(context.Context, string) error
 }
 
 // accessPoint is an API interface implemented by a certificate authority (CA)

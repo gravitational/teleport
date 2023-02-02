@@ -3986,14 +3986,6 @@ func (a *ServerWithRoles) GetDiscoveredServer(ctx context.Context, instanceID, a
 	return a.authServer.GetDiscoveredServer(ctx, instanceID, accountID)
 }
 
-// DeleteDiscoveredServer removes a specific DiscoveredServer resource.
-func (a *ServerWithRoles) DeleteDiscoveredServer(ctx context.Context, name string) error {
-	if err := a.action(apidefaults.Namespace, types.KindDiscoveredServer, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteDiscoveredServer(ctx, name)
-}
-
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
 func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {

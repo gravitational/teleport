@@ -2532,12 +2532,6 @@ func (c *Client) GetDiscoveredServer(ctx context.Context, instanceID, accountID 
 	return resp, nil
 }
 
-// DeleteDiscoveredServer deletes a specific DiscoveredServer resource.
-func (c *Client) DeleteDiscoveredServer(ctx context.Context, name string) error {
-	_, err := c.grpc.DeleteDiscoveredServer(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
-	return trail.FromGRPC(err)
-}
-
 // GetWindowsDesktopServices returns all registered windows desktop services.
 func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
 	resp, err := c.grpc.GetWindowsDesktopServices(ctx, &emptypb.Empty{}, c.callOpts...)

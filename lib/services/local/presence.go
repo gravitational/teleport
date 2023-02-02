@@ -1686,12 +1686,6 @@ func (s *PresenceService) GetDiscoveredServer(ctx context.Context, instanceID, a
 	return server.(*types.DiscoveredServerV1), err
 }
 
-// DeleteDiscoveredServer deletes the specified discovered server.
-func (s *PresenceService) DeleteDiscoveredServer(ctx context.Context, name string) error {
-	key := backend.Key(discoveredServerPrefix, name)
-	return s.Delete(ctx, key)
-}
-
 // listResourcesWithSort supports sorting by falling back to retrieving all resources
 // with GetXXXs, filter, and then fake pagination.
 func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {

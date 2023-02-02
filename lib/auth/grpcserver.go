@@ -1266,19 +1266,6 @@ func (g GRPCServer) GetDiscoveredServer(ctx context.Context, req *types.GetDisco
 	return auth.GetDiscoveredServer(ctx, req.InstanceID, req.AccountID)
 }
 
-// DeleteDiscoveredServer removes the specified DiscoveredServer.
-func (g *GRPCServer) DeleteDiscoveredServer(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = auth.DeleteDiscoveredServer(ctx, req.Name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &emptypb.Empty{}, nil
-}
-
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
 func (g *GRPCServer) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
