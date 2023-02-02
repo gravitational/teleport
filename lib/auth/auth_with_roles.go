@@ -651,6 +651,8 @@ func (a *ServerWithRoles) UpdateUserCARoleMap(ctx context.Context, name string, 
 }
 
 // GenerateToken generates multi-purpose authentication token.
+// Deprecated: REMOVE IN 13.0.0 - Clients should now use CreateToken or
+// UpdateToken.
 func (a *ServerWithRoles) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return "", trace.Wrap(err)
