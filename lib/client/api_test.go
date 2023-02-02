@@ -569,26 +569,22 @@ func (m *mockAgent) Signers() ([]ssh.Signer, error) {
 	return []ssh.Signer{&mockSigner{ValidPrincipals: m.ValidPrincipals}}, nil
 }
 
-func TestNewClient_UseKeyPrincipals(t *testing.T) {
+func TestNewClient_DoNotUseKeyPrincipals(t *testing.T) {
 	cfg := &Config{
-		Username:         "xyz",
-		HostLogin:        "xyz",
-		WebProxyAddr:     "localhost",
-		SkipLocalAuth:    true,
-		UseKeyPrincipals: true, // causes VALID to be returned, as key was used
-		Agent:            &mockAgent{ValidPrincipals: []string{"VALID"}},
-		AuthMethods:      []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
-		Tracer:           tracing.NoopProvider().Tracer("test"),
+		Username:       "xyz",
+		HostLogin:      "xyz",
+		WebProxyAddr:   "localhost",
+		NonInteractive: true,
+		Agent:          &mockAgent{ValidPrincipals: []string{"VALID"}},
+		AuthMethods:    []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
+		Tracer:         tracing.NoopProvider().Tracer("test"),
 	}
 	client, err := NewClient(cfg)
 	require.NoError(t, err)
 	require.Equal(t, "VALID", client.getProxySSHPrincipal(), "ProxySSHPrincipal mismatch")
 
-	cfg.UseKeyPrincipals = false // causes xyz to be returned as key was not used
-
-	client, err = NewClient(cfg)
-	require.NoError(t, err)
-	require.Equal(t, "xyz", client.getProxySSHPrincipal(), "ProxySSHPrincipal mismatch")
+	client.ProxySSHPrincipal = "OVERRIDE" // causes OVERRIDE to be returned as key was not used
+	require.Equal(t, "OVERRIDE", client.getProxySSHPrincipal(), "ProxySSHPrincipal mismatch")
 }
 
 func TestParseSearchKeywords(t *testing.T) {
