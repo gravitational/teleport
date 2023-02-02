@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -606,7 +607,9 @@ func runCheckHomeDir() (errw io.Writer, code int, err error) {
 
 // runPark does nothing, forever.
 func runPark() (errw io.Writer, code int, err error) {
-	select {}
+	for {
+		time.Sleep(time.Hour)
+	}
 }
 
 // RunAndExit will run the requested command and then exit. This wrapper
