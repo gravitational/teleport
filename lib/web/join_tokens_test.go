@@ -20,10 +20,11 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 	"regexp"
 	"testing"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
