@@ -839,18 +839,9 @@ func TestJoinScriptEnterprise(t *testing.T) {
 }
 
 type mockedNodeAPIGetter struct {
-	mockGenerateToken    func(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 	mockGetProxyServers  func() ([]types.Server, error)
 	mockGetClusterCACert func(ctx context.Context) (*proto.GetClusterCACertResponse, error)
 	mockGetToken         func(ctx context.Context, token string) (types.ProvisionToken, error)
-}
-
-func (m *mockedNodeAPIGetter) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-	if m.mockGenerateToken != nil {
-		return m.mockGenerateToken(ctx, req)
-	}
-
-	return "", trace.NotImplemented("mockGenerateToken not implemented")
 }
 
 func (m *mockedNodeAPIGetter) GetProxies() ([]types.Server, error) {
