@@ -25,13 +25,13 @@ proxy_service:
 {{- end }}
 {{- if eq .Values.proxyListenerMode "separate" }}
   listen_addr: 0.0.0.0:3023
-{{- if .Values.sshPublicAddr }}
+  {{- if .Values.sshPublicAddr }}
   ssh_public_addr: {{- toYaml .Values.sshPublicAddr | nindent 8 }}
-{{- end }}
+  {{- end }}
   tunnel_listen_addr: 0.0.0.0:3024
-{{- if .Values.tunnelPublicAddr }}
+  {{- if .Values.tunnelPublicAddr }}
   tunnel_public_addr: {{- toYaml .Values.tunnelPublicAddr | nindent 8 }}
-{{- end }}
+  {{- end }}
   kube_listen_addr: 0.0.0.0:3026
   {{- if .Values.kubePublicAddr }}
   kube_public_addr: {{- toYaml .Values.kubePublicAddr | nindent 8 }}
@@ -61,6 +61,7 @@ proxy_service:
   https_keypairs:
   - key_file: /etc/teleport-tls/tls.key
     cert_file: /etc/teleport-tls/tls.crt
+  https_keypairs_reload_interval: 12h
 {{- else if .Values.acme }}
   acme:
     enabled: {{ .Values.acme }}

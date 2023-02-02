@@ -67,6 +67,9 @@ func NewMemProfileStore() *MemProfileStore {
 
 // CurrentProfile returns the current profile.
 func (ms *MemProfileStore) CurrentProfile() (string, error) {
+	if ms.currentProfile == "" {
+		return "", trace.NotFound("current-profile is not set")
+	}
 	return ms.currentProfile, nil
 }
 
@@ -358,6 +361,7 @@ func profileStatusFromKey(key *Key, opts profileOptions) (*ProfileStatus, error)
 		Apps:               apps,
 		AWSRolesARNs:       tlsID.AWSRoleARNs,
 		AzureIdentities:    tlsID.AzureIdentities,
+		GCPServiceAccounts: tlsID.GCPServiceAccounts,
 		IsVirtual:          opts.IsVirtual,
 		AllowedResourceIDs: allowedResourceIDs,
 	}, nil

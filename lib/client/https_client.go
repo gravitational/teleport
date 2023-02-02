@@ -96,6 +96,11 @@ func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, v
 		return httplib.ConvertResponse(resp, httpsErr)
 	}
 
+	// If we're not allowed to try plain HTTP, bail out with whatever error we have.
+	if !allowHTTPFallback {
+		return nil, trace.Wrap(httpsErr)
+	}
+
 	// Parse out the endpoint into its constituent parts. We will need the
 	// hostname to decide if we're allowed to fall back to HTTPS, and we will
 	// re-use this for re-writing the endpoint URL later on anyway.
@@ -104,10 +109,11 @@ func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, v
 		return nil, trace.Wrap(err)
 	}
 
-	// If we're not allowed to try plain HTTP, bail out with whatever error we have.
+	// If we're allowed to try plain HTTP, but we're not on the loopback address,
+	// bail out with whatever error we have.
 	// Note that we're only allowed to try plain HTTP on the loopback address, even
-	// if the caller says its OK
-	if !(allowHTTPFallback && apiutils.IsLoopback(u.Host)) {
+	// if the caller says its OK.
+	if !apiutils.IsLoopback(u.Host) {
 		return nil, trace.Wrap(httpsErr)
 	}
 

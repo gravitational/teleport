@@ -1590,6 +1590,10 @@ message AuthPreferenceSpecV2 {
   // DeviceTrust holds settings related to trusted device verification.
   // Requires Teleport Enterprise.
   DeviceTrust DeviceTrust = 13 [(gogoproto.jsontag) = "device_trust,omitempty"];
+
+  // IDP is a set of options related to accessing IdPs within Teleport.
+  // Requires Teleport Enterprise.
+  IdPOptions IDP = 14 [(gogoproto.jsontag) = "idp,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -2027,6 +2031,12 @@ message ResourceID {
   string Kind = 2 [(gogoproto.jsontag) = "kind"];
   // Name is the name of the specific resource.
   string Name = 3 [(gogoproto.jsontag) = "name"];
+  // SubResourceName is the resource belonging to resource identified by "Name"
+  // that the user is allowed to access to.
+  // When granting access to a subresource, access to other resources is limited.
+  // Currently it just supports resources of Kind=pod and the format is the following
+  // "<kube_namespace>/<kube_pod>".
+  string SubResourceName = 4 [(gogoproto.jsontag) = "sub_resource,omitempty"];
 }
 
 // PluginData stores a collection of values associated with a specific resource.
@@ -2281,6 +2291,10 @@ message RoleOptions {
   // See DeviceTrust.Mode.
   // Reserved for future use, not yet used by Teleport.
   string DeviceTrustMode = 24 [(gogoproto.jsontag) = "device_trust_mode,omitempty"];
+
+  // IDP is a set of options related to accessing IdPs within Teleport.
+  // Requires Teleport Enterprise.
+  IdPOptions IDP = 25 [(gogoproto.jsontag) = "idp,omitempty"];
 }
 
 message RecordSession {
@@ -4205,6 +4219,9 @@ message WindowsDesktopSpecV3 {
   string Domain = 2 [(gogoproto.jsontag) = "domain"];
   // HostID is the ID of the host the Windows Desktop Service proxying the desktop.
   string HostID = 3 [(gogoproto.jsontag) = "host_id"];
+  // NonAD marks this desktop as a standalone host that is
+  // not joined to an Active Directory domain.
+  bool NonAD = 4 [(gogoproto.jsontag) = "non_ad"];
 }
 
 // RegisterUsingTokenRequest is a request to register with the auth server using
@@ -4652,6 +4669,32 @@ message GetClusterAlertsRequest {
   string AlertID = 2;
   // Labels is an optional label selector.
   map<string, string> Labels = 3;
+  // WithSuperseded includes superseded alerts in the output of the request.
+  bool WithSuperseded = 4;
+  // WithAcknowledged includes acknowledged alerts in the output of the request.
+  bool WithAcknowledged = 5;
+}
+
+// AlertAcknowledgement marks a cluster alert as having been "acknowledged".
+// This causes the alert to no longer be displayed in 'tsh login', UI banners,
+// etc. Acknowledgements must have an expiry and a message describing why the
+// alert can be considered acknowledged.
+message AlertAcknowledgement {
+  // AlertID is the ID of the alert being acknowledged.
+  string AlertID = 1 [(gogoproto.jsontag) = "alert_id,omitempty"];
+  // Reason describes the reason why the alert can be considered
+  // acknowledged (e.g. 'alice will fix next week').
+  string Reason = 2 [(gogoproto.jsontag) = "reason,omitempty"];
+  // Severity is the maximum severity for which the acknowledgement will
+  // perform suppression (e.g. an ack with severity MEDIUM will suppress
+  // alerts with severity MEDIUM or lower, but not alerts with severity HIGH).
+  AlertSeverity Severity = 3 [(gogoproto.jsontag) = "severity,omitempty"];
+  // Expires is the time after which the acknowledgement expires.
+  google.protobuf.Timestamp Expires = 4 [
+    (gogoproto.jsontag) = "expires,omitempty",
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
 }
 
 // Release correspond to a Teleport Enterprise releases
@@ -4707,4 +4750,43 @@ enum RequireMFAType {
   // rather than only session requests. This touch is different from MFA, so to prevent
   // requiring double touch on session requests, normal Session MFA is disabled.
   HARDWARE_KEY_TOUCH = 3;
+}
+
+// SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
+message SAMLIdPServiceProviderV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header for the SAML IdP service provider.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Spec is the SAML IdP service provider spec.
+  SAMLIdPServiceProviderSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// SAMLIdPServiceProviderSpecV1 is the SAMLIdPServiceProviderV1 resource spec.
+message SAMLIdPServiceProviderSpecV1 {
+  // EntityDescriptor is the entity descriptor for the service provider
+  string EntityDescriptor = 1 [(gogoproto.jsontag) = "entity_descriptor"];
+}
+
+// IdPOptions specify options related to access Teleport IdPs.
+message IdPOptions {
+  // SAML are options related to the Teleport SAML IdP.
+  IdPSAMLOptions SAML = 1 [(gogoproto.jsontag) = "saml"];
+}
+
+// IdPSAMLOptions specifies options related to accessing the Teleport SAML IdP.
+message IdPSAMLOptions {
+  // Enabled is set to true if this option allows access to the Teleport SAML IdP.
+  BoolValue Enabled = 1 [
+    (gogoproto.jsontag) = "enabled",
+    (gogoproto.customtype) = "BoolOption"
+  ];
 }

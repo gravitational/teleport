@@ -17,14 +17,18 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
+	"hash/fnv"
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -32,10 +36,12 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/gcp"
 )
 
 const (
 	gcloudCLIBinaryName = "gcloud"
+	gsutilCLIBinaryName = "gsutil"
 )
 
 func onGcloud(cf *CLIConf) error {
@@ -61,12 +67,38 @@ func onGcloud(cf *CLIConf) error {
 	return app.RunCommand(cmd)
 }
 
+func onGsutil(cf *CLIConf) error {
+	app, err := pickActiveGCPApp(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = app.StartLocalProxies()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		if err := app.Close(); err != nil {
+			log.WithError(err).Error("Failed to close GCP app.")
+		}
+	}()
+
+	args := cf.GCPCommandArgs
+
+	cmd := exec.Command(gsutilCLIBinaryName, args...)
+	return app.RunCommand(cmd)
+}
+
 // gcpApp is an GCP app that can start local proxies to serve GCP APIs.
 type gcpApp struct {
 	cf      *CLIConf
 	profile *client.ProfileStatus
 	app     tlsca.RouteToApp
 	secret  string
+	// prefix is a prefix added to the name of configuration files, allowing two instances of gcpApp
+	// to run concurrently without overwriting each other files.
+	prefix string
 
 	localALPNProxy    *alpnproxy.LocalProxy
 	localForwardProxy *alpnproxy.ForwardProxy
@@ -78,11 +110,17 @@ func newGCPApp(cf *CLIConf, profile *client.ProfileStatus, app tlsca.RouteToApp)
 	if err != nil {
 		return nil, err
 	}
+
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(secret))
+	prefix := fmt.Sprintf("%x", h.Sum32())
+
 	return &gcpApp{
 		cf:      cf,
 		profile: profile,
 		app:     app,
 		secret:  secret,
+		prefix:  prefix,
 	}, nil
 }
 
@@ -104,6 +142,11 @@ func getGCPSecret() (string, error) {
 // The request flow to remote server (i.e. GCP APIs) looks like this:
 // clients -> local forward proxy -> local ALPN proxy -> remote server
 func (a *gcpApp) StartLocalProxies() error {
+	// configuration files
+	if err := a.writeBotoConfig(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// HTTPS proxy mode
 	if err := a.startLocalALPNProxy(""); err != nil {
 		return trace.Wrap(err)
@@ -117,18 +160,86 @@ func (a *gcpApp) StartLocalProxies() error {
 // Close makes all necessary close calls.
 func (a *gcpApp) Close() error {
 	var errs []error
+	// close proxies
 	if a.localALPNProxy != nil {
 		errs = append(errs, a.localALPNProxy.Close())
 	}
 	if a.localForwardProxy != nil {
 		errs = append(errs, a.localForwardProxy.Close())
 	}
+	// remove boto config
+	errs = append(errs, a.removeBotoConfig()...)
 	return trace.NewAggregate(errs...)
+}
+
+func (a *gcpApp) getGcloudConfigPath() string {
+	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.app.ClusterName, a.app.Name, "gcloud")
+}
+
+// removeBotoConfig removes config files written by WriteBotoConfig.
+func (a *gcpApp) removeBotoConfig() []error {
+	// try to remove both files
+	return []error{
+		trace.Wrap(os.Remove(a.getExternalAccountFilePath())),
+		trace.Wrap(os.Remove(a.getBotoConfigPath())),
+	}
+}
+
+func (a *gcpApp) getBotoConfigDir() string {
+	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.app.ClusterName, a.app.Name)
+}
+
+func (a *gcpApp) getBotoConfigPath() string {
+	return path.Join(a.getBotoConfigDir(), a.prefix+"_boto.cfg")
+}
+
+func (a *gcpApp) getExternalAccountFilePath() string {
+	return path.Join(a.getBotoConfigDir(), a.prefix+"_external.json")
+}
+
+// getBotoConfig returns minimal boto configuration, referencing an external account file.
+func (a *gcpApp) getBotoConfig() string {
+	// gsutil will look for `gs_external_account_authorized_user_file` in `[Credentials]` section as per the source code:
+	// https://github.com/GoogleCloudPlatform/gsutil/blob/2fd97591681a51ca0541d04b865e7d67a54efad4/gslib/gcs_json_credentials.py#L290-L294
+	// there appears to be no documentation for this config setting otherwise.
+	return fmt.Sprintf(`[Credentials]
+gs_external_account_authorized_user_file = %v
+`, a.getExternalAccountFilePath())
+}
+
+// getExternalAccountFile returns the contents of external account file, which depend on a current secret.
+func (a *gcpApp) getExternalAccountFile() string {
+	return fmt.Sprintf(`{ "type": "external_account_authorized_user","token": %q }`, a.secret)
+}
+
+// writeBotoConfig writes app-specific boto configuration file as well as external account file, referenced in boto config.
+func (a *gcpApp) writeBotoConfig() error {
+	err := os.MkdirAll(a.getBotoConfigDir(), teleport.PrivateDirMode)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = os.WriteFile(a.getBotoConfigPath(), []byte(a.getBotoConfig()), 0644)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = os.WriteFile(a.getExternalAccountFilePath(), []byte(a.getExternalAccountFile()), 0644)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // GetEnvVars returns required environment variables to configure the
 // clients.
 func (a *gcpApp) GetEnvVars() (map[string]string, error) {
+	projectID, err := gcp.ProjectIDFromServiceAccountName(a.app.GCPServiceAccount)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	envVars := map[string]string{
 		// Env var CLOUDSDK_AUTH_ACCESS_TOKEN is one of the available ways of providing access token
 		// https://cloud.google.com/sdk/docs/authorizing#:~:text=If%20you%20already,access%20token%20value.
@@ -137,6 +248,18 @@ func (a *gcpApp) GetEnvVars() (map[string]string, error) {
 		// Set core.custom_ca_certs_file via env variable, customizing the path to CA certs file.
 		// https://cloud.google.com/sdk/gcloud/reference/config/set#:~:text=custom_ca_certs_file
 		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.profile.AppLocalCAPath(a.app.Name),
+
+		// We need to set project ID. This is sourced from the account name.
+		// https://cloud.google.com/sdk/gcloud/reference/config#GROUP:~:text=authentication%20to%20gsutil.-,project,-Project%20ID%20of
+		"CLOUDSDK_CORE_PROJECT": projectID,
+
+		// Use isolated gcloud config path.
+		// https://cloud.google.com/sdk/docs/configurations#:~:text=The%20config%20directory%20can%20be%20changed%20by%20setting%20the%20environment%20variable%20CLOUDSDK_CONFIG
+		"CLOUDSDK_CONFIG": a.getGcloudConfigPath(),
+
+		// Set custom path to boto config. Used to provide fixed access token for `gsutil`.
+		// More info: https://cloud.google.com/storage/docs/boto-gsutil
+		"BOTO_CONFIG": a.getBotoConfigPath(),
 	}
 
 	// Set proxy settings.
@@ -286,38 +409,6 @@ func printGCPServiceAccounts(accounts []string) {
 	fmt.Println(formatGCPServiceAccounts(accounts))
 }
 
-// SortedGCPServiceAccounts sorts service accounts by project and service account name.
-type SortedGCPServiceAccounts []string
-
-// Len returns the length of a list.
-func (s SortedGCPServiceAccounts) Len() int {
-	return len(s)
-}
-
-// Less compares items. Given two accounts, it first compares the project (i.e. what goes after @)
-// and if they are equal proceeds to compare the service account name (what goes before @).
-// Example of sorted list:
-// - test-0@example-100200.iam.gserviceaccount.com
-// - test-1@example-123456.iam.gserviceaccount.com
-// - test-2@example-123456.iam.gserviceaccount.com
-// - test-3@example-123456.iam.gserviceaccount.com
-// - test-0@other-999999.iam.gserviceaccount.com
-func (s SortedGCPServiceAccounts) Less(i, j int) bool {
-	beforeI, afterI, _ := strings.Cut(s[i], "@")
-	beforeJ, afterJ, _ := strings.Cut(s[j], "@")
-
-	if afterI != afterJ {
-		return afterI < afterJ
-	}
-
-	return beforeI < beforeJ
-}
-
-// Swap swaps two items in a list.
-func (s SortedGCPServiceAccounts) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 func formatGCPServiceAccounts(accounts []string) string {
 	if len(accounts) == 0 {
 		return ""
@@ -325,7 +416,7 @@ func formatGCPServiceAccounts(accounts []string) string {
 
 	t := asciitable.MakeTable([]string{"Available GCP service accounts"})
 
-	acc := SortedGCPServiceAccounts(accounts)
+	acc := gcp.SortedGCPServiceAccounts(accounts)
 	sort.Sort(acc)
 
 	for _, account := range acc {
@@ -336,6 +427,15 @@ func formatGCPServiceAccounts(accounts []string) string {
 }
 
 func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (string, error) {
+	// helper function to validate correctness of matched service account
+	validate := func(account string) (string, error) {
+		err := gcp.ValidateGCPServiceAccountName(account)
+		if err != nil {
+			return "", trace.Wrap(err, "chosen GCP service account %q is invalid", account)
+		}
+		return account, nil
+	}
+
 	accounts := profile.GCPServiceAccounts
 	if len(accounts) == 0 {
 		return "", trace.BadParameter("no GCP service accounts available, check your permissions")
@@ -347,7 +447,7 @@ func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (
 	if reqAccount == "" {
 		if len(accounts) == 1 {
 			log.Infof("GCP service account %v is selected by default as it is the only one available for this GCP app.", accounts[0])
-			return accounts[0], nil
+			return validate(accounts[0])
 		}
 
 		// we will never have zero identities here: this is a pre-condition checked above.
@@ -356,9 +456,9 @@ func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (
 	}
 
 	// exact match?
-	for _, identity := range accounts {
-		if identity == reqAccount {
-			return identity, nil
+	for _, account := range accounts {
+		if account == reqAccount {
+			return validate(account)
 		}
 	}
 
@@ -373,7 +473,7 @@ func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (
 
 	switch len(matches) {
 	case 1:
-		return matches[0], nil
+		return validate(matches[0])
 	case 0:
 		printGCPServiceAccounts(accounts)
 		return "", trace.NotFound("failed to find the service account matching %q", cf.GCPServiceAccount)

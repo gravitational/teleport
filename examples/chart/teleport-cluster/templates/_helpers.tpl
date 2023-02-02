@@ -18,6 +18,10 @@ if serviceAccount is not defined or serviceAccount.name is empty, use .Release.N
 {{- (semver (include "teleport-cluster.version" .)).Major -}}
 {{- end -}}
 
+{{- define "teleport-cluster.previousMajorVersion" -}}
+{{- sub (include "teleport-cluster.majorVersion" . | atoi ) 1 -}}
+{{- end -}}
+
 {{/* Proxy selector labels */}}
 {{- define "teleport-cluster.proxy.selectorLabels" -}}
 app.kubernetes.io/name: '{{ default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}'
@@ -70,6 +74,15 @@ teleport.dev/majorVersion: '{{ include "teleport-cluster.majorVersion" . }}'
 {{- define "teleport-cluster.auth.serviceName" -}}
 {{- .Release.Name | trunc 58 | trimSuffix "-" -}}-auth
 {{- end -}}
+
+{{- define "teleport-cluster.auth.currentVersionServiceName" -}}
+{{- .Release.Name | trunc 54 | trimSuffix "-" -}}-auth-v{{ include "teleport-cluster.majorVersion" . }}
+{{- end -}}
+
+{{- define "teleport-cluster.auth.previousVersionServiceName" -}}
+{{- .Release.Name | trunc 54 | trimSuffix "-" -}}-auth-v{{ include "teleport-cluster.previousMajorVersion" . }}
+{{- end -}}
+
 
 {{/* In most places we want to use the FQDN instead of relying on Kubernetes ndots behaviour
      for performance reasons */}}

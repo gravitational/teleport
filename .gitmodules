@@ -1,6 +1,3 @@
 [submodule "e"]
 	path = e
 	url = git@github.com:gravitational/teleport.e.git
-[submodule "webassets"]
-	path = webassets
-	url = https://github.com/gravitational/webassets.git

@@ -69,6 +69,8 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkUserOrHostCA(ca)
 	case types.DatabaseCA:
 		err = checkDatabaseCA(ca)
+	case types.OpenSSHCA:
+		err = checkOpenSSHCA(ca)
 	case types.JWTSigner:
 		err = checkJWTKeys(ca)
 	default:
@@ -133,6 +135,29 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 	}
 
 	return nil
+}
+
+// checkOpenSSHCA checks if provided certificate authority contains a valid SSH key pair.
+func checkOpenSSHCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+	if len(ca.Spec.ActiveKeys.SSH) == 0 {
+		return trace.BadParameter("certificate authority missing SSH key pairs")
+	}
+	if _, err := sshutils.GetCheckers(ca); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := sshutils.ValidateSigners(ca); err != nil {
+		return trace.Wrap(err)
+	}
+	// This is to force users to migrate
+	if len(ca.GetRoles()) != 0 && len(ca.GetRoleMap()) != 0 {
+		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
+	}
+	_, err := parseRoleMap(ca.GetRoleMap())
+	return trace.Wrap(err)
 }
 
 func checkJWTKeys(cai types.CertAuthority) error {

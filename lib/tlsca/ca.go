@@ -470,6 +470,10 @@ var (
 	// When using the Test Connection feature, there's propagation of the ConnectionDiagnosticID.
 	// Each service (ex DB Agent) uses that to add checkpoints describing if it was a success or a failure.
 	ConnectionDiagnosticIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 13}
+
+	// LicenseOID is an extension OID signaling the license type of Teleport build.
+	// It should take values "oss" or "ent" (the values returned by modules.GetModules().BuildType())
+	LicenseOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 14}
 )
 
 // Device Trust OIDs.
@@ -1001,6 +1005,15 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 }
 
 func (id Identity) GetUserMetadata() events.UserMetadata {
+	var device *events.DeviceMetadata
+	if id.DeviceExtensions != (DeviceExtensions{}) {
+		device = &events.DeviceMetadata{
+			DeviceId:     id.DeviceExtensions.DeviceID,
+			AssetTag:     id.DeviceExtensions.AssetTag,
+			CredentialId: id.DeviceExtensions.CredentialID,
+		}
+	}
+
 	return events.UserMetadata{
 		User:              id.Username,
 		Impersonator:      id.Impersonator,
@@ -1008,6 +1021,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		AzureIdentity:     id.RouteToApp.AzureIdentity,
 		GCPServiceAccount: id.RouteToApp.GCPServiceAccount,
 		AccessRequests:    id.ActiveRequests,
+		TrustedDevice:     device,
 	}
 }
 

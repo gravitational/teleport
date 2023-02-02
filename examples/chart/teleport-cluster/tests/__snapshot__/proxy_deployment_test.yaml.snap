@@ -1,5 +1,12 @@
 should provision initContainer correctly when set in values:
   1: |
+    - command:
+      - teleport
+      - wait
+      - no-resolve
+      - RELEASE-NAME-auth-v12.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      name: wait-auth-update
     - args:
       - echo test
       image: alpine
@@ -44,6 +51,84 @@ should set affinity when set in values:
             operator: In
             values:
             - teleport
+should set nodeSelector when set in values:
+  1: |
+    affinity:
+      podAntiAffinity: null
+    containers:
+    - args:
+      - --diag-addr=0.0.0.0:3000
+      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      imagePullPolicy: IfNotPresent
+      lifecycle:
+        preStop:
+          exec:
+            command:
+            - teleport
+            - wait
+            - duration
+            - 30s
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      name: teleport
+      ports:
+      - containerPort: 3080
+        name: tls
+        protocol: TCP
+      - containerPort: 3023
+        name: sshproxy
+        protocol: TCP
+      - containerPort: 3024
+        name: sshtun
+        protocol: TCP
+      - containerPort: 3026
+        name: kube
+        protocol: TCP
+      - containerPort: 3036
+        name: mysql
+        protocol: TCP
+      - containerPort: 3000
+        name: diag
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 12
+        httpGet:
+          path: /readyz
+          port: diag
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 1
+      volumeMounts:
+      - mountPath: /etc/teleport
+        name: config
+        readOnly: true
+      - mountPath: /var/lib/teleport
+        name: data
+    initContainers:
+    - command:
+      - teleport
+      - wait
+      - no-resolve
+      - RELEASE-NAME-auth-v12.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      name: wait-auth-update
+    nodeSelector:
+      environment: security
+      role: bastion
+    serviceAccountName: RELEASE-NAME-proxy
+    terminationGracePeriodSeconds: 60
+    volumes:
+    - configMap:
+        name: RELEASE-NAME-proxy
+      name: config
+    - emptyDir: {}
+      name: data
 should set required affinity when highAvailability.requireAntiAffinity is set:
   1: |
     podAntiAffinity:
@@ -66,8 +151,16 @@ should set resources when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:12.0.0-dev
+      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
       imagePullPolicy: IfNotPresent
+      lifecycle:
+        preStop:
+          exec:
+            command:
+            - teleport
+            - wait
+            - duration
+            - 30s
       livenessProbe:
         failureThreshold: 6
         httpGet:
@@ -78,6 +171,21 @@ should set resources when set in values:
         timeoutSeconds: 1
       name: teleport
       ports:
+      - containerPort: 3080
+        name: tls
+        protocol: TCP
+      - containerPort: 3023
+        name: sshproxy
+        protocol: TCP
+      - containerPort: 3024
+        name: sshtun
+        protocol: TCP
+      - containerPort: 3026
+        name: kube
+        protocol: TCP
+      - containerPort: 3036
+        name: mysql
+        protocol: TCP
       - containerPort: 3000
         name: diag
         protocol: TCP
@@ -102,7 +210,16 @@ should set resources when set in values:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    initContainers:
+    - command:
+      - teleport
+      - wait
+      - no-resolve
+      - RELEASE-NAME-auth-v12.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      name: wait-auth-update
     serviceAccountName: RELEASE-NAME-proxy
+    terminationGracePeriodSeconds: 60
     volumes:
     - configMap:
         name: RELEASE-NAME-proxy
@@ -116,8 +233,16 @@ should set securityContext when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:12.0.0-dev
+      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
       imagePullPolicy: IfNotPresent
+      lifecycle:
+        preStop:
+          exec:
+            command:
+            - teleport
+            - wait
+            - duration
+            - 30s
       livenessProbe:
         failureThreshold: 6
         httpGet:
@@ -128,6 +253,21 @@ should set securityContext when set in values:
         timeoutSeconds: 1
       name: teleport
       ports:
+      - containerPort: 3080
+        name: tls
+        protocol: TCP
+      - containerPort: 3023
+        name: sshproxy
+        protocol: TCP
+      - containerPort: 3024
+        name: sshtun
+        protocol: TCP
+      - containerPort: 3026
+        name: kube
+        protocol: TCP
+      - containerPort: 3036
+        name: mysql
+        protocol: TCP
       - containerPort: 3000
         name: diag
         protocol: TCP
@@ -152,7 +292,16 @@ should set securityContext when set in values:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+    initContainers:
+    - command:
+      - teleport
+      - wait
+      - no-resolve
+      - RELEASE-NAME-auth-v12.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      name: wait-auth-update
     serviceAccountName: RELEASE-NAME-proxy
+    terminationGracePeriodSeconds: 60
     volumes:
     - configMap:
         name: RELEASE-NAME-proxy

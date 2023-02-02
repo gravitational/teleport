@@ -306,6 +306,9 @@ const (
 	// KindLoginRule is a login rule resource.
 	KindLoginRule = "login_rule"
 
+	// KindSAMLIdPServiceProvider is a SAML service provider for the built in Teleport IdP.
+	KindSAMLIdPServiceProvider = "saml_idp_service_provider"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
@@ -369,6 +372,9 @@ const (
 	// OriginLabel is a resource metadata label name used to identify a source
 	// that the resource originates from.
 	OriginLabel = TeleportNamespace + "/origin"
+
+	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
+	ADLabel = TeleportNamespace + "/ad"
 
 	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
@@ -509,6 +515,9 @@ const (
 	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels
 	TeleportInternalLabelPrefix = "teleport.internal/"
 
+	// TeleportHiddenLabelPrefix is the prefix used by all user specified hidden labels
+	TeleportHiddenLabelPrefix = "teleport.hidden/"
+
 	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
 	BotLabel = TeleportInternalLabelPrefix + "bot"
 
@@ -557,6 +566,7 @@ var RequestableResourceKinds = []string{
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
+	KindKubePod,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
