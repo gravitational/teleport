@@ -75,7 +75,8 @@ func (g *UserGroupV1) CheckAndSetDefaults() error {
 type UserGroups []UserGroup
 
 // AsResources returns these groups as resources with labels.
-func (g UserGroups) AsResources() (resources ResourcesWithLabels) {
+func (g UserGroups) AsResources() (ResourcesWithLabels) {
+	resources := make([]ResourcesWithLabels, 0, len(g))
 	for _, group := range g {
 		resources = append(resources, group)
 	}

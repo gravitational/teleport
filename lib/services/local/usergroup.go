@@ -51,7 +51,6 @@ func (s *UserGroupService) ListUserGroups(ctx context.Context, pageSize int, pag
 	// Increment pageSize to allow for the extra item represented by nextKey.
 	// We skip this item in the results below.
 	limit := pageSize + 1
-	var out []types.UserGroup
 
 	// no filter provided get the range directly
 	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
@@ -59,7 +58,7 @@ func (s *UserGroupService) ListUserGroups(ctx context.Context, pageSize int, pag
 		return nil, "", trace.Wrap(err)
 	}
 
-	out = make([]types.UserGroup, 0, len(result.Items))
+	out := make([]types.UserGroup, 0, len(result.Items))
 	for _, item := range result.Items {
 		group, err := services.UnmarshalUserGroup(item.Value)
 		if err != nil {
@@ -89,10 +88,7 @@ func (s *UserGroupService) GetUserGroup(ctx context.Context, name string) (types
 	}
 	group, err := services.UnmarshalUserGroup(item.Value,
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return group, nil
+	return group, trace.Wrap(err)
 }
 
 // CreateUserGroup creates a new user group resource.
@@ -111,10 +107,7 @@ func (s *UserGroupService) CreateUserGroup(ctx context.Context, group types.User
 		ID:      group.GetResourceID(),
 	}
 	_, err = s.Create(ctx, item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(err)
 }
 
 // UpdateUserGroup updates an existing user group resource.
@@ -133,10 +126,7 @@ func (s *UserGroupService) UpdateUserGroup(ctx context.Context, group types.User
 		ID:      group.GetResourceID(),
 	}
 	_, err = s.Update(ctx, item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(err)
 }
 
 // DeleteUserGroup removes the specified user group resource.
@@ -155,10 +145,7 @@ func (s *UserGroupService) DeleteUserGroup(ctx context.Context, name string) err
 func (s *UserGroupService) DeleteAllUserGroups(ctx context.Context) error {
 	startKey := backend.Key(userGroupPrefix)
 	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(err)
 }
 
 const (

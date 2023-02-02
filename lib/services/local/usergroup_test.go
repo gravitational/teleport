@@ -108,7 +108,7 @@ func TestUserGroupCRUD(t *testing.T) {
 
 	// Try to create the same user group.
 	err = service.CreateUserGroup(ctx, g1)
-	require.IsType(t, trace.AlreadyExists(""), err)
+	require.True(t, trace.IsAlreadyExists(err))
 
 	// Update a user group.
 	g1.SetOrigin(types.OriginCloud)
