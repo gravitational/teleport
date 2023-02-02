@@ -281,14 +281,19 @@ deploy-cloud:
 deploy-cloud-login:
 	./scripts/deploy-cloud-login.sh
 
+#
 # make release - Produces a binary release tarball.
+#
 .PHONY:
 export
 release:
-	@echo
 	@echo "---> $(RELEASE_ENT_MESSAGE)"
 	$(MAKE) -C .. ensure-webassets-e
+ifeq ("$(OS)", "darwin")
+	$(MAKE) --no-print-directory release-darwin
+else
 	$(MAKE) --no-print-directory release-unix
+endif
 
 # These are aliases used to make build commands uniform.
 .PHONY: release-amd64
@@ -310,6 +315,21 @@ release-arm:
 .PHONY: release-arm64
 release-arm64:
 	$(MAKE) release ARCH=arm64
+
+.PHONY: release-darwin-unsigned
+release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
+release-darwin-unsigned: clean full build-archive
+
+.PHONY: release-darwin
+release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
+release-darwin: release-darwin-unsigned
+	# Only run if Apple username/pass for notarization are provided
+	if [ -n "$$APPLE_USERNAME" -a -n "$$APPLE_PASSWORD" ]; then \
+		cd ../build.assets/tooling/ && \
+		go run ./cmd/notarize-apple-binaries/*.go \
+			--log-level=debug $(ABSOLUTE_BINARY_PATHS); \
+	fi
+	$(MAKE) build-archive
 
 #
 # make build-archive - Packages the results of a build into a release tarball
