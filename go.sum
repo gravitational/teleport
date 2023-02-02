@@ -534,8 +534,8 @@ github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23 h1:havbccu
 github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23/go.mod h1:XL9nebvlfNVvRzRPWdDcWootcyA0l7THiH/A+W1233g=
 github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70 h1:To76nCJtM3DI0mdq3nGLzXqTV1wNOJByxv01+u9/BxM=
 github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70/go.mod h1:88hFR45MpUd23d2vNWE/dYtesU50jKsbz0I9kH7UaBY=
-github.com/gravitational/go-libfido2 v1.5.3-0.20220630200200-45a8c53e4500 h1:54z7/KbhT1dTmM1HnFQ5ggu5GZ4nUFARYaO6MNsxB1M=
-github.com/gravitational/go-libfido2 v1.5.3-0.20220630200200-45a8c53e4500/go.mod h1:P0V19qHwJNY0htZwZDe9Ilvs/nokGhdFX7faKFyZ6+U=
+github.com/gravitational/go-libfido2 v1.5.3-0.20230202181331-c71192ef1c8a h1:Wudq53GAiVk1Z+4A1tFzyvidhA6X7rGDb5JKGU9NV0c=
+github.com/gravitational/go-libfido2 v1.5.3-0.20230202181331-c71192ef1c8a/go.mod h1:92J9LtSBl0UyUWljElJpTbMMNhC6VeY8dshsu40qjjo=
 github.com/gravitational/go-mssqldb v0.11.1-0.20220509084309-3d41480ef74f h1:2x6F7hLm8XpDzV2cQL2yg3meJm7BtrWteEOnrq/pAwc=
 github.com/gravitational/go-mssqldb v0.11.1-0.20220509084309-3d41480ef74f/go.mod h1:iiK0YP1ZeepvmBQk/QpLEhhTNJgfzrpArPY/aFvc9yU=
 github.com/gravitational/go-mysql v1.5.0-teleport.1 h1:EyFryeiTYyP6KslLVp0Q5QTKwtUG5RioVrTIoP4pOuI=
