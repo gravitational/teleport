@@ -15,7 +15,7 @@
  */
 
 import React, { Suspense, useState } from 'react';
-import { Box, Text } from 'design';
+import { Box, ButtonSecondary, Text } from 'design';
 import * as Icons from 'design/Icon';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 
@@ -61,6 +61,8 @@ export default function Container(props: AgentStepProps) {
         [{ name: '*', value: '*', isFixed: true }]
   );
 
+  const [showScript, setShowScript] = useState(false);
+
   const labelProps = { labels, setLabels, dbLabels };
 
   return (
@@ -99,7 +101,30 @@ export default function Container(props: AgentStepProps) {
               </Box>
             }
           >
-            <DownloadScript {...props} {...labelProps} validator={validator} />
+            {!showScript && (
+              <Box>
+                <Heading />
+                <Labels {...labelProps} />
+                <ButtonSecondary
+                  width="200px"
+                  onClick={() => setShowScript(true)}
+                >
+                  Generate Command
+                </ButtonSecondary>
+                <ActionButtons
+                  onProceed={() => null}
+                  disableProceed={true}
+                  onSkip={props.nextStep}
+                />
+              </Box>
+            )}
+            {showScript && (
+              <DownloadScript
+                {...props}
+                {...labelProps}
+                validator={validator}
+              />
+            )}
           </Suspense>
         </CatchError>
       )}
