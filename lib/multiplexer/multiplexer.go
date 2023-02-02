@@ -96,7 +96,7 @@ func New(cfg Config) (*Mux, error) {
 	}
 
 	logLimiter, err := loglimit.New(loglimit.Config{
-		LogSubstrings: errorSubstrings,
+		MessageSubstrings: errorSubstrings,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

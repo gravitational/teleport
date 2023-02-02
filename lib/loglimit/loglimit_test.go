@@ -125,18 +125,20 @@ func TestLogLimiter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			// Create log limiter.
-			logger, hook := logtest.NewNullLogger()
-			entry := logger.WithField("from", "loglimit")
 			clock := clockwork.NewFakeClock()
 			logLimiter, err := New(Config{
-				LogSubstrings: tc.logSubstrings,
-				Clock:         clock,
+				MessageSubstrings: tc.logSubstrings,
+				Clock:             clock,
 			})
 			require.NoError(t, err)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			go logLimiter.Run(ctx)
 			defer cancel()
+
+			// Create a log entry with a hook to capture logs.
+			logger, hook := logtest.NewNullLogger()
+			entry := logger.WithField("from", "loglimit")
 
 			// Send first batch of logs to log limiter.
 			for _, message := range tc.logsFirstBatch {
