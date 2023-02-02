@@ -7,17 +7,6 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     ignore:
-      # Deprecated APIs, requires manual changes.
-      # TODO(xacrimon): Update Firestore and solve deprecations.
-      - dependency-name: cloud.google.com/go/firestore
-      # Depends on newer Firestore version.
-      - dependency-name: cloud.google.com/go/iam
-      - dependency-name: cloud.google.com/go/kms
-      - dependency-name: github.com/fsouza/fake-gcs-server
-      - dependency-name: google.golang.org/api
-      - dependency-name: google.golang.org/genproto
-      - dependency-name: cloud.google.com/go/storage
-      - dependency-name: cloud.google.com/go/container
       # Breaks backwards compatibility
       - dependency-name: github.com/gravitational/ttlmap
       # Breaks backwards compatibility
