@@ -5402,7 +5402,7 @@ func (a *ServerWithRoles) ListSAMLIdPServiceProviders(ctx context.Context, pageS
 
 // GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
 func (a *ServerWithRoles) GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
-	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList, types.VerbRead); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -5420,7 +5420,7 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
 func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
