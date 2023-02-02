@@ -19,7 +19,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
 import TeleportContext from 'teleport/teleportContext';
-import { useJoinToken } from 'teleport/Discover/Shared/useJoinToken';
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { resourceKindToJoinRole } from 'teleport/Discover/Shared/ResourceKind';
 
@@ -32,7 +32,7 @@ export function useMutualTls({ ctx, props }: Props) {
   const { attempt, run } = useAttempt('');
 
   const { emitErrorEvent } = useDiscover();
-  const { joinToken: prevFetchedJoinToken } = useJoinToken(
+  const { joinToken: prevFetchedJoinToken } = useJoinTokenSuspender(
     ResourceKind.Database
   );
   const [joinToken, setJoinToken] = useState(prevFetchedJoinToken);

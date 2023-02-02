@@ -3,7 +3,7 @@ import styled from 'styled-components';
 
 import { Editor, File, Language } from 'shared/components/Editor';
 
-import { useJoinToken } from 'teleport/Discover/Shared/useJoinToken';
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { ResourceKind } from 'teleport/Discover/Shared';
 
 import type { JoinToken } from 'teleport/services/joinToken';
@@ -52,7 +52,7 @@ const states = (joinToken: JoinToken) => [
 ];
 
 export function CreateTeleportConfigAnimation() {
-  const { joinToken } = useJoinToken(ResourceKind.Desktop);
+  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
 
   const [editorState, setEditorState] = useState(EditorState.Original);
 

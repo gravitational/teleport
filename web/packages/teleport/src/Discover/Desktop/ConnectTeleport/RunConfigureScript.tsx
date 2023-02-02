@@ -15,7 +15,7 @@ import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { generateCommand } from 'teleport/Discover/Shared/generateCommand';
 
 import cfg from 'teleport/config';
-import { useJoinToken } from 'teleport/Discover/Shared/useJoinToken';
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { ResourceKind } from 'teleport/Discover/Shared';
 
 import loading from './run-configure-script-loading.svg';
@@ -27,7 +27,7 @@ interface RunConfigureScriptProps {
 export function RunConfigureScript(
   props: React.PropsWithChildren<RunConfigureScriptProps>
 ) {
-  const { joinToken } = useJoinToken(ResourceKind.Desktop);
+  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
 
   const command = generateCommand(cfg.getConfigureADUrl(joinToken.id));
 

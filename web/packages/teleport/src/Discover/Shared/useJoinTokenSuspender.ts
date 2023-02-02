@@ -23,7 +23,7 @@ export function clearCachedJoinTokenResult(resourceKind: ResourceKind) {
   joinTokenCache.delete(resourceKind);
 }
 
-export function useJoinToken(
+export function useJoinTokenSuspender(
   resourceKind: ResourceKind,
   suggestedAgentMatcherLabels: AgentLabel[] = [],
   joinMethod: JoinMethod = 'token'
@@ -87,6 +87,9 @@ export function useJoinToken(
       return {
         joinToken: existing.response,
         reloadJoinToken() {
+          // Delete the cached token and force a rerender
+          // so that this hook runs again and creates a new one.
+
           joinTokenCache.delete(resourceKind);
 
           rerender(c => c + 1);

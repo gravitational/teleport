@@ -20,7 +20,7 @@ import { MemoryRouter } from 'react-router';
 import { Context as TeleportContext, ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { ResourceKind } from 'teleport/Discover/Shared';
-import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinToken';
+import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { userContext } from 'teleport/mocks/contexts';
 

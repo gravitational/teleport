@@ -4,7 +4,7 @@ import { useTeleport } from 'teleport';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
 import { ResourceKind } from 'teleport/Discover/Shared/ResourceKind';
-import { useJoinToken } from 'teleport/Discover/Shared/useJoinToken';
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 
 interface PingTeleportContextState<T> {
   active: boolean;
@@ -31,7 +31,7 @@ export function PingTeleportProvider<T>(props: {
   // that proxies a database that goes by this alternateSearchTerm (eg. resourceName).
   const [alternateSearchTerm, setAlternateSearchTerm] = useState('');
 
-  const { joinToken } = useJoinToken(props.resourceKind);
+  const { joinToken } = useJoinTokenSuspender(props.resourceKind);
 
   const result = usePoll<T>(
     signal =>

@@ -22,8 +22,8 @@ import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { CatchError } from 'teleport/components/CatchError';
 import {
   clearCachedJoinTokenResult,
-  useJoinToken,
-} from 'teleport/Discover/Shared/useJoinToken';
+  useJoinTokenSuspender,
+} from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import { AgentLabel } from 'teleport/services/agents';
 import cfg from 'teleport/config';
@@ -117,7 +117,10 @@ export function DownloadScript(
   }
 ) {
   // Fetches join token.
-  const { joinToken } = useJoinToken(ResourceKind.Database, props.labels);
+  const { joinToken } = useJoinTokenSuspender(
+    ResourceKind.Database,
+    props.labels
+  );
 
   // Starts resource querying interval.
   const { active, result } = usePingTeleport<Database>(

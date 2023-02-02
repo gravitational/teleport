@@ -26,8 +26,8 @@ import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { CatchError } from 'teleport/components/CatchError';
 import {
   clearCachedJoinTokenResult,
-  useJoinToken,
-} from 'teleport/Discover/Shared/useJoinToken';
+  useJoinTokenSuspender,
+} from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import useTeleport from 'teleport/useTeleport';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 
@@ -132,7 +132,9 @@ export function HelmChart(
     setClusterName(c: string): void;
   }
 ) {
-  const { joinToken, reloadJoinToken } = useJoinToken(ResourceKind.Kubernetes);
+  const { joinToken, reloadJoinToken } = useJoinTokenSuspender(
+    ResourceKind.Kubernetes
+  );
 
   return (
     <Box>
