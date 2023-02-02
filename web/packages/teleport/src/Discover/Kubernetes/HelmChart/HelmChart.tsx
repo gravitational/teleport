@@ -332,7 +332,7 @@ const InstallHelmChart = ({
   const host = `${hostname}:${port || '443'}`;
 
   // Starts resource querying interval.
-  const { result, active } = usePingTeleport<Kube>();
+  const { result, active } = usePingTeleport<Kube>(joinToken);
 
   const showHint = useShowHint(active);
 

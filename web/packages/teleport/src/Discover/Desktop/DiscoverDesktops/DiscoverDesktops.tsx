@@ -5,7 +5,12 @@ import { Box, ButtonPrimary, Text } from 'design';
 
 import { DesktopItem } from 'teleport/Discover/Desktop/DiscoverDesktops/DesktopItem';
 import { useDiscover } from 'teleport/Discover/useDiscover';
-import { Header, Mark, useShowHint } from 'teleport/Discover/Shared';
+import {
+  Header,
+  Mark,
+  ResourceKind,
+  useShowHint,
+} from 'teleport/Discover/Shared';
 import { ProxyDesktopServiceDiagram } from 'teleport/Discover/Desktop/DiscoverDesktops/ProxyDesktopServiceDiagram';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { useTeleport } from 'teleport';
@@ -16,6 +21,8 @@ import { NavLink } from 'teleport/components/Router';
 import { DiscoverEventStatus } from 'teleport/services/userEvent';
 
 import { HintBox } from 'teleport/Discover/Shared/HintBox';
+
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 
 import type { WindowsDesktopService } from 'teleport/services/desktops';
 
@@ -78,8 +85,9 @@ export function DiscoverDesktops() {
   const ctx = useTeleport();
   const { emitEvent, nextStep } = useDiscover();
 
+  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
   const { result: desktopService, active } =
-    usePingTeleport<WindowsDesktopService>();
+    usePingTeleport<WindowsDesktopService>(joinToken);
 
   const showHint = useShowHint(active);
 

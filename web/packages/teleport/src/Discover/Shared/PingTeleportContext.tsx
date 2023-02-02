@@ -2,13 +2,15 @@ import React, { useCallback, useContext, useEffect, useState } from 'react';
 
 import { useTeleport } from 'teleport';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
-import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
+import {
+  INTERNAL_RESOURCE_ID_LABEL_KEY,
+  JoinToken,
+} from 'teleport/services/joinToken';
 import { ResourceKind } from 'teleport/Discover/Shared/ResourceKind';
-import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 
 interface PingTeleportContextState<T> {
   active: boolean;
-  start: () => void;
+  start: (joinToken: JoinToken) => void;
   setAlternateSearchTerm: (resourceName: string) => void;
   result: T | null;
 }
@@ -31,7 +33,7 @@ export function PingTeleportProvider<T>(props: {
   // that proxies a database that goes by this alternateSearchTerm (eg. resourceName).
   const [alternateSearchTerm, setAlternateSearchTerm] = useState('');
 
-  const { joinToken } = useJoinTokenSuspender(props.resourceKind);
+  const [joinToken, setJoinToken] = useState<JoinToken | null>(null);
 
   const result = usePoll<T>(
     signal =>
@@ -72,7 +74,8 @@ export function PingTeleportProvider<T>(props: {
     }
   }
 
-  const start = useCallback(() => {
+  const start = useCallback((joinToken: JoinToken) => {
+    setJoinToken(joinToken);
     setActive(true);
   }, []);
 
@@ -96,12 +99,15 @@ export function PingTeleportProvider<T>(props: {
   );
 }
 
-export function usePingTeleport<T>(alternateSearchTerm?: string) {
+export function usePingTeleport<T>(
+  joinToken: JoinToken,
+  alternateSearchTerm?: string
+) {
   const ctx = useContext<PingTeleportContextState<T>>(pingTeleportContext);
 
   useEffect(() => {
     if (!ctx.active) {
-      ctx.start();
+      ctx.start(joinToken);
       ctx.setAlternateSearchTerm(alternateSearchTerm);
     }
   }, []);

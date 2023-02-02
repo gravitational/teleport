@@ -11,6 +11,9 @@ import { KeywordHighlight } from 'shared/components/AnimatedTerminal/TerminalCon
 
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import { ResourceKind } from 'teleport/Discover/Shared';
+
 import type { WindowsDesktopService } from 'teleport/services/desktops';
 
 const startLines = [
@@ -73,7 +76,8 @@ export function StartTeleportTerminalAnimation() {
   const [animationFinished, setAnimationFinished] = useState(false);
   const [lines, setLines] = useState<TerminalLine[]>([...startLines]);
 
-  const { active, result } = usePingTeleport<WindowsDesktopService>();
+  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
+  const { active, result } = usePingTeleport<WindowsDesktopService>(joinToken);
 
   const [ranConnectingAnimation, setRanConnectingAnimation] = useState(false);
   const [ranConnectedAnimation, setRanConnectedAnimation] = useState(false);

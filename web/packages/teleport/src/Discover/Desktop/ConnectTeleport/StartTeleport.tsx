@@ -16,7 +16,8 @@ import {
 
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import { HintBox } from 'teleport/Discover/Shared/HintBox';
-import { Mark, useShowHint } from 'teleport/Discover/Shared';
+import { Mark, ResourceKind, useShowHint } from 'teleport/Discover/Shared';
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 
 interface StartTeleportProps {
   onNext: () => void;
@@ -44,7 +45,8 @@ function StepWrapper(props: StepWrapperProps) {
 export function StartTeleport(
   props: React.PropsWithChildren<StartTeleportProps>
 ) {
-  const { active, result } = usePingTeleport();
+  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
+  const { active, result } = usePingTeleport(joinToken);
 
   const showHint = useShowHint(active);
 

@@ -83,7 +83,7 @@ export function DownloadScript(props: AgentStepProps) {
   // Fetches join token.
   const { joinToken } = useJoinTokenSuspender(ResourceKind.Server);
   // Starts resource querying interval.
-  const { result, active } = usePingTeleport<Node>();
+  const { result, active } = usePingTeleport<Node>(joinToken);
 
   const [showHint, setShowHint] = useState(false);
 
