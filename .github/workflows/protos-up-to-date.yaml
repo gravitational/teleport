@@ -13,7 +13,7 @@ jobs:
   protos-up-to-date:
     if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     name: Protobufs up to date
-    runs-on: ubuntu-22.04-16core
+    runs-on: ubuntu-latest
 
     permissions:
       contents: read
