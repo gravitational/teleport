@@ -18,6 +18,44 @@ guide](./manage-access/rbac.mdx).
 
 ## Role fields for managing Kubernetes access
 
+In this section, we will explain the fields within a Teleport role that
+configure access to Kubernetes clusters. 
+
+To manage access to Kubernetes clusters, a Teleport role must include the
+following fields in the `spec.allow` section:
+
+- [`kubernetes_labels`](#kubernetes_labels)
+- [`kubernetes_resources`](#kubernetes_resources)
+- [`kubernetes_groups`](#kubernetes_groups)
+- [`kubernetes_users`](#kubernetes_users)
+
+Here is an example of a Teleport role that restricts access to Kubernetes
+clusters:
+
+```yaml
+kind: role
+metadata:
+  name: kube-access
+version: v6
+spec:
+  allow:
+    kubernetes_labels:
+      'region': '*'
+      'platform': 'minikube'
+    kubernetes_resources:
+      - kind: pod
+        namespace: "production"
+        name: "^webapp-[a-z0-9-]+$"
+      - kind: pod
+        namespace: "development"
+        name: "*"
+    kubernetes_groups:
+    - developers
+    kubernetes_users:
+    - minikube
+  deny: {}
+```
+
 ### `kubernetes_labels`
 
 You can add labels to a Kubernetes cluster when you register it with Teleport.
@@ -34,48 +72,59 @@ spec:
     kubernetes_labels:
       'region': '*'
       'environment': 'development'
-# ...
+      # ...
   deny: {}
 ```
 
-The value of the `kubernetes_labels` field is a mapping from label *keys* to
-label *values*. 
+The value of the `kubernetes_labels` field is a mapping from label *keys* to one
+or more label *values* (i.e., either a string or a list).
 
-If both the key and the value of a label is the wildcard, `*`, the Teleport
+#### How the Kubernetes Service evaluates `kubernetes_labels`
+
+If both the key and the value of a label are wildcards, `*`, the Teleport
 Kubernetes Service allows the user to access Kubernetes clusters with all
 labels:
 
 ```yaml
+spec:
+  allow:
     kubernetes_labels:
       '*': '*'
+    # ...
 ```
 
-Otherwise, the Kubernetes Service checks whether one of the keys in
-`kubernetes_labels` matches one of the keys corresponding to a registered
-Kubernetes cluster. If it does not, there is no matching Kubernetes cluster.
+Otherwise, the Kubernetes Service checks whether all of the keys in
+`kubernetes_labels` match the keys corresponding to a registered Kubernetes
+cluster. If they do not, there is no matching Kubernetes cluster, and the
+Kubernetes Service denies the request. 
 
-The Kubernetes Service then checks the values of labels with the keys in
-`kubernetes_labels`. In `kubernetes_labels`, each value *must* match the value
-of a Kubernetes cluster's label before the Kubernetes Service lets a user access
-the cluster.
+For example, a cluster with labels that include the `environment` key but not
+the `region` key would not match the `kubernetes_labels` field in the
+`kube-access` role above.
 
-In other words, all labels in `kubernetes_labels` must match a cluster before a
-user can access the cluster.
+The Kubernetes Service then retrieves the values of the Kubernetes cluster
+labels with the keys in `kubernetes_labels`. The value of each key in
+`kubernetes_labels` *must* match the value of a Kubernetes cluster's label
+before the Kubernetes Service lets a user access the cluster. 
 
 For example, the `kube-access` role above allows a user to access Kubernetes
 clusters with the `region` key and any value. It restricts the user to
-Kubernetes clusters with the `environment` key and the `development` value.
+Kubernetes clusters with the `environment` key and the `development` value. We
+will explain valid values of keys within `kubernetes_labels` in the next
+section.
 
 #### Label values
 
 For the key of a label in `kubernetes_labels` to match the key of a Kubernetes
-cluster, the match must be exact.
+cluster, the match must be exact. For values, however, you can configure regular
+expressions, wildcards, and multiple values to provide flexibility.
 
-For values, however, you can use regular expressions or wildcard characters to
-match subsets or variations of a string. If a value begins with `^` and ends in
-`$`, the Kubernetes Service will treat it as a regular expression using Go's
-`re2` syntax (see the `re2`
-[README](https://github.com/google/re2/wiki/Syntax)).
+##### Regular expressions and wildcards
+
+You can use regular expressions or wildcard characters to match subsets or
+variations of a string. If a value begins with `^` and ends in `$`, the
+Kubernetes Service will treat it as a regular expression using Go's `re2` syntax
+(see the `re2` [README](https://github.com/google/re2/wiki/Syntax)).
 
 Otherwise, the Kubernetes Service evaluates wildcards within the value, matching
 them to any sequence of characters in a label. 
@@ -87,12 +136,30 @@ spec:
   allow:
     kubernetes_labels:
       'region': 'us-east-*'
-      'environment': '^(development|production)$'
+      'team': '^data-eng-[a-z-]+$'
+    # ...
 ```
 
 This `allow` rule matches clusters with the labels `region:us-east-1` and
-`region:us-east-2b`, as well as clusters with the labels
-`environment:development` and `environment:production`.
+`region:us-east-2b`. It also matches clusters with the labels
+`team:data-eng-analytics` and `team:data-eng-ml-training`.
+
+##### Multiple values
+
+If a key in `kubernetes_labels` has multiple values, the Kubernetes Service will
+consider the label values a match if **any** of these values match a Kubernetes
+cluster's labels. For example, this `kubernetes_labels` configuration matches
+clusters with the `region:us-east-2` label and either the `development` or
+`staging` environments:
+
+```yaml
+spec:
+  allow:
+    kubernetes_labels:
+      'region': 'us-east-*'
+      'environment': ['development', 'staging']
+    # ...
+```
 
 #### Applying labels
 
