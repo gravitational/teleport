@@ -95,14 +95,16 @@ func New(cfg Config) (*Mux, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	ctx, cancel := context.WithCancel(cfg.Context)
 	logLimiter, err := loglimit.New(loglimit.Config{
+		Context:           ctx,
 		MessageSubstrings: errorSubstrings,
 	})
 	if err != nil {
+		cancel()
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(cfg.Context)
 	waitContext, waitCancel := context.WithCancel(context.TODO())
 	return &Mux{
 		Entry: log.WithFields(log.Fields{
@@ -195,7 +197,6 @@ func (m *Mux) Wait() {
 // and accepts requests. Every request is served in a separate goroutine
 func (m *Mux) Serve() error {
 	defer m.waitCancel()
-	go m.logLimiter.Run(m.context)
 	for {
 		conn, err := m.Listener.Accept()
 		if err == nil {
