@@ -4303,11 +4303,11 @@ func parseMFAMode(in string) (wancli.AuthenticatorAttachment, error) {
 	}
 }
 
-// NewKubeClient connects to the proxy server and returns an authenticated gRPC
-// client.
-func (tc *TeleportClient) NewKubeClient(ctx context.Context, clusterName string) (kubeproto.KubeServiceClient, error) {
+// NewKubernetesServiceClient connects to the proxy and returns an authenticated gRPC
+// client to the Kubernetes service.
+func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, clusterName string) (kubeproto.KubeServiceClient, error) {
 	if !tc.TLSRoutingEnabled {
-		return nil, trace.BadParameter("kube client is not supported if TLS routing is not enabled")
+		return nil, trace.BadParameter("kube service is not supported if TLS routing is not enabled")
 	}
 	// get tlsConfig to dial to proxy.
 	tlsConfig, err := tc.LoadTLSConfig()

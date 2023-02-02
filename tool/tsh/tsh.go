@@ -4343,7 +4343,7 @@ func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, opts ...upd
 		if !settings.warnOnDeprecatedSNI {
 			return
 		}
-		if settings.warnSNIPrinted == nil || *settings.warnSNIPrinted == true {
+		if settings.warnSNIPrinted == nil || *settings.warnSNIPrinted {
 			return
 		}
 		warnOnDeprecatedKubeConfigServerName(cf, tc)

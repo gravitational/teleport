@@ -2818,26 +2818,23 @@ func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req p
 // GetKubernetesResourcesWithFilters is a helper for getting a list of kubernetes resources with optional filtering. In addition to
 // iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
 func GetKubernetesResourcesWithFilters(ctx context.Context, clt kubeproto.KubeServiceClient, req kubeproto.ListKubernetesResourcesRequest) ([]types.ResourceWithLabels, error) {
-	// Retrieve the complete list of resources in chunks.
 	var (
 		resources []types.ResourceWithLabels
 		startKey  string
+		// Retrieve the complete list of resources in chunks.
 		chunkSize = int32(defaults.DefaultChunkSize)
 	)
 
 	for {
-		resp, err := clt.ListKubernetesResources(ctx, &kubeproto.ListKubernetesResourcesRequest{
-			ResourceType:        req.ResourceType,
-			StartKey:            startKey,
-			Limit:               chunkSize,
-			Labels:              req.Labels,
-			SearchKeywords:      req.SearchKeywords,
-			PredicateExpression: req.PredicateExpression,
-			UseSearchAsRoles:    req.UseSearchAsRoles,
-			KubernetesCluster:   req.KubernetesCluster,
-			KubernetesNamespace: req.KubernetesNamespace,
-			TeleportCluster:     req.TeleportCluster,
-		})
+		// Reset startKey to the previous page's nextKey.
+		req.StartKey = startKey
+		// Set the chunk size based on the previous chunk size error.
+		req.Limit = chunkSize
+
+		resp, err := clt.ListKubernetesResources(
+			ctx,
+			&req,
+		)
 		if err != nil {
 			if trace.IsLimitExceeded(err) {
 				// Cut chunkSize in half if gRPC max message size is exceeded.
@@ -2846,10 +2843,8 @@ func GetKubernetesResourcesWithFilters(ctx context.Context, clt kubeproto.KubeSe
 				if chunkSize == 0 {
 					return nil, trace.Wrap(trail.FromGRPC(err), "resource is too large to retrieve")
 				}
-
 				continue
 			}
-
 			return nil, trail.FromGRPC(err)
 		}
 
@@ -2859,9 +2854,7 @@ func GetKubernetesResourcesWithFilters(ctx context.Context, clt kubeproto.KubeSe
 		if startKey == "" || len(resp.Resources) == 0 {
 			break
 		}
-
 	}
-
 	return resources, nil
 }
 

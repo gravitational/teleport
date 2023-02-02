@@ -18,7 +18,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -109,7 +108,7 @@ func onRequestList(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		if err := showRequestTable(reqs); err != nil {
+		if err := showRequestTable(cf, reqs); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON, teleport.YAML:
@@ -117,7 +116,7 @@ func onRequestList(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprint(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
@@ -157,7 +156,7 @@ func onRequestShow(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		err = printRequest(req)
+		err = printRequest(cf, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -166,7 +165,7 @@ func onRequestShow(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprint(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
@@ -184,7 +183,7 @@ func serializeAccessRequest(req types.AccessRequest, format string) (string, err
 	return string(out), trace.Wrap(err)
 }
 
-func printRequest(req types.AccessRequest) error {
+func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	reason := "[none]"
 	if r := req.GetRequestReason(); r != "" {
 		reason = fmt.Sprintf("%q", r)
@@ -214,7 +213,7 @@ func printRequest(req types.AccessRequest) error {
 	table.AddRow([]string{"Reviewers:", reviewers + " (suggested)"})
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
-	_, err := table.AsBuffer().WriteTo(os.Stdout)
+	_, err := table.AsBuffer().WriteTo(cf.Stdout())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -231,11 +230,11 @@ func printRequest(req types.AccessRequest) error {
 	}
 
 	printReviewBlock := func(title string, revs []types.AccessReview) error {
-		fmt.Println("------------------------------------------------")
-		fmt.Printf("%s:\n", title)
+		fmt.Fprint(cf.Stdout(), "------------------------------------------------")
+		fmt.Fprintf(cf.Stdout(), "%s:\n", title)
 
 		for _, rev := range revs {
-			fmt.Println("  ----------------------------------------------")
+			fmt.Fprint(cf.Stdout(), "  ----------------------------------------------")
 
 			revReason := "[none]"
 			if rev.Reason != "" {
@@ -245,7 +244,7 @@ func printRequest(req types.AccessRequest) error {
 			subTable := asciitable.MakeHeadlessTable(2)
 			subTable.AddRow([]string{"  Reviewer:", rev.Author})
 			subTable.AddRow([]string{"  Reason:", revReason})
-			_, err = subTable.AsBuffer().WriteTo(os.Stdout)
+			_, err = subTable.AsBuffer().WriteTo(cf.Stdout())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -265,7 +264,7 @@ func printRequest(req types.AccessRequest) error {
 		}
 	}
 
-	fmt.Fprintf(os.Stdout, "\nhint: %v\n", requestLoginHint)
+	fmt.Fprintf(cf.Stdout(), "\nhint: %v\n", requestLoginHint)
 	return nil
 }
 
@@ -322,14 +321,14 @@ func onRequestReview(cf *CLIConf) error {
 	}
 
 	if s := req.GetState(); s.IsPending() || s == state {
-		fmt.Fprintf(os.Stderr, "Successfully submitted review.  Request state: %s\n", req.GetState())
+		fmt.Fprintf(cf.Stderr(), "Successfully submitted review.  Request state: %s\n", req.GetState())
 	} else {
-		fmt.Fprintf(os.Stderr, "Warning: ineffectual review. Request state: %s\n", req.GetState())
+		fmt.Fprintf(cf.Stderr(), "Warning: ineffectual review. Request state: %s\n", req.GetState())
 	}
 	return nil
 }
 
-func showRequestTable(reqs []types.AccessRequest) error {
+func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 	sort.Slice(reqs, func(i, j int) bool {
 		return reqs[i].GetCreationTime().After(reqs[j].GetCreationTime())
 	})
@@ -366,10 +365,10 @@ func showRequestTable(reqs []types.AccessRequest) error {
 			req.GetState().String(),
 		})
 	}
-	_, err := table.AsBuffer().WriteTo(os.Stdout)
+	_, err := table.AsBuffer().WriteTo(cf.Stdout())
 
-	fmt.Fprintf(os.Stdout, "\nhint: use 'tsh request show <request-id>' for additional details\n")
-	fmt.Fprintf(os.Stdout, "      %v\n", requestLoginHint)
+	fmt.Fprintf(cf.Stdout(), "\nhint: use 'tsh request show <request-id>' for additional details\n")
+	fmt.Fprintf(cf.Stdout(), "      %v\n", requestLoginHint)
 	return trace.Wrap(err)
 }
 
@@ -396,7 +395,7 @@ func onRequestSearch(cf *CLIConf) error {
 	var tableColumns []string
 	switch {
 	case slices.Contains(types.KubernetesResourcesKinds, cf.ResourceKind):
-		proxyGRPCClient, err := tc.NewKubeClient(cf.Context, tc.SiteName)
+		proxyGRPCClient, err := tc.NewKubernetesServiceClient(cf.Context, tc.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -491,13 +490,13 @@ func onRequestSearch(cf *CLIConf) error {
 		rows = append(rows, row)
 	}
 	table := asciitable.MakeTableWithTruncatedColumn(tableColumns, rows, "Labels")
-	if _, err := table.AsBuffer().WriteTo(os.Stdout); err != nil {
+	if _, err := table.AsBuffer().WriteTo(cf.Stdout()); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if len(resourceIDs) > 0 {
 		resourcesStr := strings.Join(resourceIDs, " --resource ")
-		fmt.Fprintf(os.Stdout, `
+		fmt.Fprintf(cf.Stdout(), `
 To request access to these resources, run
 > tsh request create --resource %s \
     --reason <request reason>
@@ -515,9 +514,9 @@ func onRequestDrop(cf *CLIConf) error {
 	}
 
 	if len(cf.RequestIDs) == 1 && cf.RequestIDs[0] == "*" {
-		fmt.Fprintf(os.Stdout, "Dropping all active access requests...\n\n")
+		fmt.Fprintf(cf.Stdout(), "Dropping all active access requests...\n\n")
 	} else {
-		fmt.Fprintf(os.Stdout, "Dropping access request(s): %s...\n\n", strings.Join(cf.RequestIDs, ", "))
+		fmt.Fprintf(cf.Stdout(), "Dropping access request(s): %s...\n\n", strings.Join(cf.RequestIDs, ", "))
 	}
 	if err := reissueWithRequests(cf, tc, nil /*newRequests*/, cf.RequestIDs); err != nil {
 		return trace.Wrap(err)
