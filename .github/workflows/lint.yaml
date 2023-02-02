@@ -25,6 +25,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Run `go mod tidy` and check for changes in go.mod and go.sum
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: go mod tidy && git config --global --add safe.directory $( realpath . ) && git status --ignored && ! [ -n "$( git status --porcelain --ignored )" ]
+
       - name: Run linter
         run: make lint
 
