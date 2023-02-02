@@ -129,6 +129,9 @@ type Config struct {
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	// CloudUsers manage users for cloud hosted databases.
 	CloudUsers *users.Users
+	// HasForkedProcess returns true if the process has a running child forked
+	// from itself.
+	HasForkedProcess func() bool
 	// discoveryResourceChecker performs some pre-checks when creating databases
 	// discovered by the discovery service.
 	discoveryResourceChecker discoveryResourceChecker
@@ -521,7 +524,7 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 		s.log.Warnf("Failed to teardown IAM for %v: %v.", database, err)
 	}
 	// Stop heartbeat, labels, etc.
-	if err := s.stopProxyingDatabase(ctx, database); err != nil {
+	if err := s.stopProxyingDatabase(ctx, database, true); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -530,15 +533,17 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 // stopProxyingDatabase winds down the proxied database instance by stopping
 // its heartbeat and dynamic labels and unregistering it from the list of
 // proxied databases.
-func (s *Server) stopProxyingDatabase(ctx context.Context, database types.Database) error {
+func (s *Server) stopProxyingDatabase(ctx context.Context, database types.Database, deleteDatabaseServer bool) error {
 	// Stop heartbeat and dynamic labels updates.
 	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
 		return trace.Wrap(err)
 	}
 	// Heartbeat is stopped but if we don't remove this database server,
 	// it can linger for up to ~10m until its TTL expires.
-	if err := s.deleteDatabaseServer(ctx, database.GetName()); err != nil {
-		return trace.Wrap(err)
+	if deleteDatabaseServer {
+		if err := s.deleteDatabaseServer(ctx, database.GetName()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -744,8 +749,18 @@ func (s *Server) startServiceHeartbeat() error {
 func (s *Server) Close() error {
 	var errors []error
 	// Stop proxying all databases.
+	//
+	// A child process can be forked to upgrade the Teleport binary. The child
+	// will take over the heartbeats so do NOT delete the database servers in
+	// that case. In worst case scenarios if the child fails to register these
+	// databases, they will get cleanup when the old heartbeats expire.
+	deleteDatabaseServer := true
+	if s.cfg.HasForkedProcess != nil && s.cfg.HasForkedProcess() {
+		s.log.Debug("Forked process found. Not deleting database servers.")
+		deleteDatabaseServer = false
+	}
 	for _, database := range s.getProxiedDatabases() {
-		if err := s.stopProxyingDatabase(s.closeContext, database); err != nil {
+		if err := s.stopProxyingDatabase(s.closeContext, database, deleteDatabaseServer); err != nil {
 			errors = append(errors, trace.WrapWithMessage(
 				err, "stopping database %v", database.GetName()))
 		}

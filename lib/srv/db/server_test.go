@@ -247,3 +247,78 @@ func TestHeartbeatEvents(t *testing.T) {
 		})
 	}
 }
+
+func TestServerClose(t *testing.T) {
+	tests := []struct {
+		name                          string
+		hasForkedProcess              bool
+		wantDatabaseServersAfterClose bool
+	}{
+		{
+			name:                          "no forked process",
+			hasForkedProcess:              false,
+			wantDatabaseServersAfterClose: false,
+		},
+		{
+			name:                          "has forked process",
+			hasForkedProcess:              true,
+			wantDatabaseServersAfterClose: true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			testCtx := setupTestContext(ctx, t)
+
+			db0, err := makeStaticDatabase("db0", nil)
+			require.NoError(t, err)
+
+			server := testCtx.setupDatabaseServer(ctx, t, agentParams{
+				Databases: []types.Database{db0},
+				HasForkedProcess: func() bool {
+					return test.hasForkedProcess
+				},
+			})
+
+			// Validate that the server is proxying db0 after start.
+			require.Equal(t, server.getProxiedDatabases(), types.Databases{db0})
+
+			// Validate heartbeat is present after start.
+			server.ForceHeartbeat()
+			dbServers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			require.Len(t, dbServers, 1)
+			require.Equal(t, dbServers[0].GetDatabase(), db0)
+
+			// Close/Wait should not return error.
+			require.NoError(t, server.Close())
+
+			waitError := make(chan error, 1)
+			go func() {
+				waitError <- server.Wait()
+			}()
+			select {
+			case <-time.After(time.Second):
+				require.Fail(t, "failed to wait")
+			case err := <-waitError:
+				require.NoError(t, err)
+			}
+
+			// Validate that the server is not proxying db0 after close.
+			require.Empty(t, server.getProxiedDatabases())
+
+			// Validate database servers based on the test.
+			dbServersAfterClose, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			if test.wantDatabaseServersAfterClose {
+				require.Equal(t, dbServers, dbServersAfterClose)
+			} else {
+				require.Empty(t, dbServersAfterClose)
+			}
+		})
+	}
+}

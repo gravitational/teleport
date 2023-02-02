@@ -1985,6 +1985,9 @@ type agentParams struct {
 	AWSMatchers []services.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
 	AzureMatchers []services.AzureMatcher
+	// HasForkedProcess returns true if the process has a running child forked
+	// from itself.
+	HasForkedProcess func() bool
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -2093,6 +2096,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		CloudClients:             p.CloudClients,
 		AWSMatchers:              p.AWSMatchers,
 		AzureMatchers:            p.AzureMatchers,
+		HasForkedProcess:         p.HasForkedProcess,
 		discoveryResourceChecker: &fakeDiscoveryResourceChecker{},
 	})
 	require.NoError(t, err)
