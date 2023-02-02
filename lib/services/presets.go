@@ -108,14 +108,15 @@ func NewPresetAccessRole() types.Role {
 				RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
 			},
 			Allow: types.RoleConditions{
-				Namespaces:           []string{apidefaults.Namespace},
-				NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
-				AppLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
-				KubernetesLabels:     types.Labels{types.Wildcard: []string{types.Wildcard}},
-				WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseNames:        []string{teleport.TraitInternalDBNamesVariable},
-				DatabaseUsers:        []string{teleport.TraitInternalDBUsersVariable},
+				Namespaces:            []string{apidefaults.Namespace},
+				NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+				WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseNames:         []string{teleport.TraitInternalDBNamesVariable},
+				DatabaseUsers:         []string{teleport.TraitInternalDBUsersVariable},
 				KubernetesResources: []types.KubernetesResource{
 					{
 						Kind:      types.KindKubePod,
@@ -198,12 +199,15 @@ func defaultAllowRules() map[string][]types.Rule {
 }
 
 // defaultAllowLabels has the Allow labels that should be set as default when they were not explicitly defined.
-// This is used to update the current cluster roles when deploying a new resource.
+// This is used to update exiting builtin preset roles with new permissions during cluster upgrades.
 // The following Labels are supported:
 // - DatabaseServiceLabels (db_service_labels)
 func defaultAllowLabels() map[string]types.RoleConditions {
 	return map[string]types.RoleConditions{
 		teleport.PresetEditorRoleName: {
+			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+		teleport.PresetAccessRoleName: {
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	}
