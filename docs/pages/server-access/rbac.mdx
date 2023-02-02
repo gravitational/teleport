@@ -33,7 +33,7 @@ spec:
     logins: [ubuntu, debian, '{{internal.logins}}']
 
     # node_labels: a user with this role will be allowed to connect to
-    # SSH nodes, which labels match expressions below.
+    # SSH nodes whose labels match any of the expressions below.
     node_labels:
       # literal strings:
       'env': 'test'
