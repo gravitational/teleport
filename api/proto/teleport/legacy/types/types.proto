@@ -4790,7 +4790,7 @@ message PluginSlackAccessSettings {
 }
 
 message PluginInitialCredentialsV1 {
-  oneof Credentials {
+  oneof credentials {
     PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
   }
 }
@@ -4824,7 +4824,7 @@ enum PluginStatusCode {
 // PluginCredentialsV1 represents "live" credentials
 // that are used by the plugin to authenticate to the 3rd party API.
 message PluginCredentialsV1 {
-  oneof Credentials {
+  oneof credentials {
     PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
   }
 }
