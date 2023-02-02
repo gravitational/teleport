@@ -231,11 +231,7 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 		}
 	}
 	_, err := tlsca.ParseCertificatePEM(pair.Cert)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.Wrap(err)
 }
 
 // GetJWTSigner returns the active JWT key used to sign tokens.
