@@ -574,7 +574,7 @@ func (m *UIRecoveryCodesPrintClickEvent) GetUsername() string {
 // DiscoverMetadata contains common metadata for Discover related events.
 type DiscoverMetadata struct {
 	// Uniquely identifies Discover wizard "session". Will allow to correlate
-	// events within the same Discover wizard run. Can be UUIDv4.
+	// events within the same Discover wizard run.
 	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -921,8 +921,7 @@ func (m *UIDiscoverDeployServiceEvent) GetStatus() *DiscoverStepStatus {
 	return nil
 }
 
-// UIDiscoverDatabaseRegisterEvent is emitted when a user registers a database resource
-// and goes to the next step.
+// UIDiscoverDatabaseRegisterEvent is emitted when a user is finished with the step that registers a database resource.
 type UIDiscoverDatabaseRegisterEvent struct {
 	Metadata             *DiscoverMetadata         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Resource             *DiscoverResourceMetadata `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
@@ -986,8 +985,7 @@ func (m *UIDiscoverDatabaseRegisterEvent) GetStatus() *DiscoverStepStatus {
 	return nil
 }
 
-// UIDiscoverDatabaseConfigureMTLSEvent is emitted when a user configures mutual TLS for self-hosted database
-// and goes to the next step.
+// UIDiscoverDatabaseConfigureMTLSEvent is emitted when a user is finished with the step that configures mutual TLS for a self-hosted database.
 type UIDiscoverDatabaseConfigureMTLSEvent struct {
 	Metadata             *DiscoverMetadata         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Resource             *DiscoverResourceMetadata `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
@@ -1051,8 +1049,7 @@ func (m *UIDiscoverDatabaseConfigureMTLSEvent) GetStatus() *DiscoverStepStatus {
 	return nil
 }
 
-// UIDiscoverDesktopActiveDirectoryToolsInstallEvent is emitted when the user is asked to run the install Active Directory tools script.
-// This happens on the Desktop flow.
+// UIDiscoverDesktopActiveDirectoryToolsInstallEvent is emitted when the user is finished with the step that asks user to run the install Active Directory tools script for the Desktop flow.
 type UIDiscoverDesktopActiveDirectoryToolsInstallEvent struct {
 	Metadata             *DiscoverMetadata         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Resource             *DiscoverResourceMetadata `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
@@ -1120,8 +1117,7 @@ func (m *UIDiscoverDesktopActiveDirectoryToolsInstallEvent) GetStatus() *Discove
 	return nil
 }
 
-// UIDiscoverDesktopActiveDirectoryConfigureEvent is emitted when the user is asked to run the Configure Active Directory script.
-// This happens on the Desktop flow.
+// UIDiscoverDesktopActiveDirectoryConfigureEvent is emitted when the user is finished with the step that asks user to run the Configure Active Directory script for the Desktop flow.
 type UIDiscoverDesktopActiveDirectoryConfigureEvent struct {
 	Metadata             *DiscoverMetadata         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Resource             *DiscoverResourceMetadata `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
@@ -1189,8 +1185,8 @@ func (m *UIDiscoverDesktopActiveDirectoryConfigureEvent) GetStatus() *DiscoverSt
 	return nil
 }
 
-// UIDiscoverAutoDiscoveredResourcesEvent is emitted when the user is presented with the list of auto discovered resources.
-// resources_count field must contain the number of discovered resources when the user leaves the screen.
+// UIDiscoverAutoDiscoveredResourcesEvent is emitted when the user is finished with the step that auto discovers resources (waiting until resources show up).
+// resources_count field must reflect the latest amount of discovered resources (get the number after user is finished with this step).
 type UIDiscoverAutoDiscoveredResourcesEvent struct {
 	Metadata             *DiscoverMetadata         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Resource             *DiscoverResourceMetadata `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
@@ -1264,8 +1260,7 @@ func (m *UIDiscoverAutoDiscoveredResourcesEvent) GetResourcesCount() int64 {
 	return 0
 }
 
-// UIDiscoverDatabaseConfigureIAMPolicyEvent is emitted when a user configured IAM for RDS database
-// and proceeded to the next step.
+// UIDiscoverDatabaseConfigureIAMPolicyEvent is emitted when a user is finished with the step that configures IAM policy for an RDS database.
 type UIDiscoverDatabaseConfigureIAMPolicyEvent struct {
 	Metadata             *DiscoverMetadata         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Resource             *DiscoverResourceMetadata `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
@@ -1333,8 +1328,7 @@ func (m *UIDiscoverDatabaseConfigureIAMPolicyEvent) GetStatus() *DiscoverStepSta
 	return nil
 }
 
-// UIDiscoverPrincipalsConfigureEvent emitted on "Setup Access" screen when user has updated their principals
-// and proceeded to the next step.
+// UIDiscoverPrincipalsConfigureEvent is emitted when a user is finished with the step that allows user to update their principals (setting up access).
 type UIDiscoverPrincipalsConfigureEvent struct {
 	Metadata             *DiscoverMetadata         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Resource             *DiscoverResourceMetadata `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`

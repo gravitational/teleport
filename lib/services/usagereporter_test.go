@@ -123,7 +123,7 @@ func TestConvertUsageEvent(t *testing.T) {
 			},
 		},
 		{
-			name: "error when discover has resources count and its values is zero: no error",
+			name: "when discover has resources count and its values is zero: no error",
 			event: &usageevents.UsageEventOneOf{Event: &usageevents.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
 				UiDiscoverAutoDiscoveredResourcesEvent: &usageevents.UIDiscoverAutoDiscoveredResourcesEvent{
 					Metadata:       &usageevents.DiscoverMetadata{Id: "someid"},
@@ -147,7 +147,7 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 		},
 		{
-			name: "error when discover has resources count and its values is positive: no error",
+			name: "when discover has resources count and its values is positive: no error",
 			event: &usageevents.UsageEventOneOf{Event: &usageevents.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
 				UiDiscoverAutoDiscoveredResourcesEvent: &usageevents.UIDiscoverAutoDiscoveredResourcesEvent{
 					Metadata:       &usageevents.DiscoverMetadata{Id: "someid"},
@@ -171,7 +171,7 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 		},
 		{
-			name: "error when discover has resources count and its values is negative: bad parameter error",
+			name: "when discover has resources count and its values is negative: bad parameter error",
 			event: &usageevents.UsageEventOneOf{Event: &usageevents.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
 				UiDiscoverAutoDiscoveredResourcesEvent: &usageevents.UIDiscoverAutoDiscoveredResourcesEvent{
 					Metadata:       &usageevents.DiscoverMetadata{Id: "someid"},
