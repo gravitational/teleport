@@ -125,16 +125,15 @@ func TestLogLimiter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			// Create log limiter.
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 			clock := clockwork.NewFakeClock()
 			logLimiter, err := New(Config{
+				Context:           ctx,
 				MessageSubstrings: tc.logSubstrings,
 				Clock:             clock,
 			})
 			require.NoError(t, err)
-
-			ctx, cancel := context.WithCancel(context.Background())
-			go logLimiter.Run(ctx)
-			defer cancel()
 
 			// Create a log entry with a hook to capture logs.
 			logger, hook := logtest.NewNullLogger()

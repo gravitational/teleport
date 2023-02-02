@@ -40,6 +40,8 @@ const (
 
 // Config contains the log limiter config.
 type Config struct {
+	// Context is a context to signal stops, cancellations.
+	Context context.Context
 	// MessageSubstrings contains a list of substrings belonging to the
 	// logs that should be deduplicated.
 	MessageSubstrings []string
@@ -50,6 +52,9 @@ type Config struct {
 
 // checkAndSetDefaults verifies configuration and sets defaults
 func (c *Config) checkAndSetDefaults() error {
+	if c.Context == nil {
+		c.Context = context.TODO()
+	}
 	if c.MessageSubstrings == nil {
 		return trace.BadParameter("missing parameter MessageSubstrings")
 	}
@@ -95,11 +100,14 @@ func New(config Config) (*LogLimiter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &LogLimiter{
+	l := &LogLimiter{
 		config:    config,
 		windows:   make(map[string]*entryInfo, len(config.MessageSubstrings)),
 		cleanupCh: make(chan chan struct{}),
-	}, nil
+	}
+	// Start the goroutine responsible for removing expired time windows.
+	go l.run()
+	return l, nil
 }
 
 // Log deduplicates log entries that should be deduplicated.
@@ -116,7 +124,7 @@ func (l *LogLimiter) Log(entry *log.Entry, level log.Level, args ...any) {
 }
 
 // Run runs the cleanup of expired time windows periodically.
-func (l *LogLimiter) Run(ctx context.Context) {
+func (l *LogLimiter) run() {
 	t := l.config.Clock.NewTicker(timeWindowCleanupInterval)
 	defer t.Stop()
 
@@ -127,7 +135,7 @@ func (l *LogLimiter) Run(ctx context.Context) {
 		case notifyCh := <-l.cleanupCh:
 			l.cleanup()
 			notifyCh <- struct{}{}
-		case <-ctx.Done():
+		case <-l.config.Context.Done():
 			return
 		}
 	}
