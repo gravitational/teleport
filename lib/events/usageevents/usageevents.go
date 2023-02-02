@@ -104,6 +104,10 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 		return trace.Wrap(u.report(&services.UsageSSOCreate{
 			ConnectorType: types.KindSAMLConnector,
 		}))
+	case *apievents.RoleCreate:
+		return trace.Wrap(u.report(&services.UsageRoleCreate{
+			UserName: e.User,
+		}))
 	}
 
 	return nil

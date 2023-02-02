@@ -873,6 +873,111 @@ export namespace UIDiscoverCompletedEvent {
     }
 }
 
+export class RoleCreateEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): RoleCreateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): RoleCreateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: RoleCreateEvent): RoleCreateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: RoleCreateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): RoleCreateEvent;
+    static deserializeBinaryFromReader(message: RoleCreateEvent, reader: jspb.BinaryReader): RoleCreateEvent;
+}
+
+export namespace RoleCreateEvent {
+    export type AsObject = {
+        userName: string,
+    }
+}
+
+export class UICreateNewRoleClickEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): UICreateNewRoleClickEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UICreateNewRoleClickEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UICreateNewRoleClickEvent): UICreateNewRoleClickEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UICreateNewRoleClickEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UICreateNewRoleClickEvent;
+    static deserializeBinaryFromReader(message: UICreateNewRoleClickEvent, reader: jspb.BinaryReader): UICreateNewRoleClickEvent;
+}
+
+export namespace UICreateNewRoleClickEvent {
+    export type AsObject = {
+        userName: string,
+    }
+}
+
+export class UICreateNewRoleSaveClickEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): UICreateNewRoleSaveClickEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UICreateNewRoleSaveClickEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UICreateNewRoleSaveClickEvent): UICreateNewRoleSaveClickEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UICreateNewRoleSaveClickEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UICreateNewRoleSaveClickEvent;
+    static deserializeBinaryFromReader(message: UICreateNewRoleSaveClickEvent, reader: jspb.BinaryReader): UICreateNewRoleSaveClickEvent;
+}
+
+export namespace UICreateNewRoleSaveClickEvent {
+    export type AsObject = {
+        userName: string,
+    }
+}
+
+export class UICreateNewRoleCancelClickEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): UICreateNewRoleCancelClickEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UICreateNewRoleCancelClickEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UICreateNewRoleCancelClickEvent): UICreateNewRoleCancelClickEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UICreateNewRoleCancelClickEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UICreateNewRoleCancelClickEvent;
+    static deserializeBinaryFromReader(message: UICreateNewRoleCancelClickEvent, reader: jspb.BinaryReader): UICreateNewRoleCancelClickEvent;
+}
+
+export namespace UICreateNewRoleCancelClickEvent {
+    export type AsObject = {
+        userName: string,
+    }
+}
+
+export class UICreateNewRoleViewDocumentationClickEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): UICreateNewRoleViewDocumentationClickEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UICreateNewRoleViewDocumentationClickEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UICreateNewRoleViewDocumentationClickEvent): UICreateNewRoleViewDocumentationClickEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UICreateNewRoleViewDocumentationClickEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UICreateNewRoleViewDocumentationClickEvent;
+    static deserializeBinaryFromReader(message: UICreateNewRoleViewDocumentationClickEvent, reader: jspb.BinaryReader): UICreateNewRoleViewDocumentationClickEvent;
+}
+
+export namespace UICreateNewRoleViewDocumentationClickEvent {
+    export type AsObject = {
+        userName: string,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -1046,6 +1151,36 @@ export class SubmitEventRequest extends jspb.Message {
     setUiDiscoverCompletedEvent(value?: UIDiscoverCompletedEvent): SubmitEventRequest;
 
 
+    hasRoleCreate(): boolean;
+    clearRoleCreate(): void;
+    getRoleCreate(): RoleCreateEvent | undefined;
+    setRoleCreate(value?: RoleCreateEvent): SubmitEventRequest;
+
+
+    hasUiCreateNewRoleClick(): boolean;
+    clearUiCreateNewRoleClick(): void;
+    getUiCreateNewRoleClick(): UICreateNewRoleClickEvent | undefined;
+    setUiCreateNewRoleClick(value?: UICreateNewRoleClickEvent): SubmitEventRequest;
+
+
+    hasUiCreateNewRoleSaveClick(): boolean;
+    clearUiCreateNewRoleSaveClick(): void;
+    getUiCreateNewRoleSaveClick(): UICreateNewRoleSaveClickEvent | undefined;
+    setUiCreateNewRoleSaveClick(value?: UICreateNewRoleSaveClickEvent): SubmitEventRequest;
+
+
+    hasUiCreateNewRoleCancelClick(): boolean;
+    clearUiCreateNewRoleCancelClick(): void;
+    getUiCreateNewRoleCancelClick(): UICreateNewRoleCancelClickEvent | undefined;
+    setUiCreateNewRoleCancelClick(value?: UICreateNewRoleCancelClickEvent): SubmitEventRequest;
+
+
+    hasUiCreateNewRoleViewDocumentationClick(): boolean;
+    clearUiCreateNewRoleViewDocumentationClick(): void;
+    getUiCreateNewRoleViewDocumentationClick(): UICreateNewRoleViewDocumentationClickEvent | undefined;
+    setUiCreateNewRoleViewDocumentationClick(value?: UICreateNewRoleViewDocumentationClickEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1089,6 +1224,11 @@ export namespace SubmitEventRequest {
         uiDiscoverPrincipalsConfigureEvent?: UIDiscoverPrincipalsConfigureEvent.AsObject,
         uiDiscoverTestConnectionEvent?: UIDiscoverTestConnectionEvent.AsObject,
         uiDiscoverCompletedEvent?: UIDiscoverCompletedEvent.AsObject,
+        roleCreate?: RoleCreateEvent.AsObject,
+        uiCreateNewRoleClick?: UICreateNewRoleClickEvent.AsObject,
+        uiCreateNewRoleSaveClick?: UICreateNewRoleSaveClickEvent.AsObject,
+        uiCreateNewRoleCancelClick?: UICreateNewRoleCancelClickEvent.AsObject,
+        uiCreateNewRoleViewDocumentationClick?: UICreateNewRoleViewDocumentationClickEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1147,6 +1287,16 @@ export namespace SubmitEventRequest {
     UI_DISCOVER_TEST_CONNECTION_EVENT = 29,
 
     UI_DISCOVER_COMPLETED_EVENT = 30,
+
+    ROLE_CREATE = 31,
+
+    UI_CREATE_NEW_ROLE_CLICK = 32,
+
+    UI_CREATE_NEW_ROLE_SAVE_CLICK = 33,
+
+    UI_CREATE_NEW_ROLE_CANCEL_CLICK = 34,
+
+    UI_CREATE_NEW_ROLE_VIEW_DOCUMENTATION_CLICK = 35,
 
     }
 

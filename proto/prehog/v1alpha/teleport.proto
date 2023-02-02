@@ -272,6 +272,29 @@ message UIDiscoverCompletedEvent {
   DiscoverStepStatus status = 3;
 }
 
+// RoleCreateEvent is emitted when user creates a custom role.
+message RoleCreateEvent {
+  // anonymized
+  string user_name = 1;
+}
+
+message UICreateNewRoleClickEvent {
+  //anonymized
+  string user_name = 1;
+}
+message UICreateNewRoleSaveClickEvent {
+  //anonymized
+  string user_name = 1;
+}
+message UICreateNewRoleCancelClickEvent {
+  //anonymized
+  string user_name = 1;
+}
+message UICreateNewRoleViewDocumentationClickEvent {
+  //anonymized
+  string user_name = 1;
+}
+
 message SubmitEventRequest {
   // anonymized
   string cluster_name = 1;
@@ -318,6 +341,13 @@ message SubmitEventRequest {
     UIDiscoverPrincipalsConfigureEvent ui_discover_principals_configure_event = 28;
     UIDiscoverTestConnectionEvent ui_discover_test_connection_event = 29;
     UIDiscoverCompletedEvent ui_discover_completed_event = 30;
+
+    RoleCreateEvent role_create = 31;
+
+    UICreateNewRoleClickEvent ui_create_new_role_click = 32;
+    UICreateNewRoleSaveClickEvent ui_create_new_role_save_click = 33;
+    UICreateNewRoleCancelClickEvent ui_create_new_role_cancel_click = 34;
+    UICreateNewRoleViewDocumentationClickEvent ui_create_new_role_view_documentation_click = 35;
   }
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
