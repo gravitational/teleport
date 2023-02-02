@@ -6804,6 +6804,7 @@ trigger:
   repo:
     include:
     - gravitational/teleport
+    - gravitational/teleport-private
 workspace:
   path: /go
 clone:
@@ -6855,7 +6856,9 @@ steps:
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
   - rm -rf "$ARTIFACT_PATH"/*
-  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
+  - if [ "${DRONE_REPO_PRIVATE}" = true ]; then ENT_FILTER="*ent"; fi
+  - FILTER="${ENT_FILTER}*.deb*"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "$FILTER" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
     "$ARTIFACT_PATH"
   environment:
     ARTIFACT_PATH: /go/artifacts
@@ -7007,6 +7010,7 @@ trigger:
   repo:
     include:
     - gravitational/teleport
+    - gravitational/teleport-private
 workspace:
   path: /go
 clone:
@@ -7058,7 +7062,9 @@ steps:
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
   - rm -rf "$ARTIFACT_PATH"/*
-  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
+  - if [ "${DRONE_REPO_PRIVATE}" = true ]; then ENT_FILTER="*ent"; fi
+  - FILTER="${ENT_FILTER}*.rpm*"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "$FILTER" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
     "$ARTIFACT_PATH"
   environment:
     ARTIFACT_PATH: /go/artifacts
@@ -18925,6 +18931,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: e7e5e856aa033ea22af6f89a7d9c29d68e83208ece0a3f99ecebeb087f866325
+hmac: 6b868cbd7077370deba0f512a1c06369c9b2c586a35919abce4fc96a31b4c9a2
 
 ...
