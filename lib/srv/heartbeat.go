@@ -431,10 +431,6 @@ func (h *Heartbeat) announce() error {
 			if !ok {
 				return trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
-			node, err := h.filterEC2Labels(node)
-			if err != nil {
-				return trace.Wrap(err)
-			}
 			keepAlive, err := h.Announcer.UpsertNode(h.cancelCtx, node)
 			if err != nil {
 				return trace.Wrap(err)
@@ -618,22 +614,6 @@ func (h *Heartbeat) announce() error {
 	default:
 		return trace.BadParameter("unsupported state: %v", h.state)
 	}
-}
-
-func (h *Heartbeat) filterEC2Labels(server types.Server) (types.Server, error) {
-	instanceID := server.GetMetadata().Labels[types.AWSInstanceIDLabel]
-	accountID := server.GetMetadata().Labels[types.AWSAccountIDLabel]
-	if instanceID == "" && accountID == "" {
-		return server, nil
-	}
-	discovered, err := h.Announcer.GetDiscoveredServer(h.cancelCtx, instanceID, accountID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	newServer := server.DeepCopy()
-	// DONT INCLUDE THIS COMMENT IN PR/TODO: Double check this is the correct way to overwrite these labels
-	newServer.SetStaticLabels(discovered.GetDiscoveredLabels())
-	return newServer, nil
 }
 
 func (h *Heartbeat) notifySend() {

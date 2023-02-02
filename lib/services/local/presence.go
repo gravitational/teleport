@@ -248,6 +248,13 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	if n := server.GetNamespace(); n != apidefaults.Namespace {
 		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
 	}
+
+	// Replace labels returned from aut discovered ec2 isntances
+	server, err := s.filterEC2Labels(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	value, err := services.MarshalServer(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -269,6 +276,21 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		LeaseID: lease.ID,
 		Name:    server.GetName(),
 	}, nil
+}
+
+func (s *PresenceService) filterEC2Labels(ctx context.Context, server types.Server) (types.Server, error) {
+	instanceID := server.GetMetadata().Labels[types.AWSInstanceIDLabel]
+	accountID := server.GetMetadata().Labels[types.AWSAccountIDLabel]
+	if instanceID == "" && accountID == "" {
+		return server, nil
+	}
+	discovered, err := s.GetDiscoveredServer(ctx, instanceID, accountID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	newServer := server.DeepCopy()
+	newServer.SetStaticLabels(discovered.GetDiscoveredLabels())
+	return newServer, nil
 }
 
 // DELETE IN: 5.1.0.
