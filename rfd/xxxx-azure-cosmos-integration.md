@@ -105,6 +105,12 @@ the database key. Placing all four keys as different users, using their [kind](h
 (`KeyKindPrimary`, `KeyKindPrimaryReadonly`, `KeyKindSecondary`,
 `KeyKindSecondaryReadonly`) as identifier.
 
+Given that most database clients issue multiple connections during their startup
+(to name some `mongosh` and the Golang driver), we should cache the key for a
+short period (for example, 15 seconds) to avoid making too many requests to
+Azure in a short period. The caching also improves the time to connect as it
+will only make a single request to Azure.
+
 On MongoDB and Cassandra connection setup, we use the [`GetPassword`](https://github.com/gravitational/teleport/blob/master/lib/srv/db/cloud/users/users.go#L120)
 using the proper username to fetch the password. After getting the password,
 the engine will define the correct authentication configuration.
