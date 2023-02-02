@@ -69,7 +69,34 @@ The selection is made based on the database username the client provides, where:
 Anything different from those users will return a connection error.
 
 This will give the users the ability to have different access levels to the
-database and even limit them on Teleport RBAC if they need to.
+database and even limit them on Teleport RBAC if they need to:
+
+```bash
+# Connect using readonly user will prevent users from running any write command.
+$ teleport db connect --db-user=readonly mongodb
+> db.example.insert({test: true})
+Uncaught:
+MongoServerError: Error=13, Details='Response status code does not indicate success: Unauthorized (401); ...
+> db.example.find({})
+[
+  { _id: ObjectId("63b30f8ac9af5c4c2a0ef2e3"), test: true }
+]
+```
+
+They're also able to create RBAC to limit access by limiting `db_users` and
+attach it to users to restrict their access:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: cosmosdb-readonly-access
+spec:
+  allow:
+    db_users: ['readonly']
+    db_labels:
+      'cosmosdb': 'true'
+```
 
 #### Implementation
 We can rely on Teleport [Cloud-managed users](https://github.com/gravitational/teleport/blob/master/lib/srv/db/cloud/users/user.go#L31)
