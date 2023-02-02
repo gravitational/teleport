@@ -4,7 +4,7 @@ type: kubernetes
 name: push-build-linux-amd64
 
 environment:
-  RUNTIME: go1.19.5
+  RUNTIME: go1.20
   UID: 1000
   GID: 1000
 
@@ -107,7 +107,7 @@ type: kubernetes
 name: push-build-linux-i386
 
 environment:
-  RUNTIME: go1.19.5
+  RUNTIME: go1.20
   UID: 1000
   GID: 1000
 
@@ -210,7 +210,7 @@ type: kubernetes
 name: push-build-linux-amd64-fips
 
 environment:
-  RUNTIME: go1.19.5
+  RUNTIME: go1.20
   UID: 1000
   GID: 1000
 
@@ -318,7 +318,7 @@ type: kubernetes
 name: push-build-windows-amd64
 
 environment:
-  RUNTIME: go1.19.5
+  RUNTIME: go1.20
   UID: 1000
   GID: 1000
 
@@ -486,7 +486,7 @@ steps:
 
   - name: Install Go Toolchain
     environment:
-      RUNTIME: go1.19.5
+      RUNTIME: go1.20
     commands:
       - set -u
       - mkdir -p ~/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED-toolchains
@@ -593,7 +593,7 @@ type: kubernetes
 name: push-build-linux-arm
 
 environment:
-  RUNTIME: go1.19.5
+  RUNTIME: go1.20
   UID: 1000
   GID: 1000
 
@@ -696,7 +696,7 @@ type: kubernetes
 name: push-build-linux-arm64
 
 environment:
-  RUNTIME: go1.19.5
+  RUNTIME: go1.20
   UID: 1000
   GID: 1000
 
@@ -795,6 +795,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 751d683aadb93a5dda3e7780219b9bd02f5c85ec77ff23e01404b39e874ee79e
+hmac: eb6139728e40be753763a2289a32fda90af301764b79a96edfde8147bcff3a5f
 
 ...
