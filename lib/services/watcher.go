@@ -1740,15 +1740,14 @@ func (p *samlIDPServiceProviderCollector) resourceKind() string {
 	return types.KindSAMLIdPServiceProvider
 }
 
-// isInitialized is used to check that the cache has done its initial
-// sync
+// initializationChan is used to check if the initial state sync has been completed.
 func (p *samlIDPServiceProviderCollector) initializationChan() <-chan struct{} {
 	return p.initializationC
 }
 
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
 func (p *samlIDPServiceProviderCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	samlIDPServiceProviders := make([]types.SAMLIdPServiceProvider, 0)
+	var samlIDPServiceProviders []types.SAMLIdPServiceProvider
 	nextToken := ""
 	for {
 		var sps []types.SAMLIdPServiceProvider
