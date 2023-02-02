@@ -813,7 +813,7 @@
           "entries": [
             {
                "title": "AWS DynamoDB",
-               "slug": "/database-access/guides/dynamodb/"
+               "slug": "/database-access/guides/aws-dynamodb/"
             },
             {
                "title": "AWS ElastiCache & MemoryDB",
