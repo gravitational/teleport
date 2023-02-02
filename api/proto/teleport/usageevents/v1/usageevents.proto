@@ -82,7 +82,7 @@ message UIRecoveryCodesPrintClickEvent {
 // DiscoverMetadata contains common metadata for Discover related events.
 message DiscoverMetadata {
   // Uniquely identifies Discover wizard "session". Will allow to correlate
-  // events within the same Discover wizard run. Can be UUIDv4.
+  // events within the same Discover wizard run.
   string id = 1;
 }
 

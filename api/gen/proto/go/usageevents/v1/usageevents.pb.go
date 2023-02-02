@@ -574,7 +574,7 @@ func (m *UIRecoveryCodesPrintClickEvent) GetUsername() string {
 // DiscoverMetadata contains common metadata for Discover related events.
 type DiscoverMetadata struct {
 	// Uniquely identifies Discover wizard "session". Will allow to correlate
-	// events within the same Discover wizard run. Can be UUIDv4.
+	// events within the same Discover wizard run.
 	Id                   string   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
