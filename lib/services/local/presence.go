@@ -249,7 +249,7 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
 	}
 
-	// Replace labels returned from aut discovered ec2 isntances
+	// Use labels from discovered resources instead of ones reported by discovered ec2 instances
 	server, err := s.filterEC2Labels(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)

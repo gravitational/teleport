@@ -30,9 +30,6 @@ import (
 )
 
 const (
-	// AWSLabelNamespace is used as the namespace prefix for any labels
-	// imported from AWS.
-	AWSLabelNamespace = "aws"
 	// AzureLabelNamespace is used as the namespace prefix for any labels
 	// imported from Azure.
 	AzureLabelNamespace = "azure"
@@ -41,7 +38,6 @@ const (
 )
 
 const (
-	awsErrorMessage   = "Could not fetch EC2 instance's tags, please ensure 'allow instance tags in metadata' is enabled on the instance."
 	azureErrorMessage = "Could not fetch Azure instance's tags."
 )
 
@@ -92,17 +88,10 @@ func NewCloudImporter(ctx context.Context, c *CloudConfig) (*CloudImporter, erro
 		closeCh:     make(chan struct{}),
 	}
 	switch c.Client.GetType() {
-	case types.InstanceMetadataTypeEC2:
-		cloudImporter.initEC2()
 	case types.InstanceMetadataTypeAzure:
 		cloudImporter.initAzure()
 	}
 	return cloudImporter, nil
-}
-
-func (l *CloudImporter) initEC2() {
-	l.namespace = AWSLabelNamespace
-	l.instanceMetadataHint = awsErrorMessage
 }
 
 func (l *CloudImporter) initAzure() {
