@@ -53,7 +53,7 @@ type Config struct {
 // checkAndSetDefaults verifies configuration and sets defaults
 func (c *Config) checkAndSetDefaults() error {
 	if c.Context == nil {
-		c.Context = context.TODO()
+		c.Context = context.Background()
 	}
 	if c.MessageSubstrings == nil {
 		return trace.BadParameter("missing parameter MessageSubstrings")
