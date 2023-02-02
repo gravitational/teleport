@@ -58,6 +58,12 @@ export function resourceKindToEventResource(
         if (engine === DatabaseEngine.MySQL) {
           return DiscoverEventResource.DatabaseMysqlRds;
         }
+        if (engine === DatabaseEngine.SQLServer) {
+          return DiscoverEventResource.DatabaseSqlServerRds;
+        }
+        if (engine === DatabaseEngine.RedShift) {
+          return DiscoverEventResource.DatabasePostgresRedshift;
+        }
       }
 
       if (location === DatabaseLocation.SelfHosted) {
@@ -70,7 +76,26 @@ export function resourceKindToEventResource(
         if (engine === DatabaseEngine.Mongo) {
           return DiscoverEventResource.DatabaseMongodbSelfHosted;
         }
+        if (engine === DatabaseEngine.SQLServer) {
+          return DiscoverEventResource.DatabaseSqlServerSelfHosted;
+        }
+        if (engine === DatabaseEngine.Redis) {
+          return DiscoverEventResource.DatabaseRedisSelfHosted;
+        }
       }
+
+      if (location === DatabaseLocation.GCP) {
+        if (engine === DatabaseEngine.PostgreSQL) {
+          return DiscoverEventResource.DatabasePostgresGcp;
+        }
+        if (engine === DatabaseEngine.MySQL) {
+          return DiscoverEventResource.DatabaseMysqlGcp;
+        }
+        if (engine === DatabaseEngine.SQLServer) {
+          return DiscoverEventResource.DatabaseMysqlGcp;
+        }
+      }
+      console.error(`resource database event not defined for ${resourceState}`);
       return null;
     case ResourceKind.Desktop:
       return DiscoverEventResource.WindowsDesktop;
@@ -78,7 +103,8 @@ export function resourceKindToEventResource(
       return DiscoverEventResource.Kubernetes;
     case ResourceKind.Server:
       return DiscoverEventResource.Server;
-
+    case ResourceKind.Application:
+      return DiscoverEventResource.ApplicationHttp;
     default:
       console.error(`resource event not defined for ${resourceState}`);
   }

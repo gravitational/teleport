@@ -73,7 +73,7 @@ interface DiscoverContextState<T = any> {
   updateAgentMeta: (meta: AgentMeta) => void;
   views: View[];
   emitErrorEvent(errorStr: string): void;
-  emitEvent(status: DiscoverEventStepStatus, custom: CustomEventInput): void;
+  emitEvent(status: DiscoverEventStepStatus, custom?: CustomEventInput): void;
   eventState: EventState;
 }
 
@@ -142,6 +142,16 @@ export function DiscoverProvider<T = any>(
       if (eventState.currEventName === DiscoverEvent.Completed) {
         emitEvent({ stepStatus: DiscoverEventStatus.Success });
       } else {
+        // TODO(lisa): this is temporary fill in as Application
+        // flow is not implemented yet and user can only abort
+        // on resource selection step.
+        if (selectedResourceKind === ResourceKind.Application) {
+          emitEvent(
+            { stepStatus: DiscoverEventStatus.Aborted },
+            { eventName: DiscoverEvent.ResourceSelection }
+          );
+          return;
+        }
         emitEvent({ stepStatus: DiscoverEventStatus.Aborted });
       }
     };
