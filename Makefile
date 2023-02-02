@@ -199,6 +199,13 @@ all: version
 	@echo "---> Building OSS binaries."
 	$(MAKE) $(BINARIES)
 
+#
+# make binaries builds all binaries defined in the BINARIES environment variable
+#
+.PHONY: binaries
+binaries:
+	$(MAKE) $(BINARIES)
+
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
 # several problems:
 # * Build will rely on go build internal caching https://golang.org/doc/go1.10 at all times
@@ -330,6 +337,8 @@ release:
 	@echo "---> $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
 	$(MAKE) --no-print-directory release-windows
+else ifeq ("$(OS)", "darwin")
+	$(MAKE) --no-print-directory release-darwin
 else
 	$(MAKE) --no-print-directory release-unix
 endif
@@ -379,6 +388,22 @@ release-unix: clean full build-archive
 		rm -fr $(ASSETS_BUILDDIR)/webassets; \
 		$(MAKE) -C e release; \
 	fi
+
+.PHONY: release-darwin-unsigned
+release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
+release-darwin-unsigned: clean full build-archive
+
+.PHONY: release-darwin
+release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
+release-darwin: release-darwin-unsigned
+	# Only run if Apple username/pass for notarization are provided
+	if [ -n "$$APPLE_USERNAME" -a -n "$$APPLE_PASSWORD" ]; then \
+		cd ./build.assets/tooling/ && \
+		go run ./cmd/notarize-apple-binaries/*.go \
+			--log-level=debug $(ABSOLUTE_BINARY_PATHS); \
+	fi
+	$(MAKE) build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
 # make release-unix-only - Produces an Enterprise binary release tarball containing
@@ -807,6 +832,13 @@ sloccount:
 .PHONY: remove-temp-files
 remove-temp-files:
 	find . -name flymake_* -delete
+
+#
+# print-go-version outputs Go version as a semver without "go" prefix
+#
+.PHONY: print-go-version
+print-go-version:
+	@$(MAKE) -C build.assets print-go-version | sed "s/go//"
 
 # Dockerized build: useful for making Linux releases on OSX
 .PHONY:docker
