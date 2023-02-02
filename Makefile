@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=13.0.0-dev
+VERSION=13.0.0-dev.vitor.3
 
 DOCKER_IMAGE ?= teleport
 
@@ -394,7 +394,7 @@ endif
 ifneq ($(RS_BPF_BUILDDIR),)
 	rm -f $(RS_BPF_BUILDDIR)/*.o
 endif
-	-cargo clean
+	# -cargo clean
 	-go clean -cache
 	rm -f *.gz
 	rm -f *.zip
@@ -1191,3 +1191,9 @@ build-ui-e: ensure-js-deps
 .PHONY: docker-ui
 docker-ui:
 	$(MAKE) -C build.assets ui
+
+.PHONY: cert
+cert:
+	mkdir -p certs
+	mkcert -cert-file certs/go.teleport.crt -key-file certs/go.teleport.key go.teleport "*.teleport" "*.go.teleport"
+	mkcert -cert-file certs/go2.teleport.crt -key-file certs/go2.teleport.key go2.teleport "*.teleport" "*.go2.teleport"
