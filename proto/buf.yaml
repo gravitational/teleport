@@ -8,17 +8,16 @@ lint:
     - COMMENT_MESSAGE
     - COMMENT_RPC
     - COMMENT_SERVICE
+  except:
+   # Allow Google API-style responses (CreateFoo returns Foo).
+   # See https://cloud.google.com/apis/design/standard_methods.
+   - RPC_REQUEST_RESPONSE_UNIQUE
+   - RPC_RESPONSE_STANDARD_NAME
   ignore:
     # "legacy" lib protos.
     - teleport/lib/multiplexer/test/ping.proto
     - teleport/lib/web/envelope.proto
   ignore_only:
-    # RPC_RESPONSE_STANDARD_NAME and RPC_REQUEST_RESPONSE_UNIQUE make it impossible to follow
-    # Google's standard methods. https://cloud.google.com/apis/design/standard_methods
-    RPC_RESPONSE_STANDARD_NAME:
-      - teleport/lib/teleterm
-    RPC_REQUEST_RESPONSE_UNIQUE:
-      - teleport/lib/teleterm
     PACKAGE_DIRECTORY_MATCH:
       # Renaming the proto package name at this point would be a breaking change.
       - teleport/lib/prehog
