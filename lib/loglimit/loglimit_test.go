@@ -23,6 +23,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	logtest "github.com/sirupsen/logrus/hooks/test"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,8 +54,8 @@ func TestLogLimiter(t *testing.T) {
 					"C log 1",
 				}
 				expectedLoggedSecondBatch := []string{}
-				require.Equal(t, expectedLoggedFirstBatch, loggedFirstBatch, "first batch elements mismatch")
-				require.Equal(t, expectedLoggedSecondBatch, loggedSecondBatch, "second batch elements mismatch")
+				assert.Equal(t, expectedLoggedFirstBatch, loggedFirstBatch, "first batch elements mismatch")
+				assert.Equal(t, expectedLoggedSecondBatch, loggedSecondBatch, "second batch elements mismatch")
 			},
 		},
 		{
@@ -79,8 +80,8 @@ func TestLogLimiter(t *testing.T) {
 					"B log 1 (logs containing \"B\" were seen 3 times in the past minute)",
 				}
 				expectedLoggedSecondBatch := []string{}
-				require.Equal(t, expectedLoggedFirstBatch, loggedFirstBatch, "first batch elements mismatch")
-				require.Equal(t, expectedLoggedSecondBatch, loggedSecondBatch, "second batch elements mismatch")
+				assert.Equal(t, expectedLoggedFirstBatch, loggedFirstBatch, "first batch elements mismatch")
+				assert.Equal(t, expectedLoggedSecondBatch, loggedSecondBatch, "second batch elements mismatch")
 			},
 		},
 		{
@@ -115,8 +116,8 @@ func TestLogLimiter(t *testing.T) {
 					"C log 1",
 					"A log 1 (logs containing \"A\" were seen 4 times in the past minute)",
 				}
-				require.Equal(t, expectedLoggedFirstBatch, loggedFirstBatch, "first batch elements mismatch")
-				require.Equal(t, expectedLoggedSecondBatch, loggedSecondBatch, "second batch elements mismatch")
+				assert.Equal(t, expectedLoggedFirstBatch, loggedFirstBatch, "first batch elements mismatch")
+				assert.Equal(t, expectedLoggedSecondBatch, loggedSecondBatch, "second batch elements mismatch")
 			},
 		},
 	}
