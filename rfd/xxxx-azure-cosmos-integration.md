@@ -115,6 +115,10 @@ On MongoDB and Cassandra connection setup, we use the [`GetPassword`](https://gi
 using the proper username to fetch the password. After getting the password,
 the engine will define the correct authentication configuration.
 
+For auto-discovering MongoDB and Cassandra database accounts, we should
+implement a [database fetcher](https://github.com/gravitational/teleport/blob/master/lib/srv/discovery/fetchers/db/db.go#L43)
+and converter for the CosmosDB accounts.
+
 ### Key Rotation
 CosmosAPI has an API to rotate database keys. As described in Azure guides the
 key rotation can take minutes to multiple hours, depending on database size.
