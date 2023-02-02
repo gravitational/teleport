@@ -1692,6 +1692,21 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 	return nil
 }
 
+// copyImpersonationHeaders copies the impersonation headers from the source
+// request to the destination request.
+func copyImpersonationHeaders(dst, src http.Header) {
+	dst[ImpersonateUserHeader] = nil
+	dst[ImpersonateGroupHeader] = nil
+
+	for _, v := range src.Values(ImpersonateUserHeader) {
+		dst.Add(ImpersonateUserHeader, v)
+	}
+
+	for _, v := range src.Values(ImpersonateGroupHeader) {
+		dst.Add(ImpersonateGroupHeader, v)
+	}
+}
+
 // computeImpersonatedPrincipals computes the intersection between the information
 // received in the `Impersonate-User` and `Impersonate-Groups` headers and the
 // allowed values. If the user didn't specify any user and groups to impersonate,
@@ -1818,11 +1833,12 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 
 func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
-		ctx:        req.Context(),
-		authCtx:    ctx,
-		dial:       sess.DialWithContext,
-		tlsConfig:  sess.tlsConfig,
-		pingPeriod: f.cfg.ConnPingPeriod,
+		ctx:             req.Context(),
+		authCtx:         ctx,
+		dial:            sess.DialWithContext,
+		tlsConfig:       sess.tlsConfig,
+		pingPeriod:      f.cfg.ConnPingPeriod,
+		originalHeaders: req.Header,
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.creds != nil {
@@ -1837,11 +1853,12 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 
 func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
-		ctx:        req.Context(),
-		authCtx:    ctx,
-		dial:       sess.DialWithContext,
-		tlsConfig:  sess.tlsConfig,
-		pingPeriod: f.cfg.ConnPingPeriod,
+		ctx:             req.Context(),
+		authCtx:         ctx,
+		dial:            sess.DialWithContext,
+		tlsConfig:       sess.tlsConfig,
+		pingPeriod:      f.cfg.ConnPingPeriod,
+		originalHeaders: req.Header,
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.creds != nil {
