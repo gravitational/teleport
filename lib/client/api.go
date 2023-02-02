@@ -226,9 +226,9 @@ type Config struct {
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
 
-	// SkipLocalAuth tells the client to use AuthMethods parameter for authentication and NOT
-	// use its own SSH agent or ask user for passwords. This is used by external programs linking
-	// against Teleport client and obtaining credentials from elsewhere.
+	// SkipLocalAuth tells the client not to use its own SSH agent or ask user for passwords. This is
+	// used by external programs linking against Teleport client and obtaining credentials from elsewhere.
+	// e.g. from an identity file.
 	SkipLocalAuth bool
 
 	// UseKeyPrincipals forces the use of the username from the key principals rather than using
@@ -254,7 +254,7 @@ type Config struct {
 	X11ForwardingTrusted bool
 
 	// AuthMethods are used to login into the cluster. If specified, the client will
-	// use them in addition to certs stored in its local agent (from disk)
+	// use them in addition to certs stored in the client store.
 	AuthMethods []ssh.AuthMethod
 
 	// TLSConfig is TLS configuration, if specified, the client
@@ -511,7 +511,12 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Activating relogin on %v.", err)
+	// Don't try to login when using an identity file / external identity.
+	if tc.SkipLocalAuth {
+		return trace.Wrap(err)
+	}
+
+	log.Debugf("Activating relogin on error %q.", err)
 
 	// check if the error is a private key policy error.
 	if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(err); err == nil {
@@ -959,20 +964,16 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		tc.Stdin = os.Stdin
 	}
 
-	// sometimes we need to use external auth without using local auth
-	// methods, e.g. in automation daemons.
-	if c.SkipLocalAuth {
-		if len(c.AuthMethods) == 0 {
-			return nil, trace.BadParameter("SkipLocalAuth is true but no AuthMethods provided")
-		}
-		tc.ClientStore = NewMemClientStore()
-	}
-
 	if tc.ClientStore == nil {
-		tc.ClientStore = NewFSClientStore(c.KeysDir)
-		if c.AddKeysToAgent == AddKeysToAgentOnly {
-			// Store client keys in memory, but still save trusted certs and profile to disk.
-			tc.ClientStore.KeyStore = NewMemKeyStore()
+		if c.SkipLocalAuth {
+			// initialize empty client store to prevent panics.
+			tc.ClientStore = NewMemClientStore()
+		} else {
+			tc.ClientStore = NewFSClientStore(c.KeysDir)
+			if c.AddKeysToAgent == AddKeysToAgentOnly {
+				// Store client keys in memory, but still save trusted certs and profile to disk.
+				tc.ClientStore.KeyStore = NewMemKeyStore()
+			}
 		}
 	}
 
@@ -1000,7 +1001,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	}
 
 	if tc.HostKeyCallback == nil {
-		tc.HostKeyCallback = tc.localAgent.CheckHostKey
+		tc.HostKeyCallback = tc.localAgent.HostKeyCallback
 	}
 
 	return tc, nil
@@ -3907,7 +3908,7 @@ func (tc *TeleportClient) AskPassword(ctx context.Context) (pwd string, err erro
 // or teleport core TLS certificate for the local agent.
 func (tc *TeleportClient) LoadTLSConfig() (*tls.Config, error) {
 	// if SkipLocalAuth flag is set use an external identity file instead of loading cert from the local agent.
-	if tc.SkipLocalAuth {
+	if tc.TLS != nil {
 		return tc.TLS.Clone(), nil
 	}
 
