@@ -112,7 +112,7 @@ module.exports = {
     'import/no-named-as-default': 0,
     'import/default': 2,
     'import/named': 2,
-    // Change to a 2 once e pkg imports are removed from teleterm.
+    // XXX Change to a 2 once e pkg imports are removed from teleterm.
     'import/no-unresolved': 1,
     'no-underscore-dangle': 0,
     'no-case-declarations': 0,
