@@ -7,6 +7,8 @@
 # teleport built on any newer Ubuntu version will not run on Centos 7 because
 # of this.
 
+## LIBFIDO2 ###################################################################
+
 # Build libfido2 separately for isolation, speed and flexibility.
 FROM buildpack-deps:18.04 AS libfido2
 
@@ -48,6 +50,23 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
     make install  && \
     make clean
 
+## BUILDBOX ###################################################################
+#
+# Image layers are ordered according to how slow that layer takes to build and
+# how frequently it is updated. Slow or infrequently updated dependencies come
+# first, fast or frequently updated layers come last.
+#
+# If you are adding a slow to build and/or complex dependency, consider using a
+# multi-stage build for it.
+#
+# As a rule of thumb, it goes like this:
+#
+# 1. Slow, language-agnostic dependencies
+# 2. Base compilers for main languages
+# 3. Fast, language-agnostic dependencies
+# 4. Fast, language-dependent dependencies
+# 5. Multi-stage layer copies
+
 FROM ubuntu:18.04 AS buildbox
 
 COPY locale.gen /etc/locale.gen
@@ -65,8 +84,12 @@ ARG BUILDARCH
 
 # Install packages.
 # Java JRE is required by gcloud firestore emulator.
+# Latest git 2.18+ is required for GitHub actions
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
-RUN apt-get update -y --fix-missing && \
+RUN apt-get -y update && \
+    apt-get -y install software-properties-common && \
+    add-apt-repository -y ppa:git-core/ppa && \
+    apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
         apt-utils \
@@ -116,14 +139,39 @@ ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
 # beta component is required by firestore emulator: https://cloud.google.com/sdk/gcloud/reference/beta/emulators/firestore/start
 RUN gcloud components install cloud-firestore-emulator beta
 
+# Install etcd.
+RUN curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
+     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/
+
+# Add the CI user.
 ARG UID
 ARG GID
-RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
-     mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport)
+RUN groupadd ci --gid=$GID -o && \
+    useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
+    mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport
 
-# Install etcd.
-RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
-     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/)
+# Install Rust
+ARG RUST_VERSION
+ENV RUSTUP_HOME=/usr/local/rustup \
+     CARGO_HOME=/usr/local/cargo \
+     PATH=/usr/local/cargo/bin:$PATH \
+     RUST_VERSION=$RUST_VERSION
+RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
+    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
+# Install Rust using the ci user, as that is the user that
+# will run builds using the Rust toolchains we install here.
+# Cross-compilation targets are only installed on amd64, as
+# this image doesn't contain gcc-multilib.
+USER ci
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+    rustup --version && \
+    cargo --version && \
+    rustc --version && \
+    rustup component add rustfmt clippy && \
+    if [ "$BUILDARCH" = "amd64" ]; then rustup target add i686-unknown-linux-gnu arm-unknown-linux-gnueabihf aarch64-unknown-linux-gnu; fi
+# Switch back to root for the remaining instructions and keep it as the default
+# user.
+USER root
 
 # Install Go.
 ARG GOLANG_VERSION
@@ -136,38 +184,33 @@ ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="$PATH:/opt/go/bin:/go/bin:/go/src/github.com/gravitational/teleport/build"
 
-# Install libbpf
+# Install PAM module and policies for testing.
+COPY pam/ /opt/pam_teleport/
+RUN make -C /opt/pam_teleport install
+ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
+
+# Install bats.
+RUN curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
+    cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
+    rm -r bats-core-1.2.1
+
+# Install libbpf.
 ARG LIBBPF_VERSION
 RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make && \
     make install
 
-# Install addlicense
-RUN go install github.com/google/addlicense@v1.0.0
-
-# Install golangci-lint.
-RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.46.0/golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
-     cp golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
-     rm -r golangci-lint*)
-
-# Install GCI
-RUN go install github.com/daixiang0/gci@v0.7.0
-
 # Install helm.
-RUN (mkdir -p helm-tarball && curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
-     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
-     rm -r helm-tarball*)
+RUN mkdir -p helm-tarball && \
+    curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
+    cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
+    rm -r helm-tarball*
 RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     mkdir -p /home/ci/.local/share/helm && \
     cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm && \
     chown -R ci /home/ci/.local/share/helm && \
     HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
-
-# Install bats.
-RUN (curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
-     cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
-     rm -r bats-core-1.2.1)
 
 # Install protobuf and grpc build tools.
 ARG PROTOC_VER
@@ -184,48 +227,26 @@ RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gog
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
      git reset --hard ${GOGO_PROTO_TAG} && \
      make install)
+ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
 
-# Install buf
+# Install addlicense.
+RUN go install github.com/google/addlicense@v1.0.0
+
+# Install GCI.
+RUN go install github.com/daixiang0/gci@v0.7.0
+
+# Install golangci-lint.
+RUN curl -L https://github.com/golangci/golangci-lint/releases/download/v1.46.0/golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
+    cp golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
+    rm -r golangci-lint*
+
+# Install Buf.
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.12.0" && \
+    VERSION="1.13.1" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
       chmod +x "${BIN}/buf"
-
-ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
-
-# Install PAM module and policies for testing.
-COPY pam/ /opt/pam_teleport/
-RUN make -C /opt/pam_teleport install
-
-ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
-
-# Install Rust
-ARG RUST_VERSION
-ENV RUSTUP_HOME=/usr/local/rustup \
-     CARGO_HOME=/usr/local/cargo \
-     PATH=/usr/local/cargo/bin:$PATH \
-     RUST_VERSION=$RUST_VERSION
-
-RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
-    mkdir -p $CARGO_HOME/registry && chmod -R a+w $CARGO_HOME
-
-# Install Rust using the ci user, as that is the user that
-# will run builds using the Rust toolchains we install here.
-# Cross-compilation targets are only installed on amd64, as
-# this image doesn't contain gcc-multilib.
-USER ci
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
-    rustup --version && \
-    cargo --version && \
-    rustc --version && \
-    rustup component add rustfmt clippy && \
-    if [ "$BUILDARCH" = "amd64" ]; then rustup target add i686-unknown-linux-gnu arm-unknown-linux-gnueabihf aarch64-unknown-linux-gnu; fi
-
-# Switch back to root for the remaining instructions and keep it as the default
-# user.
-USER root
 
 # Copy libfido2 libraries.
 # Do this last to take better advantage of the multi-stage build.

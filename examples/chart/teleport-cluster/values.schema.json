@@ -10,11 +10,13 @@
         "labels",
         "chartMode",
         "highAvailability",
+	"podMonitor",
         "tls",
         "image",
         "enterpriseImage",
         "log",
         "affinity",
+        "nodeSelector",
         "annotations",
         "extraVolumes",
         "extraVolumeMounts",
@@ -29,6 +31,29 @@
             "$id": "#/properties/clusterName",
             "type": "string",
             "default": ""
+        },
+        "podMonitor": {
+            "$id": "#/properties/podMonitor",
+            "type": "object",
+            "required": ["enabled"],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/podMonitor/enabled",
+                    "type": "boolean",
+                    "default": false
+                },
+                "additionalLabels": {
+                    "$id": "#/properties/podMonitor/additionalLabels",
+                    "type": "object",
+                    "default": {"prometheus": "default"},
+                    "additionalProperties": {"type": "string"}
+                },
+                "interval": {
+                    "$id": "#/properties/podMonitor/interval",
+                    "type": "string",
+                    "default": "30s"
+                }
+            }
         },
         "authentication": {
             "$id": "#/properties/authentication",
@@ -616,6 +641,11 @@
         },
         "affinity": {
             "$id": "#/properties/affinity",
+            "type": "object",
+            "default": {}
+        },
+        "nodeSelector": {
+            "$id": "#/properties/nodeSelector",
             "type": "object",
             "default": {}
         },

@@ -23,7 +23,7 @@ OS ?= linux
 ARCH ?= amd64
 GOLANG_VERSION ?= go1.19.5
 # run lint-rust check locally before merging code after you bump this
-RUST_VERSION ?= 1.66.0
+RUST_VERSION ?= 1.67.0
 NODE_VERSION ?= 16.13.2
 LIBBPF_VERSION ?= 0.7.0-teleport
 
@@ -56,8 +56,11 @@ ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
 endif
 
-# conditionally force the use of UID/GID 1000:1000 if we're running in Drone
+# conditionally force the use of UID/GID 1000:1000 if we're running in Drone or Github Actions (in which case CI env var will be set)
 ifeq ("$(DRONE)","true")
+CI := true
+endif
+ifeq ("$(CI)","true")
 UID := 1000
 GID := 1000
 NOROOT := -u 1000:1000
@@ -256,6 +259,13 @@ grpc-teleterm: buildbox-teleterm
 	docker run \
 		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX_TELETERM) \
 		make -C /go/src/github.com/gravitational/teleport grpc-teleterm/host
+
+# protos-up-to-date checks if GRPC stubs are up to date from inside the buildbox
+.PHONY: protos-up-to-date
+protos-up-to-date: buildbox
+	docker run \
+		$(DOCKERFLAGS) -t $(BUILDBOX) \
+		make -C /go/src/github.com/gravitational/teleport protos-up-to-date/host
 
 # fix-imports runs GCI to sort and re-order Go imports in a deterministic way.
 .PHONY: fix-imports

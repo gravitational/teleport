@@ -1,0 +1,30 @@
+name: Lint (Go)
+run-name: make lint
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  merge_group:
+
+jobs:
+  lint:
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    name: Lint (Go)
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport10
+      env:
+        GO_LINT_FLAGS: --timeout=15m
+        GOFLAGS: -buildvcs=false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Run linter
+        run: make lint
