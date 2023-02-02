@@ -66,13 +66,6 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if p.Kind == "" {
-		return trace.BadParameter("resource has an empty Kind field")
-	}
-	if p.Version == "" {
-		return trace.BadParameter("resource has an empty Version field")
-	}
-
 	switch settings := p.Spec.Settings.(type) {
 	case *PluginSpecV1_SlackAccessPlugin:
 		// Check settings.
