@@ -252,7 +252,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 
 		t.Run("multiple labels", func(t *testing.T) {
 			flags := DatabaseSampleFlags{
-				ResourcesRawLabels: []string{
+				DynamicResourcesRawLabels: []string{
 					"env=dev",
 					"env=prod,name=my-name",
 				},
