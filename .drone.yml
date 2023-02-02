@@ -546,6 +546,10 @@ steps:
   - rustup override set $RUST_VERSION
   - make clean release OS=$OS ARCH=$ARCH
   environment:
+    APPLE_PASSWORD:
+      from_secret: APPLE_PASSWORD
+    APPLE_USERNAME:
+      from_secret: APPLE_USERNAME
     ARCH: amd64
     GOCACHE: /tmp/push-build-darwin-amd64/go/cache
     GOPATH: /tmp/push-build-darwin-amd64/go
@@ -3803,6 +3807,10 @@ steps:
   - rustup override set $RUST_VERSION
   - make clean release OS=$OS ARCH=$ARCH
   environment:
+    APPLE_PASSWORD:
+      from_secret: APPLE_PASSWORD
+    APPLE_USERNAME:
+      from_secret: APPLE_USERNAME
     ARCH: amd64
     GOCACHE: /tmp/build-darwin-amd64/go/cache
     GOPATH: /tmp/build-darwin-amd64/go
@@ -15690,6 +15698,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 9c90cadf0a0032959541ce1dae7c353f6e89fa6f40d495e33354677941d1cda1
+hmac: c083f4ecfdd9d5c62ddf62fc9ca059e0648977911d70352f6eeaf6d4c14ef33a
 
 ...
