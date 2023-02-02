@@ -1,13 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 
 import logoSrc from 'design/assets/images/teleport-medallion.svg';
 
-import { Box, Flex, Text } from 'design';
+import { Box, Text } from 'design';
 
 import { ButtonPrimary } from 'design/Button';
-
-import * as Icons from 'design/Icon';
 
 import {
   StepContent,
@@ -18,7 +16,7 @@ import {
 
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import { HintBox } from 'teleport/Discover/Shared/HintBox';
-import { Mark, TextIcon } from 'teleport/Discover/Shared';
+import { Mark, useShowHint } from 'teleport/Discover/Shared';
 
 interface StartTeleportProps {
   onNext: () => void;
@@ -43,22 +41,12 @@ function StepWrapper(props: StepWrapperProps) {
   );
 }
 
-const SHOW_HINT_TIMEOUT = 1000 * 60 * 5; // 5 minutes
-
 export function StartTeleport(
   props: React.PropsWithChildren<StartTeleportProps>
 ) {
   const { active, result } = usePingTeleport();
 
-  const [showHint, setShowHint] = useState(false);
-
-  useEffect(() => {
-    if (active) {
-      const id = window.setTimeout(() => setShowHint(true), SHOW_HINT_TIMEOUT);
-
-      return () => window.clearTimeout(id);
-    }
-  }, [active]);
+  const showHint = useShowHint(active);
 
   if (result) {
     return (
@@ -78,21 +66,7 @@ export function StartTeleport(
   if (showHint) {
     hint = (
       <Box mb={3}>
-        <HintBox>
-          <Text color="warning">
-            <Flex alignItems="center" mb={2}>
-              <TextIcon
-                color="warning"
-                css={`
-                  white-space: pre;
-                `}
-              >
-                <Icons.Warning fontSize={4} color="warning" />
-              </TextIcon>
-              We're still looking for your Windows Desktop service
-            </Flex>
-          </Text>
-
+        <HintBox header="We're still looking for your Windows Desktop service">
           <Text mb={3}>
             There are a couple of possible reasons for why we haven't been able
             to detect your server.

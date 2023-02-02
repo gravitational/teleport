@@ -1,13 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
 
-import { Box, ButtonPrimary, Flex, Text } from 'design';
-
-import * as Icons from 'design/Icon';
+import { Box, ButtonPrimary, Text } from 'design';
 
 import { DesktopItem } from 'teleport/Discover/Desktop/DiscoverDesktops/DesktopItem';
-import { Header, Mark, TextIcon } from 'teleport/Discover/Shared';
 import { useDiscover } from 'teleport/Discover/useDiscover';
+import { Header, Mark, useShowHint } from 'teleport/Discover/Shared';
 import { ProxyDesktopServiceDiagram } from 'teleport/Discover/Desktop/DiscoverDesktops/ProxyDesktopServiceDiagram';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { useTeleport } from 'teleport';
@@ -76,8 +74,6 @@ const ViewLink = styled(NavLink)`
   }
 `;
 
-const SHOW_HINT_TIMEOUT = 1000 * 60 * 5; // 5 minutes
-
 export function DiscoverDesktops() {
   const ctx = useTeleport();
   const { emitEvent, nextStep } = useDiscover();
@@ -85,15 +81,7 @@ export function DiscoverDesktops() {
   const { result: desktopService, active } =
     usePingTeleport<WindowsDesktopService>();
 
-  const [showHint, setShowHint] = useState(false);
-
-  useEffect(() => {
-    if (active) {
-      const id = window.setTimeout(() => setShowHint(true), SHOW_HINT_TIMEOUT);
-
-      return () => window.clearTimeout(id);
-    }
-  }, [active]);
+  const showHint = useShowHint(active);
 
   const [enabled, setEnabled] = useState(true);
   const { clusterId } = useStickyClusterId();
@@ -209,21 +197,7 @@ export function DiscoverDesktops() {
   if (showHint && desktops.length === 0) {
     hint = (
       <Box mt={5}>
-        <HintBox>
-          <Text color="warning">
-            <Flex alignItems="center" mb={2}>
-              <TextIcon
-                color="warning"
-                css={`
-                  white-space: pre;
-                `}
-              >
-                <Icons.Warning fontSize={4} color="warning" />
-              </TextIcon>
-              We're still trying to discover Desktops
-            </Flex>
-          </Text>
-
+        <HintBox header="We're still trying to discover Desktops">
           <Text mb={3}>
             There are a couple of possible reasons for why we haven't been able
             to detect your server.

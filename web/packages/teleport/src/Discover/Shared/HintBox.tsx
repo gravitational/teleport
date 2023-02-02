@@ -1,8 +1,13 @@
+import React from 'react';
 import styled from 'styled-components';
 
-import { Box } from 'design';
+import { Box, Flex, Text } from 'design';
 
-export const HintBox = styled(Box)`
+import * as Icons from 'design/Icon';
+
+import { TextIcon } from 'teleport/Discover/Shared/Text';
+
+const HintBoxContainer = styled(Box)`
   max-width: 1000px;
   background-color: rgba(255, 255, 255, 0.05);
   padding: ${props => `${props.theme.space[3]}px`};
@@ -19,3 +24,29 @@ export const WaitingInfo = styled(Box)`
   display: flex;
   align-items: center;
 `;
+
+interface HintBoxProps {
+  header: string;
+}
+
+export function HintBox(props: React.PropsWithChildren<HintBoxProps>) {
+  return (
+    <HintBoxContainer>
+      <Text color="warning">
+        <Flex alignItems="center" mb={2}>
+          <TextIcon
+            color="warning"
+            css={`
+              white-space: pre;
+            `}
+          >
+            <Icons.Warning fontSize={4} color="warning" />
+          </TextIcon>
+          {props.header}
+        </Flex>
+      </Text>
+
+      {props.children}
+    </HintBoxContainer>
+  );
+}

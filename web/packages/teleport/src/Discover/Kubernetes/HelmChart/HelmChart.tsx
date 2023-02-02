@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonSecondary, Flex, Link, Text } from 'design';
+import { Box, ButtonSecondary, Link, Text } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
@@ -42,14 +42,13 @@ import {
   Mark,
   ResourceKind,
   TextIcon,
+  useShowHint,
 } from '../../Shared';
 
 import type { AgentStepProps } from '../../types';
 import type { JoinToken } from 'teleport/services/joinToken';
 import type { AgentMeta, KubeMeta } from 'teleport/Discover/useDiscover';
 import type { Kube } from 'teleport/services/kube';
-
-const SHOW_HINT_TIMEOUT = 1000 * 60 * 5; // 5 minutes
 
 export default function Container(props: AgentStepProps) {
   const [namespace, setNamespace] = useState('');
@@ -335,34 +334,12 @@ const InstallHelmChart = ({
   // Starts resource querying interval.
   const { result, active } = usePingTeleport<Kube>();
 
-  const [showHint, setShowHint] = useState(false);
-
-  useEffect(() => {
-    if (active) {
-      const id = window.setTimeout(() => setShowHint(true), SHOW_HINT_TIMEOUT);
-
-      return () => window.clearTimeout(id);
-    }
-  }, [active]);
+  const showHint = useShowHint(active);
 
   let hint;
   if (showHint) {
     hint = (
-      <HintBox>
-        <Text color="warning">
-          <Flex alignItems="center" mb={2}>
-            <TextIcon
-              color="warning"
-              css={`
-                white-space: pre;
-              `}
-            >
-              <Icons.Warning fontSize={4} color="warning" />
-            </TextIcon>
-            We're still looking for your server
-          </Flex>
-        </Text>
-
+      <HintBox header="We're still looking for your server">
         <Text mb={3}>
           There are a couple of possible reasons for why we haven't been able to
           detect your Kubernetes cluster.

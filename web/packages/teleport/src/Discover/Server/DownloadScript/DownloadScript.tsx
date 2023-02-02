@@ -16,7 +16,7 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 
-import { Box, Flex, Indicator, Text } from 'design';
+import { Box, Indicator, Text } from 'design';
 import * as Icons from 'design/Icon';
 
 import cfg from 'teleport/config';
@@ -110,21 +110,7 @@ export function DownloadScript(props: AgentStepProps) {
   let hint;
   if (showHint) {
     hint = (
-      <HintBox>
-        <Text color="warning">
-          <Flex alignItems="center" mb={2}>
-            <TextIcon
-              color="warning"
-              css={`
-                white-space: pre;
-              `}
-            >
-              <Icons.Warning fontSize={4} color="warning" />
-            </TextIcon>
-            We're still looking for your server
-          </Flex>
-        </Text>
-
+      <HintBox header="We're still looking for your server">
         <Text mb={3}>
           There are a couple of possible reasons for why we haven't been able to
           detect your server.
