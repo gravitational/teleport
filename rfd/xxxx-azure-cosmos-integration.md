@@ -5,6 +5,11 @@ state: draft
 
 # RFD xxxx - Azure CosmosDB integration
 
+## Required approvers
+
+* Engineering: @smallinsky && @r0mant
+* Product: @xinding33
+
 ## What
 
 CosmosDB for MongoDB and Cassandra integration in Teleport Database Access.
