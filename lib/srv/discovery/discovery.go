@@ -408,7 +408,10 @@ func (s *Server) recordDiscoveredInstances(instances *server.EC2Instances) error
 }
 
 func (s *Server) recordDiscoveredInstance(accountID string, instance *ec2.Instance) error {
-	labels := map[string]string{}
+	labels := map[string]string{
+		types.AWSAccountIDLabel:  accountID,
+		types.AWSInstanceIDLabel: *instance.InstanceId,
+	}
 	for _, tag := range instance.Tags {
 		labels[*tag.Key] = *tag.Value
 	}
