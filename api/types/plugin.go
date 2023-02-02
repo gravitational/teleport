@@ -72,9 +72,6 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 	if p.Version == "" {
 		return trace.BadParameter("resource has an empty Version field")
 	}
-	if p.Spec.Settings == nil {
-		return trace.BadParameter("settings must be set")
-	}
 
 	switch settings := p.Spec.Settings.(type) {
 	case *PluginSpecV1_SlackAccessPlugin:
@@ -97,6 +94,8 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	default:
+		return trace.BadParameter("settings are not set or have an unknown type")
 	}
 
 	return nil
