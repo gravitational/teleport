@@ -1590,6 +1590,10 @@ message AuthPreferenceSpecV2 {
   // DeviceTrust holds settings related to trusted device verification.
   // Requires Teleport Enterprise.
   DeviceTrust DeviceTrust = 13 [(gogoproto.jsontag) = "device_trust,omitempty"];
+
+  // IDP is a set of options related to accessing IdPs within Teleport.
+  // Requires Teleport Enterprise.
+  IdPOptions IDP = 14 [(gogoproto.jsontag) = "idp,omitempty"];
 }
 
 // U2F defines settings for U2F device.
@@ -2287,6 +2291,10 @@ message RoleOptions {
   // See DeviceTrust.Mode.
   // Reserved for future use, not yet used by Teleport.
   string DeviceTrustMode = 24 [(gogoproto.jsontag) = "device_trust_mode,omitempty"];
+
+  // IDP is a set of options related to accessing IdPs within Teleport.
+  // Requires Teleport Enterprise.
+  IdPOptions IDP = 25 [(gogoproto.jsontag) = "idp,omitempty"];
 }
 
 message RecordSession {
@@ -4858,4 +4866,19 @@ message SAMLIdPServiceProviderV1 {
 message SAMLIdPServiceProviderSpecV1 {
   // EntityDescriptor is the entity descriptor for the service provider
   string EntityDescriptor = 1 [(gogoproto.jsontag) = "entity_descriptor"];
+}
+
+// IdPOptions specify options related to access Teleport IdPs.
+message IdPOptions {
+  // SAML are options related to the Teleport SAML IdP.
+  IdPSAMLOptions SAML = 1 [(gogoproto.jsontag) = "saml"];
+}
+
+// IdPSAMLOptions specifies options related to accessing the Teleport SAML IdP.
+message IdPSAMLOptions {
+  // Enabled is set to true if this option allows access to the Teleport SAML IdP.
+  BoolValue Enabled = 1 [
+    (gogoproto.jsontag) = "enabled",
+    (gogoproto.customtype) = "BoolOption"
+  ];
 }

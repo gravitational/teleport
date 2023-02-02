@@ -6,6 +6,7 @@
 
 import * as grpc from "grpc";
 import * as prehog_v1alpha_teleport_pb from "../../prehog/v1alpha/teleport_pb";
+import * as google_protobuf_duration_pb from "google-protobuf/google/protobuf/duration_pb";
 import * as google_protobuf_timestamp_pb from "google-protobuf/google/protobuf/timestamp_pb";
 
 interface ITeleportReportingServiceService extends grpc.ServiceDefinition<grpc.UntypedServiceImplementation> {
