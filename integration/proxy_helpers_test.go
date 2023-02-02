@@ -531,7 +531,7 @@ func mustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string,
 	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
 
 	idPath := filepath.Join(t.TempDir(), "user_identity")
-	_, err = identityfile.Write(identityfile.WriteConfig{
+	_, err = identityfile.Write(context.Background(), identityfile.WriteConfig{
 		OutputPath: idPath,
 		Key:        key,
 		Format:     identityfile.FormatFile,

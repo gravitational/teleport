@@ -36,13 +36,15 @@ RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 PROTOC_VER ?= 3.13.0
 GOGO_PROTO_TAG ?= v1.3.2
 
-BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:$(BUILDBOX_VERSION)
-BUILDBOX_FIPS=public.ecr.aws/gravitational/teleport-buildbox-fips:$(BUILDBOX_VERSION)
-BUILDBOX_CENTOS7=public.ecr.aws/gravitational/teleport-buildbox-centos7:$(BUILDBOX_VERSION)
-BUILDBOX_CENTOS7_FIPS=public.ecr.aws/gravitational/teleport-buildbox-centos7-fips:$(BUILDBOX_VERSION)
-BUILDBOX_ARM=public.ecr.aws/gravitational/teleport-buildbox-arm:$(BUILDBOX_VERSION)
-BUILDBOX_ARM_FIPS=public.ecr.aws/gravitational/teleport-buildbox-arm-fips:$(BUILDBOX_VERSION)
-BUILDBOX_TELETERM=public.ecr.aws/gravitational/teleport-buildbox-teleterm:$(BUILDBOX_VERSION)
+BUILDBOX_BASE_NAME ?= public.ecr.aws/gravitational/teleport-buildbox
+
+BUILDBOX=$(BUILDBOX_BASE_NAME):$(BUILDBOX_VERSION)
+BUILDBOX_FIPS=$(BUILDBOX_BASE_NAME)-fips:$(BUILDBOX_VERSION)
+BUILDBOX_CENTOS7=$(BUILDBOX_BASE_NAME)-centos7:$(BUILDBOX_VERSION)
+BUILDBOX_CENTOS7_FIPS=$(BUILDBOX_BASE_NAME)-centos7-fips:$(BUILDBOX_VERSION)
+BUILDBOX_ARM=$(BUILDBOX_BASE_NAME)-arm:$(BUILDBOX_VERSION)
+BUILDBOX_ARM_FIPS=$(BUILDBOX_BASE_NAME)-arm-fips:$(BUILDBOX_VERSION)
+BUILDBOX_TELETERM=$(BUILDBOX_BASE_NAME)-teleterm:$(BUILDBOX_VERSION)
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
@@ -56,8 +58,11 @@ ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
 endif
 
-# conditionally force the use of UID/GID 1000:1000 if we're running in Drone
+# conditionally force the use of UID/GID 1000:1000 if we're running in Drone or Github Actions (in which case CI env var will be set)
 ifeq ("$(DRONE)","true")
+CI := true
+endif
+ifeq ("$(CI)","true")
 UID := 1000
 GID := 1000
 NOROOT := -u 1000:1000

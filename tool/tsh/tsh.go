@@ -1276,7 +1276,7 @@ func onLogin(cf *CLIConf) error {
 			kubeHost, _ := tc.KubeProxyHostPort()
 			kubeTLSServerName = client.GetKubeTLSServerName(kubeHost)
 		}
-		filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+		filesWritten, err := identityfile.Write(cf.Context, identityfile.WriteConfig{
 			OutputPath:           cf.IdentityFileOut,
 			Key:                  key,
 			Format:               cf.IdentityFormat,
