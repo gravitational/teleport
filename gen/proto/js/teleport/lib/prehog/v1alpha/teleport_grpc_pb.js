@@ -18,6 +18,7 @@
 'use strict';
 var grpc = require('@grpc/grpc-js');
 var teleport_lib_prehog_v1alpha_teleport_pb = require('../../../../teleport/lib/prehog/v1alpha/teleport_pb.js');
+var google_protobuf_duration_pb = require('google-protobuf/google/protobuf/duration_pb.js');
 var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/timestamp_pb.js');
 
 function serialize_prehog_v1alpha_HelloTeleportRequest(arg) {

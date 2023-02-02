@@ -782,6 +782,11 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			DisconnectExpiredCert: types.NewBoolOption(false),
 			LockingMode:           constants.LockingModeBestEffort,
 			AllowPasswordless:     types.NewBoolOption(true),
+			IDP: &types.IdPOptions{
+				SAML: &types.IdPSAMLOptions{
+					Enabled: types.NewBoolOption(true),
+				},
+			},
 		},
 	}, protocmp.Transform()))
 

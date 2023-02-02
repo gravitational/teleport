@@ -117,8 +117,8 @@ type UsageSessionStart prehogv1.SessionStartEvent
 
 func (u *UsageSessionStart) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_SessionStart{
-			SessionStart: &prehogv1.SessionStartEvent{
+		Event: &prehogv1.SubmitEventRequest_SessionStartV2{
+			SessionStartV2: &prehogv1.SessionStartEvent{
 				UserName:    a.AnonymizeString(u.UserName),
 				SessionType: u.SessionType,
 			},
@@ -377,6 +377,26 @@ func (u *UsageUIDiscoverResourceSelectionEvent) Anonymize(a utils.Anonymizer) pr
 				},
 				Resource: u.Resource,
 				Status:   u.Status,
+			},
+		},
+	}
+}
+
+// UsageCertificateIssued is an event emitted when a certificate has been
+// issued, used to track the duration and restriction.
+type UsageCertificateIssued prehogv1.UserCertificateIssuedEvent
+
+func (u *UsageCertificateIssued) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UserCertificateIssuedEvent{
+			UserCertificateIssuedEvent: &prehogv1.UserCertificateIssuedEvent{
+				UserName:        a.AnonymizeString(u.UserName),
+				Ttl:             u.Ttl,
+				IsBot:           u.IsBot,
+				UsageDatabase:   u.UsageDatabase,
+				UsageApp:        u.UsageApp,
+				UsageKubernetes: u.UsageKubernetes,
+				UsageDesktop:    u.UsageDesktop,
 			},
 		},
 	}

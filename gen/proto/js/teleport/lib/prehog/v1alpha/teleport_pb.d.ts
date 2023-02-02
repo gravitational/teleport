@@ -5,6 +5,7 @@
 /* eslint-disable */
 
 import * as jspb from "google-protobuf";
+import * as google_protobuf_duration_pb from "google-protobuf/google/protobuf/duration_pb";
 import * as google_protobuf_timestamp_pb from "google-protobuf/google/protobuf/timestamp_pb";
 
 export class UserLoginEvent extends jspb.Message { 
@@ -96,6 +97,54 @@ export namespace SessionStartEvent {
     export type AsObject = {
         userName: string,
         sessionType: string,
+    }
+}
+
+export class UserCertificateIssuedEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): UserCertificateIssuedEvent;
+
+
+    hasTtl(): boolean;
+    clearTtl(): void;
+    getTtl(): google_protobuf_duration_pb.Duration | undefined;
+    setTtl(value?: google_protobuf_duration_pb.Duration): UserCertificateIssuedEvent;
+
+    getIsBot(): boolean;
+    setIsBot(value: boolean): UserCertificateIssuedEvent;
+
+    getUsageDatabase(): boolean;
+    setUsageDatabase(value: boolean): UserCertificateIssuedEvent;
+
+    getUsageApp(): boolean;
+    setUsageApp(value: boolean): UserCertificateIssuedEvent;
+
+    getUsageKubernetes(): boolean;
+    setUsageKubernetes(value: boolean): UserCertificateIssuedEvent;
+
+    getUsageDesktop(): boolean;
+    setUsageDesktop(value: boolean): UserCertificateIssuedEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UserCertificateIssuedEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UserCertificateIssuedEvent): UserCertificateIssuedEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UserCertificateIssuedEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UserCertificateIssuedEvent;
+    static deserializeBinaryFromReader(message: UserCertificateIssuedEvent, reader: jspb.BinaryReader): UserCertificateIssuedEvent;
+}
+
+export namespace UserCertificateIssuedEvent {
+    export type AsObject = {
+        userName: string,
+        ttl?: google_protobuf_duration_pb.Duration.AsObject,
+        isBot: boolean,
+        usageDatabase: boolean,
+        usageApp: boolean,
+        usageKubernetes: boolean,
+        usageDesktop: boolean,
     }
 }
 
@@ -541,6 +590,18 @@ export class SubmitEventRequest extends jspb.Message {
     setUiDiscoverResourceSelectionEvent(value?: UIDiscoverResourceSelectionEvent): SubmitEventRequest;
 
 
+    hasUserCertificateIssuedEvent(): boolean;
+    clearUserCertificateIssuedEvent(): void;
+    getUserCertificateIssuedEvent(): UserCertificateIssuedEvent | undefined;
+    setUserCertificateIssuedEvent(value?: UserCertificateIssuedEvent): SubmitEventRequest;
+
+
+    hasSessionStartV2(): boolean;
+    clearSessionStartV2(): void;
+    getSessionStartV2(): SessionStartEvent | undefined;
+    setSessionStartV2(value?: SessionStartEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -572,6 +633,8 @@ export namespace SubmitEventRequest {
         uiRecoveryCodesPrintClick?: UIRecoveryCodesPrintClickEvent.AsObject,
         uiDiscoverStartedEvent?: UIDiscoverStartedEvent.AsObject,
         uiDiscoverResourceSelectionEvent?: UIDiscoverResourceSelectionEvent.AsObject,
+        userCertificateIssuedEvent?: UserCertificateIssuedEvent.AsObject,
+        sessionStartV2?: SessionStartEvent.AsObject,
     }
 
     export enum EventCase {
@@ -606,6 +669,10 @@ export namespace SubmitEventRequest {
     UI_DISCOVER_STARTED_EVENT = 17,
 
     UI_DISCOVER_RESOURCE_SELECTION_EVENT = 18,
+
+    USER_CERTIFICATE_ISSUED_EVENT = 19,
+
+    SESSION_START_V2 = 20,
 
     }
 
