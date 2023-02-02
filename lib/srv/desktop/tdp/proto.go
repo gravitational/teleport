@@ -247,7 +247,17 @@ func decodePNG2Frame(in byteReader) (PNG2Frame, error) {
 }
 
 func (f PNG2Frame) Encode() ([]byte, error) {
-	return f, nil
+	// Encode gets called on the reusable buffer at
+	// lib/srv/desktop/rdp/rdclient.Client.png2FrameBuffer,
+	// which was causing us recording problems due to the async
+	// nature of AuditWriter. Copying into a new buffer here is
+	// a temporary hack that fixes that.
+	//
+	// TODO(isaiah, zmb3, LKozlowski): remove this once a buffer pool
+	// is added.
+	b := make([]byte, len(f))
+	copy(b, f)
+	return b, nil
 }
 
 // MouseMove is the mouse movement message.
