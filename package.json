@@ -19,7 +19,7 @@
     "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx}'",
     "type-check": "tsc --noEmit",
     "prettier-check": "yarn prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx}'",
-    "prettier-write": "yarn prettier --write '+(e|web)/**/*.{ts,tsx,js,jsx}'"
+    "prettier-write": "yarn prettier --write --loglevel silent '+(e|web)/**/*.{ts,tsx,js,jsx}'"
   },
   "private": true,
   "resolutions": {
