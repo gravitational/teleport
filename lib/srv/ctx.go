@@ -399,7 +399,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		ClusterName:            parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
 		SessionRecordingConfig: recConfig,
 		Identity:               identityContext,
-		clientIdleTimeout:      identityContext.AccessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		clientIdleTimeout:      services.AdjustClientIdleTimeout(identityContext.AccessChecker.OptionSSHClientIdleTimeout(), netConfig.GetClientIdleTimeout()),
 		cancelContext:          cancelContext,
 		cancel:                 cancel,
 	}
@@ -425,7 +425,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		childErr := child.Close()
 		return nil, nil, trace.NewAggregate(err, childErr)
 	}
-	disconnectExpiredCert := identityContext.AccessChecker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
+	disconnectExpiredCert := services.AdjustDisconnectExpiredCert(identityContext.AccessChecker.OptionsSSHAllowExpiredCert(), authPref.GetDisconnectExpiredCert())
 	if !identityContext.CertValidBefore.IsZero() && disconnectExpiredCert {
 		child.disconnectExpiredCert = identityContext.CertValidBefore
 	}
@@ -449,7 +449,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	monitorConfig := MonitorConfig{
 		LockWatcher:           child.srv.GetLockWatcher(),
 		LockTargets:           lockTargets,
-		LockingMode:           identityContext.AccessChecker.LockingMode(authPref.GetLockingMode()),
+		LockingMode:           services.AdjustLockingMode(identityContext.AccessChecker.OptionLockingMode(), authPref.GetLockingMode()),
 		DisconnectExpiredCert: child.disconnectExpiredCert,
 		ClientIdleTimeout:     child.clientIdleTimeout,
 		Clock:                 child.srv.GetClock(),
@@ -646,7 +646,7 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 		return ErrNodeFileCopyingNotPermitted
 	}
 	// Check if the user's RBAC role allows remote file operations.
-	if !c.Identity.AccessChecker.CanCopyFiles() {
+	if !c.Identity.AccessChecker.OptionsSSHAllowFileCopying() {
 		return errRoleFileCopyingNotPermitted
 	}
 

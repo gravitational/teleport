@@ -828,11 +828,11 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		Context:           ctx,
 		Conn:              tdpConn,
 		Clock:             s.cfg.Clock,
-		ClientIdleTimeout: authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		ClientIdleTimeout: services.AdjustClientIdleTimeout(authCtx.Checker.OptionSSHClientIdleTimeout(), netConfig.GetClientIdleTimeout()),
 		Entry:             log,
 		Emitter:           s.cfg.Emitter,
 		LockWatcher:       s.cfg.LockWatcher,
-		LockingMode:       authCtx.Checker.LockingMode(authPref.GetLockingMode()),
+		LockingMode:       services.AdjustLockingMode(authCtx.Checker.OptionLockingMode(), authPref.GetLockingMode()),
 		LockTargets:       append(services.LockTargetsFromTLSIdentity(identity), types.LockTarget{WindowsDesktop: desktop.GetName()}),
 		Tracker:           rdpc,
 		TeleportUser:      identity.Username,
@@ -842,7 +842,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 			tdpConn: tdpConn,
 		},
 	}
-	shouldDisconnectExpiredCert := authCtx.Checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
+	shouldDisconnectExpiredCert := services.AdjustDisconnectExpiredCert(authCtx.Checker.OptionsSSHAllowExpiredCert(), authPref.GetDisconnectExpiredCert())
 	if shouldDisconnectExpiredCert && !identity.Expires.IsZero() {
 		monitorCfg.DisconnectExpiredCert = identity.Expires
 	}

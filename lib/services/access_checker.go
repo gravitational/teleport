@@ -163,7 +163,7 @@ type AccessChecker interface {
 
 	OptionLockingMode() types.LockingMode
 
-	OptionSessionMFA() types.SessionMFA
+	OptionSessionMFA() types.RequireMFAType
 
 	OptionSSHSessionRecordingMode() types.SSHSessionRecordingMode
 
@@ -608,8 +608,8 @@ func (a *accessChecker) OptionLockingMode() types.LockingMode {
 	return *RoleOption[*types.LockingMode](a)
 }
 
-func (a *accessChecker) OptionSessionMFA() types.SessionMFA {
-	return *RoleOption[*types.SessionMFA](a)
+func (a *accessChecker) OptionSessionMFA() types.RequireMFAType {
+	return *RoleOption[*types.RequireMFAType](a)
 }
 
 func (a *accessChecker) OptionSSHSessionRecordingMode() types.SSHSessionRecordingMode {
@@ -860,4 +860,89 @@ func AccessInfoFromUser(user types.User) *AccessInfo {
 		AccessPolicies: accessPolicies,
 		Traits:         traits,
 	}
+}
+
+func AdjustSessionTTL(a types.SessionTTL, b time.Duration) time.Duration {
+	ax := time.Duration(a)
+
+	switch {
+	case ax == 0:
+		return b
+	case b == 0:
+		return time.Duration(a)
+	case ax > b:
+		return b
+	default:
+		return ax
+	}
+}
+
+func AdjustLockingMode(a types.LockingMode, b constants.LockingMode) constants.LockingMode {
+	if a == types.LockingModeStrict || b == constants.LockingModeStrict {
+		return constants.LockingModeStrict
+	}
+
+	return constants.LockingModeBestEffort
+}
+
+func AdjustClientIdleTimeout(a types.SSHClientIdleTimeout, b time.Duration) time.Duration {
+	ax := time.Duration(a)
+
+	switch {
+	case ax == 0:
+		return b
+	case b == 0:
+		return time.Duration(a)
+	case ax > b:
+		return b
+	default:
+		return ax
+	}
+}
+
+func AdjustDisconnectExpiredCert(a types.SSHAllowExpiredCert, b bool) bool {
+	switch {
+	case !bool(a) || !b:
+		return false
+	default:
+		return true
+	}
+}
+
+// MFAParams adjusts the MFA parameters based on the cluster auth preference.
+func MFAParams(local types.RequireMFAType, authPrefRequirement types.RequireMFAType) (params AccessMFAParams) {
+	// per-session MFA is overridden by hardware key PIV touch requirement.
+	// check if the auth pref or any roles have this option.
+	if authPrefRequirement == types.RequireMFAType_HARDWARE_KEY_TOUCH {
+		return AccessMFAParams{Required: MFARequiredNever}
+	}
+	for _, role := range set {
+		if role.GetOptions().RequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
+			return AccessMFAParams{Required: MFARequiredNever}
+		}
+	}
+
+	// MFA is always required according to the cluster auth pref.
+	if authPrefRequirement.IsSessionMFARequired() {
+		return AccessMFAParams{Required: MFARequiredAlways}
+	}
+
+	// If MFA requirement is the same across all roles, we can skip the per-role check.
+	// Set mfaRequired to the first role's requirement, then check if all other roles match.
+	if len(set) > 0 {
+		rolesMFARequired := set[0].GetOptions().RequireMFAType.IsSessionMFARequired()
+		for _, role := range set[1:] {
+			if role.GetOptions().RequireMFAType.IsSessionMFARequired() != rolesMFARequired {
+				// This role differs from the MFA requirement of the other roles, return per-role.
+				return AccessMFAParams{Required: MFARequiredPerRole}
+			}
+		}
+
+		if rolesMFARequired {
+			return AccessMFAParams{Required: MFARequiredAlways}
+		}
+	}
+
+	// No roles to check or no roles require MFA.
+	return AccessMFAParams{Required: MFARequiredNever}
 }

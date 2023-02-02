@@ -194,7 +194,7 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 		return nil, trace.Wrap(err)
 	}
 	if lockErr := a.lockWatcher.CheckLockInForce(
-		authContext.Checker.LockingMode(authPref.GetLockingMode()),
+		services.AdjustLockingMode(authContext.Checker.OptionLockingMode(), authPref.GetLockingMode()),
 		authContext.LockTargets()...); lockErr != nil {
 		return nil, trace.Wrap(lockErr)
 	}
@@ -276,7 +276,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 
 	// Adjust expiry based on locally mapped roles.
 	ttl := time.Until(u.Identity.Expires)
-	ttl = checker.AdjustSessionTTL(ttl)
+	ttl = services.AdjustSessionTTL(checker.OptionSessionTTL(), ttl)
 
 	kubeUsers, kubeGroups, err := checker.CheckKubeGroupsAndUsers(ttl, false)
 	// IsNotFound means that the user has no k8s users or groups, which is fine

@@ -2534,7 +2534,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		err = a.context.Checker.CheckImpersonate(a.context.User, user, parsedRoles)
 		// adjust session TTL based on the impersonated role set limit
 		ttl := req.Expires.Sub(a.authServer.GetClock().Now())
-		ttl = checker.AdjustSessionTTL(ttl)
+		ttl = services.AdjustSessionTTL(a.context.Checker.OptionSessionTTL(), ttl)
 		req.Expires = a.authServer.GetClock().Now().Add(ttl)
 		if err != nil {
 			log.Warning(err)

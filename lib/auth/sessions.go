@@ -53,7 +53,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	// sessionID which will be used to fetch services.WebSession which
 	// contains a certificate whose life matches the life of the session
 	// that will be used to establish the connection.
-	ttl := checker.AdjustSessionTTL(identity.Expires.Sub(s.clock.Now()))
+	ttl := services.AdjustSessionTTL(checker.OptionSessionTTL(), identity.Expires.Sub(s.clock.Now()))
 
 	// Encode user traits in the app access certificate. This will allow to
 	// pass user traits when talking to app servers in leaf clusters.
@@ -299,7 +299,7 @@ func (s *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	// sessionID which will be used to fetch services.WebSession which
 	// contains a certificate whose life matches the life of the session
 	// that will be used to establish the connection.
-	ttl := checker.AdjustSessionTTL(identity.Expires.Sub(s.clock.Now()))
+	ttl := services.AdjustSessionTTL(checker.OptionSessionTTL(), identity.Expires.Sub(s.clock.Now()))
 
 	// Create services.WebSession for this session.
 	sessionID, err := utils.CryptoRandomHex(SessionTokenBytes)

@@ -481,7 +481,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 	}
 
 	sourceIP := ""
-	if checker.PinSourceIP() {
+	if checker.OptionsSSHPinSourceIP() {
 		md := req.ClientMetadata
 		if md == nil {
 			return nil, trace.Errorf("source IP pinning is enabled but client metadata is nil")

@@ -542,10 +542,10 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 
 	certExpires := cfg.identity.Expires
 	var disconnectCertExpired time.Time
-	if !certExpires.IsZero() && cfg.checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+	if !certExpires.IsZero() && services.AdjustDisconnectExpiredCert(cfg.checker.OptionsSSHAllowExpiredCert(), authPref.GetDisconnectExpiredCert()) {
 		disconnectCertExpired = certExpires
 	}
-	idleTimeout := cfg.checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
+	idleTimeout := services.AdjustClientIdleTimeout(cfg.checker.OptionSSHClientIdleTimeout(), netConfig.GetClientIdleTimeout())
 	ctx, cancel := context.WithCancel(ctx)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    cfg.conn,

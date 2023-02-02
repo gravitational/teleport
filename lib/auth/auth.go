@@ -1206,7 +1206,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	lockingMode := req.checker.LockingMode(authPref.GetLockingMode())
+	lockingMode := services.AdjustLockingMode(req.checker.OptionLockingMode(), authPref.GetLockingMode())
 	lockTargets := []types.LockTarget{
 		{User: req.user.GetName()},
 		{MFADevice: req.mfaVerified},
@@ -1255,7 +1255,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	} else {
 		// Adjust session TTL to the smaller of two values: the session TTL
 		// requested in tsh or the session TTL for the role.
-		sessionTTL = req.checker.AdjustSessionTTL(req.ttl)
+		sessionTTL = services.AdjustSessionTTL(req.checker.OptionSessionTTL(), sessionTTL)
 
 		// Return a list of logins that meet the session TTL limit. This means if
 		// the requested session TTL is larger than the max session TTL for a login,
@@ -1328,9 +1328,9 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		TTL:                    sessionTTL,
 		Roles:                  req.checker.RoleNames(),
 		CertificateFormat:      certificateFormat,
-		PermitPortForwarding:   req.checker.CanPortForward(),
-		PermitAgentForwarding:  req.checker.CanForwardAgents(),
-		PermitX11Forwarding:    req.checker.PermitX11Forwarding(),
+		PermitPortForwarding:   bool(req.checker.OptionSSHAllowPortForwarding()),
+		PermitAgentForwarding:  bool(req.checker.OptionSSHAllowAgentForwarding()),
+		PermitX11Forwarding:    bool(req.checker.OptionSSHAllowX11Forwarding()),
 		RouteToCluster:         req.routeToCluster,
 		Traits:                 req.traits,
 		ActiveRequests:         req.activeRequests,
@@ -2715,7 +2715,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	}
 	sessionTTL := req.SessionTTL
 	if sessionTTL == 0 {
-		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
+		sessionTTL = services.AdjustSessionTTL(checker.OptionSessionTTL(), apidefaults.CertDuration)
 	}
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,

@@ -37,7 +37,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1065,8 +1064,8 @@ func newRecorder(s *session, ctx *ServerContext) (events.StreamWriter, error) {
 		ClusterName:  ctx.ClusterName,
 	})
 	if err != nil {
-		switch ctx.Identity.AccessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH) {
-		case constants.SessionRecordingModeBestEffort:
+		switch s.scx.Identity.AccessChecker.OptionSSHSessionRecordingMode() {
+		case types.SSHSessionRecordingModeBestEffort:
 			s.log.WithError(err).Warning("Failed to initialize session recording, disabling it for this session.")
 			eventOnlyRec, err := newEventOnlyRecorder(s, ctx)
 			if err != nil {
@@ -1662,8 +1661,8 @@ func (s *session) emitAuditEvent(ctx context.Context, event apievents.AuditEvent
 // onWriteError defines the `OnWriteError` `TermManager` callback.
 func (s *session) onWriteError(idString string, err error) {
 	if idString == sessionRecorderID {
-		switch s.scx.Identity.AccessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH) {
-		case constants.SessionRecordingModeBestEffort:
+		switch s.scx.Identity.AccessChecker.OptionSSHSessionRecordingMode() {
+		case types.SSHSessionRecordingModeBestEffort:
 			s.log.WithError(err).Warning("Failed to write to session recorder, disabling session recording.")
 			// Send inside a gorountine since the callback is called from inside
 			// the writer.

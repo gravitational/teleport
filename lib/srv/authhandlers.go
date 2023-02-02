@@ -188,8 +188,8 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 
 // CheckAgentForward checks if agent forwarding is allowed for the users RoleSet.
 func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
-	if err := ctx.Identity.AccessChecker.CheckAgentForward(ctx.Identity.Login); err != nil {
-		return trace.Wrap(err)
+	if !ctx.Identity.AccessChecker.OptionSSHAllowAgentForwarding() {
+		return trace.AccessDenied("agent forwarding not permitted")
 	}
 
 	return nil
@@ -197,14 +197,14 @@ func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
 
 // CheckX11Forward checks if X11 forwarding is permitted for the user's RoleSet.
 func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
-	if !ctx.Identity.AccessChecker.PermitX11Forwarding() {
+	if !ctx.Identity.AccessChecker.OptionSSHAllowX11Forwarding() {
 		return trace.AccessDenied("x11 forwarding not permitted")
 	}
 	return nil
 }
 
 func (h *AuthHandlers) CheckFileCopying(ctx *ServerContext) error {
-	if !ctx.Identity.AccessChecker.CanCopyFiles() {
+	if !ctx.Identity.AccessChecker.OptionsSSHAllowFileCopying() {
 		return errRoleFileCopyingNotPermitted
 	}
 	return nil
@@ -212,7 +212,7 @@ func (h *AuthHandlers) CheckFileCopying(ctx *ServerContext) error {
 
 // CheckPortForward checks if port forwarding is allowed for the users RoleSet.
 func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
-	if ok := ctx.Identity.AccessChecker.CanPortForward(); !ok {
+	if ok := ctx.Identity.AccessChecker.OptionSSHAllowPortForwarding(); !ok {
 		systemErrorMessage := fmt.Sprintf("port forwarding not allowed by role set: %v", ctx.Identity.AccessChecker.RoleNames())
 		userErrorMessage := "port forwarding not allowed"
 

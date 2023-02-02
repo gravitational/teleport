@@ -708,10 +708,10 @@ func (s *Server) monitorConn(ctx context.Context, tc *srv.TrackingReadConn, auth
 
 	certExpires := identity.Expires
 	var disconnectCertExpired time.Time
-	if !certExpires.IsZero() && checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+	if !certExpires.IsZero() && services.AdjustDisconnectExpiredCert(checker.OptionsSSHAllowExpiredCert(), authPref.GetDisconnectExpiredCert()) {
 		disconnectCertExpired = certExpires
 	}
-	idleTimeout := checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
+	idleTimeout := services.AdjustClientIdleTimeout(checker.OptionSSHClientIdleTimeout(), netConfig.GetClientIdleTimeout())
 
 	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
 	err = srv.StartMonitor(srv.MonitorConfig{

@@ -152,36 +152,48 @@ func (o *LockingMode) fromRoleOptions(options RoleOptions) bool {
 	return true
 }
 
-type SessionMFA bool
-
 // Name is the static name of the option type.
-func (o *SessionMFA) Name() string {
-	return "session_mfa"
+func (o *RequireMFAType) Name() string {
+	return "require_mfa"
 }
 
 // deserializeInto deserializes the raw value into the receiver.
-func (o *SessionMFA) deserializeInto(raw string) error {
-	b, err := deserializeOptionBool(raw)
-	if err != nil {
-		return trace.Wrap(err)
+func (o *RequireMFAType) deserializeInto(raw string) error {
+	switch raw {
+	case "off":
+		*o = RequireMFAType_OFF
+		return nil
+	case "session":
+		*o = RequireMFAType_SESSION
+		return nil
+	case "session_and_hardware_key":
+		*o = RequireMFAType_SESSION_AND_HARDWARE_KEY
+		return nil
+	case "hardware_key_touch":
+		*o = RequireMFAType_HARDWARE_KEY_TOUCH
+		return nil
+	default:
+		return trace.BadParameter("invalid mfa mode %q", raw)
 	}
-
-	*o = SessionMFA(b)
-	return nil
 }
 
-func (o *SessionMFA) combineOptions(instances ...*SessionMFA) {
-	*o = false
+func (o *RequireMFAType) combineOptions(instances ...*RequireMFAType) {
+	*o = RequireMFAType_OFF
 	for _, instance := range instances {
-		if *instance {
-			*o = *instance
-			break
+		switch {
+		case *instance == RequireMFAType_HARDWARE_KEY_TOUCH && *o != RequireMFAType_SESSION_AND_HARDWARE_KEY:
+			*o = RequireMFAType_HARDWARE_KEY_TOUCH
+		case *instance == RequireMFAType_SESSION_AND_HARDWARE_KEY:
+			*o = RequireMFAType_SESSION_AND_HARDWARE_KEY
+			return
+		case *instance == RequireMFAType_SESSION && *o == RequireMFAType_OFF:
+			*o = RequireMFAType_SESSION
 		}
 	}
 }
 
-func (o *SessionMFA) fromRoleOptions(options RoleOptions) bool {
-	*o = SessionMFA(options.RequireSessionMFA)
+func (o *RequireMFAType) fromRoleOptions(options RoleOptions) bool {
+	*o = options.RequireMFAType
 	return true
 }
 

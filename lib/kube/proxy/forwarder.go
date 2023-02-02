@@ -540,7 +540,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 
 	// adjust session ttl to the smaller of two values: the session
 	// ttl requested in tsh or the session ttl for the role.
-	sessionTTL := roles.AdjustSessionTTL(time.Hour)
+	sessionTTL := services.AdjustSessionTTL(roles.OptionSessionTTL(), time.Hour)
 
 	identity := ctx.Identity.GetIdentity()
 	teleportClusterName := identity.RouteToCluster
@@ -666,7 +666,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	}
 
 	authCtx := &authContext{
-		clientIdleTimeout: roles.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
+		clientIdleTimeout: services.AdjustClientIdleTimeout(roles.OptionSSHClientIdleTimeout(), netConfig.GetClientIdleTimeout()),
 		sessionTTL:        sessionTTL,
 		Context:           ctx,
 		kubeGroups:        utils.StringsSet(kubeGroups),
@@ -689,7 +689,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		return nil, trace.Wrap(err)
 	}
 
-	disconnectExpiredCert := roles.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
+	disconnectExpiredCert := services.AdjustDisconnectExpiredCert(roles.OptionsSSHAllowExpiredCert(), authPref.GetDisconnectExpiredCert())
 	if !certExpires.IsZero() && disconnectExpiredCert {
 		authCtx.disconnectExpiredCert = certExpires
 	}
