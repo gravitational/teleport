@@ -114,7 +114,7 @@ export default function Container(props: AgentStepProps) {
                 <ActionButtons
                   onProceed={() => null}
                   disableProceed={true}
-                  onSkip={props.nextStep}
+                  onSkip={() => props.nextStep(0)}
                 />
               </Box>
             )}
