@@ -97,7 +97,7 @@ export function ManageDevices({
         <ReAuthenticate
           onAuthenticated={setToken}
           onClose={hideReAuthenticate}
-          dialogText="You must verify your identity with one of your existing two-factor devices before registering a new device."
+          actionText="registering a new device"
         />
       )}
       {isAddDeviceVisible && (

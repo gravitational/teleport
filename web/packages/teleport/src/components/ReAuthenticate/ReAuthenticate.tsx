@@ -44,7 +44,7 @@ export function ReAuthenticate({
   onClose,
   auth2faType,
   preferredMfaType,
-  dialogText,
+  actionText,
 }: State) {
   const [otpToken, setOtpToken] = useState('');
   const mfaOptions = createMfaOptions({
@@ -80,7 +80,8 @@ export function ReAuthenticate({
             <DialogHeader style={{ flexDirection: 'column' }}>
               <DialogTitle>Verify your identity</DialogTitle>
               <Text textAlign="center" color="text.secondary">
-                {dialogText}
+                You must verify your identity with one of your existing
+                two-factor devices before {actionText}.
               </Text>
             </DialogHeader>
             {attempt.status === 'failed' && (

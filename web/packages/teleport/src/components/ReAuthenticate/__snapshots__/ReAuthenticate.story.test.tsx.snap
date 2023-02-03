@@ -328,7 +328,9 @@ exports[`render failed state for re-authentication dialog 1`] = `
             class="c6"
             color="text.secondary"
           >
-            You must verify your identity with one of your existing two-factor devices before performing this action.
+            You must verify your identity with one of your existing two-factor devices before 
+            performing this action
+            .
           </div>
         </div>
         <div
@@ -744,7 +746,9 @@ exports[`render re-authentication dialog 1`] = `
             class="c6"
             color="text.secondary"
           >
-            You must verify your identity with one of your existing two-factor devices before performing this action.
+            You must verify your identity with one of your existing two-factor devices before 
+            performing this action
+            .
           </div>
         </div>
         <div

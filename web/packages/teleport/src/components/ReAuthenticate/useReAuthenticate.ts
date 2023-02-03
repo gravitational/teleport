@@ -24,7 +24,7 @@ import auth from 'teleport/services/auth';
 export default function useReAuthenticate({
   onAuthenticated,
   onClose,
-  dialogText = defaultText,
+  actionText = defaultActionText,
 }: Props) {
   const { attempt, setAttempt, handleError } = useAttempt('');
 
@@ -68,18 +68,26 @@ export default function useReAuthenticate({
     submitWithWebauthn,
     auth2faType: cfg.getAuth2faType(),
     preferredMfaType: cfg.getPreferredMfaType(),
-    dialogText,
+    actionText,
     onClose,
   };
 }
 
-const defaultText =
-  'You must verify your identity with one of your existing two-factor devices before performing this action.';
+const defaultActionText = 'performing this action';
 
 export type Props = {
   onAuthenticated: React.Dispatch<React.SetStateAction<string>>;
   onClose: () => void;
-  dialogText?: string;
+  /**
+   * The text that will be appended to the text in the re-authentication dialog.
+   *
+   * Default value: "performing this action"
+   *
+   * Example: If `actionText` is set to "registering a new device" then the dialog will say
+   * "You must verify your identity with one of your existing two-factor devices before registering a new device."
+   *
+   * */
+  actionText?: string;
 };
 
 export type State = ReturnType<typeof useReAuthenticate>;
