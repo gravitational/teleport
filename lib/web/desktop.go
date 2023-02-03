@@ -242,7 +242,10 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		return nil, trace.Wrap(err)
 	}
 
-	var wsLock sync.Mutex
+	stream, err := NewTerminalStream(ws)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
 			WindowsDesktop: desktopName,
@@ -255,7 +258,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 			TLSCert:             sessCtx.cfg.Session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),
 		},
-	}, promptMFAChallenge(ws, &wsLock, tdpMFACodec{}))
+	}, promptMFAChallenge(stream, tdpMFACodec{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -349,7 +352,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		// need to split the stream into individual messages and
 		// write them to the websocket
 		for {
-			raw, err := tc.ReadRaw()
+			msg, err := tc.ReadMessage()
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
 				return
@@ -376,8 +379,12 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				errs <- err
 				return
 			}
-
-			err = ws.WriteMessage(websocket.BinaryMessage, raw)
+			encoded, err := msg.Encode()
+			if err != nil {
+				errs <- err
+				return
+			}
+			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
 				return

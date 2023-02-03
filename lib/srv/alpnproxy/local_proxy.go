@@ -101,6 +101,9 @@ type LocalProxyHTTPMiddleware interface {
 
 	// HandleRequest returns true if requests has been handled and must not be processed further, false otherwise.
 	HandleRequest(rw http.ResponseWriter, req *http.Request) bool
+
+	// HandleResponse processes the server response before sending it to the client.
+	HandleResponse(resp *http.Response) error
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -267,7 +270,16 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 				errHeader = strings.Replace(errHeader, " User Message:", "\n\n\tUser Message:", -1)
 				l.cfg.Log.Warn(errHeader)
 			}
+
+			if err := l.cfg.HTTPMiddleware.HandleResponse(response); err != nil {
+				return trace.Wrap(err)
+			}
 			return nil
+		},
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			l.cfg.Log.WithError(err).Warnf("Failed to handle request %v %v.", r.Method, r.URL)
+			code := trace.ErrorToCode(err)
+			http.Error(w, http.StatusText(code), code)
 		},
 		Transport: tr,
 	}

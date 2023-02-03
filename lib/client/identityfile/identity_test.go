@@ -16,6 +16,7 @@ package identityfile
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/x509/pkix"
 	"fmt"
@@ -33,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
@@ -127,7 +129,7 @@ func TestWrite(t *testing.T) {
 	// test OpenSSH-compatible identity file creation:
 	cfg.OutputPath = filepath.Join(outputDir, "openssh")
 	cfg.Format = FormatOpenSSH
-	_, err := Write(cfg)
+	_, err := Write(context.Background(), cfg)
 	require.NoError(t, err)
 
 	// key is OK:
@@ -143,7 +145,7 @@ func TestWrite(t *testing.T) {
 	// test standard Teleport identity file creation:
 	cfg.OutputPath = filepath.Join(outputDir, "file")
 	cfg.Format = FormatFile
-	_, err = Write(cfg)
+	_, err = Write(context.Background(), cfg)
 	require.NoError(t, err)
 
 	// key+cert are OK:
@@ -172,7 +174,7 @@ func TestWrite(t *testing.T) {
 	cfg.Format = FormatKubernetes
 	cfg.KubeProxyAddr = "far.away.cluster"
 	cfg.KubeTLSServerName = "kube.far.away.cluster"
-	_, err = Write(cfg)
+	_, err = Write(context.Background(), cfg)
 	require.NoError(t, err)
 	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster", cfg.KubeTLSServerName)
 }
@@ -203,7 +205,7 @@ func TestWriteAllFormats(t *testing.T) {
 				cfg.OutputPath = t.TempDir()
 			}
 
-			files, err := Write(cfg)
+			files, err := Write(context.Background(), cfg)
 			require.NoError(t, err)
 			for _, file := range files {
 				require.True(t, strings.HasPrefix(file, cfg.OutputPath))
@@ -223,13 +225,13 @@ func TestKubeconfigOverwrite(t *testing.T) {
 		Key:                  key,
 		OverwriteDestination: true,
 	}
-	_, err := Write(cfg)
+	_, err := Write(context.Background(), cfg)
 	require.NoError(t, err)
 
 	// Write a kubeconfig to the same file path. It should be overwritten.
 	cfg.Format = FormatKubernetes
 	cfg.KubeProxyAddr = "far.away.cluster"
-	_, err = Write(cfg)
+	_, err = Write(context.Background(), cfg)
 	require.NoError(t, err)
 	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster", "")
 
@@ -237,7 +239,7 @@ func TestKubeconfigOverwrite(t *testing.T) {
 	// should be overwritten.
 	cfg.KubeProxyAddr = "other.cluster"
 	cfg.KubeTLSServerName = "kube.other.cluster"
-	_, err = Write(cfg)
+	_, err = Write(context.Background(), cfg)
 	require.NoError(t, err)
 	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "other.cluster", cfg.KubeTLSServerName)
 }
@@ -293,7 +295,8 @@ func TestIdentityRead(t *testing.T) {
 
 	var a net.Addr
 	// host auth callback must succeed
-	cb := k.HostKeyCallback("proxy.example.com")
+	cb, err := k.HostKeyCallback()
+	require.NoError(t, err)
 	require.NoError(t, cb(hosts[0], a, cert))
 
 	// load an identity which include TLS certificates
@@ -315,13 +318,11 @@ func fixturePath(path string) string {
 func TestKeyFromIdentityFile(t *testing.T) {
 	t.Parallel()
 	key := newClientKey(t)
-	key.ProxyHost = "proxy.example.com"
-	key.ClusterName = "cluster"
 
 	identityFilePath := filepath.Join(t.TempDir(), "out")
 
 	// First write an ssh key to the file.
-	_, err := Write(WriteConfig{
+	_, err := Write(context.Background(), WriteConfig{
 		OutputPath:           identityFilePath,
 		Format:               FormatFile,
 		Key:                  key,
@@ -329,13 +330,18 @@ func TestKeyFromIdentityFile(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	const proxyHost = "proxy.example.com"
+	const cluster = "cluster"
+
 	// parsed key is unchanged from original with proxy and cluster provided.
-	parsedKey, err := KeyFromIdentityFile(identityFilePath, key.ProxyHost, key.ClusterName)
+	parsedKey, err := KeyFromIdentityFile(identityFilePath, proxyHost, cluster)
+	key.ClusterName = cluster
+	key.ProxyHost = proxyHost
 	require.NoError(t, err)
 	require.Equal(t, key, parsedKey)
 
 	// Identity file's cluster name defaults to root cluster name.
-	parsedKey, err = KeyFromIdentityFile(identityFilePath, key.ProxyHost, "")
+	parsedKey, err = KeyFromIdentityFile(identityFilePath, proxyHost, "")
 	key.ClusterName = "root"
 	require.NoError(t, err)
 	require.Equal(t, key, parsedKey)
@@ -355,7 +361,7 @@ func TestNewClientStoreFromIdentityFile(t *testing.T) {
 	identityFilePath := filepath.Join(t.TempDir(), "out")
 
 	// First write an ssh key to the file.
-	_, err := Write(WriteConfig{
+	_, err := Write(context.Background(), WriteConfig{
 		OutputPath:           identityFilePath,
 		Format:               FormatFile,
 		Key:                  key,
@@ -373,9 +379,10 @@ func TestNewClientStoreFromIdentityFile(t *testing.T) {
 	retrievedProfile, err := clientStore.GetProfile(currentProfile)
 	require.NoError(t, err)
 	require.Equal(t, &profile.Profile{
-		WebProxyAddr: key.ProxyHost + ":3080",
-		SiteName:     key.ClusterName,
-		Username:     key.Username,
+		WebProxyAddr:     key.ProxyHost + ":3080",
+		SiteName:         key.ClusterName,
+		Username:         key.Username,
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 	}, retrievedProfile)
 
 	retrievedKey, err := clientStore.GetKey(key.KeyIndex, client.WithAllCerts...)

@@ -1404,7 +1404,7 @@ func (s *databaseService) fetch(ctx context.Context) (apply func(ctx context.Con
 			}
 
 			for _, resource := range databaseServices {
-				if _, err := s.presenceCache.UpsertDatabaseService(ctx, resource); err != nil {
+				if _, err := s.databaseServicesCache.UpsertDatabaseService(ctx, resource); err != nil {
 					return trace.Wrap(err)
 				}
 			}
@@ -1435,7 +1435,7 @@ func (s *databaseService) processEvent(ctx context.Context, event types.Event) e
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		if _, err := s.presenceCache.UpsertDatabaseService(ctx, resource); err != nil {
+		if _, err := s.databaseServicesCache.UpsertDatabaseService(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:

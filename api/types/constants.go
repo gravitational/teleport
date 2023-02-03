@@ -306,6 +306,9 @@ const (
 	// KindLoginRule is a login rule resource.
 	KindLoginRule = "login_rule"
 
+	// KindSAMLIdPServiceProvider is a SAML service provider for the built in Teleport IdP.
+	KindSAMLIdPServiceProvider = "saml_idp_service_provider"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 

@@ -136,3 +136,19 @@ export function getDatabaseProtocol(engine: DatabaseEngine): DbProtocol {
       return 'redis';
   }
 }
+
+export function getDefaultDatabasePort(engine: DatabaseEngine): string {
+  switch (engine) {
+    case DatabaseEngine.PostgreSQL:
+      return '5432';
+    case DatabaseEngine.MySQL:
+      return '3306';
+
+    // TODO(lisa): define as we need
+    // case DatabaseEngine.Mongo:
+    // case DatabaseEngine.RedShift:
+    // case DatabaseEngine.SQLServer:
+    // case DatabaseEngine.Redis:
+  }
+  return '';
+}

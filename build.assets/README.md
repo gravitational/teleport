@@ -1,4 +1,4 @@
-### Dockerized Teleport Build
+# Dockerized Teleport Build
 
 This directory is used to produce a containerized production Teleport build.
 No need to have Golang. Only Docker is required.
@@ -9,7 +9,18 @@ It is a part of Gravitational CI/CD pipeline. To build Teleport type:
 make
 ```
 
-### DynamoDB static binary docker build 
+# Safely updating build box Dockerfiles
+
+The build box images are used in Drone pipelines and GitHub Actions. The resulting image is pushed
+to Amazon ECR and ghcr.io. This means that to safely introduce changes to Dockerfiles, those changes
+should be split into two stages:
+
+1. First you open a PR which updates a Dockerfile and get the PR merged.
+2. Once it's merged, Drone is going to pick it up, build a new build box image and push it to Amazon
+   ECR.
+3. Then you can open another PR which starts using the new build box image.
+
+# DynamoDB static binary docker build 
 
 The static binary will be built along with all nodejs assets inside the container.
 From the root directory of the source checkout run:
