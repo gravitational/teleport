@@ -763,9 +763,9 @@ It is recommended to set resource requests/limits for each container based on th
 | `string` | `nil`         |
 
 Normally the version of Teleport being used will match the version of the chart being installed. If you install chart version
-7.0.0, you'll be using Teleport 7.0.0. Upgrading the Helm chart will use the latest version from the repo.
+10.0.0, you'll be using Teleport 10.0.0. Upgrading the Helm chart will use the latest version from the repo.
 
-You can optionally override this to use a different published Teleport Docker image tag like `6.0.2` or `7`.
+You can optionally override this to use a different published Teleport Docker image tag like `10.1.2` or `11`.
 
 See our [installation guide](../../installation.mdx#docker) for information on
 Docker image versions.
@@ -773,12 +773,12 @@ Docker image versions.
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  teleportVersionOverride: "7"
+  teleportVersionOverride: "11"
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set teleportVersionOverride="7"
+  $ --set teleportVersionOverride="11"
   ```
   </TabItem>
 </Tabs>
