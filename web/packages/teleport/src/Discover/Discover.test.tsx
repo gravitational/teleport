@@ -27,6 +27,16 @@ import { Discover } from 'teleport/Discover/Discover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { fullAcl } from 'teleport/mocks/contexts';
 import { getOSSFeatures } from 'teleport/features';
+import cfg from 'teleport/config';
+
+const crypto = require('crypto');
+
+// eslint-disable-next-line jest/require-hook
+Object.defineProperty(globalThis, 'crypto', {
+  value: {
+    randomUUID: () => crypto.randomUUID(),
+  },
+});
 
 const userContextJson = {
   authType: 'sso',
@@ -56,7 +66,11 @@ describe('discover', () => {
     });
 
     return render(
-      <MemoryRouter initialEntries={[{ state: { entity: initialEntry } }]}>
+      <MemoryRouter
+        initialEntries={[
+          { pathname: cfg.routes.discover, state: { entity: initialEntry } },
+        ]}
+      >
         <TeleportContextProvider ctx={ctx}>
           <FeaturesContextProvider value={getOSSFeatures()}>
             <Discover />
