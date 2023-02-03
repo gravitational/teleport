@@ -4,7 +4,7 @@ import {
 } from 'shared/components/FileTransfer';
 
 import { routing, ServerUri } from 'teleterm/ui/uri';
-import { FileTransferDirection } from 'teleterm/services/tshd/v1/service_pb';
+import { FileTransferDirection } from 'teleterm/services/tshd/types';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { IAppContext } from 'teleterm/ui/types';

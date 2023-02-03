@@ -181,6 +181,9 @@ type InitConfig struct {
 	// WindowsServices is a service that manages Windows desktop resources.
 	WindowsDesktops services.WindowsDesktops
 
+	// SAMLIdPServiceProviders is a service that manages SAML IdP service providers.
+	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
+
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 
