@@ -812,8 +812,9 @@ func TestJoinScriptEnterprise(t *testing.T) {
 			}, nil
 		},
 	}
-	isTeleportOSSLinkRegex := regexp.MustCompile(`https://cdn\.teleport\.dev/teleport[-_]v?\${TELEPORT_VERSION}`)
-	isTeleportEntLinkRegex := regexp.MustCompile(`https://cdn\.teleport\.dev/teleport-ent[-_]v?\${TELEPORT_VERSION}`)
+
+	isTeleportOSSLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/teleport[-_]v?\${TELEPORT_VERSION}`)
+	isTeleportEntLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/teleport-ent[-_]v?\${TELEPORT_VERSION}`)
 
 	// Using the OSS Version, all the links must contain only teleport as package name.
 	script, err := getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
@@ -821,9 +822,9 @@ func TestJoinScriptEnterprise(t *testing.T) {
 
 	matches := isTeleportOSSLinkRegex.FindAllString(script, -1)
 	require.ElementsMatch(t, matches, []string{
-		"https://cdn.teleport.dev/teleport-v${TELEPORT_VERSION}",
-		"https://cdn.teleport.dev/teleport_${TELEPORT_VERSION}",
-		"https://cdn.teleport.dev/teleport-${TELEPORT_VERSION}",
+		"https://get.gravitational.com/teleport-v${TELEPORT_VERSION}",
+		"https://get.gravitational.com/teleport_${TELEPORT_VERSION}",
+		"https://get.gravitational.com/teleport-${TELEPORT_VERSION}",
 	})
 
 	// Using the Enterprise Version, all the links must contain teleport-ent as package name
@@ -833,9 +834,9 @@ func TestJoinScriptEnterprise(t *testing.T) {
 
 	matches = isTeleportEntLinkRegex.FindAllString(script, -1)
 	require.ElementsMatch(t, matches, []string{
-		"https://cdn.teleport.dev/teleport-ent-v${TELEPORT_VERSION}",
-		"https://cdn.teleport.dev/teleport-ent_${TELEPORT_VERSION}",
-		"https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION}",
+		"https://get.gravitational.com/teleport-ent-v${TELEPORT_VERSION}",
+		"https://get.gravitational.com/teleport-ent_${TELEPORT_VERSION}",
+		"https://get.gravitational.com/teleport-ent-${TELEPORT_VERSION}",
 	})
 }
 

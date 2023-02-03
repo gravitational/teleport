@@ -181,6 +181,9 @@ type InitConfig struct {
 	// WindowsServices is a service that manages Windows desktop resources.
 	WindowsDesktops services.WindowsDesktops
 
+	// SAMLIdPServiceProviders is a service that manages SAML IdP service providers.
+	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
+
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 
@@ -604,7 +607,7 @@ func createPresets(ctx context.Context, rm PresetRoleManager) error {
 				return trace.Wrap(err)
 			}
 
-			role, err := services.AddDefaultAllowRules(currentRole)
+			role, err := services.AddDefaultAllowConditions(currentRole)
 			if trace.IsAlreadyExists(err) {
 				continue
 			}
