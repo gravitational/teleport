@@ -54,16 +54,28 @@ requests from Teleport users to Google Cloud's APIs. In this step, we will show
 you how to configure these permissions before you launch the Teleport
 Application Service.
 
+When setting up Google Cloud API access with Teleport, you will configure
+service accounts with two different functions:
+
+- **Controlling service account:** The Application Service uses this service
+  account to impersonate other service accounts and sign requests to Google
+  Cloud APIs. In this guide, we will create a controlling service account called
+  `teleport-google-cloud-cli`.
+- **Target service accounts:** These are the service accounts you would like
+  Teleport users in your organization to assume when accessing Google Cloud
+  APIs. In this guide, we will create one target service account,
+  `teleport-vm-viewer`, and you can follow the same steps to enable access to
+  other target service accounts.
+
 ### Create a service account for the Application Service
 
-The Application Service requires its own Google Cloud service account, which it
-uses to enable Teleport users to access Google Cloud APIs. It does so by
-generating signed tokens for *other* service accounts, which it adds to user
-requests before forwarding them to Google Cloud. This way, local Google Cloud
-CLI tools have no access to these tokens.
+The Application Service uses the controlling service account to access Google
+Cloud API by generating signed tokens for target service accounts, which it uses
+to sign requests from Teleport users before forwarding them to Google Cloud.
+This way, local Google Cloud CLI tools have no access to these tokens.
 
-In this section, we will create a service account for the Application Service
-assign permissions to it.
+In this section, we will create a controlling service account for the
+Application Service assign permissions to it.
 
 Run the following command to create a service account called
 `teleport-google-cloud-cli`:
@@ -89,12 +101,11 @@ $ gcloud projects add-iam-policy-binding ${PROJECT_ID?} \
 
 When a Teleport user executes a Google Cloud CLI command against the Teleport
 Application Service, the Application Service will use the
-`teleport-google-cloud-cli` service account we created earlier to impersonate
-another service account, the one chosen by the user. 
+`teleport-google-cloud-cli` service account we created earlier to impersonate a
+target service account.
 
 In this section, we will show you how to grant the Application Service
-permissions to impersonate the Google Cloud service accounts you would like your
-Teleport users to access.
+permissions to impersonate target service accounts.
 
 #### Create a service account and enable it to view resources
 
@@ -106,7 +117,7 @@ section](#enable-the-application-service-to-impersonate-your-service-account).
 
 </Notice>
 
-Create a service account you will enable your Teleport user to access:
+Create a target service account:
 
 ```code
 $ gcloud iam service-accounts create teleport-vm-viewer \
@@ -147,21 +158,20 @@ $ gcloud iam service-accounts add-iam-policy-binding \
 
 ## Step 2/4. Deploy the Teleport Application Service
 
-At this point, you have created a service account for the Teleport Application
-Service and enabled this service account to impersonate the service accounts you
-would like Teleport users to access. 
+At this point, you have created a controlling service account and enabled this
+service account to impersonate the service accounts you would like Teleport
+users to access. 
 
-In this step, you will attach the service account you created for the
-Application Service to a Google Compute Engine VM, then run the Teleport
-Application Service.
+In this step, you will attach the controlling service account to a Google
+Compute Engine VM, then run the Teleport Application Service.
 
 ### Enable the Application Service to access Google Cloud
 
-Now that you have created a Google Cloud service account and attached a role to
+Now that you have created a controlling service account and attached a role to
 it, associate your service account with a virtual machine running the Teleport
 Application Service. The instructions depend on whether you are using a
-pre-existing virtual machine for the Teleport Application Service or launching
-a new one:
+pre-existing virtual machine for the Teleport Application Service or launching a
+new one:
 
 <Tabs>
 
@@ -315,11 +325,10 @@ $ sudo systemctl start teleport;
 
 ## Step 3/4. Enable your user to access Google Cloud CLIs
 
-The next step is to authorize your Teleport user to access a Google Cloud
-service account and execute Google Cloud CLI commands via Teleport. You will
-protect access to the service account using Teleport's RBAC system, where a
-user's roles determine which Google Cloud service accounts (if any) they can
-access.
+The next step is to authorize your Teleport user to access a target service
+account and execute Google Cloud CLI commands via Teleport. You will protect
+access to the service account using Teleport's RBAC system, where a user's roles
+determine which Google Cloud service accounts (if any) they can access.
 
 There are two approaches you can take to authorize users to access Google Cloud
 service accounts:
@@ -362,8 +371,8 @@ Cloud CLI via Teleport, the Teleport Auth Service populates the
 `{{internal.gcp_service_accounts}}` template variable with any Google Cloud
 service accounts you have assigned to the user.
 
-Assign the `teleport-vm-viewer` service account we created earlier (or another
-service account) to your Teleport user by running the following command:
+Assign the target service account we created earlier (or another service
+account) to your Teleport user by running the following command:
 
 ```code
 $ tctl users update <Var name="teleport-user" /> \
