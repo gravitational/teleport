@@ -25,7 +25,7 @@
     ],
     "paths": {
       "grpc": [
-        "node_modules/@grpc/grpc-js"
+        "../node_modules/@grpc/grpc-js"
       ], // generator still uses "grpc" package that has been deprecated in favor of "@grpc/grpc-js"
       "shared/*": [
         "packages/shared/*"
@@ -46,7 +46,7 @@
         "packages/teleterm/src/*"
       ],
       "e-teleport/*": [
-        "packages/webapps.e/teleport/src/*"
+        "../e/web/teleport/src/*"
       ]
     }
   },
