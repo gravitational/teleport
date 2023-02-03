@@ -6,7 +6,7 @@ import * as Icons from 'design/Icon';
 import { StyledTable, StyledPanel } from './StyledTable';
 import { TableProps } from './types';
 import { SortHeaderCell, TextCell } from './Cells';
-import { ClientsidePager, ServersidePager } from './Pager';
+import { ClientSidePager, ServerSidePager } from './Pager';
 import InputSearch from './InputSearch';
 import useTable, { State } from './useTable';
 
@@ -251,7 +251,7 @@ function PagedTable<T>({
             searchValue={searchValue}
             setSearchValue={setSearchValue}
           />
-          <ClientsidePager
+          <ClientSidePager
             nextPage={nextPage}
             prevPage={prevPage}
             data={data}
@@ -266,7 +266,7 @@ function PagedTable<T>({
       </StyledTable>
       {!isTopPager && (
         <StyledPanel borderBottomLeftRadius={3} borderBottomRightRadius={3}>
-          <ClientsidePager
+          <ClientSidePager
             nextPage={nextPage}
             prevPage={prevPage}
             data={data}
@@ -296,7 +296,7 @@ function ServersideTable<T>({
         {renderBody(data)}
       </StyledTable>
       <StyledPanel borderBottomLeftRadius={3} borderBottomRightRadius={3}>
-        <ServersidePager nextPage={nextPage} prevPage={prevPage} />
+        <ServerSidePager nextPage={nextPage} prevPage={prevPage} />
       </StyledPanel>
     </>
   );

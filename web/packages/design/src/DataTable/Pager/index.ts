@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import ClientsidePager from './ClientsidePager/ClientsidePager';
-import ServersidePager from './ServersidePager';
+import ClientSidePager from './ClientSidePager/ClientSidePager';
+import ServerSidePager from './ServerSidePager';
 
-export { ClientsidePager, ServersidePager };
+export { ClientSidePager, ServerSidePager };

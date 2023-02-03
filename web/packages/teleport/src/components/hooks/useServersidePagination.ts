@@ -146,14 +146,12 @@ type Props<T extends AgentKind> = {
   pageSize?: number;
 };
 
-// Contains the values needed to display 'Showing X - X of X' on the top right of the table.
+/** Contains the values needed to display 'Showing X - X of X' on the top right of the table. */
 export type PageIndicators = {
-  // The position of the first item on the page relative
-  // to all items.
+  /** The position of the first item on the page relative to all items. */
   from: number;
-  // The position of the last item on the page relative
-  // to all items.
+  /** The position of the last item on the page relative to all items. */
   to: number;
-  // The total number of all items.
+  /** The total number of all items. */
   totalCount: number;
 };

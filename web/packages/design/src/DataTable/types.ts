@@ -43,16 +43,19 @@ export type PaginationConfig = {
   pagerPosition?: 'top' | 'bottom';
 };
 
-// Page keeps track of our current agent list
-// start keys and the current position.
+/**
+ * Page keeps track of our current agent list
+ * start keys and the current position.
+ */
 export type Page = {
-  // Keys are the list of start keys collected from
-  // each page fetch.
+  /** Keys are the list of start keys collected from each page fetch. */
   keys: string[];
-  // Index refers to the current index the page
-  // is at in the list of keys. Eg. an index of 1
-  // would mean that we are on the second key
-  // and thus on the second page.
+  /**
+   * Index refers to the current index the page
+   * is at in the list of keys. Eg. an index of 1
+   * would mean that we are on the second key
+   * and thus on the second page.
+   */
   index: number;
 };
 
