@@ -5,7 +5,7 @@ import { Box, ButtonPrimary, Text } from 'design';
 
 import { DesktopItem } from 'teleport/Discover/Desktop/DiscoverDesktops/DesktopItem';
 import { Header } from 'teleport/Discover/Shared';
-import { State } from 'teleport/Discover/useDiscover';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 import { ProxyDesktopServiceDiagram } from 'teleport/Discover/Desktop/DiscoverDesktops/ProxyDesktopServiceDiagram';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { useTeleport } from 'teleport';
@@ -13,6 +13,7 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import cfg from 'teleport/config';
 import { NavLink } from 'teleport/components/Router';
+import { DiscoverEventStatus } from 'teleport/services/userEvent';
 
 import type { WindowsDesktopService } from 'teleport/services/desktops';
 
@@ -82,8 +83,9 @@ const TimedOutTitle = styled.div`
   font-size: 16px;
 `;
 
-export function DiscoverDesktops(props: State) {
+export function DiscoverDesktops() {
   const ctx = useTeleport();
+  const { emitEvent, nextStep } = useDiscover();
 
   const { result: desktopService } = usePingTeleport<WindowsDesktopService>();
 
@@ -106,6 +108,14 @@ export function DiscoverDesktops(props: State) {
   }, [enabled, result]);
 
   const ref = useRef<HTMLDivElement>();
+
+  function handleNextStep() {
+    emitEvent(
+      { stepStatus: DiscoverEventStatus.Success },
+      { autoDiscoverResourcesCount: result.agents.length }
+    );
+    nextStep();
+  }
 
   const desktops = [];
 
@@ -215,7 +225,7 @@ export function DiscoverDesktops(props: State) {
       </Desktops>
 
       <Buttons>
-        <ButtonPrimary width="165px" mr={3} onClick={() => props.nextStep()}>
+        <ButtonPrimary width="165px" mr={3} onClick={handleNextStep}>
           Finish
         </ButtonPrimary>
       </Buttons>
