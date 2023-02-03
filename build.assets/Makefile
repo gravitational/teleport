@@ -24,7 +24,7 @@ GOLANG_VERSION ?= go1.19.5
 NODE_VERSION ?= 16.18.1
 
 # run lint-rust check locally before merging code after you bump this
-RUST_VERSION ?= 1.66.1
+RUST_VERSION ?= 1.67.0
 LIBBPF_VERSION ?= 0.7.0-teleport
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
@@ -246,6 +246,13 @@ grpc: buildbox
 	docker run \
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		make -C /go/src/github.com/gravitational/teleport grpc/host
+
+# protos-up-to-date checks if GRPC stubs are up to date from inside the buildbox
+.PHONY: protos-up-to-date
+protos-up-to-date: buildbox
+	docker run \
+		$(DOCKERFLAGS) -t $(BUILDBOX) \
+		make -C /go/src/github.com/gravitational/teleport protos-up-to-date/host
 
 # fix-imports runs GCI to sort and re-order Go imports in a deterministic way.
 .PHONY: fix-imports

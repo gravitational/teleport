@@ -381,7 +381,7 @@ func proxyJoinServiceConn(params RegisterParams) (*grpc.ClientConn, error) {
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 	// set NextProtos for TLS routing, the actual protocol will be h2
-	tlsConfig.NextProtos = []string{string(common.ProtocolProxyGRPC), http2.NextProtoTLS}
+	tlsConfig.NextProtos = []string{string(common.ProtocolProxyGRPCInsecure), http2.NextProtoTLS}
 
 	if lib.IsInsecureDevMode() {
 		tlsConfig.InsecureSkipVerify = true
