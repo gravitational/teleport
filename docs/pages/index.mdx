@@ -6,56 +6,27 @@ layout: tocless-doc
 videoBanner: fSgCnQrNu78
 ---
 
-Teleport is a certificate authority and access plane for your infrastructure.
-With Teleport you can:
+Teleport is Identity-Native Infrastructure Access for engineers and machines. With Teleport you can:
 
-- Use a single solution to access your SSH servers, Kubernetes clusters,
-  databases, desktops, and web applications. 
-- Define sophisticated access policies for every component of your infrastructure, with fine-grained audit logs and session recordings.
-- Automatically on– and off-board users via integrations with single sign-on
-  providers like GitHub, Okta, and Google Workspace.
+- Replace insecure secrets with true identity.
+- Have a single solution for SSH, Kubernetes, databases, desktops, web applications, and more.
+- Define RBAC for every component of your infrastructure.
+- Gather audit log events and session recordings.
+- Automatically onboard and offboard users with integrations such as Okta, Github, and Google Workspace.
 
 ## Try out Teleport
 
-Quickly see how Teleport works in one of our demo environments.
+- [Teleport Cloud](https://goteleport.com/signup/): Deploy a free cloud trial.
+- [Linux Server](./try-out-teleport/linux-server.mdx): Deploy on a Linux Server.
+- [Docker Compose](./try-out-teleport/docker-compose.mdx): Deploy locally with Docker Compose.
+- [Kubernetes](./try-out-teleport/local-kubernetes.mdx): Deploy locally with Kubernetes.
+- [DigitalOcean](./try-out-teleport/digitalocean.mdx): Deploy with our 1-Click DigitalOcean droplet.
 
-- [Linux Server](./try-out-teleport/linux-server.mdx): Deploy Open Source
-  Teleport on a Linux Server.
-- [Digital Ocean](./try-out-teleport/digitalocean.mdx): Use our 1-Click Digital
-  Ocean droplet to set up Teleport quickly.
-- [Browser Labs](https://play.instruqt.com/teleport/invite/imz8g1n1xzru): Try Teleport using our guided
-  interactive labs.
-- [Docker Compose Lab](./try-out-teleport/docker-compose.mdx): Try Teleport
-  locally using Docker Compose.
-- [Kubernetes Lab](./try-out-teleport/local-kubernetes.mdx): See how Teleport
-  runs on Kubernetes with this local lab.
+Want more details on the [different editions of Teleport](./choose-an-edition/introduction.mdx)?
 
-## Choose an edition
+## Connect to Teleport
 
-Read one of our Getting Started guides to see how to deploy open source
-Teleport, Teleport Enterprise, or Teleport Enterprise Cloud.
-
-You can also [compare Teleport editions](./choose-an-edition/introduction.mdx).
-
-- [Open Source Teleport](./try-out-teleport/linux-server.mdx): Learn how to host your own open source Teleport deployment on a standalone Linux server.
-- [Teleport Enterprise](./choose-an-edition/teleport-enterprise/introduction.mdx): Get started with a self-hosted Teleport Enterprise deployment, which gives you more advanced features and full customization.
-- [Teleport Enterprise Cloud](./choose-an-edition/teleport-cloud/getting-started.mdx): Get started with the managed Teleport Enterprise service with a free trial.
-
-## Configure access
-
-Secure your infrastructure while keeping your engineers productive.
-
-<ScopedBlock scope={["cloud", "enterprise"]}>
-- [Set up SSO](./access-controls/sso.mdx): Configure Teleport's integration with your SSO provider so you can automatically on– and off-board users.
-</ScopedBlock>
-<ScopedBlock scope={["oss"]}>
-- [Set up SSO](./access-controls/sso/github-sso.mdx): Configure Teleport's integration with GitHub so you can automatically on– and off-board users.
-</ScopedBlock>
-- [Define roles](./access-controls/guides/role-templates.mdx): Manage who can access which parts of your infrastructure.
-
-## Add your infrastructure
-
-Use Teleport to provide secure access to all of your infrastructure.
+Already have Teleport running? Start connecting your infrastructure to provide secure access.
 
 - [Server Access](./server-access/getting-started.mdx): Single sign-on, short-lived certificates, and auditing for SSH servers.
 - [Application Access](./application-access/introduction.mdx): Secure access to internal dashboards and web applications.
@@ -63,45 +34,53 @@ Use Teleport to provide secure access to all of your infrastructure.
 - [Database Access](./database-access/introduction.mdx): Secure access to SQL and NoSQL databases.
 - [Desktop Access](./desktop-access/introduction.mdx): Secure browser-based access to desktop environments.
 
+## Already familiar with Teleport?
+
+Skip ahead to learn more about:
+
+- Integrating a [SSO provider](./access-controls/sso.mdx).
+- Using [fine-grained controls](./access-controls/guides/guides.mdx) to improve your security policy and access.
+- Configure and deploy Teleport with [Helm](./reference/helm-reference/helm-reference.mdx).
+- Implementing [multiple layers of protection](./management/security/reduce-blast-radius) for your Teleport installation.
 
 <TileSet>
-  <TileList title="Reach out" icon="question">
-  <TileListItem href="https://github.com/gravitational/teleport/discussions">
-    Ask a question in the discussion forum.
-    </TileListItem>
-  <TileListItem href="https://goteleport.com/slack">
-    Join our Slack channel to get help with your setup.
-  </TileListItem>
-  <TileListItem href="https://github.com/gravitational/teleport/">
-    Create an issue on GitHub.
-  </TileListItem>
-  <TileListItem href="https://goteleport.com/get-started/">
-    Reach out to sales for a demo of Teleport Enterprise.
-  </TileListItem>
-  <TileListItem href="https://goteleport.com/signup/">
-    Start a free trial of Teleport Cloud.
-  </TileListItem>
-  </TileList>
-  <TileList title="For security teams" icon="lock">
-    <TileListItem href="./server-access/guides/openssh.mdx">
-     Capture sessions and manage certificates for an existing OpenSSH fleet.
-    </TileListItem>
-    <TileListItem href="./architecture/authentication.mdx#issuing-user-certificates">
-      Replace static keys and passwords with short-lived certificates.
-    </TileListItem>
-    <TileListItem href="./access-controls/guides/webauthn.mdx">
-     Enforce two-factor authentication for all of your infrastructure.
-    </TileListItem>
-  </TileList>
-  <TileList title="For developers" icon="stack">
-    <TileListItem href="./connect-your-client/tsh.mdx#sharing-sessions">
-      Collaborate through session sharing.
-    </TileListItem>
-    <TileListItem href="./management/admin/labels.mdx">
-      Discover servers and clusters with dynamic labels.
-    </TileListItem>
-    <TileListItem href="./management/admin/adding-nodes.mdx#adding-a-node-located-behind-nat">
-     Connect to computing resources located behind firewalls or without static IPs.
-    </TileListItem>
-  </TileList>
+    <TileList title="For developers" icon="stack">
+        <TileListItem href="./connect-your-client/tsh.mdx#sharing-sessions">
+            Collaborate through session sharing.
+        </TileListItem>
+        <TileListItem href="./management/admin/labels.mdx">
+            Discover servers and clusters with dynamic labels.
+        </TileListItem>
+        <TileListItem href="./management/admin/adding-nodes.mdx#adding-a-node-located-behind-nat">
+            Connect to computing resources located behind firewalls or without static IPs.
+        </TileListItem>
+    </TileList>
+    <TileList title="For security teams" icon="lock">
+        <TileListItem href="./server-access/guides/openssh.mdx">
+            Capture sessions and manage certificates for an existing OpenSSH fleet.
+        </TileListItem>
+        <TileListItem href="./architecture/authentication.mdx#issuing-user-certificates">
+            Replace static keys and passwords with short-lived certificates.
+        </TileListItem>
+        <TileListItem href="./access-controls/guides/webauthn.mdx">
+            Enforce two-factor authentication for all of your infrastructure.
+        </TileListItem>
+    </TileList>
+    <TileList title="Reach out" icon="question">
+        <TileListItem href="https://github.com/gravitational/teleport/discussions">
+            Ask a question in the discussion forum.
+        </TileListItem>
+        <TileListItem href="https://goteleport.com/slack">
+            Join our Slack channel to get help with your setup.
+        </TileListItem>
+        <TileListItem href="https://github.com/gravitational/teleport/">
+            Create an issue on GitHub.
+        </TileListItem>
+        <TileListItem href="https://goteleport.com/get-started/">
+            Reach out to sales for a demo of Teleport Enterprise.
+        </TileListItem>
+        <TileListItem href="https://goteleport.com/signup/">
+            Start a free trial of Teleport Cloud.
+        </TileListItem>
+    </TileList>
 </TileSet>
