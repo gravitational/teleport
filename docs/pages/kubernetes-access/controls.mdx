@@ -596,6 +596,67 @@ forward the request with an impersonation header for both the `dev-viewers` and
 the `executors` groups, since the `deny-redis-exec` role's `deny` condition does
 not match the request.
 
+#### Progressively enabling access to resources
+
+You can design your Teleport and Kubernetes RBAC to progressively allow access
+to limited subsets of Kubernetes resources. In other words, your users would
+have limited access to a wide range of resources in your Kubernetes cluster.
+Subsets of these users would have greater access to more limited sets of
+resources. Of *these* subsets of users, you can assign an even smaller group
+greater access to another set of resources, and so on.
+
+To do this, define multiple Teleport roles where:
+
+- Some roles enable a lower degree of access to more Kubernetes resources
+- Other roles allow a higher degree of access to fewer Kubernetes resources
+
+You can then assign combinations of roles to different users.
+
+For eample, this combination of roles allows a user to view all pods in all
+registered Kubernetes clusters, but only run `kubectl exec` or `kubectl logs` on
+`nginx-*` pods:
+
+```yaml
+kind: role
+metadata:
+  name: kube-viewer
+version: v6
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
+    kubernetes_groups:
+    - viewer # can get and list pods but not execute commands or retrieve logs
+---
+kind: role
+metadata:
+  name: nginx-exec
+version: v6
+spec:
+  allow:
+    kubernetes_labels:
+      '*': '*'
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "nginx-*"
+    kubernetes_groups:
+    - execAndLogs
+```
+
+In this case, the `kube-viewer` role maps a user to the Kubernetes `viewer`
+group, which allows a user to get and list pods but not execute commands and
+retrieve logs. With the `nginx-exec` role, the user can access the `execAndLogs`
+group, which can execute commands and retrieve logs, but only `nginx` on pods. 
+
+In this setup, you could also combine the `kube-viewer` role with other roles
+that grant elevated access to subsets of pods, depending on the requirements of
+your Teleport users.
+
 ### Security consideration: pod namespace restrictions
 
 When a Teleport user sends a request to list pods, e.g., with `kubectl get
