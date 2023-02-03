@@ -47,8 +47,8 @@ import (
 // multiplexed streams. After RoundTrip() is invoked, Conn will be set
 // and usable. SpdyRoundTripper implements the UpgradeRoundTripper interface.
 type SpdyRoundTripper struct {
-	//tlsConfig holds the TLS configuration settings to use when connecting
-	//to the remote server.
+	// tlsConfig holds the TLS configuration settings to use when connecting
+	// to the remote server.
 	tlsConfig *tls.Config
 
 	authCtx authContext
@@ -69,27 +69,32 @@ type SpdyRoundTripper struct {
 	ctx context.Context
 
 	pingPeriod time.Duration
+	// originalHeaders are the headers that were passed from the original request.
+	originalHeaders http.Header
 }
 
-var _ utilnet.TLSClientConfigHolder = &SpdyRoundTripper{}
-var _ httpstream.UpgradeRoundTripper = &SpdyRoundTripper{}
-var _ utilnet.Dialer = &SpdyRoundTripper{}
+var (
+	_ utilnet.TLSClientConfigHolder  = &SpdyRoundTripper{}
+	_ httpstream.UpgradeRoundTripper = &SpdyRoundTripper{}
+	_ utilnet.Dialer                 = &SpdyRoundTripper{}
+)
 
 // DialWithContext is the function used to dial to remote endpoints
 type DialWithContext func(context context.Context, network, address string) (net.Conn, error)
 
 type roundTripperConfig struct {
-	ctx        context.Context
-	authCtx    authContext
-	dial       DialWithContext
-	tlsConfig  *tls.Config
-	pingPeriod time.Duration
+	ctx             context.Context
+	authCtx         authContext
+	dial            DialWithContext
+	tlsConfig       *tls.Config
+	pingPeriod      time.Duration
+	originalHeaders http.Header
 }
 
 // NewSpdyRoundTripperWithDialer creates a new SpdyRoundTripper that will use
 // the specified tlsConfig. This function is mostly meant for unit tests.
 func NewSpdyRoundTripperWithDialer(cfg roundTripperConfig) *SpdyRoundTripper {
-	return &SpdyRoundTripper{tlsConfig: cfg.tlsConfig, dialWithContext: cfg.dial, ctx: cfg.ctx, authCtx: cfg.authCtx, pingPeriod: cfg.pingPeriod}
+	return &SpdyRoundTripper{tlsConfig: cfg.tlsConfig, dialWithContext: cfg.dial, ctx: cfg.ctx, authCtx: cfg.authCtx, pingPeriod: cfg.pingPeriod, originalHeaders: cfg.originalHeaders}
 }
 
 // TLSClientConfig implements pkg/util/net.TLSClientConfigHolder for proper TLS checking during
@@ -152,9 +157,12 @@ func (s *SpdyRoundTripper) dial(url *url.URL) (net.Conn, error) {
 // connection.
 func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	header := utilnet.CloneHeader(req.Header)
-	header.Add(httpstream.HeaderConnection, httpstream.HeaderUpgrade)
-	header.Add(httpstream.HeaderUpgrade, streamspdy.HeaderSpdy31)
-
+	// copyImpersonationHeaders copies the headers from the original request to the new
+	// request headers. This is necessary to forward the original user's impersonation
+	// when multiple kubernetes_users are available.
+	copyImpersonationHeaders(header, s.originalHeaders)
+	header.Set(httpstream.HeaderConnection, httpstream.HeaderUpgrade)
+	header.Set(httpstream.HeaderUpgrade, streamspdy.HeaderSpdy31)
 	if err := setupImpersonationHeaders(log.StandardLogger(), s.authCtx, header); err != nil {
 		return nil, trace.Wrap(err)
 	}
