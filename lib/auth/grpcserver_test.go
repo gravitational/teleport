@@ -2464,7 +2464,7 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 
 	// Try to delete a service provider that doesn't exist.
 	err = clt.DeleteSAMLIdPServiceProvider(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.True(t, trace.IsNotFound(err))
 
 	// Delete all service providers.
 	err = clt.DeleteAllSAMLIdPServiceProviders(ctx)
