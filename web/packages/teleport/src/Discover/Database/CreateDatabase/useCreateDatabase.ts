@@ -23,6 +23,7 @@ import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { compareByString } from 'teleport/lib/util';
 
 import { Database } from '../resources';
+import { matchLabels, makeLabelMaps } from '../util';
 
 import type { AgentStepProps } from '../../types';
 import type {
@@ -239,89 +240,23 @@ export function findActiveDatabaseSvc(
     return null;
   }
 
-  // Create maps for the new labels for easy lookup and matching.
-  let newDbLabelKeyMap = {};
-  let newDbLabelValMap = {};
-  let matchedLabelMap = {};
+  // Create maps for easy lookup and matching.
+  const { labelKeysToMatchMap, labelValsToMatchMap, labelToMatchSeenMap } =
+    makeLabelMaps(newDbLabels);
 
-  newDbLabels.forEach(label => {
-    newDbLabelKeyMap[label.name] = label.value;
-    matchedLabelMap[label.name] = false;
-    newDbLabelValMap[label.value] = label.name;
-  });
-
-  const newDbHasLabels = newDbLabels.length > 0;
+  const hasLabelsToMatch = newDbLabels.length > 0;
   for (let i = 0; i < dbServices.length; i++) {
-    let noMatch = false;
-
     // Loop through the current service label keys and its value set.
     const currService = dbServices[i];
-    // Sorted to have asteriks be the first to test.
-    const entries = Object.entries(currService.matcherLabels).sort();
-    matchLabels: for (const [key, vals] of entries) {
-      // Check if the label contains asteriks, which means this service can
-      // pick up any database regardless of other labels.
-      const foundAsterikAsValue = vals.includes('*');
-      if (key === '*' && foundAsterikAsValue) {
-        return currService;
-      }
+    const match = matchLabels({
+      hasLabelsToMatch,
+      labelKeysToMatchMap,
+      labelValsToMatchMap,
+      labelToMatchSeenMap,
+      matcherLabels: currService.matcherLabels,
+    });
 
-      // If no labels were defined with the new database, then there is no
-      // further matching to do with this currService.
-      if (!newDbHasLabels) {
-        noMatch = true;
-        break matchLabels;
-      }
-
-      // Start matching by value.
-      // Both the service matcher labels and the new db labels must be equal to each other.
-      // For example, if the service matcher has other labels that are not defined
-      // in the new db labels, then the service cannot detect the new db.
-
-      // This means any key is fine, as long as value matches.
-      if (key === '*') {
-        let found = false;
-        vals.forEach(val => {
-          const key = newDbLabelValMap[val];
-          if (key) {
-            matchedLabelMap[key] = true;
-            found = true;
-          }
-        });
-        if (found) {
-          continue;
-        }
-      }
-
-      // This means any value is fine, as long as a key matches.
-      // Note that db labels can't have duplicate keys.
-      else if (foundAsterikAsValue && newDbLabelKeyMap[key]) {
-        matchedLabelMap[key] = true;
-        continue;
-      }
-
-      // Match against actual values of key and its value.
-      else {
-        const dbVal = newDbLabelKeyMap[key];
-        if (dbVal && vals.find(val => val === dbVal)) {
-          matchedLabelMap[key] = true;
-          continue;
-        }
-      }
-
-      // At this point, the current label did not match.
-      // This service will not be able to pick up the new db
-      // despite any matches so far.
-      noMatch = true;
-      break matchLabels;
-    }
-
-    // See if the current service has all required matching labels.
-    if (
-      !noMatch &&
-      newDbHasLabels &&
-      Object.keys(matchedLabelMap).every(key => matchedLabelMap[key])
-    ) {
+    if (match) {
       return currService;
     }
   }
