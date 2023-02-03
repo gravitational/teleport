@@ -28,13 +28,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
@@ -606,13 +605,13 @@ func fromOS(t *testing.T, dir string, fs *testFS) {
 		}
 		if fi.IsDir() {
 			require.NoError(t, fs.MkDir(relpath, int(fi.Mode())))
-			require.NoError(t, fs.Chtimes(relpath, atime(fi), fi.ModTime()))
+			require.NoError(t, fs.Chtimes(relpath, GetAtime(fi), fi.ModTime()))
 			return nil
 		}
 		wc, err := fs.CreateFile(relpath, uint64(fi.Size()))
 		require.NoError(t, err)
 		defer wc.Close()
-		require.NoError(t, fs.Chtimes(relpath, atime(fi), fi.ModTime()))
+		require.NoError(t, fs.Chtimes(relpath, GetAtime(fi), fi.ModTime()))
 		f, err := os.Open(path)
 		require.NoError(t, err)
 		defer f.Close()

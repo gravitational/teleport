@@ -21,8 +21,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/jonboulle/clockwork"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 // SessionParams specifies optional parameters

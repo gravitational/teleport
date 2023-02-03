@@ -24,13 +24,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/go-webauthn/webauthn/protocol"
+	wan "github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gravitational/trace"
-
-	wan "github.com/duo-labs/webauthn/webauthn"
-	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
 
 // loginIdentity contains the subset of services.Identity methods used by

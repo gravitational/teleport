@@ -20,14 +20,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-
-	"github.com/gravitational/trace"
-
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type fakeExec struct{}
@@ -90,17 +91,29 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 				clusters: []*Cluster{&cluster},
 			}
 			dbcmdCLICommandProvider := NewDbcmdCLICommandProvider(fakeStorage, fakeExec{})
+
+			keyPairPaths := gatewaytest.MustGenAndSaveCert(t, tlsca.Identity{
+				Username: "alice",
+				Groups:   []string{"test-group"},
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: "foo",
+					Protocol:    defaults.ProtocolPostgres,
+					Username:    "alice",
+				},
+			})
+
 			gateway, err := gateway.New(
 				gateway.Config{
 					TargetURI:             cluster.URI.AppendDB("foo").String(),
 					TargetName:            "foo",
+					TargetUser:            "alice",
 					TargetSubresourceName: tc.targetSubresourceName,
 					Protocol:              defaults.ProtocolPostgres,
 					LocalAddress:          "localhost",
 					WebProxyAddr:          "localhost:1337",
 					Insecure:              true,
-					CertPath:              "../../../fixtures/certs/proxy1.pem",
-					KeyPath:               "../../../fixtures/certs/proxy1-key.pem",
+					CertPath:              keyPairPaths.CertPath,
+					KeyPath:               keyPairPaths.KeyPath,
 					CLICommandProvider:    dbcmdCLICommandProvider,
 					TCPPortAllocator:      gateway.NetTCPPortAllocator{},
 				},
@@ -123,6 +136,17 @@ func TestDbcmdCLICommandProviderGetCommand_ReturnsErrorIfClusterIsNotFound(t *te
 		clusters: []*Cluster{},
 	}
 	dbcmdCLICommandProvider := NewDbcmdCLICommandProvider(fakeStorage, fakeExec{})
+
+	keyPairPaths := gatewaytest.MustGenAndSaveCert(t, tlsca.Identity{
+		Username: "alice",
+		Groups:   []string{"test-group"},
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: "foo",
+			Protocol:    defaults.ProtocolPostgres,
+			Username:    "alice",
+		},
+	})
+
 	gateway, err := gateway.New(
 		gateway.Config{
 			TargetURI:             uri.NewClusterURI("quux").AppendDB("foo").String(),
@@ -133,8 +157,8 @@ func TestDbcmdCLICommandProviderGetCommand_ReturnsErrorIfClusterIsNotFound(t *te
 			LocalAddress:          "localhost",
 			WebProxyAddr:          "localhost:1337",
 			Insecure:              true,
-			CertPath:              "../../../fixtures/certs/proxy1.pem",
-			KeyPath:               "../../../fixtures/certs/proxy1-key.pem",
+			CertPath:              keyPairPaths.CertPath,
+			KeyPath:               keyPairPaths.KeyPath,
 			CLICommandProvider:    dbcmdCLICommandProvider,
 			TCPPortAllocator:      gateway.NetTCPPortAllocator{},
 		},

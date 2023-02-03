@@ -19,6 +19,7 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
 	"net"
@@ -31,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -69,16 +71,21 @@ func TestIsALPNConnUpgradeRequired(t *testing.T) {
 	}
 }
 
-func TestALPNConUpgradeDialer(t *testing.T) {
+func TestALPNConnUpgradeDialer(t *testing.T) {
 	t.Parallel()
 
 	t.Run("connection upgraded", func(t *testing.T) {
 		server := httptest.NewTLSServer(mockConnUpgradeHandler(t, "alpn", []byte("hello")))
+		t.Cleanup(server.Close)
 		addr, err := url.Parse(server.URL)
 		require.NoError(t, err)
+		pool := x509.NewCertPool()
+		pool.AddCert(server.Certificate())
 
-		dialer := newALPNConnUpgradeDialer(0, 5*time.Second, true)
-		conn, err := dialer.DialContext(context.TODO(), "tcp", addr.Host)
+		ctx := context.TODO()
+		preDialer := apiclient.NewDialer(ctx, 0, 5*time.Second)
+		dialer := newALPNConnUpgradeDialer(preDialer, &tls.Config{RootCAs: pool})
+		conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
 		require.NoError(t, err)
 
 		data := make([]byte, 100)
@@ -89,11 +96,14 @@ func TestALPNConUpgradeDialer(t *testing.T) {
 
 	t.Run("connection upgrade API not found", func(t *testing.T) {
 		server := httptest.NewTLSServer(http.NotFoundHandler())
+		t.Cleanup(server.Close)
 		addr, err := url.Parse(server.URL)
 		require.NoError(t, err)
 
-		dialer := newALPNConnUpgradeDialer(0, 5*time.Second, true)
-		_, err = dialer.DialContext(context.TODO(), "tcp", addr.Host)
+		ctx := context.TODO()
+		preDialer := apiclient.NewDialer(ctx, 0, 5*time.Second)
+		dialer := newALPNConnUpgradeDialer(preDialer, &tls.Config{InsecureSkipVerify: true})
+		_, err = dialer.DialContext(ctx, "tcp", addr.Host)
 		require.Error(t, err)
 	})
 }

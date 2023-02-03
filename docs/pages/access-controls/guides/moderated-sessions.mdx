@@ -82,7 +82,7 @@ spec:
   allow:
     require_session_join:
       - name: Auditor oversight
-        filter: 'contains(user.roles, "auditor")'
+        filter: 'contains(user.spec.roles, "auditor")'
         kinds: ['k8s', 'ssh']
         modes: ['moderator']
         count: 2
@@ -137,7 +137,7 @@ Here is an example of a filter expression that evaluates to true if the user is
 Adam or if the user has the trait `cs-observe`:
 
 ```
-equals(user.name, "adam") || contains(user.roles, "cs-observe")
+equals(user.name, "adam") || contains(user.spec.roles, "cs-observe")
 ```
 
 A filter expression is a string statement used to define logic based on a set of

@@ -1,6 +1,6 @@
 ---
 authors: Tim Buckley (tim@goteleport.com)
-state: draft
+state: implemented (v10.3.0)
 ---
 
 # RFD 83 - Host Certificate support for Machine ID

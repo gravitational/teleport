@@ -19,12 +19,12 @@ package services
 import (
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 // TestMatchResourceLabels tests matching a resource against a selector.
@@ -519,6 +519,55 @@ func TestMatchResourceByFilters(t *testing.T) {
 				require.Equal(t, server.GetKubernetesClusters()[0].Name, "foo")
 				require.Equal(t, server.GetKubernetesClusters()[1].Name, "foo")
 			}
+		})
+	}
+}
+
+func TestResourceMatchersToTypes(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		in   []ResourceMatcher
+		out  []*types.DatabaseResourceMatcher
+	}{
+		{
+			name: "empty",
+			in:   []ResourceMatcher{},
+			out:  []*types.DatabaseResourceMatcher{},
+		},
+		{
+			name: "sinlge element with single label",
+			in: []ResourceMatcher{
+				{Labels: types.Labels{"elem1": []string{"elem1"}}},
+			},
+			out: []*types.DatabaseResourceMatcher{
+				{Labels: &types.Labels{"elem1": []string{"elem1"}}},
+			},
+		},
+		{
+			name: "sinlge element with multiple labels",
+			in: []ResourceMatcher{
+				{Labels: types.Labels{"elem2": []string{"elem1", "elem2"}}},
+			},
+			out: []*types.DatabaseResourceMatcher{
+				{Labels: &types.Labels{"elem2": []string{"elem1", "elem2"}}},
+			},
+		},
+		{
+			name: "multiple elements",
+			in: []ResourceMatcher{
+				{Labels: types.Labels{"elem1": []string{"elem1"}}},
+				{Labels: types.Labels{"elem2": []string{"elem1", "elem2"}}},
+				{Labels: types.Labels{"elem3": []string{"elem1", "elem2", "elem3"}}},
+			},
+			out: []*types.DatabaseResourceMatcher{
+				{Labels: &types.Labels{"elem1": []string{"elem1"}}},
+				{Labels: &types.Labels{"elem2": []string{"elem1", "elem2"}}},
+				{Labels: &types.Labels{"elem3": []string{"elem1", "elem2", "elem3"}}},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.out, ResourceMatchersToTypes(tt.in))
 		})
 	}
 }

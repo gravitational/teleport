@@ -18,14 +18,16 @@ package config
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/stretchr/testify/require"
 )
 
 type mockHostCertAuth struct {
@@ -33,6 +35,7 @@ type mockHostCertAuth struct {
 }
 
 func (m *mockHostCertAuth) GenerateHostCert(
+	ctx context.Context,
 	key []byte, hostID, nodeName string, principals []string,
 	clusterName string, role types.SystemRole, ttl time.Duration,
 ) ([]byte, error) {
@@ -84,8 +87,15 @@ func TestTemplateSSHHostCertRender(t *testing.T) {
 	err = template.Render(context.Background(), mockBot, ident, dest)
 	require.NoError(t, err)
 
-	certBytes, err := memory.Read(template.Prefix + "-cert.pub")
+	// Make sure a cert is written. We just use a dummy cert (the CA fixture)
+	certBytes, err := memory.Read(template.Prefix + sshHostCertSuffix)
 	require.NoError(t, err)
 
 	require.Equal(t, fixtures.SSHCAPublicKey, string(certBytes))
+
+	// Make sure a CA is written.
+	caBytes, err := memory.Read(template.Prefix + sshHostUserCASuffix)
+	require.NoError(t, err)
+
+	require.True(t, strings.HasPrefix(string(caBytes), fixtures.SSHCAPublicKey))
 }

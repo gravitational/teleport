@@ -20,9 +20,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/trace"
-
 	go_github "github.com/google/go-github/v41/github"
+	"github.com/gravitational/trace"
 	"golang.org/x/oauth2"
 )
 

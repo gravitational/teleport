@@ -24,12 +24,12 @@ import (
 
 // IsCNRegion returns true if the region is an AWS China region.
 func IsCNRegion(region string) bool {
-	return strings.HasPrefix(region, CNRegionPrefix)
+	return strings.HasPrefix(strings.ToLower(region), CNRegionPrefix)
 }
 
 // IsUSGovRegion returns true if the region is an AWS US GovCloud region.
 func IsUSGovRegion(region string) bool {
-	return strings.HasPrefix(region, USGovRegionPrefix)
+	return strings.HasPrefix(strings.ToLower(region), USGovRegionPrefix)
 }
 
 // ShortRegionToRegion converts short region codes to regular region names. For

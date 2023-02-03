@@ -15,42 +15,54 @@
 package helpers
 
 import (
+	"bytes"
 	"context"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509/pkix"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gogo/protobuf/proto"
+	"github.com/gorilla/websocket"
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/breaker"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/keygen"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web"
 )
 
 const (
@@ -175,7 +187,22 @@ func (s *InstanceSecrets) GetCAs() ([]types.CertAuthority, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return []types.CertAuthority{hostCA, userCA, dbCA}, nil
+	osshCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.OpenSSHCA,
+		ClusterName: s.SiteName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey:     s.PrivKey,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+				PublicKey:      s.PubKey,
+			}},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return []types.CertAuthority{hostCA, userCA, dbCA, osshCA}, nil
 }
 
 func (s *InstanceSecrets) AllowedLogins() []string {
@@ -208,7 +235,7 @@ func (s *InstanceSecrets) AsSlice() []*InstanceSecrets {
 }
 
 func (s *InstanceSecrets) GetIdentity() *auth.Identity {
-	i, err := auth.ReadIdentityFromKeyPair(s.PrivKey, &proto.Certs{
+	i, err := auth.ReadIdentityFromKeyPair(s.PrivKey, &clientproto.Certs{
 		SSH:        s.Cert,
 		TLS:        s.TLSCert,
 		TLSCACerts: [][]byte{s.TLSCACert},
@@ -251,6 +278,8 @@ type TeleInstance struct {
 
 // InstanceConfig is an instance configuration
 type InstanceConfig struct {
+	// Clock is an optional clock to use
+	Clock clockwork.Clock
 	// ClusterName is a cluster name of the instance
 	ClusterName string
 	// HostID is a host id of the instance
@@ -285,7 +314,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 	}
 
 	// generate instance secrets (keys):
-	keygen := native.New(context.TODO())
+	keygen := keygen.New(context.TODO())
 	if cfg.Priv == nil || cfg.Pub == nil {
 		cfg.Priv, cfg.Pub, _ = keygen.GenerateKeyPair()
 	}
@@ -319,7 +348,10 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
 		Groups:   []string{string(types.RoleAdmin)},
 	}
-	clock := clockwork.NewRealClock()
+	clock := cfg.Clock
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
 	subject, err := identity.Subject()
 	fatalIf(err)
 	tlsCert, err := tlsCA.GenerateCertificate(tlsca.CertificateRequest{
@@ -380,6 +412,7 @@ func (i *TeleInstance) Create(t *testing.T, trustedSecrets []*InstanceSecrets, e
 	tconf.Proxy.DisableWebService = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	return i.CreateEx(t, trustedSecrets, tconf)
 }
 
@@ -394,6 +427,9 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 
 	if tconf == nil {
 		tconf = service.MakeDefaultConfig()
+	}
+	if tconf.InstanceMetadataClient == nil {
+		tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	}
 	tconf.Log = i.Log
 	tconf.DataDir = dataDir
@@ -472,7 +508,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 	tconf.Proxy.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
-			Addr:        i.Hostname,
+			Addr:        i.Web,
 		},
 		{
 			AddrNetwork: "tcp",
@@ -508,7 +544,7 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 			tconf.Proxy.MongoAddr.Addr = i.Mongo
 		}
 	}
-	tconf.AuthServers = append(tconf.AuthServers, tconf.Auth.ListenAddr)
+	tconf.SetAuthServerAddress(tconf.Auth.ListenAddr)
 	tconf.Auth.StorageConfig = backend.Config{
 		Type:   lite.GetName(),
 		Params: backend.Params{"path": dataDir + string(os.PathListSeparator) + defaults.BackendDir, "poll_stream_period": 50 * time.Millisecond},
@@ -531,13 +567,19 @@ func (i *TeleInstance) GenerateConfig(t *testing.T, trustedSecrets []*InstanceSe
 // Unlike Create() it allows for greater customization because it accepts
 // a full Teleport config structure
 func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets, tconf *service.Config) error {
-	ctx := context.TODO()
 	tconf, err := i.GenerateConfig(t, trustedSecrets, tconf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	return i.CreateWithConf(t, tconf)
+}
+
+// CreateWithConf creates a new instance of Teleport using the supplied config
+func (i *TeleInstance) CreateWithConf(_ *testing.T, tconf *service.Config) error {
 	i.Config = tconf
-	i.Process, err = service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	var err error
+	i.Process, err = service.NewTeleport(tconf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -551,6 +593,7 @@ func (i *TeleInstance) CreateEx(t *testing.T, trustedSecrets []*InstanceSecrets,
 	// create users and roles if they don't exist, or sign their keys if they're
 	// already present
 	auth := i.Process.GetAuthServer()
+	ctx := context.TODO()
 
 	for _, user := range i.Secrets.Users {
 		teleUser, err := types.NewUser(user.Username)
@@ -618,8 +661,18 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *service.Config, authPort s
 
 	tconf.DataDir = dataDir
 
-	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
-	tconf.AuthServers = append(tconf.AuthServers, *authServer)
+	if tconf.Version == defaults.TeleportConfigVersionV3 {
+		if tconf.ProxyServer.IsEmpty() {
+			authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
+			tconf.SetAuthServerAddress(*authServer)
+		}
+	} else {
+		authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
+		if err := tconf.SetAuthServerAddresses(append(tconf.AuthServerAddresses(), *authServer)); err != nil {
+			return nil, err
+		}
+	}
+
 	tconf.SetToken("token")
 	tconf.UploadEventsC = i.UploadEventsC
 	tconf.CachePolicy = service.CachePolicy{
@@ -640,7 +693,7 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *service.Config, authPort s
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	process, err := service.NewTeleport(tconf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -658,8 +711,8 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *service.Config, authPort s
 		return nil, trace.Wrap(err)
 	}
 
-	log.Debugf("Teleport node (in instance %v) started: %v/%v events received.",
-		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+	log.Debugf("Teleport node %s (in instance %s) started: %v/%v expected events received.",
+		process.Config.Hostname, i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
 	return process, nil
 }
 
@@ -671,12 +724,10 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	conf.DataDir = dataDir
-	conf.AuthServers = []utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        i.Web,
-		},
-	}
+	conf.SetAuthServerAddress(utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        i.Web,
+	})
 	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
@@ -684,7 +735,7 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(conf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	process, err := service.NewTeleport(conf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -723,12 +774,10 @@ func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.Teleport
 			}
 
 			cfg.DataDir = dataDir
-			cfg.AuthServers = []utils.NetAddr{
-				{
-					AddrNetwork: "tcp",
-					Addr:        i.Web,
-				},
-			}
+			cfg.SetAuthServerAddress(utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        i.Web,
+			})
 			cfg.SetToken("token")
 			cfg.UploadEventsC = i.UploadEventsC
 			cfg.Auth.Enabled = false
@@ -736,7 +785,7 @@ func (i *TeleInstance) StartApps(configs []*service.Config) ([]*service.Teleport
 
 			// Create a new Teleport process and add it to the list of nodes that
 			// compose this "cluster".
-			process, err := service.NewTeleport(cfg, service.WithIMDSClient(&DisabledIMDSClient{}))
+			process, err := service.NewTeleport(cfg)
 			if err != nil {
 				results <- result{err: err, tmpDir: dataDir}
 			}
@@ -787,12 +836,10 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	conf.DataDir = dataDir
-	conf.AuthServers = []utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        i.Web,
-		},
-	}
+	conf.SetAuthServerAddress(utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        i.Web,
+	})
 	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
@@ -802,7 +849,7 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(conf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	process, err := service.NewTeleport(conf)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -850,12 +897,10 @@ func (i *TeleInstance) StartKube(t *testing.T, conf *service.Config, clusterName
 	i.tempDirs = append(i.tempDirs, dataDir)
 
 	conf.DataDir = dataDir
-	conf.AuthServers = []utils.NetAddr{
-		{
-			AddrNetwork: "tcp",
-			Addr:        i.Web,
-		},
-	}
+	conf.SetAuthServerAddress(utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        i.Web,
+	})
 	conf.SetToken("token")
 	conf.UploadEventsC = i.UploadEventsC
 	conf.Auth.Enabled = false
@@ -903,7 +948,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 
 	tconf.Log = i.Log
 	authServer := utils.MustParseAddr(i.Auth)
-	tconf.AuthServers = append(tconf.AuthServers, *authServer)
+	tconf.SetAuthServerAddress(*authServer)
 	tconf.SetToken("token")
 	tconf.HostUUID = name
 	tconf.Hostname = name
@@ -937,10 +982,11 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 		},
 	}
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	process, err := service.NewTeleport(tconf)
 	require.NoError(t, err)
 	i.Nodes = append(i.Nodes, process)
 
@@ -994,7 +1040,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *servi
 	tconf.Console = nil
 	tconf.Log = i.Log
 	authServer := utils.MustParseAddr(i.Auth)
-	tconf.AuthServers = append(tconf.AuthServers, *authServer)
+	tconf.SetAuthServerAddress(*authServer)
 	tconf.CachePolicy = service.CachePolicy{Enabled: true}
 	tconf.DataDir = dataDir
 	tconf.UploadEventsC = i.UploadEventsC
@@ -1025,11 +1071,12 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *servi
 	tconf.Proxy.DisableWebInterface = cfg.DisableWebInterface
 	tconf.Proxy.DisableALPNSNIListener = cfg.DisableALPNSNIListener
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	tconf.FileDescriptors = cfg.FileDescriptors
 
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
-	process, err := service.NewTeleport(tconf, service.WithIMDSClient(&DisabledIMDSClient{}))
+	process, err := service.NewTeleport(tconf)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1081,7 +1128,7 @@ func (i *TeleInstance) Reset() (err error) {
 			return trace.Wrap(err)
 		}
 	}
-	i.Process, err = service.NewTeleport(i.Config, service.WithIMDSClient(&DisabledIMDSClient{}))
+	i.Process, err = service.NewTeleport(i.Config)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1119,7 +1166,7 @@ func (i *TeleInstance) AddUser(username string, mappings []string) *User {
 func (i *TeleInstance) Start() error {
 	// Build a list of expected events to wait for before unblocking based off
 	// the configuration passed in.
-	expectedEvents := []string{}
+	var expectedEvents []string
 	if i.Config.Auth.Enabled {
 		expectedEvents = append(expectedEvents, service.AuthTLSReady)
 	}
@@ -1143,6 +1190,8 @@ func (i *TeleInstance) Start() error {
 	if i.Config.Kube.Enabled {
 		expectedEvents = append(expectedEvents, service.KubernetesReady)
 	}
+
+	expectedEvents = append(expectedEvents, service.InstanceReady)
 
 	// Start the process and block until the expected events have arrived.
 	receivedEvents, err := StartAndWait(i.Process, expectedEvents)
@@ -1197,6 +1246,14 @@ type ClientConfig struct {
 	SourceIP string
 	// EnableEscapeSequences will scan Stdin for SSH escape sequences during command/shell execution.
 	EnableEscapeSequences bool
+	// Password to use when creating a web session
+	Password string
+	// Stdin overrides standard input for the session
+	Stdin io.Reader
+	// Stderr overrides standard error for the session
+	Stderr io.Writer
+	// Stdout overrides standard output for the session
+	Stdout io.Writer
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1212,8 +1269,7 @@ func (i *TeleInstance) NewClientWithCreds(cfg ClientConfig, creds UserCreds) (tc
 	return clt, nil
 }
 
-// NewUnauthenticatedClient returns a fully configured and pre-authenticated client
-// (pre-authenticated with server CAs and signed session key)
+// NewUnauthenticatedClient returns a fully configured and un-authenticated client
 func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.TeleportClient, err error) {
 	keyDir, err := os.MkdirTemp(i.Config.DataDir, "tsh")
 	if err != nil {
@@ -1252,6 +1308,9 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		TLSRoutingEnabled:     i.IsSinglePortSetup,
 		Tracer:                tracing.NoopProvider().Tracer("test"),
 		EnableEscapeSequences: cfg.EnableEscapeSequences,
+		Stderr:                cfg.Stderr,
+		Stdin:                 cfg.Stdin,
+		Stdout:                cfg.Stdout,
 	}
 
 	// JumpHost turns on jump host mode
@@ -1272,7 +1331,207 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return i.AddClientCredentials(tc, cfg)
+}
 
+// CreateWebUser creates a user with the provided password which can be
+// used to create a web session.
+func (i *TeleInstance) CreateWebUser(t *testing.T, username, password string) {
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+
+	role := services.RoleForUser(user)
+	role.SetLogins(types.Allow, []string{username})
+	err = i.Process.GetAuthServer().UpsertRole(context.Background(), role)
+	require.NoError(t, err)
+
+	user.AddRole(role.GetName())
+	err = i.Process.GetAuthServer().CreateUser(context.Background(), user)
+	require.NoError(t, err)
+
+	err = i.Process.GetAuthServer().UpsertPassword(user.GetName(), []byte(password))
+	require.NoError(t, err)
+}
+
+// WebClient allows web sessions to be created as
+// if they were from the UI.
+type WebClient struct {
+	tc      *client.TeleportClient
+	i       *TeleInstance
+	token   string
+	cookies []*http.Cookie
+}
+
+// NewWebClient returns a fully configured and authenticated client
+func (i *TeleInstance) NewWebClient(cfg ClientConfig) (*WebClient, error) {
+	resp, cookies, err := CreateWebSession(i.Web, cfg.Login, cfg.Password)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Extract session cookie and bearer token.
+	if len(cookies) != 1 {
+		return nil, trace.BadParameter("unexpected number of cookies returned; got %d, want %d", len(cookies), 1)
+	}
+	cookie := cookies[0]
+	if cookie.Name != web.CookieName {
+		return nil, trace.BadParameter("unexpected session cookies returned; got %s, want %s", cookie.Name, web.CookieName)
+	}
+
+	tc, err := i.NewUnauthenticatedClient(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if tc, err = i.AddClientCredentials(tc, cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &WebClient{
+		tc:      tc,
+		i:       i,
+		token:   resp.Token,
+		cookies: cookies,
+	}, nil
+}
+
+// CreateWebSession establishes a web session in the same manner that the web UI
+// does. There is no MFA performed, the session will only successfully be created
+// if second factor configuration is `off`. The [web.CreateSessionResponse.Token] and
+// cookies can be used to interact with any authenticated web api endpoints.
+func CreateWebSession(proxyHost, user, password string) (*web.CreateSessionResponse, []*http.Cookie, error) {
+	csReq, err := json.Marshal(web.CreateSessionReq{
+		User: user,
+		Pass: password,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Create POST request to create session.
+	u := url.URL{
+		Scheme: "https",
+		Host:   proxyHost,
+		Path:   "/v1/webapi/sessions/web",
+	}
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Attach CSRF token in cookie and header.
+	csrfToken, err := utils.CryptoRandomHex(32)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	req.AddCookie(&http.Cookie{
+		Name:  csrf.CookieName,
+		Value: csrfToken,
+	})
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set(csrf.HeaderName, csrfToken)
+
+	// Issue request.
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	defer resp.Body.Close()
+	if http.StatusOK != resp.StatusCode {
+		return nil, nil, trace.ConnectionProblem(nil, "received unexpected status code: %d", resp.StatusCode)
+	}
+
+	// Read in response.
+	var csResp *web.CreateSessionResponse
+	err = json.NewDecoder(resp.Body).Decode(&csResp)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return csResp, resp.Cookies(), nil
+}
+
+// SSH establishes an SSH connection via the web api in the same manner that
+// the web UI does. The returned [web.TerminalStream] should be used as stdin/stdout
+// for the session.
+func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error) {
+	u := url.URL{
+		Host:   w.i.Web,
+		Scheme: client.WSS,
+		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect", w.tc.SiteName),
+	}
+	data, err := json.Marshal(termReq)
+	if err != nil {
+		return nil, err
+	}
+
+	q := u.Query()
+	q.Set("params", string(data))
+	q.Set(roundtrip.AccessTokenQueryParam, w.token)
+	u.RawQuery = q.Encode()
+
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	for _, cookie := range w.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+
+	dialer := websocket.Dialer{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+	ws, resp, err := dialer.Dial(u.String(), header)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer resp.Body.Close()
+	ty, raw, err := ws.ReadMessage()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ty != websocket.BinaryMessage {
+		return nil, trace.BadParameter("unexpected websocket message; got %d want %d", ty, websocket.BinaryMessage)
+	}
+
+	var env web.Envelope
+	err = proto.Unmarshal(raw, &env)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	type siteSessionGenerateResponse struct {
+		Session session.Session `json:"session"`
+	}
+
+	var sessResp siteSessionGenerateResponse
+	err = json.Unmarshal([]byte(env.Payload), &sessResp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	stream, err := web.NewTerminalStream(ws)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return stream, nil
+}
+
+// AddClientCredentials adds authenticated credentials to a client.
+// (server CAs and signed session key).
+func (i *TeleInstance) AddClientCredentials(tc *client.TeleportClient, cfg ClientConfig) (*client.TeleportClient, error) {
 	// Generate certificates for the user simulating login.
 	creds, err := GenerateUserCreds(UserCredsRequest{
 		Process:  i.Process,

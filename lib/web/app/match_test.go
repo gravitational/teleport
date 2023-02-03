@@ -21,11 +21,12 @@ import (
 	"net"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMatchAll(t *testing.T) {

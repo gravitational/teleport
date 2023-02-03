@@ -20,16 +20,19 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 func TestMakeDatabaseConfig(t *testing.T) {
 	t.Run("Global", func(t *testing.T) {
 		flags := DatabaseSampleFlags{
-			NodeName:        "testlocal",
-			DataDir:         "/var/lib/data",
-			AuthServersAddr: []string{"localhost:3080"},
-			AuthToken:       "/tmp/token.txt",
-			CAPins:          []string{"pin-1", "pin-2"},
+			NodeName:    "testlocal",
+			DataDir:     "/var/lib/data",
+			ProxyServer: "localhost:3080",
+			AuthToken:   "/tmp/token.txt",
+			CAPins:      []string{"pin-1", "pin-2"},
 		}
 
 		configString, err := MakeDatabaseAgentConfigString(flags)
@@ -40,7 +43,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 
 		require.Equal(t, flags.NodeName, fileConfig.NodeName)
 		require.Equal(t, flags.DataDir, fileConfig.DataDir)
-		require.ElementsMatch(t, flags.AuthServersAddr, fileConfig.AuthServers)
+		require.Equal(t, flags.ProxyServer, fileConfig.ProxyServer)
 		require.Equal(t, flags.AuthToken, fileConfig.AuthToken)
 		require.ElementsMatch(t, flags.CAPins, fileConfig.CAPin)
 	})
@@ -56,6 +59,17 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.ElementsMatch(t, flags.RDSDiscoveryRegions, databases.AWSMatchers[0].Regions)
 	})
 
+	t.Run("RDSProxyAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			RDSProxyDiscoveryRegions: []string{"us-west-1", "us-west-2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AWSMatchers, 1)
+		require.ElementsMatch(t, []string{"rdsproxy"}, databases.AWSMatchers[0].Types)
+		require.ElementsMatch(t, flags.RDSProxyDiscoveryRegions, databases.AWSMatchers[0].Regions)
+	})
+
 	t.Run("RedshiftAutoDiscovery", func(t *testing.T) {
 		flags := DatabaseSampleFlags{
 			RedshiftDiscoveryRegions: []string{"us-west-1", "us-west-2"},
@@ -65,6 +79,44 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.Len(t, databases.AWSMatchers, 1)
 		require.ElementsMatch(t, []string{"redshift"}, databases.AWSMatchers[0].Types)
 		require.ElementsMatch(t, flags.RedshiftDiscoveryRegions, databases.AWSMatchers[0].Regions)
+	})
+
+	t.Run("ElastiCacheAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			ElastiCacheDiscoveryRegions: []string{"us-west-1", "us-west-2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AWSMatchers, 1)
+		require.ElementsMatch(t, []string{"elasticache"}, databases.AWSMatchers[0].Types)
+		require.ElementsMatch(t, flags.ElastiCacheDiscoveryRegions, databases.AWSMatchers[0].Regions)
+	})
+
+	t.Run("MemoryDBAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			MemoryDBDiscoveryRegions: []string{"us-west-1", "us-west-2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AWSMatchers, 1)
+		require.ElementsMatch(t, []string{"memorydb"}, databases.AWSMatchers[0].Types)
+		require.ElementsMatch(t, flags.MemoryDBDiscoveryRegions, databases.AWSMatchers[0].Regions)
+	})
+
+	t.Run("AWS discovery tags", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			RedshiftServerlessDiscoveryRegions: []string{"us-west-1", "us-west-2"},
+			AWSRawTags:                         "teleport.dev/discovery=true,env=prod",
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AWSMatchers, 1)
+		require.ElementsMatch(t, []string{"redshift-serverless"}, databases.AWSMatchers[0].Types)
+		require.ElementsMatch(t, flags.RedshiftServerlessDiscoveryRegions, databases.AWSMatchers[0].Regions)
+		require.Equal(t, map[string]apiutils.Strings{
+			"teleport.dev/discovery": {"true"},
+			"env":                    {"prod"},
+		}, databases.AWSMatchers[0].Tags)
 	})
 
 	t.Run("AzureMySQLAutoDiscovery", func(t *testing.T) {
@@ -89,6 +141,36 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.ElementsMatch(t, flags.AzurePostgresDiscoveryRegions, databases.AzureMatchers[0].Regions)
 	})
 
+	t.Run("AzureSQLServerAutoDiscovery", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			AzureSQLServerDiscoveryRegions: []string{"eastus", "eastus2"},
+		}
+
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AzureMatchers, 1)
+		require.ElementsMatch(t, []string{"sqlserver"}, databases.AzureMatchers[0].Types)
+		require.ElementsMatch(t, flags.AzureSQLServerDiscoveryRegions, databases.AzureMatchers[0].Regions)
+	})
+
+	t.Run("Azure discovery tags,subscriptions,resource_groups", func(t *testing.T) {
+		flags := DatabaseSampleFlags{
+			AzureRedisDiscoveryRegions: []string{"eastus", "eastus2"},
+			AzureSubscriptions:         []string{"sub1", "sub2"},
+			AzureResourceGroups:        []string{"group1", "group2"},
+			AzureRawTags:               "TeleportDiscovery=true,Env=prod",
+		}
+		databases := generateAndParseConfig(t, flags)
+		require.Len(t, databases.AzureMatchers, 1)
+		require.ElementsMatch(t, []string{"redis"}, databases.AzureMatchers[0].Types)
+		require.ElementsMatch(t, flags.AzureRedisDiscoveryRegions, databases.AzureMatchers[0].Regions)
+		require.ElementsMatch(t, flags.AzureSubscriptions, databases.AzureMatchers[0].Subscriptions)
+		require.ElementsMatch(t, flags.AzureResourceGroups, databases.AzureMatchers[0].ResourceGroups)
+		require.Equal(t, map[string]apiutils.Strings{
+			"TeleportDiscovery": {"true"},
+			"Env":               {"prod"},
+		}, databases.AzureMatchers[0].ResourceTags)
+	})
+
 	t.Run("StaticDatabase", func(t *testing.T) {
 		flags := DatabaseSampleFlags{
 			StaticDatabaseName:           "sample",
@@ -96,6 +178,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 			StaticDatabaseURI:            "postgres://localhost:5432",
 			StaticDatabaseRawLabels:      `env=prod,arch=[5m2s:/bin/uname -m "p1 p2"]`,
 			DatabaseAWSRegion:            "us-west-1",
+			DatabaseAWSExternalID:        "1234567890",
 			DatabaseAWSRedshiftClusterID: "redshift-cluster-1",
 			DatabaseADDomain:             "EXAMPLE.com",
 			DatabaseADSPN:                "MSSQLSvc/ec2amaz-4kn05du.dbadir.teleportdemo.net:1433",
@@ -112,6 +195,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 		require.Equal(t, flags.StaticDatabaseURI, databases.Databases[0].URI)
 		require.Equal(t, map[string]string{"env": "prod"}, databases.Databases[0].StaticLabels)
 		require.Equal(t, flags.DatabaseAWSRegion, databases.Databases[0].AWS.Region)
+		require.Equal(t, flags.DatabaseAWSExternalID, databases.Databases[0].AWS.ExternalID)
 		require.Equal(t, flags.DatabaseAWSRedshiftClusterID, databases.Databases[0].AWS.Redshift.ClusterID)
 		require.Equal(t, flags.DatabaseADDomain, databases.Databases[0].AD.Domain)
 		require.Equal(t, flags.DatabaseADSPN, databases.Databases[0].AD.SPN)
@@ -156,6 +240,37 @@ func TestMakeDatabaseConfig(t *testing.T) {
 				})
 			}
 
+		})
+	})
+
+	t.Run("resource matchers", func(t *testing.T) {
+		t.Run("empty", func(t *testing.T) {
+			flags := DatabaseSampleFlags{}
+			databases := generateAndParseConfig(t, flags)
+			require.Len(t, databases.ResourceMatchers, 0)
+		})
+
+		t.Run("multiple labels", func(t *testing.T) {
+			flags := DatabaseSampleFlags{
+				DynamicResourcesRawLabels: []string{
+					"env=dev",
+					"env=prod,name=my-name",
+				},
+			}
+			databases := generateAndParseConfig(t, flags)
+			require.Equal(t, []ResourceMatcher{
+				{
+					Labels: types.Labels{
+						"env": apiutils.Strings{"dev"},
+					},
+				},
+				{
+					Labels: types.Labels{
+						"name": apiutils.Strings{"my-name"},
+						"env":  apiutils.Strings{"prod"},
+					},
+				},
+			}, databases.ResourceMatchers)
 		})
 	})
 }

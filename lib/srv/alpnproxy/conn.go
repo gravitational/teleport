@@ -25,8 +25,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // newBufferedConn creates new instance of bufferedConn.
@@ -82,6 +83,11 @@ type bufferedConn struct {
 	r io.Reader
 }
 
+// NetConn returns the underlying net.Conn.
+func (conn bufferedConn) NetConn() net.Conn {
+	return conn.Conn
+}
+
 func (conn bufferedConn) Read(p []byte) (int, error) { return conn.r.Read(p) }
 
 // readOnlyConn allows to only for Read operation. Other net.Conn operation will be discarded.
@@ -131,7 +137,7 @@ func (c *PingConn) Read(p []byte) (int, error) {
 
 	err := c.discardPingReads()
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return 0, err
 	}
 
 	// Check if the current size is larger than the provided buffer.
@@ -160,7 +166,7 @@ func (c *PingConn) discardPingReads() error {
 	for c.currentSize == 0 {
 		err := binary.Read(c.Conn, binary.BigEndian, &c.currentSize)
 		if err != nil {
-			return trace.Wrap(err)
+			return err
 		}
 	}
 

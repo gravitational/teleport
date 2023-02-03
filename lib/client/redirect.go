@@ -24,12 +24,12 @@ import (
 	"net/http/httptest"
 	"net/url"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -91,7 +91,7 @@ type RedirectorConfig struct {
 
 // NewRedirector returns new local web server redirector
 func NewRedirector(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*Redirector, error) {
-	clt, proxyURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
+	clt, proxyURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -166,13 +166,14 @@ func (rd *Redirector) Start() error {
 	u.RawQuery = query.Encode()
 
 	req := SSOLoginConsoleReq{
-		RedirectURL:       u.String(),
-		PublicKey:         rd.PubKey,
-		CertTTL:           rd.TTL,
-		ConnectorID:       rd.ConnectorID,
-		Compatibility:     rd.Compatibility,
-		RouteToCluster:    rd.RouteToCluster,
-		KubernetesCluster: rd.KubernetesCluster,
+		RedirectURL:          u.String(),
+		PublicKey:            rd.PubKey,
+		CertTTL:              rd.TTL,
+		ConnectorID:          rd.ConnectorID,
+		Compatibility:        rd.Compatibility,
+		RouteToCluster:       rd.RouteToCluster,
+		KubernetesCluster:    rd.KubernetesCluster,
+		AttestationStatement: rd.AttestationStatement,
 	}
 
 	response, err := rd.SSOLoginConsoleRequestFn(req)

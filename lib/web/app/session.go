@@ -21,16 +21,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/gravitational/trace"
-	"github.com/gravitational/ttlmap"
-
 	"github.com/gravitational/oxy/forward"
 	oxyutils "github.com/gravitational/oxy/utils"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // session holds a request forwarder and web session for this request.
@@ -100,6 +100,11 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		return nil, trace.Wrap(err)
 	}
 
+	// Don't trust any "X-Forward-*" headers the client sends, instead set our own.
+	delegate := forward.NewHeaderRewriter()
+	delegate.TrustForwardHeader = false
+	hr := common.NewHeaderRewriter(delegate)
+
 	fwd, err := forward.New(
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
@@ -107,6 +112,8 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		forward.PassHostHeader(true),
 		forward.WebsocketDial(transport.DialWebsocket),
 		forward.ErrorHandler(oxyutils.ErrorHandlerFunc(h.handleForwardError)),
+		forward.WebsocketRewriter(hr),
+		forward.Rewriter(hr),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

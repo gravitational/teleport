@@ -188,7 +188,7 @@ func TestNew(t *testing.T) {
 		Host:      "localhost",
 		HostLogin: "vincent",
 		HostPort:  22,
-		KeysDir:   "/tmp",
+		KeysDir:   t.TempDir(),
 		Username:  "localuser",
 		SiteName:  "site",
 		Tracer:    tracing.NoopProvider().Tracer("test"),
@@ -436,22 +436,22 @@ func TestGetKubeTLSServerName(t *testing.T) {
 		{
 			name:          "ipv4 format, API domain should be used",
 			kubeProxyAddr: "127.0.0.1",
-			want:          "kube.teleport.cluster.local",
+			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
 		},
 		{
 			name:          "empty host, API domain should be used",
 			kubeProxyAddr: "",
-			want:          "kube.teleport.cluster.local",
+			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
 		},
 		{
 			name:          "ipv4 unspecified, API domain should be used ",
 			kubeProxyAddr: "0.0.0.0",
-			want:          "kube.teleport.cluster.local",
+			want:          "kube-teleport-proxy-alpn.teleport.cluster.local",
 		},
 		{
 			name:          "valid hostname",
 			kubeProxyAddr: "example.com",
-			want:          "kube.example.com",
+			want:          "kube-teleport-proxy-alpn.example.com",
 		},
 	}
 
@@ -546,7 +546,7 @@ func TestApplyProxySettings(t *testing.T) {
 type mockAgent struct {
 	// Agent is embedded to avoid redeclaring all interface methods.
 	// Only the Signers method is implemented by testAgent.
-	agent.Agent
+	agent.ExtendedAgent
 	ValidPrincipals []string
 }
 
@@ -885,7 +885,7 @@ func TestCommandLimit(t *testing.T) {
 			mfaRequired: true,
 			expected:    1,
 			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV5{
+				role, err := types.NewRole("test", types.RoleSpecV6{
 					Options: types.RoleOptions{MaxConnections: 500},
 				})
 				require.NoError(t, err)
@@ -911,7 +911,7 @@ func TestCommandLimit(t *testing.T) {
 			name:     "max_connections=1",
 			expected: 1,
 			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV5{
+				role, err := types.NewRole("test", types.RoleSpecV6{
 					Options: types.RoleOptions{MaxConnections: 1},
 				})
 				require.NoError(t, err)
@@ -923,7 +923,7 @@ func TestCommandLimit(t *testing.T) {
 			name:     "max_connections=2",
 			expected: 1,
 			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV5{
+				role, err := types.NewRole("test", types.RoleSpecV6{
 					Options: types.RoleOptions{MaxConnections: 2},
 				})
 				require.NoError(t, err)
@@ -935,7 +935,7 @@ func TestCommandLimit(t *testing.T) {
 			name:     "max_connections=500",
 			expected: 250,
 			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV5{
+				role, err := types.NewRole("test", types.RoleSpecV6{
 					Options: types.RoleOptions{MaxConnections: 500},
 				})
 				require.NoError(t, err)
@@ -947,7 +947,7 @@ func TestCommandLimit(t *testing.T) {
 			name:     "max_connections=max",
 			expected: math.MaxInt64 / 2,
 			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV5{
+				role, err := types.NewRole("test", types.RoleSpecV6{
 					Options: types.RoleOptions{MaxConnections: math.MaxInt64},
 				})
 				require.NoError(t, err)

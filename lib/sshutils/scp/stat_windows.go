@@ -23,6 +23,6 @@ import (
 )
 
 // Source: os/types_windows.go
-func atime(fi os.FileInfo) time.Time {
+func GetAtime(fi os.FileInfo) time.Time {
 	return time.Unix(0, fi.Sys().(*syscall.Win32FileAttributeData).LastAccessTime.Nanoseconds())
 }

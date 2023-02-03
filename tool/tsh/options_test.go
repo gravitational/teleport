@@ -20,8 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/client"
 )
 
 func TestOptions(t *testing.T) {
@@ -183,7 +184,10 @@ func TestOptions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+
 			options, err := parseOptions(tt.inOptions)
 			tt.assertError(t, err)
 			if tt.assertOptions != nil {

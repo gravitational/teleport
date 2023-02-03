@@ -25,20 +25,22 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
+	"strconv"
 
 	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // HandlerConfig is the configuration for an application handler.
@@ -51,6 +53,8 @@ type HandlerConfig struct {
 	AccessPoint auth.ProxyAccessPoint
 	// ProxyClient holds connections to leaf clusters.
 	ProxyClient reversetunnel.Tunnel
+	// ProxyPublicAddrs contains web proxy public addresses.
+	ProxyPublicAddrs []utils.NetAddr
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
 	CipherSuites []uint16
@@ -124,8 +128,7 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	// Create the application routes.
 	h.router = httprouter.New()
 	h.router.UseRawPath = true
-	h.router.GET("/x-teleport-auth", makeRouterHandler(h.handleFragment))
-	h.router.POST("/x-teleport-auth", makeRouterHandler(h.handleFragment))
+	h.router.POST("/x-teleport-auth", makeRouterHandler(h.handleAuth))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
 	h.router.NotFound = h.withAuth(h.handleForward)
 
@@ -134,6 +137,56 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 
 // ServeHTTP hands the request to the request router.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/x-teleport-auth" {
+		// Allow minimal CORS from only the proxy origin
+		// This allows for requests from the proxy to `POST` to `/x-teleport-auth` and only
+		// permits the headers `X-Cookie-Value` and `X-Subject-Cookie-Value`.
+		// This is for the web UI to post a request to the application to get the proper app session
+		// cookie set on the right application subdomain.
+		w.Header().Set("Access-Control-Allow-Methods", "POST")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Headers", "X-Cookie-Value, X-Subject-Cookie-Value")
+
+		// Validate that the origin for the request matches any of the public proxy addresses.
+		// This is instead of protecting via CORS headers, as that only supports a single domain.
+		originValue := r.Header.Get("Origin")
+		origin, err := url.Parse(originValue)
+		if err != nil {
+			h.log.Errorf("malformed Origin header: %v", err)
+
+			w.WriteHeader(http.StatusBadRequest)
+
+			return
+		}
+
+		var match bool
+		originPort := origin.Port()
+		if originPort == "" {
+			originPort = "443"
+		}
+
+		for _, addr := range h.c.ProxyPublicAddrs {
+			if strconv.Itoa(addr.Port(0)) == originPort && addr.Host() == origin.Hostname() {
+				match = true
+				break
+			}
+		}
+
+		if !match {
+			w.WriteHeader(http.StatusForbidden)
+
+			return
+		}
+
+		// As we've already checked the origin matches a public proxy address, we can allow requests from that origin
+		// We do this dynamically as this header can only contain one value
+		w.Header().Set("Access-Control-Allow-Origin", originValue)
+
+		if r.Method == http.MethodOptions {
+			return
+		}
+	}
+
 	h.router.ServeHTTP(w, r)
 }
 
@@ -159,6 +212,28 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if ws.GetUser() != identity.Username {
+		err := trace.AccessDenied("session owner %q does not match caller %q", ws.GetUser(), identity.Username)
+
+		userMeta := identity.GetUserMetadata()
+		userMeta.Login = ws.GetUser()
+		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+			Metadata: apievents.Metadata{
+				Type: events.AuthAttemptEvent,
+				Code: events.AuthAttemptFailureCode,
+			},
+			UserMetadata: userMeta,
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				LocalAddr:  clientConn.LocalAddr().String(),
+				RemoteAddr: clientConn.RemoteAddr().String(),
+			},
+			Status: apievents.Status{
+				Success: false,
+				Error:   err.Error(),
+			},
+		})
+		return err
 	}
 
 	session, err := h.getSession(ctx, ws)
@@ -256,44 +331,107 @@ func (h *Handler) renewSession(r *http.Request) (*session, error) {
 
 // getAppSession retrieves the `types.WebSession` using the provided
 // `http.Request`.
-func (h *Handler) getAppSession(r *http.Request) (types.WebSession, error) {
-	sessionID, err := h.extractSessionID(r)
-	if err != nil {
-		h.log.Warnf("Failed to extract session id: %v.", err)
-		return nil, trace.AccessDenied("invalid session")
-	}
-
-	// Check that the session exists in the backend cache. This allows the user
-	// to logout and invalidate their application session immediately. This
-	// lookup should also be fast because it's in the local cache.
-	return h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
-		SessionID: sessionID,
-	})
-}
-
-// extractSessionID extracts application access session ID from either the
-// cookie or the client certificate of the provided request.
-func (h *Handler) extractSessionID(r *http.Request) (sessionID string, err error) {
+func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error) {
 	// We have a client certificate with encoded session id in application
 	// access CLI flow i.e. when users log in using "tsh app login" and
 	// then connect to the apps with the issued certs.
 	if HasClientCert(r) {
-		certificate := r.TLS.PeerCertificates[0]
-		identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		sessionID = identity.RouteToApp.SessionID
+		ws, err = h.getAppSessionFromCert(r)
 	} else {
-		sessionID, err = extractCookie(r)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
+		ws, err = h.getAppSessionFromCookie(r)
 	}
-	if sessionID == "" {
-		return "", trace.NotFound("empty session id")
+	if err != nil {
+		h.log.Warnf("Failed to get session: %v.", err)
+		return nil, trace.AccessDenied("invalid session")
 	}
-	return sessionID, nil
+	return ws, nil
+}
+
+func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, error) {
+	if !HasClientCert(r) {
+		return nil, trace.BadParameter("request missing client certificate")
+	}
+	certificate := r.TLS.PeerCertificates[0]
+	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Check that the session exists in the backend cache. This allows the user
+	// to logout and invalidate their application session immediately. This
+	// lookup should also be fast because it's in the local cache.
+	ws, err := h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
+		SessionID: identity.RouteToApp.SessionID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if ws.GetUser() != identity.Username {
+		err := trace.AccessDenied("session owner %q does not match caller %q",
+			ws.GetUser(), identity.Username)
+
+		userMeta := identity.GetUserMetadata()
+		userMeta.Login = ws.GetUser()
+		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+			Metadata: apievents.Metadata{
+				Type: events.AuthAttemptEvent,
+				Code: events.AuthAttemptFailureCode,
+			},
+			UserMetadata: userMeta,
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				LocalAddr:  r.Host,
+				RemoteAddr: r.RemoteAddr,
+			},
+			Status: apievents.Status{
+				Success: false,
+				Error:   err.Error(),
+			},
+		})
+		return nil, err
+	}
+	return ws, nil
+}
+
+func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, error) {
+	subjectValue, err := extractCookie(r, SubjectCookieName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessionID, err := extractCookie(r, CookieName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Check that the session exists in the backend cache. This allows the user
+	// to logout and invalidate their application session immediately. This
+	// lookup should also be fast because it's in the local cache.
+	ws, err := h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
+		SessionID: sessionID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if ws.GetBearerToken() != subjectValue {
+		err := trace.AccessDenied("subject session token does not match")
+		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+			Metadata: apievents.Metadata{
+				Type: events.AuthAttemptEvent,
+				Code: events.AuthAttemptFailureCode,
+			},
+			UserMetadata: apievents.UserMetadata{
+				Login: ws.GetUser(),
+				User:  "unknown", // we don't have client's username, since this came from an http request with cookies.
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				LocalAddr:  r.Host,
+				RemoteAddr: r.RemoteAddr,
+			},
+			Status: apievents.Status{
+				Success: false,
+				Error:   err.Error(),
+			},
+		})
+		return nil, err
+	}
+	return ws, nil
 }
 
 // getSession returns a request session used to proxy the request to the
@@ -322,8 +460,8 @@ func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session
 }
 
 // extractCookie extracts the cookie from the *http.Request.
-func extractCookie(r *http.Request) (string, error) {
-	rawCookie, err := r.Cookie(CookieName)
+func extractCookie(r *http.Request, cookieName string) (string, error) {
+	rawCookie, err := r.Cookie(cookieName)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -393,7 +531,6 @@ const (
 	// CookieName is the name of the application session cookie.
 	CookieName = "__Host-grv_app_session"
 
-	// AuthStateCookieName is the name of the state cookie used during the
-	// initial authentication flow.
-	AuthStateCookieName = "__Host-grv_app_auth_state"
+	// SubjectCookieName is the name of the application session subject cookie.
+	SubjectCookieName = "__Host-grv_app_session_subject"
 )

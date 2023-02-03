@@ -20,10 +20,11 @@ import (
 	"context"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
-	log "github.com/sirupsen/logrus"
 )
 
 // DiscardAuditLog is do-nothing, discard-everything implementation
@@ -96,7 +97,7 @@ func (*DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 		"event_type":  event.GetType(),
 		"event_time":  event.GetTime(),
 		"event_index": event.GetIndex(),
-	}).Debugf("Discarding stream event")
+	}).Traceln("Discarding stream event")
 	return nil
 }
 

@@ -22,9 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/observability/tracing"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
@@ -34,6 +31,9 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
 const (

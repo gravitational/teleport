@@ -25,18 +25,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
-
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 // UploadDownload tests uploads and downloads
@@ -189,7 +189,7 @@ Outer:
 		event, ok := arr[0].(*apievents.UserLogin)
 		require.True(t, ok)
 		require.Equal(t, event.GetTime(), baseTime2)
-		require.True(t, apiutils.SliceContainsStr(names, event.User))
+		require.True(t, slices.Contains(names, event.User))
 
 		for i, name := range names {
 			if name == event.User {

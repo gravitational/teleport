@@ -70,6 +70,15 @@ func TestDatabaseLogin(t *testing.T) {
 		Name:     "mssql",
 		Protocol: defaults.ProtocolSQLServer,
 		URI:      "localhost:1433",
+	}, service.Database{
+		Name:     "dynamodb",
+		Protocol: defaults.ProtocolDynamoDB,
+		URI:      "", // uri can be blank for DynamoDB, it will be derived from the region and requests.
+		AWS: service.DatabaseAWS{
+			AccountID:  "12345",
+			ExternalID: "123123123",
+			Region:     "us-west-1",
+		},
 	})
 
 	authServer := authProcess.GetAuthServer()
@@ -110,6 +119,12 @@ func TestDatabaseLogin(t *testing.T) {
 			expectErrForConfigCmd: true, // "tsh db config" not supported for MSSQL.
 			expectErrForEnvCmd:    true, // "tsh db env" not supported for MSSQL.
 		},
+		{
+			databaseName:          "dynamodb",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for DynamoDB.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for DynamoDB.
+		},
 	}
 
 	// Note: keystore currently races when multiple tsh clients work in the
@@ -124,14 +139,16 @@ func TestDatabaseLogin(t *testing.T) {
 			require.NoError(t, err)
 
 			// Fetch the active profile.
-			profile, err := client.StatusFor(tmpHomePath, proxyAddr.Host(), alice.GetName())
+			clientStore := client.NewFSClientStore(tmpHomePath)
+			profile, err := clientStore.ReadProfileStatus(proxyAddr.Host())
 			require.NoError(t, err)
+			require.Equal(t, alice.GetName(), profile.Username)
 
 			// Verify certificates.
 			certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", test.databaseName))
 			require.NoError(t, err)
-			require.Len(t, certs, test.expectCertsLen)
-			require.Len(t, keys, test.expectKeysLen)
+			require.Equal(t, test.expectCertsLen, len(certs)) // don't use require.Len, because it spams PEM bytes on fail.
+			require.Equal(t, test.expectKeysLen, len(keys))   // don't use require.Len, because it spams PEM bytes on fail.
 		})
 	}
 
@@ -370,7 +387,7 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	proxyAddr, err := proxy.ProxyWebAddr()
 	require.NoError(t, err)
 
-	cfg.AuthServers = []utils.NetAddr{*proxyAddr}
+	cfg.SetAuthServerAddress(*proxyAddr)
 
 	token, err := proxy.Config.Token()
 	require.NoError(t, err)
@@ -378,25 +395,15 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	cfg.SetToken(token)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
 	cfg.Databases.Enabled = true
 	cfg.Databases.Databases = dbs
 	cfg.Log = utils.NewLoggerForTests()
 
-	db, err = service.NewTeleport(cfg)
-	require.NoError(t, err)
-	require.NoError(t, db.Start())
-
-	t.Cleanup(func() {
-		db.Close()
-	})
-
-	// Wait for database agent to start.
-	_, err = db.WaitForEventTimeout(10*time.Second, service.DatabasesReady)
-	require.NoError(t, err, "database server didn't start after 10s")
+	db = runTeleport(t, cfg)
 
 	// Wait for all databases to register to avoid races.
 	waitForDatabases(t, auth, dbs)
-
 	return db
 }
 
@@ -451,4 +458,68 @@ func decodePEM(pemPath string) (certs []pem.Block, privs []pem.Block, err error)
 		}
 	}
 	return certs, privs, nil
+}
+
+func TestFormatDatabaseConnectArgs(t *testing.T) {
+	tests := []struct {
+		name      string
+		cluster   string
+		route     tlsca.RouteToDatabase
+		wantFlags []string
+	}{
+		{
+			name:      "match user and db name, cluster set",
+			cluster:   "foo",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, ServiceName: "svc"},
+			wantFlags: []string{"--cluster=foo", "--db-user=<user>", "--db-name=<name>", "svc"},
+		},
+		{
+			name:      "match user and db name",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, ServiceName: "svc"},
+			wantFlags: []string{"--db-user=<user>", "--db-name=<name>", "svc"},
+		},
+		{
+			name:      "match user and db name, username given",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, Username: "bob", ServiceName: "svc"},
+			wantFlags: []string{"--db-name=<name>", "svc"},
+		},
+		{
+			name:      "match user and db name, db name given",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, Database: "sales", ServiceName: "svc"},
+			wantFlags: []string{"--db-user=<user>", "svc"},
+		},
+		{
+			name:      "match user and db name, both given",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, Database: "sales", Username: "bob", ServiceName: "svc"},
+			wantFlags: []string{"svc"},
+		},
+		{
+			name:      "match user name",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMySQL, ServiceName: "svc"},
+			wantFlags: []string{"--db-user=<user>", "svc"},
+		},
+		{
+			name:      "match user name, given",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMySQL, Username: "bob", ServiceName: "svc"},
+			wantFlags: []string{"svc"},
+		},
+		{
+			name:      "match user name, dynamodb",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolDynamoDB, ServiceName: "svc"},
+			wantFlags: []string{"--db-user=<user>", "svc"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := formatDatabaseConnectArgs(tt.cluster, tt.route)
+			require.Equal(t, tt.wantFlags, out)
+		})
+	}
 }

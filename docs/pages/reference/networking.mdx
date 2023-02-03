@@ -116,7 +116,7 @@ numbers for each service.
   Service, use the following command:
 
   ```code
-  $ curl https://teleport.example.com:443/webapi/ping | jq 
+  $ curl https://teleport.example.com:443/webapi/ping | jq
   ```
 
   Note that if `auth_service.proxy_listener_mode` is set to `multiplex` in your
@@ -135,6 +135,7 @@ Read more in our [TLS Routing](../architecture/tls-routing.mdx) guide.
 | Port | Service | Description |
 | - | - | - |
 | 443 | Proxy | In TLS Routing mode, the Proxy handles all protocols, including Web UI, HTTPS, Kubernetes, SSH, and all databases on a single port. |
+| 3021 | Proxy | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |
 | 3022 | Node | SSH port. This is Teleport's equivalent of port `#22` for SSH. Only used when Teleport Node is replacing SSH.|
 | 3025 | Auth | TLS port used by the Auth Service to serve its API to other Nodes in a cluster.|
 | 3028 | Desktop | When using Desktop Service `windows_desktop_service.listen_addr` |
@@ -146,6 +147,7 @@ In those cases, they can set up separate listeners in the config file.
 
 | Port | Service | Description |
 | - | - | - |
+| 3021 | Proxy | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |
 | 3022 | Node | SSH port. This is Teleport's equivalent of port `#22` for SSH. |
 | 3023 | Proxy | SSH port clients connect to. The Proxy Service will forward this connection to port `#3022` on the destination Node. |
 | 3024 | Proxy | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. |

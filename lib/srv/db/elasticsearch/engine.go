@@ -30,26 +30,20 @@ import (
 	"strings"
 
 	elastic "github.com/elastic/go-elasticsearch/v8/typedapi/types"
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/ghodss/yaml"
 )
 
-func init() {
-	common.RegisterEngine(newEngine, defaults.ProtocolElasticsearch)
-}
-
-// newEngine create new elasticsearch engine.
-func newEngine(ec common.EngineConfig) common.Engine {
+// NewEngine create new elasticsearch engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{EngineConfig: ec}
 }
 
@@ -76,8 +70,9 @@ func (e *Engine) SendError(err error) {
 		return
 	}
 
+	reason := err.Error()
 	cause := elastic.ErrorCause{
-		Reason: err.Error(),
+		Reason: &reason,
 		Type:   "internal_server_error_exception",
 	}
 
@@ -122,6 +117,10 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
 	clientConnReader := bufio.NewReader(e.clientConn)
+
+	if sessionCtx.Identity.RouteToDatabase.Username == "" {
+		return trace.BadParameter("database username required for Elasticsearch")
+	}
 
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
@@ -379,12 +378,12 @@ func (e *Engine) sendResponse(resp *http.Response) error {
 // authorizeConnection does authorization check for elasticsearch connection about
 // to be established.
 func (e *Engine) authorizeConnection(ctx context.Context) error {
-	ap, err := e.Auth.GetAuthPreference(ctx)
+	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	mfaParams := e.sessionCtx.MFAParams(ap.GetRequireMFAType())
+	state := e.sessionCtx.GetAccessState(authPref)
 	dbRoleMatchers := role.DatabaseRoleMatchers(
 		e.sessionCtx.Database.GetProtocol(),
 		e.sessionCtx.DatabaseUser,
@@ -392,7 +391,7 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	)
 	err = e.sessionCtx.Checker.CheckAccess(
 		e.sessionCtx.Database,
-		mfaParams,
+		state,
 		dbRoleMatchers...,
 	)
 	if err != nil {

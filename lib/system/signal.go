@@ -31,6 +31,7 @@ int resetInterruptSignalHandler() {
 }
 */
 import "C"
+
 import log "github.com/sirupsen/logrus"
 
 // ResetInterruptSignal will reset the handler for SIGINT back to the default

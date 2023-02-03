@@ -50,8 +50,18 @@ func DatabaseRoleMatchers(dbProtocol string, user, database string) services.Rol
 		return services.RoleMatchers{
 			&services.DatabaseUserMatcher{User: user},
 		}
+	case defaults.ProtocolCassandra:
+		// Cassandra integration doesn't support schema access control.
+		return services.RoleMatchers{
+			&services.DatabaseUserMatcher{User: user},
+		}
 	case defaults.ProtocolElasticsearch:
 		// Elasticsearch integration doesn't support schema access control.
+		return services.RoleMatchers{
+			&services.DatabaseUserMatcher{User: user},
+		}
+	case defaults.ProtocolDynamoDB:
+		// DynamoDB integration doesn't support schema access control.
 		return services.RoleMatchers{
 			&services.DatabaseUserMatcher{User: user},
 		}

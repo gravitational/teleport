@@ -20,13 +20,12 @@ const StaticConfigString = `
 #
 # Some comments
 #
+version: v3
 teleport:
   nodename: edsger.example.com
   advertise_ip: 10.10.10.1:3022
   pid_file: /var/run/teleport.pid
-  auth_servers:
-    - auth0.server.example.org:3024
-    - auth1.server.example.org:3024
+  auth_server: auth0.server.example.org:3024
   auth_token: xxxyyy
   log:
     output: stderr
@@ -84,14 +83,13 @@ ssh_service:
 `
 
 const SmallConfigString = `
+version: v3
 teleport:
   nodename: cat.example.com
   advertise_ip: 10.10.10.1
   pid_file: /var/run/teleport.pid
   auth_token: %v
-  auth_servers:
-    - auth0.server.example.org:3024
-    - auth1.server.example.org:3024
+  auth_server: auth0.server.example.org:3024
   log:
     output: stderr
     severity: INFO
@@ -124,9 +122,10 @@ auth_service:
       slot_number: 1
       pin: "example_pin"
   authentication:
-    u2f:
-      app_id: "app-id"
-      device_attestation_cas:
+    second_factor: "optional"
+    webauthn:
+      rp_id: "goteleport.com"
+      attestation_allowed_cas:
       - "testdata/u2f_attestation_ca.pem"
       - |
         -----BEGIN CERTIFICATE-----
@@ -190,6 +189,12 @@ kubernetes_service:
     kubeconfig_file: /tmp/kubeconfig
     labels:
       'testKey': 'testValue'
+
+discovery_service:
+    enabled: yes
+    aws:
+      - types: ["ec2"]
+        regions: ["eu-central-1"]
 `
 
 // NoServicesConfigString is a configuration file with no services enabled
@@ -213,6 +218,65 @@ proxy_service:
 
 app_service:
   enabled: no
+`
+
+// DefaultAuthResourcesConfigString is a configuration file without
+// `cluster_auth_preference`, `cluster_networking_config` and `session_recording` fields.
+const DefaultAuthResourcesConfigString = `
+teleport:
+  nodename: node.example.com
+
+auth_service:
+  enabled: yes
+  cluster_name: "example.com"
+`
+
+// CustomAuthPreferenceConfigString is a configuration file with a single
+// `cluster_auth_preference` field.
+const CustomAuthPreferenceConfigString = `
+teleport:
+  nodename: node.example.com
+
+auth_service:
+  enabled: yes
+  cluster_name: "example.com"
+  disconnect_expired_cert: true
+`
+
+// AuthPreferenceConfigWithMOTDString is a configuration file with the
+// `message_of_the_day` `cluster_auth_preference` field.
+const AuthPreferenceConfigWithMOTDString = `
+teleport:
+  nodename: node.example.com
+
+auth_service:
+  enabled: yes
+  cluster_name: "example.com"
+  message_of_the_day: "welcome!"
+`
+
+// CustomNetworkingConfigString is a configuration file with a single
+// `cluster_networking_config` field.
+const CustomNetworkingConfigString = `
+teleport:
+  nodename: node.example.com
+
+auth_service:
+  enabled: yes
+  cluster_name: "example.com"
+  web_idle_timeout: 10s
+`
+
+// CustomSessionRecordingConfigString is a configuration file with a single
+// `session_recording` field.
+const CustomSessionRecordingConfigString = `
+teleport:
+  nodename: node.example.com
+
+auth_service:
+  enabled: yes
+  cluster_name: "example.com"
+  proxy_checks_host_keys: true
 `
 
 // configWithFIPSKex is a configuration file with a FIPS compliant KEX

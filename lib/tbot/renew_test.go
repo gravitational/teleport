@@ -21,6 +21,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	libconfig "github.com/gravitational/teleport/lib/config"
@@ -28,8 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
 	libutils "github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 // TestOnboardViaToken ensures a bot can join using token auth.
@@ -45,7 +46,7 @@ func TestOnboardViaToken(t *testing.T) {
 
 	// Make and join a new bot instance.
 	const roleName = "dummy-role"
-	role, err := types.NewRole(roleName, types.RoleSpecV5{})
+	role, err := types.NewRole(roleName, types.RoleSpecV6{})
 	require.NoError(t, err)
 	require.NoError(t, rootClient.UpsertRole(context.Background(), role))
 
@@ -112,7 +113,7 @@ func TestDatabaseRequest(t *testing.T) {
 
 	// Create a role to grant access to the database.
 	const roleName = "db-role"
-	role, err := types.NewRole(roleName, types.RoleSpecV5{
+	role, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			DatabaseLabels: types.Labels{
 				"*": utils.Strings{"*"},
@@ -196,7 +197,7 @@ func TestAppRequest(t *testing.T) {
 
 	// Create a role to grant access to the app.
 	const roleName = "app-role"
-	role, err := types.NewRole(roleName, types.RoleSpecV5{
+	role, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			AppLabels: types.Labels{
 				"env": utils.Strings{"dev"},

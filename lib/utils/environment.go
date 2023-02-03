@@ -19,9 +19,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravitational/teleport"
-
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
 
 // ReadEnvironmentFile will read environment variables from a passed in location.

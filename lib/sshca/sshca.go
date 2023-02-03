@@ -29,7 +29,7 @@ type Authority interface {
 	// a host certificate.
 	GenerateHostCert(certParams services.HostCertParams) ([]byte, error)
 
-	// GenerateUserCert generates user certificate, it takes pkey as a signing
+	// GenerateUserCert generates user ssh certificate, it takes pkey as a signing
 	// private key (user certificate authority)
 	GenerateUserCert(certParams services.UserCertParams) ([]byte, error)
 

@@ -3,8 +3,9 @@
 
 // Proxy SG for instances behind network LB
 resource "aws_security_group" "proxy" {
-  name   = "${var.cluster_name}-proxy"
-  vpc_id = local.vpc_id
+  name        = "${var.cluster_name}-proxy"
+  description = "Proxy SG for instances behind network LB"
+  vpc_id      = local.vpc_id
   tags = {
     TeleportCluster = var.cluster_name
   }
@@ -12,9 +13,10 @@ resource "aws_security_group" "proxy" {
 
 // Proxy SG for application LB (ACM)
 resource "aws_security_group" "proxy_acm" {
-  name   = "${var.cluster_name}-proxy-acm"
-  vpc_id = local.vpc_id
-  count  = var.use_acm ? 1 : 0
+  name        = "${var.cluster_name}-proxy-acm"
+  description = "Proxy SG for application LB (ACM)"
+  vpc_id      = local.vpc_id
+  count       = var.use_acm ? 1 : 0
   tags = {
     TeleportCluster = var.cluster_name
   }
@@ -22,6 +24,7 @@ resource "aws_security_group" "proxy_acm" {
 
 // SSH emergency access via bastion only
 resource "aws_security_group_rule" "proxy_ingress_allow_ssh" {
+  description              = "SSH emergency access via bastion only"
   type                     = "ingress"
   from_port                = 22
   to_port                  = 22
@@ -31,7 +34,9 @@ resource "aws_security_group_rule" "proxy_ingress_allow_ssh" {
 }
 
 // Ingress traffic to web port 443 is allowed from all directions (ACM)
+// tfsec:ignore:aws-ec2-no-public-ingress-sgr
 resource "aws_security_group_rule" "proxy_ingress_allow_web_acm" {
+  description       = "Ingress traffic to web port 443 is allowed from all directions (ACM)"
   type              = "ingress"
   from_port         = 443
   to_port           = 443
@@ -42,7 +47,9 @@ resource "aws_security_group_rule" "proxy_ingress_allow_web_acm" {
 }
 
 // Ingress proxy traffic is allowed from all ports
+// tfsec:ignore:aws-ec2-no-public-ingress-sgr
 resource "aws_security_group_rule" "proxy_ingress_allow_proxy" {
+  description       = "Ingress proxy traffic is allowed from all ports"
   type              = "ingress"
   from_port         = 3023
   to_port           = 3023
@@ -52,7 +59,9 @@ resource "aws_security_group_rule" "proxy_ingress_allow_proxy" {
 }
 
 // Ingress traffic to tunnel port 3024 is allowed from all directions (ACM)
+// tfsec:ignore:aws-ec2-no-public-ingress-sgr
 resource "aws_security_group_rule" "proxy_ingress_allow_tunnel" {
+  description       = "Ingress traffic to tunnel port 3024 is allowed from all directions (ACM)"
   type              = "ingress"
   from_port         = 3024
   to_port           = 3024
@@ -63,7 +72,9 @@ resource "aws_security_group_rule" "proxy_ingress_allow_tunnel" {
 }
 
 // Ingress traffic to web port 3026 is allowed from all directions
+// tfsec:ignore:aws-ec2-no-public-ingress-sgr
 resource "aws_security_group_rule" "proxy_ingress_allow_kube" {
+  description       = "Ingress traffic to web port 3026 is allowed from all directions"
   type              = "ingress"
   from_port         = 3026
   to_port           = 3026
@@ -73,36 +84,48 @@ resource "aws_security_group_rule" "proxy_ingress_allow_kube" {
 }
 
 // Permit inbound to Teleport mysql services
+// tfsec:ignore:aws-ec2-no-public-ingress-sgr
 resource "aws_security_group_rule" "proxy_ingress_allow_mysql" {
+  description       = "Permit inbound to Teleport mysql services"
   type              = "ingress"
   from_port         = 3036
   to_port           = 3036
   protocol          = "tcp"
   cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
+  count             = var.enable_mysql_listener ? 1 : 0
 }
+
 // Permit inbound to Teleport postgres services
+// tfsec:ignore:aws-ec2-no-public-ingress-sgr
 resource "aws_security_group_rule" "proxy_ingress_allow_postgres" {
+  description       = "Permit inbound to Teleport postgres services"
   type              = "ingress"
   from_port         = 5432
   to_port           = 5432
   protocol          = "tcp"
   cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
+  count             = var.enable_postgres_listener ? 1 : 0
 }
 
 // Permit inbound to Teleport mongodb services
+// tfsec:ignore:aws-ec2-no-public-ingress-sgr
 resource "aws_security_group_rule" "cluster_ingress_mongodb" {
+  description       = "Permit inbound to Teleport mongodb services"
   type              = "ingress"
   from_port         = 27017
   to_port           = 27017
   protocol          = "tcp"
   cidr_blocks       = var.allowed_proxy_ingress_cidr_blocks
   security_group_id = aws_security_group.proxy.id
+  count             = var.enable_mongodb_listener ? 1 : 0
 }
 
 // Ingress traffic to web port 3080 is allowed from all directions
+// tfsec:ignore:aws-ec2-no-public-ingress-sgr
 resource "aws_security_group_rule" "proxy_ingress_allow_web" {
+  description       = "Ingress traffic to web port 3080 is allowed from all directions"
   type              = "ingress"
   from_port         = 3080
   to_port           = 3080
@@ -112,7 +135,9 @@ resource "aws_security_group_rule" "proxy_ingress_allow_web" {
 }
 
 // Ingress traffic to grafana port 8443 is allowed from all directions (ACM)
+// tfsec:ignore:aws-ec2-no-public-ingress-sgr
 resource "aws_security_group_rule" "proxy_ingress_allow_grafana_acm" {
+  description       = "Ingress traffic to grafana port 8443 is allowed from all directions (ACM)"
   type              = "ingress"
   from_port         = 8443
   to_port           = 8443
@@ -123,7 +148,9 @@ resource "aws_security_group_rule" "proxy_ingress_allow_grafana_acm" {
 }
 
 // Egress traffic is allowed everywhere
+// tfsec:ignore:aws-ec2-no-public-egress-sgr
 resource "aws_security_group_rule" "proxy_egress_allow_all_traffic" {
+  description       = "Egress traffic is allowed everywhere"
   type              = "egress"
   from_port         = 0
   to_port           = 0
@@ -133,7 +160,9 @@ resource "aws_security_group_rule" "proxy_egress_allow_all_traffic" {
 }
 
 // Egress traffic is allowed everywhere (ACM)
+// tfsec:ignore:aws-ec2-no-public-iegress-sgr
 resource "aws_security_group_rule" "proxy_egress_allow_all_traffic_acm" {
+  description       = "Egress traffic is allowed everywhere (ACM)"
   type              = "egress"
   from_port         = 0
   to_port           = 0
@@ -144,13 +173,15 @@ resource "aws_security_group_rule" "proxy_egress_allow_all_traffic_acm" {
 }
 
 // Network load balancer for proxy server
+// Expected to be public-facing
+// tfsec:ignore:aws-elb-alb-not-public
 resource "aws_lb" "proxy" {
-  name                              = "${var.cluster_name}-proxy"
-  internal                          = false
-  subnets                           = aws_subnet.public.*.id
-  load_balancer_type                = "network"
-  idle_timeout                      = 3600
-  enable_cross_zone_load_balancing  = true
+  name                             = "${var.cluster_name}-proxy"
+  internal                         = false
+  subnets                          = aws_subnet.public.*.id
+  load_balancer_type               = "network"
+  idle_timeout                     = 3600
+  enable_cross_zone_load_balancing = true
 
   tags = {
     TeleportCluster = var.cluster_name
@@ -343,7 +374,7 @@ resource "aws_lb_listener" "proxy_web_acm" {
 
 // This is a small hack to expose grafana over web port 8443
 // feel free to remove it or replace with something else
-// letsencrypt
+// Let's Encrypt
 resource "aws_lb_target_group" "proxy_grafana" {
   name     = "${var.cluster_name}-proxy-grafana"
   port     = 8443
@@ -385,4 +416,3 @@ resource "aws_lb_listener" "proxy_grafana_acm" {
     type             = "forward"
   }
 }
-

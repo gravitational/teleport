@@ -19,6 +19,7 @@ package sqlserver
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"io"
 	"net"
 	"sync"
@@ -155,7 +156,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				EngineConfig: common.EngineConfig{
 					Audit:   audit,
 					Log:     logrus.New(),
-					Auth:    &mockAuth{},
+					Auth:    &mockDBAuth{},
 					Context: context.Background(),
 				},
 				Connector: &mockConnector{
@@ -207,11 +208,14 @@ func (m *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEven
 	return nil
 }
 
-type mockAuth struct {
+type mockDBAuth struct {
 	common.Auth
+	// GetAzureIdentityResourceID mocks.
+	azureIdentityResourceID    string
+	azureIdentityResourceIDErr error
 }
 
-func (m *mockAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+func (m *mockDBAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	return types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorWebauthn,
@@ -222,22 +226,30 @@ func (m *mockAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference,
 	})
 }
 
+func (m *mockDBAuth) GetTLSConfig(_ context.Context, _ *common.Session) (*tls.Config, error) {
+	return &tls.Config{}, nil
+}
+
+func (m *mockDBAuth) GetAzureIdentityResourceID(_ context.Context, _ string) (string, error) {
+	return m.azureIdentityResourceID, m.azureIdentityResourceIDErr
+}
+
 type mockChecker struct {
 	services.AccessChecker
 }
 
-func (m *mockChecker) CheckAccess(r services.AccessCheckable, mfa services.AccessMFAParams, matchers ...services.RoleMatcher) error {
+func (m *mockChecker) CheckAccess(r services.AccessCheckable, state services.AccessState, matchers ...services.RoleMatcher) error {
 	return nil
 }
 
-func (m *mockChecker) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
-	if authPrefMFARequirement.IsSessionMFARequired() {
-		return services.AccessMFAParams{
-			Required: services.MFARequiredAlways,
+func (m *mockChecker) GetAccessState(authPref types.AuthPreference) services.AccessState {
+	if authPref.GetRequireMFAType().IsSessionMFARequired() {
+		return services.AccessState{
+			MFARequired: services.MFARequiredAlways,
 		}
 	}
-	return services.AccessMFAParams{
-		Required: services.MFARequiredNever,
+	return services.AccessState{
+		MFARequired: services.MFARequiredNever,
 	}
 }
 

@@ -14,6 +14,9 @@ spec:
     forward_agent: true
     # port_forwarding controls whether TCP port forwarding is allowed for SSH
     port_forwarding: true
+    # ssh_file_copy controls whether file copying (SCP/SFTP) is allowed.
+    # Defaults to true.
+    ssh_file_copy: false
     # client_idle_timeout determines if SSH sessions to cluster nodes are
     # forcefully terminated after no activity from a client (idle client).
     # it overrides the global cluster setting. examples: "30m", "1h" or "1h30m"
@@ -80,6 +83,7 @@ spec:
     # enterprise-only: when enabled, the source IP that was used to log in is embedded in the SSH
     # certificate, preventing a compromised certificate from being used on other
     # devices. The default is false.
+    # Note: Source IP pinning is currently in Preview mode.
     pin_source_ip: true
     # Specify a list of names and associated values to be included in user SSH keys.
     # The key type can only be "ssh" and the mode can only be "extension".
@@ -178,7 +182,12 @@ spec:
     # review_requests allows a user holding this role
     # to approve or deny Access Requests
     review_requests:
+      # the reviewer can view and approve or deny access requests for any roles
+      # listed here
       roles: ['dbadmin']
+      # the reviewer can preview details about resources accessible by any roles
+      # listed in preview_as_roles when reviewing Resource Access Requests
+      preview_as_roles: ['dbadmin']
 
     # request allows a user user request roles matching
     # expressions below
@@ -223,7 +232,7 @@ spec:
       - name: Auditor oversight
         # Specifies an RBAC predicate that is used to define
         # which users count against the required user count of the policy.
-        filter: 'contains(user.roles, "auditor")'
+        filter: 'contains(user.spec.roles, "auditor")'
         # The different session kinds this policy applies to.
         kinds: ['k8s', 'ssh']
         # A list of session participant modes that a participant must have
@@ -249,7 +258,7 @@ spec:
         modes: ['moderator', 'observer']
 
     # rules allow a user holding this role to modify other resources
-    # matching expressions below
+    # matching the expressions below
     # supported resources:
     # role               - role resource
     # user               - user resource
@@ -259,7 +268,7 @@ spec:
     # saml               - connector resource
     # github             - GitHub connector resource
     #
-    # trusted_cluster    - trusted cluster resource
+    # trusted_cluster    - Trusted Cluster resource
     # remote_cluster     - remote cluster resource
     #
     # access_request     - Access Request resource
@@ -273,11 +282,12 @@ spec:
     # lock                  - lock resource.
     # network_restrictions  - restrictions for SSH sessions
     #
-    # auth_server           - auth server resource
-    # proxy                 - proxy resource
+    # auth_server           - Auth Service resource
+    # proxy                 - Proxy Service resource
     # node                  - SSH node resource
-    # app_server            - application server resource
-    # db_server             - database proxy server resource
+    # app                   - application resource
+    # db                    - database  resource
+    # kube_cluster          - Kubernetes cluster resource
     # token                 - provisioning token resource
     # cert_authority        - certificate authority resource
     #

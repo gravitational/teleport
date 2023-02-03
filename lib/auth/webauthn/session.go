@@ -19,10 +19,10 @@ package webauthn
 import (
 	"encoding/base64"
 
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
+	wan "github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gravitational/trace"
 
-	wan "github.com/duo-labs/webauthn/webauthn"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
 

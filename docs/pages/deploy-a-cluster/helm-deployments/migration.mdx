@@ -58,15 +58,15 @@ Firstly, check that the `ConfigMap` is present:
 ```code
 $ kubectl --namespace teleport get configmap/teleport -o yaml
 
-# apiVersion: v1
-# data:
-#  teleport.yaml: |
-#    teleport:
-#      log:
-#        severity: INFO
-#        output: stderr
-#      storage:
-#        type: dir
+apiVersion: v1
+data:
+ teleport.yaml: |
+   teleport:
+     log:
+       severity: INFO
+       output: stderr
+     storage:
+       type: dir
 # ...
 ```
 
@@ -80,23 +80,25 @@ If you see a Teleport config under the `teleport.yaml` key, you can extract it t
 ```code
 $ kubectl --namespace teleport get configmap/teleport -o=jsonpath="{.data['teleport\.yaml']}" > teleport.yaml
 
-cat teleport.yaml
-# teleport:
-#   log:
-#    severity: INFO
-#    output: stderr
-#  storage:
-#    type: dir
+$ cat teleport.yaml
+teleport:
+  log:
+    severity: INFO
+    output: stderr
+  storage:
+    type: dir
 # ...
 ```
 
-Once you have the config, you should upload this to a separate Kubernetes namespace (where you intend to run the `teleport-cluster` chart).
+Once you have the config, you should upload this to a separate Kubernetes
+namespace (where you intend to run the `teleport-cluster` chart).
 
 ```code
 $ kubectl create namespace teleport-cluster
-# namespace/teleport-cluster created
+namespace/teleport-cluster created
+
 $ kubectl --namespace teleport-cluster create configmap teleport --from-file=teleport.yaml
-# configmap/teleport created
+configmap/teleport created
 ```
 
 ## Step 4/6. Extracting the contents of Teleport's database
@@ -132,11 +134,13 @@ $ kubectl --namespace teleport-cluster create secret generic bootstrap --from-fi
 
 ## Step 5/6. Start the new cluster with your old config file and backup
 
-We will start the new cluster and bootstrap it using the backup of your cluster's data. Once this step is complete and the cluster is working,
-we'll modify the deployment to remove references to the backup data, and remove it from Kubernetes for security.
+We will start the new cluster and bootstrap it using the backup of your
+cluster's data. Once this step is complete and the cluster is working, we'll
+modify the deployment to remove references to the backup data, and remove it
+from Kubernetes for security.
 
 <Tabs>
-  <TabItem label="Using values.yaml">
+  <TabItem scope="oss" label="Teleport Community Edition">
   Write a `teleport-cluster-values.yaml` file containing the following values:
 
   ```yaml
@@ -154,23 +158,41 @@ we'll modify the deployment to remove references to the backup data, and remove 
   ```code
   $ helm install teleport teleport/teleport-cluster \
     --namespace teleport-cluster \
-    --create-namespace \
     -f teleport-cluster-values.yaml
   ```
 
   </TabItem>
-  <TabItem label="Using --set via CLI">
-    ```code
-    $ helm install teleport teleport/teleport-cluster \
-    --create-namespace \
+  <TabItem scope="enterprise" label="Teleport Enterprise">
+
+  Obtain your Teleport Enterprise license file from the [Teleport Customer
+  Portal](https://dashboard.gravitational.com/web/login). Create a secret called
+  "license" in the namespace you created:
+
+  ```code
+  $ kubectl -n teleport-cluster create secret generic license --from-file=license.pem
+  ```
+
+  Write a `teleport-cluster-values.yaml` file containing the following values:
+
+  ```yaml
+  enterprise: true
+  chartMode: custom
+  extraArgs: ['--bootstrap', '/etc/teleport-bootstrap/backup.yaml']
+  extraVolumes:
+  - name: bootstrap
+    secret:
+      name: bootstrap
+  extraVolumeMounts:
+  - name: bootstrap
+    path: /etc/teleport-bootstrap
+  ```
+
+  ```code
+  $ helm install teleport teleport/teleport-cluster \
     --namespace teleport-cluster \
-    --set chartMode=custom \
-    --set extraArgs="{'--bootstrap', '/etc/teleport-bootstrap/backup.yaml'}" \
-    --set extraVolumes[0].name="bootstrap" \
-    --set extraVolumes[0].secret.name="bootstrap" \
-    --set extraVolumeMounts[0].name="bootstrap" \
-    --set extraVolumeMounts[0].path="/etc/teleport-bootstrap"
-    ```
+    -f teleport-cluster-values.yaml
+  ```
+
   </TabItem>
 </Tabs>
 
@@ -179,18 +201,18 @@ Once the chart is installed, you can use `kubectl` commands to view the deployme
 ```code
 $ kubectl --namespace teleport-cluster get all
 
-# NAME                            READY   STATUS    RESTARTS   AGE
-# pod/teleport-5cf46ddf5f-dzh65   1/1     Running   0          4m21s
-# pod/teleport-5cf46ddf5f-mpghq   1/1     Running   0          4m21s
+NAME                            READY   STATUS    RESTARTS   AGE
+pod/teleport-5cf46ddf5f-dzh65   1/1     Running   0          4m21s
+pod/teleport-5cf46ddf5f-mpghq   1/1     Running   0          4m21s
 
-# NAME               TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)                                                      AGE
-# service/teleport   LoadBalancer   10.100.37.171   a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com   443:30821/TCP,3023:30801/TCP,3026:32612/TCP,3024:31253/TCP   4m21s
+NAME               TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)                                                      AGE
+service/teleport   LoadBalancer   10.100.37.171   a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com   443:30821/TCP,3023:30801/TCP,3026:32612/TCP,3024:31253/TCP   4m21s
 
-# NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
-# deployment.apps/teleport   2/2     2            2           4m21s
+NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/teleport   2/2     2            2           4m21s
 
-# NAME                                  DESIRED   CURRENT   READY   AGE
-# replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
+NAME                                  DESIRED   CURRENT   READY   AGE
+replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
 ```
 
 <Admonition type="note">
@@ -253,3 +275,9 @@ To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. 
 ```code
 $ helm --namespace teleport-cluster uninstall teleport
 ```
+
+## Next steps
+
+To see all of the options you can set in the values file for the
+`teleport-cluster` Helm chart, consult our [reference
+guide](../../reference/helm-reference/teleport-cluster.mdx).

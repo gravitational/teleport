@@ -30,21 +30,21 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 const (
@@ -67,6 +67,8 @@ type SSOLoginConsoleReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+	// AttestationStatement is an attestation statement associated with the given public key.
+	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults makes sure that the request is valid
@@ -120,6 +122,8 @@ type CreateSSHCertReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+	// AttestationStatement is an attestation statement associated with the given public key.
+	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 // AuthenticateSSHUserRequest are passed by web client to authenticate against
@@ -147,6 +151,8 @@ type AuthenticateSSHUserRequest struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+	// AttestationStatement is an attestation statement associated with the given public key.
+	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 type AuthenticateWebUserRequest struct {
@@ -166,7 +172,7 @@ type SSHLogin struct {
 	TTL time.Duration
 	// Insecure turns off verification for x509 target proxy
 	Insecure bool
-	// Pool is x509 cert pool to use for server certifcate verification
+	// Pool is x509 cert pool to use for server certificate verification
 	Pool *x509.CertPool
 	// Compatibility sets compatibility mode for SSH certificates
 	Compatibility string
@@ -176,6 +182,10 @@ type SSHLogin struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
+	// AttestationStatement is an attestation statement.
+	AttestationStatement *keys.AttestationStatement
+	// ExtraHeaders is a map of extra HTTP headers to be included in requests.
+	ExtraHeaders map[string]string
 }
 
 // SSHLoginSSO contains SSH login parameters for SSO login.
@@ -242,13 +252,13 @@ type SSHLoginPasswordless struct {
 }
 
 // initClient creates a new client to the HTTPS web proxy.
-func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClient, *url.URL, error) {
+func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string) (*WebClient, *url.URL, error) {
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentClient,
 	})
-	log.Debugf("HTTPS client init(proxyAddr=%v, insecure=%v)", proxyAddr, insecure)
+	log.Debugf("HTTPS client init(proxyAddr=%v, insecure=%v, extraHeaders=%v)", proxyAddr, insecure, extraHeaders)
 
-	// validate proxyAddr:
+	// validate proxy address
 	host, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil || host == "" || port == "" {
 		if err != nil {
@@ -262,18 +272,13 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClien
 		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
 	}
 
-	var opts []roundtrip.ClientParam
-
 	if insecure {
-		// Skip https cert verification, print a warning that this is insecure.
-		fmt.Fprintf(os.Stderr, "WARNING: You are using insecure connection to SSH proxy %v\n", proxyAddr)
-		opts = append(opts, roundtrip.HTTPClient(NewInsecureWebClient()))
-	} else if pool != nil {
-		// use custom set of trusted CAs
-		opts = append(opts, roundtrip.HTTPClient(newClientWithPool(pool)))
+		// Skipping https cert verification, print a warning that this is insecure.
+		fmt.Fprintf(os.Stderr, "WARNING: You are using insecure connection to Teleport proxy %v\n", proxyAddr)
 	}
 
-	clt, err := NewWebClient(proxyAddr, opts...)
+	opt := roundtrip.HTTPClient(newClient(insecure, pool, extraHeaders))
+	clt, err := NewWebClient(proxyAddr, opt)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -352,20 +357,21 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 
 // SSHAgentLogin is used by tsh to fetch local user credentials.
 func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginResponse, error) {
-	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
-		User:              login.User,
-		Password:          login.Password,
-		OTPToken:          login.OTPToken,
-		PubKey:            login.PubKey,
-		TTL:               login.TTL,
-		Compatibility:     login.Compatibility,
-		RouteToCluster:    login.RouteToCluster,
-		KubernetesCluster: login.KubernetesCluster,
+		User:                 login.User,
+		Password:             login.Password,
+		OTPToken:             login.OTPToken,
+		PubKey:               login.PubKey,
+		TTL:                  login.TTL,
+		Compatibility:        login.Compatibility,
+		RouteToCluster:       login.RouteToCluster,
+		KubernetesCluster:    login.KubernetesCluster,
+		AttestationStatement: login.AttestationStatement,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -386,7 +392,7 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 //
 // Returns the SSH certificate if authn is successful or an error.
 func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) (*auth.SSHLoginResponse, error) {
-	webClient, webURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
+	webClient, webURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -439,6 +445,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 			Compatibility:             login.Compatibility,
 			RouteToCluster:            login.RouteToCluster,
 			KubernetesCluster:         login.KubernetesCluster,
+			AttestationStatement:      login.AttestationStatement,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -456,7 +463,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 // prompt the user to provide 2nd factor and pass the response to the proxy.
 // If the authentication succeeds, we will get a temporary certificate back.
 func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginResponse, error) {
-	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -494,13 +501,14 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 	}
 
 	challengeResp := AuthenticateSSHUserRequest{
-		User:              login.User,
-		Password:          login.Password,
-		PubKey:            login.PubKey,
-		TTL:               login.TTL,
-		Compatibility:     login.Compatibility,
-		RouteToCluster:    login.RouteToCluster,
-		KubernetesCluster: login.KubernetesCluster,
+		User:                 login.User,
+		Password:             login.Password,
+		PubKey:               login.PubKey,
+		TTL:                  login.TTL,
+		Compatibility:        login.Compatibility,
+		RouteToCluster:       login.RouteToCluster,
+		KubernetesCluster:    login.KubernetesCluster,
+		AttestationStatement: login.AttestationStatement,
 	}
 	// Convert back from auth gRPC proto response.
 	switch r := respPB.Response.(type) {
@@ -523,7 +531,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 
 // HostCredentials is used to fetch host credentials for a node.
 func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	clt, _, err := initClient(proxyAddr, insecure, nil)
+	clt, _, err := initClient(proxyAddr, insecure, nil, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -543,7 +551,7 @@ func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req t
 
 // GetWebConfig is used by teleterm to fetch webconfig.js from proxies
 func GetWebConfig(ctx context.Context, proxyAddr string, insecure bool) (*webclient.WebConfig, error) {
-	clt, _, err := initClient(proxyAddr, insecure, nil)
+	clt, _, err := initClient(proxyAddr, insecure, nil, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

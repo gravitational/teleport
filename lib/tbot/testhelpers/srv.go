@@ -159,7 +159,7 @@ func MakeBotAuthClient(t *testing.T, fc *config.FileConfig, ident *identity.Iden
 	authConfig.TLS, err = ident.TLSConfig(cfg.CipherSuites)
 	require.NoError(t, err)
 
-	authConfig.AuthServers = cfg.AuthServers
+	authConfig.AuthServers = cfg.AuthServerAddresses()
 	authConfig.Log = cfg.Log
 
 	client, err := authclient.Connect(context.Background(), authConfig)
@@ -188,7 +188,7 @@ func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig
 	authConfig.TLS, err = identity.TLSConfig(cfg.CipherSuites)
 	require.NoError(t, err)
 
-	authConfig.AuthServers = cfg.AuthServers
+	authConfig.AuthServers = cfg.AuthServerAddresses()
 	authConfig.Log = log
 
 	client, err := authclient.Connect(context.Background(), authConfig)
@@ -239,7 +239,7 @@ func MakeMemoryBotConfig(t *testing.T, fc *config.FileConfig, botParams *proto.C
 	require.NoError(t, err)
 
 	cfg := &botconfig.BotConfig{
-		AuthServer: authCfg.AuthServers[0].String(),
+		AuthServer: authCfg.AuthServerAddresses()[0].String(),
 		Onboarding: &botconfig.OnboardingConfig{
 			JoinMethod: botParams.JoinMethod,
 		},

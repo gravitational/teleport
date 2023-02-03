@@ -12,7 +12,7 @@ This guide will explain how to:
 
 - Access AWS Management Console through Teleport.
 - View Teleport users' AWS console activity in CloudTrail.
-- Access the AWS Command Line Interface (CLI) through Teleport. 
+- Access the AWS Command Line Interface (CLI) through Teleport.
 - Access applications using AWS SDKs through Teleport.
 
 ## Prerequisites
@@ -75,7 +75,7 @@ This step is only required if you are allowing access from another account. The 
 </Admonition>
 
 Teleport uses AWS [federation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-custom-url.html) to generate sign-in URLs for users, which relies on the `AssumeRole` API
-for getting temporary security credentials. 
+for getting temporary security credentials.
 You will need to update your IAM roles' "Trusted entities" to include your AWS account ID.
 
 Go to the [Roles](https://console.aws.amazon.com/iamv2/home#/roles) list, pick
@@ -155,26 +155,28 @@ spec:
 ```
 
 The `aws_role_arns` field supports template variables so they can be populated
-dynamically based on your users' identity provider attributes. See [Role Templates](../../access-controls/guides/role-templates.mdx)
-for details.
+dynamically based on your users' identity provider attributes. See [Role
+Templates](../../access-controls/guides/role-templates.mdx) for details.
+
+(!docs/pages/includes/add-role-to-user.mdx role="aws-console-access"!)
 
 ## Step 5/9. Register AWS console application in Teleport
 
 Add AWS management console to your application service configuration:
 
 ```yaml
+version: v3
 teleport:
   # Data directory for the Application Proxy service. If running on the same
   # node as Auth/Proxy service, make sure to use different data directories.
   data_dir: /var/lib/teleport-app
-  # Instructs the service to load the join token from the specified file
+  # Instructs the service to load the auth token from the specified file
   # during initial registration with the cluster.
   auth_token: /var/lib/teleport-app/token
   # Proxy address to connect to. Note that it has to be the proxy address
   # because the app service always connects to the cluster over a reverse
   # tunnel.
-  auth_servers:
-  - teleport.example.com:3080
+  proxy_server: teleport.example.com:3080
 app_service:
   enabled: "yes"
   apps:
@@ -326,8 +328,8 @@ $ tsh proxy aws -p 23456
 Started AWS proxy on http://127.0.0.1:23456.
 
 Use the following credentials and HTTPS proxy setting to connect to the proxy:
-  AWS_ACCESS_KEY_ID=<access-key-id>
-  AWS_SECRET_ACCESS_KEY=<secret-access-key>
+  AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
+  AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
   AWS_CA_BUNDLE=<ca-bundle-path>
   HTTPS_PROXY=http://127.0.0.1:23456
 ```
@@ -341,8 +343,8 @@ configured for your application. For example, many command line tools like
 proxy using environment variables:
 
 ```code
-$ export AWS_ACCESS_KEY_ID=<access-key-id>
-$ export AWS_SECRET_ACCESS_KEY=<secret-access-key>
+$ export AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
+$ export AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
 $ export AWS_CA_BUNDLE=<ca-bundle-path>
 $ export HTTPS_PROXY=http://127.0.0.1:23456
 $ terraform plan

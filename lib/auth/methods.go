@@ -28,10 +28,22 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+)
+
+const (
+	// maxUserAgentLen is the maximum length of a user agent that will be logged.
+	// There is no current consensus on what the maximum length of a User-Agent
+	// should be and there were reports of extremely large UAs especially from
+	// older versions of IE. 2048 was picked because it still allowed for very
+	// large UAs but keeps from causing logging issues. For reference Nginx
+	// defaults to 4k or 8k header size limits for ALL headers so 2k seems more
+	// than sufficient.
+	maxUserAgentLen = 2048
 )
 
 // AuthenticateUserRequest is a request to authenticate interactive user
@@ -120,7 +132,11 @@ func (s *Server) AuthenticateUser(req AuthenticateUserRequest) (string, error) {
 	}
 	if req.ClientMetadata != nil {
 		event.RemoteAddr = req.ClientMetadata.RemoteAddr
-		event.UserAgent = req.ClientMetadata.UserAgent
+		if len(req.ClientMetadata.UserAgent) > maxUserAgentLen {
+			event.UserAgent = req.ClientMetadata.UserAgent[:maxUserAgentLen-3] + "..."
+		} else {
+			event.UserAgent = req.ClientMetadata.UserAgent
+		}
 	}
 	if err != nil {
 		event.Code = events.UserLocalLoginFailureCode
@@ -356,6 +372,8 @@ type AuthenticateSSHRequest struct {
 	// KubernetesCluster sets the target kubernetes cluster for the TLS
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
+	// AttestationStatement is an attestation statement associated with the given public key.
+	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -394,18 +412,18 @@ type TrustedCerts struct {
 	// for host authorities that means base hostname of all servers,
 	// for user authorities that means organization name
 	ClusterName string `json:"domain_name"`
-	// HostCertificates is a list of SSH public keys that can be used to check
-	// host certificate signatures
-	HostCertificates [][]byte `json:"checking_keys"`
-	// TLSCertificates  is a list of TLS certificates of the certificate authority
+	// AuthorizedKeys is a list of SSH public keys in authorized_keys format
+	// that can be used to check host key signatures.
+	AuthorizedKeys [][]byte `json:"checking_keys"`
+	// TLSCertificates is a list of TLS certificates of the certificate authority
 	// of the authentication server
 	TLSCertificates [][]byte `json:"tls_certs"`
 }
 
 // SSHCertPublicKeys returns a list of trusted host SSH certificate authority public keys
 func (c *TrustedCerts) SSHCertPublicKeys() ([]ssh.PublicKey, error) {
-	out := make([]ssh.PublicKey, 0, len(c.HostCertificates))
-	for _, keyBytes := range c.HostCertificates {
+	out := make([]ssh.PublicKey, 0, len(c.AuthorizedKeys))
+	for _, keyBytes := range c.AuthorizedKeys {
 		publicKey, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -420,9 +438,9 @@ func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []TrustedCerts
 	out := make([]TrustedCerts, len(authorities))
 	for i, ca := range authorities {
 		out[i] = TrustedCerts{
-			ClusterName:      ca.GetClusterName(),
-			HostCertificates: services.GetSSHCheckingKeys(ca),
-			TLSCertificates:  services.GetTLSCerts(ca),
+			ClusterName:     ca.GetClusterName(),
+			AuthorizedKeys:  services.GetSSHCheckingKeys(ca),
+			TLSCertificates: services.GetTLSCerts(ca),
 		}
 	}
 	return out
@@ -477,28 +495,29 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		authority,
 	}
 
-	sourceIP := ""
-	if checker.PinSourceIP() {
-		md := req.ClientMetadata
-		if md == nil {
-			return nil, trace.Errorf("source IP pinning is enabled but client metadata is nil")
-		}
-		host, err := utils.Host(md.RemoteAddr)
+	clientIP := ""
+	if req.ClientMetadata != nil && req.ClientMetadata.RemoteAddr != "" {
+		host, err := utils.Host(req.ClientMetadata.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		sourceIP = host
+		clientIP = host
 	}
+	if checker.PinSourceIP() && clientIP == "" {
+		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
+	}
+
 	certs, err := s.generateUserCert(certRequest{
-		user:              user,
-		ttl:               req.TTL,
-		publicKey:         req.PublicKey,
-		compatibility:     req.CompatibilityMode,
-		checker:           checker,
-		traits:            user.GetTraits(),
-		routeToCluster:    req.RouteToCluster,
-		kubernetesCluster: req.KubernetesCluster,
-		sourceIP:          sourceIP,
+		user:                 user,
+		ttl:                  req.TTL,
+		publicKey:            req.PublicKey,
+		compatibility:        req.CompatibilityMode,
+		checker:              checker,
+		traits:               user.GetTraits(),
+		routeToCluster:       req.RouteToCluster,
+		kubernetesCluster:    req.KubernetesCluster,
+		clientIP:             clientIP,
+		attestationStatement: req.AttestationStatement,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -534,7 +553,7 @@ func (s *Server) emitNoLocalAuthEvent(username string) {
 func (s *Server) createUserWebSession(ctx context.Context, user types.User) (types.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User as this method
 	// is only used for local accounts.
-	return s.createWebSession(ctx, types.NewWebSessionRequest{
+	return s.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
 		User:      user.GetName(),
 		Roles:     user.GetRoles(),
 		Traits:    user.GetTraits(),

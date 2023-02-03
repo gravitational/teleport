@@ -1,8 +1,8 @@
+version: v3
 teleport:
   nodename: graviton-proxy
   auth_token: hello
-  auth_servers:
-  - 127.0.0.1:5000
+  auth_server: 127.0.0.1:5000
   data_dir: .data
 proxy_service:
   enabled: "yes"

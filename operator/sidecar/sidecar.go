@@ -19,6 +19,7 @@ package sidecar
 import (
 	"path/filepath"
 
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -29,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -73,8 +73,12 @@ func createAuthClientConfig(opts Options) (*authclient.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cfg.AuthServers, err = utils.ParseAddrs([]string{opts.Addr})
+	authServers, err := utils.ParseAddrs([]string{opts.Addr})
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := cfg.SetAuthServerAddresses(authServers); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -99,18 +103,18 @@ func createAuthClientConfig(opts Options) (*authclient.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authConfig.AuthServers = cfg.AuthServers
+	authConfig.AuthServers = cfg.AuthServerAddresses()
 	authConfig.Log = cfg.Log
 
 	return authConfig, nil
 }
 
 func sidecarRole(roleName string) (types.Role, error) {
-	return types.NewRole(roleName, types.RoleSpecV5{
+	return types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
-					Resources: []string{"role", "user"},
+					Resources: []string{"role", "user", "auth_connector"},
 					Verbs:     []string{"*"},
 				},
 			},

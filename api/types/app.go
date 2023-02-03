@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-// Application represents a web app.
+// Application represents a web, TCP or cloud console application.
 type Application interface {
 	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
@@ -61,6 +61,10 @@ type Application interface {
 	GetRewrite() *Rewrite
 	// IsAWSConsole returns true if this app is AWS management console.
 	IsAWSConsole() bool
+	// IsAzureCloud returns true if this app represents Azure Cloud instance.
+	IsAzureCloud() bool
+	// IsGCP returns true if this app represents GCP instance.
+	IsGCP() bool
 	// IsTCP returns true if this app represents a TCP endpoint.
 	IsTCP() bool
 	// GetProtocol returns the application protocol.
@@ -83,23 +87,6 @@ func NewAppV3(meta Metadata, spec AppSpecV3) (*AppV3, error) {
 		return nil, trace.Wrap(err)
 	}
 	return app, nil
-}
-
-// NewAppV3FromLegacyApp creates a new app resource from legacy app struct.
-//
-// DELETE IN 9.0.
-func NewAppV3FromLegacyApp(app *App) (*AppV3, error) {
-	return NewAppV3(Metadata{
-		Name:        app.Name,
-		Description: app.Description,
-		Labels:      app.StaticLabels,
-	}, AppSpecV3{
-		URI:                app.URI,
-		PublicAddr:         app.PublicAddr,
-		DynamicLabels:      app.DynamicLabels,
-		InsecureSkipVerify: app.InsecureSkipVerify,
-		Rewrite:            app.Rewrite,
-	})
 }
 
 // GetVersion returns the app resource version.
@@ -248,7 +235,18 @@ func (a *AppV3) IsAWSConsole() bool {
 			return true
 		}
 	}
-	return false
+
+	return a.Spec.Cloud == CloudAWS
+}
+
+// IsAzureCloud returns true if this app is Azure Cloud instance.
+func (a *AppV3) IsAzureCloud() bool {
+	return a.Spec.Cloud == CloudAzure
+}
+
+// IsGCP returns true if this app is GCP instance.
+func (a *AppV3) IsGCP() bool {
+	return a.Spec.Cloud == CloudGCP
 }
 
 // IsTCP returns true if this app represents a TCP endpoint.
@@ -313,9 +311,21 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 	}
 	if a.Spec.URI == "" {
-		return trace.BadParameter("app %q URI is empty", a.GetName())
+		if a.Spec.Cloud != "" {
+			a.Spec.URI = fmt.Sprintf("cloud://%v", a.Spec.Cloud)
+		} else {
+			return trace.BadParameter("app %q URI is empty", a.GetName())
+		}
 	}
-
+	if a.Spec.Cloud == "" && a.IsAWSConsole() {
+		a.Spec.Cloud = CloudAWS
+	}
+	switch a.Spec.Cloud {
+	case "", CloudAWS, CloudAzure, CloudGCP:
+		break
+	default:
+		return trace.BadParameter("app %q has unexpected Cloud value %q", a.GetName(), a.Spec.Cloud)
+	}
 	url, err := url.Parse(a.Spec.PublicAddr)
 	if err != nil {
 		return trace.BadParameter("invalid PublicAddr format: %v", err)
@@ -325,7 +335,7 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		host = url.Host
 	}
 
-	// DEPRECATED DELETE IN 11.0 use KubeTeleportProxyALPNPrefix check only.
+	// DEPRECATED DELETE IN 14.0 use KubeTeleportProxyALPNPrefix check only.
 	if strings.HasPrefix(host, constants.KubeSNIPrefix) {
 		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
 			constants.KubeSNIPrefix, a.Spec.PublicAddr)

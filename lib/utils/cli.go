@@ -32,13 +32,13 @@ import (
 	"testing"
 	"unicode"
 
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/kingpin"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 )
 
 type LoggingPurpose int
@@ -197,9 +197,9 @@ func formatErrorWriter(err error, w io.Writer) {
 	// it, if it does, print it, otherwise escape and print the original error.
 	if traceErr, ok := err.(*trace.TraceErr); ok {
 		for _, message := range traceErr.Messages {
-			fmt.Fprintln(w, AllowNewlines(message))
+			fmt.Fprintln(w, AllowWhitespace(message))
 		}
-		fmt.Fprintln(w, AllowNewlines(trace.Unwrap(traceErr).Error()))
+		fmt.Fprintln(w, AllowWhitespace(trace.Unwrap(traceErr).Error()))
 		return
 	}
 	strErr := err.Error()
@@ -207,7 +207,7 @@ func formatErrorWriter(err error, w io.Writer) {
 	if strErr == "" {
 		fmt.Fprintln(w, "please check Teleport's log for more details")
 	} else {
-		fmt.Fprintln(w, AllowNewlines(err.Error()))
+		fmt.Fprintln(w, AllowWhitespace(err.Error()))
 	}
 }
 
@@ -243,7 +243,7 @@ func formatCertError(err error) string {
 	}
 
 	var certInvalidErr x509.CertificateInvalidError
-	if errors.As(err, &x509.CertificateInvalidError{}) {
+	if errors.As(err, &certInvalidErr) {
 		return fmt.Sprintf(`WARNING:
 
   The certificate presented by the proxy is invalid: %v.
@@ -374,19 +374,47 @@ func EscapeControl(s string) string {
 	return s
 }
 
-// AllowNewlines escapes all ANSI escape sequences except newlines from string and returns a
-// string that is safe to print on the CLI. This is to ensure that malicious
-// servers can not hide output. For more details, see:
+// isAllowedWhitespace is a helper function for cli output escaping that returns
+// true if a given rune is a whitespace character and allowed to be unescaped.
+func isAllowedWhitespace(r rune) bool {
+	switch r {
+	case '\n', '\t', '\v':
+		// newlines, tabs, vertical tabs are allowed whitespace.
+		return true
+	}
+	return false
+}
+
+// AllowWhitespace escapes all ANSI escape sequences except some whitespace
+// characters (\n \t \v) from string and returns a string that is safe to
+// print on the CLI. This is to ensure that malicious servers can not hide
+// output. For more details, see:
 //   - https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
-func AllowNewlines(s string) string {
-	if !strings.Contains(s, "\n") {
-		return EscapeControl(s)
+func AllowWhitespace(s string) string {
+	// loop over string searching for part to escape followed by allowed char.
+	// example: `\tabc\ndef\t\n`
+	// 1. part: ""    sep: "\t"
+	// 2. part: "abc" sep: "\n"
+	// 3. part: "def" sep: "\t"
+	// 4. part: ""    sep: "\n"
+	var sb strings.Builder
+	// note that increment also happens at bottom of loop because we can
+	// safely jump to place where allowedWhitespace was found.
+	for i := 0; i < len(s); i++ {
+		sepIdx := strings.IndexFunc(s[i:], isAllowedWhitespace)
+		if sepIdx == -1 {
+			// infalliable call, ignore error.
+			_, _ = sb.WriteString(EscapeControl(s[i:]))
+			// no separators remain.
+			break
+		}
+		part := EscapeControl(s[i : i+sepIdx])
+		_, _ = sb.WriteString(part)
+		sep := s[i+sepIdx]
+		_ = sb.WriteByte(sep)
+		i += sepIdx
 	}
-	parts := strings.Split(s, "\n")
-	for i, part := range parts {
-		parts[i] = EscapeControl(part)
-	}
-	return strings.Join(parts, "\n")
+	return sb.String()
 }
 
 // NewStdlogger creates a new stdlib logger that uses the specified leveled logger
@@ -521,4 +549,27 @@ type PredicateError struct {
 
 func (p PredicateError) Error() string {
 	return fmt.Sprintf("%s\nCheck syntax at https://goteleport.com/docs/setup/reference/predicate-language/#resource-filtering", p.Err.Error())
+}
+
+// FormatAlert formats and colors the alert message if possible.
+func FormatAlert(alert types.ClusterAlert) string {
+	// TODO(timothyb89): Due to complications with globally enabling +
+	// properly resetting Windows terminal ANSI processing, for now we just
+	// disable color output. Otherwise, raw ANSI escapes will be visible to
+	// users.
+	var buf bytes.Buffer
+	switch runtime.GOOS {
+	case constants.WindowsOS:
+		fmt.Fprint(&buf, alert.Spec.Message)
+	default:
+		switch alert.Spec.Severity {
+		case types.AlertSeverity_HIGH:
+			fmt.Fprint(&buf, Color(Red, alert.Spec.Message))
+		case types.AlertSeverity_MEDIUM:
+			fmt.Fprint(&buf, Color(Yellow, alert.Spec.Message))
+		default:
+			fmt.Fprint(&buf, alert.Spec.Message)
+		}
+	}
+	return buf.String()
 }

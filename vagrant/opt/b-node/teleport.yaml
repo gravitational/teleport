@@ -1,8 +1,9 @@
 # Node for cluster-B
+version: v3
 teleport:
   nodename: bear
   auth_token: hello
-  auth_servers: ["b-auth:5025"] 
+  auth_server: b-auth:5025
   log:
     output: stderr
     severity: INFO

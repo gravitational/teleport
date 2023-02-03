@@ -15,12 +15,13 @@
 package client
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
 )
 
-// EventToGRPC converts types.Event to proto.Event
+// EventToGRPC converts types.Event to proto.Event.
 func EventToGRPC(in types.Event) (*proto.Event, error) {
 	eventType, err := EventTypeToGRPC(in.Type)
 	if err != nil {
@@ -57,7 +58,7 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_User{
 			User: r,
 		}
-	case *types.RoleV5:
+	case *types.RoleV6:
 		out.Resource = &proto.Event_Role{
 			Role: r,
 		}
@@ -165,6 +166,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case *types.InstallerV1:
 		out.Resource = &proto.Event_Installer{
 			Installer: r,
+		}
+	case *types.DatabaseServiceV1:
+		out.Resource = &proto.Event_DatabaseService{
+			DatabaseService: r,
 		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
@@ -292,6 +297,9 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetInstaller(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetDatabaseService(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else {

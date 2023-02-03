@@ -162,6 +162,7 @@ func mustGenSelfSignedCert(t *testing.T) *tlsca.CertAuthority {
 
 type signOptions struct {
 	identity tlsca.Identity
+	clock    clockwork.Clock
 }
 
 func withIdentity(identity tlsca.Identity) signOptionsFunc {
@@ -170,11 +171,18 @@ func withIdentity(identity tlsca.Identity) signOptionsFunc {
 	}
 }
 
+func withClock(clock clockwork.Clock) signOptionsFunc {
+	return func(o *signOptions) {
+		o.clock = clock
+	}
+}
+
 type signOptionsFunc func(o *signOptions)
 
 func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, opts ...signOptionsFunc) tls.Certificate {
 	options := signOptions{
 		identity: tlsca.Identity{Username: "test-user"},
+		clock:    clockwork.NewRealClock(),
 	}
 
 	for _, opt := range opts {
@@ -187,12 +195,11 @@ func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, opts ...sign
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
-	clock := clockwork.NewRealClock()
 	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
-		Clock:     clock,
+		Clock:     options.clock,
 		PublicKey: privateKey.Public(),
 		Subject:   subj,
-		NotAfter:  clock.Now().UTC().Add(time.Minute),
+		NotAfter:  options.clock.Now().UTC().Add(time.Minute),
 		DNSNames:  []string{"localhost", "*.localhost"},
 	})
 	require.NoError(t, err)

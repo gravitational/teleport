@@ -129,7 +129,7 @@ function Install-Node {
         Expand-Archive -Path $NodeZipfile -DestinationPath $ToolchainDir
         Rename-Item -Path "$ToolchainDir/node-v$NodeVersion-win-x64" -NewName "$ToolchainDir/node"
         Enable-Node -ToolchainDir $ToolchainDir
-        npm config set msvs_version 2017
+        npm config set msvs_version 2022
         corepack enable yarn
     }
 }
@@ -169,6 +169,23 @@ function Format-FileHashes {
     }
 }
 
+function Save-Role {
+    <#
+    .SYNOPSIS
+        Assume an AWS role and save the session to the supplied file
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $RoleArn,
+        [string] $RoleSessionName,
+        [string] $FilePath
+    )
+    begin {
+        $RoleCreds = (Use-STSRole -RoleArn $RoleArn -RoleSessionName $RoleSessionName).Credentials
+        "[default]`r`naws_access_key_id = {0}`r`naws_secret_access_key = {1}`r`naws_session_token = {2}" -f $RoleCreds.AccessKeyId, $RoleCreds.SecretAccessKey, $RoleCreds.SessionToken | Out-File -FilePath $FilePath
+    }
+}
+
 function Copy-Artifacts {
     <#
     .SYNOPSIS
@@ -176,15 +193,16 @@ function Copy-Artifacts {
     #>
     [CmdletBinding()]
     param(
+        [string] $ProfileLocation,
         [string] $Path,
         [string] $Bucket,
-        [string] $DstRoot 
+        [string] $DstRoot
     )
     begin {
         foreach ($file in $(Get-ChildItem $Path)) {
             Write-Output "Uploading $($file.Name)"
             $Key = "$DstRoot/$($file.Name)"
-            Write-S3Object -File $file.FullName -Bucket $Bucket -Key $Key 
+            Write-S3Object -ProfileLocation $ProfileLocation -File $file.FullName -Bucket $Bucket -Key $Key
         }
     }
 }

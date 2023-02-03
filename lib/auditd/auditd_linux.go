@@ -20,6 +20,7 @@ package auditd
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"math"
 	"os"
 	"strconv"
@@ -145,14 +146,20 @@ func SendEvent(event EventType, result ResultType, msg Message) error {
 	}()
 
 	if err := client.SendMsg(event, result); err != nil {
-		if err == ErrAuditdDisabled {
-			// Do not return the error to the caller if auditd is disabled
+		if err == ErrAuditdDisabled || isPermissionError(err) {
+			// Do not return the error to the caller if auditd is disabled,
+			// or we don't have required permissions to use it.
 			return nil
 		}
 		return trace.Wrap(err)
 	}
 
 	return nil
+}
+
+// isPermissionError returns true if we lack permission to talk to Linux Audit System.
+func isPermissionError(err error) bool {
+	return errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EPROTONOSUPPORT)
 }
 
 func (c *Client) connectUnderMutex() error {
@@ -179,7 +186,7 @@ func (c *Client) isEnabledUnderMutex() (bool, error) {
 
 	status, err := getAuditStatus(c.conn)
 	if err != nil {
-		return false, trace.Errorf("failed to get auditd status: %v", trace.ConvertSystemError(err))
+		return false, trace.Errorf("failed to get auditd status: %w", trace.ConvertSystemError(err))
 	}
 
 	// enabled can be either 1 or 2 if enabled, 0 otherwise

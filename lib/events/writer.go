@@ -21,13 +21,13 @@ import (
 	"io"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // NewWriterLog returns a new instance of writer log
@@ -65,10 +65,7 @@ func (w *WriterLog) GetSessionChunk(namespace string, sid session.ID, offsetByte
 // Returns all events that happen during a session sorted by time
 // (oldest first).
 //
-// after tells to use only return events after a specified cursor Id
-//
-// This function is usually used in conjunction with GetSessionReader to
-// replay recorded session streams.
+// after is used to return events after a specified cursor ID
 func (w *WriterLog) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error) {
 	return nil, trace.NotImplemented("not implemented")
 }

@@ -30,10 +30,9 @@ Database Access supports databases like PostgreSQL, MongoDB, Redis, and much
 more. See our [Database Access Guides](../../database-access/guides.mdx) for
 a complete list.
 
-If you have not already setup Machine ID, follow the
-[Machine ID Getting Started Guide](../getting-started.mdx)
-to familiarize yourself with Machine ID. You'll need `tctl` access to initially
-configure the bot.
+If you have not already set up Machine ID, follow the [Machine ID Getting
+Started Guide](../getting-started.mdx) to familiarize yourself with Machine ID.
+You'll need `tctl` access to initially configure the bot.
 
 (!docs/pages/includes/tctl.mdx!)
 
@@ -194,7 +193,7 @@ Restart=on-failure
 ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/machine-id.pid
-LimitNOFILE=8192
+LimitNOFILE=524288
 
 [Install]
 WantedBy=multi-user.target

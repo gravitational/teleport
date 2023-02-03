@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
@@ -59,8 +61,14 @@ const (
 	mssqlBin = "mssql-cli"
 	// snowsqlBin is the Snowflake client program name.
 	snowsqlBin = "snowsql"
-	// curlBin is the path to `curl`, which is used as Elasticsearch client.
+	// cqlshBin is the Cassandra client program name.
+	cqlshBin = "cqlsh"
+	// curlBin is the program name for `curl`, which is used as Elasticsearch client if other options are unavailable.
 	curlBin = "curl"
+	// elasticsearchSQLBin is the Elasticsearch SQL client program name.
+	elasticsearchSQLBin = "elasticsearch-sql-cli"
+	// awsBin is the aws CLI program name.
+	awsBin = "aws"
 )
 
 // Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -176,11 +184,41 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	case defaults.ProtocolSnowflake:
 		return c.getSnowflakeCommand(), nil
 
+	case defaults.ProtocolCassandra:
+		return c.getCassandraCommand()
+
 	case defaults.ProtocolElasticsearch:
-		return c.getElasticsearchCommand(), nil
+		return c.getElasticsearchCommand()
+
+	case defaults.ProtocolDynamoDB:
+		return c.getDynamoDBCommand()
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
+}
+
+// CommandAlternative represents alternative command along with description.
+type CommandAlternative struct {
+	Description string
+	Command     *exec.Cmd
+}
+
+// GetConnectCommandAlternatives returns optional connection commands for protocols that offer multiple options.
+// Otherwise, it falls back to GetConnectCommand.
+// The keys in the returned map are command descriptions suitable for display to the end user.
+func (c *CLICommandBuilder) GetConnectCommandAlternatives() ([]CommandAlternative, error) {
+
+	switch c.db.Protocol {
+	case defaults.ProtocolElasticsearch:
+		return c.getElasticsearchAlternativeCommands(), nil
+	}
+
+	cmd, err := c.GetConnectCommand()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return []CommandAlternative{{Description: "default command", Command: cmd}}, nil
 }
 
 // GetConnectCommandNoAbsPath works just like GetConnectCommand, with the only difference being that
@@ -258,6 +296,17 @@ func (c *CLICommandBuilder) getMariaDBArgs() []string {
 		return args
 	}
 
+	// Some options used in the MySQL options file are not compatible with the
+	// "mariadb" client. Thus instead of using `--defaults-group-suffix=`,
+	// specify the proxy host and port directly as parameters. When
+	// localProxyPort is specified, the --port and --host flags are set by
+	// getMySQLCommonCmdOpts.
+	if c.options.localProxyPort == 0 {
+		host, port := c.tc.MySQLProxyHostPort()
+		args = append(args, "--port", strconv.Itoa(port))
+		args = append(args, "--host", host)
+	}
+
 	sslCertPath := c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName)
 
 	args = append(args, []string{"--ssl-key", c.profile.KeyPath()}...)
@@ -275,23 +324,35 @@ func (c *CLICommandBuilder) getMariaDBArgs() []string {
 
 // getMySQLOracleCommand returns arguments unique for mysql cmd shipped by Oracle. Common options between
 // Oracle and MariaDB version are covered by getMySQLCommonCmdOpts().
-func (c *CLICommandBuilder) getMySQLOracleCommand() *exec.Cmd {
+func (c *CLICommandBuilder) getMySQLOracleCommand() (*exec.Cmd, error) {
 	args := c.getMySQLCommonCmdOpts()
 
 	if c.options.noTLS {
-		return c.options.exe.Command(mysqlBin, args...)
+		return c.options.exe.Command(mysqlBin, args...), nil
 	}
 
 	// defaults-group-suffix must be first.
 	groupSuffix := []string{fmt.Sprintf("--defaults-group-suffix=_%v-%v", c.tc.SiteName, c.db.ServiceName)}
 	args = append(groupSuffix, args...)
 
+	if runtime.GOOS == constants.WindowsOS {
+		// We save configuration to ~/.my.cnf, but on Windows that file is not read,
+		// see tables 4.1 and 4.2 on https://dev.mysql.com/doc/refman/8.0/en/option-files.html.
+		// We instruct mysql client to use use that file with --defaults-extra-file.
+		configPath, err := mysql.DefaultConfigPath()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		extraFile := []string{fmt.Sprintf("--defaults-extra-file=%v", configPath)}
+		args = append(extraFile, args...)
+	}
+
 	// override the ssl-mode from a config file is --insecure flag is provided to 'tsh db connect'.
 	if c.tc.InsecureSkipVerify {
 		args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyCA))
 	}
 
-	return c.options.exe.Command(mysqlBin, args...)
+	return c.options.exe.Command(mysqlBin, args...), nil
 }
 
 // getMySQLCommand returns mariadb command if the binary is on the path. Otherwise,
@@ -307,7 +368,7 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	// error as mysql and mariadb are missing. There is nothing else we can do here.
 	if !c.isMySQLBinAvailable() {
 		if c.options.tolerateMissingCLIClient {
-			return c.getMySQLOracleCommand(), nil
+			return c.getMySQLOracleCommand()
 		}
 
 		return nil, trace.NotFound("neither %q nor %q CLI clients were found, please make sure an appropriate CLI client is available in $PATH", mysqlBin, mariadbBin)
@@ -322,7 +383,7 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	}
 
 	// Either we failed to check the flavor or binary comes from Oracle. Regardless return mysql/Oracle command.
-	return c.getMySQLOracleCommand(), nil
+	return c.getMySQLOracleCommand()
 }
 
 // isMariaDBBinAvailable returns true if "mariadb" binary is found in the system PATH.
@@ -340,6 +401,12 @@ func (c *CLICommandBuilder) isMySQLBinAvailable() bool {
 // isMongoshBinAvailable returns true if "mongosh" binary is found in the system PATH.
 func (c *CLICommandBuilder) isMongoshBinAvailable() bool {
 	_, err := c.options.exe.LookPath(mongoshBin)
+	return err == nil
+}
+
+// isElasticsearchSqlBinAvailable returns true if "elasticsearch-sql-cli" binary is found in the system PATH.
+func (c *CLICommandBuilder) isElasticsearchSQLBinAvailable() bool {
+	_, err := c.options.exe.LookPath(elasticsearchSQLBin)
 	return err == nil
 }
 
@@ -515,32 +582,80 @@ func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
 	return cmd
 }
 
-func (c *CLICommandBuilder) getElasticsearchCommand() *exec.Cmd {
-	if c.options.noTLS {
-		return c.options.exe.Command(curlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
-	}
-
+func (c *CLICommandBuilder) getCassandraCommand() (*exec.Cmd, error) {
 	args := []string{
-		fmt.Sprintf("https://%v:%v/", c.host, c.port),
-		"--key", c.profile.KeyPath(),
-		"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+		"-u", c.db.Username,
+		c.host, strconv.Itoa(c.port),
+	}
+	if c.options.password != "" {
+		args = append(args, []string{"-p", c.options.password}...)
+	}
+	return exec.Command(cqlshBin, args...), nil
+}
+
+// getElasticsearchCommand returns a command to connect to Elasticsearch. We support `elasticsearch-sql-cli`, but only in non-TLS scenario.
+func (c *CLICommandBuilder) getElasticsearchCommand() (*exec.Cmd, error) {
+	if c.options.noTLS {
+		return c.options.exe.Command(elasticsearchSQLBin, fmt.Sprintf("http://%v:%v/", c.host, c.port)), nil
+	}
+	return nil, trace.BadParameter("%v interactive command is only supported in --tunnel mode.", elasticsearchSQLBin)
+}
+
+func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
+	// we can't guess at what the user wants to do, so this command is for print purposes only,
+	// and it only works with a local proxy tunnel.
+	if !c.options.printFormat || !c.options.noTLS || c.options.localProxyHost == "" || c.options.localProxyPort == 0 {
+		svc := "<db>"
+		if c.db != nil && c.db.ServiceName != "" {
+			svc = c.db.ServiceName
+		}
+		return nil, trace.BadParameter("DynamoDB requires a local proxy tunnel. Use `tsh proxy db --tunnel %v`", svc)
+	}
+	args := []string{
+		"--endpoint", fmt.Sprintf("http://%v:%v/", c.options.localProxyHost, c.options.localProxyPort),
+		"[dynamodb|dynamodbstreams|dax]",
+		"<command>",
+	}
+	return c.options.exe.Command(awsBin, args...), nil
+}
+
+func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlternative {
+	var commands []CommandAlternative
+	if c.isElasticsearchSQLBinAvailable() {
+		if cmd, err := c.getElasticsearchCommand(); err == nil {
+			commands = append(commands, CommandAlternative{Description: "interactive SQL connection", Command: cmd})
+		}
 	}
 
-	if c.tc.InsecureSkipVerify {
-		args = append(args, "--insecure")
-	}
+	var curlCommand *exec.Cmd
+	if c.options.noTLS {
+		curlCommand = c.options.exe.Command(curlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
+	} else {
+		args := []string{
+			fmt.Sprintf("https://%v:%v/", c.host, c.port),
+			"--key", c.profile.KeyPath(),
+			"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+		}
 
-	if c.options.caPath != "" {
-		args = append(args, []string{"--cacert", c.options.caPath}...)
-	}
+		if c.tc.InsecureSkipVerify {
+			args = append(args, "--insecure")
+		}
 
-	// Force HTTP 1.1 when connecting to remote web proxy. Otherwise HTTP2 can
-	// be negotiated which breaks the engine.
-	if c.options.localProxyHost == "" {
-		args = append(args, "--http1.1")
-	}
+		if c.options.caPath != "" {
+			args = append(args, []string{"--cacert", c.options.caPath}...)
+		}
 
-	return c.options.exe.Command(curlBin, args...)
+		// Force HTTP 1.1 when connecting to remote web proxy. Otherwise, HTTP2 can
+		// be negotiated which breaks the engine.
+		if c.options.localProxyHost == "" {
+			args = append(args, "--http1.1")
+		}
+
+		curlCommand = c.options.exe.Command(curlBin, args...)
+	}
+	commands = append(commands, CommandAlternative{Description: "run single request with curl", Command: curlCommand})
+
+	return commands
 }
 
 type connectionCommandOpts struct {
@@ -552,6 +667,7 @@ type connectionCommandOpts struct {
 	tolerateMissingCLIClient bool
 	log                      *logrus.Entry
 	exe                      Execer
+	password                 string
 }
 
 // ConnectCommandFunc is a type for functions returned by the "With*" functions in this package.
@@ -579,6 +695,14 @@ func WithLocalProxy(host string, port int, caPath string) ConnectCommandFunc {
 func WithNoTLS() ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.noTLS = true
+	}
+}
+
+// WithPassword is the command option that allows to set the database password
+// that will be used for database CLI.
+func WithPassword(pass string) ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.password = pass
 	}
 }
 

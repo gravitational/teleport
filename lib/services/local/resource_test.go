@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -29,9 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/stretchr/testify/require"
-
-	"github.com/jonboulle/clockwork"
 )
 
 func TestUserResource(t *testing.T) {

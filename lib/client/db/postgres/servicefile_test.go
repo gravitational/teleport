@@ -21,10 +21,10 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/client/db/profile"
-
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/client/db/profile"
 )
 
 func TestServiceFile(t *testing.T) {
@@ -59,6 +59,7 @@ func TestServiceFile(t *testing.T) {
 		"PGSSLROOTCERT": profile.CACertPath,
 		"PGSSLCERT":     profile.CertPath,
 		"PGSSLKEY":      profile.KeyPath,
+		"PGGSSENCMODE":  "disable",
 	}, env)
 
 	err = serviceFile.Delete(profile.Name)

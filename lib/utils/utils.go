@@ -34,15 +34,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
-	"k8s.io/apimachinery/pkg/util/validation"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // WriteContextCloser provides close method with context
@@ -452,6 +452,12 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 	return PortList{ports: list}, nil
 }
 
+// HostUUIDExistsLocally checks if dataDir/host_uuid file exists in local storage.
+func HostUUIDExistsLocally(dataDir string) bool {
+	_, err := ReadHostUUID(dataDir)
+	return err == nil
+}
+
 // ReadHostUUID reads host UUID from the file in the data dir
 func ReadHostUUID(dataDir string) (string, error) {
 	out, err := ReadPath(filepath.Join(dataDir, HostUUIDFile))
@@ -641,6 +647,21 @@ func HasPrefixAny(prefix string, values []string) bool {
 	}
 
 	return false
+}
+
+// ByteCount converts a size in bytes to a human-readable string.
+func ByteCount(b int64) string {
+	const unit = 1000
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB",
+		float64(b)/float64(div), "kMGTPE"[exp])
 }
 
 // ErrLimitReached means that the read limit is reached.

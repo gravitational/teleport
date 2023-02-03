@@ -20,35 +20,18 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"testing"
-	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/modules"
 )
-
-func TestCreateNodeJoinToken(t *testing.T) {
-	t.Parallel()
-	m := &mockedNodeAPIGetter{}
-	m.mockGenerateToken = func(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-		return "some-token-id", nil
-	}
-
-	token, err := createJoinToken(context.Background(), m, types.SystemRoles{
-		types.RoleNode,
-		types.RoleApp,
-	})
-	require.NoError(t, err)
-
-	require.Equal(t, defaults.NodeJoinTokenTTL, token.Expiry.Sub(time.Now().UTC()).Round(time.Second))
-	require.Equal(t, "some-token-id", token.ID)
-}
 
 func TestGenerateIAMTokenName(t *testing.T) {
 	t.Parallel()
@@ -580,6 +563,128 @@ func TestGetAppJoinScript(t *testing.T) {
 	}
 }
 
+func TestGetDatabaseJoinScript(t *testing.T) {
+	validToken := "f18da1c9f6630a51e8daf121e7451daa"
+	emptySuggestedAgentMatcherLabelsToken := "f18da1c9f6630a51e8daf121e7451000"
+	internalResourceID := "967d38ff-7a61-4f42-bd2d-c61965b44db0"
+
+	m := &mockedNodeAPIGetter{
+		mockGetProxyServers: func() ([]types.Server, error) {
+			var s types.ServerV2
+			s.SetPublicAddr("test-host:12345678")
+
+			return []types.Server{&s}, nil
+		},
+		mockGetClusterCACert: func(context.Context) (*proto.GetClusterCACertResponse, error) {
+			fakeBytes := []byte(fixtures.SigningCertPEM)
+			return &proto.GetClusterCACertResponse{TLSCA: fakeBytes}, nil
+		},
+		mockGetToken: func(_ context.Context, token string) (types.ProvisionToken, error) {
+			provisionToken := &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: token,
+				},
+				Spec: types.ProvisionTokenSpecV2{
+					SuggestedLabels: types.Labels{
+						types.InternalResourceIDLabel: utils.Strings{internalResourceID},
+					},
+					SuggestedAgentMatcherLabels: types.Labels{
+						"env":     utils.Strings{"prod"},
+						"product": utils.Strings{"*"},
+						"os":      utils.Strings{"mac", "linux"},
+					},
+				},
+			}
+			if token == validToken {
+				return provisionToken, nil
+			}
+			if token == emptySuggestedAgentMatcherLabelsToken {
+				provisionToken.Spec.SuggestedAgentMatcherLabels = types.Labels{}
+				return provisionToken, nil
+			}
+			return nil, trace.NotFound("token does not exist")
+		},
+	}
+
+	for _, test := range []struct {
+		desc            string
+		settings        scriptSettings
+		errAssert       require.ErrorAssertionFunc
+		extraAssertions func(script string)
+	}{
+		{
+			desc: "two installation methods",
+			settings: scriptSettings{
+				token:               validToken,
+				databaseInstallMode: true,
+				appInstallMode:      true,
+			},
+			errAssert: require.Error,
+		},
+		{
+			desc: "valid",
+			settings: scriptSettings{
+				databaseInstallMode: true,
+				token:               validToken,
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(script string) {
+				require.Contains(t, script, validToken)
+				require.Contains(t, script, "test-host")
+				require.Contains(t, script, "sha256:")
+				require.Contains(t, script, "--labels ")
+				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
+				require.Contains(t, script, `
+db_service:
+  enabled: "yes"
+  resources:
+    - labels:
+        env: prod
+        os:
+          - mac
+          - linux
+        product: '*'
+`)
+			},
+		},
+		{
+			desc: "empty suggestedAgentMatcherLabels",
+			settings: scriptSettings{
+				databaseInstallMode: true,
+				token:               emptySuggestedAgentMatcherLabelsToken,
+			},
+			errAssert: require.NoError,
+			extraAssertions: func(script string) {
+				require.Contains(t, script, emptySuggestedAgentMatcherLabelsToken)
+				require.Contains(t, script, "test-host")
+				require.Contains(t, script, "sha256:")
+				require.Contains(t, script, "--labels ")
+				require.Contains(t, script, fmt.Sprintf("%s=%s", types.InternalResourceIDLabel, internalResourceID))
+				require.Contains(t, script, `
+db_service:
+  enabled: "yes"
+  resources:
+    - labels:
+        {}
+`)
+			},
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			script, err := getJoinScript(context.Background(), test.settings, m)
+			test.errAssert(t, err)
+			if err != nil {
+				require.Empty(t, script)
+			}
+
+			if test.extraAssertions != nil {
+				t.Log(script)
+				test.extraAssertions(script)
+			}
+		})
+	}
+}
+
 func TestIsSameRuleSet(t *testing.T) {
 	tt := []struct {
 		name     string
@@ -684,19 +789,60 @@ func TestIsSameRuleSet(t *testing.T) {
 	}
 }
 
+func TestJoinScriptEnterprise(t *testing.T) {
+	validToken := "f18da1c9f6630a51e8daf121e7451daa"
+
+	m := &mockedNodeAPIGetter{
+		mockGetProxyServers: func() ([]types.Server, error) {
+			return []types.Server{
+				&types.ServerV2{
+					Spec: types.ServerSpecV2{PublicAddr: "test-host:12345678"},
+				},
+			}, nil
+		},
+		mockGetClusterCACert: func(context.Context) (*proto.GetClusterCACertResponse, error) {
+			fakeBytes := []byte(fixtures.SigningCertPEM)
+			return &proto.GetClusterCACertResponse{TLSCA: fakeBytes}, nil
+		},
+		mockGetToken: func(_ context.Context, token string) (types.ProvisionToken, error) {
+			return &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: token,
+				},
+			}, nil
+		},
+	}
+	isTeleportOSSLinkRegex := regexp.MustCompile(`https://cdn\.teleport\.dev/teleport[-_]v?\${TELEPORT_VERSION}`)
+	isTeleportEntLinkRegex := regexp.MustCompile(`https://cdn\.teleport\.dev/teleport-ent[-_]v?\${TELEPORT_VERSION}`)
+
+	// Using the OSS Version, all the links must contain only teleport as package name.
+	script, err := getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
+	require.NoError(t, err)
+
+	matches := isTeleportOSSLinkRegex.FindAllString(script, -1)
+	require.ElementsMatch(t, matches, []string{
+		"https://cdn.teleport.dev/teleport-v${TELEPORT_VERSION}",
+		"https://cdn.teleport.dev/teleport_${TELEPORT_VERSION}",
+		"https://cdn.teleport.dev/teleport-${TELEPORT_VERSION}",
+	})
+
+	// Using the Enterprise Version, all the links must contain teleport-ent as package name
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	script, err = getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
+	require.NoError(t, err)
+
+	matches = isTeleportEntLinkRegex.FindAllString(script, -1)
+	require.ElementsMatch(t, matches, []string{
+		"https://cdn.teleport.dev/teleport-ent-v${TELEPORT_VERSION}",
+		"https://cdn.teleport.dev/teleport-ent_${TELEPORT_VERSION}",
+		"https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION}",
+	})
+}
+
 type mockedNodeAPIGetter struct {
-	mockGenerateToken    func(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 	mockGetProxyServers  func() ([]types.Server, error)
 	mockGetClusterCACert func(ctx context.Context) (*proto.GetClusterCACertResponse, error)
 	mockGetToken         func(ctx context.Context, token string) (types.ProvisionToken, error)
-}
-
-func (m *mockedNodeAPIGetter) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-	if m.mockGenerateToken != nil {
-		return m.mockGenerateToken(ctx, req)
-	}
-
-	return "", trace.NotImplemented("mockGenerateToken not implemented")
 }
 
 func (m *mockedNodeAPIGetter) GetProxies() ([]types.Server, error) {

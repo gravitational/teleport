@@ -29,6 +29,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -48,12 +52,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // ProxyServer runs inside Teleport proxy and is responsible to accepting
@@ -92,6 +93,8 @@ type ProxyServerConfig struct {
 	ServerID string
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
+	// IngressReporter reports new and active connections.
+	IngressReporter *ingress.Reporter
 }
 
 // ShuffleFunc defines a function that shuffles a list of database servers.
@@ -302,6 +305,11 @@ func (s *ProxyServer) ServeTLS(listener net.Listener) error {
 }
 
 func (s *ProxyServer) handleConnection(conn net.Conn) error {
+	if s.cfg.IngressReporter != nil {
+		s.cfg.IngressReporter.ConnectionAccepted(ingress.DatabaseTLS, conn)
+		defer s.cfg.IngressReporter.ConnectionClosed(ingress.DatabaseTLS, conn)
+	}
+
 	s.log.Debugf("Accepted TLS database connection from %v.", conn.RemoteAddr())
 	tlsConn, ok := conn.(utils.TLSConn)
 	if !ok {
@@ -323,6 +331,12 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if s.cfg.IngressReporter != nil {
+		s.cfg.IngressReporter.ConnectionAuthenticated(ingress.DatabaseTLS, conn)
+		defer s.cfg.IngressReporter.AuthenticatedConnectionClosed(ingress.DatabaseTLS, conn)
+	}
+
 	switch proxyCtx.Identity.RouteToDatabase.Protocol {
 	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
@@ -358,11 +372,12 @@ func getMySQLVersionFromServer(servers []types.DatabaseServer) string {
 // PostgresProxy returns a new instance of the Postgres protocol aware proxy.
 func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 	return &postgres.Proxy{
-		TLSConfig:  s.cfg.TLSConfig,
-		Middleware: s.middleware,
-		Service:    s,
-		Limiter:    s.cfg.Limiter,
-		Log:        s.log,
+		TLSConfig:       s.cfg.TLSConfig,
+		Middleware:      s.middleware,
+		Service:         s,
+		Limiter:         s.cfg.Limiter,
+		Log:             s.log,
+		IngressReporter: s.cfg.IngressReporter,
 	}
 }
 
@@ -379,11 +394,12 @@ func (s *ProxyServer) PostgresProxyNoTLS() *postgres.Proxy {
 // MySQLProxy returns a new instance of the MySQL protocol aware proxy.
 func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 	return &mysql.Proxy{
-		TLSConfig:  s.cfg.TLSConfig,
-		Middleware: s.middleware,
-		Service:    s,
-		Limiter:    s.cfg.Limiter,
-		Log:        s.log,
+		TLSConfig:       s.cfg.TLSConfig,
+		Middleware:      s.middleware,
+		Service:         s,
+		Limiter:         s.cfg.Limiter,
+		Log:             s.log,
+		IngressReporter: s.cfg.IngressReporter,
 	}
 }
 
@@ -540,11 +556,6 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	certExpires := cfg.identity.Expires
-	var disconnectCertExpired time.Time
-	if !certExpires.IsZero() && cfg.checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
-		disconnectCertExpired = certExpires
-	}
 	idleTimeout := cfg.checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
 	ctx, cancel := context.WithCancel(ctx)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
@@ -561,7 +572,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 	err = srv.StartMonitor(srv.MonitorConfig{
 		LockWatcher:           cfg.lockWatcher,
 		LockTargets:           cfg.lockTargets,
-		DisconnectExpiredCert: disconnectCertExpired,
+		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(cfg.checker, authPref, &cfg.identity),
 		ClientIdleTimeout:     idleTimeout,
 		Conn:                  cfg.conn,
 		Tracker:               tc,

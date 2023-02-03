@@ -20,11 +20,12 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewUserContext(t *testing.T) {
@@ -37,7 +38,7 @@ func TestNewUserContext(t *testing.T) {
 	}
 
 	// set some rules
-	role1 := &types.RoleV5{}
+	role1 := &types.RoleV6{}
 	role1.SetNamespaces(types.Allow, []string{apidefaults.Namespace})
 	role1.SetRules(types.Allow, []types.Rule{
 		{
@@ -58,7 +59,7 @@ func TestNewUserContext(t *testing.T) {
 		},
 	})
 
-	role2 := &types.RoleV5{}
+	role2 := &types.RoleV6{}
 	role2.SetNamespaces(types.Allow, []string{apidefaults.Namespace})
 	role2.SetRules(types.Allow, []types.Rule{
 		{
@@ -108,6 +109,8 @@ func TestNewUserContext(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.ACL.Billing, denied))
 	require.Equal(t, userContext.ACL.Clipboard, true)
 	require.Equal(t, userContext.ACL.DesktopSessionRecording, true)
+	require.Empty(t, cmp.Diff(userContext.ACL.License, denied))
+	require.Empty(t, cmp.Diff(userContext.ACL.Download, denied))
 
 	// test local auth type
 	require.Equal(t, userContext.AuthType, authLocal)
@@ -137,7 +140,7 @@ func TestNewUserContextCloud(t *testing.T) {
 		},
 	}
 
-	role := &types.RoleV5{}
+	role := &types.RoleV6{}
 	role.SetNamespaces(types.Allow, []string{"*"})
 	role.SetRules(types.Allow, []types.Rule{
 		{

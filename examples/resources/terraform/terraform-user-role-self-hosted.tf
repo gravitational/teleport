@@ -10,10 +10,10 @@ terraform {
 provider "teleport" {
   # Update addr to point to Teleport Auth/Proxy
   # addr               = "auth.example.com:3025"
-  addr               = "proxy.example.com:443"
-  cert_path          = "auth.crt"
-  key_path           = "auth.key"
-  root_ca_path       = "auth.cas"
+  addr         = "proxy.example.com:443"
+  cert_path    = "auth.crt"
+  key_path     = "auth.key"
+  root_ca_path = "auth.cas"
 }
 
 resource "teleport_role" "terraform-test" {
@@ -21,10 +21,10 @@ resource "teleport_role" "terraform-test" {
     name        = "terraform-test"
     description = "Terraform test role"
     labels = {
-      example  = "yes"
+      example = "yes"
     }
   }
-  
+
   spec = {
     options = {
       forward_agent           = false
@@ -42,7 +42,7 @@ resource "teleport_role" "terraform-test" {
       rules = [
         {
           resources = ["user", "role"]
-          verbs = ["list"]
+          verbs     = ["list"]
         }
       ]
 
@@ -58,8 +58,8 @@ resource "teleport_role" "terraform-test" {
       }
 
       node_labels = {
-         key = ["example"]
-         alabel = ["with", "multiple", "values"]
+        key    = ["example"]
+        alabel = ["with", "multiple", "values"]
       }
     }
 
@@ -76,7 +76,7 @@ resource "teleport_user" "terraform-test" {
     expires     = "2022-10-12T07:20:50Z"
 
     labels = {
-      test      = "true"
+      test = "true"
     }
   }
 

@@ -17,8 +17,9 @@ limitations under the License.
 package config
 
 import (
-	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
 // DestinationMixin is a reusable struct for all config elements that accept a

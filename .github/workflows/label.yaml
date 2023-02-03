@@ -30,14 +30,13 @@ permissions:
 jobs:
   auto-label-pr:
     name: Label Pull Request
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ !github.event.pull_request.draft && !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-latest
     steps:
       # Checkout main branch of shared-workflow repository.
       - name: Checkout shared-workflow
         uses: actions/checkout@v3
         with:
-          token: ${{ secrets.SHARED_WORKFLOWS_GITHUB_TOKEN }}
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
           ref: main

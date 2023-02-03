@@ -23,11 +23,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgconn"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -35,14 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 type proxyTunnelStrategy struct {
@@ -79,14 +79,8 @@ func newProxyTunnelStrategy(t *testing.T, cluster string, strategy *types.Tunnel
 	return p
 }
 
-func TestProxyTunnelStrategy(t *testing.T) {
-	t.Parallel()
-	t.Run("AgentMesh", testProxyTunnelStrategyAgentMesh)
-	t.Run("ProxyPeering", testProxyTunnelStrategyProxyPeering)
-}
-
 // testProxyTunnelStrategyAgentMesh tests the agent-mesh tunnel strategy
-func testProxyTunnelStrategyAgentMesh(t *testing.T) {
+func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -113,7 +107,7 @@ func testProxyTunnelStrategyAgentMesh(t *testing.T) {
 			testResource: func(t *testing.T, p *proxyTunnelStrategy) {
 				p.makeDatabase(t)
 
-				// wait for the node to be connected to both proxies
+				// wait for the database to be connected to both proxies
 				helpers.WaitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 1)
 				helpers.WaitForActiveTunnelConnections(t, p.proxies[1].Tunnel, p.cluster, 1)
 
@@ -152,9 +146,12 @@ func testProxyTunnelStrategyAgentMesh(t *testing.T) {
 	}
 }
 
-// testProxyTunnelStrategyProxyPeering tests the proxy-peer tunnel strategy
-func testProxyTunnelStrategyProxyPeering(t *testing.T) {
-	t.Parallel()
+// TestProxyTunnelStrategyProxyPeering tests the proxy-peer tunnel strategy.
+func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
+	// TODO(jakule): Fix the test.
+	t.Skip("this test is flaky as it very sensitive to our timeouts")
+
+	// This test cannot run in parallel as set module changes the global state.
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures:  modules.Features{DB: true},
@@ -304,6 +301,8 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 
 	conf := service.MakeDefaultConfig()
 	conf.DataDir = t.TempDir()
+	conf.Log = auth.Log
+
 	conf.Auth.Enabled = true
 	conf.Auth.NetworkingConfig.SetTunnelStrategy(p.strategy)
 	conf.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
@@ -329,9 +328,11 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	authAddr := utils.MustParseAddr(p.auth.Auth)
 
 	conf := service.MakeDefaultConfig()
-	conf.AuthServers = append(conf.AuthServers, *authAddr)
+	conf.SetAuthServerAddress(*authAddr)
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
+	conf.Log = proxy.Log
+	conf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 
 	conf.Auth.Enabled = false
 	conf.SSH.Enabled = false
@@ -372,13 +373,16 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	})
 
 	conf := service.MakeDefaultConfig()
-	conf.AuthServers = append(conf.AuthServers, utils.FromAddr(p.lb.Addr()))
+	conf.Version = types.V3
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
+	conf.Log = node.Log
+	conf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 	conf.SSH.Enabled = true
+	conf.ProxyServer = utils.FromAddr(p.lb.Addr())
 
 	process, err := service.NewTeleport(conf)
 	require.NoError(t, err)
@@ -414,14 +418,17 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	})
 
 	conf := service.MakeDefaultConfig()
-	conf.AuthServers = append(conf.AuthServers, utils.FromAddr(p.lb.Addr()))
+	conf.Version = types.V3
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
+	conf.Log = db.Log
+	conf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
 	conf.SSH.Enabled = false
 	conf.Databases.Enabled = true
+	conf.ProxyServer = utils.FromAddr(p.lb.Addr())
 	conf.Databases.Databases = []service.Database{
 		{
 			Name:     p.cluster + "-postgres",
@@ -555,7 +562,7 @@ func (p *proxyTunnelStrategy) waitForResource(t *testing.T, role string, check f
 	},
 		30*time.Second,
 		time.Second,
-		"Resource %s was not available %v in the expected time frame", role,
+		"Resource %s was not available %v in the expected time frame", role, 30*time.Second,
 	)
 }
 

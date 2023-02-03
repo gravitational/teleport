@@ -25,19 +25,19 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -46,6 +46,10 @@ const (
 
 	// Int64Size is a constant for 64 bit integer byte size
 	Int64Size = 8
+
+	// ConcurrentUploadsPerStream limits the amount of concurrent uploads
+	// per stream
+	ConcurrentUploadsPerStream = 1
 
 	// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size
 	MaxProtoMessageSizeBytes = 64 * 1024
@@ -99,7 +103,7 @@ func (cfg *ProtoStreamerConfig) CheckAndSetDefaults() error {
 		cfg.MinUploadBytes = MinUploadPartSizeBytes
 	}
 	if cfg.ConcurrentUploads == 0 {
-		cfg.ConcurrentUploads = defaults.ConcurrentUploadsPerStream
+		cfg.ConcurrentUploads = ConcurrentUploadsPerStream
 	}
 	return nil
 }
@@ -210,10 +214,10 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter MinUploadBytes")
 	}
 	if cfg.InactivityFlushPeriod == 0 {
-		cfg.InactivityFlushPeriod = defaults.InactivityFlushPeriod
+		cfg.InactivityFlushPeriod = InactivityFlushPeriod
 	}
 	if cfg.ConcurrentUploads == 0 {
-		cfg.ConcurrentUploads = defaults.ConcurrentUploadsPerStream
+		cfg.ConcurrentUploads = ConcurrentUploadsPerStream
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -263,7 +267,6 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 
 		completeCtx:      completeCtx,
 		complete:         complete,
-		completeType:     atomic.NewUint32(completeTypeComplete),
 		completeMtx:      &sync.RWMutex{},
 		uploadLoopDoneCh: make(chan struct{}),
 
@@ -337,7 +340,7 @@ type ProtoStream struct {
 	// completeCtx is used to signal completion of the operation
 	completeCtx    context.Context
 	complete       context.CancelFunc
-	completeType   *atomic.Uint32
+	completeType   atomic.Uint32
 	completeResult error
 	completeMtx    *sync.RWMutex
 
@@ -383,14 +386,19 @@ func (s *ProtoStream) Done() <-chan struct{} {
 
 // EmitAuditEvent emits a single audit event to the stream
 func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	messageSize := event.Size()
+	if messageSize > MaxProtoMessageSizeBytes {
+		switch v := event.(type) {
+		case messageSizeTrimmer:
+			event = v.TrimToMaxSize(MaxProtoMessageSizeBytes)
+		default:
+			return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, MaxProtoMessageSizeBytes)
+		}
+	}
+
 	oneof, err := apievents.ToOneOf(event)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	messageSize := oneof.Size()
-	if messageSize > MaxProtoMessageSizeBytes {
-		return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, MaxProtoMessageSizeBytes)
 	}
 
 	start := time.Now()
@@ -656,7 +664,10 @@ func (w *sliceWriter) completeStream() {
 		case upload := <-w.completedUploadsC:
 			part, err := upload.getPart()
 			if err != nil {
-				log.WithError(err).Warningf("Failed to upload part.")
+				log.WithError(err).
+					WithField("upload", w.proto.cfg.Upload.ID).
+					WithField("session", w.proto.cfg.Upload.SessionID).
+					Warning("Failed to upload part")
 				continue
 			}
 			w.updateCompletedParts(*part, upload.lastEventIndex)
@@ -672,7 +683,10 @@ func (w *sliceWriter) completeStream() {
 		err := w.proto.cfg.Uploader.CompleteUpload(w.proto.cancelCtx, w.proto.cfg.Upload, w.completedParts)
 		w.proto.setCompleteResult(err)
 		if err != nil {
-			log.WithError(err).Warningf("Failed to complete upload.")
+			log.WithError(err).
+				WithField("upload", w.proto.cfg.Upload.ID).
+				WithField("session", w.proto.cfg.Upload.SessionID).
+				Warning("Failed to complete upload")
 		}
 	}
 }
@@ -732,8 +746,8 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			if retry == nil {
 				var rerr error
 				retry, rerr = retryutils.NewLinear(retryutils.LinearConfig{
-					Step: defaults.NetworkRetryDuration,
-					Max:  defaults.NetworkBackoffDuration,
+					Step: NetworkRetryDuration,
+					Max:  NetworkBackoffDuration,
 				})
 				if rerr != nil {
 					activeUpload.setError(rerr)

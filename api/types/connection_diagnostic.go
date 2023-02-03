@@ -17,8 +17,9 @@ limitations under the License.
 package types
 
 import (
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 const (
@@ -85,16 +86,6 @@ func (c *ConnectionDiagnosticV1) CheckAndSetDefaults() error {
 	return nil
 }
 
-// GetAllLabels returns combined static and dynamic labels.
-func (c *ConnectionDiagnosticV1) GetAllLabels() map[string]string {
-	return CombineLabels(c.Metadata.Labels, nil)
-}
-
-// GetStaticLabels returns the connection diagnostic static labels.
-func (c *ConnectionDiagnosticV1) GetStaticLabels() map[string]string {
-	return c.Metadata.Labels
-}
-
 // IsSuccess returns whether the connection was successful
 func (c *ConnectionDiagnosticV1) IsSuccess() bool {
 	return c.Spec.Success
@@ -130,16 +121,6 @@ func (c *ConnectionDiagnosticV1) AppendTrace(trace *ConnectionDiagnosticTrace) {
 func (c *ConnectionDiagnosticV1) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(c.GetAllLabels()), c.GetName())
 	return MatchSearch(fieldVals, values, nil)
-}
-
-// Origin returns the origin value of the resource.
-func (c *ConnectionDiagnosticV1) Origin() string {
-	return c.Metadata.Labels[OriginLabel]
-}
-
-// SetOrigin sets the origin value of the resource.
-func (c *ConnectionDiagnosticV1) SetOrigin(o string) {
-	c.Metadata.Labels[OriginLabel] = o
 }
 
 // SetStaticLabels sets the connection diagnostic static labels.

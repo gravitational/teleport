@@ -13,5 +13,5 @@ roleRef:
   name: {{ .Values.roleName | default .Release.Name }}
 subjects:
 - kind: ServiceAccount
-  name: {{ .Values.serviceAccountName | default .Release.Name }}
+  name: {{ template "teleport.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}

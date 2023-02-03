@@ -1,4 +1,9 @@
-FROM ubuntu:20.04
+# Stage to build the image, without FIPS entrypoint argument
+FROM ubuntu:20.04 AS teleport
+
+# Copy the deb archive
+ARG DEB_PATH
+COPY ${DEB_PATH?} /tmp/teleport.deb
 
 # Install dumb-init and ca-certificates. The dumb-init package is to ensure
 # signals and orphaned processes are are handled correctly. The ca-certificate
@@ -39,18 +44,22 @@ FROM ubuntu:20.04
 # "apt-get update" to reduce the size of the image.
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get upgrade -y && \
+    # Install dependencies
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y ca-certificates dumb-init libelf1 && \
+    # Install tools
     DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y net-tools iputils-ping inetutils-telnet netcat tcpdump busybox && \
     busybox --install -s && \
     update-ca-certificates && \
+    # Install Teleport
+    dpkg -i /tmp/teleport.deb && \
+    # Cleanup
     apt-get -y clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Bundle "teleport", "tctl", "tbot", and "tsh" binaries into image.
-COPY teleport /usr/local/bin/teleport
-COPY tctl /usr/local/bin/tctl
-COPY tsh /usr/local/bin/tsh
-COPY tbot /usr/local/bin/tbot
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /tmp/*
 
 # By setting this entry point, we expose make target as command.
 ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
+
+# Stage to launch Teleport with the fips argument
+FROM teleport AS teleport-fips
+ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml", "--fips"]

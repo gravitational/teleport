@@ -32,9 +32,10 @@
 //!    it didn't allocate but needs to hold on to, is responsible for copying it to its
 //!    own respective heap.
 //!
-//! In practice, this means that all the functions called from Go (those prefixed with
-//! `pub unsafe extern "C"`) MUST NOT hang on to any of the pointers passed in to them after
-//! they return. All pointer data that needs to persist MUST be copied into Rust-owned memory.
+//! In practice, this means that all the functions called from Go (those
+//! prefixed with `pub unsafe extern "C"`) MUST NOT hang on to any of the
+//! pointers passed in to them after they return. All pointer data that needs to
+//! persist MUST be copied into Rust-owned memory.
 
 mod cliprdr;
 mod errors;
@@ -55,6 +56,7 @@ use rand::SeedableRng;
 use rdp::core::event::*;
 use rdp::core::gcc::KeyboardLayout;
 use rdp::core::global;
+use rdp::core::global::ServerError;
 use rdp::core::mcs;
 use rdp::core::sec;
 use rdp::core::tpkt;
@@ -64,7 +66,7 @@ use rdp::model::link::{Link, Stream};
 use rdpdr::path::UnixPath;
 use rdpdr::ServerCreateDriveRequest;
 use std::convert::TryFrom;
-use std::ffi::CStr;
+use std::ffi::{CStr, CString, NulError};
 use std::io::Error as IoError;
 use std::io::ErrorKind;
 use std::io::{Cursor, Read, Write};
@@ -75,9 +77,11 @@ use std::os::unix::io::AsRawFd;
 use std::sync::{Arc, Mutex};
 use std::{mem, ptr, slice, time};
 
+pub fn test() {}
+
 #[no_mangle]
 pub extern "C" fn init() {
-    env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {}", e));
+    env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {e}"));
 }
 
 #[derive(Clone)]
@@ -174,36 +178,25 @@ impl From<Result<Client, ConnectError>> for ClientOrError {
 /// The caller mmust ensure that go_addr, go_username, cert_der, key_der point to valid buffers in respect
 /// to their corresponding parameters.
 #[no_mangle]
-pub unsafe extern "C" fn connect_rdp(
-    go_ref: usize,
-    go_addr: *const c_char,
-    go_username: *const c_char,
-    cert_der_len: u32,
-    cert_der: *mut u8,
-    key_der_len: u32,
-    key_der: *mut u8,
-    screen_width: u16,
-    screen_height: u16,
-    allow_clipboard: bool,
-    allow_directory_sharing: bool,
-) -> ClientOrError {
+pub unsafe extern "C" fn connect_rdp(go_ref: usize, params: CGOConnectParams) -> ClientOrError {
     // Convert from C to Rust types.
-    let addr = from_go_string(go_addr);
-    let username = from_go_string(go_username);
-    let cert_der = from_go_array(cert_der, cert_der_len);
-    let key_der = from_go_array(key_der, key_der_len);
+    let addr = from_c_string(params.go_addr);
+    let username = from_c_string(params.go_username);
+    let cert_der = from_go_array(params.cert_der, params.cert_der_len);
+    let key_der = from_go_array(params.key_der, params.key_der_len);
 
     connect_rdp_inner(
         go_ref,
-        &addr,
         ConnectParams {
+            addr,
             username,
             cert_der,
             key_der,
-            screen_width,
-            screen_height,
-            allow_clipboard,
-            allow_directory_sharing,
+            screen_width: params.screen_width,
+            screen_height: params.screen_height,
+            allow_clipboard: params.allow_clipboard,
+            allow_directory_sharing: params.allow_directory_sharing,
+            show_desktop_wallpaper: params.show_desktop_wallpaper,
         },
     )
     .into()
@@ -232,7 +225,23 @@ const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
 const RDP_HANDSHAKE_TIMEOUT: time::Duration = time::Duration::from_secs(10);
 const RDPSND_CHANNEL_NAME: &str = "rdpsnd";
 
+#[repr(C)]
+pub struct CGOConnectParams {
+    go_addr: *const c_char,
+    go_username: *const c_char,
+    cert_der_len: u32,
+    cert_der: *mut u8,
+    key_der_len: u32,
+    key_der: *mut u8,
+    screen_width: u16,
+    screen_height: u16,
+    allow_clipboard: bool,
+    allow_directory_sharing: bool,
+    show_desktop_wallpaper: bool,
+}
+
 struct ConnectParams {
+    addr: String,
     username: String,
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
@@ -240,15 +249,13 @@ struct ConnectParams {
     screen_height: u16,
     allow_clipboard: bool,
     allow_directory_sharing: bool,
+    show_desktop_wallpaper: bool,
 }
 
-fn connect_rdp_inner(
-    go_ref: usize,
-    addr: &str,
-    params: ConnectParams,
-) -> Result<Client, ConnectError> {
+fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, ConnectError> {
     // Connect and authenticate.
-    let addr = addr
+    let addr = params
+        .addr
         .to_socket_addrs()?
         .next()
         .ok_or(ConnectError::InvalidAddr())?;
@@ -264,7 +271,7 @@ fn connect_rdp_inner(
         .tcp
         .set_read_timeout(Some(RDP_HANDSHAKE_TIMEOUT))?;
     let tcp = Link::new(Stream::Raw(shared_tcp.clone()));
-    let protocols = x224::Protocols::ProtocolSSL as u32 | x224::Protocols::ProtocolRDP as u32;
+    let protocols = x224::Protocols::ProtocolSSL as u32;
     let x224 = x224::Client::connect(tpkt::Client::new(tcp), protocols, false, None, false, false)?;
     let mut mcs = mcs::Client::new(x224);
 
@@ -289,6 +296,11 @@ fn connect_rdp_inner(
     // Generate a random 8-digit PIN for our smartcard.
     let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
     let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
+    let mut performance_flags = sec::ExtendedInfoFlag::PerfDisableFullWindowDrag as u32
+        | sec::ExtendedInfoFlag::PerfDisableMenuAnimations as u32;
+    if !params.show_desktop_wallpaper {
+        performance_flags |= sec::ExtendedInfoFlag::PerfDisableWallpaper as u32;
+    }
     sec::connect(
         &mut mcs,
         &domain.to_string(),
@@ -298,11 +310,7 @@ fn connect_rdp_inner(
         // InfoPasswordIsScPin means that the user will not be prompted for the smartcard PIN code,
         // which is known only to Teleport and unique for each RDP session.
         Some(sec::InfoFlag::InfoPasswordIsScPin as u32 | sec::InfoFlag::InfoMouseHasWheel as u32),
-        Some(
-            sec::ExtendedInfoFlag::PerfDisableCursorBlink as u32
-                | sec::ExtendedInfoFlag::PerfDisableFullWindowDrag as u32
-                | sec::ExtendedInfoFlag::PerfDisableMenuAnimations as u32,
-        ),
+        Some(performance_flags),
     )?;
     // Client for the "global" channel - video output and user input.
     let global = global::Client::new(
@@ -631,7 +639,14 @@ impl<S: Read + Write> RdpClient<S> {
         // name.
         match channel_name.as_str() {
             "global" => self.global.read(message, &mut self.mcs, callback),
-            rdpdr::CHANNEL_NAME => self.rdpdr.read_and_reply(message, &mut self.mcs),
+            rdpdr::CHANNEL_NAME => {
+                let responses = self.rdpdr.read_and_create_reply(message)?;
+                let chan = &rdpdr::CHANNEL_NAME.to_string();
+                for resp in responses {
+                    self.mcs.write(chan, resp)?;
+                }
+                Ok(())
+            }
             cliprdr::CHANNEL_NAME => match self.cliprdr {
                 Some(ref mut clip) => clip.read_and_reply(message, &mut self.mcs),
                 None => Ok(()),
@@ -642,7 +657,7 @@ impl<S: Read + Write> RdpClient<S> {
             }
             _ => Err(RdpError::RdpError(RdpProtocolError::new(
                 RdpErrorKind::UnexpectedType,
-                &format!("Invalid channel name {:?}", channel_name),
+                &format!("Invalid channel name {channel_name:?}"),
             ))),
         }
     }
@@ -660,61 +675,76 @@ impl<S: Read + Write> RdpClient<S> {
         }
     }
 
-    pub fn write_client_device_list_announce(
+    fn write_rdpdr(&mut self, messages: Messages) -> RdpResult<()> {
+        let chan = &rdpdr::CHANNEL_NAME.to_string();
+        for message in messages {
+            self.mcs.write(chan, message)?;
+        }
+        Ok(())
+    }
+
+    pub fn handle_client_device_list_announce(
         &mut self,
         req: rdpdr::ClientDeviceListAnnounce,
     ) -> RdpResult<()> {
-        self.rdpdr
-            .write_client_device_list_announce(req, &mut self.mcs)
+        let messages = self.rdpdr.handle_client_device_list_announce(req)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_info_response(
         &mut self,
         res: SharedDirectoryInfoResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_info_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_info_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_create_response(
         &mut self,
         res: SharedDirectoryCreateResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_create_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_create_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_delete_response(
         &mut self,
         res: SharedDirectoryDeleteResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_delete_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_delete_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_list_response(
         &mut self,
         res: SharedDirectoryListResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_list_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_list_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_read_response(
         &mut self,
         res: SharedDirectoryReadResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_read_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_read_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_write_response(
         &mut self,
         res: SharedDirectoryWriteResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_write_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_write_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn handle_tdp_sd_move_response(
         &mut self,
         res: SharedDirectoryMoveResponse,
     ) -> RdpResult<()> {
-        self.rdpdr.handle_tdp_sd_move_response(res, &mut self.mcs)
+        let messages = self.rdpdr.handle_tdp_sd_move_response(res)?;
+        self.write_rdpdr(messages)
     }
 
     pub fn shutdown(&mut self) -> RdpResult<()> {
@@ -722,10 +752,9 @@ impl<S: Read + Write> RdpClient<S> {
     }
 }
 
-/// CGOBitmap is a CGO-compatible version of BitmapEvent that we pass back to Go.
-/// BitmapEvent is a video output update from the server.
+/// CGOPNG is a CGO-compatible version of PNG that we pass back to Go.
 #[repr(C)]
-pub struct CGOBitmap {
+pub struct CGOPNG {
     pub dest_left: u16,
     pub dest_top: u16,
     pub dest_right: u16,
@@ -736,11 +765,11 @@ pub struct CGOBitmap {
     pub data_cap: usize,
 }
 
-impl TryFrom<BitmapEvent> for CGOBitmap {
+impl TryFrom<BitmapEvent> for CGOPNG {
     type Error = RdpError;
 
     fn try_from(e: BitmapEvent) -> Result<Self, Self::Error> {
-        let mut res = CGOBitmap {
+        let mut res = CGOPNG {
             dest_left: e.dest_left,
             dest_top: e.dest_top,
             dest_right: e.dest_right,
@@ -750,26 +779,69 @@ impl TryFrom<BitmapEvent> for CGOBitmap {
             data_cap: 0,
         };
 
-        // e.decompress consumes e, so we need to call it separately, after populating the fields
-        // above.
-        let mut data = if e.is_compress {
-            e.decompress()?
-        } else {
-            e.data
-        };
-        res.data_ptr = data.as_mut_ptr();
-        res.data_len = data.len();
-        res.data_cap = data.capacity();
+        let w: u16 = e.width;
+        let h: u16 = e.height;
+
+        let mut encoded = Vec::with_capacity(8192);
+        encode_png(&mut encoded, w, h, e.decompress()?).map_err(|err| {
+            Self::Error::TryError(format!("failed to encode bitmap to png: {err:?}"))
+        })?;
+
+        res.data_ptr = encoded.as_mut_ptr();
+        res.data_len = encoded.len();
+        res.data_cap = encoded.capacity();
 
         // Prevent the data field from being freed while Go handles it.
-        // It will be dropped once CGOBitmap is dropped (see below).
-        mem::forget(data);
+        // It will be dropped once CGOPNG is dropped (see below).
+        mem::forget(encoded);
 
         Ok(res)
     }
 }
 
-impl Drop for CGOBitmap {
+/// encodes png from the uncompressed bitmap data
+///
+/// # Arguments
+///
+/// * `dest` - buffer that will contain the png data
+/// * `width` - width of the png
+/// * `height` - height of the png
+/// * `data` - buffer that contains uncompressed bitmap data
+pub fn encode_png(
+    dest: &mut Vec<u8>,
+    width: u16,
+    height: u16,
+    mut data: Vec<u8>,
+) -> Result<(), png::EncodingError> {
+    convert_bgra_to_rgba(&mut data);
+
+    let mut encoder = png::Encoder::new(dest, width as u32, height as u32);
+    encoder.set_compression(png::Compression::Fast);
+    encoder.set_color(png::ColorType::Rgba);
+
+    let mut writer = encoder.write_header()?;
+    writer.write_image_data(&data)?;
+    writer.finish()?;
+    Ok(())
+}
+
+/// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
+/// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
+/// a byte slice with 4-byte segments representing pixels (RGBA).
+///
+/// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/8ab64b94-59cb-43f4-97ca-79613838e0bd
+///
+/// Also, always force Alpha value to 100% (opaque). On some Windows
+/// versions (e.g. Windows 10) it's sent as 0% after decompression for some reason.
+fn convert_bgra_to_rgba(data: &mut [u8]) {
+    data.chunks_exact_mut(4).for_each(|chunk| {
+        chunk.swap(0, 2);
+        // set alpha to 100% opaque
+        chunk[3] = 255
+    });
+}
+
+impl Drop for CGOPNG {
     fn drop(&mut self) {
         // Reconstruct into Vec to drop the allocated buffer.
         unsafe {
@@ -871,7 +943,7 @@ pub unsafe extern "C" fn handle_tdp_sd_announce(
         rdpdr::ClientDeviceListAnnounce::new_drive(sd_announce.directory_id, sd_announce.name);
 
     let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.write_client_device_list_announce(new_drive) {
+    match rdp_client.handle_client_device_list_announce(new_drive) {
         Ok(()) => CGOErrCode::ErrCodeSuccess,
         Err(e) => {
             error!("failed to announce new drive: {:?}", e);
@@ -1102,30 +1174,31 @@ pub unsafe extern "C" fn handle_tdp_sd_move_response(
     }
 }
 
-/// `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
-/// handle_bitmap.
+/// `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref, encodes bitmap
+/// as a png and forwards them to handle_png.
 ///
 /// # Safety
 ///
 /// `client_ptr` must be a valid pointer to a Client.
-/// `handle_bitmap` *must not* free the memory of CGOBitmap.
+/// `handle_png` *must not* free the memory of CGOPNG.
 #[no_mangle]
-pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOErrCode {
+pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOReadRdpOutputReturns {
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
-            return cgo_error;
+            return ReadRdpOutputReturns {
+                user_message: "invalid Rust client pointer".to_string(),
+                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                err_code: cgo_error,
+            }
+            .into();
         }
     };
-    if let Some(err) = read_rdp_output_inner(client) {
-        error!("{}", err);
-        CGOErrCode::ErrCodeFailure
-    } else {
-        CGOErrCode::ErrCodeSuccess
-    }
+
+    read_rdp_output_inner(client).into()
 }
 
-fn read_rdp_output_inner(client: &Client) -> Option<String> {
+fn read_rdp_output_inner(client: &Client) -> ReadRdpOutputReturns {
     let tcp_fd = client.tcp_fd;
     let client_ref = client.go_ref;
 
@@ -1133,19 +1206,19 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
     //
     // Wait for some data to be available on the TCP socket FD before consuming it. This prevents
     // us from locking the mutex in Client permanently while no data is available.
-    while wait_for_fd(tcp_fd as usize) {
+    while wait_for_fd(tcp_fd) {
         let mut err = CGOErrCode::ErrCodeSuccess;
         let res = client.rdp_client.lock().unwrap().read(|rdp_event| {
             // This callback can be called multiple times per rdp_client.read()
             // (if multiple messages were received since the last call). Therefore,
-            // we check that the previous call to handle_bitmap succeeded, so we don't
-            // have a situation where handle_bitmap fails repeatedly and creates a
+            // we check that the previous call to handle_png succeeded, so we don't
+            // have a situation where handle_png fails repeatedly and creates a
             // bunch of repetitive error messages in the logs. If it fails once,
-            // we assume the connection is broken and stop trying to send bitmaps.
+            // we assume the connection is broken and stop trying to send PNGs.
             if err == CGOErrCode::ErrCodeSuccess {
                 match rdp_event {
                     RdpEvent::Bitmap(bitmap) => {
-                        let mut cbitmap = match CGOBitmap::try_from(bitmap) {
+                        let mut cpng = match CGOPNG::try_from(bitmap) {
                             Ok(cb) => cb,
                             Err(e) => {
                                 error!(
@@ -1156,7 +1229,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
                             }
                         };
                         unsafe {
-                            err = handle_bitmap(client_ref, &mut cbitmap) as CGOErrCode;
+                            err = handle_png(client_ref, &mut cpng) as CGOErrCode;
                         };
                     }
                     // No other events should be sent by the server to us.
@@ -1167,17 +1240,59 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
             }
         });
         match res {
-            Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => return None,
-            Err(e) => {
-                return Some(format!("RDP read failed: {:?}", e));
+            Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => {
+                debug!("client disconnect detected");
+                return ReadRdpOutputReturns {
+                    user_message: "Client successfully disconnected".to_string(),
+                    disconnect_code: CGODisconnectCode::DisconnectCodeClient,
+                    err_code: CGOErrCode::ErrCodeSuccess,
+                };
             }
-            _ => {}
+            Err(RdpError::RdpError(rdp_err)) if rdp_err.kind() == RdpErrorKind::Disconnect => {
+                // RdpErrorKind::Disconnect means we encountered a Disconnect Provider Ultimatum.
+                // If we don't know why that was sent, return an failure, otherwise return a success.
+                debug!("server disconnect detected");
+                let disconnect_code = CGODisconnectCode::DisconnectCodeServer;
+                let server_error = client.rdp_client.lock().unwrap().global.server_error();
+                let mut message = server_error.to_string();
+                let mut err_code = CGOErrCode::ErrCodeSuccess;
+                if server_error == ServerError::None || server_error.is_error() {
+                    err_code = CGOErrCode::ErrCodeFailure;
+                    if server_error == ServerError::None {
+                        message = "RDP server disconnected for an unknown reason".to_string();
+                    }
+                }
+                return ReadRdpOutputReturns {
+                    user_message: message,
+                    disconnect_code,
+                    err_code,
+                };
+            }
+            Err(e) => {
+                return ReadRdpOutputReturns {
+                    user_message: format!("RDP read failed: {e:?}"),
+                    disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                    err_code: CGOErrCode::ErrCodeFailure,
+                };
+            }
+            Ok(()) => {
+                // continue
+            }
         }
         if err != CGOErrCode::ErrCodeSuccess {
-            return Some("failed forwarding RDP bitmap frame".to_string());
+            return ReadRdpOutputReturns {
+                user_message: "failed forwarding RDP bitmap frame".to_string(),
+                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                err_code: err,
+            };
         }
     }
-    None
+
+    ReadRdpOutputReturns {
+        user_message: "RDP read failed for an unknown reason".to_string(),
+        disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+        err_code: CGOErrCode::ErrCodeFailure,
+    }
 }
 
 /// CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
@@ -1338,11 +1453,53 @@ pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
     };
 
     if let Err(err) = client.tcp.tcp.shutdown(net::Shutdown::Both) {
-        error!("failed shutting down TCP socket: {:?}", err);
-        return CGOErrCode::ErrCodeFailure;
+        match err.kind() {
+            ErrorKind::NotConnected => {
+                debug!("TCP socket was not connected");
+                return CGOErrCode::ErrCodeSuccess;
+            }
+            _ => {
+                error!("failed shutting down TCP socket: {:?}", err);
+                return CGOErrCode::ErrCodeFailure;
+            }
+        }
     }
 
     res
+}
+
+#[repr(C)]
+pub enum CGODisconnectCode {
+    /// DisconnectCodeUnknown is for when we can't determine whether
+    /// a disconnect was caused by the RDP client or server.
+    DisconnectCodeUnknown = 0,
+    /// DisconnectCodeClient is for when the RDP client initiated a disconnect.
+    DisconnectCodeClient = 1,
+    /// DisconnectCodeServer is for when the RDP server initiated a disconnect.
+    DisconnectCodeServer = 2,
+}
+
+struct ReadRdpOutputReturns {
+    user_message: String,
+    disconnect_code: CGODisconnectCode,
+    err_code: CGOErrCode,
+}
+
+#[repr(C)]
+pub struct CGOReadRdpOutputReturns {
+    user_message: *const c_char,
+    disconnect_code: CGODisconnectCode,
+    err_code: CGOErrCode,
+}
+
+impl From<ReadRdpOutputReturns> for CGOReadRdpOutputReturns {
+    fn from(r: ReadRdpOutputReturns) -> CGOReadRdpOutputReturns {
+        CGOReadRdpOutputReturns {
+            user_message: to_c_string(&r.user_message).unwrap(),
+            disconnect_code: r.disconnect_code,
+            err_code: r.err_code,
+        }
+    }
 }
 
 /// free_rdp lets the Go side inform us when it's done with Client and it can be dropped.
@@ -1361,7 +1518,7 @@ pub unsafe extern "C" fn free_rdp(client_ptr: *mut Client) {
 /// s must be a C-style null terminated string.
 /// s is cloned here, and the caller is responsible for
 /// ensuring its memory is freed.
-unsafe fn from_go_string(s: *const c_char) -> String {
+unsafe fn from_c_string(s: *const c_char) -> String {
     // # Safety
     //
     // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
@@ -1380,6 +1537,27 @@ unsafe fn from_go_array<T: Clone>(data: *mut T, len: u32) -> Vec<T> {
     // In other words, all pointer data that needs to persist after this function returns MUST
     // be copied into Rust-owned memory.
     slice::from_raw_parts(data, len as usize).to_vec()
+}
+
+/// to_c_string can be used to return string values over the Go boundary.
+/// To avoid memory leaks, the Go function must call free_go_string once
+/// it's done with the memory.
+///
+/// See https://doc.rust-lang.org/std/ffi/struct.CString.html#method.into_raw
+fn to_c_string(s: &str) -> Result<*const c_char, NulError> {
+    let c_string = CString::new(s)?;
+    Ok(c_string.into_raw())
+}
+
+/// See the docstring for to_c_string.
+///
+/// # Safety
+///
+/// s must be a pointer originally created by to_c_string
+#[no_mangle]
+pub unsafe extern "C" fn free_c_string(s: *mut c_char) {
+    // retake pointer to free memory
+    let _ = CString::from_raw(s);
 }
 
 #[repr(C)]
@@ -1413,7 +1591,7 @@ impl From<CGOSharedDirectoryAnnounce> for SharedDirectoryAnnounce {
         unsafe {
             SharedDirectoryAnnounce {
                 directory_id: cgo.directory_id,
-                name: from_go_string(cgo.name),
+                name: from_c_string(cgo.name),
             }
         }
     }
@@ -1535,7 +1713,7 @@ impl From<CGOFileSystemObject> for FileSystemObject {
                 size: cgo_fso.size,
                 file_type: cgo_fso.file_type,
                 is_empty: cgo_fso.is_empty,
-                path: UnixPath::from(from_go_string(cgo_fso.path)),
+                path: UnixPath::from(from_c_string(cgo_fso.path)),
             }
         }
     }
@@ -1833,7 +2011,7 @@ pub struct CGOSharedDirectoryListRequest {
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.
 extern "C" {
-    fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOErrCode;
+    fn handle_png(client_ref: usize, b: *mut CGOPNG) -> CGOErrCode;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
 
     fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge)
@@ -1868,5 +2046,20 @@ extern "C" {
     ) -> CGOErrCode;
 }
 
-/// Payload is a generic type used to represent raw incoming RDP messages for parsing.
+/// Payload represents raw incoming RDP messages for parsing.
 pub(crate) type Payload = Cursor<Vec<u8>>;
+/// Message represents a raw outgoing RDP message to send to the RDP server.
+pub(crate) type Message = Vec<u8>;
+pub(crate) type Messages = Vec<Message>;
+
+/// Encode is an object that can be encoded for sending to the RDP server.
+pub(crate) trait Encode: std::fmt::Debug {
+    fn encode(&self) -> RdpResult<Message>;
+}
+
+/// This is the maximum size of an RDP message which we will accept
+/// over a virtual channel.
+///
+/// Note that this is not an RDP defined value, but rather one we've chosen
+/// in order to harden system security.
+const MAX_ALLOWED_VCHAN_MSG_SIZE: usize = 2 * 1024 * 1024; // 2MB

@@ -14,7 +14,7 @@ resource "aws_acm_certificate" "cert" {
     create_before_destroy = true
   }
   subject_alternative_names = [
-      "*.${var.route53_domain}"
+    "*.${var.route53_domain}"
   ]
 }
 

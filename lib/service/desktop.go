@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -41,9 +42,9 @@ func (process *TeleportProcess) initWindowsDesktopService() {
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentWindowsDesktop, process.id),
 	})
-	process.registerWithAuthServer(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
+	process.RegisterWithAuthServer(types.RoleWindowsDesktop, WindowsDesktopIdentityEvent)
 	process.RegisterCriticalFunc("windows_desktop.init", func() error {
-		conn, err := process.waitForConnector(WindowsDesktopIdentityEvent, log)
+		conn, err := process.WaitForConnector(WindowsDesktopIdentityEvent, log)
 		if conn == nil {
 			return trace.Wrap(err)
 		}
@@ -86,9 +87,9 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	// Filter out cases where both listen_addr and tunnel are set or both are
 	// not set.
 	case useTunnel && !cfg.WindowsDesktop.ListenAddr.IsEmpty():
-		return trace.BadParameter("either set windows_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.auth_servers to a proxy to dial out, but don't set both")
+		return trace.BadParameter("either set windows_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.proxy_server to a proxy to dial out, but don't set both")
 	case !useTunnel && cfg.WindowsDesktop.ListenAddr.IsEmpty():
-		return trace.BadParameter("set windows_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.auth_servers to a proxy to dial out")
+		return trace.BadParameter("set windows_desktop_service.listen_addr if this process can be reached from a teleport proxy or point teleport.proxy_server to a proxy to dial out")
 
 	// Start a local listener and let proxies dial in.
 	case !useTunnel && !cfg.WindowsDesktop.ListenAddr.IsEmpty():
@@ -150,7 +151,13 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 
 	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
-	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+		// Device authorization breaks browser-based access.
+		DisableDeviceAuthorization: true,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -212,9 +219,11 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			HostUUID:    cfg.HostUUID,
 			PublicAddr:  publicAddr,
 			StaticHosts: cfg.WindowsDesktop.Hosts,
+			NonADHosts:  cfg.WindowsDesktop.NonADHosts,
 			OnHeartbeat: process.onHeartbeat(teleport.ComponentWindowsDesktop),
 		},
-		LDAPConfig:                   desktop.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		ShowDesktopWallpaper:         cfg.WindowsDesktop.ShowDesktopWallpaper,
+		LDAPConfig:                   windows.LDAPConfig(cfg.WindowsDesktop.LDAP),
 		DiscoveryBaseDN:              cfg.WindowsDesktop.Discovery.BaseDN,
 		DiscoveryLDAPFilters:         cfg.WindowsDesktop.Discovery.Filters,
 		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,

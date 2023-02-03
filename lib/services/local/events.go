@@ -20,15 +20,15 @@ import (
 	"bytes"
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // EventsService implements service to watch for events
@@ -124,6 +124,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newKubeServiceParser()
 		case types.KindDatabaseServer:
 			parser = newDatabaseServerParser()
+		case types.KindDatabaseService:
+			parser = newDatabaseServiceParser()
 		case types.KindDatabase:
 			parser = newDatabaseParser()
 		case types.KindApp:
@@ -606,7 +608,7 @@ type roleParser struct {
 func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindRole, types.V3, 1)
+		return resourceHeader(event, types.KindRole, types.V6, 1)
 	case types.OpPut:
 		resource, err := services.UnmarshalRole(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
@@ -1032,6 +1034,31 @@ func (p *databaseServerParser) parse(event backend.Event) (types.Resource, error
 		}, nil
 	case types.OpPut:
 		return services.UnmarshalDatabaseServer(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newDatabaseServiceParser() *databaseServiceParser {
+	return &databaseServiceParser{
+		baseParser: newBaseParser(backend.Key(databaseServicePrefix)),
+	}
+}
+
+type databaseServiceParser struct {
+	baseParser
+}
+
+func (p *databaseServiceParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindDatabaseService, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalDatabaseService(
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),

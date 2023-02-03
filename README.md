@@ -1,7 +1,9 @@
 <div align="center">
-   <img src="./assets/img/readme-header.png" width=750/>
+   <a href="https://goteleport.com/download">
+   <img src="./assets/img/hero-teleport-platform.png" width=750/>
+   </a>
    <div align="center" style="padding: 25px">
-      <a href="https://goteleport.com/teleport/download">
+      <a href="https://goteleport.com/download">
       <img src="https://img.shields.io/github/v/release/gravitational/teleport?sort=semver&label=Release&color=651FFF" />
       </a>
       <a href="https://golang.org/">
@@ -87,7 +89,7 @@ implementation. It is _fully compatible with OpenSSH_,
 
 | Follow the [Installation](https://goteleport.com/docs/installation/) Guide
 
-Download the [latest binary release](https://goteleport.com/teleport/download),
+Download the [latest binary release](https://goteleport.com/download),
 unpack the .tar.gz and run `sudo ./install`. This will copy Teleport binaries into
 `/usr/local/bin`.
 
@@ -120,7 +122,7 @@ View latest tags on [Amazon ECR Public | gravitational/teleport](https://gallery
 
 Follow the instructions in the [docker/README](docker/README.md) file.
 
-To run a full test suite locally, see [the test dependecies list](BUILD_macos.md#local-tests-dependencies) 
+To run a full test suite locally, see [the test dependencies list](BUILD_macos.md#local-tests-dependencies) 
 
 ## Building Teleport
 
@@ -222,22 +224,19 @@ sudo chown $USER /var/lib/teleport
 
 ### Web UI
 
-The Teleport Web UI resides in the [Gravitational Webapps](https://github.com/gravitational/webapps) repo.
+The Teleport Web UI resides in the [web](web) directory.
 
 #### Rebuilding Web UI for development
 
-To clone this repository and rebuild the Teleport UI package, run the following commands:
+To rebuild the Teleport UI package, run the following command:
 
 ```bash
-git clone git@github.com:gravitational/webapps.git
-cd webapps
-make build-teleport
+make docker-ui
 ```
 
 Then you can replace Teleport Web UI files with the files from the newly-generated `/dist` folder.
 
-To enable speedy iterations on the Web UI, you can run a
-[local web-dev server](https://github.com/gravitational/webapps/tree/master/packages/teleport).
+To enable speedy iterations on the Web UI, you can run a [local web-dev server](web#web-ui).
 
 You can also tell Teleport to load the Web UI assets from the source directory.
 To enable this behavior, set the environment variable `DEBUG=1` and rebuild with the default target:
@@ -248,7 +247,7 @@ DEBUG=1 ./build/teleport start -d
 ```
 
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
-For instructions about how to update the Web UI, read [the `webapps` README](https://github.com/gravitational/webapps/blob/master/README.md) file.
+For instructions about how to update the Web UI, read [the `web` README](web#readme).
 
 #### Updating Web UI assets
 
@@ -332,19 +331,22 @@ We offer a few different options for support. First of all, we try to provide cl
 * If you want to contribute to Teleport or file a bug report/issue, you can create an issue here in Github.
 * If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://goteleport.com/pricing/) to arrange for a POC.
 
-## Is Teleport Secure and Production Ready?
+## Is Teleport Secure and Production-Ready?
 
-Teleport is used by leading companies to enable engineers to quickly access any
-computing resource anywhere. Teleport has completed several security audits from the nationally recognized technology security companies. We make some our audits public, view our latest [audit reports.](https://goteleport.com/resources/audits/).
-We are comfortable with the use of Teleport from a security perspective.
+Yes -- Teleport is production-ready and designed to protect and facilitate
+access to the most precious and mission critical applications.
+
+Teleport has completed several security audits from nationally and
+internationally recognized technology security companies. 
+
+We publicize some of our audit results, security philosophy and related
+information on our [trust page](https://trust.goteleport.com/).
 
 You can see the list of companies who use Teleport in production on the Teleport
 [product page](https://goteleport.com/case-study/).
 
-You can find the latest stable Teleport build on our [Releases](https://goteleport.com/teleport/download) page.
-
 ## Who Built Teleport?
 
-Teleport was created by [Gravitational Inc](https://goteleport.com). We have
+Teleport was created by [Gravitational, Inc.](https://goteleport.com). We have
 built Teleport by borrowing from our previous experiences at Rackspace. [Learn more
 about Teleport and our history](https://goteleport.com/about/).

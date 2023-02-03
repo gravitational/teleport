@@ -32,19 +32,26 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
-	"k8s.io/apimachinery/pkg/util/validation"
+)
+
+const (
+	teleportOSSPackageName = "teleport"
+	teleportEntPackageName = "teleport-ent"
 )
 
 // nodeJoinToken contains node token fields for the UI.
@@ -62,11 +69,12 @@ type nodeJoinToken struct {
 // scriptSettings is used to hold values which are passed into the function that
 // generates the join script.
 type scriptSettings struct {
-	token          string
-	appInstallMode bool
-	appName        string
-	appURI         string
-	joinMethod     string
+	token               string
+	appInstallMode      bool
+	appName             string
+	appURI              string
+	joinMethod          string
+	databaseInstallMode bool
 }
 
 func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -161,20 +169,6 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 	}, nil
 }
 
-func (h *Handler) createNodeTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	roles := types.SystemRoles{
-		types.RoleNode,
-		types.RoleApp,
-	}
-
-	return createJoinToken(r.Context(), clt, roles)
-}
-
 func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	scripts.SetScriptHeaders(w.Header())
 
@@ -241,21 +235,28 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 	return nil, nil
 }
 
-func createJoinToken(ctx context.Context, m nodeAPIGetter, roles types.SystemRoles) (*nodeJoinToken, error) {
-	req := &proto.GenerateTokenRequest{
-		Roles: roles,
-		TTL:   proto.Duration(defaults.NodeJoinTokenTTL),
+func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	scripts.SetScriptHeaders(w.Header())
+
+	settings := scriptSettings{
+		token:               params.ByName("token"),
+		databaseInstallMode: true,
 	}
 
-	token, err := m.GenerateToken(ctx, req)
+	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		log.WithError(err).Info("Failed to return the database install script.")
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
 	}
 
-	return &nodeJoinToken{
-		ID:     token,
-		Expiry: time.Now().UTC().Add(defaults.NodeJoinTokenTTL),
-	}, nil
+	w.WriteHeader(http.StatusOK)
+	if _, err := fmt.Fprintln(w, script); err != nil {
+		log.WithError(err).Debug("Failed to return the database install script.")
+		w.Write(scripts.ErrorBashScript)
+	}
+
+	return nil, nil
 }
 
 func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter) (string, error) {
@@ -292,7 +293,13 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	}
 
 	version := proxyServers[0].GetTeleportVersion()
-	hostname, portStr, err := utils.SplitHostPort(proxyServers[0].GetPublicAddr())
+
+	publicAddr := proxyServers[0].GetPublicAddr()
+	if publicAddr == "" {
+		return "", trace.Errorf("proxy public_addr is not set, you must set proxy_service.public_addr to the publicly reachable address of the proxy before you can generate a node join script")
+	}
+
+	hostname, portStr, err := utils.SplitHostPort(publicAddr)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -313,6 +320,15 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		labelsList = append(labelsList, fmt.Sprintf("%s=%s", labelKey, labels))
 	}
 
+	var dbServiceResourceLabels []string
+	if settings.databaseInstallMode {
+		suggestedAgentMatcherLabels := token.GetSuggestedAgentMatcherLabels()
+		dbServiceResourceLabels, err = scripts.MarshalLabelsYAML(suggestedAgentMatcherLabels, 6)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+	}
+
 	var buf bytes.Buffer
 	// If app install mode is requested but parameters are blank for some reason,
 	// we need to return an error.
@@ -324,9 +340,15 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 			return "", trace.BadParameter("appURI %q contains invalid characters", settings.appURI)
 		}
 	}
+
+	packageName := teleportOSSPackageName
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		packageName = teleportEntPackageName
+	}
+
 	// This section relies on Go's default zero values to make sure that the settings
 	// are correct when not installing an app.
-	err = scripts.InstallNodeBashScript.Execute(&buf, map[string]string{
+	err = scripts.InstallNodeBashScript.Execute(&buf, map[string]interface{}{
 		"token":    settings.token,
 		"hostname": hostname,
 		"port":     portStr,
@@ -335,14 +357,17 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		// version used space delimited values whereas the teleport command uses
 		// a comma delimeter. The Old version can be removed when the install.sh
 		// file has been completely converted over.
-		"caPinsOld":      strings.Join(caPins, " "),
-		"caPins":         strings.Join(caPins, ","),
-		"version":        version,
-		"appInstallMode": strconv.FormatBool(settings.appInstallMode),
-		"appName":        settings.appName,
-		"appURI":         settings.appURI,
-		"joinMethod":     settings.joinMethod,
-		"labels":         strings.Join(labelsList, ","),
+		"caPinsOld":                  strings.Join(caPins, " "),
+		"caPins":                     strings.Join(caPins, ","),
+		"packageName":                packageName,
+		"version":                    version,
+		"appInstallMode":             strconv.FormatBool(settings.appInstallMode),
+		"appName":                    settings.appName,
+		"appURI":                     settings.appURI,
+		"joinMethod":                 settings.joinMethod,
+		"labels":                     strings.Join(labelsList, ","),
+		"databaseInstallMode":        strconv.FormatBool(settings.databaseInstallMode),
+		"db_service_resource_labels": dbServiceResourceLabels,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -395,15 +420,6 @@ func isSameRuleSet(r1 []*types.TokenRule, r2 []*types.TokenRule) bool {
 }
 
 type nodeAPIGetter interface {
-	// GenerateToken creates a special provisioning token for a new SSH server.
-	//
-	// This token is used by SSH server to authenticate with Auth server
-	// and get a signed certificate.
-	//
-	// If token is not supplied, it will be auto generated and returned.
-	// If TTL is not supplied, token will be valid until removed.
-	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
-
 	// GetToken looks up a provisioning token.
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
 

@@ -21,14 +21,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -60,6 +60,11 @@ func CompareServers(a, b types.Resource) int {
 	if dbA, ok := a.(types.DatabaseServer); ok {
 		if dbB, ok := b.(types.DatabaseServer); ok {
 			return compareDatabaseServers(dbA, dbB)
+		}
+	}
+	if dbServiceA, ok := a.(types.DatabaseService); ok {
+		if dbServiceB, ok := b.(types.DatabaseService); ok {
+			return compareDatabaseServices(dbServiceA, dbServiceB)
 		}
 	}
 	if winA, ok := a.(types.WindowsDesktopService); ok {
@@ -145,6 +150,25 @@ func compareApplicationServers(a, b types.AppServer) int {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
+	}
+	return Equal
+}
+
+func compareDatabaseServices(a, b types.DatabaseService) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
+	if a.GetName() != b.GetName() {
+		return Different
+	}
+	if a.GetNamespace() != b.GetNamespace() {
+		return Different
+	}
+	if !cmp.Equal(a.GetResourceMatchers(), b.GetResourceMatchers()) {
+		return Different
+	}
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
 	}

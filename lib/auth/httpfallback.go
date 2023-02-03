@@ -18,154 +18,46 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
-	"net/url"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
 // httpfallback.go holds endpoints that have been converted to gRPC
 // but still need http fallback logic in the old client.
 
-// GetDomainName returns local auth domain of the current auth server
-// DELETE IN 11.0.0
-func (c *Client) GetDomainName(ctx context.Context) (string, error) {
-	if resp, err := c.APIClient.GetDomainName(ctx); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return "", trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	out, err := c.Get(ctx, c.Endpoint("domain"), url.Values{})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var domain string
-	if err := json.Unmarshal(out.Bytes(), &domain); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return domain, nil
+// DELETE IN 13.0.0
+type legacyChangePasswordReq struct {
+	// User is user ID
+	User string
+	// OldPassword is user current password
+	OldPassword []byte `json:"old_password"`
+	// NewPassword is user new password
+	NewPassword []byte `json:"new_password"`
+	// SecondFactorToken is user 2nd factor token
+	SecondFactorToken string `json:"second_factor_token"`
+	// WebauthnResponse is Webauthn sign response
+	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response"`
 }
 
-// GetClusterCACert returns the PEM-encoded TLS certs for the local cluster. If
-// the cluster has multiple TLS certs, they will all be concatenated.
-// DELETE IN 11.0.0
-func (c *Client) GetClusterCACert(ctx context.Context) (*proto.GetClusterCACertResponse, error) {
-	if resp, err := c.APIClient.GetClusterCACert(ctx); err != nil {
+// ChangePassword updates users password based on the old password.
+// REMOVE IN 13.0.0
+func (c *Client) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error {
+	if err := c.APIClient.ChangePassword(ctx, req); err != nil {
 		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	} else {
-		return resp, nil
-	}
-	out, err := c.Get(context.TODO(), c.Endpoint("cacert"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var localCA deprecatedLocalCAResponse
-	if err := json.Unmarshal(out.Bytes(), &localCA); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &proto.GetClusterCACertResponse{
-		TLSCA: localCA.TLSCA,
-	}, nil
-}
-
-// DELETE IN 11.0.0, to remove fallback and grpc call is already defined in api/client/client.go
-//
-// GenerateToken generates a new auth token for the given service roles.
-// This token can be used by corresponding services to authenticate with
-// the Auth server and get a signed certificate and private key.
-func (c *Client) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-	switch resp, err := c.APIClient.GenerateToken(ctx, req); {
-	case err == nil:
-		return resp, nil
-	case !trace.IsNotImplemented(err):
-		return "", trace.Wrap(err)
+		return nil
 	}
 
-	out, err := c.PostJSON(ctx, c.Endpoint("tokens"), req)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var token string
-	if err := json.Unmarshal(out.Bytes(), &token); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return token, nil
-}
-
-// CreateOIDCAuthRequest creates OIDCAuthRequest.
-// DELETE IN 11.0.0
-func (c *Client) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
-	if resp, err := c.APIClient.CreateOIDCAuthRequest(ctx, req); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	out, err := c.PostJSON(ctx, c.Endpoint("oidc", "requests", "create"), createOIDCAuthRequestReq{
-		Req: req,
+	_, err := c.PutJSON(ctx, c.Endpoint("users", req.User, "web", "password"), legacyChangePasswordReq{
+		OldPassword:       req.OldPassword,
+		NewPassword:       req.NewPassword,
+		SecondFactorToken: req.SecondFactorToken,
+		WebauthnResponse:  wanlib.CredentialAssertionResponseFromProto(req.Webauthn),
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response *types.OIDCAuthRequest
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
-}
-
-// CreateSAMLAuthRequest creates SAMLAuthRequest.
-// DELETE IN 11.0.0
-func (c *Client) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
-	if resp, err := c.APIClient.CreateSAMLAuthRequest(ctx, req); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	out, err := c.PostJSON(ctx, c.Endpoint("saml", "requests", "create"), createSAMLAuthRequestReq{
-		Req: req,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response *types.SAMLAuthRequest
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response, nil
-}
-
-// CreateGithubAuthRequest creates GithubAuthRequest.
-// DELETE IN 11.0.0
-func (c *Client) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
-	if resp, err := c.APIClient.CreateGithubAuthRequest(ctx, req); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		return resp, nil
-	}
-
-	out, err := c.PostJSON(ctx, c.Endpoint("github", "requests", "create"),
-		createGithubAuthRequestReq{Req: req})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var response types.GithubAuthRequest
-	if err := json.Unmarshal(out.Bytes(), &response); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &response, nil
+	return trace.Wrap(err)
 }

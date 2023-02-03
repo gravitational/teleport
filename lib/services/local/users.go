@@ -19,25 +19,30 @@ package local
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"sort"
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
-
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // GlobalSessionDataMaxEntries represents the maximum number of in-flight
@@ -988,17 +993,16 @@ func (s *IdentityService) CreateOIDCAuthRequest(ctx context.Context, req types.O
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := json.Marshal(req)
-	if err != nil {
+	buf := new(bytes.Buffer)
+	if err := (&jsonpb.Marshaler{}).Marshal(buf, &req); err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, requestsPrefix, req.StateToken),
-		Value:   value,
+		Value:   buf.Bytes(),
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
-	_, err = s.Create(ctx, item)
-	if err != nil {
+	if _, err := s.Create(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1013,16 +1017,16 @@ func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken str
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req types.OIDCAuthRequest
-	if err := json.Unmarshal(item.Value, &req); err != nil {
+	req := new(types.OIDCAuthRequest)
+	if err := jsonpb.Unmarshal(bytes.NewReader(item.Value), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &req, nil
+	return req, nil
 }
 
 // UpsertSAMLConnector upserts SAML Connector
 func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	if err := services.ValidateSAMLConnector(connector); err != nil {
+	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalSAMLConnector(connector)
@@ -1110,17 +1114,16 @@ func (s *IdentityService) CreateSAMLAuthRequest(ctx context.Context, req types.S
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := json.Marshal(req)
-	if err != nil {
+	buf := new(bytes.Buffer)
+	if err := (&jsonpb.Marshaler{}).Marshal(buf, &req); err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsPrefix, req.ID),
-		Value:   value,
+		Value:   buf.Bytes(),
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
-	_, err = s.Create(ctx, item)
-	if err != nil {
+	if _, err := s.Create(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1135,11 +1138,11 @@ func (s *IdentityService) GetSAMLAuthRequest(ctx context.Context, id string) (*t
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req types.SAMLAuthRequest
-	if err := json.Unmarshal(item.Value, &req); err != nil {
+	req := new(types.SAMLAuthRequest)
+	if err := jsonpb.Unmarshal(bytes.NewReader(item.Value), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &req, nil
+	return req, nil
 }
 
 // CreateSSODiagnosticInfo creates new SAML diagnostic info record.
@@ -1273,21 +1276,19 @@ func (s *IdentityService) DeleteGithubConnector(ctx context.Context, name string
 
 // CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow
 func (s *IdentityService) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) error {
-	err := req.Check()
-	if err != nil {
+	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := json.Marshal(req)
-	if err != nil {
+	buf := new(bytes.Buffer)
+	if err := (&jsonpb.Marshaler{}).Marshal(buf, &req); err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, req.StateToken),
-		Value:   value,
+		Value:   buf.Bytes(),
 		Expires: req.Expiry(),
 	}
-	_, err = s.Create(ctx, item)
-	if err != nil {
+	if _, err := s.Create(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1302,12 +1303,11 @@ func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req types.GithubAuthRequest
-	err = json.Unmarshal(item.Value, &req)
-	if err != nil {
+	req := new(types.GithubAuthRequest)
+	if err := jsonpb.Unmarshal(bytes.NewReader(item.Value), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &req, nil
+	return req, nil
 }
 
 // GetRecoveryCodes returns user's recovery codes.
@@ -1435,6 +1435,86 @@ func (s recoveryAttemptsChronologically) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
+// UpsertKeyAttestationData upserts a verified public key attestation response.
+func (s *IdentityService) UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error {
+	value, err := json.Marshal(attestationData)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// validate public key.
+	if _, err := x509.ParsePKIXPublicKey(attestationData.PublicKeyDER); err != nil {
+		return trace.Wrap(err)
+	}
+
+	key := keyAttestationDataFingerprint(attestationData.PublicKeyDER)
+	item := backend.Item{
+		Key:     backend.Key(attestationsPrefix, key),
+		Value:   value,
+		Expires: s.Clock().Now().UTC().Add(ttl),
+	}
+	_, err = s.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetKeyAttestationData gets a verified public key attestation response.
+func (s *IdentityService) GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error) {
+	if publicKey == nil {
+		return nil, trace.BadParameter("missing parameter publicKey")
+	}
+
+	pubDER, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key := keyAttestationDataFingerprint(pubDER)
+	item, err := s.Get(ctx, backend.Key(attestationsPrefix, key))
+
+	// Fallback to old fingerprint (std base64 encoded ssh public key) for backwards compatibility.
+	// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
+	if trace.IsNotFound(err) {
+		key, err = KeyAttestationDataFingerprintV11(publicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		item, err = s.Get(ctx, backend.Key(attestationsPrefix, key))
+	}
+
+	if trace.IsNotFound(err) {
+		return nil, trace.NotFound("hardware key attestation not found")
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var resp keys.AttestationData
+	if err := json.Unmarshal(item.Value, &resp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &resp, nil
+}
+
+func keyAttestationDataFingerprint(pubDER []byte) string {
+	sha256sum := sha256.Sum256(pubDER)
+	encodedSHA := base64.RawURLEncoding.EncodeToString(sha256sum[:])
+	return encodedSHA
+}
+
+// KeyAttestationDataFingerprintV11 creates a "KeyAttestationData" fingerprint
+// compatible with older patches of Teleport v11.
+// Exposed for testing, do not use this function directly.
+// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
+func KeyAttestationDataFingerprintV11(pub crypto.PublicKey) (string, error) {
+	sshPub, err := ssh.NewPublicKey(pub)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return ssh.FingerprintSHA256(sshPub), nil
+}
+
 const (
 	webPrefix                 = "web"
 	usersPrefix               = "users"
@@ -1456,4 +1536,5 @@ const (
 	webauthnSessionData       = "webauthnsessiondata"
 	recoveryCodesPrefix       = "recoverycodes"
 	recoveryAttemptsPrefix    = "recoveryattempts"
+	attestationsPrefix        = "key_attestations"
 )

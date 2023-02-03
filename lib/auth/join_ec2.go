@@ -24,13 +24,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
@@ -38,8 +31,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.mozilla.org/pkcs7"
+	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type ec2Client interface {
@@ -76,7 +75,7 @@ func checkEC2AllowRules(ctx context.Context, iid *imds.InstanceIdentityDocument,
 		}
 		// if this rule specifies any AWS regions, the IID must match one of them
 		if len(rule.AWSRegions) > 0 {
-			if !apiutils.SliceContainsStr(rule.AWSRegions, iid.Region) {
+			if !slices.Contains(rule.AWSRegions, iid.Region) {
 				continue
 			}
 		}

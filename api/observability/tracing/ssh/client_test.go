@@ -38,6 +38,7 @@ func TestIsTracingSupported(t *testing.T) {
 	cases := []struct {
 		name               string
 		channelErr         *ssh.OpenChannelError
+		srvVersion         string
 		expectedCapability tracingCapability
 		errAssertion       require.ErrorAssertionFunc
 	}{
@@ -60,6 +61,13 @@ func TestIsTracingSupported(t *testing.T) {
 			name:               "supported",
 			channelErr:         nil,
 			expectedCapability: tracingSupported,
+			errAssertion:       require.NoError,
+		},
+		{
+			name:               "no backend support",
+			channelErr:         nil,
+			expectedCapability: tracingUnsupported,
+			srvVersion:         "SSH-2.0-OpenSSH_7.4", // Only Teleport supports tracing
 			errAssertion:       require.NoError,
 		},
 		{
@@ -105,6 +113,10 @@ func TestIsTracingSupported(t *testing.T) {
 					}
 				}
 			})
+
+			if tt.srvVersion != "" {
+				srv.config.ServerVersion = tt.srvVersion
+			}
 
 			go srv.Run(errChan)
 

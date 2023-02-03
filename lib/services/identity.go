@@ -22,14 +22,16 @@ package services
 
 import (
 	"context"
+	"crypto"
 	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gravitational/trace"
 )
 
 // UserGetter is responsible for getting users
@@ -249,6 +251,12 @@ type Identity interface {
 	// DeleteUserRecoveryAttempts removes all recovery attempts of a user.
 	DeleteUserRecoveryAttempts(ctx context.Context, user string) error
 
+	// UpsertKeyAttestationData upserts a verified public key attestation response.
+	UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error
+
+	// GetKeyAttestationData gets a verified public key attestation response.
+	GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error)
+
 	types.WebSessionsGetter
 	types.WebTokensGetter
 
@@ -264,6 +272,8 @@ type AppSession interface {
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 	// GetAppSessions gets all application web sessions.
 	GetAppSessions(context.Context) ([]types.WebSession, error)
+	// ListAppSessions gets a paginated list of application web sessions.
+	ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
 	// UpsertAppSession upserts an application web session.
 	UpsertAppSession(context.Context, types.WebSession) error
 	// DeleteAppSession removes an application web session.

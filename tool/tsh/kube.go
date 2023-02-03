@@ -27,23 +27,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	dockerterm "github.com/moby/term"
+	"golang.org/x/exp/slices"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -61,6 +49,18 @@ import (
 	"k8s.io/kubectl/pkg/polymorphichelpers"
 	"k8s.io/kubectl/pkg/scheme"
 	"k8s.io/kubectl/pkg/util/term"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type kubeCommands struct {
@@ -73,7 +73,7 @@ type kubeCommands struct {
 }
 
 func newKubeCommand(app *kingpin.Application) kubeCommands {
-	kube := app.Command("kube", "Manage available kubernetes clusters")
+	kube := app.Command("kube", "Manage available Kubernetes clusters")
 	cmds := kubeCommands{
 		credentials: newKubeCredentialsCommand(kube),
 		ls:          newKubeLSCommand(kube),
@@ -109,10 +109,7 @@ func (c *kubeJoinCommand) getSessionMeta(ctx context.Context, tc *client.Telepor
 		return nil, trace.Wrap(err)
 	}
 
-	site, err := proxy.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	site := proxy.CurrentCluster()
 
 	return site.GetSessionTracker(ctx, c.session)
 }
@@ -160,7 +157,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 				k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 					RouteToCluster:    cluster,
 					KubernetesCluster: kubeCluster,
-				})
+				}, nil /*applyOpts*/)
 
 				return trace.Wrap(err)
 			})
@@ -184,7 +181,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 
 	if tc.KubeProxyAddr == "" {
 		// Kubernetes support disabled, don't touch kubeconfig.
-		return trace.AccessDenied("this cluster does not support kubernetes")
+		return trace.AccessDenied("this cluster does not support Kubernetes")
 	}
 
 	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
@@ -210,18 +207,18 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 
 // RemoteExecutor defines the interface accepted by the Exec command - provided for test stubbing
 type RemoteExecutor interface {
-	Execute(method string, url *url.URL, config *restclient.Config, stdin io.Reader, stdout, stderr io.Writer, tty bool, terminalSizeQueue remotecommand.TerminalSizeQueue) error
+	Execute(ctx context.Context, method string, url *url.URL, config *restclient.Config, stdin io.Reader, stdout, stderr io.Writer, tty bool, terminalSizeQueue remotecommand.TerminalSizeQueue) error
 }
 
 // DefaultRemoteExecutor is the standard implementation of remote command execution
 type DefaultRemoteExecutor struct{}
 
-func (*DefaultRemoteExecutor) Execute(method string, url *url.URL, config *restclient.Config, stdin io.Reader, stdout, stderr io.Writer, tty bool, terminalSizeQueue remotecommand.TerminalSizeQueue) error {
+func (*DefaultRemoteExecutor) Execute(ctx context.Context, method string, url *url.URL, config *restclient.Config, stdin io.Reader, stdout, stderr io.Writer, tty bool, terminalSizeQueue remotecommand.TerminalSizeQueue) error {
 	exec, err := remotecommand.NewSPDYExecutor(config, method, url)
 	if err != nil {
 		return err
 	}
-	return exec.Stream(remotecommand.StreamOptions{
+	return exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdin:             stdin,
 		Stdout:            stdout,
 		Stderr:            stderr,
@@ -318,10 +315,10 @@ type ExecOptions struct {
 }
 
 // Run executes a validated remote execution against a pod.
-func (p *ExecOptions) Run() error {
+func (p *ExecOptions) Run(ctx context.Context) error {
 	var err error
 	if len(p.PodName) != 0 {
-		p.Pod, err = p.PodClient.Pods(p.Namespace).Get(context.TODO(), p.PodName, metav1.GetOptions{})
+		p.Pod, err = p.PodClient.Pods(p.Namespace).Get(ctx, p.PodName, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -394,7 +391,7 @@ func (p *ExecOptions) Run() error {
 			TTY:       t.Raw,
 		}, scheme.ParameterCodec)
 
-		return p.Executor.Execute("POST", req.URL(), p.Config, p.In, p.Out, p.ErrOut, t.Raw, sizeQueue)
+		return p.Executor.Execute(ctx, "POST", req.URL(), p.Config, p.In, p.Out, p.ErrOut, t.Raw, sizeQueue)
 	}
 
 	return trace.Wrap(t.Safe(fn))
@@ -416,7 +413,7 @@ type kubeExecCommand struct {
 
 func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 	c := &kubeExecCommand{
-		CmdClause: parent.Command("exec", "Execute a command in a kubernetes pod"),
+		CmdClause: parent.Command("exec", "Execute a command in a Kubernetes pod"),
 	}
 
 	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen").Short('c').StringVar(&c.container)
@@ -472,7 +469,7 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 	}
 
 	p.PodClient = clientset.CoreV1()
-	return trace.Wrap(p.Run())
+	return trace.Wrap(p.Run(cf.Context))
 }
 
 type kubeSessionsCommand struct {
@@ -482,7 +479,7 @@ type kubeSessionsCommand struct {
 
 func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 	c := &kubeSessionsCommand{
-		CmdClause: parent.Command("sessions", "Get a list of active kubernetes sessions."),
+		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions."),
 	}
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
 
@@ -500,11 +497,7 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	site, err := proxy.ConnectToCurrentCluster(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+	site := proxy.CurrentCluster()
 	sessions, err := site.GetActiveSessionTrackers(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
@@ -524,13 +517,13 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 	format := strings.ToLower(c.format)
 	switch format {
 	case teleport.Text, "":
-		printSessions(filteredSessions)
+		printSessions(cf.Stdout(), filteredSessions)
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeKubeSessions(sessions, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", c.format)
 	}
@@ -548,14 +541,14 @@ func serializeKubeSessions(sessions []types.SessionTracker, format string) (stri
 	return string(out), trace.Wrap(err)
 }
 
-func printSessions(sessions []types.SessionTracker) {
+func printSessions(output io.Writer, sessions []types.SessionTracker) {
 	table := asciitable.MakeTable([]string{"ID", "State", "Created", "Hostname", "Address", "Login", "Reason"})
 	for _, s := range sessions {
 		table.AddRow([]string{s.GetSessionID(), s.GetState().String(), s.GetCreated().Format(time.RFC3339), s.GetHostname(), s.GetAddress(), s.GetLogin(), s.GetReason()})
 	}
 
-	output := table.AsBuffer().String()
-	fmt.Println(output)
+	tableOutput := table.AsBuffer().String()
+	fmt.Fprintln(output, tableOutput)
 }
 
 type kubeCredentialsCommand struct {
@@ -571,7 +564,7 @@ func newKubeCredentialsCommand(parent *kingpin.CmdClause) *kubeCredentialsComman
 		CmdClause: parent.Command("credentials", "Get credentials for kubectl access").Hidden(),
 	}
 	c.Flag("teleport-cluster", "Name of the teleport cluster to get credentials for.").Required().StringVar(&c.teleportCluster)
-	c.Flag("kube-cluster", "Name of the kubernetes cluster to get credentials for.").Required().StringVar(&c.kubeCluster)
+	c.Flag("kube-cluster", "Name of the Kubernetes cluster to get credentials for.").Required().StringVar(&c.kubeCluster)
 	return c
 }
 
@@ -594,20 +587,20 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
-			log.Debugf("Re-using existing TLS cert for kubernetes cluster %q", c.kubeCluster)
-			return c.writeResponse(k, c.kubeCluster)
+			log.Debugf("Re-using existing TLS cert for Kubernetes cluster %q", c.kubeCluster)
+			return c.writeResponse(cf.Stdout(), k, c.kubeCluster)
 		}
 		// Otherwise, cert for this k8s cluster is missing or expired. Request
 		// a new one.
 	}
 
-	log.Debugf("Requesting TLS cert for kubernetes cluster %q", c.kubeCluster)
+	log.Debugf("Requesting TLS cert for Kubernetes cluster %q", c.kubeCluster)
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		var err error
 		k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 			RouteToCluster:    c.teleportCluster,
 			KubernetesCluster: c.kubeCluster,
-		})
+		}, nil /*applyOpts*/)
 		return err
 	})
 	if err != nil {
@@ -619,10 +612,10 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	return c.writeResponse(k, c.kubeCluster)
+	return c.writeResponse(cf.Stdout(), k, c.kubeCluster)
 }
 
-func (c *kubeCredentialsCommand) writeResponse(key *client.Key, kubeClusterName string) error {
+func (c *kubeCredentialsCommand) writeResponse(output io.Writer, key *client.Key, kubeClusterName string) error {
 	crt, err := key.KubeTLSCertificate(kubeClusterName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -651,7 +644,7 @@ func (c *kubeCredentialsCommand) writeResponse(key *client.Key, kubeClusterName 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Println(string(data))
+	fmt.Fprintln(output, string(data))
 	return nil
 }
 
@@ -663,18 +656,22 @@ type kubeLSCommand struct {
 	format         string
 	listAll        bool
 	siteName       string
+	verbose        bool
+	quiet          bool
 }
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c := &kubeLSCommand{
-		CmdClause: parent.Command("ls", "Get a list of kubernetes clusters"),
+		CmdClause: parent.Command("ls", "Get a list of Kubernetes clusters"),
 	}
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpr)
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
-	c.Flag("all", "List kubernetes clusters from all clusters and proxies.").Short('R').BoolVar(&c.listAll)
+	c.Flag("all", "List Kubernetes clusters from all clusters and proxies.").Short('R').BoolVar(&c.listAll)
 	c.Arg("labels", labelHelp).StringVar(&c.labels)
+	c.Flag("verbose", "Show an untruncated list of labels.").Short('v').BoolVar(&c.verbose)
+	c.Flag("quiet", "Quiet mode.").Short('q').BoolVar(&c.quiet)
 	return c
 }
 
@@ -739,27 +736,37 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	format := strings.ToLower(c.format)
 	switch format {
 	case teleport.Text, "":
-		var t asciitable.Table
-		if cf.Quiet {
-			t = asciitable.MakeHeadlessTable(2)
-		} else {
-			t = asciitable.MakeTable([]string{"Kube Cluster Name", "Labels", "Selected"})
-		}
+		var (
+			t       asciitable.Table
+			columns = []string{"Kube Cluster Name", "Labels", "Selected"}
+			rows    [][]string
+		)
+
 		for _, cluster := range kubeClusters {
 			var selectedMark string
 			if cluster.GetName() == selectedCluster {
 				selectedMark = "*"
 			}
-
-			t.AddRow([]string{cluster.GetName(), formatKubeLabels(cluster), selectedMark})
+			rows = append(rows, []string{cluster.GetName(), formatKubeLabels(cluster), selectedMark})
 		}
-		fmt.Println(t.AsBuffer().String())
+
+		if c.quiet {
+			t = asciitable.MakeHeadlessTable(2)
+			for _, row := range rows {
+				t.AddRow(row[:2])
+			}
+		} else if c.verbose {
+			t = asciitable.MakeTable(columns, rows...)
+		} else {
+			t = asciitable.MakeTableWithTruncatedColumn(columns, rows, "Labels")
+		}
+		fmt.Fprintln(cf.Stdout(), t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeKubeClusters(kubeClusters, selectedCluster, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
@@ -839,13 +846,13 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 		for _, listing := range listings {
 			t.AddRow([]string{listing.Proxy, listing.Cluster, listing.KubeCluster.GetName(), formatKubeLabels(listing.KubeCluster)})
 		}
-		fmt.Println(t.AsBuffer().String())
+		fmt.Fprintln(cf.Stdout(), t.AsBuffer().String())
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeKubeListings(listings, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprintln(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("Unrecognized format %q", c.format)
 	}
@@ -875,16 +882,25 @@ func selectedKubeCluster(currentTeleportCluster string) string {
 
 type kubeLoginCommand struct {
 	*kingpin.CmdClause
-	kubeCluster string
-	siteName    string
+	kubeCluster       string
+	siteName          string
+	impersonateUser   string
+	impersonateGroups []string
+	namespace         string
+	all               bool
 }
 
 func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c := &kubeLoginCommand{
-		CmdClause: parent.Command("login", "Login to a kubernetes cluster"),
+		CmdClause: parent.Command("login", "Login to a Kubernetes cluster"),
 	}
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
-	c.Arg("kube-cluster", "Name of the kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
+	c.Arg("kube-cluster", "Name of the Kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
+	c.Flag("as", "Configure custom Kubernetes user impersonation.").StringVar(&c.impersonateUser)
+	c.Flag("as-groups", "Configure custom Kubernetes group impersonation.").StringsVar(&c.impersonateGroups)
+	// TODO (tigrato): move this back to namespace once teleport drops the namespace flag.
+	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
+	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to.").BoolVar(&c.all)
 	return c
 }
 
@@ -892,6 +908,13 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	// Set CLIConf.KubernetesCluster so that the kube cluster's context is automatically selected.
 	cf.KubernetesCluster = c.kubeCluster
 	cf.SiteName = c.siteName
+	cf.kubernetesImpersonationConfig = impersonationConfig{
+		kubernetesUser:   c.impersonateUser,
+		kubernetesGroups: c.impersonateGroups,
+	}
+	cf.kubeNamespace = c.namespace
+	cf.ListAll = c.all
+
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -902,24 +925,14 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	clusterNames := kubeClustersToStrings(kubeClusters)
-	if !apiutils.SliceContainsStr(clusterNames, c.kubeCluster) {
+	if !slices.Contains(clusterNames, c.kubeCluster) {
 		return trace.NotFound("kubernetes cluster %q not found, check 'tsh kube ls' for a list of known clusters", c.kubeCluster)
 	}
 
-	// Try updating the active kubeconfig context.
-	if err := kubeconfig.SelectContext(currentTeleportCluster, c.kubeCluster); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		// We know that this kube cluster exists from the API, but there isn't
-		// a context for it in the current kubeconfig. This is probably a new
-		// cluster, added after the last 'tsh login'.
-		//
-		// Re-generate kubeconfig contexts and try selecting this kube cluster
-		// again.
-		if err := updateKubeConfig(cf, tc, ""); err != nil {
-			return trace.Wrap(err)
-		}
+	// Update default kubeconfig file located at ~/.kube/config or the value of
+	// KUBECONFIG env var even if the context exists.
+	if err := updateKubeConfig(cf, tc, ""); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Generate a profile specific kubeconfig which can be used
@@ -931,7 +944,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Logged into kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
+	fmt.Printf("Logged into Kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
 	return nil
 }
 
@@ -942,36 +955,17 @@ func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleport
 			return trace.Wrap(err)
 		}
 		defer pc.Close()
-		ac, err := pc.ConnectToCurrentCluster(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+
+		ac := pc.CurrentCluster()
 		defer ac.Close()
 
-		cn, err := ac.GetClusterName()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		teleportCluster = cn.GetClusterName()
-
+		teleportCluster = pc.ClusterName()
 		kubeClusters, err = kubeutils.ListKubeClustersWithFilters(ctx, ac, proto.ListResourcesRequest{
 			SearchKeywords:      tc.SearchKeywords,
 			PredicateExpression: tc.PredicateExpression,
 			Labels:              tc.Labels,
 		})
 		if err != nil {
-			// ListResources for kube service not available, provide fallback.
-			// Fallback does not support filters, so if users
-			// provide them, it does nothing.
-			//
-			// DELETE IN 11.0.0
-			if trace.IsNotImplemented(err) {
-				kubeClusters, err = kubeutils.KubeClusters(ctx, ac)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				return nil
-			}
 			return trace.Wrap(err)
 		}
 
@@ -1033,6 +1027,11 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		Credentials:         kubeStatus.credentials,
 		ProxyAddr:           cf.Proxy,
 		TLSServerName:       kubeStatus.tlsServerName,
+		Impersonate:         cf.kubernetesImpersonationConfig.kubernetesUser,
+		ImpersonateGroups:   cf.kubernetesImpersonationConfig.kubernetesGroups,
+		Namespace:           cf.kubeNamespace,
+		// Only switch the current context if kube-cluster is explicitly set on the command line.
+		SelectCluster: cf.KubernetesCluster,
 	}
 
 	if cf.executablePath == "" {
@@ -1049,10 +1048,20 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 	}
 
 	clusterNames := kubeClustersToStrings(kubeStatus.kubeClusters)
+
+	// Validate if cf.KubernetesCluster is part of the returned list of clusters
+	if cf.KubernetesCluster != "" && !slices.Contains(clusterNames, cf.KubernetesCluster) {
+		return nil, trace.NotFound("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
+	}
+	// If ListAll is not enabled, update only cf.KubernetesCluster cluster.
+	if cf.KubernetesCluster != "" && !cf.ListAll {
+		clusterNames = []string{cf.KubernetesCluster}
+	}
+
+	v.KubeClusters = clusterNames
 	v.Exec = &kubeconfig.ExecValues{
 		TshBinaryPath:     cf.executablePath,
 		TshBinaryInsecure: cf.InsecureSkipVerify,
-		KubeClusters:      clusterNames,
 		Env:               make(map[string]string),
 	}
 
@@ -1060,14 +1069,15 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		v.Exec.Env[types.HomeEnvVar] = cf.HomePath
 	}
 
-	// Only switch the current context if kube-cluster is explicitly set on the command line.
-	if cf.KubernetesCluster != "" {
-		if !apiutils.SliceContainsStr(clusterNames, cf.KubernetesCluster) {
-			return nil, trace.BadParameter("Kubernetes cluster %q is not registered in this Teleport cluster; you can list registered Kubernetes clusters using 'tsh kube ls'.", cf.KubernetesCluster)
-		}
-		v.Exec.SelectCluster = cf.KubernetesCluster
-	}
 	return v, nil
+}
+
+// impersonationConfig allows to configure custom kubernetes impersonation values.
+type impersonationConfig struct {
+	// kubernetesUser specifies the kubernetes user to impersonate request as.
+	kubernetesUser string
+	// kubernetesGroups specifies the kubernetes groups to impersonate request as.
+	kubernetesGroups []string
 }
 
 // updateKubeConfig adds Teleport configuration to the users's kubeconfig based on the CLI
@@ -1093,9 +1103,7 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 		return trace.Wrap(err)
 	}
 
-	if path == "" {
-		path = kubeconfig.PathFromEnv()
-	}
+	path = getKubeConfigPath(cf, path)
 
 	// If this is a profile specific kubeconfig, we only need
 	// to put the selected kube cluster into the kubeconfig.
@@ -1107,10 +1115,21 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 		if !strings.Contains(path, cf.KubernetesCluster) {
 			return trace.BadParameter("profile specific kubeconfig is in use, run 'eval $(tsh env --unset)' to switch contexts to another kube cluster")
 		}
-		values.Exec.KubeClusters = []string{cf.KubernetesCluster}
+		values.KubeClusters = []string{cf.KubernetesCluster}
 	}
 
-	return trace.Wrap(kubeconfig.Update(path, *values))
+	return trace.Wrap(kubeconfig.Update(path, *values, tc.LoadAllCAs))
+}
+
+func getKubeConfigPath(cf *CLIConf, path string) string {
+	// cf.kubeConfigPath is used in tests to allow Teleport to run tsh login commands
+	// in parallel. If defined, it should take precedence over kubeconfig.PathFromEnv().
+	if path == "" && cf.kubeConfigPath != "" {
+		path = cf.kubeConfigPath
+	} else if path == "" {
+		path = kubeconfig.PathFromEnv()
+	}
+	return path
 }
 
 // Required magic boilerplate to use the k8s encoder.

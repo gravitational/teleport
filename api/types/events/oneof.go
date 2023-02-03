@@ -203,6 +203,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionRequest{
 			AppSessionRequest: e,
 		}
+	case *AppSessionDynamoDBRequest:
+		out.Event = &OneOf_AppSessionDynamoDBRequest{
+			AppSessionDynamoDBRequest: e,
+		}
 	case *AppCreate:
 		out.Event = &OneOf_AppCreate{
 			AppCreate: e,
@@ -270,6 +274,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *MFADeviceDelete:
 		out.Event = &OneOf_MFADeviceDelete{
 			MFADeviceDelete: e,
+		}
+	case *DeviceEvent:
+		out.Event = &OneOf_DeviceEvent{
+			DeviceEvent: e,
 		}
 	case *BillingCardCreate:
 		out.Event = &OneOf_BillingCardCreate{
@@ -395,6 +403,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_ElasticsearchRequest{
 			ElasticsearchRequest: e,
 		}
+	case *DynamoDBRequest:
+		out.Event = &OneOf_DynamoDBRequest{
+			DynamoDBRequest: e,
+		}
 	case *DatabaseSessionMalformedPacket:
 		out.Event = &OneOf_DatabaseSessionMalformedPacket{
 			DatabaseSessionMalformedPacket: e,
@@ -423,6 +435,22 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_Unknown{
 			Unknown: e,
 		}
+	case *CassandraBatch:
+		out.Event = &OneOf_CassandraBatch{
+			CassandraBatch: e,
+		}
+	case *CassandraPrepare:
+		out.Event = &OneOf_CassandraPrepare{
+			CassandraPrepare: e,
+		}
+	case *CassandraRegister:
+		out.Event = &OneOf_CassandraRegister{
+			CassandraRegister: e,
+		}
+	case *CassandraExecute:
+		out.Event = &OneOf_CassandraExecute{
+			CassandraExecute: e,
+		}
 	case *KubernetesClusterCreate:
 		out.Event = &OneOf_KubernetesClusterCreate{
 			KubernetesClusterCreate: e,
@@ -434,6 +462,34 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *KubernetesClusterDelete:
 		out.Event = &OneOf_KubernetesClusterDelete{
 			KubernetesClusterDelete: e,
+		}
+	case *DesktopSharedDirectoryStart:
+		out.Event = &OneOf_DesktopSharedDirectoryStart{
+			DesktopSharedDirectoryStart: e,
+		}
+	case *DesktopSharedDirectoryRead:
+		out.Event = &OneOf_DesktopSharedDirectoryRead{
+			DesktopSharedDirectoryRead: e,
+		}
+	case *DesktopSharedDirectoryWrite:
+		out.Event = &OneOf_DesktopSharedDirectoryWrite{
+			DesktopSharedDirectoryWrite: e,
+		}
+	case *BotJoin:
+		out.Event = &OneOf_BotJoin{
+			BotJoin: e,
+		}
+	case *InstanceJoin:
+		out.Event = &OneOf_InstanceJoin{
+			InstanceJoin: e,
+		}
+	case *LoginRuleCreate:
+		out.Event = &OneOf_LoginRuleCreate{
+			LoginRuleCreate: e,
+		}
+	case *LoginRuleDelete:
+		out.Event = &OneOf_LoginRuleDelete{
+			LoginRuleDelete: e,
 		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
@@ -470,7 +526,7 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 	// OneOfs only have one inner field, verify and then read it.
 	if elem.NumField() != 1 {
 		// This should never happen for proto one-ofs.
-		return nil, trace.BadParameter("unexpect number in value %v: %v != 1", elem.Kind(), elem.NumField())
+		return nil, trace.BadParameter("unexpected number in value %v: %v != 1", elem.Kind(), elem.NumField())
 	}
 
 	auditEvent, ok := elem.Field(0).Interface().(AuditEvent)

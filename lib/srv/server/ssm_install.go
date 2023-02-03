@@ -26,11 +26,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
-	"github.com/gravitational/teleport/api/types/events"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
+	libevents "github.com/gravitational/teleport/lib/events"
 )
 
 // SSMInstallerConfig represents configuration for an SSM install
@@ -82,6 +82,7 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 	for k, v := range req.Params {
 		params[k] = []*string{aws.String(v)}
 	}
+
 	output, err := req.SSM.SendCommandWithContext(ctx, &ssm.SendCommandInput{
 		DocumentName: aws.String(req.DocumentName),
 		InstanceIds:  aws.StringSlice(ids),
@@ -139,8 +140,12 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		code = libevents.SSMRunSuccessCode
 	}
 
-	event := events.SSMRun{
-		Metadata: events.Metadata{
+	exitCode := aws.Int64Value(cmdOut.ResponseCode)
+	if exitCode == 0 && code == libevents.SSMRunFailCode {
+		exitCode = -1
+	}
+	event := apievents.SSMRun{
+		Metadata: apievents.Metadata{
 			Type: libevents.SSMRunEvent,
 			Code: code,
 		},
@@ -148,7 +153,7 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 		InstanceID: aws.StringValue(instanceID),
 		AccountID:  req.AccountID,
 		Region:     req.Region,
-		ExitCode:   aws.Int64Value(cmdOut.ResponseCode),
+		ExitCode:   exitCode,
 		Status:     aws.StringValue(cmdOut.Status),
 	}
 

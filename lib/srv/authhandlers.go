@@ -24,6 +24,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -32,18 +37,12 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -90,6 +89,26 @@ type AuthHandlerConfig struct {
 	Clock clockwork.Clock
 }
 
+func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
+	if c.Server == nil {
+		return trace.BadParameter("Server required")
+	}
+
+	if c.Emitter == nil {
+		return trace.BadParameter("Emitter required")
+	}
+
+	if c.AccessPoint == nil {
+		return trace.BadParameter("AccessPoint required")
+	}
+
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+
+	return nil
+}
+
 // AuthHandlers are common authorization and authentication related handlers
 // used by the regular and forwarding server.
 type AuthHandlers struct {
@@ -100,8 +119,11 @@ type AuthHandlers struct {
 
 // NewAuthHandlers initializes authorization and authentication handlers
 func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
-	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
-	if err != nil {
+	if err := metrics.RegisterPrometheusCollectors(prometheusCollectors...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -156,7 +178,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	}
 
 	identity.Impersonator = certificate.Extensions[teleport.CertExtensionImpersonator]
-	accessRequestIDs, err := parseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
+	accessRequestIDs, err := ParseAccessRequestIDs(certificate.Extensions[teleport.CertExtensionTeleportActiveRequests])
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
@@ -181,6 +203,14 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		}
 		identity.AllowedResourceIDs = allowedResourceIDs
 	}
+	if previousIdentityExpires, ok := certificate.Extensions[teleport.CertExtensionPreviousIdentityExpires]; ok {
+		asTime, err := time.Parse(time.RFC3339, previousIdentityExpires)
+		if err != nil {
+			return IdentityContext{}, trace.Wrap(err)
+		}
+		identity.PreviousIdentityExpires = asTime
+	}
+
 	return identity, nil
 }
 
@@ -304,8 +334,9 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 				Code: events.AuthAttemptFailureCode,
 			},
 			UserMetadata: apievents.UserMetadata{
-				Login: conn.User(),
-				User:  teleportUser,
+				Login:         conn.User(),
+				User:          teleportUser,
+				TrustedDevice: eventDeviceMetadataFromCert(cert),
 			},
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  conn.LocalAddr().String(),
@@ -333,14 +364,10 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	// Check that the user certificate uses supported public key algorithms, was
 	// issued by Teleport, and check the certificate metadata (principals,
 	// timestamp, etc). Fallback to keys is not supported.
-	clock := time.Now
-	if h.c.Clock != nil {
-		clock = h.c.Clock.Now
-	}
 	certChecker := apisshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsUserAuthority: h.IsUserAuthority,
-			Clock:           clock,
+			Clock:           h.c.Clock.Now,
 		},
 		FIPS: h.c.FIPS,
 	}
@@ -441,6 +468,7 @@ func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicK
 		CertChecker: ssh.CertChecker{
 			IsHostAuthority: h.IsHostAuthority,
 			HostKeyFallback: h.hostKeyCallback,
+			Clock:           h.c.Clock.Now,
 		},
 		FIPS: h.c.FIPS,
 	}
@@ -534,21 +562,23 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	}
 
 	// we don't need to check the RBAC for the node if they are only allowed to join sessions
-	if osUser == teleport.SSHSessionJoinPrincipal && auth.HasV5Role(accessChecker.Roles()) {
+	if osUser == teleport.SSHSessionJoinPrincipal && auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
 		return nil
 	}
 
-	ap, err := h.c.AccessPoint.GetAuthPreference(ctx)
+	authPref, err := h.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := accessChecker.MFAParams(ap.GetRequireMFAType())
-	_, mfaParams.Verified = cert.Extensions[teleport.CertExtensionMFAVerified]
+	state := accessChecker.GetAccessState(authPref)
+	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
 
 	// check if roles allow access to server
 	if err := accessChecker.CheckAccess(
 		h.c.Server.GetInfo(),
-		mfaParams,
+		state,
 		services.NewLoginMatcher(osUser),
 	); err != nil {
 		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
@@ -628,7 +658,7 @@ type AccessRequests struct {
 	IDs []string `json:"access_requests"`
 }
 
-func parseAccessRequestIDs(str string) ([]string, error) {
+func ParseAccessRequestIDs(str string) ([]string, error) {
 	var accessRequestIDs []string
 	var ar AccessRequests
 

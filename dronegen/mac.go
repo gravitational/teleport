@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"path"
+	"path/filepath"
 )
 
 const (
@@ -49,6 +50,7 @@ func darwinConnectDmgPipeline() pipeline {
 	artifactConfig := onlyConnectWithBundledTshApp
 
 	p := newDarwinPipeline("build-darwin-amd64-connect")
+	awsConfigPath := filepath.Join(p.Workspace.Path, "credentials")
 	p.Trigger = triggerTag
 	p.DependsOn = []string{"build-darwin-amd64-pkg-tsh"}
 	p.Steps = []step{
@@ -65,15 +67,22 @@ func darwinConnectDmgPipeline() pipeline {
 	p.Steps = append(p.Steps,
 		installToolchains(p.Workspace.Path, toolchainConfig)...)
 	p.Steps = append(p.Steps, []step{
+		macAssumeAwsRoleStep(macRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				role:               value{fromSecret: "AWS_ROLE"},
+			},
+			configPath: awsConfigPath,
+		}),
 		{
 			Name: "Download tsh.pkg artifact from S3",
 			Environment: map[string]value{
-				"AWS_REGION":            {raw: "us-west-2"},
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
-				"GITHUB_PRIVATE_KEY":    {fromSecret: "GITHUB_PRIVATE_KEY"},
-				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
+				"AWS_REGION":                  {raw: "us-west-2"},
+				"AWS_S3_BUCKET":               {fromSecret: "AWS_S3_BUCKET"},
+				"GITHUB_PRIVATE_KEY":          {fromSecret: "GITHUB_PRIVATE_KEY"},
+				"WORKSPACE_DIR":               {raw: p.Workspace.Path},
+				"AWS_SHARED_CREDENTIALS_FILE": {raw: awsConfigPath},
 			},
 			Commands: darwinConnectDownloadArtifactCommands(),
 		},
@@ -88,11 +97,10 @@ func darwinConnectDmgPipeline() pipeline {
 		{
 			Name: "Upload to S3",
 			Environment: map[string]value{
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
-				"AWS_REGION":            {raw: "us-west-2"},
-				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
+				"AWS_S3_BUCKET":               {fromSecret: "AWS_S3_BUCKET"},
+				"AWS_REGION":                  {raw: "us-west-2"},
+				"WORKSPACE_DIR":               {raw: p.Workspace.Path},
+				"AWS_SHARED_CREDENTIALS_FILE": {raw: awsConfigPath},
 			},
 			Commands: darwinUploadToS3Commands(),
 		},
@@ -101,11 +109,10 @@ func darwinConnectDmgPipeline() pipeline {
 			// Connect's artifact description is automatically generated based on the filename so we pass
 			// no packageType and extraQualifications.
 			Commands: tagCreateReleaseAssetCommands(b, "", nil),
-			Failure:  "ignore",
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
-				"RELEASES_CERT": {fromSecret: "RELEASES_CERT_STAGING"},
-				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
+				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
+				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY"},
 			},
 		},
 		cleanUpToolchainsStep(p.Workspace.Path, toolchainConfig),
@@ -170,11 +177,13 @@ func darwinTagPipeline() pipeline {
 		arch: "amd64",
 		os:   "darwin",
 	}
-	toolchainConfig := toolchainConfig{golang: true, rust: true}
+	toolchainConfig := toolchainConfig{golang: true, rust: true, nodejs: true}
 	artifactConfig := onlyBinaries
 
 	p := newDarwinPipeline("build-darwin-amd64")
+	awsConfigPath := filepath.Join(p.Workspace.Path, "credentials")
 	p.Trigger = triggerTag
+	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Steps = []step{
 		setUpExecStorageStep(p.Workspace.Path),
 		{
@@ -198,14 +207,21 @@ func darwinTagPipeline() pipeline {
 			},
 			Commands: darwinTagCopyPackageArtifactCommands(),
 		},
+		macAssumeAwsRoleStep(macRoleSettings{
+			awsRoleSettings: awsRoleSettings{
+				awsAccessKeyID:     value{fromSecret: "AWS_ACCESS_KEY_ID"},
+				awsSecretAccessKey: value{fromSecret: "AWS_SECRET_ACCESS_KEY"},
+				role:               value{fromSecret: "AWS_ROLE"},
+			},
+			configPath: awsConfigPath,
+		}),
 		{
 			Name: "Upload to S3",
 			Environment: map[string]value{
-				"AWS_S3_BUCKET":         {fromSecret: "AWS_S3_BUCKET"},
-				"AWS_ACCESS_KEY_ID":     {fromSecret: "AWS_ACCESS_KEY_ID"},
-				"AWS_SECRET_ACCESS_KEY": {fromSecret: "AWS_SECRET_ACCESS_KEY"},
-				"AWS_REGION":            {raw: "us-west-2"},
-				"WORKSPACE_DIR":         {raw: p.Workspace.Path},
+				"AWS_S3_BUCKET":               {fromSecret: "AWS_S3_BUCKET"},
+				"AWS_REGION":                  {raw: "us-west-2"},
+				"WORKSPACE_DIR":               {raw: p.Workspace.Path},
+				"AWS_SHARED_CREDENTIALS_FILE": {raw: awsConfigPath},
 			},
 			Commands: darwinUploadToS3Commands(),
 		},
@@ -214,11 +230,10 @@ func darwinTagPipeline() pipeline {
 			// Binaries built by this pipeline don't require extra description, so we don't pass
 			// packageType and extraQualifications.
 			Commands: tagCreateReleaseAssetCommands(b, "", nil),
-			Failure:  "ignore",
 			Environment: map[string]value{
 				"WORKSPACE_DIR": {raw: p.Workspace.Path},
-				"RELEASES_CERT": {fromSecret: "RELEASES_CERT_STAGING"},
-				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY_STAGING"},
+				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
+				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY"},
 			},
 		},
 		cleanUpToolchainsStep(p.Workspace.Path, toolchainConfig),
@@ -234,29 +249,16 @@ func pushCheckoutCommandsDarwin(artifactConfig darwinArtifactConfig) []string {
 		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
 		`git checkout ${DRONE_TAG:-$DRONE_COMMIT}`,
-	}
-
-	// clone github.com/gravitational/webapps for the Teleport Connect source code
-	if artifactConfig == binariesWithConnect || artifactConfig == onlyConnectWithBundledTshApp {
-		commands = append(commands,
-			`mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
-			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
-			`git clone https://github.com/gravitational/webapps.git .`,
-			`git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)`,
-			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
-		)
-	}
-
-	commands = append(commands,
-		// fetch enterprise submodules
 		// suppressing the newline on the end of the private key makes git operations fail on MacOS
 		// with an error like 'Load key "/path/.ssh/id_rsa": invalid format'
 		`mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa`,
 		`ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null`,
 		`chmod 600 $WORKSPACE_DIR/.ssh/known_hosts`,
+	}
+
+	commands = append(commands,
+		// fetch enterprise submodules
 		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e`,
-		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true`,
 		`rm -rf $WORKSPACE_DIR/.ssh`,
 		`mkdir -p $WORKSPACE_DIR/go/cache`,
 	)
@@ -483,6 +485,8 @@ func buildMacArtifactsStep(workspacePath string, b buildType, toolchainConfig to
 			"ARCH":              {raw: b.arch},
 			"WORKSPACE_DIR":     {raw: workspacePath},
 			"BUILDBOX_PASSWORD": {fromSecret: "BUILDBOX_PASSWORD"},
+			"APPLE_USERNAME":    {fromSecret: "APPLE_USERNAME"},
+			"APPLE_PASSWORD":    {fromSecret: "APPLE_PASSWORD"},
 		},
 		Commands: darwinBuildCommands(toolchainConfig, artifactConfig),
 	}
@@ -521,7 +525,7 @@ func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinA
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 			`build.assets/build-fido2-macos.sh build`,
 			`export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"`,
-			`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes LIBPCSCLITE=yes`,
+			`make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes PIV=yes`,
 		)
 	}
 
@@ -541,8 +545,6 @@ func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinA
 			// available.
 			// https://www.electron.build/code-signing
 			`export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83`,
-
-			`export DEBUG="electron-*"`,
 		)
 
 		if artifactConfig == binariesWithConnect {
@@ -562,7 +564,7 @@ func darwinBuildCommands(toolchainConfig toolchainConfig, artifactConfig darwinA
 
 		commands = append(commands,
 			// Build and package Connect
-			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
+			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 			// c.extraMetadata.version overwrites the version property from package.json to $VERSION
 			// https://www.electron.build/configuration/configuration.html#Configuration-extraMetadata
 			`yarn install && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION`,
@@ -590,7 +592,7 @@ func darwinConnectCopyDmgArtifactCommands() []string {
 	commands := []string{
 		`set -u`,
 		// copy dmg to artifact directory
-		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps/packages/teleterm/build/release`,
+		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/web/packages/teleterm/build/release`,
 		`cp *.dmg $WORKSPACE_DIR/go/artifacts`,
 		// generate checksums
 		`cd $WORKSPACE_DIR/go/artifacts && for FILE in *.dmg; do shasum -a 256 "$FILE" > "$FILE.sha256"; done && ls -l`,

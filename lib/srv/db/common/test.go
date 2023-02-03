@@ -24,6 +24,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -31,14 +33,12 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/gravitational/trace"
 )
 
 // TestServerConfig combines parameters for a test Postgres/MySQL server.
 type TestServerConfig struct {
 	// AuthClient will be used to retrieve trusted CA.
-	AuthClient auth.ClientI
+	AuthClient AuthClientCA
 	// Name is the server name for identification purposes.
 	Name string
 	// AuthUser is used in tests simulating IAM token authentication.
@@ -90,6 +90,17 @@ func (cfg *TestServerConfig) Port() (string, error) {
 	}
 
 	return port, nil
+}
+
+// AuthClientCA contains the required methods to Generate mTLS certificate to be used
+// by the postgres TestServer.
+type AuthClientCA interface {
+	// GenerateDatabaseCert generates client certificate used by a database
+	// service to authenticate with the database instance.
+	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+
+	// GetCertAuthority returns cert authority by id
+	GetCertAuthority(context.Context, types.CertAuthID, bool, ...services.MarshalOption) (types.CertAuthority, error)
 }
 
 // MakeTestServerTLSConfig returns TLS config suitable for configuring test

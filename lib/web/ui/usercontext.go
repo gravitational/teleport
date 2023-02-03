@@ -17,6 +17,8 @@ limitations under the License.
 package ui
 
 import (
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -72,6 +74,8 @@ type userACL struct {
 	AppServers access `json:"appServers"`
 	// DBServers defines access to database servers.
 	DBServers access `json:"dbServers"`
+	// DB defines access to database resource.
+	DB access `json:"db"`
 	// KubeServers defines access to kubernetes servers.
 	KubeServers access `json:"kubeServers"`
 	// Desktops defines access to desktops.
@@ -90,6 +94,10 @@ type userACL struct {
 	DesktopSessionRecording bool `json:"desktopSessionRecording"`
 	// DirectorySharing defines whether a user is permitted to share a directory during windows desktop sessions.
 	DirectorySharing bool `json:"directorySharing"`
+	// Download defines whether the user has access to download Teleport Enterprise Binaries
+	Download access `json:"download"`
+	// Download defines whether the user has access to download the license
+	License access `json:"license"`
 }
 
 type authType string
@@ -130,7 +138,7 @@ func getWindowsDesktopLogins(roleSet services.RoleSet) []string {
 	denied = apiutils.Deduplicate(denied)
 	desktopLogins := []string{}
 	for _, login := range allowed {
-		if isDenied := apiutils.SliceContainsStr(denied, login); !isDenied {
+		if isDenied := slices.Contains(denied, login); !isDenied {
 			desktopLogins = append(desktopLogins, login)
 		}
 	}
@@ -197,6 +205,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	nodeAccess := newAccess(userRoles, ctx, types.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, types.KindAppServer)
 	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
+	dbAccess := newAccess(userRoles, ctx, types.KindDatabase)
 	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeServer)
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
@@ -212,11 +221,14 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	clipboard := userRoles.DesktopClipboard()
 	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
 	directorySharing := userRoles.DesktopDirectorySharing()
+	download := newAccess(userRoles, ctx, types.KindDownload)
+	license := newAccess(userRoles, ctx, types.KindLicense)
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
 		AppServers:              appServerAccess,
 		DBServers:               dbServerAccess,
+		DB:                      dbAccess,
 		KubeServers:             kubeServerAccess,
 		Desktops:                desktopAccess,
 		AuthConnectors:          authConnectors,
@@ -234,6 +246,8 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Clipboard:               clipboard,
 		DesktopSessionRecording: desktopSessionRecording,
 		DirectorySharing:        directorySharing,
+		Download:                download,
+		License:                 license,
 	}
 
 	// local user

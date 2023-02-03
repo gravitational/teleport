@@ -14,9 +14,12 @@ Clone the `gravitational/docs` repository via `git clone`:
 $ git clone https://github.com/gravitational/docs
 ```
 
-Different versions of the documentation are organized into the `content` directory of `gravitational/docs`. Each subdirectory of `content` includes a git submodule for a different branch of `gravitational/teleport`. 
+Different versions of the documentation are organized into the `content`
+directory of `gravitational/docs`. Each subdirectory of `content` includes a git
+submodule for a different branch of `gravitational/teleport`.
 
-Navigate to the root of your local clone of the `gravitational/docs` repository and run the following command to populate the `content` directory:
+Navigate to the root of your local clone of the `gravitational/docs` repository
+and run the following command to populate the `content` directory:
 
 ```code
 $ yarn git-update
@@ -49,8 +52,10 @@ $ yarn install
 $ yarn dev
 ```
 
-You can visit the docs site at `localhost:3000/docs`. The development server will detect changes to the documentation automatically as you make them and refresh the page within the browser.
-   
+You can visit the docs site at `localhost:3000/docs`. The development server
+will detect changes to the documentation automatically as you make them and
+refresh the page within the browser.
+
 Validate your changes locally using the provided linters:
 
 ```code
@@ -67,7 +72,7 @@ work at Teleport) or a fork of `gravitational/teleport`.
 
 ```code
 # If you are an external contributor, create a fork and push to it.
-# This command assumes that you have created an SSH key pair and stored 
+# This command assumes that you have created an SSH key pair and stored
 # your public key in GitHub.
 $ git remote add fork ssh://git@github.com/my-user/teleport
 $ git rebase origin/master
@@ -76,7 +81,10 @@ $ git push -u fork my-branch
 
 Visit https://github.com/gravitational/teleport and create a pull request (PR)
 against your branch. Our continuous integration (CI) pipeline will automatically
-assign reviewers to your PR.
+assign reviewers to your PR. The best way to ensure that your PR is merged is to
+respond to reviewer feedback in a timely manner. If feedback goes unaddressed
+your PR may be closed due to inactivity. Please merge your PR as soon as
+possible once you have received all required approvals.
 
 ## Step 4/4 Backport your changes
 
@@ -156,5 +164,6 @@ Finally, create a PR for your backport.
 </Tabs>
 
 ## Next steps
-- Consult our [style guide](./style-guide.mdx) to ensure your docs page is consistent with the rest of our docs.
+- Consult our [style guide](./style-guide.mdx) to ensure your docs page is
+  consistent with the rest of our docs.
 - Use our [UI reference](./reference.mdx) to find the right UI components for your needs.

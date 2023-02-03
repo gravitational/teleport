@@ -26,6 +26,10 @@ import (
 // PropagationContext contains tracing information to be passed across service boundaries
 type PropagationContext map[string]string
 
+// TraceParent is the name of the header or query parameter that contains
+// tracing context across service boundaries.
+const TraceParent = "traceparent"
+
 // PropagationContextFromContext creates a PropagationContext from the given context.Context. If the context
 // does not contain any tracing information, the PropagationContext will be empty.
 func PropagationContextFromContext(ctx context.Context, opts ...Option) PropagationContext {

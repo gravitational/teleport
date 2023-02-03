@@ -19,15 +19,14 @@ package utils
 import (
 	"archive/tar"
 	"io"
-	"strings"
-
 	"os"
 	"path/filepath"
-
-	"github.com/gravitational/teleport"
+	"strings"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
 
 // Extract extracts the contents of the specified tarball under dir. The

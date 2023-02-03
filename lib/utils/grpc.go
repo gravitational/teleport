@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/gravitational/trace/trail"
-
 	"google.golang.org/grpc"
 )
 

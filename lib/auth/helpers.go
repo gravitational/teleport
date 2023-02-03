@@ -21,8 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -35,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -75,6 +72,8 @@ type TestAuthServerConfig struct {
 	AuditLog events.IAuditLog
 	// TraceClient allows a test to configure the trace client
 	TraceClient otlptrace.Client
+	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
+	AuthPreferenceSpec *types.AuthPreferenceSpecV2
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -91,16 +90,12 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 	if len(cfg.CipherSuites) == 0 {
 		cfg.CipherSuites = utils.DefaultCipherSuites()
 	}
-	return nil
-}
-
-// CreateUploaderDir creates directory for file uploader service
-func CreateUploaderDir(dir string) error {
-	if err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingLogsDir, apidefaults.Namespace), teleport.SharedDirMode); err != nil {
-		return trace.ConvertSystemError(err)
+	if cfg.AuthPreferenceSpec == nil {
+		cfg.AuthPreferenceSpec = &types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOff,
+		}
 	}
-
 	return nil
 }
 
@@ -125,17 +120,35 @@ func NewTestServer(cfg TestServerConfig) (*TestServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var tlsServer *TestTLSServer
-	if cfg.TLS != nil {
-		tlsServer, err = NewTestTLSServer(*cfg.TLS)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		tlsServer, err = authServer.NewTestTLSServer()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Set the (test) auth server in cfg.TLS and set any defaults that
+	// are not set.
+	tlsCfg := cfg.TLS
+	if tlsCfg == nil {
+		tlsCfg = &TestTLSServerConfig{}
+	}
+	if tlsCfg.APIConfig == nil {
+		tlsCfg.APIConfig = &APIConfig{}
+	}
+
+	tlsCfg.AuthServer = authServer
+	tlsCfg.APIConfig.AuthServer = authServer.AuthServer
+
+	if tlsCfg.APIConfig.Authorizer == nil {
+		tlsCfg.APIConfig.Authorizer = authServer.Authorizer
+	}
+	if tlsCfg.APIConfig.AuditLog == nil {
+		tlsCfg.APIConfig.AuditLog = authServer.AuditLog
+	}
+	if tlsCfg.APIConfig.Emitter == nil {
+		tlsCfg.APIConfig.Emitter = authServer.AuthServer.emitter
+	}
+	if tlsCfg.AcceptedUsage == nil {
+		tlsCfg.AcceptedUsage = authServer.AcceptedUsage
+	}
+
+	tlsServer, err := NewTestTLSServer(*tlsCfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return &TestServer{
 		AuthServer: authServer,
@@ -249,7 +262,9 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		Emitter:                emitter,
 		TraceClient:            cfg.TraceClient,
 		KeyStoreConfig: keystore.Config{
-			RSAKeyPairSource: authority.New().GenerateKeyPair,
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
 		},
 	}, WithClock(cfg.Clock))
 	if err != nil {
@@ -287,10 +302,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	authPreference, err := types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
-	})
+	authPreference, err := types.NewAuthPreferenceFromConfigFile(*cfg.AuthPreferenceSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -341,7 +353,11 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
 
-	srv.Authorizer, err = NewAuthorizer(srv.ClusterName, srv.AuthServer, srv.LockWatcher)
+	srv.Authorizer, err = NewAuthorizer(AuthorizerOpts{
+		ClusterName: srv.ClusterName,
+		AccessPoint: srv.AuthServer,
+		LockWatcher: srv.LockWatcher,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -350,6 +366,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 }
 
 func (a *TestAuthServer) Close() error {
+	defer a.LockWatcher.Close()
+
 	return trace.NewAggregate(
 		a.AuthServer.Close(),
 		a.Backend.Close(),
@@ -431,16 +449,18 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if identity.TTL == 0 {
 			identity.TTL = time.Hour
 		}
+
 		certs, err := authServer.generateUserCert(certRequest{
-			publicKey:      pub,
-			user:           user,
-			ttl:            identity.TTL,
-			usage:          identity.AcceptedUsage,
-			routeToCluster: identity.RouteToCluster,
-			checker:        checker,
-			traits:         user.GetTraits(),
-			renewable:      identity.Renewable,
-			generation:     identity.Generation,
+			publicKey:        pub,
+			user:             user,
+			ttl:              identity.TTL,
+			usage:            identity.AcceptedUsage,
+			routeToCluster:   identity.RouteToCluster,
+			checker:          checker,
+			traits:           user.GetTraits(),
+			renewable:        identity.Renewable,
+			generation:       identity.Generation,
+			deviceExtensions: DeviceExtensions(id.Identity.DeviceExtensions),
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -510,6 +530,17 @@ func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, role
 	}
 	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
+		DomainName: remote.ClusterName,
+	}, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.AuthServer.UpsertCertAuthority(remoteCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.OpenSSHCA,
 		DomainName: remote.ClusterName,
 	}, false)
 	if err != nil {
@@ -947,7 +978,7 @@ type clt interface {
 }
 
 // CreateRole creates a role without assigning any users. Used in tests.
-func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV5) (types.Role, error) {
+func CreateRole(ctx context.Context, clt clt, name string, spec types.RoleSpecV6) (types.Role, error) {
 	role, err := types.NewRole(name, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)

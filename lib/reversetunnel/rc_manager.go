@@ -172,7 +172,7 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 	// Fetch desired reverse tunnels and convert them to a set of
 	// remoteClusterKeys.
-	wantTunnels, err := w.cfg.AuthClient.GetReverseTunnels(ctx)
+	wantTunnels, err := w.cfg.AccessPoint.GetReverseTunnels(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -192,6 +192,7 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 			continue
 		}
 		pool.Stop()
+		trustedClustersStats.DeleteLabelValues(pool.Cluster)
 		delete(w.pools, k)
 	}
 
@@ -202,6 +203,7 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 			continue
 		}
 
+		trustedClustersStats.WithLabelValues(k.cluster).Set(0)
 		pool, err := w.newAgentPool(ctx, w.cfg, k.cluster, k.addr)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))

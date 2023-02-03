@@ -17,7 +17,6 @@ package touchid
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
@@ -25,20 +24,20 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"os"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	log "github.com/sirupsen/logrus"
+	"github.com/gravitational/teleport/lib/darwin"
 )
 
 var (
@@ -213,6 +212,13 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 		return nil, ErrNotAvailable
 	}
 
+	if origin == "" {
+		return nil, trace.BadParameter("origin required")
+	}
+	if err := cc.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Ignored cc fields:
 	// - Timeout - we don't control touch ID timeouts (also the server is free to
 	//   enforce it)
@@ -221,22 +227,8 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 	// - Extensions - none supported
 	// - Attestation - we always to our best (packed/self-attestation).
 	//   The server is free to ignore/reject.
-	switch {
-	case origin == "":
-		return nil, errors.New("origin required")
-	case cc == nil:
-		return nil, errors.New("credential creation required")
-	case len(cc.Response.Challenge) == 0:
-		return nil, errors.New("challenge required")
-	// Note: we don't need other RelyingParty fields, but technically they would
-	// be required as well.
-	case cc.Response.RelyingParty.ID == "":
-		return nil, errors.New("relying party ID required")
-	case len(cc.Response.User.ID) == 0:
-		return nil, errors.New("user ID required")
-	case cc.Response.User.Name == "":
-		return nil, errors.New("user name required")
-	case cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.CrossPlatform:
+
+	if cc.Response.AuthenticatorSelection.AuthenticatorAttachment == protocol.CrossPlatform {
 		return nil, fmt.Errorf("cannot fulfill authenticator attachment %q", cc.Response.AuthenticatorSelection.AuthenticatorAttachment)
 	}
 	ok := false
@@ -265,7 +257,7 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 	pubKeyRaw := resp.publicKeyRaw
 
 	// Parse public key and transform to the required CBOR object.
-	pubKey, err := pubKeyFromRawAppleKey(pubKeyRaw)
+	pubKey, err := darwin.ECDSAPublicKeyFromRaw(pubKeyRaw)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -338,30 +330,22 @@ func Register(origin string, cc *wanlib.CredentialCreation) (*Registration, erro
 	}, nil
 }
 
-func pubKeyFromRawAppleKey(pubKeyRaw []byte) (*ecdsa.PublicKey, error) {
-	// Verify key length to avoid a potential panic below.
-	// 3 is the smallest number that clears it, but in practice 65 is the more
-	// common length.
-	// Apple's docs make no guarantees, hence no assumptions are made here.
-	if len(pubKeyRaw) < 3 {
-		return nil, fmt.Errorf("public key representation too small (%v bytes)", len(pubKeyRaw))
+// HasCredentials checks if there are any credentials registered for given user.
+// If user is empty it checks if there are credentials registered for any user.
+// It does not require user interactions.
+func HasCredentials(rpid, user string) bool {
+	if !IsAvailable() {
+		return false
 	}
-
-	// "For an elliptic curve public key, the format follows the ANSI X9.63
-	// standard using a byte string of 04 || X || Y. (...) All of these
-	// representations use constant size integers, including leading zeros as
-	// needed."
-	// https://developer.apple.com/documentation/security/1643698-seckeycopyexternalrepresentation?language=objc
-	pubKeyRaw = pubKeyRaw[1:] // skip 0x04
-	l := len(pubKeyRaw) / 2
-	x := pubKeyRaw[:l]
-	y := pubKeyRaw[l:]
-
-	return &ecdsa.PublicKey{
-		Curve: elliptic.P256(),
-		X:     (&big.Int{}).SetBytes(x),
-		Y:     (&big.Int{}).SetBytes(y),
-	}, nil
+	if rpid == "" {
+		return false
+	}
+	creds, err := native.FindCredentials(rpid, user)
+	if err != nil {
+		log.WithError(err).Debug("Touch ID: Could not find credentials")
+		return false
+	}
+	return len(creds) > 0
 }
 
 type credentialData struct {
@@ -443,24 +427,21 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker Cr
 	if !IsAvailable() {
 		return nil, "", ErrNotAvailable
 	}
+	switch {
+	case origin == "":
+		return nil, "", trace.BadParameter("origin required")
+	case picker == nil:
+		return nil, "", trace.BadParameter("picker required")
+	}
+	if err := assertion.Validate(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
 
 	// Ignored assertion fields:
 	// - Timeout - we don't control touch ID timeouts (also the server is free to
 	//   enforce it)
 	// - UserVerification - always performed
 	// - Extensions - none supported
-	switch {
-	case origin == "":
-		return nil, "", errors.New("origin required")
-	case assertion == nil:
-		return nil, "", errors.New("assertion required")
-	case len(assertion.Response.Challenge) == 0:
-		return nil, "", errors.New("challenge required")
-	case assertion.Response.RelyingPartyID == "":
-		return nil, "", errors.New("relying party ID required")
-	case picker == nil:
-		return nil, "", errors.New("picker required")
-	}
 
 	rpID := assertion.Response.RelyingPartyID
 	infos, err := native.FindCredentials(rpID, user)
@@ -534,7 +515,8 @@ func Login(origin, user string, assertion *wanlib.CredentialAssertion, picker Cr
 func pickCredential(
 	actx AuthContext,
 	infos []CredentialInfo, allowedCredentials []protocol.CredentialDescriptor,
-	picker CredentialPicker, promptOnce func(), userRequested bool) (*CredentialInfo, error) {
+	picker CredentialPicker, promptOnce func(), userRequested bool,
+) (*CredentialInfo, error) {
 	// Handle early exits.
 	switch l := len(infos); {
 	// MFA.
@@ -611,7 +593,7 @@ func ListCredentials() ([]CredentialInfo, error) {
 	// Parse public keys.
 	for i := range infos {
 		info := &infos[i]
-		key, err := pubKeyFromRawAppleKey(info.publicKeyRaw)
+		key, err := darwin.ECDSAPublicKeyFromRaw(info.publicKeyRaw)
 		if err != nil {
 			log.Warnf("Failed to convert public key: %v", err)
 		}

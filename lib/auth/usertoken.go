@@ -240,28 +240,6 @@ func formatAccountName(s proxyDomainGetter, username string, authHostname string
 	return fmt.Sprintf("%v@%v", username, proxyHost), nil
 }
 
-// DELETE IN 9.0.0 replaced by CreateRegisterChallenge.
-//
-// RotateUserTokenSecrets rotates secrets for a given tokenID.
-// It gets called every time a user fetches 2nd-factor secrets during registration attempt.
-// This ensures that an attacker that gains the user token link can not view it,
-// extract the OTP key from the QR code, then allow the user to signup with
-// the same OTP token.
-func (s *Server) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
-	token, err := s.GetUserToken(ctx, tokenID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	otpKey, _, err := s.newTOTPKey(token.GetUser())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	secrets, err := s.createTOTPUserTokenSecrets(ctx, token, otpKey)
-	return secrets, trace.Wrap(err)
-}
-
 // createTOTPUserTokenSecrets creates new UserTokenSecretes resource for the given token.
 func (s *Server) createTOTPUserTokenSecrets(ctx context.Context, token types.UserToken, otpKey *otp.Key) (types.UserTokenSecrets, error) {
 	// Create QR code.
@@ -412,8 +390,7 @@ func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN 9.0.0: remove checking for empty string.
-	if token.GetSubKind() != "" && token.GetSubKind() != UserTokenTypeResetPassword && token.GetSubKind() != UserTokenTypeResetPasswordInvite {
+	if token.GetSubKind() != UserTokenTypeResetPassword && token.GetSubKind() != UserTokenTypeResetPasswordInvite {
 		return nil, trace.BadParameter("invalid token")
 	}
 
@@ -456,9 +433,7 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 			Type: events.RecoveryTokenCreateEvent,
 			Code: events.RecoveryTokenCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: username,
-		},
+		UserMetadata: ClientUserMetadataWithUser(ctx, username),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),
@@ -553,9 +528,7 @@ func (s *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 			Type: events.PrivilegeTokenCreateEvent,
 			Code: events.PrivilegeTokenCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: username,
-		},
+		UserMetadata: ClientUserMetadataWithUser(ctx, username),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),

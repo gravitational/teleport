@@ -23,9 +23,10 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
+
+	"github.com/gravitational/teleport/lib/teleagent"
 )
 
 func TestAgentSocketPermissions(t *testing.T) {

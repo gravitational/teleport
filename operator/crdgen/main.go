@@ -20,14 +20,15 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gravitational/trace"
-
 	gogodesc "github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
 	"github.com/gogo/protobuf/protoc-gen-gogo/generator"
 	gogoplugin "github.com/gogo/protobuf/protoc-gen-gogo/plugin"
 	"github.com/gogo/protobuf/vanity/command"
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"sigs.k8s.io/yaml"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func main() {
@@ -91,7 +92,23 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 		return trace.Wrap(err)
 	}
 
-	if err := generator.addResource(file, "RoleV5"); err != nil {
+	// Use RoleV6 spec but override the version to V5.
+	// This will generate crd based on RoleV6 but with resource version for v5.
+	if err := generator.addResource(file, "RoleV6", types.V5); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := generator.addResource(file, "RoleV6"); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := generator.addResource(file, "SAMLConnectorV2"); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := generator.addResource(file, "OIDCConnectorV3"); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := generator.addResource(file, "GithubConnectorV3"); err != nil {
 		return trace.Wrap(err)
 	}
 

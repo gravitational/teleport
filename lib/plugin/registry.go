@@ -75,9 +75,9 @@ func (r *registry) Add(p Plugin) error {
 }
 
 // RegisterProxyWebHandlers registers Teleport Proxy web handlers
-func (r *registry) RegisterProxyWebHandlers(hander interface{}) error {
+func (r *registry) RegisterProxyWebHandlers(handler interface{}) error {
 	for _, p := range r.plugins {
-		if err := p.RegisterProxyWebHandlers(hander); err != nil {
+		if err := p.RegisterProxyWebHandlers(handler); err != nil {
 			return trace.Wrap(err, "plugin %v failed to register", p.GetName())
 		}
 	}

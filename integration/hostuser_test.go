@@ -28,6 +28,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -35,10 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils/host"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-
-	log "github.com/sirupsen/logrus"
 )
 
 const testuser = "teleport-testuser"

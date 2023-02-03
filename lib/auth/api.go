@@ -20,11 +20,12 @@ import (
 	"context"
 	"io"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 // Announcer specifies interface responsible for announcing presence
@@ -56,11 +57,6 @@ type Announcer interface {
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
 
-	// UpsertAppServer adds an application server.
-	//
-	// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
-	UpsertAppServer(context.Context, types.Server) (*types.KeepAlive, error)
-
 	// UpsertApplicationServer registers an application server.
 	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
 
@@ -74,6 +70,9 @@ type Announcer interface {
 	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
 	// UpdateWindowsDesktop updates a Windows desktop host.
 	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
+
+	// UpsertDatabaseService registers a DatabaseService.
+	UpsertDatabaseService(context.Context, types.DatabaseService) (*types.KeepAlive, error)
 }
 
 // accessPoint is an API interface implemented by a certificate authority (CA)
@@ -228,11 +227,6 @@ type ReadProxyAccessPoint interface {
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
-	// GetAppServers gets all application servers.
-	//
-	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
-
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
@@ -369,11 +363,6 @@ type ReadRemoteProxyAccessPoint interface {
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
 	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
-
-	// GetAppServers gets all application servers.
-	//
-	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
 
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
@@ -704,6 +693,13 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+	// GetKubernetesCluster returns a kubernetes cluster resource identified by name.
+	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
+	// GetKubernetesClusters returns all kubernetes cluster resources.
+	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+
+	// GetDatabases returns all database resources.
+	GetDatabases(ctx context.Context) ([]types.Database, error)
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -714,6 +710,20 @@ type DiscoveryAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// CreateKubernetesCluster creates a new kubernetes cluster resource.
+	CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error
+	// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+	UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error
+	// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
+	DeleteKubernetesCluster(ctx context.Context, name string) error
+
+	// CreateDatabase creates a new database resource.
+	CreateDatabase(ctx context.Context, database types.Database) error
+	// UpdateDatabase updates an existing database resource.
+	UpdateDatabase(ctx context.Context, database types.Database) error
+	// DeleteDatabase deletes a database resource.
+	DeleteDatabase(ctx context.Context, name string) error
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -805,11 +815,6 @@ type Cache interface {
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
 	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error)
-
-	// GetAppServers gets all application servers.
-	//
-	// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error)
 
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
@@ -1066,6 +1071,36 @@ func NewDiscoveryWrapper(base DiscoveryAccessPoint, cache ReadDiscoveryAccessPoi
 		accessPoint:              base,
 		ReadDiscoveryAccessPoint: cache,
 	}
+}
+
+// CreateKubernetesCluster creates a new kubernetes cluster resource.
+func (w *DiscoveryWrapper) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	return w.NoCache.CreateKubernetesCluster(ctx, cluster)
+}
+
+// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+func (w *DiscoveryWrapper) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	return w.NoCache.UpdateKubernetesCluster(ctx, cluster)
+}
+
+// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
+func (w *DiscoveryWrapper) DeleteKubernetesCluster(ctx context.Context, name string) error {
+	return w.NoCache.DeleteKubernetesCluster(ctx, name)
+}
+
+// CreateDatabase creates a new database resource.
+func (w *DiscoveryWrapper) CreateDatabase(ctx context.Context, database types.Database) error {
+	return w.NoCache.CreateDatabase(ctx, database)
+}
+
+// UpdateDatabase updates an existing database resource.
+func (w *DiscoveryWrapper) UpdateDatabase(ctx context.Context, database types.Database) error {
+	return w.NoCache.UpdateDatabase(ctx, database)
+}
+
+// DeleteDatabase deletes a database resource.
+func (w *DiscoveryWrapper) DeleteDatabase(ctx context.Context, name string) error {
+	return w.NoCache.DeleteDatabase(ctx, name)
 }
 
 // Close closes all associated resources

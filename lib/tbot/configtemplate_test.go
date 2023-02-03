@@ -21,6 +21,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -28,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
 )
 
 // Note: This test lives in main to avoid otherwise inevitable import cycles
@@ -92,7 +93,7 @@ func TestDefaultTemplateRendering(t *testing.T) {
 
 	// Make and join a new bot instance.
 	const roleName = "dummy-role"
-	role, err := types.NewRole(roleName, types.RoleSpecV5{})
+	role, err := types.NewRole(roleName, types.RoleSpecV6{})
 	require.NoError(t, err)
 	require.NoError(t, rootClient.UpsertRole(context.Background(), role))
 

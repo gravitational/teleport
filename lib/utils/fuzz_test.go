@@ -18,12 +18,11 @@ package utils
 
 import (
 	"bytes"
+	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"net/http"
 )
 
 func FuzzParseProxyJump(f *testing.F) {

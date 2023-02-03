@@ -23,6 +23,10 @@ import (
 	"sort"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -31,10 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // PresenceService records and reports the presence of all components
@@ -242,7 +242,11 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string) ([]typ
 // specified duration with second resolution if it's >= 1 second.
 func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
 	if server.GetNamespace() == "" {
-		return nil, trace.BadParameter("missing node namespace")
+		server.SetNamespace(apidefaults.Namespace)
+	}
+
+	if n := server.GetNamespace(); n != apidefaults.Namespace {
+		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
 	}
 	value, err := services.MarshalServer(server)
 	if err != nil {
@@ -1260,11 +1264,7 @@ func (s *PresenceService) GetApplicationServers(ctx context.Context, namespace s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	legacyServers, err := s.getApplicationServersLegacy(ctx, namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return append(servers, legacyServers...), nil
+	return servers, nil
 }
 
 func (s *PresenceService) getApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
@@ -1283,26 +1283,6 @@ func (s *PresenceService) getApplicationServers(ctx context.Context, namespace s
 			return nil, trace.Wrap(err)
 		}
 		servers[i] = server
-	}
-	return servers, nil
-}
-
-// getApplicationServersLegacy fetches legacy application servers that are
-// represented by types.Server and adapts them to the types.AppServer type.
-//
-// DELETE IN 9.0.
-func (s *PresenceService) getApplicationServersLegacy(ctx context.Context, namespace string) ([]types.AppServer, error) {
-	legacyServers, err := s.GetAppServers(ctx, namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var servers []types.AppServer
-	for _, legacyServer := range legacyServers {
-		appServers, err := types.NewAppServersV3FromServer(legacyServer)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers = append(servers, appServers...)
 	}
 	return servers, nil
 }
@@ -1354,86 +1334,6 @@ func (s *PresenceService) DeleteApplicationServer(ctx context.Context, namespace
 // DeleteAllApplicationServers removes all registered application servers.
 func (s *PresenceService) DeleteAllApplicationServers(ctx context.Context, namespace string) error {
 	startKey := backend.Key(appServersPrefix, namespace)
-	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-}
-
-// GetAppServers gets all application servers.
-//
-// DELETE IN 9.0. Deprecated, use GetApplicationServers.
-func (s *PresenceService) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	if namespace == "" {
-		return nil, trace.BadParameter("missing namespace")
-	}
-
-	// Get all items in the bucket.
-	startKey := backend.Key(appsPrefix, serversPrefix, namespace)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Marshal values into a []services.Server slice.
-	servers := make([]types.Server, len(result.Items))
-	for i, item := range result.Items {
-		server, err := services.UnmarshalServer(
-			item.Value,
-			types.KindAppServer,
-			services.AddOptions(opts,
-				services.WithResourceID(item.ID),
-				services.WithExpires(item.Expires))...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers[i] = server
-	}
-
-	return servers, nil
-}
-
-// UpsertAppServer adds an application server.
-//
-// DELETE IN 9.0. Deprecated, use UpsertApplicationServer.
-func (s *PresenceService) UpsertAppServer(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
-	if err := server.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	value, err := services.MarshalServer(server)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	lease, err := s.Put(ctx, backend.Item{
-		Key:     backend.Key(appsPrefix, serversPrefix, server.GetNamespace(), server.GetName()),
-		Value:   value,
-		Expires: server.Expiry(),
-		ID:      server.GetResourceID(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if server.Expiry().IsZero() {
-		return &types.KeepAlive{}, nil
-	}
-	return &types.KeepAlive{
-		Type:    types.KeepAlive_APP,
-		LeaseID: lease.ID,
-		Name:    server.GetName(),
-	}, nil
-}
-
-// DeleteAppServer removes an application server.
-//
-// DELETE IN 9.0. Deprecated, use DeleteApplicationServer.
-func (s *PresenceService) DeleteAppServer(ctx context.Context, namespace string, name string) error {
-	key := backend.Key(appsPrefix, serversPrefix, namespace, name)
-	return s.Delete(ctx, key)
-}
-
-// DeleteAllAppServers removes all application servers.
-//
-// DELETE IN 9.0. Deprecated, use DeleteAllApplicationServers.
-func (s *PresenceService) DeleteAllAppServers(ctx context.Context, namespace string) error {
-	startKey := backend.Key(appsPrefix, serversPrefix, namespace)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
@@ -1608,6 +1508,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindDatabaseServer:
 		keyPrefix = []string{dbServersPrefix, req.Namespace}
 		unmarshalItemFunc = backendItemToDatabaseServer
+	case types.KindDatabaseService:
+		keyPrefix = []string{databaseServicePrefix}
+		unmarshalItemFunc = backendItemToDatabaseService
 	case types.KindAppServer:
 		keyPrefix = []string{appServersPrefix, req.Namespace}
 		unmarshalItemFunc = backendItemToApplicationServer
@@ -1615,8 +1518,8 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		keyPrefix = []string{nodesPrefix, req.Namespace}
 		unmarshalItemFunc = backendItemToServer(types.KindNode)
 	case types.KindWindowsDesktopService:
-		keyPrefix = []string{windowsDesktopServicesPrefix, req.Namespace}
-		unmarshalItemFunc = backendItemToServer(types.KindWindowsDesktopService)
+		keyPrefix = []string{windowsDesktopServicesPrefix}
+		unmarshalItemFunc = backendItemToWindowsDesktopService
 	case types.KindKubeService:
 		keyPrefix = []string{kubeServicesPrefix}
 		unmarshalItemFunc = backendItemToServer(types.KindKubeService)
@@ -1818,7 +1721,7 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 }
 
 // backendItemToDatabaseServer unmarshals `backend.Item` into a
-// `types.DatabaseServer`, returning it as a `types.Resource`.
+// `types.DatabaseServer`, returning it as a `types.ResourceWithLabels`.
 func backendItemToDatabaseServer(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalDatabaseServer(
 		item.Value,
@@ -1827,8 +1730,18 @@ func backendItemToDatabaseServer(item backend.Item) (types.ResourceWithLabels, e
 	)
 }
 
+// backendItemToDatabaseService unmarshals `backend.Item` into a
+// `types.DatabaseService`, returning it as a `types.ResourceWithLabels`.
+func backendItemToDatabaseService(item backend.Item) (types.ResourceWithLabels, error) {
+	return services.UnmarshalDatabaseService(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+	)
+}
+
 // backendItemToApplicationServer unmarshals `backend.Item` into a
-// `types.AppServer`, returning it as a `types.Resource`.
+// `types.AppServer`, returning it as a `types.ResourceWithLabels`.
 func backendItemToApplicationServer(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalAppServer(
 		item.Value,
@@ -1838,7 +1751,7 @@ func backendItemToApplicationServer(item backend.Item) (types.ResourceWithLabels
 }
 
 // backendItemToKubernetesServer unmarshals `backend.Item` into a
-// `types.KubeServer`, returning it as a `types.Resource`.
+// `types.KubeServer`, returning it as a `types.ResourceWithLabels`.
 func backendItemToKubernetesServer(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalKubeServer(
 		item.Value,
@@ -1849,7 +1762,7 @@ func backendItemToKubernetesServer(item backend.Item) (types.ResourceWithLabels,
 
 // backendItemToServer returns `backendItemToResourceFunc` to unmarshal a
 // `backend.Item` into a `types.ServerV2` with a specific `kind`, returning it
-// as a `types.Resource`.
+// as a `types.ResourceWithLabels`.
 func backendItemToServer(kind string) backendItemToResourceFunc {
 	return func(item backend.Item) (types.ResourceWithLabels, error) {
 		return services.UnmarshalServer(
@@ -1858,6 +1771,16 @@ func backendItemToServer(kind string) backendItemToResourceFunc {
 			services.WithExpires(item.Expires),
 		)
 	}
+}
+
+// backendItemToWindowsDesktopService unmarshals `backend.Item` into a
+// `types.WindowsDesktopService`, returning it as a `types.ResourceWithLabels`.
+func backendItemToWindowsDesktopService(item backend.Item) (types.ResourceWithLabels, error) {
+	return services.UnmarshalWindowsDesktopService(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+	)
 }
 
 const (

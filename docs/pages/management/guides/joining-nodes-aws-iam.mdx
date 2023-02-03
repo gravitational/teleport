@@ -7,14 +7,13 @@ This guide will explain how to use the **IAM join method** to configure Teleport
 Nodes and Proxy Service instances to join your Teleport cluster without sharing
 any secrets when they are running in AWS.
 
-The IAM join method is available in Teleport 8.3+. It is available to any
-Teleport Node or Proxy running anywhere with access to IAM credentials, such as
-an EC2 instance with an attached IAM role. No specific permissions or IAM policy
-is required: an IAM role with no attached policies is sufficient. No IAM
-credentials are required on the Teleport Auth Service.
+The IAM join method is available to any Teleport service running anywhere with
+access to IAM credentials, such as an EC2 instance with an attached IAM role.
+No specific permissions or IAM policy is required: an IAM role with no attached
+policies is sufficient. No IAM credentials are required on the Teleport Auth Service.
 
-<Details 
-scope={["oss", "enterprise"]} 
+<Details
+scope={["oss", "enterprise"]}
 scopeOnly
 opened
 title="Other AWS Node joining methods"
@@ -23,10 +22,9 @@ title="Other AWS Node joining methods"
 There are two additional methods you can use to join your Nodes to a Teleport
 cluster.
 
-The **EC2 join method** is available in self-hosted versions of Teleport 8.3+.
-It is available to any Teleport Node or Proxy Service instance running on an EC2
-instance. Only one Teleport Node or Proxy Service instance per EC2 instance may
-use the EC2 join method.
+The **EC2 join method** is available in self-hosted versions of Teleport.
+It is available to any Teleport service instance running on an EC2 instance.
+Only one Teleport service instance per EC2 instance may use the EC2 join method.
 
 IAM credentials with `ec2:DescribeInstances` permissions are required on
 your Teleport Auth Service. No IAM credentials are required on the Nodes or
@@ -38,8 +36,8 @@ Read more in the following guide:
 [Adding Nodes to the cluster](../admin/adding-nodes.mdx)
 
 </Details>
-<Details 
-scope={["cloud"]} 
+<Details
+scope={["cloud"]}
 scopeOnly
 opened
 title="Another AWS Node joining method"
@@ -149,12 +147,12 @@ and `method: iam` as shown in the following example config:
 
 ```
 # /etc/teleport.yaml
+version: v3
 teleport:
   join_params:
     token_name: iam-token
     method: iam
-  auth_servers:
-  - https://teleport.example.com:443
+  proxy_server: https://teleport.example.com:443
 ssh_service:
   enabled: yes
 auth_service:

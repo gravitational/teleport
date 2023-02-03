@@ -23,9 +23,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -109,7 +109,7 @@ func (f *elastiCacheFetcher) getManagedUsersForGroup(ctx context.Context, region
 	managedUsers := []*elasticache.User{}
 	for _, user := range allUsers {
 		// Match user group ID.
-		if !utils.SliceContainsStr(aws.StringValueSlice(user.UserGroupIds), userGroupID) {
+		if !slices.Contains(aws.StringValueSlice(user.UserGroupIds), userGroupID) {
 			continue
 		}
 

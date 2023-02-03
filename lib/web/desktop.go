@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -56,7 +57,7 @@ func (h *Handler) desktopConnectHandle(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
-	ctx *SessionContext,
+	sctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) (interface{}, error) {
 	desktopName := p.ByName("desktopName")
@@ -64,44 +65,75 @@ func (h *Handler) desktopConnectHandle(
 		return nil, trace.BadParameter("missing desktopName in request URL")
 	}
 
-	log := ctx.log.WithField("desktop-name", desktopName)
+	log := sctx.cfg.Log.WithField("desktop-name", desktopName).WithField("cluster-name", site.GetName())
 	log.Debug("New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(w, r, desktopName, log, ctx, site); err != nil {
+	if err := h.createDesktopConnection(w, r, desktopName, site.GetName(), log, sctx, site); err != nil {
+		// createDesktopConnection makes a best effort attempt to send an error to the user
+		// (via websocket) before terminating the connection. We log the error here, but
+		// return nil because our HTTP middleware will try to write the returned error in JSON
+		// format, and this will fail since the HTTP connection has been upgraded to websockets.
 		log.Error(err)
-		return nil, trace.Wrap(err)
 	}
 
 	return nil, nil
 }
 
+const (
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/cbe1ed0a-d320-4ea5-be5a-f2eb6e032853#Appendix_A_45
+	maxRDPScreenWidth  = 8192
+	maxRDPScreenHeight = 8192
+)
+
 func (h *Handler) createDesktopConnection(
 	w http.ResponseWriter,
 	r *http.Request,
 	desktopName string,
+	clusterName string,
 	log *logrus.Entry,
-	ctx *SessionContext,
+	sctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) error {
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+	}
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer ws.Close()
+
+	sendTDPError := func(err error) error {
+		sendErr := sendTDPNotification(ws, err, tdp.SeverityError)
+		if sendErr != nil {
+			return sendErr
+		}
+		return err
+	}
 
 	q := r.URL.Query()
 	username := q.Get("username")
 	if username == "" {
-		return trace.BadParameter("missing username")
+		return sendTDPError(trace.BadParameter("missing username"))
 	}
 	width, err := strconv.Atoi(q.Get("width"))
 	if err != nil {
-		return trace.BadParameter("width missing or invalid")
+		return sendTDPError(trace.BadParameter("width missing or invalid"))
 	}
 	height, err := strconv.Atoi(q.Get("height"))
 	if err != nil {
-		return trace.BadParameter("height missing or invalid")
+		return sendTDPError(trace.BadParameter("height missing or invalid"))
+	}
+
+	if width > maxRDPScreenWidth || height > maxRDPScreenHeight {
+		return sendTDPError(trace.BadParameter(
+			"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
+			width, height, maxRDPScreenWidth, maxRDPScreenHeight,
+		))
 	}
 
 	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
-
-	// TODO(awly): trusted cluster support - if this request is for a different
-	// cluster, dial their proxy and forward the websocket request as is.
 
 	// Pick a random Windows desktop service as our gateway.
 	// When agent mode is implemented in the service, we'll have to filter out
@@ -109,13 +141,16 @@ func (h *Handler) createDesktopConnection(
 	//
 	// In the future, we may want to do something smarter like latency-based
 	// routing.
-	winDesktops, err := ctx.unsafeCachedAuthClient.GetWindowsDesktops(r.Context(),
-		types.WindowsDesktopFilter{Name: desktopName})
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
-		return trace.Wrap(err)
+		return sendTDPError(trace.Wrap(err))
+	}
+	winDesktops, err := clt.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{Name: desktopName})
+	if err != nil {
+		return sendTDPError(trace.Wrap(err, "cannot get Windows desktops"))
 	}
 	if len(winDesktops) == 0 {
-		return trace.NotFound("no windows_desktops were found")
+		return sendTDPError(trace.NotFound("no Windows desktops were found"))
 	}
 	var validServiceIDs []string
 	for _, desktop := range winDesktops {
@@ -132,66 +167,47 @@ func (h *Handler) createDesktopConnection(
 
 	c := &connector{
 		log:      log,
-		clt:      ctx.clt,
+		clt:      clt,
 		site:     site,
 		userAddr: r.RemoteAddr,
 	}
-	serviceConn, err := c.connectToWindowsService(ctx.parent.clusterName, validServiceIDs)
+	serviceConn, err := c.connectToWindowsService(clusterName, validServiceIDs)
 	if err != nil {
-		return trace.Wrap(err)
+		return sendTDPError(trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
 	defer serviceConn.Close()
 
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-	}
-
-	pc, err := proxyClient(r.Context(), ctx, h.ProxyHostPort(), username)
+	pc, err := proxyClient(r.Context(), sctx, h.ProxyHostPort(), username)
 	if err != nil {
-		return trace.Wrap(err)
+		return sendTDPError(trace.Wrap(err))
 	}
 	defer pc.Close()
 
-	ws, err := upgrader.Upgrade(w, r, nil)
+	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, sctx, desktopName, username, site.GetName())
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer ws.Close()
-
-	sendTDPError := func(ws *websocket.Conn, err error) error {
-		msg := tdp.Error{Message: err.Error()}
-		b, err := msg.Encode()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(ws.WriteMessage(websocket.BinaryMessage, b))
-	}
-
-	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, ctx, desktopName, username, site.GetName())
-	if err != nil {
-		return trace.NewAggregate(err, sendTDPError(ws, err))
+		return sendTDPError(err)
 	}
 	serviceConnTLS := tls.Client(serviceConn, tlsConfig)
 
 	if err := serviceConnTLS.HandshakeContext(r.Context()); err != nil {
-		return trace.NewAggregate(err, sendTDPError(ws, err))
+		return sendTDPError(err)
 	}
 	log.Debug("Connected to windows_desktop_service")
 
 	tdpConn := tdp.NewConn(serviceConnTLS)
-	err = tdpConn.OutputMessage(tdp.ClientUsername{Username: username})
+	err = tdpConn.WriteMessage(tdp.ClientUsername{Username: username})
 	if err != nil {
-		return trace.NewAggregate(err, sendTDPError(ws, err))
+		return sendTDPError(err)
 	}
-	err = tdpConn.OutputMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
+	err = tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
 	if err != nil {
-		return trace.NewAggregate(err, sendTDPError(ws, err))
+		return sendTDPError(err)
 	}
 
-	if err := proxyWebsocketConn(ws, serviceConnTLS); err != nil {
-		log.WithError(err).Warningf("Error proxying a desktop protocol websocket to windows_desktop_service")
-	}
+	// proxyWebsocketConn hangs here until connection is closed
+	handleProxyWebsocketConnErr(
+		proxyWebsocketConn(ws, serviceConnTLS), log)
+
 	return nil
 }
 
@@ -221,12 +237,15 @@ func proxyClient(ctx context.Context, sessCtx *SessionContext, addr, windowsUser
 }
 
 func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyClient, sessCtx *SessionContext, desktopName, username, siteName string) (*tls.Config, error) {
-	pk, err := keys.ParsePrivateKey(sessCtx.session.GetPriv())
+	pk, err := keys.ParsePrivateKey(sessCtx.cfg.Session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var wsLock sync.Mutex
+	stream, err := NewTerminalStream(ws)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
 			WindowsDesktop: desktopName,
@@ -235,11 +254,11 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		RouteToCluster: siteName,
 		ExistingCreds: &client.Key{
 			PrivateKey:          pk,
-			Cert:                sessCtx.session.GetPub(),
-			TLSCert:             sessCtx.session.GetTLSCert(),
+			Cert:                sessCtx.cfg.Session.GetPub(),
+			TLSCert:             sessCtx.cfg.Session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),
 		},
-	}, promptMFAChallenge(ws, &wsLock, tdpMFACodec{}))
+	}, promptMFAChallenge(stream, tdpMFACodec{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -251,7 +270,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig, err := sessCtx.ClientTLSConfig()
+	tlsConfig, err := sessCtx.ClientTLSConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -263,7 +282,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 
 type connector struct {
 	log      *logrus.Entry
-	clt      *auth.Client
+	clt      auth.ClientI
 	site     reversetunnel.RemoteSite
 	userAddr string
 }
@@ -279,6 +298,7 @@ func (c *connector) connectToWindowsService(clusterName string, desktopServiceID
 				"error connecting to windows_desktop_service %q", id)
 		}
 		if trace.IsConnectionProblem(err) {
+			c.log.Warnf("failed to connect to windows_desktop_service %q: %v", id, err)
 			continue
 		}
 		if err == nil {
@@ -327,26 +347,43 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		// (io.Copy's internal buffer could split one message
 		// into multiple ws.WriteMessage calls)
 		tc := tdp.NewConn(wds)
+
+		// we don't care about the content of the message, we just
+		// need to split the stream into individual messages and
+		// write them to the websocket
 		for {
-			// TODO(zmb3): avoid the decode/encode loop here,
-			// and instead just build a tokenizer that reads
-			// the correct amount of bytes
-			msg, err := tc.InputMessage()
+			msg, err := tc.ReadMessage()
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
 				return
-			}
-			if err != nil {
+			} else if err != nil {
+				isFatal := tdp.IsFatalErr(err)
+				severity := tdp.SeverityError
+				if !isFatal {
+					severity = tdp.SeverityWarning
+				}
+				sendErr := sendTDPNotification(ws, err, severity)
+
+				// If the error wasn't fatal and we successfully
+				// sent it back to the client, continue.
+				if !isFatal && sendErr == nil {
+					continue
+				}
+
+				// If the error was fatal or we failed to send it back
+				// to the client, send it to the errs channel and end
+				// the session.
+				if sendErr != nil {
+					err = sendErr
+				}
 				errs <- err
 				return
 			}
-
 			encoded, err := msg.Encode()
 			if err != nil {
 				errs <- err
 				return
 			}
-
 			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
@@ -378,6 +415,40 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		retErrs = append(retErrs, <-errs)
 	}
 	return trace.NewAggregate(retErrs...)
+}
+
+// handleProxyWebsocketConnErr handles the error returned by proxyWebsocketConn by
+// unwrapping it and determining whether to log an error.
+func handleProxyWebsocketConnErr(proxyWsConnErr error, log *logrus.Entry) {
+	if proxyWsConnErr == nil {
+		log.Debug("proxyWebsocketConn returned with no error")
+		return
+	}
+
+	errs := []error{proxyWsConnErr}
+	for len(errs) > 0 {
+		err := errs[0] // pop first error
+		errs = errs[1:]
+
+		switch err := err.(type) {
+		case trace.Aggregate:
+			errs = append(errs, err.Errors()...)
+		case *websocket.CloseError:
+			switch err.Code {
+			case websocket.CloseNormalClosure, // when the user hits "disconnect" from the menu
+				websocket.CloseGoingAway: // when the user closes the tab
+				log.Debugf("Web socket closed by client with code: %v", err.Code)
+				return
+			}
+			return
+		default:
+			if wrapped := errors.Unwrap(err); wrapped != nil {
+				errs = append(errs, wrapped)
+			}
+		}
+	}
+
+	log.WithError(proxyWsConnErr).Warning("Error proxying a desktop protocol websocket to windows_desktop_service")
 }
 
 // createCertificateBlob creates Certificate BLOB
@@ -482,4 +553,15 @@ func (h *Handler) desktopAccessScriptInstallADCSHandle(w http.ResponseWriter, r 
 	w.WriteHeader(http.StatusOK)
 	_, err := io.WriteString(w, scripts.DesktopAccessScriptInstallADCS)
 	return nil, trace.Wrap(err)
+}
+
+// sendTDPNotification sends a tdp Notification over the supplied websocket with the
+// error message of err.
+func sendTDPNotification(ws *websocket.Conn, err error, severity tdp.Severity) error {
+	msg := tdp.Notification{Message: err.Error(), Severity: severity}
+	b, err := msg.Encode()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return ws.WriteMessage(websocket.BinaryMessage, b)
 }

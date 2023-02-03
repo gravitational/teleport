@@ -19,11 +19,12 @@ package web
 import (
 	"net/http"
 
-	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/web/desktop"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/net/websocket"
+
+	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/web/desktop"
 )
 
 func (h *Handler) desktopPlaybackHandle(
@@ -38,7 +39,7 @@ func (h *Handler) desktopPlaybackHandle(
 		return nil, trace.BadParameter("missing sid in request URL")
 	}
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := ctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

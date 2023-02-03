@@ -17,9 +17,7 @@ limitations under the License.
 package main
 
 import (
-	"crypto/sha256"
 	"crypto/tls"
-	"encoding/hex"
 	"fmt"
 	"net"
 	"os"
@@ -29,6 +27,7 @@ import (
 
 	awsarn "github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -145,29 +144,12 @@ func (a *awsApp) GetAWSCredentials() (*credentials.Credentials, error) {
 	// There is no specific format or value required for access key and secret,
 	// as long as the AWS clients and the local proxy are using the same
 	// credentials. The only constraint is the access key must have a length
-	// between 16 and 128. Here access key and secret are generated based on
-	// current profile and app name so the same values can be recreated.
+	// between 16 and 128. AWS access key and secret typically have size of 20
+	// and 40 respectively. New UUIDs are generated for each tsh command.
 	//
 	// https://docs.aws.amazon.com/STS/latest/APIReference/API_Credentials.html
 	a.credentialsOnce.Do(func() {
-		keyPem, err := utils.ReadPath(a.profile.KeyPath())
-		if err != nil {
-			log.WithError(err).Errorf("Failed to read key.")
-			return
-		}
-
-		hashData := append(
-			keyPem,
-			[]byte(a.profile.Name+a.profile.Username+a.appName)...,
-		)
-
-		// AWS access key and secret typically have size of 20 and 40
-		// respectively.
-		sum := sha256.Sum256(hashData)
-		sumEncoded := hex.EncodeToString(sum[:])
-		if len(sumEncoded) > 60 {
-			a.credentials = credentials.NewStaticCredentials(sumEncoded[:20], sumEncoded[20:60], "")
-		}
+		a.credentials = credentials.NewStaticCredentials(uuid.NewString(), uuid.NewString(), "")
 	})
 
 	if a.credentials == nil {
@@ -298,7 +280,7 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 		InsecureSkipVerify: a.cf.InsecureSkipVerify,
 		ParentContext:      a.cf.Context,
 		SNI:                address.Host(),
-		AWSCredentials:     cred,
+		HTTPMiddleware:     &alpnproxy.AWSAccessMiddleware{AWSCredentials: cred},
 		Certs:              []tls.Certificate{appCerts},
 	})
 	if err != nil {
@@ -309,7 +291,7 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 	}
 
 	go func() {
-		if err := a.localALPNProxy.StartAWSAccessProxy(a.cf.Context); err != nil {
+		if err := a.localALPNProxy.StartHTTPAccessProxy(a.cf.Context); err != nil {
 			log.WithError(err).Errorf("Failed to start local ALPN proxy.")
 		}
 	}()
@@ -420,7 +402,7 @@ func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Appli
 }
 
 func pickActiveAWSApp(cf *CLIConf) (*awsApp, error) {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := cf.ProfileStatus()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

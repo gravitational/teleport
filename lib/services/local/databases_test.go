@@ -20,15 +20,15 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/defaults"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // TestDatabasesCRUD tests backend operations with database resources.
@@ -69,6 +69,17 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	err = service.CreateDatabase(ctx, db2)
 	require.NoError(t, err)
+
+	// Try to create an invalid database.
+	dbBadURI, err := types.NewDatabaseV3(types.Metadata{
+		Name: "db-missing-port",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost",
+	})
+	require.NoError(t, err)
+	err = service.CreateDatabase(ctx, dbBadURI)
+	require.True(t, trace.IsBadParameter(err))
 
 	// Fetch all databases.
 	out, err = service.GetDatabases(ctx)

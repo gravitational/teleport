@@ -19,6 +19,7 @@ package constants
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -145,6 +146,9 @@ const (
 	// DatabaseCAMinVersion is the minimum Teleport version that supports Database Certificate Authority.
 	DatabaseCAMinVersion = "10.0.0"
 
+	// OpenSSHCAMinVersion is the minimum Teleport version that supports OpenSSH Certificate Authority.
+	OpenSSHCAMinVersion = "12.0.0"
+
 	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
 	SSHRSAType = "ssh-rsa"
 )
@@ -164,9 +168,10 @@ const (
 	// SecondFactorOTP means that only OTP is supported for 2FA and 2FA is
 	// required for all users.
 	SecondFactorOTP = SecondFactorType("otp")
-	// SecondFactorU2F means that only U2F is supported for 2FA and 2FA is
-	// required for all users.
-	// U2F is marked for removal. It currently works as an alias for "webauthn".
+	// SecondFactorU2F means that only Webauthn is supported for 2FA and 2FA
+	// is required for all users.
+	// Deprecated: "u2f" is aliased to "webauthn". Prefer using
+	// SecondFactorWebauthn instead.
 	SecondFactorU2F = SecondFactorType("u2f")
 	// SecondFactorWebauthn means that only Webauthn is supported for 2FA and 2FA
 	// is required for all users.
@@ -235,6 +240,23 @@ const (
 	LockingModeBestEffort = LockingMode("best_effort")
 )
 
+// DeviceTrustMode is the mode of verification for trusted devices.
+// DeviceTrustMode is always "off" for OSS.
+// Defaults to "optional" for Enterprise.
+type DeviceTrustMode = string
+
+const (
+	// DeviceTrustModeOff disables both device authentication and authorization.
+	DeviceTrustModeOff DeviceTrustMode = "off"
+	// DeviceTrustModeOptional allows both device authentication and
+	// authorization, but doesn't enforce the presence of device extensions for
+	// sensitive endpoints.
+	DeviceTrustModeOptional DeviceTrustMode = "optional"
+	// DeviceTrustModeRequired enforces the presence of device extensions for
+	// sensitive endpoints.
+	DeviceTrustModeRequired DeviceTrustMode = "required"
+)
+
 const (
 	// ChanTransport is a channel type that can be used to open a net.Conn
 	// through the reverse tunnel server. Used for trusted clusters and dial back
@@ -258,22 +280,10 @@ const (
 
 const (
 	// KubeSNIPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
-	// DELETE IN 11.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
+	// DELETE IN 13.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
 	KubeSNIPrefix = "kube."
 	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
 	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
-)
-
-const (
-	// HTTPSProxy is an environment variable pointing to a HTTPS proxy.
-	HTTPSProxy = "HTTPS_PROXY"
-
-	// HTTPProxy is an environment variable pointing to a HTTP proxy.
-	HTTPProxy = "HTTP_PROXY"
-
-	// NoProxy is an environment variable matching the cases
-	// when HTTPS_PROXY or HTTP_PROXY is ignored
-	NoProxy = "NO_PROXY"
 )
 
 // SessionRecordingService is used to differentiate session recording services.
@@ -327,13 +337,17 @@ const (
 	// TraitAWSRoleARNs is the name of the role variable used to store
 	// allowed AWS role ARNs.
 	TraitAWSRoleARNs = "aws_role_arns"
+
+	// TraitAzureIdentities is the name of the role variable used to store
+	// allowed Azure identity names.
+	TraitAzureIdentities = "azure_identities"
+
+	// TraitGCPServiceAccounts is the name of the role variable used to store
+	// allowed GCP service accounts.
+	TraitGCPServiceAccounts = "gcp_service_accounts"
 )
 
-// Constants for AWS discovery
 const (
-	AWSServiceTypeEC2 = "ec2"
+	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
+	TimeoutGetClusterAlerts = time.Millisecond * 500
 )
-
-// SupportedAWSDiscoveryServices is list of AWS services currently
-// supported by the Teleport discovery service
-var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2}

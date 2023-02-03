@@ -22,9 +22,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // TestWatcherSimple tests scenarios with watchers

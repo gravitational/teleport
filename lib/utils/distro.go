@@ -19,9 +19,8 @@ package utils
 import (
 	"bufio"
 	"io"
-	"strings"
-
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
 )

@@ -17,6 +17,8 @@ package service
 
 import (
 	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -30,10 +32,18 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/teleport/api/breaker"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -41,13 +51,9 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -95,7 +101,7 @@ func TestMonitor(t *testing.T) {
 	var err error
 	cfg.DataDir = t.TempDir()
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
 	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
@@ -459,7 +465,7 @@ func TestDesktopAccessFIPS(t *testing.T) {
 
 	// Create and configure a default Teleport configuration.
 	cfg := MakeDefaultConfig()
-	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Clock = clockwork.NewFakeClock()
 	cfg.DataDir = t.TempDir()
 	cfg.Auth.Enabled = false
@@ -491,9 +497,9 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			name:        "ACME enabled, teleport ALPN protocols should be appended",
 			acmeEnabled: true,
 			wantNextProtos: []string{
-				// Ensure h2 has precedence over http/1.1.
-				"h2",
+				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
+				"h2",
 				"acme-tls/1",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
@@ -501,18 +507,25 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis-ping",
 				"teleport-sqlserver-ping",
 				"teleport-snowflake-ping",
+				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
+				"teleport-dynamodb-ping",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
 				"teleport-tcp",
+				"teleport-proxy-ssh-grpc",
+				"teleport-proxy-grpc",
+				"teleport-proxy-grpc-mtls",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
+				"teleport-cassandra",
 				"teleport-elasticsearch",
+				"teleport-dynamodb",
 			},
 		},
 		{
@@ -525,21 +538,28 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-redis-ping",
 				"teleport-sqlserver-ping",
 				"teleport-snowflake-ping",
+				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
-				// Ensure h2 has precedence over http/1.1.
-				"h2",
+				"teleport-dynamodb-ping",
+				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
+				"h2",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
 				"teleport-tcp",
+				"teleport-proxy-ssh-grpc",
+				"teleport-proxy-grpc",
+				"teleport-proxy-grpc-mtls",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
+				"teleport-cassandra",
 				"teleport-elasticsearch",
+				"teleport-dynamodb",
 			},
 		},
 	}
@@ -553,6 +573,8 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			cfg.Proxy.PublicAddrs = utils.MustParseAddrList("localhost")
 			process := TeleportProcess{
 				Config: cfg,
+				// Setting Supervisor so that `ExitContext` can be called.
+				Supervisor: NewSupervisor("process-id", cfg.Log),
 			}
 			conn := &Connector{
 				ServerIdentity: &auth.Identity{
@@ -580,7 +602,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	// Create and configure a default Teleport configuration.
 	cfg := MakeDefaultConfig()
-	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Clock = clock
 	cfg.DataDir = t.TempDir()
 	cfg.Auth.Enabled = false
@@ -641,7 +663,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 
 	// Create Node process.
 	nodeCfg := MakeDefaultConfig()
-	nodeCfg.AuthServers = []utils.NetAddr{listenAddr}
+	nodeCfg.SetAuthServerAddress(listenAddr)
 	nodeCfg.DataDir = t.TempDir()
 	nodeCfg.SetToken(token)
 	nodeCfg.Auth.Enabled = false
@@ -669,7 +691,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	require.NoError(t, err)
 
 	authCfg := MakeDefaultConfig()
-	authCfg.AuthServers = []utils.NetAddr{listenAddr}
+	authCfg.SetAuthServerAddress(listenAddr)
 	authCfg.DataDir = t.TempDir()
 	authCfg.Auth.Enabled = true
 	authCfg.Auth.StaticTokens = staticTokens
@@ -729,4 +751,326 @@ func getFreePort() (string, error) {
 	defer l.Close()
 
 	return l.Addr().(*net.TCPAddr).String(), nil
+}
+
+func Test_readOrGenerateHostID(t *testing.T) {
+	var (
+		id          = uuid.New().String()
+		hostUUIDKey = "/host_uuid"
+	)
+	type args struct {
+		kubeBackend   *fakeKubeBackend
+		hostIDContent string
+		identity      []*auth.Identity
+	}
+	tests := []struct {
+		name             string
+		args             args
+		wantFunc         func(string) bool
+		wantKubeItemFunc func(*backend.Item) bool
+	}{
+		{
+			name: "load from storage without kube backend",
+			args: args{
+				kubeBackend:   nil,
+				hostIDContent: id,
+			},
+			wantFunc: func(receivedID string) bool {
+				return receivedID == id
+			},
+		},
+		{
+			name: "Kube Backend is available but key is missing. Load from local storage and store in lube",
+			args: args{
+				kubeBackend: &fakeKubeBackend{
+					getData: nil,
+					getErr:  fmt.Errorf("key not found"),
+				},
+				hostIDContent: id,
+			},
+			wantFunc: func(receivedID string) bool {
+				return receivedID == id
+			},
+			wantKubeItemFunc: func(i *backend.Item) bool {
+				return cmp.Diff(&backend.Item{
+					Key:   []byte(hostUUIDKey),
+					Value: []byte(id),
+				}, i) == ""
+			},
+		},
+		{
+			name: "Kube Backend is available with key. Load from kube storage",
+			args: args{
+				kubeBackend: &fakeKubeBackend{
+					getData: &backend.Item{
+						Key:   []byte(hostUUIDKey),
+						Value: []byte(id),
+					},
+					getErr: nil,
+				},
+			},
+			wantFunc: func(receivedID string) bool {
+				return receivedID == id
+			},
+			wantKubeItemFunc: func(i *backend.Item) bool {
+				return i == nil
+			},
+		},
+		{
+			name: "No hostID available. Generate one and store it into Kube and Local Storage",
+			args: args{
+				kubeBackend: &fakeKubeBackend{
+					getData: nil,
+					getErr:  fmt.Errorf("key not found"),
+				},
+			},
+			wantFunc: func(receivedID string) bool {
+				_, err := uuid.Parse(receivedID)
+				return err == nil
+			},
+			wantKubeItemFunc: func(i *backend.Item) bool {
+				_, err := uuid.Parse(string(i.Value))
+				return err == nil && string(i.Key) == hostUUIDKey
+			},
+		},
+		{
+			name: "No hostID available. Generate one and store it into Local Storage",
+			args: args{
+				kubeBackend: nil,
+			},
+			wantFunc: func(receivedID string) bool {
+				_, err := uuid.Parse(receivedID)
+				return err == nil
+			},
+			wantKubeItemFunc: nil,
+		},
+		{
+			name: "No hostID available. Grab from provided static identity",
+			args: args{
+				kubeBackend: &fakeKubeBackend{
+					getData: nil,
+					getErr:  fmt.Errorf("key not found"),
+				},
+
+				identity: []*auth.Identity{
+					{
+						ID: auth.IdentityID{
+							HostUUID: id,
+						},
+					},
+				},
+			},
+			wantFunc: func(receivedID string) bool {
+				return receivedID == id
+			},
+			wantKubeItemFunc: func(i *backend.Item) bool {
+				_, err := uuid.Parse(string(i.Value))
+				return err == nil && string(i.Key) == hostUUIDKey
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dataDir := t.TempDir()
+			// write host_uuid file to temp dir.
+			if len(tt.args.hostIDContent) > 0 {
+				err := utils.WriteHostUUID(dataDir, tt.args.hostIDContent)
+				require.NoError(t, err)
+			}
+
+			cfg := &Config{
+				DataDir:    dataDir,
+				Log:        logrus.New(),
+				JoinMethod: types.JoinMethodToken,
+				Identities: tt.args.identity,
+			}
+
+			var kubeBackend kubernetesBackend
+			if tt.args.kubeBackend != nil {
+				kubeBackend = tt.args.kubeBackend
+			}
+
+			err := readOrGenerateHostID(context.Background(), cfg, kubeBackend)
+			require.NoError(t, err)
+
+			require.True(t, tt.wantFunc(cfg.HostUUID))
+
+			if tt.args.kubeBackend != nil {
+				require.True(t, tt.wantKubeItemFunc(tt.args.kubeBackend.putData))
+			}
+		})
+	}
+}
+
+type fakeKubeBackend struct {
+	putData *backend.Item
+	getData *backend.Item
+	getErr  error
+}
+
+// Put puts value into backend (creates if it does not
+// exists, updates it otherwise)
+func (f *fakeKubeBackend) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
+	f.putData = &i
+	return &backend.Lease{}, nil
+}
+
+// Get returns a single item or not found error
+func (f *fakeKubeBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+	return f.getData, f.getErr
+}
+
+func TestProxyGRPCServers(t *testing.T) {
+	hostID := uuid.NewString()
+	// Create a test auth server to extract the server identity (SSH and TLS
+	// certificates).
+	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clockwork.NewFakeClockAt(time.Now()),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, testAuthServer.Close())
+	})
+
+	tlsServer, err := testAuthServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, tlsServer.Close())
+	})
+	// Create a new client using the server identity.
+	client, err := tlsServer.NewClient(auth.TestServerID(types.RoleProxy, hostID))
+	require.NoError(t, err)
+	// TLS config for proxy service.
+	serverIdentity, err := auth.NewServerIdentity(testAuthServer.AuthServer, hostID, types.RoleProxy)
+	require.NoError(t, err)
+
+	testConnector := &Connector{
+		ServerIdentity: serverIdentity,
+		Client:         client,
+	}
+
+	// Create a listener for the insecure gRPC server.
+	insecureListener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := insecureListener.Close()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		require.NoError(t, err)
+	})
+
+	// Create a listener for the secure gRPC server.
+	secureListener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := secureListener.Close()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		require.NoError(t, err)
+	})
+
+	// Create a new Teleport process to initialize the gRPC servers with KubeProxy
+	// enabled.
+	log := logrus.New()
+	process := &TeleportProcess{
+		Supervisor: NewSupervisor(hostID, log),
+		Config: &Config{
+			Proxy: ProxyConfig{Kube: KubeProxyConfig{Enabled: true}},
+		},
+		log: log,
+	}
+
+	// Create a limiter with no limits.
+	limiter, err := limiter.NewLimiter(limiter.Config{})
+	require.NoError(t, err)
+
+	// Create a error channel to collect the errors from the gRPC servers.
+	errC := make(chan error, 2)
+	t.Cleanup(func() {
+		for i := 0; i < 2; i++ {
+			err := <-errC
+			if errors.Is(err, net.ErrClosed) {
+				continue
+			}
+			require.NoError(t, err)
+		}
+	})
+
+	// Insecure gRPC server.
+	insecureGPRC := process.initInsecureGRPCServer(limiter, testConnector, insecureListener)
+	t.Cleanup(insecureGPRC.GracefulStop)
+
+	// Secure gRPC server.
+	secureGRPC, err := process.initSecureGRPCServer(limiter, testConnector, insecureListener)
+	require.NoError(t, err)
+	t.Cleanup(secureGRPC.GracefulStop)
+
+	// Start the gRPC servers.
+	go func() {
+		errC <- trace.Wrap(insecureGPRC.Serve(insecureListener))
+	}()
+	go func() {
+		errC <- secureGRPC.Serve(secureListener)
+	}()
+
+	tests := []struct {
+		name         string
+		credentials  credentials.TransportCredentials
+		listenerAddr string
+		assertErr    require.ErrorAssertionFunc
+	}{
+		{
+			name:         "insecure client to insecure server",
+			credentials:  insecure.NewCredentials(),
+			listenerAddr: insecureListener.Addr().String(),
+			assertErr:    require.NoError,
+		},
+		{
+			name:         "insecure client to secure server with insecure skip verify",
+			credentials:  credentials.NewTLS(&tls.Config{InsecureSkipVerify: true}),
+			listenerAddr: secureListener.Addr().String(),
+			assertErr:    require.Error,
+		},
+		{
+			name:         "insecure client to secure server",
+			credentials:  credentials.NewTLS(&tls.Config{}),
+			listenerAddr: secureListener.Addr().String(),
+			assertErr:    require.Error,
+		},
+		{
+			name: "secure client to secure server",
+			credentials: func() credentials.TransportCredentials {
+				// Create a new client using the server identity.
+				creds, err := testConnector.ServerIdentity.TLSConfig(nil)
+				require.NoError(t, err)
+				return credentials.NewTLS(creds)
+			}(),
+			listenerAddr: secureListener.Addr().String(),
+			assertErr:    require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			t.Cleanup(cancel)
+			_, err := grpc.DialContext(
+				ctx,
+				tt.listenerAddr,
+				grpc.WithTransportCredentials(tt.credentials),
+				// This setting is required to return the connection error instead of
+				// wrapping it in a "context deadline exceeded" error.
+				// It also enforces the grpc.WithBlock() option.
+				grpc.WithReturnConnectionError(),
+				grpc.WithDisableRetry(),
+				grpc.FailOnNonTempDialError(true),
+			)
+			tt.assertErr(t, err)
+		})
+	}
 }

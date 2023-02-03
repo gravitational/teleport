@@ -21,21 +21,21 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/dustin/go-humanize/english"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	crdtools "sigs.k8s.io/controller-tools/pkg/crd"
 	crdmarkers "sigs.k8s.io/controller-tools/pkg/crd/markers"
 	"sigs.k8s.io/controller-tools/pkg/loader"
 	"sigs.k8s.io/controller-tools/pkg/markers"
-
-	"github.com/gobuffalo/flect"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	crdtools "sigs.k8s.io/controller-tools/pkg/crd"
-
-	"github.com/gravitational/trace"
 )
 
 const k8sKindPrefix = "Teleport"
 
+// Add names to this array when adding support to new Teleport resources that could conflict with Kubernetes
+var kubernetesReservedNames = []string{"role"}
 var regexpResourceName = regexp.MustCompile(`^([A-Za-z]+)(V[0-9]+)$`)
 
 // SchemaGenerator generates the OpenAPI v3 schema from a proto file.
@@ -48,16 +48,28 @@ type SchemaGenerator struct {
 // RootSchema is a wrapper for a message we are generating a schema for.
 type RootSchema struct {
 	groupName  string
-	versions   map[string]*Schema
+	versions   []SchemaVersion
 	name       string
 	pluralName string
 	kind       string
+}
+
+type SchemaVersion struct {
+	Version string
+	Schema  *Schema
 }
 
 // Schema is a set of object properties.
 type Schema struct {
 	apiextv1.JSONSchemaProps
 	built bool
+}
+
+func (s *Schema) DeepCopy() *Schema {
+	return &Schema{
+		JSONSchemaProps: *s.JSONSchemaProps.DeepCopy(),
+		built:           s.built,
+	}
 }
 
 func NewSchemaGenerator(groupName string) *SchemaGenerator {
@@ -75,7 +87,7 @@ func NewSchema() *Schema {
 	}}
 }
 
-func (generator *SchemaGenerator) addResource(file *File, name string) error {
+func (generator *SchemaGenerator) addResource(file *File, name string, overrideVersion ...string) error {
 	rootMsg, ok := file.messageByName[name]
 	if !ok {
 		return trace.NotFound("resource %q is not found", name)
@@ -95,9 +107,13 @@ func (generator *SchemaGenerator) addResource(file *File, name string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	schema = schema.DeepCopy()
 	resourceKind, resourceVersion, err := parseKindAndVersion(rootMsg)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if len(overrideVersion) > 0 {
+		resourceVersion = overrideVersion[0]
 	}
 	schema.Description = fmt.Sprintf("%s resource definition %s from Teleport", resourceKind, resourceVersion)
 
@@ -105,15 +121,16 @@ func (generator *SchemaGenerator) addResource(file *File, name string) error {
 	if !ok {
 		root = &RootSchema{
 			groupName:  generator.groupName,
-			versions:   make(map[string]*Schema),
 			kind:       resourceKind,
 			name:       strings.ToLower(resourceKind),
-			pluralName: strings.ToLower(flect.Pluralize(resourceKind)),
+			pluralName: strings.ToLower(english.PluralWord(2, resourceKind, "")),
 		}
 		generator.roots[resourceKind] = root
 	}
-
-	root.versions[resourceVersion] = schema
+	root.versions = append(root.versions, SchemaVersion{
+		Version: resourceVersion,
+		Schema:  schema,
+	})
 
 	return nil
 }
@@ -139,7 +156,7 @@ func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, erro
 	generator.memo[name] = schema
 
 	for _, field := range message.Fields {
-		if ignoredFields[message.Name()].Contains(field.Name()) {
+		if _, ok := ignoredFields[message.Name()][field.Name()]; ok {
 			continue
 		}
 
@@ -213,6 +230,11 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 				Items: &apiextv1.JSONSchemaPropsOrArray{Schema: &apiextv1.JSONSchemaProps{Type: "string"}},
 			},
 		}
+	case field.TypeName() == ".wrappers.StringValues":
+		prop.Type = "array"
+		prop.Items = &apiextv1.JSONSchemaPropsOrArray{
+			Schema: &apiextv1.JSONSchemaProps{Type: "string"},
+		}
 	case field.TypeName() == ".types.CertExtensionType" || field.TypeName() == ".types.CertExtensionMode":
 		prop.Type = "integer"
 		prop.Format = "int32"
@@ -256,7 +278,7 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 				ListKind:   k8sKindPrefix + root.kind + "List",
 				Plural:     strings.ToLower(k8sKindPrefix + root.pluralName),
 				Singular:   strings.ToLower(k8sKindPrefix + root.name),
-				ShortNames: []string{root.name, root.pluralName},
+				ShortNames: root.getShortNames(),
 			},
 			Scope: apiextv1.NamespaceScoped,
 		},
@@ -285,9 +307,11 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 		fmt.Printf("parser error: %s", err)
 	}
 
-	for versionName, schema := range root.versions {
-		var statusType crdtools.TypeIdent
+	for i, schemaVersion := range root.versions {
 
+		var statusType crdtools.TypeIdent
+		versionName := schemaVersion.Version
+		schema := schemaVersion.Schema
 		for _, pkg := range pkgs {
 			// This if is a bit janky, condition checking should be stronger
 			if pkg.Name == versionName {
@@ -302,9 +326,10 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 		}
 
 		crd.Spec.Versions = append(crd.Spec.Versions, apiextv1.CustomResourceDefinitionVersion{
-			Name:    versionName,
-			Served:  true,
-			Storage: true,
+			Name:   versionName,
+			Served: true,
+			// Storage the first version available.
+			Storage: i == 0,
 			Subresources: &apiextv1.CustomResourceSubresources{
 				Status: &apiextv1.CustomResourceSubresourceStatus{},
 			},
@@ -330,4 +355,13 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 		})
 	}
 	return crd
+}
+
+// getShortNames returns the schema short names while ensuring they won't conflict with existing Kubernetes resources
+// See https://github.com/gravitational/teleport/issues/17587 and https://github.com/kubernetes/kubernetes/issues/113227
+func (root RootSchema) getShortNames() []string {
+	if slices.Contains(kubernetesReservedNames, root.name) {
+		return []string{}
+	}
+	return []string{root.name, root.pluralName}
 }

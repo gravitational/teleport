@@ -9,6 +9,7 @@ when starting new:
 
 - SSH connections (a single `tsh` call)
 - Kubernetes sessions (a single `kubectl` call)
+- Database sessions (a single `tsh db connect` call)
 - Desktop sessions
 
 This is an advanced security feature that protects users against compromises of
@@ -246,9 +247,13 @@ $ tsh ssh prod3.example.com
 # jerry@prod3.example.com >
 ```
 
-<Admonition title="Tip" type="tip">
+<Admonition title="OTP" type="tip">
 If you are using `tsh` in a constrained environment, you can tell it to use
 OTP by doing `tsh --mfa-mode=otp ssh prod3.example.com`.
+
+OTP can only be used with per-session MFA when using the `tsh` client to
+establish connections. A hardware MFA key is required for using per-session
+MFA with Teleport's Web UI.
 </Admonition>
 
 If per-session MFA was enabled cluster-wide, Jerry would be prompted for MFA
@@ -257,8 +262,8 @@ even when logging into `dev1.example.com`.
 <Admonition title="Per-session MFA for Database Access" type="tip">
 
 Database Access supports per-connection MFA. When Jerry connects to the database
-`prod-mysql-instance` (with label `env: prod`), he gets
-prompted for an MFA check for each `tsh db connect` call:
+`prod-mysql-instance` (with label `env: prod`), he gets prompted for an MFA check
+for each `tsh db connect` or `tsh proxy db` call:
 
 ```code
 $ tsh db connect prod-mysql-instance
@@ -285,9 +290,8 @@ $ tsh db connect prod-mysql-instance
 
 Current limitations for this feature are:
 
-- WebAuthn hardware devices aren't currently supported in `tsh` on Windows.
-- Only `tsh ssh` supports per-session MFA authentication for SSH (OpenSSH `ssh`
-  does not).
+- For SSH, the `tsh` client must be used for per-session MFA.
+  (The OpenSSH `ssh` client does not work with per-session MFA).
 - Only `kubectl` supports per-session WebAuthn authentication for Kubernetes.
 - Application access clients don't support per-session MFA
   authentication yet, although cluster and role configuration applies to them.

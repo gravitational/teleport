@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,10 +20,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
-
-	"github.com/gravitational/trace"
 )
 
 // MessageOpMsg represents parsed OP_MSG wire message.
@@ -288,9 +287,8 @@ func validateDocumentSize(src []byte) error {
 
 	// document length is encoded in the first 4 bytes
 	documentLength := int(int32(src[0]) | int32(src[1])<<8 | int32(src[2])<<16 | int32(src[3])<<24)
-
-	// document payload cannot be shorter than the size of the whole message plus the header length.
-	if documentLength+headerLen <= len(src) {
+	// Ensure that idx is not negative.
+	if documentLength-4 < 0 {
 		return trace.BadParameter("invalid document length")
 	}
 	return nil

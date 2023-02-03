@@ -47,11 +47,21 @@ const (
 	// ProtocolSnowflake is TLS ALPN protocol value used to indicate Snowflake protocol.
 	ProtocolSnowflake Protocol = "teleport-snowflake"
 
+	// ProtocolCassandra is the TLS ALPN protocol value used to indicate Cassandra protocol.
+	ProtocolCassandra Protocol = "teleport-cassandra"
+
 	// ProtocolElasticsearch is TLS ALPN protocol value used to indicate Elasticsearch protocol.
 	ProtocolElasticsearch Protocol = "teleport-elasticsearch"
 
+	// ProtocolDynamoDB is TLS ALPN protocol value used to indicate DynamoDB protocol.
+	ProtocolDynamoDB Protocol = "teleport-dynamodb"
+
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
+
+	// ProtocolProxySSHGRPC is TLS ALPN protocol value used to indicate gRPC
+	// traffic intended for the Teleport Proxy on the SSH port.
+	ProtocolProxySSHGRPC Protocol = "teleport-proxy-ssh-grpc"
 
 	// ProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ProtocolReverseTunnel Protocol = "teleport-reversetunnel"
@@ -62,7 +72,6 @@ const (
 	// be included in the list of ALPN header for the proxy server to handle the connection properly.
 	ProtocolReverseTunnelV2 Protocol = "teleport-reversetunnelv2"
 
-	// ProtocolHTTP is TLS ALPN protocol value used to indicate HTTP2 protocol
 	// ProtocolHTTP is TLS ALPN protocol value used to indicate HTTP 1.1 protocol
 	ProtocolHTTP Protocol = "http/1.1"
 
@@ -75,9 +84,14 @@ const (
 	// ProtocolAuth allows dialing local/remote auth service based on SNI cluster name value.
 	ProtocolAuth Protocol = "teleport-auth@"
 
-	// ProtocolProxyGRPC is TLS ALPN protocol value used to indicate gRPC
-	// traffic intended for the Teleport proxy.
-	ProtocolProxyGRPC Protocol = "teleport-proxy-grpc"
+	// ProtocolProxyGRPCInsecure is TLS ALPN protocol value used to indicate gRPC
+	// traffic intended for the Teleport proxy join service.
+	// Credentials are not verified since this is used for node joining.
+	ProtocolProxyGRPCInsecure Protocol = "teleport-proxy-grpc"
+
+	// ProtocolProxyGRPCSecure is TLS ALPN protocol value used to indicate gRPC
+	// traffic intended for the Teleport proxy service with mTLS authentication.
+	ProtocolProxyGRPCSecure Protocol = "teleport-proxy-grpc-mtls"
 
 	// ProtocolMySQLWithVerPrefix is TLS ALPN prefix used by tsh to carry
 	// MySQL server version.
@@ -95,12 +109,21 @@ const (
 var SupportedProtocols = append(
 	ProtocolsWithPing(ProtocolsWithPingSupport...),
 	append([]Protocol{
-		ProtocolHTTP2,
+		// HTTP needs to be prioritized over HTTP2 due to a bug in Chrome:
+		// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017
+		// If Chrome resolves this, we can switch the prioritization. We may
+		// also be able to get around this if https://github.com/golang/go/issues/49918
+		// is implemented and we can enable HTTP2 websockets on our end, but
+		// it's less clear this will actually fix the issue.
 		ProtocolHTTP,
+		ProtocolHTTP2,
 		ProtocolProxySSH,
 		ProtocolReverseTunnel,
 		ProtocolAuth,
 		ProtocolTCP,
+		ProtocolProxySSHGRPC,
+		ProtocolProxyGRPCInsecure,
+		ProtocolProxyGRPCSecure,
 	}, DatabaseProtocols...)...,
 )
 
@@ -128,8 +151,12 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolSQLServer, nil
 	case defaults.ProtocolSnowflake:
 		return ProtocolSnowflake, nil
+	case defaults.ProtocolCassandra:
+		return ProtocolCassandra, nil
 	case defaults.ProtocolElasticsearch:
 		return ProtocolElasticsearch, nil
+	case defaults.ProtocolDynamoDB:
+		return ProtocolDynamoDB, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
@@ -146,7 +173,9 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolRedisDB,
 		ProtocolSQLServer,
 		ProtocolSnowflake,
+		ProtocolCassandra,
 		ProtocolElasticsearch,
+		ProtocolDynamoDB,
 	}
 
 	return slices.Contains(
@@ -163,7 +192,9 @@ var DatabaseProtocols = []Protocol{
 	ProtocolRedisDB,
 	ProtocolSQLServer,
 	ProtocolSnowflake,
+	ProtocolCassandra,
 	ProtocolElasticsearch,
+	ProtocolDynamoDB,
 }
 
 // ProtocolsWithPingSupport is the list of protocols that Ping connection is
@@ -187,7 +218,7 @@ func ProtocolWithPing(protocol Protocol) Protocol {
 	return Protocol(string(protocol) + string(ProtocolPingSuffix))
 }
 
-// IsPingProcotol checks if the provided protocol is suffixed with Ping.
+// IsPingProtocol checks if the provided protocol is suffixed with Ping.
 func IsPingProtocol(protocol Protocol) bool {
 	return strings.HasSuffix(string(protocol), string(ProtocolPingSuffix))
 }

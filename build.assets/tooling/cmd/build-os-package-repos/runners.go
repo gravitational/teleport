@@ -45,7 +45,7 @@ func NewAptRunner() (*AptRunner, error) {
 				"stretch",  // 9
 				"buster",   // 10
 				"bullseye", // 11
-				"bookwork", // 12
+				"bookworm", // 12
 				"trixie",   // 13
 			},
 			"ubuntu": { // See https://wiki.ubuntu.com/Releases for details

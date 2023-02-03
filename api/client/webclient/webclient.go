@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // Config specifies information when building requests with the
@@ -102,7 +103,7 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 	}
 	return &http.Client{
 		Transport: otelhttp.NewTransport(
-			proxy.NewHTTPFallbackRoundTripper(&transport, cfg.Insecure),
+			proxy.NewHTTPRoundTripper(&transport, nil),
 			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
 		),
 		Timeout: cfg.Timeout,
@@ -388,11 +389,18 @@ type AuthenticationSettings struct {
 	SAML *SAMLSettings `json:"saml,omitempty"`
 	// Github contains Github connector settings needed for authentication.
 	Github *GithubSettings `json:"github,omitempty"`
+	// PrivateKeyPolicy contains the cluster-wide private key policy.
+	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"private_key_policy"`
+	// DeviceTrustDisabled provides a clue to Teleport clients on whether to avoid
+	// device authentication.
+	DeviceTrustDisabled bool `json:"device_trust_disabled,omitempty"`
 
 	// HasMessageOfTheDay is a flag indicating that the cluster has MOTD
 	// banner text that must be retrieved, displayed and acknowledged by
 	// the user.
 	HasMessageOfTheDay bool `json:"has_motd"`
+	// LoadAllCAs tells tsh to load CAs for all clusters when trying to ssh into a node.
+	LoadAllCAs bool `json:"load_all_cas,omitempty"`
 }
 
 // LocalSettings holds settings for local authentication.
