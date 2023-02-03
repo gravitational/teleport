@@ -29,6 +29,8 @@ db_service:
 
   # Matchers for registering Azure-hosted databases.
   azure:
+    # Set is_flexi_server to true when using an Azure flexible server.
+    is_flexi_server: false
     # Database types. Valid options are:
     # 'mysql' - discovers and registers Azure MySQL single-server databases.
     # 'postgres' - discovers and registers Azure PostgreSQL single-server databases.
