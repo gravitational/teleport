@@ -203,9 +203,6 @@ func defaultAllowRules() map[string][]types.Rule {
 // - DatabaseServiceLabels (db_service_labels)
 func defaultAllowLabels() map[string]types.RoleConditions {
 	return map[string]types.RoleConditions{
-		teleport.PresetEditorRoleName: {
-			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-		},
 		teleport.PresetAccessRoleName: {
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
@@ -215,25 +212,24 @@ func defaultAllowLabels() map[string]types.RoleConditions {
 // AddDefaultAllowConditions adds default allow Role Conditions to a preset role.
 // Only rules/labels whose resources are not already defined (either allowing or denying) are added.
 func AddDefaultAllowConditions(role types.Role) (types.Role, error) {
+	changed := false
+
 	// Resource Rules
 	defaultRules, ok := defaultAllowRules()[role.GetName()]
-	if !ok || len(defaultRules) == 0 {
-		return nil, trace.AlreadyExists("no change")
-	}
+	if ok {
+		existingRules := append(role.GetRules(types.Allow), role.GetRules(types.Deny)...)
 
-	existingRules := append(role.GetRules(types.Allow), role.GetRules(types.Deny)...)
+		for _, defaultRule := range defaultRules {
+			if resourceBelongsToRules(existingRules, defaultRule.Resources) {
+				continue
+			}
 
-	changed := false
-	for _, defaultRule := range defaultRules {
-		if resourceBelongsToRules(existingRules, defaultRule.Resources) {
-			continue
+			log.Debugf("Adding default allow rule %v for role %q", defaultRule, role.GetName())
+			rules := role.GetRules(types.Allow)
+			rules = append(rules, defaultRule)
+			role.SetRules(types.Allow, rules)
+			changed = true
 		}
-
-		log.Debugf("Adding default allow rule %v for role %q", defaultRule, role.GetName())
-		rules := role.GetRules(types.Allow)
-		rules = append(rules, defaultRule)
-		role.SetRules(types.Allow, rules)
-		changed = true
 	}
 
 	// Labels

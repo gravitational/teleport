@@ -513,19 +513,23 @@ func TestPresets(t *testing.T) {
 			outdatedRules = append(outdatedRules, r)
 		}
 		editorRole.SetRules(types.Allow, outdatedRules)
-		// Remove the new DatabaseServiceLabels default
-		editorRole.SetDatabaseServiceLabels(types.Allow, types.Labels{})
-
 		err := as.CreateRole(ctx, editorRole)
+		require.NoError(t, err)
+
+		// Set up an old Access Role.
+		// Remove the new DatabaseServiceLabels default
+		accessRole := services.NewPresetAccessRole()
+		accessRole.SetDatabaseServiceLabels(types.Allow, types.Labels{})
+		err = as.CreateRole(ctx, accessRole)
 		require.NoError(t, err)
 
 		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetRole(ctx, editorRole.GetName())
+		outEditor, err := as.GetRole(ctx, editorRole.GetName())
 		require.NoError(t, err)
 
-		allowRules := out.GetRules(types.Allow)
+		allowRules := outEditor.GetRules(types.Allow)
 		require.Condition(t, func() (success bool) {
 			for _, r := range allowRules {
 				if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
@@ -535,7 +539,9 @@ func TestPresets(t *testing.T) {
 			return false
 		}, "missing default rule")
 
-		allowedDatabaseServiceLabels := out.GetDatabaseServiceLabels(types.Allow)
+		outAccess, err := as.GetRole(ctx, accessRole.GetName())
+		require.NoError(t, err)
+		allowedDatabaseServiceLabels := outAccess.GetDatabaseServiceLabels(types.Allow)
 		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, allowedDatabaseServiceLabels, "missing default DatabaseServiceLabels")
 	})
 
@@ -546,6 +552,7 @@ func TestPresets(t *testing.T) {
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
+		// Set up a changed Editor Role
 		editorRole := services.NewPresetEditorRole()
 		allowRules := editorRole.GetRules(types.Allow)
 
@@ -559,10 +566,6 @@ func TestPresets(t *testing.T) {
 			outdateAllowRules = append(outdateAllowRules, r)
 		}
 		editorRole.SetRules(types.Allow, outdateAllowRules)
-		// Remove a default allow label as well.
-		editorRole.SetDatabaseServiceLabels(types.Allow, types.Labels{})
-		// Explicitly deny DatabaseServiceLabels
-		editorRole.SetDatabaseServiceLabels(types.Deny, types.Labels{types.Wildcard: []string{types.Wildcard}})
 
 		// Explicitly deny Create to ConnectionDiagnostic
 		denyRules := editorRole.GetRules(types.Deny)
@@ -573,13 +576,24 @@ func TestPresets(t *testing.T) {
 		err := as.CreateRole(ctx, editorRole)
 		require.NoError(t, err)
 
+		// Set up a changed Access Role
+		accessRole := services.NewPresetAccessRole()
+		// Remove a default allow label as well.
+		accessRole.SetDatabaseServiceLabels(types.Allow, types.Labels{})
+		// Explicitly deny DatabaseServiceLabels
+		accessRole.SetDatabaseServiceLabels(types.Deny, types.Labels{types.Wildcard: []string{types.Wildcard}})
+
+		err = as.CreateRole(ctx, accessRole)
+		require.NoError(t, err)
+
+		// Apply defaults.
 		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetRole(ctx, editorRole.GetName())
+		outEditor, err := as.GetRole(ctx, editorRole.GetName())
 		require.NoError(t, err)
 
-		allowRules = out.GetRules(types.Allow)
+		allowRules = outEditor.GetRules(types.Allow)
 		require.Condition(t, func() (success bool) {
 			for _, r := range allowRules {
 				if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
@@ -589,9 +603,11 @@ func TestPresets(t *testing.T) {
 			return true
 		}, "missing default rule")
 
-		allowedDatabaseServiceLabels := out.GetDatabaseServiceLabels(types.Allow)
+		outAccess, err := as.GetRole(ctx, accessRole.GetName())
+		require.NoError(t, err)
+		allowedDatabaseServiceLabels := outAccess.GetDatabaseServiceLabels(types.Allow)
 		require.Nil(t, allowedDatabaseServiceLabels, "does not set Allowed DatabaseService Labels")
-		deniedDatabaseServiceLabels := out.GetDatabaseServiceLabels(types.Deny)
+		deniedDatabaseServiceLabels := outAccess.GetDatabaseServiceLabels(types.Deny)
 		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, deniedDatabaseServiceLabels, "keeps the deny label for DatabaseService")
 	})
 
