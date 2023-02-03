@@ -22,7 +22,7 @@ const ReactRefreshPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 
 const resolvePath = require('./resolvepath');
 
-const tsconfigPath = path.join(__dirname, '/../../../tsconfig.json');
+const tsconfigPath = path.join(__dirname, '/../../../../tsconfig.json');
 
 const configFactory = {
   createDefaultConfig,
@@ -169,7 +169,7 @@ function createDefaultConfig() {
       alias: {
         teleterm: path.join(__dirname, '/../../teleterm/src'),
         teleport: path.join(__dirname, '/../../teleport/src'),
-        'e-teleport': path.join(__dirname, '/../../webapps.e/teleport/src'),
+        'e-teleport': path.join(__dirname, '/../../../../e/web/teleport/src'),
         design: path.join(__dirname, '/../../design/src'),
         shared: path.join(__dirname, '/../../shared'),
       },
