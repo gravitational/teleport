@@ -814,6 +814,10 @@
                "slug": "/database-access/guides/rds/"
             },
             {
+              "title": "AWS RDS Proxy",
+              "slug": "/database-access/guides/rds-proxy/"
+            },
+            {
                "title": "AWS Redshift",
                "slug": "/database-access/guides/postgres-redshift/"
             },

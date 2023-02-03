@@ -1,0 +1,212 @@
+---
+title: Database Access with AWS RDS Proxy
+description: How to configure Teleport Database Access with AWS RDS Proxy.
+---
+
+This guide will help you to set up Teleport to access your AWS RDS proxies.
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access RDS Self-Hosted](../../../img/database-access/guides/rds-proxy_selfhosted.png)
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access RDS Cloud](../../../img/database-access/guides/rds-proxy_cloud.png)
+</ScopedBlock>
+
+<Admonition type="note" title="Supported versions">
+The following products are not compatible with Database Access as they don't support IAM authentication:
+- Aurora Serverless v1.
+- RDS MariaDB versions lower than 10.6.
+
+It is recommended to upgrade Aurora Serverless v1 to
+[Aurora Serverless v2](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2.html)
+which does support IAM authentication.
+</Admonition>
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- AWS account with RDS and Aurora databases and permissions to create and attach
+  IAM policies.
+- Any RDS Proxies intended for connection through Teleport must have TLS enabled.
+- A host, e.g., an EC2 instance, where you will run the Teleport Database
+  Service.
+
+(!docs/pages/includes/tctl.mdx!)
+
+## Step 1/5. Create a Database Service configuration
+
+(!docs/pages/includes/database-access/token.mdx!)
+
+Install Teleport on the host where you will run the Teleport Database Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+Create the Database Service configuration:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$ teleport db configure create \
+   -o file \
+   --proxy=teleport.example.com:443 \
+   --token=/tmp/token \
+   --rdsproxy-discovery=us-west-1
+```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ teleport db configure create \
+   -o file \
+   --proxy=mytenant.teleport.sh:443 \
+   --token=/tmp/token \
+   --rdsproxy-discovery=us-west-1
+```
+
+</ScopedBlock>
+
+The command will generate a Database Service configuration with RDS/Aurora
+database auto-discovery enabled on the `us-west-1` region and place it at the
+`/etc/teleport.yaml` location.
+
+## Step 2/5. Create an IAM policy for Teleport
+
+Teleport needs AWS IAM permissions to be able to:
+
+- Discover and register RDS instances and Aurora clusters.
+- Configure IAM authentication for them.
+
+(!docs/pages/includes/database-access/aws-bootstrap.mdx!)
+
+## Step 3/5. Start the Database Service
+
+Start the Database Service:
+
+```code
+$ teleport start --config=/etc/teleport.yaml
+```
+
+The Database Service will discover all RDS instances and Aurora clusters according to the
+configuration and register them in the cluster. In addition to the primary
+endpoints of the discovered Aurora clusters, their reader and custom endpoints
+will also be registered.
+
+The Database Service will also attempt to enable IAM auth and configure IAM access
+policies for the discovered databases. Keep in mind that AWS IAM changes may
+not propagate immediately and can take a few minutes to come into effect.
+
+<Admonition type="note" title="AWS credentials">
+  The Teleport Database Service uses the default
+  credential provider chain to find AWS credentials. See [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials) for more information.
+</Admonition>
+
+## Step 4/5. Create a database IAM user
+
+Database users must allow IAM authentication in order to be used with Database
+Access for RDS. See below how to enable it for your database engine.
+
+<Tabs>
+<TabItem label="PostgreSQL">
+PostgreSQL users must have a `rds_iam` role:
+
+```sql
+CREATE USER alice;
+GRANT rds_iam TO alice;
+```
+
+</TabItem>
+<TabItem label="MySQL/MariaDB">
+MySQL and MariaDB users must have the RDS authentication plugin enabled:
+
+```sql
+CREATE USER alice IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
+```
+
+Created user may not have access to anything by default so let's grant it
+some permissions:
+
+```sql
+GRANT ALL ON `%`.* TO 'alice'@'%';
+```
+
+</TabItem>
+</Tabs>
+
+See [Creating a database account using IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html)
+for more information.
+
+## Step 5/5. Connect
+
+Once the Database Service has started and joined the cluster, log in to see the
+registered databases:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$ tsh login --proxy=teleport.example.com --user=alice
+$ tsh db ls
+# Name                           Description                                   Labels
+# ------------------------------ --------------------------------------------- --------
+# postgres-rds                   RDS instance in us-west-1                     ...
+# aurora-mysql                   Aurora cluster in us-west-1                   ...
+# aurora-mysql-custom-myendpoint Aurora cluster in us-west-1 (custom endpoint) ...
+# aurora-mysql-reader            Aurora cluster in us-west-1 (reader endpoint) ...
+```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
+$ tsh db ls
+# Name                           Description                                   Labels
+# ------------------------------ --------------------------------------------- --------
+# postgres-rds                   RDS instance in us-west-1                     ...
+# aurora-mysql                   Aurora cluster in us-west-1                   ...
+# aurora-mysql-custom-myendpoint Aurora cluster in us-west-1 (custom endpoint) ...
+# aurora-mysql-reader            Aurora cluster in us-west-1 (reader endpoint) ...
+```
+
+</ScopedBlock>
+
+<Admonition type="note" title="Note">
+  Primary, reader, and custom endpoints of Aurora clusters have names of
+  `<cluster-id>`, `<cluster-id>-reader`, and
+  `<cluster-id>-custom-<endpoint-name>` respectively.
+
+  You can override the `<cluster-id>` part of the name with `teleport.dev/database_name` AWS tag.
+</Admonition>
+
+To retrieve credentials for a database and connect to it:
+
+```code
+$ tsh db connect postgres-rds
+```
+
+You can optionally specify the database name and the user to use by default
+when connecting to the database instance:
+
+```code
+$ tsh db connect --db-user=postgres --db-name=postgres postgres-rds
+```
+
+<Admonition type="note" title="Note">
+  The appropriate database command-line client (`psql`, `mysql`, `mariadb`) should be
+  available in `PATH` in order to be able to connect.
+</Admonition>
+
+To log out of the database and remove credentials:
+
+```code
+$ tsh db logout postgres-rds
+```
+
+## Troubleshooting
+
+(!docs/pages/includes/database-access/aws-troubleshooting.mdx!)
+
+## Next steps
+
+(!docs/pages/includes/database-access/guides-next-steps.mdx!)
