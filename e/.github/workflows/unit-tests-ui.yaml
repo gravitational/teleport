@@ -16,15 +16,6 @@ on:
         default: 'master'
         type: string
 
-      ent-teleport-ref:
-        description: |
-          Git SHA, tag or branch of the revision of Enterprise teleport to build. If no
-          value is supplied this workflow will use whatever reference is specified in
-          the OSS teleport submodule record.
-        required: false
-        default: ""
-        type: string
-
 jobs:
   test:
     name: Test UI
