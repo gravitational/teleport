@@ -40,21 +40,21 @@ class ResourceService {
       .then(res => makeResource<'github'>(res));
   }
 
-  updateTrustedCluster(content: string) {
+  updateTrustedCluster(name: string, content: string) {
     return api
-      .put(cfg.getTrustedClustersUrl(), { content })
+      .put(cfg.getTrustedClustersUrl(name), { content })
       .then(res => makeResource<'trusted_cluster'>(res));
   }
 
-  updateRole(content: string) {
+  updateRole(name: string, content: string) {
     return api
-      .put(cfg.getRolesUrl(), { content })
+      .put(cfg.getRolesUrl(name), { content })
       .then(res => makeResource<'role'>(res));
   }
 
-  updateGithubConnector(content: string) {
+  updateGithubConnector(name: string, content: string) {
     return api
-      .put(cfg.getGithubConnectorsUrl(), { content })
+      .put(cfg.getGithubConnectorsUrl(name), { content })
       .then(res => makeResource<'github'>(res));
   }
 
