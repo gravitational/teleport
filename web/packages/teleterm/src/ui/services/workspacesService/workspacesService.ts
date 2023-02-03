@@ -1,7 +1,8 @@
 import { useStore } from 'shared/libs/stores';
 
 import { isEqual } from 'lodash';
-
+/* eslint-disable @typescript-eslint/ban-ts-comment*/
+// @ts-ignore
 import { ResourceKind } from 'e-teleport/Workflow/NewRequest/useNewRequest';
 
 import { ModalsService } from 'teleterm/ui/services/modals';

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment*/
+// @ts-ignore
 import { AccessRequest } from 'e-teleport/services/workflow';
 
 import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
