@@ -93,6 +93,27 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 				StepStatusError: "Failed to fetch available resources",
 			},
 		},
+		{
+			name:     uiDiscoverAutoDiscoveredResourcesEvent + "/success",
+			event:    uiDiscoverAutoDiscoveredResourcesEvent,
+			errCheck: require.NoError,
+			req: DiscoverEventData{
+				ID:                         "someid",
+				Resource:                   "DISCOVER_RESOURCE_SERVER",
+				StepStatus:                 "DISCOVER_STATUS_SUCCESS",
+				AutoDiscoverResourcesCount: 3,
+			},
+			expected: &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
+				UiDiscoverAutoDiscoveredResourcesEvent: &v1.UIDiscoverAutoDiscoveredResourcesEvent{
+					Metadata: &v1.DiscoverMetadata{Id: "someid"},
+					Resource: &v1.DiscoverResourceMetadata{Resource: v1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status: &v1.DiscoverStepStatus{
+						Status: v1.DiscoverStatus_DISCOVER_STATUS_SUCCESS,
+					},
+					ResourcesCount: 3,
+				},
+			}},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt
