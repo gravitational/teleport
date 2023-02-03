@@ -130,6 +130,7 @@ buildbox:
 			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
+			--build-arg NODE_VERSION=$(NODE_VERSION) \
 			--build-arg PROTOC_VER=$(PROTOC_VER) \
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
@@ -147,6 +148,8 @@ buildbox-fips:
 			--build-arg UID=$(UID) \
 			--build-arg GID=$(GID) \
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+			--build-arg NODE_VERSION=$(NODE_VERSION) \
+			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 			--cache-from $(BUILDBOX_FIPS) \
 			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \
@@ -163,6 +166,7 @@ buildbox-centos7:
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg PROTOC_VER=$(PROTOC_VER) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
@@ -179,6 +183,7 @@ buildbox-centos7-fips:
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
@@ -259,6 +264,13 @@ grpc-teleterm: buildbox-teleterm
 	docker run \
 		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX_TELETERM) \
 		make -C /go/src/github.com/gravitational/teleport grpc-teleterm/host
+
+# protos-up-to-date checks if GRPC stubs are up to date from inside the buildbox
+.PHONY: protos-up-to-date
+protos-up-to-date: buildbox
+	docker run \
+		$(DOCKERFLAGS) -t $(BUILDBOX) \
+		make -C /go/src/github.com/gravitational/teleport protos-up-to-date/host
 
 # fix-imports runs GCI to sort and re-order Go imports in a deterministic way.
 .PHONY: fix-imports
