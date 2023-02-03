@@ -1457,7 +1457,6 @@ type IdentityService interface {
 	// and get signed certificate and private key from the auth server.
 	//
 	// If token is not supplied, it will be auto generated and returned.
-	// If TTL is not supplied, token will be valid until removed.
 	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
