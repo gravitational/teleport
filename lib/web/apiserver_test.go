@@ -6067,7 +6067,7 @@ func TestCreateDatabase(t *testing.T) {
 	}
 }
 
-func TestUpdateDatabase_CACert(t *testing.T) {
+func TestUpdateDatabase_Errors(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -6106,14 +6106,6 @@ func TestUpdateDatabase_CACert(t *testing.T) {
 		errAssert      require.ErrorAssertionFunc
 	}{
 		{
-			name: "valid",
-			req: updateDatabaseRequest{
-				CACert: &fakeValidTLSCert,
-			},
-			expectedStatus: http.StatusOK,
-			errAssert:      require.NoError,
-		},
-		{
 			name: "empty ca_cert",
 			req: updateDatabaseRequest{
 				CACert: strPtr(""),
@@ -6133,27 +6125,52 @@ func TestUpdateDatabase_CACert(t *testing.T) {
 				require.ErrorContains(tt, err, "could not parse provided CA as X.509 PEM certificate")
 			},
 		},
+
+		{
+			name: "invalid awsRDS missing resourceID field",
+			req: updateDatabaseRequest{
+				AWSRDS: &awsRDS{
+					AccountID: "123123123123",
+				},
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "missing aws rds field resource id")
+			},
+		},
+		{
+			name: "invalid awsRDS missing accountID field",
+			req: updateDatabaseRequest{
+				AWSRDS: &awsRDS{
+					ResourceID: "123123123123",
+				},
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "missing aws rds field account id")
+			},
+		},
+		{
+			name:           "no fields defined",
+			req:            updateDatabaseRequest{},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "missing fields to update the database")
+			},
+		},
 	} {
-		// Update database's CA Cert
-		updateDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases", databaseName)
-		resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
-		tt.errAssert(t, err)
+		t.Run(tt.name, func(t *testing.T) {
+			// Update database's CA Cert
+			updateDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases", databaseName)
+			resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
+			tt.errAssert(t, err)
 
-		require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
-
-		if err != nil {
-			continue
-		}
-
-		// Ensure database was updated
-		database, err := env.proxies[0].client.GetDatabase(ctx, databaseName)
-		require.NoError(t, err)
-
-		require.Equal(t, database.GetCA(), fakeValidTLSCert)
+			require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+		})
 	}
 }
 
-func TestUpdateDatabase_NonCACert(t *testing.T) {
+func TestUpdateDatabase_NonErrors(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -6176,7 +6193,7 @@ func TestUpdateDatabase_NonCACert(t *testing.T) {
 	clusterName := env.server.ClusterName()
 	pack := env.proxies[0].authPack(t, username, []types.Role{roleCreateUpdateDatabase})
 
-	// Create a database with CA.
+	// Create a database.
 	dbProtocol := "mysql"
 	database, err := getNewDatabaseResource(createDatabaseRequest{
 		Name:     databaseName,
@@ -6184,7 +6201,6 @@ func TestUpdateDatabase_NonCACert(t *testing.T) {
 		URI:      "someuri:3306",
 	})
 	require.NoError(t, err)
-	database.SetCA(fakeValidTLSCert)
 	require.NoError(t, env.server.Auth().CreateDatabase(ctx, database))
 
 	requiredOriginLabel := ui.Label{Name: types.OriginLabel, Value: types.OriginDynamic}
@@ -6196,6 +6212,19 @@ func TestUpdateDatabase_NonCACert(t *testing.T) {
 		expectedFields ui.Database
 		expectedAWSRDS awsRDS
 	}{
+		{
+			name: "update caCert",
+			req: updateDatabaseRequest{
+				CACert: &fakeValidTLSCert,
+			},
+			expectedFields: ui.Database{
+				Name:     databaseName,
+				Protocol: dbProtocol,
+				Type:     "self-hosted",
+				Hostname: "someuri",
+				Labels:   []ui.Label{requiredOriginLabel},
+			},
+		},
 		{
 			name: "update URI",
 			req: updateDatabaseRequest{
