@@ -31,20 +31,17 @@ lint:
     # https://github.com/twitchtv/twirp/issues/70#issuecomment-470367807
     UNARY_RPC:
       - teleport/lib/teleterm/v1/service.proto
-    PACKAGE_DIRECTORY_MATCH:
-      # Renaming the proto package name at this point would be a breaking change.
-      - teleport/lib/prehog
     # TODO(ravicious): Fix protos and re-enable lib/teleterm lint rules below.
-    # TODO(espadolini): Fix protos and re-enable lib/prehog lint rules below.
     RPC_REQUEST_STANDARD_NAME:
       - teleport/lib/teleterm
+    # TODO(espadolini): Fix protos and re-enable prehog lint rules below.
     COMMENT_MESSAGE:
       - teleport/lib/teleterm
-      - teleport/lib/prehog
+      - prehog
     COMMENT_RPC:
-      - teleport/lib/prehog
+      - prehog
     COMMENT_SERVICE:
-      - teleport/lib/prehog
+      - prehog
 breaking:
   use:
     - FILE

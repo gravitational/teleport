@@ -1,4 +1,4 @@
-// source: teleport/lib/prehog/v1alpha/teleport.proto
+// source: prehog/v1alpha/teleport.proto
 /**
  * @fileoverview
  * @enhanceable

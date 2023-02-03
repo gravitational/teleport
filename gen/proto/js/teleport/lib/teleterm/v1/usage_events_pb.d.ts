@@ -5,7 +5,7 @@
 /* eslint-disable */
 
 import * as jspb from "google-protobuf";
-import * as teleport_lib_prehog_v1alpha_connect_pb from "../../../../teleport/lib/prehog/v1alpha/connect_pb";
+import * as prehog_v1alpha_connect_pb from "../../../../prehog/v1alpha/connect_pb";
 
 export class ReportUsageEventRequest extends jspb.Message { 
     getAuthClusterId(): string;
@@ -14,8 +14,8 @@ export class ReportUsageEventRequest extends jspb.Message {
 
     hasPrehogReq(): boolean;
     clearPrehogReq(): void;
-    getPrehogReq(): teleport_lib_prehog_v1alpha_connect_pb.SubmitConnectEventRequest | undefined;
-    setPrehogReq(value?: teleport_lib_prehog_v1alpha_connect_pb.SubmitConnectEventRequest): ReportUsageEventRequest;
+    getPrehogReq(): prehog_v1alpha_connect_pb.SubmitConnectEventRequest | undefined;
+    setPrehogReq(value?: prehog_v1alpha_connect_pb.SubmitConnectEventRequest): ReportUsageEventRequest;
 
 
     serializeBinary(): Uint8Array;
@@ -31,6 +31,6 @@ export class ReportUsageEventRequest extends jspb.Message {
 export namespace ReportUsageEventRequest {
     export type AsObject = {
         authClusterId: string,
-        prehogReq?: teleport_lib_prehog_v1alpha_connect_pb.SubmitConnectEventRequest.AsObject,
+        prehogReq?: prehog_v1alpha_connect_pb.SubmitConnectEventRequest.AsObject,
     }
 }

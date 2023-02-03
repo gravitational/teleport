@@ -1,6 +1,6 @@
 import { Timestamp } from 'google-protobuf/google/protobuf/timestamp_pb';
 import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
-import * as prehogApi from 'gen-proto-js/teleport/lib/prehog/v1alpha/connect_pb';
+import * as prehogApi from 'gen-proto-js/prehog/v1alpha/connect_pb';
 
 import * as types from './types';
 

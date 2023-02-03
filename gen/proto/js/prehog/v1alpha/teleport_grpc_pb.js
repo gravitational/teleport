@@ -17,52 +17,52 @@
 //
 'use strict';
 var grpc = require('@grpc/grpc-js');
-var teleport_lib_prehog_v1alpha_teleport_pb = require('../../../../teleport/lib/prehog/v1alpha/teleport_pb.js');
+var prehog_v1alpha_teleport_pb = require('../../prehog/v1alpha/teleport_pb.js');
 var google_protobuf_duration_pb = require('google-protobuf/google/protobuf/duration_pb.js');
 var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/timestamp_pb.js');
 
 function serialize_prehog_v1alpha_HelloTeleportRequest(arg) {
-  if (!(arg instanceof teleport_lib_prehog_v1alpha_teleport_pb.HelloTeleportRequest)) {
+  if (!(arg instanceof prehog_v1alpha_teleport_pb.HelloTeleportRequest)) {
     throw new Error('Expected argument of type prehog.v1alpha.HelloTeleportRequest');
   }
   return Buffer.from(arg.serializeBinary());
 }
 
 function deserialize_prehog_v1alpha_HelloTeleportRequest(buffer_arg) {
-  return teleport_lib_prehog_v1alpha_teleport_pb.HelloTeleportRequest.deserializeBinary(new Uint8Array(buffer_arg));
+  return prehog_v1alpha_teleport_pb.HelloTeleportRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_prehog_v1alpha_HelloTeleportResponse(arg) {
-  if (!(arg instanceof teleport_lib_prehog_v1alpha_teleport_pb.HelloTeleportResponse)) {
+  if (!(arg instanceof prehog_v1alpha_teleport_pb.HelloTeleportResponse)) {
     throw new Error('Expected argument of type prehog.v1alpha.HelloTeleportResponse');
   }
   return Buffer.from(arg.serializeBinary());
 }
 
 function deserialize_prehog_v1alpha_HelloTeleportResponse(buffer_arg) {
-  return teleport_lib_prehog_v1alpha_teleport_pb.HelloTeleportResponse.deserializeBinary(new Uint8Array(buffer_arg));
+  return prehog_v1alpha_teleport_pb.HelloTeleportResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_prehog_v1alpha_SubmitEventRequest(arg) {
-  if (!(arg instanceof teleport_lib_prehog_v1alpha_teleport_pb.SubmitEventRequest)) {
+  if (!(arg instanceof prehog_v1alpha_teleport_pb.SubmitEventRequest)) {
     throw new Error('Expected argument of type prehog.v1alpha.SubmitEventRequest');
   }
   return Buffer.from(arg.serializeBinary());
 }
 
 function deserialize_prehog_v1alpha_SubmitEventRequest(buffer_arg) {
-  return teleport_lib_prehog_v1alpha_teleport_pb.SubmitEventRequest.deserializeBinary(new Uint8Array(buffer_arg));
+  return prehog_v1alpha_teleport_pb.SubmitEventRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_prehog_v1alpha_SubmitEventResponse(arg) {
-  if (!(arg instanceof teleport_lib_prehog_v1alpha_teleport_pb.SubmitEventResponse)) {
+  if (!(arg instanceof prehog_v1alpha_teleport_pb.SubmitEventResponse)) {
     throw new Error('Expected argument of type prehog.v1alpha.SubmitEventResponse');
   }
   return Buffer.from(arg.serializeBinary());
 }
 
 function deserialize_prehog_v1alpha_SubmitEventResponse(buffer_arg) {
-  return teleport_lib_prehog_v1alpha_teleport_pb.SubmitEventResponse.deserializeBinary(new Uint8Array(buffer_arg));
+  return prehog_v1alpha_teleport_pb.SubmitEventResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 
@@ -71,8 +71,8 @@ var TeleportReportingServiceService = exports.TeleportReportingServiceService = 
     path: '/prehog.v1alpha.TeleportReportingService/SubmitEvent',
     requestStream: false,
     responseStream: false,
-    requestType: teleport_lib_prehog_v1alpha_teleport_pb.SubmitEventRequest,
-    responseType: teleport_lib_prehog_v1alpha_teleport_pb.SubmitEventResponse,
+    requestType: prehog_v1alpha_teleport_pb.SubmitEventRequest,
+    responseType: prehog_v1alpha_teleport_pb.SubmitEventResponse,
     requestSerialize: serialize_prehog_v1alpha_SubmitEventRequest,
     requestDeserialize: deserialize_prehog_v1alpha_SubmitEventRequest,
     responseSerialize: serialize_prehog_v1alpha_SubmitEventResponse,
@@ -82,8 +82,8 @@ var TeleportReportingServiceService = exports.TeleportReportingServiceService = 
     path: '/prehog.v1alpha.TeleportReportingService/HelloTeleport',
     requestStream: false,
     responseStream: false,
-    requestType: teleport_lib_prehog_v1alpha_teleport_pb.HelloTeleportRequest,
-    responseType: teleport_lib_prehog_v1alpha_teleport_pb.HelloTeleportResponse,
+    requestType: prehog_v1alpha_teleport_pb.HelloTeleportRequest,
+    responseType: prehog_v1alpha_teleport_pb.HelloTeleportResponse,
     requestSerialize: serialize_prehog_v1alpha_HelloTeleportRequest,
     requestDeserialize: deserialize_prehog_v1alpha_HelloTeleportRequest,
     responseSerialize: serialize_prehog_v1alpha_HelloTeleportResponse,

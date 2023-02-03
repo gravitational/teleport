@@ -28,11 +28,11 @@ main() {
 
   # Generate connect-go protos.
   buf generate --template=buf-connect-go.gen.yaml \
-    --path=proto/teleport/lib/prehog/
+    --path=proto/prehog/
 
   # Generate JS protos.
 	buf generate --template=buf-js.gen.yaml \
-    --path=proto/teleport/lib/prehog/ \
+    --path=proto/prehog/ \
     --path=proto/teleport/lib/teleterm/
 
   cp -r github.com/gravitational/teleport/* .

@@ -1,5 +1,5 @@
 // package: prehog.v1alpha
-// file: teleport/lib/prehog/v1alpha/teleport.proto
+// file: prehog/v1alpha/teleport.proto
 
 /* tslint:disable */
 /* eslint-disable */
