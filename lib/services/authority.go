@@ -215,11 +215,7 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 	}
 
 	pair := ca.GetTrustedTLSKeyPairs()[0]
-	if len(pair.Key) == 0 {
-		return trace.BadParameter("SAML IDP certificate authority has no private key")
-	}
-
-	if pair.KeyType == types.PrivateKeyType_RAW {
+	if len(pair.Key) != 0 && pair.KeyType == types.PrivateKeyType_RAW {
 		var err error
 		if len(pair.Cert) > 0 {
 			_, err = tls.X509KeyPair(pair.Cert, pair.Key)
