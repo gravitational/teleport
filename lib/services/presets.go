@@ -18,6 +18,7 @@ package services
 
 import (
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -179,16 +180,17 @@ func defaultAllowRules() map[string][]types.Rule {
 
 // AddDefaultAllowRules adds default rules to a preset role.
 // Only rules whose resources are not already defined (either allowing or denying) are added.
-func AddDefaultAllowRules(role types.Role) types.Role {
+func AddDefaultAllowRules(role types.Role) (types.Role, error) {
 	defaultRules, ok := defaultAllowRules()[role.GetName()]
 	if !ok || len(defaultRules) == 0 {
-		return role
+		return nil, trace.AlreadyExists("no change")
 	}
 
-	combined := append(role.GetRules(types.Allow), role.GetRules(types.Deny)...)
+	existingRules := append(role.GetRules(types.Allow), role.GetRules(types.Deny)...)
 
+	changed := false
 	for _, defaultRule := range defaultRules {
-		if resourceBelongsToRules(combined, defaultRule.Resources) {
+		if resourceBelongsToRules(existingRules, defaultRule.Resources) {
 			continue
 		}
 
@@ -196,9 +198,14 @@ func AddDefaultAllowRules(role types.Role) types.Role {
 		rules := role.GetRules(types.Allow)
 		rules = append(rules, defaultRule)
 		role.SetRules(types.Allow, rules)
+		changed = true
 	}
 
-	return role
+	if !changed {
+		return nil, trace.AlreadyExists("no change")
+	}
+
+	return role, nil
 }
 
 func resourceBelongsToRules(rules []types.Rule, resources []string) bool {
