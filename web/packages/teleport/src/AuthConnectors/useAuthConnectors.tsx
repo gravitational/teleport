@@ -31,11 +31,13 @@ export default function useAuthConnectors() {
     });
   }
 
-  function save(yaml: string, isNew: boolean) {
+  function save(name: string, yaml: string, isNew: boolean) {
     if (isNew) {
       return ctx.resourceService.createGithubConnector(yaml).then(fetchData);
     }
-    return ctx.resourceService.updateGithubConnector(yaml).then(fetchData);
+    return ctx.resourceService
+      .updateGithubConnector(name, yaml)
+      .then(fetchData);
   }
 
   function remove(name: string) {
