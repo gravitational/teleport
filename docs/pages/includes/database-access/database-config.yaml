@@ -2,7 +2,13 @@ db_service:
   # Enables the Database Service.
   enabled: "yes"
 
-  # Matchers for database resources created with "tctl create" command.
+  # Matchers for database resources created with "tctl create" command or by the
+  # discovery service.
+  #
+  # All database resources have a predefined "teleport.dev/origin" label with
+  # one of the following values:
+  # "dynamic": database resources created with "tctl create" command
+  # "cloud": database resources created by the discovery service
   resources:
   - labels:
       "*": "*"
@@ -23,6 +29,8 @@ db_service:
 
   # Matchers for registering Azure-hosted databases.
   azure:
+    # Set is_flexi_server to true when using an Azure flexible server.
+    is_flexi_server: false
     # Database types. Valid options are:
     # 'mysql' - discovers and registers Azure MySQL single-server databases.
     # 'postgres' - discovers and registers Azure PostgreSQL single-server databases.
