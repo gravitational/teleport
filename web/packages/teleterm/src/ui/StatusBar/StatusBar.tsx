@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment*/
 import React from 'react';
 import { Flex, Text } from 'design';
-
+// @ts-ignore
 import { AccessRequestCheckoutButton } from 'e-teleterm/ui/StatusBar/AccessRequestCheckoutButton';
 
 import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
