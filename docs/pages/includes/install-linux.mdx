@@ -12,7 +12,7 @@ and select the URL for your package of choice.
 
 </ScopedBlock>
 
-Next, use the appropriate commands for your environment to install your package.
+Use the appropriate commands for your environment to install your package.
 
 <Tabs dropdownView dropdownCaption="Teleport Edition">
   <TabItem label="Open Source" scope="oss">
@@ -120,11 +120,11 @@ Next, use the appropriate commands for your environment to install your package.
   ```code
   $ curl https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz.sha256
   # <checksum> <filename>
-  $ curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
-  $ shasum -a 256 teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
+  $ curl -O https://cdn.teleport.dev/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
+  $ shasum -a 256 teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
   # Verify that the checksums match
-  $ tar -xvf teleport-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
-  $ cd teleport
+  $ tar -xvf teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz
+  $ cd teleport-ent
   $ sudo ./install
   ```
 
@@ -182,11 +182,11 @@ Next, use the appropriate commands for your environment to install your package.
   ```code
   $ curl https://get.gravitational.com/teleport-ent-v(=cloud.version=)-linux-<Var name="$SYSTEM-ARCH"/>-bin.tar.gz.sha256
   # <checksum> <filename>
-  $ curl -O https://cdn.teleport.dev/teleport-v(=cloud.version=)-linux-amd64-bin.tar.gz
-  $ shasum -a 256 teleport-v(=cloud.version=)-linux-amd64-bin.tar.gz
+  $ curl -O https://cdn.teleport.dev/teleport-ent-v(=cloud.version=)-linux-amd64-bin.tar.gz
+  $ shasum -a 256 teleport-ent-v(=cloud.version=)-linux-amd64-bin.tar.gz
   # Verify that the checksums match
-  $ tar -xvf teleport-v(=cloud.version=)-linux-amd64-bin.tar.gz
-  $ cd teleport
+  $ tar -xvf teleport-ent-v(=cloud.version=)-linux-amd64-bin.tar.gz
+  $ cd teleport-ent
   $ sudo ./install
   ```
 
