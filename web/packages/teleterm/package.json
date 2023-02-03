@@ -22,8 +22,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/gravitational/webapps/webapps.git",
-    "directory": "packages/teleterm"
+    "url": "https://github.com/gravitational/teleport.git",
+    "directory": "web/packages/teleterm"
   },
   "private": true,
   "homepage": "https://goteleport.com",
