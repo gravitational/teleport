@@ -2729,7 +2729,7 @@ func (s *samlIDPServiceProviders) erase(ctx context.Context) error {
 }
 
 func (s *samlIDPServiceProviders) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources := make([]types.SAMLIdPServiceProvider, 0)
+	var resources []types.SAMLIdPServiceProvider
 
 	nextKey := ""
 	for {
@@ -2752,13 +2752,15 @@ func (s *samlIDPServiceProviders) fetch(ctx context.Context) (apply func(ctx con
 		}
 
 		for _, resource := range resources {
-			if _, err := s.samlIdpServiceProvidersCache.GetSAMLIdPServiceProvider(ctx, resource.GetName()); err != nil {
-				if trace.IsNotFound(err) {
-					err = s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
-					if err != nil {
-						return trace.Wrap(err)
-					}
+			if _, err := s.samlIdpServiceProvidersCache.GetSAMLIdPServiceProvider(ctx, resource.GetName()); trace.IsNotFound(err) {
+				err = s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
+				if err != nil {
+					return trace.Wrap(err)
 				}
+
+				return nil
+			} else if err != nil {
+				return trace.Wrap(err)
 			}
 			if err := s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource); err != nil {
 				return trace.Wrap(err)
@@ -2772,26 +2774,23 @@ func (s *samlIDPServiceProviders) processEvent(ctx context.Context, event types.
 	switch event.Type {
 	case types.OpDelete:
 		err := s.samlIdpServiceProvidersCache.DeleteSAMLIdPServiceProvider(ctx, event.Resource.GetName())
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				s.Logger.WithError(err).Warn("Failed to delete resource.")
-				return trace.Wrap(err)
-			}
+		if err != nil && !trace.IsNotFound(err) {
+			s.Logger.WithError(err).Warn("Failed to delete resource.")
+			return trace.Wrap(err)
 		}
 	case types.OpPut:
 		resource, ok := event.Resource.(types.SAMLIdPServiceProvider)
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		if _, err := s.samlIdpServiceProvidersCache.GetSAMLIdPServiceProvider(ctx, resource.GetName()); err != nil {
-			if trace.IsNotFound(err) {
-				err = s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-			} else {
+		if _, err := s.samlIdpServiceProvidersCache.GetSAMLIdPServiceProvider(ctx, resource.GetName()); trace.IsNotFound(err) {
+			err = s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
+			if err != nil {
 				return trace.Wrap(err)
 			}
+			return nil
+		} else if err != nil {
+			return trace.Wrap(err)
 		}
 		if err := s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource); err != nil {
 			return trace.Wrap(err)
