@@ -78,6 +78,8 @@ Create the Database Service configuration.
 
 <TabItem label="PostgreSQL and MySQL">
 
+Run the following command on your Database Service host:
+
   ```code
   $ teleport db configure create \
     -o file \
@@ -115,8 +117,7 @@ database auto-discovery enabled in the `eastus` region and place it at the
 ### Create a Teleport role
 
 On your workstation logged in to your Teleport cluster with `tsh`, define a new
-role to provide access to your Azure database. Our example file is
-`azure-databse-role.yaml`:
+role to provide access to your Azure database. Create a file called `azure-database-role.yaml` with the following content:
 
 ```yaml
 version: v6
@@ -126,7 +127,11 @@ metadata:
 spec:
   allow:
     db_labels:
-      '*': '*'
+      'engine':
+        - "Microsoft.DBforMySQL/servers"
+        - "Microsoft.DBforMySQL/flexibleServers"
+        - "Microsoft.DBforPostgreSQL/servers"
+        - "Microsoft.DBforPostgreSQL/flexibleServers"
     db_names:
     - '*'
     db_users:
