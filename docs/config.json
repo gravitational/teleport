@@ -631,6 +631,10 @@
             {
               "title": "Dynamic Registration",
               "slug": "/application-access/guides/dynamic-registration/"
+            },
+            {
+              "title": "AWS DynamoDB",
+              "slug": "/application-access/guides/dynamodb/"
             }
           ]
         },
@@ -799,7 +803,7 @@
           "entries": [
             {
                "title": "AWS DynamoDB",
-               "slug": "/database-access/guides/dynamodb/"
+               "slug": "/database-access/guides/aws-dynamodb/"
             },
             {
                "title": "AWS ElastiCache & MemoryDB",
@@ -2162,6 +2166,11 @@
     {
       "source": "/management/guides/elastic-stack/",
       "destination": "/management/export-audit-events/elastic-stack/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/dynamodb/",
+      "destination": "/application-access/guides/dynamodb/",
       "permanent": true
     }
   ]
