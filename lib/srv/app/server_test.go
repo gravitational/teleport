@@ -513,8 +513,8 @@ func TestAppWithUpdatedLabels(t *testing.T) {
 				"something": "blah",
 			},
 			expectedCloudLabels: map[string]string{
-				"aws/cloud1": "value1",
-				"aws/cloud2": "value2",
+				"/cloud1": "value1",
+				"/cloud2": "value2",
 			},
 		},
 	}

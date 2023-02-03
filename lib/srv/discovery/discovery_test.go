@@ -46,6 +46,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
@@ -354,7 +355,18 @@ func TestDiscoveryServer(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
 			for _, instance := range tc.presentInstances {
-				_, err := tlsServer.Auth().UpsertNode(ctx, instance)
+				server, err := types.NewDiscoveredServerV1(types.Metadata{
+					Name:      types.MetaNameDiscoveredServer,
+					Namespace: apidefaults.Namespace,
+				}, types.DiscoveredServerSpecV1{
+					InstanceID: instance.GetLabels()[types.AWSInstanceIDLabel],
+					AccountID:  instance.GetLabels()[types.AWSAccountIDLabel],
+				})
+				require.NoError(t, err)
+				_, err = tlsServer.Auth().UpsertDiscoveredServer(ctx, server)
+				require.NoError(t, err)
+
+				_, err = tlsServer.Auth().UpsertNode(ctx, instance)
 				require.NoError(t, err)
 			}
 

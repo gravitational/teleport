@@ -369,6 +369,17 @@ func (f *fakeAnnouncer) UpsertDatabaseServer(ctx context.Context, s types.Databa
 	return &types.KeepAlive{}, nil
 }
 
+func (f *fakeAnnouncer) UpsertDiscoveredServer(context.Context, types.DiscoveredServer) (*types.KeepAlive, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &types.KeepAlive{}, nil
+}
+
+func (f *fakeAnnouncer) GetDiscoveredServer(context.Context, string, string) (*types.DiscoveredServerV1, error) {
+	return nil, nil
+}
+
 func (f *fakeAnnouncer) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeNode]++
 	if f.err != nil {
