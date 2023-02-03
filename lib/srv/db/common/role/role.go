@@ -28,7 +28,7 @@ func DatabaseRoleMatchers(db types.Database, user, database string) services.Rol
 		services.NewDatabaseUserMatcher(db, user),
 	}
 
-	if matcher, ok := databaseNameMatcher(db.GetProtocol(), database); ok {
+	if matcher := databaseNameMatcher(db.GetProtocol(), database); matcher != nil {
 		roleMatchers = append(roleMatchers, matcher)
 	}
 	return roleMatchers
@@ -43,11 +43,10 @@ func RequireDatabaseUserMatcher(protocol string) bool {
 // RequireDatabaseNameMatcher returns true if databases with provided protocol
 // require database names.
 func RequireDatabaseNameMatcher(protocol string) bool {
-	_, ok := databaseNameMatcher(protocol, "")
-	return ok
+	return databaseNameMatcher(protocol, "") != nil
 }
 
-func databaseNameMatcher(dbProtocol, database string) (*services.DatabaseNameMatcher, bool) {
+func databaseNameMatcher(dbProtocol, database string) *services.DatabaseNameMatcher {
 	switch dbProtocol {
 	case
 		// In MySQL, unlike Postgres, "database" and "schema" are the same thing
@@ -73,8 +72,8 @@ func databaseNameMatcher(dbProtocol, database string) (*services.DatabaseNameMat
 		defaults.ProtocolElasticsearch,
 		// DynamoDB integration doesn't support schema access control.
 		defaults.ProtocolDynamoDB:
-		return nil, false
+		return nil
 	default:
-		return &services.DatabaseNameMatcher{Name: database}, true
+		return &services.DatabaseNameMatcher{Name: database}
 	}
 }
