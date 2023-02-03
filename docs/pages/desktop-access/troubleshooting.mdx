@@ -276,11 +276,11 @@ Teleport currently requires that NLA is disabled in order to perform its
 certificate-based passwordless login.
 
 To disable NLA, follow the instructions in our
-[Getting Started Guide](./manual-setup.mdx#allow-remote-rdp-connections).
-If you are still encountering this error after disabling NLA in AD, run
-the following command from the Windows Desktop cmd prompt as an administrator
+[Desktop Access Manual Setup](./manual-setup.mdx#allow-remote-rdp-connections).
+If you are still encountering this error after disabling NLA in Active Directory,
+run the following command from the Windows Desktop cmd prompt as an administrator
 to force the policy update:
 
-~~~
+```code
 $ gpupdate.exe /force
-~~~
+```
