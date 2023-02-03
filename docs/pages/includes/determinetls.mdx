@@ -1,26 +1,10 @@
-<Details title="How to tell if TLS Routing is Enabled" opened={false}>
-
-<ScopedBlock scope={["oss", "enterprise"]}>
 To get details of the Teleport Cluster you can invoke `/webapi/ping` path
-on the proxy service.  The `proxy.tls_routing_enabled` value provides if TLS routing is enabled.
-Here's an example for the proxy on `https://teleport.example.com`:
+on the Teleport Poxy Service. The `proxy.tls_routing_enabled` value indicates if TLS routing is enabled:
 
 ```code
 $ curl https://teleport.example.com/webapi/ping |  jq '.proxy.tls_routing_enabled'
 true
 
 ```
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-To get details of the Teleport Cloud tenant you can invoke `/webapi/ping` path
-on the proxy service.  The `proxy.tls_routing_enabled` value provides if TLS routing is enabled.
-Here's an example for the proxy on `https://mytenant.teleport.sh`:
 
-```code
-$ curl https://mytenant.teleport.sh/webapi/ping |  jq '.proxy.tls_routing_enabled'
-true
-
-```
-</ScopedBlock>
-
-</Details>
+Replace `teleport.example.com` with your Teleport Proxy address or Cloud address (e.g. `mytenant.teleport.sh`)
