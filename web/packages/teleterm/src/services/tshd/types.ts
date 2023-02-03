@@ -1,4 +1,7 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment*/
+// @ts-ignore
 import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
+// @ts-ignore
 import { RequestState } from 'e-teleport/services/workflow';
 import { SortType } from 'design/DataTable/types';
 import { FileTransferListeners } from 'shared/components/FileTransfer';

@@ -607,6 +607,8 @@ func runCheckHomeDir() (errw io.Writer, code int, err error) {
 
 // runPark does nothing, forever.
 func runPark() (errw io.Writer, code int, err error) {
+	// Do not replace this with an empty select because there are no other
+	// goroutines running so it will panic.
 	for {
 		time.Sleep(time.Hour)
 	}

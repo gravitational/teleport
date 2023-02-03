@@ -122,6 +122,69 @@ func TestConvertUsageEvent(t *testing.T) {
 				require.True(tt, trace.IsBadParameter(err), "exepcted trace.IsBadParameter error, got: %v", err)
 			},
 		},
+		{
+			name: "when discover has resources count and its values is zero: no error",
+			event: &usageevents.UsageEventOneOf{Event: &usageevents.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
+				UiDiscoverAutoDiscoveredResourcesEvent: &usageevents.UIDiscoverAutoDiscoveredResourcesEvent{
+					Metadata:       &usageevents.DiscoverMetadata{Id: "someid"},
+					Resource:       &usageevents.DiscoverResourceMetadata{Resource: usageevents.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:         &usageevents.DiscoverStepStatus{Status: usageevents.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+					ResourcesCount: 0,
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1.SubmitEventRequest{Event: &prehogv1.SubmitEventRequest_UiDiscoverAutoDiscoveredResourcesEvent{
+				UiDiscoverAutoDiscoveredResourcesEvent: &prehogv1.UIDiscoverAutoDiscoveredResourcesEvent{
+					Metadata: &prehogv1.DiscoverMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+					},
+					Resource:       &prehogv1.DiscoverResourceMetadata{Resource: prehogv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:         &prehogv1.DiscoverStepStatus{Status: prehogv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+					ResourcesCount: 0,
+				},
+			}},
+		},
+		{
+			name: "when discover has resources count and its values is positive: no error",
+			event: &usageevents.UsageEventOneOf{Event: &usageevents.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
+				UiDiscoverAutoDiscoveredResourcesEvent: &usageevents.UIDiscoverAutoDiscoveredResourcesEvent{
+					Metadata:       &usageevents.DiscoverMetadata{Id: "someid"},
+					Resource:       &usageevents.DiscoverResourceMetadata{Resource: usageevents.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:         &usageevents.DiscoverStepStatus{Status: usageevents.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+					ResourcesCount: 2,
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1.SubmitEventRequest{Event: &prehogv1.SubmitEventRequest_UiDiscoverAutoDiscoveredResourcesEvent{
+				UiDiscoverAutoDiscoveredResourcesEvent: &prehogv1.UIDiscoverAutoDiscoveredResourcesEvent{
+					Metadata: &prehogv1.DiscoverMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+					},
+					Resource:       &prehogv1.DiscoverResourceMetadata{Resource: prehogv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:         &prehogv1.DiscoverStepStatus{Status: prehogv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+					ResourcesCount: 2,
+				},
+			}},
+		},
+		{
+			name: "when discover has resources count and its values is negative: bad parameter error",
+			event: &usageevents.UsageEventOneOf{Event: &usageevents.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
+				UiDiscoverAutoDiscoveredResourcesEvent: &usageevents.UIDiscoverAutoDiscoveredResourcesEvent{
+					Metadata:       &usageevents.DiscoverMetadata{Id: "someid"},
+					Resource:       &usageevents.DiscoverResourceMetadata{Resource: usageevents.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:         &usageevents.DiscoverStepStatus{Status: usageevents.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+					ResourcesCount: -2,
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(tt, trace.IsBadParameter(err), "exepcted trace.IsBadParameter error, got: %v", err)
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt
