@@ -37,6 +37,7 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
@@ -571,6 +572,8 @@ func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName strin
 	}
 	state := accessChecker.GetAccessState(authPref)
 	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
 
 	// check if roles allow access to server
 	if err := accessChecker.CheckAccess(

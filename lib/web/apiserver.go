@@ -33,6 +33,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -117,6 +118,9 @@ type Handler struct {
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
+
+	// userConns tracks amount of current active connections with user certificates.
+	userConns atomic.Int32
 
 	// ClusterFeatures contain flags for supported and unsupported features.
 	ClusterFeatures proto.Features
@@ -596,9 +600,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	// token generation
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
 
-	// add Node token generation
-	// DELETE IN 11.0. Deprecated, use /webapi/token for generating tokens of any role.
-	h.POST("/webapi/nodes/token", h.WithAuth(h.createNodeTokenHandle))
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
@@ -647,18 +648,18 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
 	h.GET("/webapi/roles", h.WithAuth(h.getRolesHandle))
-	h.PUT("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
 	h.POST("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
+	h.PUT("/webapi/roles/:name", h.WithAuth(h.upsertRoleHandle))
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
 
 	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
-	h.PUT("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
 	h.POST("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
+	h.PUT("/webapi/github/:name", h.WithAuth(h.upsertGithubConnectorHandle))
 	h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
 
 	h.GET("/webapi/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
-	h.PUT("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
 	h.POST("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
+	h.PUT("/webapi/trustedcluster/:name", h.WithAuth(h.upsertTrustedClusterHandle))
 	h.DELETE("/webapi/trustedcluster/:name", h.WithAuth(h.deleteTrustedCluster))
 
 	h.GET("/webapi/apps/:fqdnHint", h.WithAuth(h.getAppFQDN))
@@ -2330,7 +2331,7 @@ func (h *Handler) siteNodeConnect(
 
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
-		sessionData, err = h.generateSession(ctx, clt, req, clusterName)
+		sessionData, err = h.generateSession(ctx, clt, req, clusterName, sessionCtx.cfg.User)
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
@@ -2339,6 +2340,16 @@ func (h *Handler) siteNodeConnect(
 		sessionData, displayLogin, err = h.fetchExistingSession(ctx, clt, req, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+	}
+
+	// If the participantMode is not specified, and the user is the one who created the session,
+	// they should be in Peer mode. If not, default to Observer mode.
+	if req.ParticipantMode == "" {
+		if sessionData.Owner == sessionCtx.cfg.User {
+			req.ParticipantMode = types.SessionPeerMode
+		} else {
+			req.ParticipantMode = types.SessionObserverMode
 		}
 	}
 
@@ -2368,6 +2379,7 @@ func (h *Handler) siteNodeConnect(
 		InteractiveCommand: req.InteractiveCommand,
 		Router:             h.cfg.Router,
 		TracerProvider:     h.cfg.TracerProvider,
+		ParticipantMode:    req.ParticipantMode,
 	}
 
 	term, err := NewTerminal(ctx, terminalConfig)
@@ -2376,6 +2388,9 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
+	h.userConns.Add(1)
+	defer h.userConns.Add(-1)
+
 	// start the websocket session with a web-based terminal:
 	h.log.Infof("Getting terminal to %#v.", req)
 	httplib.MakeTracingHandler(term, teleport.ComponentProxy).ServeHTTP(w, r)
@@ -2383,7 +2398,7 @@ func (h *Handler) siteNodeConnect(
 	return nil, nil
 }
 
-func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string) (session.Session, error) {
+func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string, owner string) (session.Session, error) {
 	var (
 		id   string
 		host string
@@ -2404,7 +2419,13 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		}
 
 		if len(resources) == 0 {
-			return session.Session{}, trace.NotFound("no matching servers")
+			// If we didn't find the resource set host and port,
+			// so we can try direct dial.
+			host, port, err = serverHostPort(req.Server)
+			if err != nil {
+				return session.Session{}, trace.Wrap(err)
+			}
+			id = host
 		}
 
 		matches := 0
@@ -2481,6 +2502,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		Created:        time.Now().UTC(),
 		LastActive:     time.Now().UTC(),
 		Namespace:      apidefaults.Namespace,
+		Owner:          owner,
 	}, nil
 }
 
@@ -2561,7 +2583,12 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 }
 
 type siteSessionsGetResponse struct {
-	Sessions []session.Session `json:"sessions"`
+	Sessions []siteSessionsGetResponseSession `json:"sessions"`
+}
+
+type siteSessionsGetResponseSession struct {
+	session.Session
+	ParticipantModes []types.SessionParticipantMode `json:"participantModes"`
 }
 
 func trackerToLegacySession(tracker types.SessionTracker, clusterName string) session.Session {
@@ -2598,6 +2625,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		DesktopName:           tracker.GetDesktopName(),
 		AppName:               tracker.GetAppName(),
 		DatabaseName:          tracker.GetDatabaseName(),
+		Owner:                 tracker.GetHostUser(),
 	}
 }
 
@@ -2614,16 +2642,36 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	trackers, err := clt.GetActiveSessionTrackers(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sessions := make([]session.Session, 0, len(trackers))
+	userRoles, err := clt.GetCurrentUserRoles(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var policySets []*types.SessionTrackerPolicySet
+	for _, role := range userRoles {
+		policySet := role.GetSessionPolicySet()
+		policySets = append(policySets, &policySet)
+	}
+
+	accessContext := auth.SessionAccessContext{
+		Username: sctx.GetUser(),
+		Roles:    userRoles,
+	}
+
+	sessions := make([]siteSessionsGetResponseSession, 0, len(trackers))
 	for _, tracker := range trackers {
 		if tracker.GetState() != types.SessionState_SessionStateTerminated {
-			sessions = append(sessions, trackerToLegacySession(tracker, site.GetName()))
+			session := trackerToLegacySession(tracker, p.ByName("site"))
+			// Get the participant modes available to the user from their roles.
+			accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, session.Owner)
+			participantModes := accessEvaluator.CanJoin(accessContext)
+
+			sessions = append(sessions, siteSessionsGetResponseSession{Session: session, ParticipantModes: participantModes})
 		}
 	}
 

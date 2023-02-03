@@ -18,6 +18,7 @@ package services
 
 import (
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
@@ -76,6 +77,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
 					types.NewRule(types.KindDatabaseService, RO()),
 					types.NewRule(types.KindInstance, RO()),
+					types.NewRule(types.KindLoginRule, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -189,22 +191,24 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindConnectionDiagnostic, RW()),
 			types.NewRule(types.KindDatabase, RW()),
 			types.NewRule(types.KindDatabaseService, RO()),
+			types.NewRule(types.KindLoginRule, RW()),
 		},
 	}
 }
 
 // AddDefaultAllowRules adds default rules to a preset role.
 // Only rules whose resources are not already defined (either allowing or denying) are added.
-func AddDefaultAllowRules(role types.Role) types.Role {
+func AddDefaultAllowRules(role types.Role) (types.Role, error) {
 	defaultRules, ok := defaultAllowRules()[role.GetName()]
 	if !ok || len(defaultRules) == 0 {
-		return role
+		return nil, trace.AlreadyExists("no change")
 	}
 
-	combined := append(role.GetRules(types.Allow), role.GetRules(types.Deny)...)
+	existingRules := append(role.GetRules(types.Allow), role.GetRules(types.Deny)...)
 
+	changed := false
 	for _, defaultRule := range defaultRules {
-		if resourceBelongsToRules(combined, defaultRule.Resources) {
+		if resourceBelongsToRules(existingRules, defaultRule.Resources) {
 			continue
 		}
 
@@ -212,9 +216,14 @@ func AddDefaultAllowRules(role types.Role) types.Role {
 		rules := role.GetRules(types.Allow)
 		rules = append(rules, defaultRule)
 		role.SetRules(types.Allow, rules)
+		changed = true
 	}
 
-	return role
+	if !changed {
+		return nil, trace.AlreadyExists("no change")
+	}
+
+	return role, nil
 }
 
 func resourceBelongsToRules(rules []types.Rule, resources []string) bool {

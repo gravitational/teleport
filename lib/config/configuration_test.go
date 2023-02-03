@@ -358,6 +358,7 @@ func TestConfigReading(t *testing.T) {
 							TokenName: "aws-discovery-iam-token",
 							Method:    "iam",
 						},
+						SSHDConfig: "/etc/ssh/sshd_config",
 						ScriptName: "default-installer",
 					},
 					SSM: AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
@@ -781,6 +782,11 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			DisconnectExpiredCert: types.NewBoolOption(false),
 			LockingMode:           constants.LockingModeBestEffort,
 			AllowPasswordless:     types.NewBoolOption(true),
+			IDP: &types.IdPOptions{
+				SAML: &types.IdPSAMLOptions{
+					Enabled: types.NewBoolOption(true),
+				},
+			},
 		},
 	}, protocmp.Transform()))
 
@@ -829,6 +835,17 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			"testKey": "testValue",
 		},
 	))
+
+	require.True(t, cfg.Discovery.Enabled)
+	require.Equal(t, cfg.Discovery.AWSMatchers[0].Regions, []string{"eu-central-1"})
+	require.Equal(t, cfg.Discovery.AWSMatchers[0].Types, []string{"ec2"})
+	require.Equal(t, cfg.Discovery.AWSMatchers[0].Params, services.InstallerParams{
+		InstallTeleport: true,
+		JoinMethod:      "iam",
+		JoinToken:       defaults.IAMInviteTokenName,
+		ScriptName:      "default-installer",
+		SSHDConfig:      defaults.SSHDConfigPath,
+	})
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,

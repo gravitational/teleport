@@ -42,10 +42,16 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/ui"
+)
+
+const (
+	teleportOSSPackageName = "teleport"
+	teleportEntPackageName = "teleport-ent"
 )
 
 // nodeJoinToken contains node token fields for the UI.
@@ -163,20 +169,6 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 	}, nil
 }
 
-func (h *Handler) createNodeTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	roles := types.SystemRoles{
-		types.RoleNode,
-		types.RoleApp,
-	}
-
-	return createJoinToken(r.Context(), clt, roles)
-}
-
 func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	scripts.SetScriptHeaders(w.Header())
 
@@ -266,22 +258,6 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 
 	return nil, nil
 }
-func createJoinToken(ctx context.Context, m nodeAPIGetter, roles types.SystemRoles) (*nodeJoinToken, error) {
-	req := &proto.GenerateTokenRequest{
-		Roles: roles,
-		TTL:   proto.Duration(defaults.NodeJoinTokenTTL),
-	}
-
-	token, err := m.GenerateToken(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &nodeJoinToken{
-		ID:     token,
-		Expiry: time.Now().UTC().Add(defaults.NodeJoinTokenTTL),
-	}, nil
-}
 
 func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter) (string, error) {
 	switch types.JoinMethod(settings.joinMethod) {
@@ -364,6 +340,12 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 			return "", trace.BadParameter("appURI %q contains invalid characters", settings.appURI)
 		}
 	}
+
+	packageName := teleportOSSPackageName
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		packageName = teleportEntPackageName
+	}
+
 	// This section relies on Go's default zero values to make sure that the settings
 	// are correct when not installing an app.
 	err = scripts.InstallNodeBashScript.Execute(&buf, map[string]interface{}{
@@ -377,6 +359,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		// file has been completely converted over.
 		"caPinsOld":                  strings.Join(caPins, " "),
 		"caPins":                     strings.Join(caPins, ","),
+		"packageName":                packageName,
 		"version":                    version,
 		"appInstallMode":             strconv.FormatBool(settings.appInstallMode),
 		"appName":                    settings.appName,
@@ -437,15 +420,6 @@ func isSameRuleSet(r1 []*types.TokenRule, r2 []*types.TokenRule) bool {
 }
 
 type nodeAPIGetter interface {
-	// GenerateToken creates a special provisioning token for a new SSH server.
-	//
-	// This token is used by SSH server to authenticate with Auth server
-	// and get a signed certificate.
-	//
-	// If token is not supplied, it will be auto generated and returned.
-	// If TTL is not supplied, token will be valid until removed.
-	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
-
 	// GetToken looks up a provisioning token.
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
 

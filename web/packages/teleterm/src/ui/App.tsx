@@ -8,11 +8,9 @@ import { Failed } from 'design/CardError';
 import { AppInitializer } from 'teleterm/ui/AppInitializer';
 
 import CatchError from './components/CatchError';
-import ModalsHost from './ModalsHost';
 import AppContextProvider from './appContextProvider';
 import AppContext from './appContext';
 import ThemeProvider from './ThemeProvider';
-import { LayoutManager } from './LayoutManager';
 
 export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
   return (
@@ -30,10 +28,7 @@ export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
                 ).value,
               }}
             >
-              <AppInitializer>
-                <LayoutManager />
-                <ModalsHost />
-              </AppInitializer>
+              <AppInitializer />
             </ThemeProvider>
           </AppContextProvider>
         </DndProvider>

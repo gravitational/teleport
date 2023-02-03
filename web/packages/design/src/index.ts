@@ -39,7 +39,7 @@ import Image from './Image';
 import Text from './Text';
 import SideNav, { SideNavItem } from './SideNav';
 import { StepSlider } from './StepSlider';
-import TopNav, { TopNavItem } from './TopNav';
+import TopNav from './TopNav';
 import Flex from './Flex';
 import Menu, { MenuItem, MenuItemIcon } from './Menu';
 import { Pill } from './Pill';
@@ -78,7 +78,6 @@ export {
   StepSlider,
   Text,
   TopNav,
-  TopNavItem,
   Menu,
   MenuItem,
   MenuItemIcon,

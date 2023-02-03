@@ -871,16 +871,40 @@ func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetC
 		return nil, trace.Wrap(err)
 	}
 
-	// admin can see all alerts
-	if a.hasBuiltinRole(types.RoleAdmin) {
-		return alerts, nil
+	var acks []types.AlertAcknowledgement
+	if !query.WithAcknowledged {
+		// load acks so that we can filter out acknowledged alerts
+		acks, err = a.authServer.GetAlertAcks(ctx)
+		if err != nil {
+			// we don't fail here since users are allowed to see acknowledged alerts, acks
+			// are intended only as a tool for reducing noise.
+			log.Warnf("Failed to load alert acks: %v", err)
+		}
 	}
 
-	// filter alerts by teleport.internal 'permit' labels to determine whether the alert
+	// admin skips rbac checks, but still obeys acks and supersessions, so
+	// we store the result of the check for use per-alert during filtering.
+	isAdmin := a.hasBuiltinRole(types.RoleAdmin)
+
+	// filter alerts by acks and teleport.internal 'permit' labels to determine whether the alert
 	// was intended to be visible to the calling user.
 	filtered := alerts[:0]
 Outer:
 	for _, alert := range alerts {
+		// skip acknowledged alerts
+		for _, ack := range acks {
+			if ack.AlertID == alert.Metadata.Name && ack.Severity >= alert.Spec.Severity {
+				continue Outer
+			}
+		}
+
+		// remaining checks in this loop are access-controls, so short-circuit
+		// if caller is admin.
+		if isAdmin {
+			filtered = append(filtered, alert)
+			continue Outer
+		}
+
 		if alert.Metadata.Labels[types.AlertPermitAll] == "yes" {
 			// alert may be shown to all authenticated users
 			filtered = append(filtered, alert)
@@ -905,29 +929,35 @@ Outer:
 			}
 		}
 	}
+	alerts = filtered
 
-	// aggregate supersede directives from the filtered alerts
-	sups := make(map[string]types.AlertSeverity)
+	if !query.WithSuperseded {
+		// aggregate supersede directives and filter. we do this as a separate filter
+		// step since we only obey supersede relationships within the set of
+		// visible alerts (i.e. an alert that isn't visible cannot supersede an alert
+		// that is visible).
 
-	for _, alert := range filtered {
-		for _, id := range strings.Split(alert.Metadata.Labels[types.AlertSupersedes], ",") {
-			if sups[id] < alert.Spec.Severity {
-				sups[id] = alert.Spec.Severity
+		sups := make(map[string]types.AlertSeverity)
+
+		for _, alert := range alerts {
+			for _, id := range strings.Split(alert.Metadata.Labels[types.AlertSupersedes], ",") {
+				if sups[id] < alert.Spec.Severity {
+					sups[id] = alert.Spec.Severity
+				}
 			}
 		}
-	}
 
-	// perform a second round of filtering, removing superseded alerts
-	alerts = filtered
-	filtered = alerts[:0]
-	for _, alert := range alerts {
-		if sups[alert.Metadata.Name] > alert.Spec.Severity {
-			continue
+		filtered = alerts[:0]
+		for _, alert := range alerts {
+			if sups[alert.Metadata.Name] > alert.Spec.Severity {
+				continue
+			}
+			filtered = append(filtered, alert)
 		}
-		filtered = append(filtered, alert)
+		alerts = filtered
 	}
 
-	return filtered, nil
+	return alerts, nil
 }
 
 func (a *ServerWithRoles) UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error {
@@ -938,6 +968,43 @@ func (a *ServerWithRoles) UpsertClusterAlert(ctx context.Context, alert types.Cl
 	}
 
 	return a.authServer.UpsertClusterAlert(ctx, alert)
+}
+
+func (a *ServerWithRoles) CreateAlertAck(ctx context.Context, ack types.AlertAcknowledgement) error {
+	// alert acknowledgement is admin-only for now as it is a fairly niche feature,
+	// but we may want to develop custom rbac for this feature in the future
+	// if use of cluster alerts becomes more widespread.
+	if !a.hasBuiltinRole(types.RoleAdmin) {
+		return trace.AccessDenied("alert ack is admin-only")
+	}
+
+	if ack.Severity >= types.AlertSeverity_HIGH {
+		return trace.AccessDenied("ack of high severity alerts is not permitted")
+	}
+
+	return a.authServer.CreateAlertAck(ctx, ack)
+}
+
+func (a *ServerWithRoles) GetAlertAcks(ctx context.Context) ([]types.AlertAcknowledgement, error) {
+	// alert acknowledgement is admin-only for now as it is a fairly niche feature,
+	// but we may want to develop custom rbac for this feature in the future
+	// if use of cluster alerts becomes more widespread.
+	if !a.hasBuiltinRole(types.RoleAdmin) {
+		return nil, trace.AccessDenied("listing alert acks is admin-only")
+	}
+
+	return a.authServer.GetAlertAcks(ctx)
+}
+
+func (a *ServerWithRoles) ClearAlertAcks(ctx context.Context, req proto.ClearAlertAcksRequest) error {
+	// alert acknowledgement is admin-only for now as it is a fairly niche feature,
+	// but we may want to develop custom rbac for this feature in the future
+	// if use of cluster alerts becomes more widespread.
+	if !a.hasBuiltinRole(types.RoleAdmin) {
+		return trace.AccessDenied("clearing alert acks is admin-only")
+	}
+
+	return a.authServer.ClearAlertAcks(ctx, req)
 }
 
 func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
@@ -5322,6 +5389,60 @@ func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, e
 	}
 
 	return a.authServer.releaseService.ListReleases(ctx)
+}
+
+// ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
+func (a *ServerWithRoles) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextToken string) ([]types.SAMLIdPServiceProvider, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.ListSAMLIdPServiceProviders(ctx, pageSize, nextToken)
+}
+
+// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
+func (a *ServerWithRoles) GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetSAMLIdPServiceProvider(ctx, name)
+}
+
+// CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
+func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
+}
+
+// UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
+func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpdateSAMLIdPServiceProvider(ctx, sp)
+}
+
+// DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
+func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteSAMLIdPServiceProvider(ctx, name)
+}
+
+// DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
+func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,
