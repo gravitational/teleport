@@ -4051,7 +4051,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 
 		dbRoleMatchers := role.DatabaseRoleMatchers(
-			db.GetProtocol(),
+			db,
 			t.Database.Username,
 			t.Database.GetDatabase(),
 		)
