@@ -605,7 +605,25 @@
           "slug": "/application-access/getting-started/"
         },
         {
-          "title": "Access Guides",
+          "title": "Securing Cloud APIs",
+          "slug": "/application-access/cloud-apis/",
+          "entries": [
+            {
+              "title": "Google Cloud CLI Access",
+              "slug": "/application-access/cloud-apis/google-cloud/"
+            },
+            {
+              "title": "AWS Access",
+              "slug": "/application-access/cloud-apis/aws-console/"
+            },
+            {
+              "title": "Azure CLI Access",
+              "slug": "/application-access/cloud-apis/azure/"
+            }
+          ]
+        },
+        {
+          "title": "Securing Internal Applications",
           "slug": "/application-access/guides/",
           "entries": [
             {
@@ -621,14 +639,6 @@
               "slug": "/application-access/guides/api-access/"
             },
             {
-              "title": "AWS Access",
-              "slug": "/application-access/guides/aws-console/"
-            },
-            {
-              "title": "Azure CLI Access",
-              "slug": "/application-access/guides/azure/"
-            },
-            {
               "title": "Dynamic Registration",
               "slug": "/application-access/guides/dynamic-registration/"
             },
@@ -639,7 +649,7 @@
           ]
         },
         {
-          "title": "JWT Guides",
+          "title": "Using Teleport-Signed JWTs",
           "slug": "/application-access/jwt/",
           "entries": [
             {
@@ -2171,6 +2181,16 @@
     {
       "source": "/database-access/guides/dynamodb/",
       "destination": "/application-access/guides/dynamodb/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/guides/aws-console/",
+      "destination": "/application-access/cloud-apis/aws-console/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/guides/azure/",
+      "destination": "/application-access/cloud-apis/azure/",
       "permanent": true
     }
   ]
