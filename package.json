@@ -20,10 +20,10 @@
     "test-update-snapshot": "yarn test -- --updateSnapshot",
     "tdd": "jest --watch",
     "lint": "yarn prettier-check && yarn eslint",
-    "eslint": "eslint --quiet --ext .js,.jsx,.ts,.tsx web/ e/",
+    "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx}'",
     "type-check": "tsc --noEmit",
     "prettier-check": "yarn prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx}'",
-    "prettier-write": "yarn prettier --write '+(e|web)/**/*.{ts,tsx,js,jsx}'",
+    "prettier-write": "yarn prettier --write --loglevel silent '+(e|web)/**/*.{ts,tsx,js,jsx}'",
     "nop": "exit 0"
   },
   "private": true,
