@@ -1499,7 +1499,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 			)
 			// dispatch returns an additional bool which indicates whether the reply has already been handled inside
 			// the dispatch function itself. if this is set to true, we avoid sending a second response in violation
-			// of the SSH protocol specifcation.
+			// of the SSH protocol specification.
 			err, replyAlreadyHandled := s.dispatch(ctx, ch, req, scx)
 			if err != nil {
 				s.replyError(ch, req, err)
