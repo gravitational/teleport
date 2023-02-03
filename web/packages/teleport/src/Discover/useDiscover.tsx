@@ -213,7 +213,11 @@ export function DiscoverProvider<T = any>(
     const nextView = findViewAtIndex(views, currentStep + numNextSteps);
     if (nextView) {
       setCurrentStep(currentStep + numNextSteps);
-      setEventState({ ...eventState, currEventName: nextView.eventName });
+      setEventState({
+        ...eventState,
+        currEventName: nextView.eventName,
+        manuallyEmitSuccessEvent: nextView.manuallyEmitSuccessEvent,
+      });
     }
 
     // Send reporting events:

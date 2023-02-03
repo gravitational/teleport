@@ -56,6 +56,7 @@ export const ServerResource: Resource = {
       title: 'Test Connection',
       component: TestConnection,
       eventName: DiscoverEvent.TestConnection,
+      manuallyEmitSuccessEvent: true,
     },
     {
       title: 'Finished',

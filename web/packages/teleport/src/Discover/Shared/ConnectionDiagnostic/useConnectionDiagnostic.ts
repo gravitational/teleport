@@ -19,6 +19,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleport from 'teleport/useTeleport';
 import { useDiscover } from 'teleport/Discover/useDiscover';
+import { DiscoverEventStatus } from 'teleport/services/userEvent';
 
 import type {
   ConnectionDiagnostic,
@@ -31,13 +32,15 @@ export function useConnectionDiagnostic(props: AgentStepProps) {
 
   const { attempt, run } = useAttempt('');
   const [diagnosis, setDiagnosis] = useState<ConnectionDiagnostic>();
-  const { emitErrorEvent } = useDiscover();
+  const [ranDiagnosis, setRanDiagnosis] = useState(false);
+  const { emitErrorEvent, emitEvent } = useDiscover();
 
   const access = ctx.storeUser.getConnectionDiagnosticAccess();
   const canTestConnection = access.create && access.edit && access.read;
 
   function runConnectionDiagnostic(req: ConnectionDiagnosticRequest) {
     setDiagnosis(null); // reset since user's can re-test connection.
+    setRanDiagnosis(true);
     run(() =>
       ctx.agentService
         .createConnectionDiagnostic(req)
@@ -57,6 +60,8 @@ export function useConnectionDiagnostic(props: AgentStepProps) {
               }
             });
             emitErrorEvent(`testing failed: ${errors.join('\n')}`);
+          } else {
+            emitEvent({ stepStatus: DiscoverEventStatus.Success });
           }
         })
         .catch((error: Error) => {
@@ -72,7 +77,15 @@ export function useConnectionDiagnostic(props: AgentStepProps) {
     attempt,
     runConnectionDiagnostic,
     diagnosis,
-    nextStep: () => props.nextStep(),
+    nextStep: () => {
+      if (!ranDiagnosis) {
+        emitEvent({ stepStatus: DiscoverEventStatus.Skipped });
+      }
+      // else either a failed or success event would've been
+      // already sent for each test connection, so we don't need
+      // to send anything here.
+      props.nextStep();
+    },
     prevStep: props.prevStep,
     canTestConnection,
     username,

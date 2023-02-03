@@ -110,6 +110,7 @@ export const DatabaseResource: Resource<Database> = {
         title: 'Test Connection',
         component: TestConnection,
         eventName: DiscoverEvent.TestConnection,
+        manuallyEmitSuccessEvent: true,
       },
       {
         title: 'Finished',
