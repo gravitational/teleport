@@ -26,8 +26,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Run `go mod tidy`
-        # We have to add the current directory as a safe directory or else git commands will not work as expected.
-        run: go mod tidy && (cd api && go mod tidy)
+        run: rm go.sum api/go.sum && go mod tidy && (cd api && go mod tidy)
 
       - name: Check for changes
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
