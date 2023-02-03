@@ -61,6 +61,7 @@ func TestDatabaseServiceHeartbeat(t *testing.T) {
 
 	roleWithRODBService, err := types.NewRole("ro_dbservices", types.RoleSpecV5{
 		Allow: types.RoleConditions{
+			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindDatabaseService, services.RO()),
 			},

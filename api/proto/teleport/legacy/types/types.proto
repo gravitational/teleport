@@ -2355,6 +2355,13 @@ message RoleConditions {
   repeated string HostGroups = 21 [(gogoproto.jsontag) = "host_groups,omitempty"];
   // HostSudoers is a list of entries to include in a users sudoer file
   repeated string HostSudoers = 22 [(gogoproto.jsontag) = "host_sudoers,omitempty"];
+
+  // DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.
+  wrappers.LabelValues DatabaseServiceLabels = 26 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "db_service_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.

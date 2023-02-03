@@ -112,10 +112,6 @@ type Role interface {
 	// SetAccessReviewConditions sets allow/deny conditions for access review.
 	SetAccessReviewConditions(RoleConditionType, AccessReviewConditions)
 
-	// GetDatabaseServiceLabels gets the DatabaseService labels this role
-	// is allowed or denied access to.
-	GetDatabaseServiceLabels(RoleConditionType) Labels
-
 	// GetDatabaseLabels gets the map of db labels this role is allowed or denied access to.
 	GetDatabaseLabels(RoleConditionType) Labels
 	// SetDatabaseLabels sets the map of db labels this role is allowed or denied access to.
@@ -197,6 +193,11 @@ type Role interface {
 
 	// GetPrivateKeyPolicy returns the private key policy enforced for this role.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
+
+	// GetDatabaseServiceLabels gets the map of db service labels this role is allowed or denied access to.
+	GetDatabaseServiceLabels(RoleConditionType) Labels
+	// SetDatabaseLabels sets the map of db service labels this role is allowed or denied access to.
+	SetDatabaseServiceLabels(RoleConditionType, Labels)
 }
 
 // NewRole constructs new standard V5 role.
@@ -497,12 +498,21 @@ func (r *RoleV5) SetKubernetesLabels(rct RoleConditionType, labels Labels) {
 	}
 }
 
-// GetDatabaseServiceLabels gets the DatabaseService labels this role is allowed or denied access to.
+// GetDatabaseServiceLabels gets the map of db service labels this role is allowed or denied access to.
 func (r *RoleV5) GetDatabaseServiceLabels(rct RoleConditionType) Labels {
 	if rct == Allow {
-		return Labels{Wildcard: []string{Wildcard}}
+		return r.Spec.Allow.DatabaseServiceLabels
 	}
-	return Labels{}
+	return r.Spec.Deny.DatabaseServiceLabels
+}
+
+// SetDatabaseServiceLabels sets the map of db service labels this role is allowed or denied access to.
+func (r *RoleV5) SetDatabaseServiceLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.DatabaseServiceLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.DatabaseServiceLabels = labels.Clone()
+	}
 }
 
 // GetDatabaseLabels gets the map of db labels this role is allowed or denied access to.

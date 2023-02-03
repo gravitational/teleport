@@ -278,6 +278,7 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 	user := "user"
 	roleRODatabaseServices, err := types.NewRole(services.RoleNameForUser(user), types.RoleSpecV5{
 		Allow: types.RoleConditions{
+			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindDatabaseService,
 					[]string{types.VerbRead, types.VerbList}),
