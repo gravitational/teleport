@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"sync"
 
 	"github.com/google/uuid"
@@ -830,8 +831,8 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	}
 	scx.RemoteClient = s.remoteClient
 	scx.ChannelType = teleport.ChanDirectTCPIP
-	scx.SrcAddr = fmt.Sprintf("%v:%d", req.Orig, req.OrigPort)
-	scx.DstAddr = fmt.Sprintf("%v:%d", req.Host, req.Port)
+	scx.SrcAddr = net.JoinHostPort(req.Orig, strconv.Itoa(int(req.OrigPort)))
+	scx.DstAddr = net.JoinHostPort(req.Host, strconv.Itoa(int(req.Port)))
 	defer scx.Close()
 
 	ch = scx.TrackActivity(ch)

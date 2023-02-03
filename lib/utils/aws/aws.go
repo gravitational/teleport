@@ -155,6 +155,16 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 		return trace.AccessDenied("AccessKeyID does not match")
 	}
 
+	// Skip signature verification if the incoming request includes the
+	// "User-Agent" header when making the signature. AWS Go SDK explicitly
+	// skips the "User-Agent" header so it will always produce a different
+	// signature. Only AccessKeyID is verified above in this case.
+	for _, signedHeader := range sigV4.SignedHeaders {
+		if strings.EqualFold(signedHeader, "User-Agent") {
+			return nil
+		}
+	}
+
 	// Read the request body and replace the body ready with a new reader that will allow reading the body again
 	// by HTTP Transport.
 	payload, err := utils.GetAndReplaceRequestBody(req)
