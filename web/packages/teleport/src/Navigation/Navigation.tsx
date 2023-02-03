@@ -105,20 +105,43 @@ export function Navigation() {
       NavigationCategory.Resources
   );
 
-  const [previousRoute, setPreviousRoute] = useState('');
+  const [previousRoute, setPreviousRoute] = useState<{ [key: string]: string }>(
+    {}
+  );
 
-  useEffect(() => {
-    return history.listen(next => {
+  const handleLocationChange = useCallback(
+    (next: Location<unknown>) => {
       const previousPathName = location.pathname;
 
       const category = getCategoryForRoute(features, next);
 
       if (category && category !== view) {
-        setPreviousRoute(previousPathName);
+        setPreviousRoute(previous => ({
+          ...previous,
+          [view]: previousPathName,
+        }));
         setView(category);
       }
-    });
+    },
+    [location, view]
+  );
+
+  useEffect(() => {
+    return history.listen(handleLocationChange);
   }, [history, location.pathname, features, view]);
+
+  const handlePopState = useCallback(
+    (event: PopStateEvent) => {
+      handleLocationChange((event.currentTarget as any).location);
+    },
+    [view]
+  );
+
+  useEffect(() => {
+    window.addEventListener('popstate', handlePopState);
+
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [handlePopState]);
 
   const handleCategoryChange = useCallback(
     (category: NavigationCategory) => {
@@ -127,10 +150,10 @@ export function Navigation() {
       }
 
       history.push(
-        previousRoute || getFirstRouteForCategory(features, category)
+        previousRoute[category] || getFirstRouteForCategory(features, category)
       );
     },
-    [view, location.pathname, previousRoute]
+    [view, previousRoute]
   );
 
   const categories = NAVIGATION_CATEGORIES.map((category, index) => (
