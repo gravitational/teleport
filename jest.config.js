@@ -8,6 +8,10 @@ module.exports = {
   globals: {
     electron: {},
   },
+  testPathIgnorePatterns: [
+    // Skipped until e files are removed from teleterm.
+    'web/packages/teleterm/src/ui/TabHost/TabHost.test.tsx',
+  ],
   collectCoverageFrom: [
     // comment out until shared directory is finished testing
     // '**/packages/design/src/**/*.jsx',
