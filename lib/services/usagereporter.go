@@ -31,9 +31,9 @@ import (
 
 	usageevents "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
-	prehogapi "github.com/gravitational/teleport/gen/proto/go/teleport/lib/prehog/v1alpha"
-	prehogv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/prehog/v1alpha"
-	prehogclient "github.com/gravitational/teleport/gen/proto/go/teleport/lib/prehog/v1alpha/v1alphaconnect"
+	prehogapi "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	prehogclient "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/usagereporter"
