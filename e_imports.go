@@ -22,8 +22,11 @@ package teleport
 // Dependabot) doesn't wrongly remove the modules they belong to.
 
 // Import list generator; remember to check that e is up to date and that there
-// is not a go.work file.
-// TODO(espadolini): turn this into a lint (needs access to teleport.e in CI)
+// is not a go.work file. The list of tags that might be needed in e (currently
+// only "piv") can be extracted with a (cd e && git grep //go:build).
+
+// TODO(espadolini): turn this into a lint (needs access to teleport.e in CI and
+// ideally a resolution to https://github.com/golang/go/issues/42504 )
 
 /*
 comm -13 <(
@@ -32,7 +35,7 @@ comm -13 <(
 	sort | uniq | grep -v -E -e "^github.com/gravitational/teleport(/.*)?$" -e "^C$" |
 	xargs go list -f '{{if not .Standard}}{{println .ImportPath}}{{end}}'
 ) <(
-	go list -f '{{range .Imports}}{{println .}}{{end}}' ./e/... |
+	go list -f '{{range .Imports}}{{println .}}{{end}}' -tags piv ./e/... |
 	sort | uniq | grep -v -E -e "^github.com/gravitational/teleport(/.*)?$" -e "^C$" |
 	xargs go list -f '{{if not .Standard}}{{println .ImportPath}}{{end}}'
 ) | awk '{ print "\t_ \"" $1 "\"" }'
@@ -41,6 +44,7 @@ comm -13 <(
 import (
 	_ "github.com/beevik/etree"
 	_ "github.com/coreos/go-oidc/oidc"
+	_ "github.com/go-piv/piv-go/piv"
 	_ "github.com/gravitational/form"
 	_ "google.golang.org/api/admin/directory/v1"
 	_ "google.golang.org/api/cloudidentity/v1"
