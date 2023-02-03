@@ -58,14 +58,15 @@ Copy this certificate to your Windows system, if you didn't run `tctl` from ther
 
 ### Install the Teleport service for Windows
 
-From the Windows system, download the [Teleport service installer](#LinkToCome) {/*Rename as needed */}
+From the Windows system, download the [Teleport Windows Auth
+Setup](https://github.com/gravitational/teleport/archives/ref/tags/teleport-windows-auth-setup-v(=teleport.version=)-amd64.zip)
 and run it. When prompted, select the Teleport certificate file from the previous step.
 Once complete, reboot the system.
 
 <Admonition type="tip" title="Headless Installation">
-The Teleport service installer {/*Rename as needed*/} can be run in a shell
-environment with elevated privileges. You can use this to automate installation,
-uninstallation, and certificate updates. For example:
+The Teleport Windows Auth Setup can be run in a shell environment with elevated
+privileges. You can use this to automate installation, uninstallation, and
+certificate updates. For example:
 
 ```code
 $ teleport-windows-auth-setup-v12.0.0-amd64.exe install --cert=teleport.cer -r
