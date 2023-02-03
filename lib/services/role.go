@@ -139,11 +139,12 @@ func RoleForUser(u types.User) types.Role {
 			BPF:               defaults.EnhancedEvents(),
 		},
 		Allow: types.RoleConditions{
-			Namespaces:       []string{defaults.Namespace},
-			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Namespaces:            []string{defaults.Namespace},
+			NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, RW()),
 				types.NewRule(types.KindAuthConnector, RW()),
@@ -2272,16 +2273,13 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 	additionalDeniedMessage := ""
 
 	var getRoleLabels func(types.Role, types.RoleConditionType) types.Labels
-	resourceHasLabels := true
-	getEmptyLabels := func(r types.Role, rct types.RoleConditionType) types.Labels { return types.Labels{} }
 
 	switch r.GetKind() {
 	case types.KindDatabase:
 		getRoleLabels = types.Role.GetDatabaseLabels
 		additionalDeniedMessage = "Confirm database user and name."
 	case types.KindDatabaseService:
-		resourceHasLabels = false
-		getRoleLabels = getEmptyLabels
+		getRoleLabels = types.Role.GetDatabaseServiceLabels
 	case types.KindApp:
 		getRoleLabels = types.Role.GetAppLabels
 	case types.KindNode:
@@ -2355,8 +2353,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 			return trace.Wrap(err)
 		}
 
-		// Deny only if the resourceHasLabels but there was no match.
-		if resourceHasLabels && !matchLabels {
+		if !matchLabels {
 			if isDebugEnabled {
 				errs = append(errs, trace.AccessDenied("role=%v, match(label=%v)",
 					role.GetName(), labelsMessage))
