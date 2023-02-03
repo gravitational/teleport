@@ -1189,10 +1189,12 @@ init-submodules-e:
 # dronegen generates .drone.yml config
 #
 #    Usage:
-#    - install github.com/gravitational/tdr
-#    - set $DRONE_TOKEN and $DRONE_SERVER (https://drone.platform.teleport.sh)
+#    - install drone cli
+#    - set $DRONE_TOKEN
 #    - tsh login --proxy=platform.teleport.sh
 #    - tsh app login drone
+#    - tsh proxy app drone
+#    - export DRONE_SERVER=https://localhost:$TSH_PROXY_PORT
 #    - make dronegen
 .PHONY: dronegen
 dronegen:
