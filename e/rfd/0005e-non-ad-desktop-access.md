@@ -55,18 +55,18 @@ sequenceDiagram
   RDP->>WL: Logon request with PIN
   WL->>CP: GetSerialization
   CP-->>RDP: Get cert from smart card (Crypt* methods)
-  RDP-->>CP:
+  RDP-->>CP: 
   CP-->CP: Create anonymous pipes
   CP->>WL: Serialized certificate + pipes' handles
-  WL->>AP: Serialized certificate + pipes' handles (LsaApLogonUser method)
+  WL->>AP: Serialized certificate + pipes' handles (LsaApLogonUser method) 
   AP-->AP: Verify certificate
   AP->>CP: Sign random data
   CP-->>RDP: Sign random data using smart card (CryptSignHash)
-  RDP-->>CP:
+  RDP-->>CP: 
   CP->>AP: Signature
   AP-->AP: Verify signature
   AP-->>SAM: Get user SID, groups, permissions
-  SAM-->>AP:
+  SAM-->>AP:  
   AP->>WL: Logon token
   WL->>RDP: Render UI
 ```
@@ -78,7 +78,7 @@ sequenceDiagram
 - It creates anonymous pipes used later for signing process
 - It returns a credential comprised of a certificate from a smart card and the name of the pipe that can be used to
   verify it
-  (see [Certificate verification](#certificate-verification)) and instructs `Winlogon.exe` to auto-login with it
+  (see [Certificate verification](#certificate-verification))  and instructs `Winlogon.exe` to auto-login with it
 - `Winlogon` passes credential to our authentication package
 - Authentication package verifies the certificate presented is correct and if so creates a login token that is used to
   start an interactive session for the user
@@ -120,8 +120,8 @@ The Credential provider is registered by creating the following keys in the regi
   points to the corresponding `CLSID` key below)
 - `HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{FF285315-5335-4F69-A9A2-9CC5F8419D55}` (
   see [CLSID](https://learn.microsoft.com/en-us/windows/win32/com/clsid-key-hklm)):
-  - `InprocServer32`: `C:\Windows\System32\teleport.dll`
-  - `ProgId`: `Teleport`
+    - `InprocServer32`: `C:\Windows\System32\teleport.dll`
+    - `ProgId`: `Teleport`
 
 ### Authentication package
 

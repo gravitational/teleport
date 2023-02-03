@@ -28,7 +28,7 @@ the most common reason to use Teleport Enterprise. This does not preclude future
 changes that may disable other enterprise features, just that it is not
 originally being considered.
 
-[rfd 84]: https://github.com/gravitational/teleport/blob/master/rfd/0084-license-expiration-warnings.md
+[RFD 84]: https://github.com/gravitational/teleport/blob/master/rfd/0084-license-expiration-warnings.md
 
 ## Success Criteria
 
@@ -128,10 +128,10 @@ know about the license checker clock.
 The SAML and OIDC connectors have four entry points that will be amended to
 check the license expiry:
 
-- `UpsertConnector`
-- `DeleteConnector`
-- `CreateAuthRequest`
-- `ValidateResponse`
+* `UpsertConnector`
+* `DeleteConnector`
+* `CreateAuthRequest`
+* `ValidateResponse`
 
 These entry points will first check that that the license grace period has not
 expired. If it has, it will return an `AccessDenied` error with the message

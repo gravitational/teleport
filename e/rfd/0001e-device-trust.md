@@ -7,9 +7,9 @@ state: implemented
 
 ## Required approvers
 
-- Engineering: (@zmb3 || @rosstimothy)
-- Security: @reed
-- Product: (@xinding33 || @klizhentas)
+* Engineering: (@zmb3 || @rosstimothy)
+* Security: @reed
+* Product: (@xinding33 || @klizhentas)
 
 ## What
 
@@ -37,7 +37,7 @@ Device trust varies in its implementation depending on available hardware and
 operating system behavior. To begin with, let's state the base guarantees we can
 infer from the resulting system:
 
-**macOS** devices with a hardware Secure Enclave can be guaranteed to hold a
+__macOS__ devices with a hardware Secure Enclave can be guaranteed to hold a
 certain private key. In systems without hardware or software compromise
 (firmware, OS, applications), said key is held by the Secure Enclave and can't
 be exfiltrated.
@@ -56,7 +56,7 @@ greatly increasing the guarantees of the system.
 
 macOS devices without a Secure Enclave are not supported.
 
-**Linux** and **Windows** devices with a TPM do provide quoting and
+__Linux__ and __Windows__ devices with a TPM do provide quoting and
 certification. Quoting allows us to verify the boot chain up to the
 bootloader/OS (it varies depending on specifics). Certification lets us attest
 that the TPM indeed holds the private key. The underlying assumption, then, is
@@ -139,9 +139,9 @@ Phase 2 is the device enrollment phase. It must be executed via `tsh` in the
 device to be registered. A few allowances are made for `tsh device enroll` to
 support distinct use-cases:
 
-- If the `tsh` user is already authenticated then the present identity is used;
+* If the `tsh` user is already authenticated then the present identity is used;
   otherwise
-- If the `tsh` user is not authenticated, `tsh device enroll` authenticates the
+* If the `tsh` user is not authenticated, `tsh device enroll` authenticates the
   user but doesn't write any data to disk. This allows IT to enroll new devices
   without the risk of leaving powerful user certificates behind.
 
@@ -454,11 +454,11 @@ with the necessary device/`enroll` permission).
 
 A number of precautions are taken to limit the powers of enrollment tokens:
 
-- Device bound: tokens are tied to a particular device
-- Time bound: tokens expire in a reasonably short amount of time (eg, 1h)
-- Single-use: tokens are single-use and immediately spent once EnrollDevice
+* Device bound: tokens are tied to a particular device
+* Time bound: tokens expire in a reasonably short amount of time (eg, 1h)
+* Single-use: tokens are single-use and immediately spent once EnrollDevice
   starts
-- Hashed in storage: tokens are hashed as a password before being recorded in
+* Hashed in storage: tokens are hashed as a password before being recorded in
   storage (bcrypt)
 
 #### Device collected data
@@ -466,11 +466,11 @@ A number of precautions are taken to limit the powers of enrollment tokens:
 Device collected data contains a small set of useful information to identify the
 device. For example:
 
-- Model Name: MacBook Pro
-- Model Identifier: MacBookPro16.1
-- Serial Number: XXXXXXXXXXXX
-- OS version: macOS 12.5 (21G72)
-- Kernel version: Darwin 21.6.0
+* Model Name: MacBook Pro
+* Model Identifier: MacBookPro16.1
+* Serial Number: XXXXXXXXXXXX
+* OS version: macOS 12.5 (21G72)
+* Kernel version: Darwin 21.6.0
 
 For macOS devices, the serial number is used as the asset tag and is the main
 data point verified by Teleport.
@@ -586,9 +586,9 @@ TLS certificates with device extensions contain the custom OIDs below, embedded
 in the Subject's CN (Common Name) field. The presence of (valid) device
 extensions authorizes the user to perform device aware actions.
 
-- `1.3.9999.3.1`: device ID
-- `1.3.9999.3.2`: asset tag
-- `1.3.9999.3.3`: credential ID
+* `1.3.9999.3.1`: device ID
+* `1.3.9999.3.2`: asset tag
+* `1.3.9999.3.3`: credential ID
 
 <!--
 https://github.com/gravitational/teleport/blob/be1438aecddd3b3b2104b25ff986b772fb52e665/lib/tlsca/ca.go#L301
@@ -598,9 +598,9 @@ SSH certificates are augmented with the following device extensions, encoded as
 [SSH extensions](https://pkg.go.dev/golang.org/x/crypto/ssh#Certificate),
 equivalent to the ones above:
 
-- `teleport-device-id`
-- `teleport-device-asset-tag`
-- `teleport-device-credential-id`
+* `teleport-device-id`
+* `teleport-device-asset-tag`
+* `teleport-device-credential-id`
 
 <!--
 https://github.com/gravitational/teleport/blob/be1438aecddd3b3b2104b25ff986b772fb52e665/constants.go#L457
@@ -674,22 +674,22 @@ etc.
 
 The following accesses may be configured to require a trusted device (`tsh`):
 
-- Connecting to a node via SSH
-- Connecting to a database
-- Connecting to a Windows Desktop
-- Connecting to an app
-- Connecting to Kubernetes
+* Connecting to a node via SSH
+* Connecting to a database
+* Connecting to a Windows Desktop
+* Connecting to an app
+* Connecting to Kubernetes
 
 Additionally, the following administrative actions may also require a trusted
 device:
 
-- Creating, updating and deleting resources (including roles and users)
+* Creating, updating and deleting resources (including roles and users)
 
-  See
-  [OSS](https://github.com/gravitational/teleport/blob/be1438aecddd3b3b2104b25ff986b772fb52e665/tool/tctl/common/resource_command.go#L93)
-  and
-  [Enterprise](https://github.com/gravitational/teleport.e/blob/7f65ada14e1fd422e642a95f544ec063a8061fe3/tool/tctl/resource_command.go#L35)
-  `tctl` sources for reference.
+    See
+    [OSS](https://github.com/gravitational/teleport/blob/be1438aecddd3b3b2104b25ff986b772fb52e665/tool/tctl/common/resource_command.go#L93)
+    and
+    [Enterprise](https://github.com/gravitational/teleport.e/blob/7f65ada14e1fd422e642a95f544ec063a8061fe3/tool/tctl/resource_command.go#L35)
+    `tctl` sources for reference.
 
 (Additional protections likely to be added over time.)
 
@@ -708,19 +708,20 @@ Online blocking of devices is handled by the [locking subsystem](#locks).
 
 Device Trust adds the `DeviceEvent` type, with the following event codes:
 
-- `TV001I` / DeviceCreate: fired by registration
-- `TV002I` / DeviceDelete: fired by device removal
-- `TV003I` / DeviceEnrollTokenCreate: fired by registration or standalone token
+* `TV001I` / DeviceCreate: fired by registration
+* `TV002I` / DeviceDelete: fired by device removal
+* `TV003I` / DeviceEnrollTokenCreate: fired by registration or standalone token
   creation
-- `TV004I` / DeviceEnrollTokenSpent: fired by [enrollment](#enrollment-ceremony)
-- `TV005I` / DeviceEnroll: fired by [enrollment](#enrollment-ceremony)
-- `TV006I` / DeviceAuthenticate: fired by
+* `TV004I` / DeviceEnrollTokenSpent: fired by [enrollment](#enrollment-ceremony)
+* `TV005I` / DeviceEnroll: fired by [enrollment](#enrollment-ceremony)
+* `TV006I` / DeviceAuthenticate: fired by
   [device authentication](#device-authentication)
 
 The events above are meant to describe the lifecycle of a device, encompassing
 multiple owners and potentially outliving the device itself.
 
-Note that [audit log retention is configurable](https://goteleport.com/docs/reference/backends/?scope=enterprise#dynamodb) and
+Note that [audit log retention is configurable](
+https://goteleport.com/docs/reference/backends/?scope=enterprise#dynamodb) and
 may vary between Teleport installations (defaults to 365d).
 
 <!--
@@ -764,7 +765,6 @@ message UserMetadata {
 +  DeviceMetadata TrustedDevice = 8 [(gogoproto.jsontag) = "trusted_device,omitempty"];
 }
 ```
-
 </details>
 
 ### Configuration and roles
@@ -838,8 +838,8 @@ Access to device inventory management (2) is controlled via roles, using the
 "device" resource kind. All standard verbs (`create`, `delete`, `list`, `read`,
 `update`) are supported, plus the following:
 
-- `create_enroll_token` - allows creation of enrollment tokens
-- `enroll` - allows enrollment of devices
+* `create_enroll_token` - allows creation of enrollment tokens
+* `enroll` - allows enrollment of devices
 
 The builtin
 [editor](https://github.com/gravitational/teleport/blob/be1438aecddd3b3b2104b25ff986b772fb52e665/lib/services/presets.go#L31)
@@ -855,11 +855,11 @@ and delete operations.
 
 Example commands:
 
-- `tctl create device.yaml` - creates the specified device(s), useful for bulk
+* `tctl create device.yaml` - creates the specified device(s), useful for bulk
   operations
-- `tctl get devices` - lists all devices (detailed view)
-- `tctl get devices/<ID or tag>` - read by device ID or asset tag
-- `tctl rm devices/<ID or tag>` - hard-delete by device ID or asset tag (must
+* `tctl get devices` - lists all devices (detailed view)
+* `tctl get devices/<ID or tag>` - read by device ID or asset tag
+* `tctl rm devices/<ID or tag>` - hard-delete by device ID or asset tag (must
   match a single device).
 
 Device resource definition:
@@ -889,19 +889,21 @@ express functionality that the "device" resource cannot.
 
 Example commands:
 
-- `tctl devices add` - allows simultaneous creation of device and enrollment
+* `tctl devices add` - allows simultaneous creation of device and enrollment
   token
-- `tctl devices ls` - single-line, abridged list
-- `tctl devices rm` - allows unambiguous deletion of devices by either device ID
+* `tctl devices ls` - single-line, abridged list
+* `tctl devices rm` - allows unambiguous deletion of devices by either device ID
   or asset tag
-- `tctl devices enroll` - creates a new device enrollment token
-- `tctl devices lock` - locks device by either device ID or asset tag
+* `tctl devices enroll` - creates a new device enrollment token
+* `tctl devices lock` - locks device by either device ID or asset tag
 
-See the [UX](#ux) section for a comparison of "device" resource and `tctl devices` commands.
+See the [UX](#ux) section for a comparison of "device" resource and `tctl
+devices` commands.
 
 #### Locks
 
-Devices may be locked using the `tctl lock --device <device ID>` or `tctl create` commands.
+Devices may be locked using the `tctl lock --device <device ID>` or `tctl
+create` commands.
 
 [LockTarget](https://github.com/gravitational/teleport/blob/be1438aecddd3b3b2104b25ff986b772fb52e665/api/types/types.proto#L3283)
 is updated to support devices, as shown below:
@@ -1097,13 +1099,13 @@ message DeviceEnrollToken {
 
 The keyspace below is added to storage:
 
-- `devices/id/$dev_id`:
+* `devices/id/$dev_id`:
   base device information, serves authz and list requests by itself
-- `devices/enroll_token/$dev_id`:
+* `devices/enroll_token/$dev_id`:
   device enrollment token
-- `devices/collected_data/$dev_id/$data_id`:
+* `devices/collected_data/$dev_id/$data_id`:
   records last N instances of collected data
-- `devices/byTag/$asset_tag`:
+* `devices/byTag/$asset_tag`:
   maps an asset tag device IDs
 
 `devices/id/$dev_id` stores a stripped-down Device proto (update_time, collected
@@ -1181,21 +1183,21 @@ the open source Teleport repository.
 
 OSS contains:
 
-| Feature                      | Reason                                                                                                                                                     |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tsh device enroll`          | May be verified by the community<br/>Doesn't require Enterprise packages for clients<br/>Easier Connect integration (doesn't require "Connect Enterprise") |
-| Audit logs                   | Easier to integrate into existing codebase                                                                                                                 |
-| Configuration and Role knobs | Easier to integrate into existing codebase                                                                                                                 |
-| Locking                      | Easier to integrate into existing codebase                                                                                                                 |
-| Device aware authorization   | Endpoints are largely OSS                                                                                                                                  |
-| Device Trust RPC definitions | Necessary for integration with Auth                                                                                                                        |
+Feature                      | Reason
+---                          | ---
+`tsh device enroll`          | May be verified by the community<br/>Doesn't require Enterprise packages for clients<br/>Easier Connect integration (doesn't require "Connect Enterprise")
+Audit logs                   | Easier to integrate into existing codebase
+Configuration and Role knobs | Easier to integrate into existing codebase
+Locking                      | Easier to integrate into existing codebase
+Device aware authorization   | Endpoints are largely OSS
+Device Trust RPC definitions | Necessary for integration with Auth
 
 Enterprise contains all the remaining implementation, including:
 
-- DeviceTrustService implementation
-- Storage implementation (`devices/` keyspace)
-- `tctl` device resource commands
-- `tctl devices` subcommands
+* DeviceTrustService implementation
+* Storage implementation (`devices/` keyspace)
+* `tctl` device resource commands
+* `tctl devices` subcommands
 
 ### Web UI
 
@@ -1217,13 +1219,13 @@ The design adds additional authz criteria to Teleport, but these shouldn't
 weaken the system - the question is whether Device Trust itself adds a
 meaningful authz component and if the ceremonies are sound.
 
-**Device enrollment** relies on:
+__Device enrollment__ relies on:
 
-- User authorization, namely the device/`enroll` permission,
-- The device enrollment token, which both grants authorization to enroll a
+* User authorization, namely the device/`enroll` permission,
+* The device enrollment token, which both grants authorization to enroll a
   particular device and ties the device back to the inventory,
-- Proof of possession of the device private key; and
-- Validation of the collected device data (OS and serial number)
+* Proof of possession of the device private key; and
+* Validation of the collected device data (OS and serial number)
 
 The enrollment ceremony proves the ownership of a private key. The process is
 strengthened when performed by a trusted operator - in this scenario, the
@@ -1233,20 +1235,20 @@ and are spent immediately on first use.
 
 The outcome of enrollment is a registered device credential.
 
-**Device authentication** relies on:
+__Device authentication__ relies on:
 
-- Valid user certificates (TLS and SSH)
-- Validation of the collected device data (matched against enrollment and
+* Valid user certificates (TLS and SSH)
+* Validation of the collected device data (matched against enrollment and
   previous data)
-- Proof of possession of the device private key
+* Proof of possession of the device private key
 
 The inputs above are exchanged for certificates with device extensions. The
 device extensions are used, then, to authorize access to device aware endpoints.
 
-Both **device enrollment** and **device authentication** endpoints are rate
+Both __device enrollment__ and __device authentication__ endpoints are rate
 limited.
 
-**Authorization** for device aware endpoints looks at the device extensions in
+__Authorization__ for device aware endpoints looks at the device extensions in
 the user certificate in order to make access decisions. Device locks inspect the
 same extensions, providing the means to block untrustworthy (enrolled) devices.
 
@@ -1276,7 +1278,8 @@ $ tsh device enroll --token=Y
 
 It's possible to bulk register devices (`tctl create devices.yaml`), which won't
 create enrollment tokens. It's also possible to manually create new enrollment
-tokens, either for initial enrollment or to re-enroll a device (`tctl devices enroll --device-id=N`).
+tokens, either for initial enrollment or to re-enroll a device (`tctl devices
+enroll --device-id=N`).
 
 Inventory management is performed either via `tctl devices` subcommands or using
 the `tctl` device resource. `tctl` resources are preferred for detailed views
@@ -1286,17 +1289,17 @@ gap where resources commands fall short.
 The table below compares the alternatives, highlighting differences in
 functionality and format:
 
-| Command                 | Details                                                                          |
-| ----------------------- | -------------------------------------------------------------------------------- |
-| tctl devices add        | single device<br/>may create enrollment token                                    |
-| tctl create device.yaml | single or multiple devices<br/>doesn't create enrollment token                   |
-| tctl devices ls         | simplified view, one device per row                                              |
-| tctl get devices        | full view                                                                        |
-| tctl get devices/X      | reads a single device by ID or tag<br/>doesn't have a `tctl devices` counterpart |
-| tctl devices rm         | explicit --device-id or --asset-tag                                              |
-| tctl rm devices/X       | uses either device ID or tag<br/>may fail in case of ambiguity                   |
-| tctl devices lock       | locks device by ID or asset tag                                                  |
-| tctl lock --device      | locks device by ID<br/>tctl lock interface                                       |
+Command                 | Details
+---                     | ---
+tctl devices add        | single device<br/>may create enrollment token
+tctl create device.yaml | single or multiple devices<br/>doesn't create enrollment token
+tctl devices ls         | simplified view, one device per row
+tctl get devices        | full view
+tctl get devices/X      | reads a single device by ID or tag<br/>doesn't have a `tctl devices` counterpart
+tctl devices rm         | explicit --device-id or --asset-tag
+tctl rm devices/X       | uses either device ID or tag<br/>may fail in case of ambiguity
+tctl devices lock       | locks device by ID or asset tag
+tctl lock --device      | locks device by ID<br/>tctl lock interface
 
 User visible configuration is explored in the
 [configuration and roles](#configuration-and-roles) section.
@@ -1375,7 +1378,7 @@ authentication would change, roughly, as follow:
 
 1. Enrollment emits a device certificate in the final step
 
-   (macOS) The device certificate is stored in the Keychain
+    (macOS) The device certificate is stored in the Keychain
 
 2. Device authentication exchanges collected data, device challenge and a valid
    device certificate for a user certificate with device extensions
@@ -1383,7 +1386,7 @@ authentication would change, roughly, as follow:
 3. A device certificate renewal endpoint is added to the system, allowing the
    exchange of collected data and a device challenge for a renewed certificate.
 
-   `tsh` automatically renews the device certificate when necessary.
+    `tsh` automatically renews the device certificate when necessary.
 
 The device certificate signifies that the machine successfully cleared collected
 data validation and proof of possession in a recent enough time.
@@ -1414,7 +1417,8 @@ example, but that isn't a design necessity.
 [AppAttestService](https://developer.apple.com/documentation/devicecheck/establishing_your_app_s_integrity)
 provides the means to verify the authenticity of an app - a useful feature that
 could establish if `tsh.app` or Connect were tampered with. Unfortunately, at
-the time of writing, [it doesn't support Mac devices](https://developer.apple.com/documentation/devicecheck/dcappattestservice/3573915-supported).
+the time of writing, [it doesn't support Mac devices](
+https://developer.apple.com/documentation/devicecheck/dcappattestservice/3573915-supported).
 
 #### Simultaneous user/device authentication
 
@@ -1484,15 +1488,15 @@ While, in general, more performant than the proposed
 depending on the scenario), it's more complex to implement and has a higher
 impact on existing endpoints. In particular:
 
-- All authn endpoints are affected,
-- It's harder to cleanly split between OSS and Enterprise,
-- It requires persistent device challenge storage,
-- Device Trust has to issue non-authenticated/anonymous challenges
+* All authn endpoints are affected,
+* It's harder to cleanly split between OSS and Enterprise,
+* It requires persistent device challenge storage,
+* Device Trust has to issue non-authenticated/anonymous challenges
   (SSO and passwordless ceremonies),
-- Single-hop authentication endpoints (like
+* Single-hop authentication endpoints (like
   [directLogin](https://github.com/gravitational/teleport/blob/be1438aecddd3b3b2104b25ff986b772fb52e665/lib/client/api.go#L3344))
   have to be deprecated and removed; and
-- SSO endpoints need an additional hop to acquire the challenge and
+* SSO endpoints need an additional hop to acquire the challenge and
   modifications to store device-related data.
 
 Given the impact of the changes, the more independent streaming solution is
@@ -1545,7 +1549,7 @@ message MFAAuthenticateResponse {
 
 Unified user authentication is the next step from simultaneous authentication:
 it takes advantage of the work necessary to modify the authn endpoints, but
-instead chooses to refactor **all** authn into a single, multi-step ceremony.
+instead chooses to refactor __all__ authn into a single, multi-step ceremony.
 
 <!--
 Related: https://github.com/gravitational/teleport/issues/7493
@@ -1557,6 +1561,7 @@ same time allowing features like Device Trust to be easily plugged into it.
 Like simultaneous authentication, it is considered out of scope for the proposed
 design, but it's an interesting alternative to pursue in a smaller design of its
 own.
+
 
 <!-- Plant UML diagrams -->
 <!--

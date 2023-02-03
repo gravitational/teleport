@@ -9,17 +9,15 @@ The inital implementation is derived from [cloud/RFD-0026](https://github.com/gr
 ### Access
 
 The following systems need to be accessible:
-
 - Teleport Cloud staging cluster - bring-your-own tenant subdomain on cloud.gravitational.io
 - Cloud team staging AWS account - push docker images to Elastic Container Registry (AWS ECR)
 - platform.teleport.sh - provides role-base access to the following systems:
   - Sales Center staging - create a tenant on staging cluster
   - Teleport Cloud staging kubernetes cluster - modify `tenant` resources
 
-### Tools
+### Tools 
 
 The following CLI tools need to be available:
-
 - aws (v2+ required)
 - docker
 - kubectl
@@ -27,10 +25,10 @@ The following CLI tools need to be available:
 
 On macOS a compiler toolchain targeting `x86_64/linux` is required to support `cgo` directives.
 
-```shell
-brew tap messense/macos-cross-toolchains
-brew install x86_64-unknown-linux-gnu
-```
+  ```shell
+  brew tap messense/macos-cross-toolchains
+  brew install x86_64-unknown-linux-gnu
+  ```
 
 ### Configuration
 
@@ -55,7 +53,6 @@ region = us-west-2
 output = json
 max_attempts = 1
 ```
-
 </details>
 
 <details>
@@ -69,7 +66,6 @@ To use the Cloud team AWS profiles instead, set environment variables to select 
 export AWS_PROFILE=tc-stage-admin
 export AWS_SSO_PROFILE=tc-stage-ro
 ```
-
 </details>
 
 ## Usage

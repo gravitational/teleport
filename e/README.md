@@ -27,8 +27,8 @@ hostname via setting `HOUSTON_HOSTPORT` to something like "localhost:5000"
 Regular OSS version of `tsh` is used for Enterprise, while `tctl` and
 `teleport` binaries are built differently. Differences:
 
-- `teleport` has different UI
-- `tctl` supports additional commands
+* `teleport` has different UI
+* `tctl` supports additional commands
 
 Both `teleport` and `tctl` report different version string when given `version`
 CLI command.
@@ -79,13 +79,13 @@ auth_service:
 
 Read these two articles and you'll be fine:
 
-- [Introduction to Submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules)
-- [Submodules Reference](https://git-scm.com/docs/git-submodule)
+* [Introduction to Submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules)
+* [Submodules Reference](https://git-scm.com/docs/git-submodule)
 
 ## Working with Submodules
 
 The parent OSS repository always "knows" which branch of the `e` submodule is
-current. Say, you want to introduce a new feature which spans across both
+current.  Say, you want to introduce a new feature which spans across both
 repositories, so ideally you'd like to keep it in your own "safe place", often in your own branch.
 
 How to create such "safe place" with two repositories when one of them is a
@@ -137,6 +137,7 @@ $ git submodule update --remote
 in the enterprise submodule, you have to `git add e && git commit` the OSS
 repo.
 
+
 ### AWS Licensing
 
 Teleport has a special license plan `Teleport Enterprise AWS` that is designed
@@ -164,3 +165,4 @@ This certificate authority is managed by special tool `tgen`
 implemented and managed in [ops](https://github.com/gravitational/ops) folder.
 This is done to avoid vendoring extra packages in teleport repository that
 are not necessary to check the license.
+
