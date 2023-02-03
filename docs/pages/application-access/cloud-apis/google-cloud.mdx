@@ -1,6 +1,6 @@
 ---
 title: "Protect Google Cloud API Access with Teleport"
-description: How to enable secure access to Google Cloud CLIs.
+description: How to enable secure access to Google Cloud APIs.
 ---
 
 You can use Teleport to manage access to CLI tools that interact with Google
@@ -14,6 +14,8 @@ these requests using tokens retrieved from Google Cloud. This enables Teleport
 operators to control the service accounts that users can assume in order to
 interact with Google Cloud APIs.
 
+{/* TODO: Add a mermaidjs graph here when available*/}
+
 The Teleport Application Service connects to the Teleport Proxy Service over a
 reverse tunnel, so you can run the Application Service in a private network and
 prevent unauthorized access to your organization's Google Cloud service accounts. 
@@ -23,7 +25,7 @@ prevent unauthorized access to your organization's Google Cloud service accounts
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - A Google Cloud account with permissions to create IAM roles and service
-  accounts, as well as to create IAM role bindings for service accounts and
+  accounts, as well as create IAM role bindings for service accounts and
   projects.
   
 - The `gcloud` CLI tool. Follow the [Google Cloud documentation
@@ -40,8 +42,8 @@ prevent unauthorized access to your organization's Google Cloud service accounts
 
 - Either a Google Compute Engine VM where you will run the Teleport Application
   Service *or* permissions to create VMs in your Google Cloud project. If you
-  are using a pre-existing VM, it must be running a Linux distribution. You must
-  have permissions to attach service accounts to Google Compute Engine VMs.
+  are using a pre-existing VM, it must be running a Linux distribution, and you
+  must have permissions to attach service accounts to Google Compute Engine VMs.
 
 <Admonition type="tip" title="Using existing service accounts">
 
@@ -58,9 +60,8 @@ guide.
 ## Step 1/4. Configure Google Cloud
 
 The Teleport Application Service needs permissions from Google Cloud to proxy
-requests from Teleport users to Google Cloud's APIs. In this step, we will show
-you how to configure these permissions before you launch the Teleport
-Application Service.
+requests from Teleport users to Google Cloud's APIs. In this step, you will
+configure these permissions before you launch the Teleport Application Service.
 
 When setting up Google Cloud API access with Teleport, you will configure
 service accounts with two different functions:
@@ -78,15 +79,14 @@ service accounts with two different functions:
 ### Create a service account for the Application Service
 
 The Application Service uses the controlling service account to access Google
-Cloud API by generating signed tokens for target service accounts, which it uses
-to sign requests from Teleport users before forwarding them to Google Cloud.
-This way, local Google Cloud CLI tools have no access to these tokens.
+Cloud APIs by generating signed tokens for target service accounts, which it
+uses to sign requests from Teleport users before forwarding them to Google
+Cloud. This way, local Google Cloud CLI tools have no access to these tokens.
 
 In this section, we will create a controlling service account for the
-Application Service assign permissions to it.
+Application Service and assign permissions to it.
 
-Run the following command to create a service account called
-`teleport-google-cloud-cli`:
+Create a service account called `teleport-google-cloud-cli`:
 
 ```code
 $ gcloud iam service-accounts create teleport-google-cloud-cli \
@@ -95,13 +95,12 @@ $ gcloud iam service-accounts create teleport-google-cloud-cli \
 ```
 
 Enable your service account to act as other service accounts by assigning it the
-predefined "Service Account User" role. Assign `PROJECT_ID` to the name of your
-Google Cloud project:
+predefined "Service Account User" role:
 
 ```code
-$ PROJECT_ID=<Var name="google-cloud-project" />
-$ gcloud projects add-iam-policy-binding ${PROJECT_ID?} \
-   --member="serviceAccount:teleport-google-cloud-cli@${PROJECT_ID?}.iam.gserviceaccount.com" \
+$ gcloud projects add-iam-policy-binding <Var name="google-cloud-project" />
+ \
+   --member="serviceAccount:teleport-google-cloud-cli@<Var name="google-cloud-project" />.iam.gserviceaccount.com" \
    --role="roles/iam.serviceAccountUser"
 ```
 
@@ -137,9 +136,8 @@ Bind this service account to the predefined "Compute Viewer" role, which allows
 users with the role to list Google Compute Engine resources:
 
 ```code
-$ PROJECT_ID=<Var name="google-cloud-project" />
-$ gcloud projects add-iam-policy-binding ${PROJECT_ID?} \
-   --member="serviceAccount:teleport-vm-viewer@${PROJECT_ID?}.iam.gserviceaccount.com" \
+$ gcloud projects add-iam-policy-binding <Var name="google-cloud-project" /> \
+   --member="serviceAccount:teleport-vm-viewer@<Var name="google-cloud-project" />.iam.gserviceaccount.com" \
    --role="roles/compute.viewer"
 ```
 
@@ -266,8 +264,8 @@ $ echo <Var name="join-token" /> | sudo tee /tmp/token
 
 ### Install the Teleport Application Service
 
-Run the following commands on the host where you will install the Teleport
-Application Service:
+Follow the instructions below on the host where you will install the Teleport
+Application Service.
 
 (!docs/pages/includes/install-linux.mdx!)
 
@@ -384,7 +382,7 @@ account) to your Teleport user by running the following command:
 
 ```code
 $ tctl users update <Var name="teleport-user" /> \
---set-gcp-service-accounts teleport-vm-viewer@${PROJECT_ID?}.iam.gserviceaccount.com
+--set-gcp-service-accounts teleport-vm-viewer@<Var name="google-cloud-project" />.iam.gserviceaccount.com
 ```
 
 This command uses the `--set-gcp-service-accounts` flag to add Google Cloud
@@ -669,8 +667,9 @@ ERROR: (gcloud.iam.service-accounts.create) User [myuser] does not have permissi
 
 <Notice type="info">
 
-When you run a `gcloud` command via `tsh gcloud`, `tsh` starts the local proxy
-in the background and uses it to execute the command.
+When you run a `gcloud` or `gsutil` command via `tsh gcloud` or `tsh gsutil`,
+`tsh` starts the local proxy in the background and uses it to execute the
+command.
 
 </Notice>
 
