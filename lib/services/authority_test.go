@@ -224,7 +224,7 @@ func TestCheckSAMLIDPCA(t *testing.T) {
 					Key:  []byte{},
 				}},
 			},
-			errAssertionFunc: require.Error,
+			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "unparseable key",
