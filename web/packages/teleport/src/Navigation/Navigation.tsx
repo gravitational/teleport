@@ -105,9 +105,9 @@ export function Navigation() {
       NavigationCategory.Resources
   );
 
-  const [previousRoute, setPreviousRoute] = useState<{ [category: string]: string }>(
-    {}
-  );
+  const [previousRoute, setPreviousRoute] = useState<{
+    [category: string]: string;
+  }>({});
 
   const handleLocationChange = useCallback(
     (next: history.Location<unknown> | Location) => {
