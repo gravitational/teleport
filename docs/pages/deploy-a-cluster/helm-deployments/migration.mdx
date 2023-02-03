@@ -97,6 +97,9 @@ namespace (where you intend to run the `teleport-cluster` chart).
 $ kubectl create namespace teleport-cluster
 namespace/teleport-cluster created
 
+$ kubectl label namespace teleport-cluster 'pod-security.kubernetes.io/enforce=baseline'
+namespace/teleport-cluster labeled
+
 $ kubectl --namespace teleport-cluster create configmap teleport --from-file=teleport.yaml
 configmap/teleport created
 ```

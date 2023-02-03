@@ -185,11 +185,16 @@ Go back to the "Service Accounts" view in Google Cloud IAM & Admin.
 
 Find the path where the JSON private key was just saved (likely your browser's default "Downloads" directory).
 
-Use `kubectl` to create the secret, using the path to the JSON private key:
+Use `kubectl` to create the `teleport` namespace, set its security policy, and
+create the secret using the path to the JSON private key:
 
 ```code
-$ kubectl create namespace teleport && \
+$ kubectl create namespace teleport
+namespace/teleport created
+$ kubectl label namespace teleport 'pod-security.kubernetes.io/enforce=baseline'
+namespace/teleport labeled
 $ kubectl --namespace teleport create secret generic teleport-gcp-credentials --from-file=gcp-credentials.json=/path/to/downloads/bens-demos-24150b1a0a7f.json
+secret/teleport-gcp-credentials created
 ```
 
 <Admonition type="tip">
