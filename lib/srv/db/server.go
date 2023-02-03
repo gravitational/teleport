@@ -662,7 +662,7 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	// Start cloud users that will be monitoring cloud users.
 	go s.cfg.CloudUsers.Start(ctx, s.getProxiedDatabases)
 
-	// Start hearbeating the Database Service itself.
+	// Start heartbeating the Database Service itself.
 	if err := s.startServiceHeartbeat(); err != nil {
 		return trace.Wrap(err)
 	}
