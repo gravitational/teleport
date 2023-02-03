@@ -105,7 +105,7 @@ export function Navigation() {
       NavigationCategory.Resources
   );
 
-  const [previousRoute, setPreviousRoute] = useState<{ [key: string]: string }>(
+  const [previousRoute, setPreviousRoute] = useState<{ [category: string]: string }>(
     {}
   );
 
