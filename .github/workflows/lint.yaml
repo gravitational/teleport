@@ -31,7 +31,7 @@ jobs:
 
       - name: Check for changes
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
-        run: git config --global --add safe.directory $( realpath . ) && git diff -- go.mod go.sum api/go.mod api/go.sum && git diff --quiet -- go.mod go.sum api/go.mod api/go.sum
+        run: git config --global --add safe.directory $( realpath . ) && git diff --exit-code -- go.mod go.sum api/go.mod api/go.sum
 
       - name: Run linter
         run: make lint
