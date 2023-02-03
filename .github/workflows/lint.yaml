@@ -28,3 +28,7 @@ jobs:
 
       - name: Run linter
         run: make lint
+
+      - name: Check if protobufs are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make protos-up-to-date/host
