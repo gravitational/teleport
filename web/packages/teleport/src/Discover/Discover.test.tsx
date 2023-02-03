@@ -25,6 +25,16 @@ import TeleportContext from 'teleport/teleportContext';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { Discover } from 'teleport/Discover/Discover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import cfg from 'teleport/config';
+
+const crypto = require('crypto');
+
+// eslint-disable-next-line jest/require-hook
+Object.defineProperty(globalThis, 'crypto', {
+  value: {
+    randomUUID: () => crypto.randomUUID(),
+  },
+});
 
 const fullAccess: Access = {
   list: true,
@@ -86,7 +96,11 @@ describe('discover', () => {
     });
 
     return render(
-      <MemoryRouter initialEntries={[{ state: { entity: initialEntry } }]}>
+      <MemoryRouter
+        initialEntries={[
+          { pathname: cfg.routes.discover, state: { entity: initialEntry } },
+        ]}
+      >
         <TeleportContextProvider ctx={ctx}>
           <FeaturesContextProvider>
             <Discover />

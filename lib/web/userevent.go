@@ -228,7 +228,17 @@ func convertUserEventRequestToUsageEvent(req createUserEventRequest) (*v1.UsageE
 			nil
 
 	case uiDiscoverStartedEvent,
-		uiDiscoverResourceSelectionEvent:
+		uiDiscoverResourceSelectionEvent,
+		uiDiscoverDeployServiceEvent,
+		uiDiscoverDatabaseRegisterEvent,
+		uiDiscoverDatabaseConfigureMTLSEvent,
+		uiDiscoverDatabaseConfigureIAMPolicyEvent,
+		uiDiscoverDesktopActiveDirectoryToolsInstallEvent,
+		uiDiscoverDesktopActiveDirectoryConfigureEvent,
+		uiDiscoverAutoDiscoveredResourcesEvent,
+		uiDiscoverPrincipalsConfigureEvent,
+		uiDiscoverTestConnectionEvent,
+		uiDiscoverCompletedEvent:
 
 		var discoverEvent DiscoverEventData
 		if err := json.Unmarshal([]byte(*req.EventData), &discoverEvent); err != nil {
