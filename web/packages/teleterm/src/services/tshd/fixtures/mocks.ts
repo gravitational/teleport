@@ -1,6 +1,7 @@
 import {
   Application,
   AuthSettings,
+  AccessRequest,
   Cluster,
   CreateAccessRequestParams,
   CreateGatewayParams,
@@ -22,7 +23,6 @@ import {
   TshClient,
   GetRequestableRolesResponse,
 } from '../types';
-import { AccessRequest } from '../v1/access_request_pb';
 
 export class MockTshClient implements TshClient {
   listRootClusters: () => Promise<Cluster[]>;
@@ -44,18 +44,18 @@ export class MockTshClient implements TshClient {
     dropIds: string[]
   ) => Promise<void>;
   deleteAccessRequest: (clusterUri: string, requestId: string) => Promise<void>;
-  getAccessRequests: (clusterUri: string) => Promise<AccessRequest.AsObject[]>;
+  getAccessRequests: (clusterUri: string) => Promise<AccessRequest[]>;
   getAccessRequest: (
     clusterUri: string,
     requestId: string
-  ) => Promise<AccessRequest.AsObject>;
+  ) => Promise<AccessRequest>;
   reviewAccessRequest: (
     clusterUri: string,
     params: ReviewAccessRequestParams
-  ) => Promise<AccessRequest.AsObject>;
+  ) => Promise<AccessRequest>;
   createAccessRequest: (
     params: CreateAccessRequestParams
-  ) => Promise<AccessRequest.AsObject>;
+  ) => Promise<AccessRequest>;
   listServers: (clusterUri: string) => Promise<Server[]>;
   createAbortController: () => TshAbortController;
   addRootCluster: (addr: string) => Promise<Cluster>;
