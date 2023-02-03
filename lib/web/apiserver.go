@@ -33,6 +33,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -116,6 +117,9 @@ type Handler struct {
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
+
+	// userConns tracks amount of current active connections with user certificates.
+	userConns atomic.Int32
 
 	// ClusterFeatures contain flags for supported and unsupported features.
 	ClusterFeatures proto.Features
@@ -2505,6 +2509,9 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
+	h.userConns.Add(1)
+	defer h.userConns.Add(-1)
+
 	// start the websocket session with a web-based terminal:
 	h.log.Infof("Getting terminal to %#v.", req)
 	httplib.MakeTracingHandler(term, teleport.ComponentProxy).ServeHTTP(w, r)
@@ -2533,7 +2540,13 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		}
 
 		if len(resources) == 0 {
-			return session.Session{}, trace.NotFound("no matching servers")
+			// If we didn't find the resource set host and port,
+			// so we can try direct dial.
+			host, port, err = serverHostPort(req.Server)
+			if err != nil {
+				return session.Session{}, trace.Wrap(err)
+			}
+			id = host
 		}
 
 		matches := 0
