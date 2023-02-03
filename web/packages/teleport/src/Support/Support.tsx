@@ -185,7 +185,9 @@ const getDownloadLink = (isCloud: boolean, isEnterprise: boolean) => {
 };
 
 const SupportLink = ({ title = '', url = '' }) => (
-  <StyledSupportLink href={url} target="_blank">{title}</StyledSupportLink>
+  <StyledSupportLink href={url} target="_blank">
+    {title}
+  </StyledSupportLink>
 );
 
 const StyledSupportLink = styled.a.attrs({
