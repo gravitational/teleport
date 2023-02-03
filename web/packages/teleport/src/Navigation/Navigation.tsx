@@ -33,7 +33,7 @@ import { NavigationCategoryContainer } from 'teleport/Navigation/NavigationCateg
 
 import logo from './logo.png';
 
-import type { Location } from 'history';
+import type * as history from 'history';
 
 import type { TeleportFeature } from 'teleport/types';
 
@@ -77,7 +77,7 @@ export function getFirstRouteForCategory(
 
 function getCategoryForRoute(
   features: TeleportFeature[],
-  route: Location<unknown>
+  route: history.Location<unknown> | Location
 ) {
   const feature = features
     .filter(feature => Boolean(feature.route))
@@ -110,7 +110,7 @@ export function Navigation() {
   );
 
   const handleLocationChange = useCallback(
-    (next: Location<unknown>) => {
+    (next: history.Location<unknown> | Location) => {
       const previousPathName = location.pathname;
 
       const category = getCategoryForRoute(features, next);
@@ -132,7 +132,7 @@ export function Navigation() {
 
   const handlePopState = useCallback(
     (event: PopStateEvent) => {
-      handleLocationChange((event.currentTarget as any).location);
+      handleLocationChange((event.currentTarget as Window).location);
     },
     [view]
   );
