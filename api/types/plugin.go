@@ -210,6 +210,7 @@ func (p *PluginV1) SetStatus(status PluginStatus) error {
 	return nil
 }
 
+// CheckAndSetDefaults validates and set the default values
 func (s *PluginSlackAccessSettings) CheckAndSetDefaults() error {
 	if s.FallbackChannel == "" {
 		return trace.BadParameter("fallback_channel must be set")
@@ -218,6 +219,7 @@ func (s *PluginSlackAccessSettings) CheckAndSetDefaults() error {
 	return nil
 }
 
+// CheckAndSetDefaults validates and set the default values
 func (c *PluginOAuth2AuthorizationCodeCredentials) CheckAndSetDefaults() error {
 	if c.AuthorizationCode == "" {
 		return trace.BadParameter("authorization_code must be set")
@@ -229,6 +231,7 @@ func (c *PluginOAuth2AuthorizationCodeCredentials) CheckAndSetDefaults() error {
 	return nil
 }
 
+// CheckAndSetDefaults validates and set the default values
 func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
 	if c.AccessToken == "" {
 		return trace.BadParameter("access_token must be set")
@@ -241,6 +244,7 @@ func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
 	return nil
 }
 
+// GetCode returns the status code
 func (c PluginStatusV1) GetCode() PluginStatusCode {
 	return c.Code
 }
