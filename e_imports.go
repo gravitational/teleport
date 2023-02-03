@@ -22,6 +22,8 @@ package teleport
 // removed.
 import (
 	_ "github.com/beevik/etree"          // hold for e/
+	_ "github.com/crewjam/saml/samlidp"  // hold for e/
+	_ "github.com/crewjam/saml/samlsp"   // hold for e/
 	_ "github.com/go-piv/piv-go/piv"     // hold for e/
 	_ "github.com/gravitational/form"    // hold for e/
 	_ "github.com/gravitational/license" // hold for e/

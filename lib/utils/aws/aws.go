@@ -29,6 +29,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -153,6 +154,16 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 
 	if sigV4.KeyID != credValue.AccessKeyID {
 		return trace.AccessDenied("AccessKeyID does not match")
+	}
+
+	// Skip signature verification if the incoming request includes the
+	// "User-Agent" header when making the signature. AWS Go SDK explicitly
+	// skips the "User-Agent" header so it will always produce a different
+	// signature. Only AccessKeyID is verified above in this case.
+	for _, signedHeader := range sigV4.SignedHeaders {
+		if strings.EqualFold(signedHeader, "User-Agent") {
+			return nil
+		}
 	}
 
 	// Read the request body and replace the body ready with a new reader that will allow reading the body again
@@ -347,8 +358,27 @@ func BuildRoleARN(username, region, accountID string) string {
 	}
 	return arn.ARN{
 		Partition: apiawsutils.GetPartitionFromRegion(region),
-		Service:   "iam",
+		Service:   iam.ServiceName,
 		AccountID: accountID,
 		Resource:  resource,
 	}.String()
+}
+
+// ValidateRoleARNAndExtractRoleName validates the role ARN and extracts the
+// short role name from it.
+func ValidateRoleARNAndExtractRoleName(roleARN, wantPartition, wantAccountID string) (string, error) {
+	role, err := arn.Parse(roleARN)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if !strings.HasPrefix(role.Resource, "role/") || role.Service != iam.ServiceName {
+		return "", trace.BadParameter("%q is not an IAM role", roleARN)
+	}
+	if role.Partition != wantPartition {
+		return "", trace.BadParameter("expecting AWS partition %q but got %q", wantPartition, role.Partition)
+	}
+	if role.AccountID != wantAccountID {
+		return "", trace.BadParameter("expecting AWS account ID %q but got %q", wantAccountID, role.AccountID)
+	}
+	return strings.TrimPrefix(role.Resource, "role/"), nil
 }

@@ -58,15 +58,15 @@ Firstly, check that the `ConfigMap` is present:
 ```code
 $ kubectl --namespace teleport get configmap/teleport -o yaml
 
-# apiVersion: v1
-# data:
-#  teleport.yaml: |
-#    teleport:
-#      log:
-#        severity: INFO
-#        output: stderr
-#      storage:
-#        type: dir
+apiVersion: v1
+data:
+ teleport.yaml: |
+   teleport:
+     log:
+       severity: INFO
+       output: stderr
+     storage:
+       type: dir
 # ...
 ```
 
@@ -80,13 +80,13 @@ If you see a Teleport config under the `teleport.yaml` key, you can extract it t
 ```code
 $ kubectl --namespace teleport get configmap/teleport -o=jsonpath="{.data['teleport\.yaml']}" > teleport.yaml
 
-cat teleport.yaml
-# teleport:
-#   log:
-#    severity: INFO
-#    output: stderr
-#  storage:
-#    type: dir
+$ cat teleport.yaml
+teleport:
+  log:
+    severity: INFO
+    output: stderr
+  storage:
+    type: dir
 # ...
 ```
 
@@ -95,9 +95,10 @@ namespace (where you intend to run the `teleport-cluster` chart).
 
 ```code
 $ kubectl create namespace teleport-cluster
-# namespace/teleport-cluster created
+namespace/teleport-cluster created
+
 $ kubectl --namespace teleport-cluster create configmap teleport --from-file=teleport.yaml
-# configmap/teleport created
+configmap/teleport created
 ```
 
 ## Step 4/6. Extracting the contents of Teleport's database
@@ -200,18 +201,18 @@ Once the chart is installed, you can use `kubectl` commands to view the deployme
 ```code
 $ kubectl --namespace teleport-cluster get all
 
-# NAME                            READY   STATUS    RESTARTS   AGE
-# pod/teleport-5cf46ddf5f-dzh65   1/1     Running   0          4m21s
-# pod/teleport-5cf46ddf5f-mpghq   1/1     Running   0          4m21s
+NAME                            READY   STATUS    RESTARTS   AGE
+pod/teleport-5cf46ddf5f-dzh65   1/1     Running   0          4m21s
+pod/teleport-5cf46ddf5f-mpghq   1/1     Running   0          4m21s
 
-# NAME               TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)                                                      AGE
-# service/teleport   LoadBalancer   10.100.37.171   a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com   443:30821/TCP,3023:30801/TCP,3026:32612/TCP,3024:31253/TCP   4m21s
+NAME               TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)                                                      AGE
+service/teleport   LoadBalancer   10.100.37.171   a232d92df01f940339adea0e645d88bb-1576732600.us-east-1.elb.amazonaws.com   443:30821/TCP,3023:30801/TCP,3026:32612/TCP,3024:31253/TCP   4m21s
 
-# NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
-# deployment.apps/teleport   2/2     2            2           4m21s
+NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/teleport   2/2     2            2           4m21s
 
-# NAME                                  DESIRED   CURRENT   READY   AGE
-# replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
+NAME                                  DESIRED   CURRENT   READY   AGE
+replicaset.apps/teleport-5cf46ddf5f   2         2         2       4m21s
 ```
 
 <Admonition type="note">
@@ -280,4 +281,3 @@ $ helm --namespace teleport-cluster uninstall teleport
 To see all of the options you can set in the values file for the
 `teleport-cluster` Helm chart, consult our [reference
 guide](../../reference/helm-reference/teleport-cluster.mdx).
-
