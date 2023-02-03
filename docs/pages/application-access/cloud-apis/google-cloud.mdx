@@ -28,7 +28,15 @@ prevent unauthorized access to your organization's Google Cloud service accounts
   
 - The `gcloud` CLI tool. Follow the [Google Cloud documentation
   page](https://cloud.google.com/sdk/docs/install-sdk) to install and
-  authenticate to `gcloud`.
+  authenticate to `gcloud`. 
+
+  <Notice type="tip">
+
+  While this guide focuses on `gcloud`, once you set up Google Cloud API access
+  with Teleport, you can also manage access to `gsutil` and other Google Cloud
+  CLI tools using the Teleport Application Service.
+
+  </Notice>
 
 - Either a Google Compute Engine VM where you will run the Teleport Application
   Service *or* permissions to create VMs in your Google Cloud project. If you
@@ -578,6 +586,18 @@ ERROR: (gcloud.compute.instances.create) Could not fetch resource:
 
 ERROR: exit status 1
 ```
+
+<Admonition type="tip" title="Using gsutil with tsh">
+
+You can also use the `google-cloud-cli` application you registered with Teleport
+to run `gsutil` commands via the Teleport Application Service. As with `gcloud`,
+prefix a `gsutil` command with `tsh` in order to run it:
+
+```code
+$ tsh gsutil ls
+```
+
+</Admonition>
 
 ### Use Google Cloud CLI applications without `tsh`
 
