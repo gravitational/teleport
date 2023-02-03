@@ -869,21 +869,21 @@ tsh bench sessions --max=5000 --web user ls
     public_addr: ['root.example.com']
     web_listen_addr: 0.0.0.0:3080
   ```
-  There should be total of three listeners, with only `*:3080` for proxy service:
+  There should be total of three listeners, with only `*:3080` for proxy service. Given the configuration above, 3022 and 3025 will be opened for other services.
   ```
   lsof -i -P | grep teleport | grep LISTEN
-    teleport  ...  TCP *:3025 (LISTEN)
-    teleport  ...  TCP *:3080 (LISTEN)
     teleport  ...  TCP *:3022 (LISTEN)
+    teleport  ...  TCP *:3025 (LISTEN)
+    teleport  ...  TCP *:3080 (LISTEN) # <-- proxy service
   ```
-  In contrast for `v1` there should be multiple:
+  In contrast for the same configuration with version `v1`, there should be additional ports 3023 and 3024.
   ```
   lsof -i -P | grep teleport | grep LISTEN
+    teleport  ...  TCP *:3022 (LISTEN) 
     teleport  ...  TCP *:3025 (LISTEN)
-    teleport  ...  TCP *:3023 (LISTEN)
-    teleport  ...  TCP *:3080 (LISTEN)
-    teleport  ...  TCP *:3024 (LISTEN)
-    teleport  ...  TCP *:3022 (LISTEN)  
+    teleport  ...  TCP *:3023 (LISTEN) # <-- extra proxy service port
+    teleport  ...  TCP *:3024 (LISTEN) # <-- extra proxy service port
+    teleport  ...  TCP *:3080 (LISTEN) # <-- proxy service
   ```
 - [ ] Run Teleport Proxy in `multiplex` mode `auth_service.proxy_listener_mode: "multiplex"`
   - [ ] Trusted cluster
