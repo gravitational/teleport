@@ -166,7 +166,17 @@ func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 	return true, trace.Wrap(err)
 }
 
-var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "tls-user-der", "windows", "db", "openssh"}
+var allowedCertificateTypes = []string{
+	"user",
+	"host",
+	"tls-host",
+	"tls-user",
+	"tls-user-der",
+	"windows",
+	"db",
+	"openssh",
+	"saml-idp",
+}
 
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
