@@ -51,8 +51,7 @@ func NewPresetEditorRole() types.Role {
 				},
 			},
 			Allow: types.RoleConditions{
-				Namespaces:            []string{apidefaults.Namespace},
-				DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Namespaces: []string{apidefaults.Namespace},
 				Rules: []types.Rule{
 					types.NewRule(types.KindUser, RW()),
 					types.NewRule(types.KindRole, RW()),
