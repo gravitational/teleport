@@ -25,11 +25,15 @@ prevent unauthorized access to your organization's Google Cloud service accounts
 - A Google Cloud account with permissions to create IAM roles and service
   accounts, as well as to create IAM role bindings for service accounts and
   projects.
+  
 - The `gcloud` CLI tool. Follow the [Google Cloud documentation
   page](https://cloud.google.com/sdk/docs/install-sdk) to install and
   authenticate to `gcloud`.
-- A Google Compute Engine VM where you will run the Teleport Application
-  Service. The VM must be running a Linux distribution.
+
+- Either a Google Compute Engine VM where you will run the Teleport Application
+  Service *or* permissions to create VMs in your Google Cloud project. If you
+  are using a pre-existing VM, it must be running a Linux distribution. You must
+  have permissions to attach service accounts to Google Compute Engine VMs.
 
 <Admonition type="tip" title="Using existing service accounts">
 
@@ -148,13 +152,40 @@ Service and enabled this service account to impersonate the service accounts you
 would like Teleport users to access. 
 
 In this step, you will attach the service account you created for the
-Application Service to your Google Compute Engine VM, then run the Teleport
+Application Service to a Google Compute Engine VM, then run the Teleport
 Application Service.
 
-### Enable the Application Service VM to access Google Cloud
+### Enable the Application Service to access Google Cloud
 
 Now that you have created a Google Cloud service account and attached a role to
-it, associate your service account with the Teleport Application Service VM.
+it, associate your service account with a virtual machine running the Teleport
+Application Service. The instructions depend on whether you are using a
+pre-existing virtual machine for the Teleport Application Service or launching
+a new one:
+
+<Tabs>
+
+<TabItem label="New Virtual Machine">
+
+Create a new virtual machine with the `teleport-google-cloud` service account
+attached:
+
+```code
+$ gcloud compute instances create teleport-app-service \
+   --service-account=teleport-google-cloud-cli@<Var name="google-cloud-project" />.iam.gserviceaccount.com \
+   --scopes=cloud-platform \
+   --zone=<Var name="google-cloud-zone" /> \
+   --image=https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/ubuntu-2210-kinetic-arm64-v20230113
+```
+
+You must use the `service-account` and `scopes` flags as we list them here,
+otherwise the VM will fail to obtain the required authorization to access Google
+Cloud. You should adjust the remaining flags and include new ones according to
+the needs of your environment.
+
+</TabItem>
+
+<TabItem label="Existing Virtual Machine">
 
 Stop your VM so you can attach your service account to it:
 
@@ -184,6 +215,9 @@ Once you have attached the service account, restart your VM:
 ```code
 $ gcloud compute instances start <Var name="vm-name" /> --zone <Var name="google-cloud-zone" />
 ```
+
+</TabItem>
+</Tabs>
 
 ### Get a join token
 
