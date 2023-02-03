@@ -68,36 +68,6 @@ func executableFolder() (string, error) {
 	return filepath.Dir(filepath.Clean(p)), nil
 }
 
-const (
-	webAssetsMissingError = "the teleport binary was built without web assets, try building with `make release`"
-	webAssetsReadError    = "failure reading web assets from the binary"
-)
-
-func readZipArchive(r io.ReaderAt, size int64) (ResourceMap, error) {
-	zreader, err := zip.NewReader(r, size)
-	if err != nil {
-		// this often happens when teleport is launched without the web assets
-		// zip file attached to the binary. for launching it in such mode
-		// set DEBUG environment variable to 1
-		if err == zip.ErrFormat {
-			return nil, trace.NotFound(webAssetsMissingError)
-		}
-		return nil, trace.NotFound("%s %v", webAssetsReadError, err)
-	}
-	entries := make(ResourceMap)
-	for _, file := range zreader.File {
-		if file.FileInfo().IsDir() {
-			continue
-		}
-		entries[file.Name] = file
-	}
-	// no entries found?
-	if len(entries) == 0 {
-		return nil, trace.Wrap(os.ErrInvalid)
-	}
-	return entries, nil
-}
-
 // resource struct implements http.File interface on top of zip.File object
 type resource struct {
 	reader io.ReadCloser
