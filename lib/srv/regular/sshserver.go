@@ -1497,19 +1497,16 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 					semconv.RPCSystemKey.String("ssh"),
 				),
 			)
-			if err, replyAlreadyHandled := s.dispatch(ctx, ch, req, scx); err != nil {
-				// dispatch returns a boolean which indicates whether the reply has already been handled inside the dispatch function
-				// itself. if this is set to true, we set the wantReply flag to false so we don't send two responses in violation of
-				// the SSH protocol spec (which PuTTY is very fussy about)
-				if replyAlreadyHandled {
-					req.WantReply = false
-				} else {
-					s.replyError(ch, req, err)
-					span.End()
-					return
-				}
+			// dispatch returns an additional bool which indicates whether the reply has already been handled inside
+			// the dispatch function itself. if this is set to true, we avoid sending a second response in violation
+			// of the SSH protocol specifcation.
+			err, replyAlreadyHandled := s.dispatch(ctx, ch, req, scx)
+			if err != nil {
+				s.replyError(ch, req, err)
+				span.End()
+				return
 			}
-			if req.WantReply {
+			if !replyAlreadyHandled && req.WantReply {
 				if err := req.Reply(true, nil); err != nil {
 					s.Logger.Warnf("Failed to reply to %q request: %v", req.Type, err)
 				}

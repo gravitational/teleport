@@ -2425,10 +2425,11 @@ func TestHandlePuTTYWinadj(t *testing.T) {
 	require.NoError(t, err)
 	defer se.Close()
 
-	// send a PuTTY winadj request to the server, there should be no errors
+	// send a PuTTY winadj request to the server. it shouldn't error, but the response
+	// should be a failure.
 	ok, err := se.SendRequest(ctx, sshutils.PuTTYWinadjRequest, true, nil)
 	require.NoError(t, err)
-	require.True(t, ok)
+	require.False(t, ok)
 
 	// echo something to make sure the connection is still alive following the request
 	out, err := se.Output(ctx, "echo hello once more")
