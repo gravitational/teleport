@@ -87,10 +87,14 @@ func (p *Plugin) upsertSAMLConnectorHandle(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return upsertSAMLConnector(r.Context(), clt, req.Content, r.Method)
+	return upsertSAMLConnector(r.Context(), clt, req.Content, r.Method, params)
 }
 
-func upsertSAMLConnector(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string) (*ui.ResourceItem, error) {
+func upsertSAMLConnector(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string, params httprouter.Params) (*ui.ResourceItem, error) {
+	get := func(ctx context.Context, name string) (types.Resource, error) {
+		return clt.GetSAMLConnector(ctx, name, false)
+	}
+
 	extractedRes, err := web.ExtractResourceAndValidate(content)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -100,8 +104,7 @@ func upsertSAMLConnector(ctx context.Context, clt resourcesAPIGetter, content, h
 		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 
-	_, err = clt.GetSAMLConnector(ctx, extractedRes.Metadata.Name, false)
-	if err := web.CheckResourceUpsertableByError(err, httpMethod, extractedRes.Metadata.Name); err != nil {
+	if err := web.CheckResourceUpsert(ctx, httpMethod, params, extractedRes.Metadata.Name, get); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -142,10 +145,14 @@ func (p *Plugin) upsertOIDCConnectorHandle(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return upsertOIDCConnector(r.Context(), clt, req.Content, r.Method)
+	return upsertOIDCConnector(r.Context(), clt, req.Content, r.Method, params)
 }
 
-func upsertOIDCConnector(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string) (*ui.ResourceItem, error) {
+func upsertOIDCConnector(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string, params httprouter.Params) (*ui.ResourceItem, error) {
+	get := func(ctx context.Context, name string) (types.Resource, error) {
+		return clt.GetOIDCConnector(ctx, name, false)
+	}
+
 	extractedRes, err := web.ExtractResourceAndValidate(content)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -155,8 +162,7 @@ func upsertOIDCConnector(ctx context.Context, clt resourcesAPIGetter, content, h
 		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 
-	_, err = clt.GetOIDCConnector(ctx, extractedRes.Metadata.Name, false)
-	if err := web.CheckResourceUpsertableByError(err, httpMethod, extractedRes.Metadata.Name); err != nil {
+	if err := web.CheckResourceUpsert(ctx, httpMethod, params, extractedRes.Metadata.Name, get); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

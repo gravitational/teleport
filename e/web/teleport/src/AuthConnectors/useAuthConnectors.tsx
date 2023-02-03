@@ -15,12 +15,19 @@ export default function useAuthConnectors() {
     });
   }
 
-  function save(yaml: string, isNew: boolean, kind: KindAuthConnectors) {
+  function save(
+    kind: KindAuthConnectors,
+    name: string,
+    yaml: string,
+    isNew: boolean
+  ) {
     if (isNew) {
       return ctx.resourceService.createConnector(kind, yaml).then(fetchData);
     }
 
-    return ctx.resourceService.updateConnector(kind, yaml).then(fetchData);
+    return ctx.resourceService
+      .updateConnector(kind, name, yaml)
+      .then(fetchData);
   }
 
   function remove(connector: Resource<KindAuthConnectors>) {

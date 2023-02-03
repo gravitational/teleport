@@ -15,15 +15,15 @@ class ResourceServiceE extends ResourceService {
       .then(res => makeResourceList<KindAuthConnectors>(res));
   }
 
-  updateSamlConnector(content: string) {
+  updateSamlConnector(name: string, content: string) {
     return api
-      .put(cfg.getSamlConnectorsUrl(), { content })
+      .put(cfg.getSamlConnectorsUrl(name), { content })
       .then(res => makeResource<'saml'>(res));
   }
 
-  updateOidcConnector(content: string) {
+  updateOidcConnector(name: string, content: string) {
     return api
-      .put(cfg.getOidcConnectorsUrl(), { content })
+      .put(cfg.getOidcConnectorsUrl(name), { content })
       .then(res => makeResource<'oidc'>(res));
   }
 
@@ -63,15 +63,16 @@ class ResourceServiceE extends ResourceService {
 
   updateConnector(
     kind: KindAuthConnectors,
+    name: string,
     content: string
   ): Promise<Resource<KindAuthConnectors>> {
     switch (kind) {
       case 'oidc':
-        return this.updateOidcConnector(content);
+        return this.updateOidcConnector(name, content);
       case 'saml':
-        return this.updateSamlConnector(content);
+        return this.updateSamlConnector(name, content);
       default:
-        return super.updateGithubConnector(content);
+        return super.updateGithubConnector(name, content);
     }
   }
 

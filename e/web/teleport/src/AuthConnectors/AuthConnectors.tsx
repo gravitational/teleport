@@ -36,8 +36,10 @@ export function AuthConnectors(props: State) {
   }
 
   function handleOnSave(content: string) {
+    const kind = resources.item.kind;
+    const name = resources.item.name;
     const isNew = resources.status === 'creating';
-    return save(content, isNew, resources.item.kind);
+    return save(kind, name, content, isNew);
   }
 
   return (

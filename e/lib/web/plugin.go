@@ -74,12 +74,12 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 
 	p.h = h
 	h.GET("/enterprise/authconnectors", h.WithAuth(p.getAuthConnectorsHandle))
-	h.PUT("/enterprise/saml", h.WithAuth(p.upsertSAMLConnectorHandle))
 	h.POST("/enterprise/saml", h.WithAuth(p.upsertSAMLConnectorHandle))
+	h.PUT("/enterprise/saml/:name", h.WithAuth(p.upsertSAMLConnectorHandle))
 	h.DELETE("/enterprise/saml/:name", h.WithAuth(p.deleteSAMLConnectorHandle))
 
-	h.PUT("/enterprise/oidc", h.WithAuth(p.upsertOIDCConnectorHandle))
 	h.POST("/enterprise/oidc", h.WithAuth(p.upsertOIDCConnectorHandle))
+	h.PUT("/enterprise/oidc/:name", h.WithAuth(p.upsertOIDCConnectorHandle))
 	h.DELETE("/enterprise/oidc/:name", h.WithAuth(p.deleteOIDCConnectorHandle))
 
 	// /webapi handlers have been moved from OSS Teleport, but the path must remain unchanged

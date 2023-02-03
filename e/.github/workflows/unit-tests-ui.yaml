@@ -36,19 +36,9 @@ jobs:
           repository: gravitational/teleport
           ref: ${{ inputs.oss-teleport-ref }}
 
-      - name: Determine Enterprise Teleport reference
-        run: |
-          if [[ -z "${{ inputs.ent-teleport-ref }}" ]]; then
-            echo TELEPORT_E_REF=$(git rev-parse @:e) >> $GITHUB_ENV
-          else
-            echo TELEPORT_E_REF=${{ inputs.ent-teleport-ref }} >> $GITHUB_ENV
-          fi
-
       - name: Checkout Enterprise Teleport
         uses: actions/checkout@v3
         with:
-          repository: gravitational/teleport.e
-          ref: ${{ env.TELEPORT_E_REF }}
           path: e
 
       - name: Setup Node Toolchain

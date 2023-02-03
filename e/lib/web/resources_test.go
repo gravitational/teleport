@@ -2,9 +2,12 @@ package web
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -133,12 +136,29 @@ func TestGetAuthConnectors(t *testing.T) {
 
 func TestUpsertSAMLConnector(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
+
+	existingConnectors := make(map[string]types.SAMLConnector)
 	m.mockUpsertSAMLConnector = func(ctx context.Context, connector types.SAMLConnector) error {
+		existingConnectors[connector.GetName()] = connector
 		return nil
 	}
-	m.mockGetSAMLConnector = func(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error) {
+	m.mockGetSAMLConnector = func(ctx context.Context, name string, withSecrets bool) (types.SAMLConnector, error) {
+		connector, ok := existingConnectors[name]
+		if ok {
+			return connector, nil
+		}
 		return nil, trace.NotFound("")
 	}
+
+	// Test bad request kind.
+	invalidKind := `kind: invalid-kind
+metadata:
+  name: test`
+	connector, err := upsertSAMLConnector(context.Background(), m, invalidKind, "", httprouter.Params{})
+	require.Nil(t, connector)
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+	require.Contains(t, err.Error(), "kind")
 
 	goodContent := `kind: saml
 version: v2
@@ -169,18 +189,49 @@ spec:
       </md:IDPSSODescriptor>
     </md:EntityDescriptor>`
 
-	// Test POST (create) connector.
-	connector, err := upsertSAMLConnector(context.Background(), m, goodContent, "POST")
-	require.Nil(t, err)
+	// Updating non-existing connector fails.
+	connector, err = upsertSAMLConnector(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	require.Nil(t, connector)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
+
+	// Creating non-existing connector succeeds.
+	connector, err = upsertSAMLConnector(context.Background(), m, goodContent, "POST", httprouter.Params{})
+	require.NoError(t, err)
 	require.Contains(t, connector.Content, "name: test-goodcontent")
+
+	// Creating existing connector fails.
+	connector, err = upsertSAMLConnector(context.Background(), m, goodContent, "POST", httprouter.Params{})
+	require.Nil(t, connector)
+	require.Error(t, err)
+	require.True(t, trace.IsAlreadyExists(err))
+
+	// Updating existing connector succeeds.
+	connector, err = upsertSAMLConnector(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	require.NoError(t, err)
+	require.Contains(t, connector.Content, "name: test-goodcontent")
+
+	// Renaming existing connector fails.
+	goodContentRenamed := strings.ReplaceAll(goodContent, "test-goodcontent", "test-goodcontent-new-name")
+	connector, err = upsertSAMLConnector(context.Background(), m, goodContentRenamed, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	require.Nil(t, connector)
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
 }
 
 func TestUpsertOIDCConnector(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
+
+	existingConnectors := make(map[string]types.OIDCConnector)
 	m.mockUpsertOIDCConnector = func(ctx context.Context, connector types.OIDCConnector) error {
+		existingConnectors[connector.GetName()] = connector
 		return nil
 	}
-	m.mockGetOIDCConnector = func(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error) {
+	m.mockGetOIDCConnector = func(ctx context.Context, name string, withSecrets bool) (types.OIDCConnector, error) {
+		connector, ok := existingConnectors[name]
+		if ok {
+			return connector, nil
+		}
 		return nil, trace.NotFound("")
 	}
 
@@ -188,8 +239,9 @@ func TestUpsertOIDCConnector(t *testing.T) {
 	invalidKind := `kind: invalid-kind
 metadata:
   name: test`
-	conn, err := upsertOIDCConnector(context.Background(), m, invalidKind, "")
-	require.Nil(t, conn)
+	connector, err := upsertOIDCConnector(context.Background(), m, invalidKind, "", httprouter.Params{})
+	require.Nil(t, connector)
+	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err))
 	require.Contains(t, err.Error(), "kind")
 
@@ -207,10 +259,35 @@ spec:
   claims_to_roles:
     - {claim: "hd", value: "example.com", roles: ["admin"]}`
 
-	// Test POST (create) connector.
-	connector, err := upsertOIDCConnector(context.Background(), m, goodContent, "POST")
-	require.Nil(t, err)
+	// Updating non-existing connector fails.
+	connector, err = upsertOIDCConnector(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	require.Nil(t, connector)
+	require.Error(t, err)
+	fmt.Printf("ERROR %v\n", err)
+	require.True(t, trace.IsNotFound(err))
+
+	// Creating non-existing connector succeeds.
+	connector, err = upsertOIDCConnector(context.Background(), m, goodContent, "POST", httprouter.Params{})
+	require.NoError(t, err)
 	require.Contains(t, connector.Content, "name: test-goodcontent")
+
+	// Creating existing connector fails.
+	connector, err = upsertOIDCConnector(context.Background(), m, goodContent, "POST", httprouter.Params{})
+	require.Nil(t, connector)
+	require.Error(t, err)
+	require.True(t, trace.IsAlreadyExists(err))
+
+	// Updating existing connector succeeds.
+	connector, err = upsertOIDCConnector(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	require.NoError(t, err)
+	require.Contains(t, connector.Content, "name: test-goodcontent")
+
+	// Renaming existing connector fails.
+	goodContentRenamed := strings.ReplaceAll(goodContent, "test-goodcontent", "test-goodcontent-new-name")
+	connector, err = upsertOIDCConnector(context.Background(), m, goodContentRenamed, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	require.Nil(t, connector)
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
 }
 
 type mockedResourceAPIGetter struct {

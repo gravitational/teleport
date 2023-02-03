@@ -9,7 +9,7 @@ It references the open source Teleport code via npm dependency.
 ```
   "dependencies": {
     "@gravitational/teleport": "^1.0.0",
-      ...
+    ...
   },
 ```
 
