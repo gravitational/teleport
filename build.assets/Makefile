@@ -270,6 +270,13 @@ grpc-teleterm: buildbox-teleterm
 		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX_TELETERM) \
 		make -C /go/src/github.com/gravitational/teleport grpc-teleterm/host
 
+# protos-up-to-date checks if GRPC stubs are up to date from inside the buildbox
+.PHONY: protos-up-to-date
+protos-up-to-date: buildbox
+	docker run \
+		$(DOCKERFLAGS) -t $(BUILDBOX) \
+		make -C /go/src/github.com/gravitational/teleport protos-up-to-date/host
+
 # fix-imports runs GCI to sort and re-order Go imports in a deterministic way.
 .PHONY: fix-imports
 fix-imports: buildbox
