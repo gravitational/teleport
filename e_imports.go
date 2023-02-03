@@ -21,9 +21,10 @@ package teleport
 // teleport module, so tidying that doesn't have access to teleport.e (like
 // Dependabot) doesn't wrongly remove the modules they belong to.
 
-// Import list generator; remember to check that e is up to date and that there
-// is not a go.work file. The list of tags that might be needed in e (currently
-// only "piv") can be extracted with a (cd e && git grep //go:build).
+// Remember to check that e is up to date and that there is not a go.work file
+// before running the following command to generate the import list. The list of
+// tags that might be needed in e (currently only "piv") can be extracted with a
+// (cd e && git grep //go:build).
 
 // TODO(espadolini): turn this into a lint (needs access to teleport.e in CI and
 // ideally a resolution to https://github.com/golang/go/issues/42504 )
