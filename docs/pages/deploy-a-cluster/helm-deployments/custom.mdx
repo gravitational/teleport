@@ -110,6 +110,16 @@ You can control the externally-facing name of your cluster using the `public_add
 sections of `teleport.yaml`. In this example, our `public_addr`s are set to
 `custom.example.com`.
 
+Create the namespace containing the Teleport-related resources and configure the
+PodSecurityAdmission:
+
+```code
+$ kubectl create namespace teleport
+namespace/teleport created
+$ kubectl label namespace teleport 'pod-security.kubernetes.io/enforce=baseline'
+namespace/teleport labeled
+```
+
 <ScopedBlock scope="enterprise">
 
 Before you can install Teleport in your Kubernetes cluster, you will need to

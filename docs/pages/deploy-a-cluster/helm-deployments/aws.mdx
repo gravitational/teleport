@@ -262,6 +262,7 @@ After you have created the `Issuer` and updated the values, add it to your clust
 
 ```code
 $ kubectl create namespace teleport
+$ kubectl label namespace teleport 'pod-security.kubernetes.io/enforce=baseline'
 $ kubectl --namespace teleport create -f aws-issuer.yaml
 ```
 
