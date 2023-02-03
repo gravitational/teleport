@@ -1560,7 +1560,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		return &loginRuleCollection{[]*loginrulepb.LoginRule{rule}}, trail.FromGRPC(err)
 	case types.KindSAMLIdPServiceProvider:
 		if rc.ref.Name == "" {
-			resources := make([]types.SAMLIdPServiceProvider, 0)
+			var resources []types.SAMLIdPServiceProvider
 			nextKey := ""
 			for {
 				var sps []types.SAMLIdPServiceProvider
