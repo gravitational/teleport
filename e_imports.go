@@ -31,13 +31,13 @@ package teleport
 
 /*
 comm -13 <(
-	go list ./... | sort | uniq | grep -v -E -e "^github.com/gravitational/teleport/e(/.*)?$" |
+	go list ./... | sort -u | grep -Ev -e "^github.com/gravitational/teleport/e(/.*)?$" |
 	xargs go list -f '{{range .Imports}}{{println .}}{{end}}' |
-	sort | uniq | grep -v -E -e "^github.com/gravitational/teleport(/.*)?$" -e "^C$" |
+	sort -u | grep -Ev -e "^github.com/gravitational/teleport(/.*)?$" -e "^C$" |
 	xargs go list -f '{{if not .Standard}}{{println .ImportPath}}{{end}}'
 ) <(
 	go list -f '{{range .Imports}}{{println .}}{{end}}' -tags piv ./e/... |
-	sort | uniq | grep -v -E -e "^github.com/gravitational/teleport(/.*)?$" -e "^C$" |
+	sort -u | grep -Ev -e "^github.com/gravitational/teleport(/.*)?$" -e "^C$" |
 	xargs go list -f '{{if not .Standard}}{{println .ImportPath}}{{end}}'
 ) | awk '{ print "\t_ \"" $1 "\"" }'
 */
