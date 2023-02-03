@@ -75,9 +75,9 @@ export function useCreateDatabase(props: AgentStepProps) {
         statusText:
           'Teleport could not detect your new database in time. Please try again.',
       });
-      // emitErrorEvent(
-      //   `timeout polling for new database with an existing service`
-      // );
+      emitErrorEvent(
+        `timeout polling for new database with an existing service`
+      );
     }
   }, [pollActive, pollTimeout, timedOut]);
 
@@ -208,12 +208,11 @@ export function useCreateDatabase(props: AgentStepProps) {
     setAttempt({ status: '' });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   function handleRequestError(err: Error, preErrMsg = '') {
     let message = 'something went wrong';
     if (err instanceof Error) message = err.message;
     setAttempt({ status: 'failed', statusText: message });
-    // emitErrorEvent(`${preErrMsg}${message}`);
+    emitErrorEvent(`${preErrMsg}${message}`);
   }
 
   const access = ctx.storeUser.getDatabaseAccess();

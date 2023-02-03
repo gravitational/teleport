@@ -132,7 +132,6 @@ func (r *updateDatabaseRequest) checkAndSetDefaults() error {
 		if _, err := tlsutils.ParseCertificatePEM([]byte(*r.CACert)); err != nil {
 			return trace.BadParameter("could not parse provided CA as X.509 PEM certificate")
 		}
-		return nil
 	}
 
 	// These fields can't be empty if set.
@@ -143,10 +142,9 @@ func (r *updateDatabaseRequest) checkAndSetDefaults() error {
 		if r.AWSRDS.AccountID == "" {
 			return trace.BadParameter("missing aws rds field account id")
 		}
-		return nil
 	}
 
-	if r.Labels == nil && r.URI == "" {
+	if r.CACert == nil && r.AWSRDS == nil && r.Labels == nil && r.URI == "" {
 		return trace.BadParameter("missing fields to update the database")
 	}
 
