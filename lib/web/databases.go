@@ -117,11 +117,7 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 
 // updateDatabaseRequest contains some updatable fields of a database resource.
 type updateDatabaseRequest struct {
-	// CACert when non-nil means that this request is to
-	// only update the CA and validates it.
-	// When nil, skips validating CACert and updates all other
-	// fields.
-	CACert *string    `json:"ca_cert,omitempty"`
+	CACert *string    `json:"caCert,omitempty"`
 	Labels []ui.Label `json:"labels,omitempty"`
 	URI    string     `json:"uri,omitempty"`
 	AWSRDS *awsRDS    `json:"awsRds,omitempty"`
@@ -147,6 +143,7 @@ func (r *updateDatabaseRequest) checkAndSetDefaults() error {
 		if r.AWSRDS.AccountID == "" {
 			return trace.BadParameter("missing aws rds field account id")
 		}
+		return nil
 	}
 
 	if r.Labels == nil && r.URI == "" {
@@ -182,33 +179,44 @@ func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
+	savedOrNewCaCert := database.GetCA()
 	if req.CACert != nil {
-		database.SetCA(*req.CACert)
-	} else {
-		savedCA := database.GetCA()
-		savedLabels := database.GetStaticLabels()
+		savedOrNewCaCert = *req.CACert
+	}
 
-		savedOrNewURI := req.URI
-		if len(savedOrNewURI) == 0 {
-			savedOrNewURI = database.GetURI()
+	savedOrNewAWSRDS := awsRDS{
+		AccountID:  database.GetAWS().AccountID,
+		ResourceID: database.GetAWS().RDS.ResourceID,
+	}
+	if req.AWSRDS != nil {
+		savedOrNewAWSRDS = awsRDS{
+			AccountID:  req.AWSRDS.AccountID,
+			ResourceID: req.AWSRDS.ResourceID,
 		}
+	}
 
-		// Make a new database to reset the check and set defaulted fields.
-		database, err = getNewDatabaseResource(createDatabaseRequest{
-			Name:     databaseName,
-			Protocol: database.GetProtocol(),
-			URI:      savedOrNewURI,
-			Labels:   req.Labels,
-			AWSRDS:   req.AWSRDS,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	savedOrNewURI := req.URI
+	if len(savedOrNewURI) == 0 {
+		savedOrNewURI = database.GetURI()
+	}
 
-		database.SetCA(savedCA)
-		if len(req.Labels) == 0 {
-			database.SetStaticLabels(savedLabels)
-		}
+	savedLabels := database.GetStaticLabels()
+
+	// Make a new database to reset the check and set defaulted fields.
+	database, err = getNewDatabaseResource(createDatabaseRequest{
+		Name:     databaseName,
+		Protocol: database.GetProtocol(),
+		URI:      savedOrNewURI,
+		Labels:   req.Labels,
+		AWSRDS:   &savedOrNewAWSRDS,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	database.SetCA(savedOrNewCaCert)
+	if len(req.Labels) == 0 {
+		database.SetStaticLabels(savedLabels)
 	}
 
 	if err := clt.UpdateDatabase(r.Context(), database); err != nil {

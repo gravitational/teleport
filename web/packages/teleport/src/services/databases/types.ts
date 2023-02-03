@@ -39,10 +39,7 @@ export type UpdateDatabaseRequest = Omit<
   Partial<CreateDatabaseRequest>,
   'protocol'
 > & {
-  // caCert can use the values null or undefined
-  // as a flag to mean updating the other updatable
-  // fields of a db.
-  caCert?: string | undefined | null;
+  caCert?: string;
 };
 
 export type CreateDatabaseRequest = {

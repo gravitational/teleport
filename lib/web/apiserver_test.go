@@ -6191,10 +6191,10 @@ func TestUpdateDatabase_NonCACert(t *testing.T) {
 
 	// Each test case builds on top of each other.
 	for _, tt := range []struct {
-		name            string
-		req             updateDatabaseRequest
-		expectedFields  ui.Database
-		isAwsRdsRequest bool
+		name           string
+		req            updateDatabaseRequest
+		expectedFields ui.Database
+		expectedAWSRDS awsRDS
 	}{
 		{
 			name: "update URI",
@@ -6210,14 +6210,17 @@ func TestUpdateDatabase_NonCACert(t *testing.T) {
 			},
 		},
 		{
-			name:            "update aws rds fields",
-			isAwsRdsRequest: true,
+			name: "update aws rds fields",
 			req: updateDatabaseRequest{
 				URI: "llama.cgi8.us-west-2.rds.amazonaws.com:3306",
 				AWSRDS: &awsRDS{
 					AccountID:  "123123123123",
 					ResourceID: "db-1234",
 				},
+			},
+			expectedAWSRDS: awsRDS{
+				AccountID:  "123123123123",
+				ResourceID: "db-1234",
 			},
 			expectedFields: ui.Database{
 				Name:     databaseName,
@@ -6232,6 +6235,10 @@ func TestUpdateDatabase_NonCACert(t *testing.T) {
 			req: updateDatabaseRequest{
 				Labels: []ui.Label{{Name: "env", Value: "prod"}},
 			},
+			expectedAWSRDS: awsRDS{
+				AccountID:  "123123123123",
+				ResourceID: "db-1234",
+			},
 			expectedFields: ui.Database{
 				Name:     databaseName,
 				Protocol: dbProtocol,
@@ -6241,14 +6248,17 @@ func TestUpdateDatabase_NonCACert(t *testing.T) {
 			},
 		},
 		{
-			name:            "update multiple fields",
-			isAwsRdsRequest: true,
+			name: "update multiple fields",
 			req: updateDatabaseRequest{
 				URI: "alpaca.cgi8.us-east-1.rds.amazonaws.com:3306",
 				AWSRDS: &awsRDS{
 					AccountID:  "000000000000",
 					ResourceID: "db-0000",
 				},
+			},
+			expectedAWSRDS: awsRDS{
+				AccountID:  "000000000000",
+				ResourceID: "db-0000",
 			},
 			expectedFields: ui.Database{
 				Name:     databaseName,
@@ -6259,26 +6269,26 @@ func TestUpdateDatabase_NonCACert(t *testing.T) {
 			},
 		},
 	} {
-		updateDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases", databaseName)
-		resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
-		require.NoError(t, err)
-		var dbResp ui.Database
-		require.NoError(t, json.Unmarshal(resp.Bytes(), &dbResp))
-		require.Equal(t, tt.expectedFields, dbResp)
+		t.Run(tt.name, func(t *testing.T) {
+			updateDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases", databaseName)
+			resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
+			require.NoError(t, err)
+			var dbResp ui.Database
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &dbResp))
+			require.Equal(t, tt.expectedFields, dbResp)
 
-		// Ensure database was updated
-		database, err := env.proxies[0].client.GetDatabase(ctx, databaseName)
-		require.NoError(t, err)
+			// Ensure database was updated
+			database, err := env.proxies[0].client.GetDatabase(ctx, databaseName)
+			require.NoError(t, err)
 
-		require.Equal(t, database.GetCA(), fakeValidTLSCert) // should not have changed
-		require.Equal(t, database.GetType(), tt.expectedFields.Type)
-		require.Equal(t, database.GetProtocol(), tt.expectedFields.Protocol)
-		require.Equal(t, database.GetURI(), fmt.Sprintf("%s:3306", tt.expectedFields.Hostname))
+			require.Equal(t, database.GetCA(), fakeValidTLSCert) // should not have changed
+			require.Equal(t, database.GetType(), tt.expectedFields.Type)
+			require.Equal(t, database.GetProtocol(), tt.expectedFields.Protocol)
+			require.Equal(t, database.GetURI(), fmt.Sprintf("%s:3306", tt.expectedFields.Hostname))
 
-		if tt.isAwsRdsRequest {
-			require.Equal(t, database.GetAWS().AccountID, tt.req.AWSRDS.AccountID)
-			require.Equal(t, database.GetAWS().RDS.ResourceID, tt.req.AWSRDS.ResourceID)
-		}
+			require.Equal(t, database.GetAWS().AccountID, tt.expectedAWSRDS.AccountID)
+			require.Equal(t, database.GetAWS().RDS.ResourceID, tt.expectedAWSRDS.ResourceID)
+		})
 	}
 }
 
