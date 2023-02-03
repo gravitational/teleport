@@ -1,5 +1,5 @@
 const { env, platform } = require('process');
-
+const fs = require('fs');
 const isMac = platform === 'darwin';
 
 // The following checks make no sense when cross-building because they check the platform of the
@@ -28,6 +28,8 @@ if (!isMac && env.CONNECT_TSH_BIN_PATH === undefined) {
   throw new Error('You must provide CONNECT_TSH_BIN_PATH');
 }
 
+let file;
+
 /**
  * @type { import('electron-builder').Configuration }
  */
@@ -36,6 +38,15 @@ module.exports = {
   asar: true,
   asarUnpack: '**/*.{node,dll}',
   afterSign: 'notarize.js',
+  afterPack: (a) => {
+    const path =`${a.appOutDir}/Teleport Connect.app/Contents/MacOS/tsh.app/Contents/Info.plist`;
+    if (a.appOutDir.endsWith('mac-universal--x64')) {
+      file = fs.readFileSync(path, "utf-8");
+    }
+    if (a.appOutDir.endsWith('mac-universal')) {
+      fs.writeFileSync(path, file, {encoding: "utf-8"});
+    }
+  },
   files: [
     'build/app/dist',
     '!**/node_modules/node-pty/build/Release/.forge-meta',
