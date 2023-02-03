@@ -25,28 +25,28 @@
     ],
     "paths": {
       "grpc": [
-        "../node_modules/@grpc/grpc-js"
+        "node_modules/@grpc/grpc-js"
       ], // generator still uses "grpc" package that has been deprecated in favor of "@grpc/grpc-js"
       "shared/*": [
-        "packages/shared/*"
+        "web/packages/shared/*"
       ],
       "design/*": [
-        "packages/design/src/*"
+        "web/packages/design/src/*"
       ],
       "design": [
-        "packages/design/src/"
+        "web/packages/design/src/"
       ],
       "teleport/*": [
-        "packages/teleport/src/*"
+        "web/packages/teleport/src/*"
       ],
       "teleport": [
-        "packages/teleport/src/"
+        "web/packages/teleport/src/"
       ],
       "teleterm/*": [
-        "packages/teleterm/src/*"
+        "web/packages/teleterm/src/*"
       ],
       "e-teleport/*": [
-        "../e/web/teleport/src/*"
+        "e/web/teleport/src/*"
       ]
     }
   },
