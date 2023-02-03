@@ -15,9 +15,9 @@
  */
 
 import { ChannelCredentials, ClientDuplexStream } from '@grpc/grpc-js';
+import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
+import { TerminalServiceClient } from 'gen-proto-js/teleport/lib/teleterm/v1/service_grpc_pb';
 
-import { TerminalServiceClient } from 'teleterm/services/tshd/v1/service_grpc_pb';
-import * as api from 'teleterm/services/tshd/v1/service_pb';
 import * as types from 'teleterm/services/tshd/types';
 import Logger from 'teleterm/logger';
 
