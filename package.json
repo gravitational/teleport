@@ -23,7 +23,8 @@
     "eslint": "eslint --quiet --ext .js,.jsx,.ts,.tsx web/ e/",
     "type-check": "tsc --noEmit",
     "prettier-check": "yarn prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx}'",
-    "prettier-write": "yarn prettier --write '+(e|web)/**/*.{ts,tsx,js,jsx}'"
+    "prettier-write": "yarn prettier --write '+(e|web)/**/*.{ts,tsx,js,jsx}'",
+    "nop": "exit 0"
   },
   "private": true,
   "resolutions": {
