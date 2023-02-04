@@ -25,6 +25,16 @@ export const WaitingInfo = styled(Box)`
   align-items: center;
 `;
 
+export const SuccessInfo = styled(Box)`
+  max-width: 1000px;
+  background-color: rgba(255, 255, 255, 0.05);
+  padding: ${props => `${props.theme.space[3]}px`};
+  border-radius: ${props => `${props.theme.space[2]}px`};
+  border: 2px solid ${props => props.theme.colors.success};
+  display: flex;
+  align-items: center;
+`;
+
 interface HintBoxProps {
   header: string;
 }
@@ -48,5 +58,20 @@ export function HintBox(props: React.PropsWithChildren<HintBoxProps>) {
 
       {props.children}
     </HintBoxContainer>
+  );
+}
+
+export function SuccessBox(props: { children: React.ReactNode }) {
+  return (
+    <SuccessInfo>
+      <TextIcon
+        css={`
+          white-space: pre;
+        `}
+      >
+        <Icons.CircleCheck fontSize={4} color="success" />
+      </TextIcon>
+      {props.children}
+    </SuccessInfo>
   );
 }

@@ -7,9 +7,21 @@ export function usePoll<T>(
 ): T | null {
   const abortController = useRef(new AbortController());
   const [result, setResult] = useState<T | null>(null);
+  const [running, setRunning] = useState(false);
 
   useEffect(() => {
-    if (enabled) {
+    if (enabled && !running) {
+      setResult(null);
+      setRunning(true);
+    }
+
+    if (!enabled && running) {
+      setRunning(false);
+    }
+  }, [callback, enabled, running]);
+
+  useEffect(() => {
+    if (enabled && running) {
       abortController.current = new AbortController();
 
       const id = window.setInterval(async () => {
@@ -28,10 +40,8 @@ export function usePoll<T>(
         clearInterval(id);
         abortController.current.abort();
       };
-    } else {
-      setResult(null);
     }
-  }, [enabled, interval, callback]);
+  }, [enabled, interval, callback, running]);
 
   return result;
 }

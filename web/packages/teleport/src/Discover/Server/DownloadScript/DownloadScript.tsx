@@ -32,7 +32,11 @@ import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
-import { HintBox, WaitingInfo } from 'teleport/Discover/Shared/HintBox';
+import {
+  HintBox,
+  SuccessBox,
+  WaitingInfo,
+} from 'teleport/Discover/Shared/HintBox';
 
 import { AgentStepProps } from '../../types';
 
@@ -108,7 +112,7 @@ export function DownloadScript(props: AgentStepProps) {
   }
 
   let hint;
-  if (showHint) {
+  if (showHint && !result) {
     hint = (
       <HintBox header="We're still looking for your server">
         <Text mb={3}>
@@ -130,6 +134,10 @@ export function DownloadScript(props: AgentStepProps) {
           We'll continue to look for the server whilst you diagnose the issue.
         </Text>
       </HintBox>
+    );
+  } else if (result) {
+    hint = (
+      <SuccessBox>Successfully detected your new Teleport instance.</SuccessBox>
     );
   } else {
     hint = (

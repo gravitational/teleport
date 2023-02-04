@@ -31,7 +31,11 @@ import { Database } from 'teleport/services/databases';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
-import { HintBox, WaitingInfo } from 'teleport/Discover/Shared/HintBox';
+import {
+  HintBox,
+  SuccessBox,
+  WaitingInfo,
+} from 'teleport/Discover/Shared/HintBox';
 
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
@@ -164,7 +168,7 @@ export function DownloadScript(
   }
 
   let hint;
-  if (showHint) {
+  if (showHint && !result) {
     hint = (
       <HintBox header="We're still looking for your database service">
         <Text mb={3}>
@@ -187,6 +191,12 @@ export function DownloadScript(
           the issue.
         </Text>
       </HintBox>
+    );
+  } else if (result) {
+    hint = (
+      <SuccessBox>
+        Successfully detected your new Teleport database service.
+      </SuccessBox>
     );
   } else {
     hint = (

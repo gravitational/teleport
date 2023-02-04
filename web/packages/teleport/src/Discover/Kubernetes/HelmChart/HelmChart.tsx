@@ -31,7 +31,11 @@ import {
 import useTeleport from 'teleport/useTeleport';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 
-import { HintBox, WaitingInfo } from 'teleport/Discover/Shared/HintBox';
+import {
+  HintBox,
+  SuccessBox,
+  WaitingInfo,
+} from 'teleport/Discover/Shared/HintBox';
 
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
@@ -337,7 +341,7 @@ const InstallHelmChart = ({
   const showHint = useShowHint(active);
 
   let hint;
-  if (showHint) {
+  if (showHint && !result) {
     hint = (
       <HintBox header="We're still looking for your server">
         <Text mb={3}>
@@ -360,6 +364,12 @@ const InstallHelmChart = ({
           the issue.
         </Text>
       </HintBox>
+    );
+  } else if (result) {
+    hint = (
+      <SuccessBox>
+        Successfully detected your new Kubernetes cluster.
+      </SuccessBox>
     );
   } else {
     hint = (
