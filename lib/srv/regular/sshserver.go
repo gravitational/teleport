@@ -2074,7 +2074,7 @@ func rejectChannel(ch ssh.NewChannel, reason ssh.RejectionReason, msg string) {
 // handlePuTTYWinadj replies with failure to a PuTTY winadj request as required.
 // it returns an error if the reply fails.
 func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
-	if err := req.Reply(false, []byte{}); err != nil {
+	if err := req.Reply(false, nil); err != nil {
 		s.Logger.Warnf("Failed to reply to %q request: %v", req.Type, err)
 		return err
 	}
