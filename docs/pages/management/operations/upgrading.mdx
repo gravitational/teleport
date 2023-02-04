@@ -49,6 +49,11 @@ Back up before upgrading. We have more instructions in [Backing up Teleport](./b
 
 ## Upgrade Sequence
 
+When upgrading multiple clusters:
+
+1. First, upgrade the root cluster, i.e. the one that other clusters trust.
+2. Upgrade the Trusted Clusters.
+
 <Tabs>
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 When upgrading a single Teleport cluster:
@@ -83,22 +88,15 @@ precaution. This allows for a safe rollback in case the migration itself fails.
 
 </Admonition>
 
-When upgrading multiple clusters:
-
-1. First, upgrade the root cluster, i.e. the one that other clusters trust.
-2. Upgrade the Trusted Clusters.
-
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Cloud">
 
-The Teleport Auth Service and Proxy Service are upgraded automatically. When
-upgrading resource services, you may upgrade in any sequence or at the same
+The Teleport Auth Service and Proxy Service are upgraded automatically within the specified
+window. When upgrading resource services, you may upgrade in any sequence or at the same
 time.
 
-When upgrading multiple clusters:
-
-1. First, upgrade the root cluster, i.e. the one that other clusters trust.
-2. Upgrade the Trusted Clusters.
+As documented in the Component compatibility the resource services should be the same major version or
+one behind of the Teleport Cloud tenant (Ex: Do not install V12 resources services if Teleport Cloud tenant is V11).
 
 </TabItem>
 </Tabs>
