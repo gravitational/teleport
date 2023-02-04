@@ -127,17 +127,6 @@ Teleport provides several pre-defined roles out-of-the-box:
 | `auditor`| Allows reading cluster events, audit logs, and playing back session records. |
 | `access`| Allows access to cluster resources. |
 
-<Details title="Version Warning: Before 8.0" opened={false}>
-Teleport versions prior to 8.0 also included a default `admin` role. This role
-has been deprecated in favor of smaller, more fine-grained roles like the
-presets mentioned above.
-
-Users installing a brand new Teleport cluster on version 8.0 or later will not
-see this `admin` role. Users who upgrade to Teleport 8 from an earlier version
-*will* continue to see the admin role, but are encouraged to migrate to roles
-that are more appropriately scoped.
-</Details>
-
 ### Role versions
 
 There are currently three supported role versions: `v3`, `v4` and `v5`. `v4` and `v5` roles are
