@@ -911,8 +911,6 @@ clone:
   disable: true
 depends_on:
 - clean-up-previous-build
-concurrency:
-  limit: 1
 steps:
 - name: Check out Teleport
   commands:
@@ -18260,6 +18258,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 557686dce15dbf97c5dfdeae90f596e9cb38f17dd343600b81dcdd46f3d873ab
+hmac: 403e9040b75b1594e85c110e5fd3dfceed2f6e8f99e8ee1bec08af51d5ffc5ba
 
 ...
