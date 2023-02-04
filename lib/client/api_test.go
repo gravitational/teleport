@@ -188,7 +188,7 @@ func TestNew(t *testing.T) {
 		Host:      "localhost",
 		HostLogin: "vincent",
 		HostPort:  22,
-		KeysDir:   "/tmp",
+		KeysDir:   t.TempDir(),
 		Username:  "localuser",
 		SiteName:  "site",
 		Tracer:    tracing.NoopProvider().Tracer("test"),
