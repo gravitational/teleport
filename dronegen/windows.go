@@ -41,7 +41,6 @@ func windowsTagPipeline() pipeline {
 
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Trigger = triggerTag
-	p.Concurrency.Limit = 1
 	p.Steps = []step{
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),
