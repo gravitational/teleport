@@ -36,6 +36,8 @@ import (
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
 func TestDatabaseServerResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -63,18 +65,19 @@ func TestDatabaseServerResource(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
 	waitForBackendDatabaseResourcePropagation(t, auth.GetAuthServer())
 
 	var out []*types.DatabaseServerV3
@@ -112,6 +115,8 @@ func TestDatabaseServerResource(t *testing.T) {
 
 // TestDatabaseResource tests tctl commands that manage database resources.
 func TestDatabaseResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -125,18 +130,18 @@ func TestDatabaseResource(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	dbA, err := types.NewDatabaseV3(types.Metadata{
 		Name:   "db-a",
@@ -201,6 +206,8 @@ func TestDatabaseResource(t *testing.T) {
 
 // TestAppResource tests tctl commands that manage application resources.
 func TestAppResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -214,18 +221,18 @@ func TestAppResource(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	appA, err := types.NewAppV3(types.Metadata{
 		Name:   "appA",
@@ -288,6 +295,8 @@ func TestAppResource(t *testing.T) {
 
 // TestCreateDatabaseInInsecureMode connects to auth server with --insecure mode and creates a DB resource.
 func TestCreateDatabaseInInsecureMode(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -301,18 +310,18 @@ func TestCreateDatabaseInInsecureMode(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	// Create the databases yaml file.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
@@ -360,6 +369,7 @@ spec:
 )
 
 func TestCreateClusterAuthPreferencet_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -367,12 +377,12 @@ func TestCreateClusterAuthPreferencet_WithSupportForSecondFactorWithoutQuotes(t 
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	tests := []struct {
 		desc               string
