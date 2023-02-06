@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-//go:embed build/webassets
+//go:embed webassets/teleport
 var webassetFS embed.FS
 
 // NewStaticFileSystem returns the initialized implementation of http.FileSystem
