@@ -862,7 +862,19 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 	}
 
 	applySAMLIDPCAs, err := c.fetchCertAuthorities(ctx, types.SAMLIDPCA)
-	if err != nil {
+	if trace.IsBadParameter(err) {
+		// The saml_idp CA was added in v12 but the upstream might be a v11 leaf
+		// that doesn't know about its existence
+		applySAMLIDPCAs = func(ctx context.Context) error {
+			// if the leaf was _downgraded_ we need to clear the cached entries
+			if err := c.trustCache.DeleteAllCertAuthorities(types.SAMLIDPCA); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+			}
+			return nil
+		}
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
