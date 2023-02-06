@@ -100,7 +100,6 @@ func windowsTagPipeline() pipeline {
 
 func windowsPushPipeline() pipeline {
 	p := newWindowsPipeline("push-build-native-windows-amd64")
-	p.Concurrency.Limit = 1
 	p.Trigger = trigger{
 		Event:  triggerRef{Include: []string{"push"}, Exclude: []string{"pull_request"}},
 		Branch: triggerRef{Include: []string{"master", "branch/*"}},
