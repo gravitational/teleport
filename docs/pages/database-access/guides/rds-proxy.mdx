@@ -6,28 +6,21 @@ description: How to configure Teleport Database Access with AWS RDS Proxy.
 This guide will help you to set up Teleport to access your AWS RDS proxies.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
-![Teleport Database Access RDS Self-Hosted](../../../img/database-access/guides/rds-proxy_selfhosted.png)
+![Teleport Database Access RDS Proxy Self-Hosted](../../../img/database-access/guides/rds-proxy_selfhosted.png)
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
-![Teleport Database Access RDS Cloud](../../../img/database-access/guides/rds-proxy_cloud.png)
+![Teleport Database Access RDS Proxy Cloud](../../../img/database-access/guides/rds-proxy_cloud.png)
 </ScopedBlock>
 
-<Admonition type="note" title="Supported versions">
-The following products are not compatible with Database Access as they don't support IAM authentication:
-- Aurora Serverless v1.
-- RDS MariaDB versions lower than 10.6.
-
-It is recommended to upgrade Aurora Serverless v1 to
-[Aurora Serverless v2](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2.html)
-which does support IAM authentication.
+<Admonition type="note" title="Supported Engine Family">
+Teleport currently supports RDS Proxies with engine family **PostgreSQL** or **MariaDB and MySQL**.
 </Admonition>
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- AWS account with RDS and Aurora databases and permissions to create and attach
-  IAM policies.
+- AWS account with RDS Proxies and permissions to create and attach IAM policies.
 - Any RDS Proxies intended for connection through Teleport must have TLS enabled.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
@@ -67,16 +60,14 @@ $ teleport db configure create \
 
 </ScopedBlock>
 
-The command will generate a Database Service configuration with RDS/Aurora
-database auto-discovery enabled on the `us-west-1` region and place it at the
+The command will generate a Database Service configuration with RDS Proxies
+auto-discovery enabled on the `us-west-1` region and place it at the
 `/etc/teleport.yaml` location.
 
 ## Step 2/5. Create an IAM policy for Teleport
 
-Teleport needs AWS IAM permissions to be able to:
-
-- Discover and register RDS instances and Aurora clusters.
-- Configure IAM authentication for them.
+Teleport needs AWS IAM permissions to be able to discover and register RDS
+Proxies.
 
 (!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
@@ -88,54 +79,99 @@ Start the Database Service:
 $ teleport start --config=/etc/teleport.yaml
 ```
 
-The Database Service will discover all RDS instances and Aurora clusters according to the
+The Database Service will discover all RDS Proxies according to the
 configuration and register them in the cluster. In addition to the primary
-endpoints of the discovered Aurora clusters, their reader and custom endpoints
-will also be registered.
-
-The Database Service will also attempt to enable IAM auth and configure IAM access
-policies for the discovered databases. Keep in mind that AWS IAM changes may
-not propagate immediately and can take a few minutes to come into effect.
+endpoints of the RDS Proxies, their custom endpoints will also be registered.
 
 <Admonition type="note" title="AWS credentials">
-  The Teleport Database Service uses the default
-  credential provider chain to find AWS credentials. See [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials) for more information.
+  The Teleport Database Service uses the default credential provider chain to
+  find AWS credentials. See [Specifying
+  Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials)
+  for more information.
 </Admonition>
 
-## Step 4/5. Create a database IAM user
+## Step 4/5. Configure database user credentials
 
-Database users must allow IAM authentication in order to be used with Database
-Access for RDS. See below how to enable it for your database engine.
+The Database Service connects to a RDS Proxy instance using IAM authentication.
+In addition, the RDS Proxy instance must also be able to connect to the RDS
+DB instance or Aurora DB cluster using pre-configured database user credentials.
 
-<Tabs>
-<TabItem label="PostgreSQL">
-PostgreSQL users must have a `rds_iam` role:
+First use Secrets Manager to store sets of user name and password credentials.
+You create a separate Secrets Manager secret for each database user account
+that RDS Proxy connects to on the RDS DB instance or Aurora DB cluster. The
+password associated with the secret must match the database password for that
+user in the target database.
 
-```sql
-CREATE USER alice;
-GRANT rds_iam TO alice;
+For example, the following AWS CLI command creates a Secrets Manager secret for
+database user `alice`:
+
+```
+aws secretsmanager create-secret \
+  --name rdsproxy_alice --description "database user alice" \
+  --secret-string '{"username":"alice","password":"password_for_alice"}'
 ```
 
-</TabItem>
-<TabItem label="MySQL/MariaDB">
-MySQL and MariaDB users must have the RDS authentication plugin enabled:
+Next, create an IAM role with a policy that can access these secrets, for
+example:
 
-```sql
-CREATE USER alice IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "secretsmanager:GetSecretValue",
+            "Resource": [
+                "arn:aws:secretsmanager:us-west-1:account_id:secret:rdsproxy_alice",
+                "arn:aws:secretsmanager:us-west-1:account_id:secret:rdsproxy_anotheruser"
+            ]
+        },
+        {
+            "Action": "kms:Decrypt",
+            "Resource": "arn:aws:kms:us-west-1:account_id:key/key_id",
+            "Condition": {
+                "StringEquals": {
+                    "kms:ViaService": "secretsmanager.us-east-2.amazonaws.com"
+                }
+            }
+        }
+    ]
+}
 ```
 
-Created user may not have access to anything by default so let's grant it
-some permissions:
+The IAM role should have the following trust policy:
 
-```sql
-GRANT ALL ON `%`.* TO 'alice'@'%';
+```
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "rds.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
 ```
 
-</TabItem>
-</Tabs>
+Lastly, modify the RDS Proxy authentication settings to use the created IAM
+role and Secrets Manager secrets. Make sure IAM authentication is set to
+**Required**:
 
-See [Creating a database account using IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html)
-for more information.
+![RDS Proxy Authentication](../../../img/database-access/guides/rds-proxy_auth.png)
+
+<Admonition type="tip" title="IAM authentication per database user">
+If you need to disable IAM authentication for some database users that are not
+intended for Teleport access, use the following AWS CLI command to set
+**IAMAuth** *per secret*:
+```
+aws rds modify-db-proxy --db-proxy-name my-rds-proxy --auth AuthScheme=SECRETS,SecretArn=arn-of-teleport-access-user,IAMAuth=REQUIRED AuthScheme=SECRETS,SecretArn=arn-of-non-teleport-user,IAMAuth=DISABLED ...
+``` 
+See `aws rds modify-db-proxy help` for more information.
+</Admonition>
 
 ## Step 5/5. Connect
 
@@ -147,12 +183,10 @@ registered databases:
 ```code
 $ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
-# Name                           Description                                   Labels
-# ------------------------------ --------------------------------------------- --------
-# postgres-rds                   RDS instance in us-west-1                     ...
-# aurora-mysql                   Aurora cluster in us-west-1                   ...
-# aurora-mysql-custom-myendpoint Aurora cluster in us-west-1 (custom endpoint) ...
-# aurora-mysql-reader            Aurora cluster in us-west-1 (reader endpoint) ...
+# Name                         Description                     Labels
+# ---------------------------- ------------------------------- -------
+# rds-proxy                    RDS Proxy in us-west-1          ...
+# rds-proxy-my-reader-endpoint RDS Proxy endpoint in us-west-1 ...
 ```
 
 </ScopedBlock>
@@ -161,35 +195,18 @@ $ tsh db ls
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
-# Name                           Description                                   Labels
-# ------------------------------ --------------------------------------------- --------
-# postgres-rds                   RDS instance in us-west-1                     ...
-# aurora-mysql                   Aurora cluster in us-west-1                   ...
-# aurora-mysql-custom-myendpoint Aurora cluster in us-west-1 (custom endpoint) ...
-# aurora-mysql-reader            Aurora cluster in us-west-1 (reader endpoint) ...
+# Name                         Description                     Labels
+# ---------------------------- ------------------------------- -------
+# rds-proxy                    RDS Proxy in us-west-1          ...
+# rds-proxy-my-reader-endpoint RDS Proxy endpoint in us-west-1 ...
 ```
 
 </ScopedBlock>
 
-<Admonition type="note" title="Note">
-  Primary, reader, and custom endpoints of Aurora clusters have names of
-  `<cluster-id>`, `<cluster-id>-reader`, and
-  `<cluster-id>-custom-<endpoint-name>` respectively.
-
-  You can override the `<cluster-id>` part of the name with `teleport.dev/database_name` AWS tag.
-</Admonition>
-
 To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db connect postgres-rds
-```
-
-You can optionally specify the database name and the user to use by default
-when connecting to the database instance:
-
-```code
-$ tsh db connect --db-user=postgres --db-name=postgres postgres-rds
+$ tsh db connect --db-user=alice --db-name=dev rds-proxy
 ```
 
 <Admonition type="note" title="Note">
@@ -200,7 +217,7 @@ $ tsh db connect --db-user=postgres --db-name=postgres postgres-rds
 To log out of the database and remove credentials:
 
 ```code
-$ tsh db logout postgres-rds
+$ tsh db logout rds-proxy
 ```
 
 ## Troubleshooting
@@ -210,3 +227,9 @@ $ tsh db logout postgres-rds
 ## Next steps
 
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
+- Learn more on [Setting up database credentials in AWS Secrets
+  Manager](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-setup.html)
+  and [Setting up AWS Identity and Access Management (IAM)
+  policies](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-setup.html)
+  for RDS Proxies
+
