@@ -50,6 +50,7 @@ import {
   TextIcon,
   useShowHint,
 } from '../../Shared';
+import { makeLabelMaps, matchLabels } from '../util';
 
 import type { AgentStepProps } from '../../types';
 
@@ -84,11 +85,7 @@ export default function Container(props: AgentStepProps) {
                   Encountered Error: {fbProps.error.message}
                 </TextIcon>
               </Box>
-              <ActionButtons
-                onProceed={() => null}
-                disableProceed={true}
-                onSkip={() => props.nextStep(0)}
-              />
+              <ActionButtons onProceed={() => null} disableProceed={true} />
             </Box>
           )}
         >
@@ -97,11 +94,7 @@ export default function Container(props: AgentStepProps) {
               <Box>
                 <Heading />
                 <Labels {...labelProps} disableBtns={true} />
-                <ActionButtons
-                  onProceed={() => null}
-                  disableProceed={true}
-                  onSkip={() => props.nextStep(0)}
-                />
+                <ActionButtons onProceed={() => null} disableProceed={true} />
               </Box>
             }
           >
@@ -115,11 +108,7 @@ export default function Container(props: AgentStepProps) {
                 >
                   Generate Command
                 </ButtonSecondary>
-                <ActionButtons
-                  onProceed={() => null}
-                  disableProceed={true}
-                  onSkip={() => props.nextStep(0)}
-                />
+                <ActionButtons onProceed={() => null} disableProceed={true} />
               </Box>
             )}
             {showScript && (
@@ -234,7 +223,6 @@ export function DownloadScript(
       <ActionButtons
         onProceed={handleNextStep}
         disableProceed={!result || props.labels.length === 0}
-        onSkip={() => props.nextStep(0)}
       />
     </Box>
   );
@@ -300,58 +288,50 @@ function createBashCommand(tokenId: string) {
 
 const requireMatchingLabels =
   (dbLabels: AgentLabel[], agentLabels: AgentLabel[]) => () => {
-    if (!matchLabels(dbLabels, agentLabels)) {
+    if (!hasMatchingLabels(dbLabels, agentLabels)) {
       return {
         valid: false,
-        message:
-          'At least one matching label needs to be defined. \
-          Asteriks can also be used to match any databases.',
+        message: `Labels must match with the labels defined for the database resource. \
+          To match any key, and/or any value, asteriks can be used.`,
       };
     }
     return { valid: true };
   };
 
-// matchLabels will go through 'agentLabels' and find a match from
-// 'dbLabels' (if an agent label matches with a db label, then the
-// db will be discoverable by the agent).
-export function matchLabels(dbLabels: AgentLabel[], agentLabels: AgentLabel[]) {
-  let dbKeyMap = {};
-  let dbValMap = {};
-
-  dbLabels.forEach(label => {
-    dbKeyMap[label.name] = label.value;
-    dbValMap[label.value] = label.name;
+// hasMatchingLabels will go through each 'agentLabels' and find matches from
+// 'dbLabels'. The 'agentLabels' must have same amount of matching labels
+// with 'dbLabels' either with asteriks (match all) or by exact match.
+//
+// `agentLabels` have OR comparison eg:
+//  - If agent labels was defined like this [`fruit: apple`, `fruit: banana`]
+//    it's translated as `fruit: [apple OR banana]`.
+//
+// Asteriks can be used for keys, values, or both key and value eg:
+//  - `fruit: *` match by key `fruit` with any value
+//  - `*: apple` match by value `apple` with any key
+//  - `*: *` match by any key and any value
+export function hasMatchingLabels(
+  dbLabels: AgentLabel[],
+  agentLabels: AgentLabel[]
+) {
+  // Convert agentLabels into a map of key of value arrays.
+  const matcherLabels: Record<string, string[]> = {};
+  agentLabels.forEach(l => {
+    if (!matcherLabels[l.name]) {
+      matcherLabels[l.name] = [];
+    }
+    matcherLabels[l.name] = [...matcherLabels[l.name], l.value];
   });
 
-  for (let i = 0; i < agentLabels.length; i++) {
-    const agentLabel = agentLabels[i];
-    const agentLabelKey = agentLabel.name;
-    const agentLabelVal = agentLabel.value;
+  // Create maps for easy lookup and matching.
+  const { labelKeysToMatchMap, labelValsToMatchMap, labelToMatchSeenMap } =
+    makeLabelMaps(dbLabels);
 
-    // All asterik means an agent can discover any database
-    // by any labels (or no labels).
-    if (agentLabelKey === '*' && agentLabelVal === '*') {
-      return true;
-    }
-
-    // Key only asterik means an agent can discover any database
-    // with any matching value.
-    if (agentLabelKey === '*' && dbValMap[agentLabelVal]) {
-      return true;
-    }
-
-    // Value only asterik means an agent can discover any database
-    // with any matching key.
-    if (agentLabelVal === '*' && dbKeyMap[agentLabelKey]) {
-      return true;
-    }
-
-    // Match against words.
-    const dbVal = dbKeyMap[agentLabel.name];
-    if (dbVal && dbVal === agentLabelVal) {
-      return true;
-    }
-  }
-
-  return false;
+  return matchLabels({
+    hasLabelsToMatch: dbLabels.length > 0,
+    labelKeysToMatchMap,
+    labelValsToMatchMap,
+    labelToMatchSeenMap,
+    matcherLabels,
+  });
 }
