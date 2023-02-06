@@ -96,6 +96,10 @@ proxy:
       enabled: true
       listen_addr: 0.0.0.0:3080
       public_addr: custom.example.com:443
+      
+# If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
+podSecurityPolicy:
+  enabled: false
 
 # OPTIONAL - when using an highly-available storage for both backend AND session recordings
 # you can disable disk persistence and replicate auth pods.
