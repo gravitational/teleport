@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 
 import styled from 'styled-components';
-
+/* eslint-disable @typescript-eslint/ban-ts-comment*/
+// @ts-ignore
 import { DocumentAccessRequests } from 'e-teleterm/ui/DocumentAccessRequests/DocumentAccessRequests';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
