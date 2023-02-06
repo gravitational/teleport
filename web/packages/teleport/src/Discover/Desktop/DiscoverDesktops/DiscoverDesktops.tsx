@@ -146,10 +146,10 @@ export function DiscoverDesktops() {
       for (const desktop of foundDesktops.values()) {
         const os = desktop.labels.find(
           label => label.name === 'teleport.dev/os'
-        ).value;
+        )?.value || 'unknown os';
         const osVersion = desktop.labels.find(
           label => label.name === 'teleport.dev/os_version'
-        ).value;
+        )?.value || 'unknown version';
 
         desktops.push({
           os,
