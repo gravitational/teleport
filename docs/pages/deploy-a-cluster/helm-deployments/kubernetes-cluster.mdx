@@ -185,7 +185,7 @@ Save this role as `member.yaml`:
 
 ```yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: member
 spec:
@@ -193,6 +193,10 @@ spec:
     kubernetes_groups: ["system:masters"]
     kubernetes_labels:
       '*': '*'
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ```
 
 Create the role and add a user:

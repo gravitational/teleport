@@ -1,9 +1,15 @@
 ---
-title: Kubernetes Access Multiple Clusters
-description: Connecting a Kubernetes cluster to Teleport.
+title: Register a Kubernetes Cluster by Deploying Teleport
+description: Connecting a Kubernetes cluster to Teleport by deploying the Teleport Kubernetes Service.
 ---
 
-This guide will show you how to use Teleport as an access plane for multiple Kubernetes clusters.
+In this guide, we will show you how to register a Kubernetes cluster with
+Teleport by deploying the Teleport Kubernetes Service on that cluster. The
+Kubernetes Service automatically determines that it is running a Kubernetes
+cluster and, if so, registers itself with Teleport.
+
+You can register multiple Kubernetes clusters with Teleport by deploying the
+Teleport Kubernetes Service on each cluster you want to register. 
 
 ## Prerequisites
 
