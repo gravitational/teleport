@@ -262,6 +262,7 @@ After you have created the `Issuer` and updated the values, add it to your clust
 
 ```code
 $ kubectl create namespace teleport
+$ kubectl label namespace teleport 'pod-security.kubernetes.io/enforce=baseline'
 $ kubectl --namespace teleport create -f aws-issuer.yaml
 ```
 
@@ -389,6 +390,10 @@ highAvailability:
     enabled: true                                 # Enable cert-manager support to get TLS certificates
     issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
 enterprise: true                                  # Indicate that this is a Teleport Enterprise deployment
+
+# If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
+podSecurityPolicy:
+  enabled: false
 ```
 
 </ScopedBlock>

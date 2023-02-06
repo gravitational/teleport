@@ -20,11 +20,12 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import { arrayStrDiff } from 'teleport/lib/util';
 import useTeleport from 'teleport/useTeleport';
 import { Option } from 'teleport/Discover/Shared/SelectCreatable';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 
 import { ResourceKind } from '../ResourceKind';
 
-import type { User, UserTraits } from 'teleport/services/user';
 import type { DbMeta, KubeMeta, NodeMeta } from 'teleport/Discover/useDiscover';
+import type { User, UserTraits } from 'teleport/services/user';
 import type { AgentStepProps } from '../../types';
 
 // useUserTraits handles:
@@ -35,6 +36,7 @@ import type { AgentStepProps } from '../../types';
 //  - provides utility function that makes data objects (type Option) for react-select component
 export function useUserTraits(props: AgentStepProps) {
   const ctx = useTeleport();
+  const { emitErrorEvent } = useDiscover();
 
   const [user, setUser] = useState<User>();
   const { attempt, run, setAttempt, handleError } = useAttempt('processing');
@@ -85,18 +87,19 @@ export function useUserTraits(props: AgentStepProps) {
       );
   }
 
-  useEffect(
-    function initFetchUserTraits() {
-      run(() =>
-        ctx.userService.fetchUser(ctx.storeUser.getUsername()).then(setUser)
-      );
-    },
-    [ctx.storeUser, ctx.userService, run]
-  );
+  useEffect(() => {
+    fetchUserTraits();
+  }, [ctx.storeUser, ctx.userService, run]);
 
   function fetchUserTraits() {
     run(() =>
-      ctx.userService.fetchUser(ctx.storeUser.getUsername()).then(setUser)
+      ctx.userService
+        .fetchUser(ctx.storeUser.getUsername())
+        .then(setUser)
+        .catch((error: Error) => {
+          emitErrorEvent(`error fetching user traits: ${error.message}`);
+          throw error;
+        })
     );
   }
 
@@ -232,15 +235,24 @@ export function useUserTraits(props: AgentStepProps) {
     updateResourceMetaDynamicTraits(newDynamicTraits);
     setAttempt({ status: 'processing' });
     try {
-      await ctx.userService.updateUser({
-        ...user,
-        traits: {
-          ...user.traits,
-          ...newDynamicTraits,
-        },
+      await ctx.userService
+        .updateUser({
+          ...user,
+          traits: {
+            ...user.traits,
+            ...newDynamicTraits,
+          },
+        })
+        .catch((error: Error) => {
+          emitErrorEvent(`error updating user traits: ${error.message}`);
+          throw error;
+        });
+
+      await ctx.userService.applyUserTraits().catch((error: Error) => {
+        emitErrorEvent(`error applying new user traits: ${error.message}`);
+        throw error;
       });
 
-      await ctx.userService.applyUserTraits();
       props.nextStep();
     } catch (err) {
       handleError(err);

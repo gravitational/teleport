@@ -64,9 +64,9 @@ The `teleport-kube-agent` chart deploys the following Kubernetes resources:
 | `RoleBinding`         | The release name, suffixed by `-hook`                      | Used to delete legacy `Deployment`s in order to deploy a `StatefulSet` instead. Removed once the upgrade is complete.                                                                                                                                                                                   | If the `teleport-kube-agent` release contains a legacy `Deployment` resource.                                     |
 | `Job`                 | The release name, suffixed by `-hook`                      | Used to delete legacy `Deployment`s in order to deploy a `StatefulSet` instead. Removed once the upgrade is complete.                                                                                                                                                                                   | If the `teleport-kube-agent` release contains a legacy `Deployment` resource.                                     |
 | `ConfigMap`           | The release name                                           | Contains the configuration for the Teleport pod.                                                                                                                                                                                                                                                        | Always.                                                                                                           |
-| `PodSecurityPolicy`   | The release name                                           | Enforces security requirements for pods deployed by `teleport-kube-agent`.                                                                                                                                                                                                                              | `podSecurityPolicy.enabled` is `true` and the Kubernetes cluster supports pod security policies.                  |
-| `Role`                | The release name, suffixed by `-psp`                       | Enforces security requirements for pods deployed by `teleport-kube-agent`.                                                                                                                                                                                                                              | `podSecurityPolicy.enabled` is `true` and the Kubernetes cluster supports pod security policies.                  |
-| `RoleBinding`         | The release name, suffixed by `-psp`                       | Enforces security requirements for pods deployed by `teleport-kube-agent`.                                                                                                                                                                                                                              | `podSecurityPolicy.enabled` is `true` and the Kubernetes cluster supports pod security policies.                  |
+| `PodSecurityPolicy`   | The release name                                           | Enforces security requirements for pods deployed by `teleport-kube-agent`.                                                                                                                                                                                                                              | `podSecurityPolicy.enabled` is `true` and the Kubernetes cluster version is < 1.23.                               |
+| `Role`                | The release name, suffixed by `-psp`                       | Enforces security requirements for pods deployed by `teleport-kube-agent`.                                                                                                                                                                                                                              | `podSecurityPolicy.enabled` is `true` and the Kubernetes cluster version is < 1.23.                               |
+| `RoleBinding`         | The release name, suffixed by `-psp`                       | Enforces security requirements for pods deployed by `teleport-kube-agent`.                                                                                                                                                                                                                              | `podSecurityPolicy.enabled` is `true` and the Kubernetes cluster version is < 1.23.                               |
 
 ## `roles`
 
@@ -857,13 +857,19 @@ When `existingDataVolume` is set to the name of an existing volume, the `/var/li
 
 ### `podSecurityPolicy.enabled`
 
-| Type   | Default value |
-|--------|---------------|
-| `bool` | `true`        |
+| Type   | Default value                        |
+|--------|--------------------------------------|
+| `bool` | `true` for <1.23 `false` for >= 1.23 |
 
-By default, Teleport charts also install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-kube-agent/templates/psp.yaml).
+By default, Teleport charts used to install a [`podSecurityPolicy`](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-cluster/templates/psp.yaml).
 
-To disable this, you can set `enabled` to `false`.
+PodSecurityPolicy resources (PSP) have been removed in Kubernetes 1.25
+and replaced since 1.23 by PodSecurityAdmission (PSA). If you are running on
+Kubernetes 1.23 or later, it is recommended to disable PSPs and use PSAs.
+The steps are documented in the
+[PSP removal guide](../../deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp.mdx).
+
+To disable PSP creation, you can set `enabled` to `false`.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/policy/pod-security-policy/)
 
