@@ -126,6 +126,10 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   cursor: not-allowed;
 }
 
+.c8:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
 .c7 {
   color: #FFFFFF;
   display: block;
@@ -503,6 +507,10 @@ exports[`render failed state form for authenticating with password 1`] = `
   cursor: not-allowed;
 }
 
+.c8:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
 .c7 {
   color: #FFFFFF;
   display: block;
@@ -755,6 +763,10 @@ exports[`render failed state form for authenticating with totp 1`] = `
 
 .c8:read-only {
   cursor: not-allowed;
+}
+
+.c8:disabled {
+  color: rgba(0,0,0,0.5);
 }
 
 .c7 {
@@ -1162,6 +1174,10 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   cursor: not-allowed;
 }
 
+.c8:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
 .c7 {
   color: #FFFFFF;
   display: block;
@@ -1525,6 +1541,10 @@ exports[`render form for authenticating with multi option 1`] = `
   cursor: not-allowed;
 }
 
+.c7:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
 .c6 {
   color: #FFFFFF;
   display: block;
@@ -1873,6 +1893,10 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   cursor: not-allowed;
 }
 
+.c7:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
 .c6 {
   color: #FFFFFF;
   display: block;
@@ -2096,6 +2120,10 @@ exports[`render form for authenticating with totp 1`] = `
 
 .c7:read-only {
   cursor: not-allowed;
+}
+
+.c7:disabled {
+  color: rgba(0,0,0,0.5);
 }
 
 .c6 {
@@ -2472,6 +2500,10 @@ exports[`render form for authenticating with webauthn 1`] = `
 
 .c7:read-only {
   cursor: not-allowed;
+}
+
+.c7:disabled {
+  color: rgba(0,0,0,0.5);
 }
 
 .c6 {

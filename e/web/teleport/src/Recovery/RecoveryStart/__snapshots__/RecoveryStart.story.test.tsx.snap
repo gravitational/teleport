@@ -97,6 +97,10 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   cursor: not-allowed;
 }
 
+.c6:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
 .c5 {
   color: #FFFFFF;
   display: block;
@@ -291,6 +295,10 @@ exports[`render correct form for clicking forgot password 1`] = `
 
 .c6:read-only {
   cursor: not-allowed;
+}
+
+.c6:disabled {
+  color: rgba(0,0,0,0.5);
 }
 
 .c5 {

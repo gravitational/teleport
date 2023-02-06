@@ -111,6 +111,10 @@ exports[`render correct form to add TOTP device 1`] = `
   cursor: not-allowed;
 }
 
+.c15:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
 .c11 {
   color: #FFFFFF;
   display: block;
@@ -550,6 +554,10 @@ exports[`render correct form to add Webauthn device 1`] = `
   cursor: not-allowed;
 }
 
+.c13:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
 .c9 {
   color: #FFFFFF;
   display: block;
@@ -931,6 +939,10 @@ exports[`render correct form to add with multi option 1`] = `
 
 .c13:read-only {
   cursor: not-allowed;
+}
+
+.c13:disabled {
+  color: rgba(0,0,0,0.5);
 }
 
 .c9 {
@@ -1336,6 +1348,10 @@ exports[`render failed state for form to add with multi option 1`] = `
 
 .c14:read-only {
   cursor: not-allowed;
+}
+
+.c14:disabled {
+  color: rgba(0,0,0,0.5);
 }
 
 .c10 {
