@@ -2205,6 +2205,7 @@
     {
       "source": "/database-access/guides/dynamodb/",
       "destination": "/application-access/guides/dynamodb/",
+      "permanent": true
     },
     {
       "source": "/kubernetes-access/guides/federation/",
