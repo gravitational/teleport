@@ -11,22 +11,25 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=11.3.1
+VERSION=11.3.2
 
 DOCKER_IMAGE ?= teleport
 
 GOPATH ?= $(shell go env GOPATH)
+
+# This directory will be the real path of the directory of the first Makefile in the list.
+MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
 endif
 BUILDDIR ?= build
-ASSETS_BUILDDIR ?= lib/web/build
 BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
+GIT ?= git
 TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
@@ -41,7 +44,7 @@ RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 FIPS_MESSAGE := without-FIPS-support
 ifneq ("$(FIPS)","")
 FIPS_TAG := fips
-FIPS_MESSAGE := "with-FIPS-support"
+FIPS_MESSAGE := with-FIPS-support
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
 endif
 
@@ -49,13 +52,13 @@ endif
 PAM_MESSAGE := without-PAM-support
 ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
 PAM_TAG := pam
-PAM_MESSAGE := "with-PAM-support"
+PAM_MESSAGE := with-PAM-support
 else
 # PAM headers for Darwin live under /usr/local/include/security instead, as SIP
 # prevents us from modifying/creating /usr/include/security on newer versions of MacOS
 ifneq ("$(wildcard /usr/local/include/security/pam_appl.h)","")
 PAM_TAG := pam
-PAM_MESSAGE := "with-PAM-support"
+PAM_MESSAGE := with-PAM-support
 endif
 endif
 
@@ -70,7 +73,7 @@ ifeq ("$(ARCH)","amd64")
 ifneq ("$(wildcard /usr/include/bpf/libbpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
-BPF_MESSAGE := "with-BPF-support"
+BPF_MESSAGE := with-BPF-support
 CLANG ?= $(shell which clang || which clang-10)
 CLANG_FORMAT ?= $(shell which clang-format || which clang-format-10)
 LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-10)
@@ -98,7 +101,7 @@ endif
 # Check if rust and cargo are installed before compiling
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
- 
+
 with_rdpclient := no
 RDPCLIENT_MESSAGE := without-Windows-RDP-client
 
@@ -116,7 +119,7 @@ ifneq ($(CHECK_CARGO),)
 ifneq ("$(ARCH)","arm")
 ifneq ("$(ARCH)","386")
 with_rdpclient := yes
-RDPCLIENT_MESSAGE := "with-Windows-RDP-client"
+RDPCLIENT_MESSAGE := with-Windows-RDP-client
 RDPCLIENT_TAG := desktop_access_rdp
 endif
 endif
@@ -160,7 +163,7 @@ endif
 
 # Build teleport/api with PIV? This requires the libpcsclite library for linux.
 #
-# PIV=yes and PIV=static enable static piv builds. This is used by the build 
+# PIV=yes and PIV=static enable static piv builds. This is used by the build
 # process to link a static library of libpcsclite for piv-go to connect to.
 #
 # PIV=dynamic enables dynamic piv builds. This can be used for local
@@ -222,8 +225,8 @@ TEST_LOG_DIR = ${abspath ./test-logs}
 CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
 # Is this build targeting the same OS & architecture it is being compiled on, or
-# will it require cross-compilation? We need to know this (especially for ARM) so we 
-# can set the cross-compiler path (and possibly feature flags) correctly. 
+# will it require cross-compilation? We need to know this (especially for ARM) so we
+# can set the cross-compiler path (and possibly feature flags) correctly.
 IS_CROSS_BUILD = $(if $(filter-out $(ARCH), $(shell go env GOARCH)),yes)
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
@@ -238,7 +241,7 @@ CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
 else ifeq ("$(ARCH)","arm64")
-# ARM64 requires CGO but does not need to do any special linkage due to its reduced 
+# ARM64 requires CGO but does not need to do any special linkage due to its reduced
 # featureset. Also, if we 're not guaranteed to be building natively on an arm64 system
 # then we'll need to configure the cross compiler.
 
@@ -261,10 +264,10 @@ CGOFLAG_TSH ?= $(CGOFLAG)
 #
 # 'make all' builds all 3 executables and places them in the current directory.
 #
-# IMPORTANT: the binaries will not contain the web UI assets and `teleport`
-#            won't start without setting the environment variable DEBUG=1
-#            This is the default build target for convenience of working on
-#            a web UI.
+# IMPORTANT:
+# Unless called with the `WEBASSETS_TAG` env variable set to "webassets_embed"
+# the binaries will not contain the web UI assets and `teleport` won't start
+# without setting the environment variable DEBUG=1.
 .PHONY: all
 all: version
 	@echo "---> Building OSS binaries."
@@ -359,7 +362,7 @@ endif
 # only tsh is built.
 #
 .PHONY:full
-full: $(ASSETS_BUILDDIR)/webassets
+full: ensure-webassets
 ifneq ("$(OS)", "windows")
 	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 endif
@@ -368,18 +371,16 @@ endif
 # make full-ent - Builds Teleport enterprise binaries
 #
 .PHONY:full-ent
-full-ent:
+full-ent: ensure-webassets-e
 ifneq ("$(OS)", "windows")
-	@if [ -f e/Makefile ]; then \
-	rm $(ASSETS_BUILDDIR)/webassets; \
-	$(MAKE) -C e full; fi
+	@if [ -f e/Makefile ]; then $(MAKE) -C e full; fi
 endif
 
 #
 # make clean - Removes all build artifacts.
 #
 .PHONY: clean
-clean:
+clean: clean-ui
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
 # Check if the variable is set to prevent calling remove on the root directory.
@@ -396,13 +397,18 @@ endif
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
 
+.PHONY: clean-ui
+clean-ui:
+	rm -rf webassets/*
+	find . -type d -name node_modules -prune -exec rm -rf {} \;
+
 #
 # make release - Produces a binary release tarball.
 #
 .PHONY:
 export
 release:
-	@echo "---> $(RELEASE_MESSAGE)"
+	@echo "---> OSS $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
 	$(MAKE) --no-print-directory release-windows
 else ifeq ("$(OS)", "darwin")
@@ -445,9 +451,9 @@ build-archive:
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
-	
+
 #
-# make release-unix - Produces binary release tarballs for both OSS and 
+# make release-unix - Produces binary release tarballs for both OSS and
 # Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
 .PHONY:
@@ -856,6 +862,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'lib/web/build/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
+		-ignore 'web/**' \
 		-ignore 'ignoreme'
 
 .PHONY: lint-license
@@ -915,20 +922,6 @@ update-tag:
 	git tag api/$(GITTAG)
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push origin $(GITTAG) && git push origin api/$(GITTAG)
-
-# build/webassets directory contains the web assets (UI) which get
-# embedded in the teleport binary
-$(ASSETS_BUILDDIR)/webassets: ensure-webassets $(ASSETS_BUILDDIR)
-ifneq ("$(OS)", "windows")
-	@echo "---> Copying OSS web assets."; \
-	rm -rf $(ASSETS_BUILDDIR)/webassets; \
-	mkdir $(ASSETS_BUILDDIR)/webassets; \
-	cd webassets/teleport/ ; cp -r . ../../$@
-endif
-
-$(ASSETS_BUILDDIR):
-	mkdir -p $@
-
 
 .PHONY: test-package
 test-package: remove-temp-files
@@ -1037,6 +1030,28 @@ grpc:
 grpc/host: protos/all
 	@build.assets/genproto.sh
 
+# protos-up-to-date checks if the generated GRPC stubs are up to date.
+# This target runs in the buildbox container.
+.PHONY: protos-up-to-date
+protos-up-to-date:
+	$(MAKE) -C build.assets protos-up-to-date
+
+# protos-up-to-date/host checks if the generated GRPC stubs are up to date.
+# Unlike protos-up-to-date, this target runs locally.
+.PHONY: protos-up-to-date/host
+protos-up-to-date/host: must-start-clean/host grpc/host
+	@if ! $(GIT) diff --quiet; then \
+		echo 'Please run make grpc.'; \
+		exit 1; \
+	fi
+
+.PHONY: must-start-clean/host
+must-start-clean/host:
+	@if ! $(GIT) diff --quiet; then \
+		echo 'This must be run from a repo with no unstaged commits.'; \
+		exit 1; \
+	fi
+
 print/env:
 	env
 
@@ -1064,7 +1079,8 @@ goinstall:
 	go install $(BUILDFLAGS) \
 		github.com/gravitational/teleport/tool/tsh \
 		github.com/gravitational/teleport/tool/teleport \
-		github.com/gravitational/teleport/tool/tctl
+		github.com/gravitational/teleport/tool/tctl \
+		github.com/gravitational/teleport/tool/tbot
 
 # make install will installs system-wide teleport
 .PHONY: install
@@ -1072,6 +1088,7 @@ install: build
 	@echo "\n** Make sure to run 'make install' as root! **\n"
 	cp -f $(BUILDDIR)/tctl      $(BINDIR)/
 	cp -f $(BUILDDIR)/tsh       $(BINDIR)/
+	cp -f $(BUILDDIR)/tbot      $(BINDIR)/
 	cp -f $(BUILDDIR)/teleport  $(BINDIR)/
 	mkdir -p $(DATADIR)
 
@@ -1158,45 +1175,26 @@ test-compat:
 
 .PHONY: ensure-webassets
 ensure-webassets:
-	@if [ ! -d $(shell pwd)/webassets/teleport/ ]; then \
-		$(MAKE) init-webapps-submodules; \
-	fi;
+	@MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" OSS webassets/oss-sha build-ui web
 
 .PHONY: ensure-webassets-e
 ensure-webassets-e:
-	@if [ ! -d $(shell pwd)/webassets/e/teleport ]; then \
-		$(MAKE) init-webapps-submodules-e; \
-	fi;
-
-.PHONY: init-webapps-submodules
-init-webapps-submodules:
-	echo "init webassets submodule"
-	git submodule update --init webassets
-
-.PHONY: init-webapps-submodules-e
-init-webapps-submodules-e:
-	echo "init webassets oss and enterprise submodules"
-	git submodule update --init --recursive webassets
+	@MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web
 
 .PHONY: init-submodules-e
-init-submodules-e: init-webapps-submodules-e
+init-submodules-e:
 	git submodule init e
 	git submodule update
-
-# update-webassets creates a PR in the teleport repo to update webassets submodule.
-.PHONY: update-webassets
-update-webassets: WEBASSETS_BRANCH ?= 'master'
-update-webassets: TELEPORT_BRANCH ?= 'master'
-update-webassets:
-	build.assets/webapps/update-teleport-webassets.sh -w $(WEBASSETS_BRANCH) -t $(TELEPORT_BRANCH)
 
 # dronegen generates .drone.yml config
 #
 #    Usage:
-#    - install github.com/gravitational/tdr
-#    - set $DRONE_TOKEN and $DRONE_SERVER (https://drone.platform.teleport.sh)
+#    - install drone cli
+#    - set $DRONE_TOKEN
 #    - tsh login --proxy=platform.teleport.sh
 #    - tsh app login drone
+#    - tsh proxy app drone
+#    - export DRONE_SERVER=https://localhost:$TSH_PROXY_PORT
 #    - make dronegen
 .PHONY: dronegen
 dronegen:
@@ -1208,7 +1206,22 @@ dronegen:
 backport:
 	(cd ./assets/backport && go run main.go -pr=$(PR) -to=$(TO))
 
-
 .PHONY: changelog
 changelog:
 	@./build.assets/changelog.sh BASE_BRANCH=$(BASE_BRANCH) BASE_TAG=$(BASE_TAG)
+
+.PHONY: ensure-js-deps
+ensure-js-deps:
+	yarn install --ignore-scripts
+
+.PHONY: build-ui
+build-ui: ensure-js-deps
+	yarn build-ui-oss
+
+.PHONY: build-ui-e
+build-ui-e: ensure-js-deps
+	yarn build-ui-e
+
+.PHONY: docker-ui
+docker-ui:
+	$(MAKE) -C build.assets ui
