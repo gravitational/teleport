@@ -74,6 +74,8 @@ const (
 	TypeSharedDirectoryListResponse   = MessageType(26)
 	TypePNG2Frame                     = MessageType(27)
 	TypeNotification                  = MessageType(28)
+	TypeBitmapCacheSave               = MessageType(29)
+	TypeBitmapCacheLoad               = MessageType(30)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -162,6 +164,10 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeSharedDirectoryMoveRequest(in)
 	case TypeSharedDirectoryMoveResponse:
 		return decodeSharedDirectoryMoveResponse(in)
+	case TypeBitmapCacheSave:
+		return decodeBitmapCacheSave(in)
+	case TypeBitmapCacheLoad:
+		return decodeBitmapCacheLoad(in)
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", firstByte)
 	}
@@ -642,6 +648,91 @@ func DecodeMFAChallenge(in byteReader) (*MFA, error) {
 	return &MFA{
 		Type:                     mt,
 		MFAAuthenticateChallenge: req,
+	}, nil
+}
+
+// TODO: documentation
+type BitmapCacheSave struct {
+	CacheId    uint32
+	CacheIndex uint32
+	DataLength uint32
+	Data       []byte
+}
+
+func (s BitmapCacheSave) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeBitmapCacheSave))
+	writeUint32(buf, s.CacheId)
+	writeUint32(buf, s.CacheIndex)
+	writeUint32(buf, s.DataLength)
+	buf.Write(s.Data)
+	return buf.Bytes(), nil
+}
+
+func decodeBitmapCacheSave(in io.Reader) (BitmapCacheSave, error) {
+	var cacheId, cacheIndex uint32
+	err := binary.Read(in, binary.BigEndian, &cacheId)
+	if err != nil {
+		return BitmapCacheSave{}, trace.Wrap(err)
+	}
+
+	err = binary.Read(in, binary.BigEndian, &cacheIndex)
+	if err != nil {
+		return BitmapCacheSave{}, trace.Wrap(err)
+	}
+
+	return BitmapCacheSave{
+		CacheId:    cacheId,
+		CacheIndex: cacheIndex,
+	}, nil
+}
+
+// TODO: documentation
+type BitmapCacheLoad struct {
+	CacheId    uint32
+	CacheIndex uint32
+	Top        uint32
+	Left       uint32
+}
+
+func (s BitmapCacheLoad) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeBitmapCacheLoad))
+	writeUint32(buf, s.CacheId)
+	writeUint32(buf, s.CacheIndex)
+	writeUint32(buf, s.Top)
+	writeUint32(buf, s.Left)
+	return buf.Bytes(), nil
+}
+
+func decodeBitmapCacheLoad(in io.Reader) (BitmapCacheLoad, error) {
+	var cacheId, cacheIndex, top, left uint32
+
+	err := binary.Read(in, binary.BigEndian, &cacheId)
+	if err != nil {
+		return BitmapCacheLoad{}, trace.Wrap(err)
+	}
+
+	err = binary.Read(in, binary.BigEndian, &cacheIndex)
+	if err != nil {
+		return BitmapCacheLoad{}, trace.Wrap(err)
+	}
+
+	err = binary.Read(in, binary.BigEndian, &top)
+	if err != nil {
+		return BitmapCacheLoad{}, trace.Wrap(err)
+	}
+
+	err = binary.Read(in, binary.BigEndian, &left)
+	if err != nil {
+		return BitmapCacheLoad{}, trace.Wrap(err)
+	}
+
+	return BitmapCacheLoad{
+		CacheId:    cacheId,
+		CacheIndex: cacheIndex,
+		Top:        top,
+		Left:       left,
 	}, nil
 }
 

@@ -55,6 +55,8 @@ export enum MessageType {
   SHARED_DIRECTORY_LIST_RESPONSE = 26,
   PNG2_FRAME = 27,
   NOTIFICATION = 28,
+  BITMAP_CACHE_SAVE = 29,
+  BITMAP_CACHE_LOAD = 30,
   __LAST, // utility value
 }
 
@@ -249,6 +251,21 @@ export type SharedDirectoryListResponse = {
   errCode: SharedDirectoryErrCode;
   fsoList: FileSystemObject[];
 };
+
+export type BitmapCacheLoad = {
+  cacheId: number,
+  cacheIndex: number,
+  top: number,
+  left: number,
+}
+
+export type BitmapCacheSave = {
+  cacheId: number,
+  cacheIndex: number,
+  data: Uint8Array;
+}
+
+
 
 // | last_modified uint64 | size uint64 | file_type uint32 | is_empty bool | path_length uint32 | path byte[] |
 export type FileSystemObject = {
@@ -1104,6 +1121,65 @@ export default class Codec {
   ): SharedDirectoryListRequest {
     return this.decodeSharedDirectoryInfoRequest(buffer);
   }
+
+  // | message type (29) | cache_id uint32 | cache_index uint32 | data_length uint32 | data []byte
+  decodeBitmapCacheSave (
+    buffer: ArrayBuffer
+  ): BitmapCacheSave {
+    const dv = new DataView(buffer);
+    console.log(buffer)
+    let offset = 0;
+    offset += byteLength; // message type
+
+    const cacheId = dv.getUint32(offset);
+    offset += uint32Length; // cache_id
+
+    const cacheIndex = dv.getUint32(offset);
+    offset += uint32Length; // cache_index 
+
+    const dataLength = dv.getUint32(offset);
+    offset += uint32Length; // data_length 
+    const data = new Uint8Array(
+      buffer.slice(offset, offset+ dataLength)
+    );
+
+    return {
+      cacheId,
+      cacheIndex,
+      data,
+    };
+  }
+
+
+  // | message type (30) | cache_id uint32 | cache_index uint32 | top uint32 | left uint32 |
+  decodeBitmapCacheLoad(
+    buffer: ArrayBuffer
+  ): BitmapCacheLoad {
+    const dv = new DataView(buffer);
+    let offset = 0;
+    offset += byteLength; // eat message type
+
+    const cacheId = dv.getUint32(offset);
+    offset += uint32Length; // cache_id
+
+    const cacheIndex = dv.getUint32(offset);
+    offset += uint32Length; // cache_index 
+
+    const top = dv.getUint32(offset);
+    offset += uint32Length; // cache_index 
+
+    const left = dv.getUint32(offset);
+    offset += uint32Length; // cache_index 
+
+    return {
+      cacheId,
+      cacheIndex,
+      top,
+      left,
+    };
+  }
+
+
 
   // asBase64Url creates a data:image uri from the png data part of a PNG_FRAME tdp message.
   private asBase64Url(buffer: ArrayBuffer, offset: number): string {

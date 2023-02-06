@@ -58,6 +58,9 @@ use rdp::core::gcc::KeyboardLayout;
 use rdp::core::global;
 use rdp::core::global::ServerError;
 use rdp::core::mcs;
+use rdp::core::orders::DrawingOrderSecondary;
+use rdp::core::orders::PrimaryDrawingOrder;
+use rdp::core::orders::{DrawingOrder};
 use rdp::core::sec;
 use rdp::core::tpkt;
 use rdp::core::x224;
@@ -799,6 +802,25 @@ impl TryFrom<BitmapEvent> for CGOPNG {
     }
 }
 
+#[repr(C)]
+pub struct CGOBitmapCacheSave {
+    pub cache_id: u16,
+    pub cache_index: u16,
+    /// The memory of this field is managed by the Rust side.
+    pub data_ptr: *mut u8,
+    pub data_len: usize,
+    pub data_cap: usize,
+}
+
+#[repr(C)]
+pub struct CGOBitmapCacheLoad {
+    pub cache_id: u16,
+    pub cache_index: u16,
+    pub dest_left: u16,
+    pub dest_top: u16,
+}
+
+
 /// encodes png from the uncompressed bitmap data
 ///
 /// # Arguments
@@ -1231,7 +1253,63 @@ fn read_rdp_output_inner(client: &Client) -> ReadRdpOutputReturns {
                         unsafe {
                             err = handle_png(client_ref, &mut cpng) as CGOErrCode;
                         };
-                    }
+                    },
+                    RdpEvent::DrawingOrder(drawing_order) => {
+                        match drawing_order {
+                            DrawingOrder::PrimaryDrawingOrder(primary_order) => {
+                                match primary_order {
+                                    PrimaryDrawingOrder::MemBlt(order) => {
+                                        debug!("MemBlt: {:?}", order);
+                                        let mut bitmap_cache_load = CGOBitmapCacheLoad{
+                                            cache_id: order.cache_id as u16,
+                                            cache_index: order.cache_index,
+                                            dest_left: order.n_left_rect as u16,
+                                            dest_top: order.n_top_rect as u16,
+                                        };
+
+                                        unsafe {
+                                            err = tdp_bitmap_cache_load(client_ref, &mut bitmap_cache_load) as CGOErrCode;
+                                        }
+                                    },
+                                    _ => debug!("Unknown primary order"),
+                                }
+                            },
+                            DrawingOrder::DrawingOrderSecondary(secondary_order) => {
+                                match secondary_order {
+                                    DrawingOrderSecondary::CacheBitmapCompressedRev2(order) => {
+                                        debug!("CacheBitmapCompressedRev2: {:?}", order);
+
+                                        let mut bitmap_cache_save = CGOBitmapCacheSave{
+                                            cache_id: order.cache_id,
+                                            cache_index: order.cache_index,
+                                            data_ptr: ptr::null_mut(),
+                                            data_len: 0,
+                                            data_cap: 0,
+                                        };
+
+                                        let mut encoded = Vec::with_capacity(8192);
+                                        encode_png(&mut encoded, order.width, order.height, rdp::codec::rle::decompress(&order.data, order.width as u32, order.height as u32, order.bits_per_pixel).unwrap());
+
+                                        bitmap_cache_save.data_ptr = encoded.as_mut_ptr();
+                                        bitmap_cache_save.data_len = encoded.len();
+                                        bitmap_cache_save.data_cap = encoded.capacity();
+                                
+                                        // Prevent the data field from being freed while Go handles it.
+                                        // It will be dropped once CGOPNG is dropped (see below).
+                                        mem::forget(encoded);
+
+                                        unsafe {
+                                            err = tdp_bitmap_cache_save(client_ref, &mut bitmap_cache_save) as CGOErrCode;
+                                        }
+                                    },
+                                    DrawingOrderSecondary::CacheColorTable(order) => {
+                                        debug!("CacheColorTable: {:?}", order);
+                                    }
+                                }
+                            },
+                            DrawingOrder::AlternateSecondary => {},
+                       }
+                    },
                     // No other events should be sent by the server to us.
                     _ => {
                         debug!("got unexpected pointer event from RDP server, ignoring");
@@ -2013,6 +2091,8 @@ pub struct CGOSharedDirectoryListRequest {
 extern "C" {
     fn handle_png(client_ref: usize, b: *mut CGOPNG) -> CGOErrCode;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
+    fn tdp_bitmap_cache_save(client_ref: usize, req: *mut CGOBitmapCacheSave) -> CGOErrCode;
+    fn tdp_bitmap_cache_load(client_ref: usize, req: *mut CGOBitmapCacheLoad) -> CGOErrCode;
 
     fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge)
         -> CGOErrCode;

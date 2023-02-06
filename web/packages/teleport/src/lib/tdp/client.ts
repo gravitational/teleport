@@ -177,6 +177,12 @@ export default class Client extends EventEmitterWebAuthnSender {
         case MessageType.SHARED_DIRECTORY_LIST_REQUEST:
           this.handleSharedDirectoryListRequest(buffer);
           break;
+        case MessageType.BITMAP_CACHE_SAVE:
+          this.handleBitmapCacheSave(buffer);
+          break;
+        case MessageType.BITMAP_CACHE_LOAD:
+          this.handleBitmapCacheLoad(buffer);
+          break;
         default:
           this.logger.warn(`received unsupported message type ${messageType}`);
       }
@@ -436,6 +442,17 @@ export default class Client extends EventEmitterWebAuthnSender {
       this.handleError(e, TdpClientEvent.CLIENT_ERROR);
     }
   }
+
+  async handleBitmapCacheSave(buffer: ArrayBuffer) {
+    const req = this.codec.decodeBitmapCacheSave(buffer);
+    console.log(req);
+  }
+
+  async handleBitmapCacheLoad(buffer: ArrayBuffer) {
+    const req = this.codec.decodeBitmapCacheLoad(buffer);
+    console.log(req);
+  }
+
 
   private toFso(info: FileOrDirInfo): FileSystemObject {
     return {
