@@ -862,7 +862,19 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 	}
 
 	applySAMLIDPCAs, err := c.fetchCertAuthorities(ctx, types.SAMLIDPCA)
-	if err != nil {
+	if trace.IsBadParameter(err) {
+		// The saml_idp CA was added in v12 but the upstream might be a v11 leaf
+		// that doesn't know about its existence
+		applySAMLIDPCAs = func(ctx context.Context) error {
+			// if the leaf was _downgraded_ we need to clear the cached entries
+			if err := c.trustCache.DeleteAllCertAuthorities(types.SAMLIDPCA); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+			}
+			return nil
+		}
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1414,7 +1426,7 @@ func (s *databaseService) fetch(ctx context.Context) (apply func(ctx context.Con
 			}
 
 			for _, resource := range databaseServices {
-				if _, err := s.presenceCache.UpsertDatabaseService(ctx, resource); err != nil {
+				if _, err := s.databaseServicesCache.UpsertDatabaseService(ctx, resource); err != nil {
 					return trace.Wrap(err)
 				}
 			}
@@ -1445,7 +1457,7 @@ func (s *databaseService) processEvent(ctx context.Context, event types.Event) e
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		if _, err := s.presenceCache.UpsertDatabaseService(ctx, resource); err != nil {
+		if _, err := s.databaseServicesCache.UpsertDatabaseService(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:

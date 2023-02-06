@@ -1,8 +1,11 @@
 import { FileTransferListeners } from 'shared/components/FileTransfer';
 
-import { FileTransferRequest, TshClient } from 'teleterm/services/tshd/types';
+import {
+  FileTransferDirection,
+  FileTransferRequest,
+  TshClient,
+} from 'teleterm/services/tshd/types';
 import { UsageService } from 'teleterm/ui/services/usage';
-import { FileTransferDirection } from 'teleterm/services/tshd/v1/service_pb';
 
 export class FileTransferService {
   constructor(
