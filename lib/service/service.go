@@ -5072,7 +5072,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *Config, kubeBackend kubernet
 				}
 				cfg.HostUUID = rawID.String()
 			case types.JoinMethodEC2:
-				cfg.HostUUID, err = utils.GetEC2NodeID()
+				cfg.HostUUID, err = utils.GetEC2NodeID(ctx)
 				if err != nil {
 					return trace.Wrap(err)
 				}
