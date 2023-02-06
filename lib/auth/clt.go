@@ -1587,6 +1587,7 @@ type ClientI interface {
 	services.DatabaseServices
 	services.Kubernetes
 	services.WindowsDesktops
+	services.SAMLIdPServiceProviders
 	WebService
 	services.Status
 	services.ClusterConfiguration

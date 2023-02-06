@@ -36,6 +36,7 @@ require (
 	github.com/coreos/go-oidc v2.1.0+incompatible // replaced
 	github.com/coreos/go-semver v0.3.1
 	github.com/creack/pty v1.1.18
+	github.com/crewjam/saml v0.4.12
 	github.com/datastax/go-cassandra-native-protocol v0.0.0-20220706104457-5e8aad05cf90
 	github.com/denisenkom/go-mssqldb v0.11.0 // replaced
 	github.com/dustin/go-humanize v1.0.1
@@ -214,6 +215,7 @@ require (
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
+	github.com/crewjam/httperr v0.2.0 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/daviddengcn/go-colortext v1.0.0 // indirect
@@ -277,7 +279,7 @@ require (
 	github.com/joshlf/testutil v0.0.0-20170608050642-b5d8aa79d93d // indirect
 	github.com/klauspost/compress v1.15.13 // indirect
 	github.com/kr/fs v0.1.0 // indirect
-	github.com/kr/pretty v0.3.0 // indirect
+	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
@@ -333,6 +335,7 @@ require (
 	github.com/xlab/treeprint v1.1.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64 // indirect
+	github.com/zenazn/goji v1.0.1 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.7 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.12.0 // indirect

@@ -2456,6 +2456,13 @@ message RoleConditions {
 
   // GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.
   repeated string GCPServiceAccounts = 25 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
+
+  // DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.
+  wrappers.LabelValues DatabaseServiceLabels = 26 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "db_service_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
