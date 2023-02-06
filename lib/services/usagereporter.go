@@ -270,6 +270,7 @@ func (u *UsageRoleCreate) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequ
 		Event: &prehogv1.SubmitEventRequest_RoleCreate{
 			RoleCreate: &prehogv1.RoleCreateEvent{
 				UserName: a.AnonymizeString(u.UserName),
+				RoleName: a.AnonymizeString(u.RoleName),
 			},
 		},
 	}

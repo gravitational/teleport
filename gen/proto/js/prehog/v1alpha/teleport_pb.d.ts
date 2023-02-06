@@ -877,6 +877,9 @@ export class RoleCreateEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): RoleCreateEvent;
 
+    getRoleName(): string;
+    setRoleName(value: string): RoleCreateEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): RoleCreateEvent.AsObject;
@@ -891,6 +894,7 @@ export class RoleCreateEvent extends jspb.Message {
 export namespace RoleCreateEvent {
     export type AsObject = {
         userName: string,
+        roleName: string,
     }
 }
 
@@ -1365,13 +1369,6 @@ export enum DiscoverResource {
     DISCOVER_RESOURCE_APPLICATION_HTTP = 8,
     DISCOVER_RESOURCE_APPLICATION_TCP = 9,
     DISCOVER_RESOURCE_WINDOWS_DESKTOP = 10,
-    DISCOVER_RESOURCE_DATABASE_SQLSERVER_RDS = 11,
-    DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT = 12,
-    DISCOVER_RESOURCE_DATABASE_SQLSERVER_SELF_HOSTED = 13,
-    DISCOVER_RESOURCE_DATABASE_REDIS_SELF_HOSTED = 14,
-    DISCOVER_RESOURCE_DATABASE_POSTGRES_GCP = 15,
-    DISCOVER_RESOURCE_DATABASE_MYSQL_GCP = 16,
-    DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP = 17,
 }
 
 export enum DiscoverStatus {

@@ -6526,7 +6526,8 @@ proto.prehog.v1alpha.RoleCreateEvent.prototype.toObject = function(opt_includeIn
  */
 proto.prehog.v1alpha.RoleCreateEvent.toObject = function(includeInstance, msg) {
   var f, obj = {
-    userName: jspb.Message.getFieldWithDefault(msg, 1, "")
+    userName: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    roleName: jspb.Message.getFieldWithDefault(msg, 2, "")
   };
 
   if (includeInstance) {
@@ -6567,6 +6568,10 @@ proto.prehog.v1alpha.RoleCreateEvent.deserializeBinaryFromReader = function(msg,
       var value = /** @type {string} */ (reader.readString());
       msg.setUserName(value);
       break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRoleName(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -6603,6 +6608,13 @@ proto.prehog.v1alpha.RoleCreateEvent.serializeBinaryToWriter = function(message,
       f
     );
   }
+  f = message.getRoleName();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
 };
 
 
@@ -6621,6 +6633,24 @@ proto.prehog.v1alpha.RoleCreateEvent.prototype.getUserName = function() {
  */
 proto.prehog.v1alpha.RoleCreateEvent.prototype.setUserName = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string role_name = 2;
+ * @return {string}
+ */
+proto.prehog.v1alpha.RoleCreateEvent.prototype.getRoleName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.RoleCreateEvent} returns this
+ */
+proto.prehog.v1alpha.RoleCreateEvent.prototype.setRoleName = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
 };
 
 
@@ -9330,14 +9360,7 @@ proto.prehog.v1alpha.DiscoverResource = {
   DISCOVER_RESOURCE_DATABASE_MYSQL_RDS: 7,
   DISCOVER_RESOURCE_APPLICATION_HTTP: 8,
   DISCOVER_RESOURCE_APPLICATION_TCP: 9,
-  DISCOVER_RESOURCE_WINDOWS_DESKTOP: 10,
-  DISCOVER_RESOURCE_DATABASE_SQLSERVER_RDS: 11,
-  DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT: 12,
-  DISCOVER_RESOURCE_DATABASE_SQLSERVER_SELF_HOSTED: 13,
-  DISCOVER_RESOURCE_DATABASE_REDIS_SELF_HOSTED: 14,
-  DISCOVER_RESOURCE_DATABASE_POSTGRES_GCP: 15,
-  DISCOVER_RESOURCE_DATABASE_MYSQL_GCP: 16,
-  DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP: 17
+  DISCOVER_RESOURCE_WINDOWS_DESKTOP: 10
 };
 
 /**
