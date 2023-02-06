@@ -126,7 +126,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 	return config
 }
 
-func getIID(t *testing.T, ctx context.Context) imds.InstanceIdentityDocument {
+func getIID(ctx context.Context, t *testing.T) imds.InstanceIdentityDocument {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	require.NoError(t, err)
 	imdsClient := imds.NewFromConfig(cfg)
@@ -157,7 +157,7 @@ func TestEC2NodeJoin(t *testing.T) {
 	ctx := context.Background()
 
 	// fetch the IID to create a token which will match this instance
-	iid := getIID(t, ctx)
+	iid := getIID(ctx, t)
 
 	tokenName := "test_token"
 	token, err := types.NewProvisionTokenFromSpec(
