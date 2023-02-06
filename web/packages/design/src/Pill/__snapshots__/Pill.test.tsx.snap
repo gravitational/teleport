@@ -1,0 +1,53 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`design/Pill render the label with dismissable 1`] = `
+HTMLCollection [
+  .c1 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c0 {
+  border-color: rgba(0,0,0,0);
+  background-color: rgba(0,0,0,0);
+  cursor: pointer;
+  display: inline-block;
+}
+
+<button
+    class="c0"
+  >
+    <span
+      class="c1 icon icon-cross "
+      color="light"
+    />
+  </button>,
+]
+`;
+
+exports[`design/Pill renders the label without dismissable 1`] = `
+HTMLCollection [
+  .c1 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c0 {
+  border-color: rgba(0,0,0,0);
+  background-color: rgba(0,0,0,0);
+  cursor: pointer;
+  display: none;
+}
+
+<button
+    class="c0"
+  >
+    <span
+      class="c1 icon icon-cross "
+      color="light"
+    />
+  </button>,
+]
+`;
