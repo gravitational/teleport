@@ -972,8 +972,12 @@
           "slug": "/desktop-access/getting-started/"
         },
         {
-          "title": "Manual Setup",
-          "slug": "/desktop-access/manual-setup/"
+          "title": "Active Directory",
+          "slug": "/desktop-access/active-directory/"
+        },
+        {
+          "title": "Active Directory (Manual)",
+          "slug": "/desktop-access/active-directory-manual/"
         },
         {
           "title": "Access Controls",
