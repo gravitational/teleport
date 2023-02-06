@@ -33,13 +33,13 @@ func TestService_authz(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		checker   *fakeChecker
+		checker   *ruleVerifyingChecker
 		rpc       func() error
 		assertErr func(error) bool
 	}{
 		{
 			name: "BulkCreateDevice",
-			checker: &fakeChecker{
+			checker: &ruleVerifyingChecker{
 				want: []wantRuleVerb{
 					{rule: types.KindDevice, verb: types.VerbCreate},
 				},
@@ -52,7 +52,7 @@ func TestService_authz(t *testing.T) {
 		},
 		{
 			name: "CreateDevice",
-			checker: &fakeChecker{
+			checker: &ruleVerifyingChecker{
 				want: []wantRuleVerb{
 					{rule: types.KindDevice, verb: types.VerbCreate},
 				},
@@ -65,7 +65,7 @@ func TestService_authz(t *testing.T) {
 		},
 		{
 			name: "CreateDevice checks for create_enroll_token",
-			checker: &fakeChecker{
+			checker: &ruleVerifyingChecker{
 				want: []wantRuleVerb{
 					{rule: types.KindDevice, verb: types.VerbCreate},
 					{rule: types.KindDevice, verb: types.VerbCreateEnrollToken},
@@ -81,7 +81,7 @@ func TestService_authz(t *testing.T) {
 		},
 		{
 			name: "CreateDeviceEnrollToken",
-			checker: &fakeChecker{
+			checker: &ruleVerifyingChecker{
 				want: []wantRuleVerb{
 					{rule: types.KindDevice, verb: types.VerbCreateEnrollToken},
 				},
@@ -96,7 +96,7 @@ func TestService_authz(t *testing.T) {
 		},
 		{
 			name: "DeleteDevice",
-			checker: &fakeChecker{
+			checker: &ruleVerifyingChecker{
 				want: []wantRuleVerb{
 					{rule: types.KindDevice, verb: types.VerbDelete},
 				},
@@ -111,7 +111,7 @@ func TestService_authz(t *testing.T) {
 		},
 		{
 			name: "EnrollDevice",
-			checker: &fakeChecker{
+			checker: &ruleVerifyingChecker{
 				want: []wantRuleVerb{
 					{rule: types.KindDevice, verb: types.VerbEnroll},
 				},
@@ -132,7 +132,7 @@ func TestService_authz(t *testing.T) {
 		},
 		{
 			name: "FindDevices",
-			checker: &fakeChecker{
+			checker: &ruleVerifyingChecker{
 				want: []wantRuleVerb{
 					{rule: types.KindDevice, verb: types.VerbList},
 				},
@@ -147,7 +147,7 @@ func TestService_authz(t *testing.T) {
 		},
 		{
 			name: "GetDevice",
-			checker: &fakeChecker{
+			checker: &ruleVerifyingChecker{
 				want: []wantRuleVerb{
 					{rule: types.KindDevice, verb: types.VerbRead},
 				},
@@ -162,7 +162,7 @@ func TestService_authz(t *testing.T) {
 		},
 		{
 			name: "ListDevices",
-			checker: &fakeChecker{
+			checker: &ruleVerifyingChecker{
 				want: []wantRuleVerb{
 					{rule: types.KindDevice, verb: types.VerbList},
 				},
@@ -218,12 +218,12 @@ type wantRuleVerb struct {
 	rule, verb string
 }
 
-type fakeChecker struct {
-	services.AccessChecker
+type ruleVerifyingChecker struct {
+	testenv.NoopChecker
 	want []wantRuleVerb
 }
 
-func (c *fakeChecker) CheckAccessToRule(ruleCtx services.RuleContext, namespace string, rule string, verb string, silent bool) error {
+func (c *ruleVerifyingChecker) CheckAccessToRule(ruleCtx services.RuleContext, namespace string, rule string, verb string, silent bool) error {
 	if namespace != defaults.Namespace {
 		return fmt.Errorf("unexpected namespace: %v", namespace)
 	}
@@ -239,7 +239,7 @@ func (c *fakeChecker) CheckAccessToRule(ruleCtx services.RuleContext, namespace 
 }
 
 // verifyMatches returns an error if any wanted matches are still unfulfilled.
-func (c *fakeChecker) verifyMatches() error {
+func (c *ruleVerifyingChecker) verifyMatches() error {
 	// CheckAccessToRule removes c.want entries on a positive match.
 	// An empty slice means all wanted rules got a match.
 	if len(c.want) == 0 {

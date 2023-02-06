@@ -233,15 +233,30 @@ func (*noopAuthorizer) Authorize(ctx context.Context) (*auth.Context, error) {
 	}
 	return &auth.Context{
 		User:    user,
-		Checker: &noopChecker{},
+		Checker: &NoopChecker{},
 	}, nil
 }
 
-type noopChecker struct {
+// NoopChecker is a [services.AccessChecker] that does nothing for most methods
+// and allows all access.
+// It is the baseline for methods used by the [devicetrustv1.Service].
+type NoopChecker struct {
 	services.AccessChecker
 }
 
-func (*noopChecker) CheckAccessToRule(ruleCtx services.RuleContext, namespace string, rule string, verb string, silent bool) error {
+func (*NoopChecker) HasRole(role string) bool {
+	return false // Don't panic.
+}
+
+func (*NoopChecker) RoleNames() []string {
+	return nil // Don't panic.
+}
+
+func (*NoopChecker) Roles() []types.Role {
+	return nil // Don't panic.
+}
+
+func (*NoopChecker) CheckAccessToRule(ruleCtx services.RuleContext, namespace string, rule string, verb string, silent bool) error {
 	return nil // Anything goes.
 }
 

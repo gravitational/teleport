@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
@@ -385,7 +386,34 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 	}
 }
 
+type fakeRolesChecker struct {
+	testenv.NoopChecker
+	roles []types.Role
+}
+
+func (c *fakeRolesChecker) HasRole(name string) bool {
+	for _, role := range c.roles {
+		if role.GetName() == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *fakeRolesChecker) RoleNames() []string {
+	names := make([]string, len(c.roles))
+	for i, role := range c.roles {
+		names[i] = role.GetName()
+	}
+	return names
+}
+
+func (c *fakeRolesChecker) Roles() []types.Role {
+	return c.roles
+}
+
 func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
+	checker := &fakeRolesChecker{}
 	emitter := &eventstest.MockEmitter{}
 	env := testenv.NewUsingT(
 		t,
@@ -393,6 +421,9 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 			DeviceTrust: &types.DeviceTrust{
 				Mode: constants.DeviceTrustModeOff,
 			},
+		}),
+		testenv.WithAuthorizer(&fakeAuthorizer{
+			Checker: checker,
 		}),
 		testenv.WithEmitter(emitter),
 	)
@@ -420,6 +451,7 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 			return err
 		}
 
+		// 1. Init.
 		if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
 			Payload: &devicepb.AuthenticateDeviceRequest_Init{
 				Init: &devicepb.AuthenticateDeviceInit{
@@ -436,25 +468,129 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 			return err
 		}
 
-		// Expected to fail at this stage.
+		// 2. Challenge.
+		// Authn fails here for mode="off".
+		resp, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+		chalResp := resp.GetChallenge()
+		sig, err := key1.signChallenge(chalResp.GetChallenge())
+		if err != nil {
+			t.Errorf("signChallenge returned err=%v, this is likely unexpected", err)
+			return err
+		}
+		if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
+			Payload: &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
+				ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{
+					Signature: sig,
+				},
+			},
+		}); err != nil {
+			return err
+		}
+
+		// 3. Success.
 		_, err = stream.Recv()
 		return err
 	}
 
-	t.Run("authn not allowed", func(t *testing.T) {
-		err := authenticate()
+	// Define a few roles with reasonable-looking allow rules for the following
+	// tests.
+	// Only the DeviceTrustMode matters for the tests.
+	allowRule := types.RoleConditions{
+		Logins: []string{"llama"},
+		NodeLabels: map[string]utils.Strings{
+			"env": utils.Strings{"dev"},
+		},
+	}
+	var allRoles []types.Role
+	for _, mode := range []string{
+		"", // Empty means "off" for roles.
+		constants.DeviceTrustModeOff,
+		constants.DeviceTrustModeOptional,
+		constants.DeviceTrustModeRequired,
+	} {
+		role, err := types.NewRole(fmt.Sprintf("mode=%v", mode), types.RoleSpecV6{
+			Options: types.RoleOptions{
 
-		// Assert error.
-		if !trace.IsBadParameter(err) {
-			t.Fatalf("AuthenticateDevice returned err = %T, want trace.BadParameterError", err)
+				DeviceTrustMode: mode,
+			},
+			Allow: allowRule,
+		})
+		if err != nil {
+			t.Fatalf("NewRole failed: %v", err)
 		}
-		assert.ErrorContains(t, err, "device trust disabled", "AuthenticateDevice error mismatch")
+		allRoles = append(allRoles, role)
+	}
+	modeEmptyRole := allRoles[0]
+	modeOffRole := allRoles[1]
+	modeOptionalRole := allRoles[2]
+	modeRequiredRole := allRoles[3]
 
-		// Assert no audit noise.
-		if events := emitter.Events(); len(events) > 0 {
-			t.Errorf("AuthenticateDevice issued unexpected audit events: %v, want no events", events)
-		}
-	})
+	tests := []struct {
+		name        string
+		roles       []types.Role
+		wantSuccess bool
+	}{
+		{
+			name:        "authn not allowed by cluster, empty roles",
+			wantSuccess: false,
+		},
+		{
+			name:        "authn not allowed by cluster or roles",
+			roles:       []types.Role{modeEmptyRole, modeOffRole},
+			wantSuccess: false,
+		},
+		{
+			name:        "authn allowed by mode=optional role",
+			roles:       []types.Role{modeEmptyRole, modeOffRole, modeOptionalRole},
+			wantSuccess: true,
+		},
+		{
+			name:        "authn allowed by mode=required role",
+			roles:       []types.Role{modeEmptyRole, modeOffRole, modeRequiredRole},
+			wantSuccess: true,
+		},
+		{
+			name:        "authn allowed by multiple roles",
+			roles:       allRoles,
+			wantSuccess: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			checker.roles = test.roles
+			emitter.Reset()
+
+			// Test!
+			err := authenticate()
+
+			// Success scenario assertions.
+			if test.wantSuccess {
+				if err != nil {
+					t.Errorf("AuthenticateDevice returned err=%v, want nil", err)
+				}
+				// See if issued audit events, but don't test the specifics here - these
+				// are tested elsewhere.
+				if events := emitter.Events(); len(events) == 0 {
+					t.Errorf("AuthenticateDevice issued 0 audit events, want >0")
+				}
+				return
+			}
+
+			// Failure assertions.
+			if !trace.IsBadParameter(err) {
+				t.Fatalf("AuthenticateDevice returned err = %T, want trace.BadParameterError", err)
+			}
+			assert.ErrorContains(t, err, "device trust disabled", "AuthenticateDevice error mismatch")
+
+			// Assert no audit noise.
+			if events := emitter.Events(); len(events) > 0 {
+				t.Errorf("AuthenticateDevice issued unexpected audit events: %v, want no events", events)
+			}
+		})
+	}
 }
 
 func createAndEnroll(ctx context.Context, devices devicepb.DeviceTrustServiceClient, dev *devicepb.Device) (*devicepb.Device, *fakeEnclaveKey, error) {

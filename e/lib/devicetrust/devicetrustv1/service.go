@@ -345,7 +345,22 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if config.GetEffectiveMode(authPref.GetDeviceTrust()) == constants.DeviceTrustModeOff {
+
+	// Is device authn allowed by the cluster mode?
+	authnAllowed := config.GetEffectiveMode(authPref.GetDeviceTrust()) != constants.DeviceTrustModeOff
+
+	// If not, is device authn required by the user's roles?
+	if !authnAllowed {
+		roles := authCtx.Checker.Roles()
+		for _, role := range roles {
+			deviceMode := role.GetOptions().DeviceTrustMode
+			if deviceMode != "" && deviceMode != constants.DeviceTrustModeOff {
+				authnAllowed = true
+				break
+			}
+		}
+	}
+	if !authnAllowed {
 		authnDisabledLogOnce.Do(func() {
 			s.logger.Warn("Device authentication attempted, but device trust is disabled by cluster settings")
 		})
