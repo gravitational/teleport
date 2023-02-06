@@ -53,60 +53,63 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-type testContext struct {
-	hostID      string
-	clusterName string
-	tlsServer   *auth.TestTLSServer
-	authServer  *auth.Server
-	authClient  *auth.Client
-	kubeServer  *TLSServer
-	emitter     *eventstest.ChannelEmitter
+type TestContext struct {
+	HostID      string
+	ClusterName string
+	TLSServer   *auth.TestTLSServer
+	AuthServer  *auth.Server
+	AuthClient  *auth.Client
+	Authz       auth.Authorizer
+	KubeServer  *TLSServer
+	Emitter     *eventstest.ChannelEmitter
+	Context     context.Context
 	listener    net.Listener
-	ctx         context.Context
 	cancel      context.CancelFunc
 }
 
-// kubeClusterConfig defines the cluster to be created
-type kubeClusterConfig struct {
-	name        string
-	apiEndpoint string
+// KubeClusterConfig defines the cluster to be created
+type KubeClusterConfig struct {
+	// Name is the cluster name.
+	Name string
+	// APIEndpoint is the cluster API endpoint.
+	APIEndpoint string
 }
 
-// testConfig defines the suite options.
-type testConfig struct {
-	clusters         []kubeClusterConfig
-	resourceMatchers []services.ResourceMatcher
-	onReconcile      func(types.KubeClusters)
-	onEvent          func(apievents.AuditEvent)
+// TestConfig defines the suite options.
+type TestConfig struct {
+	Clusters         []KubeClusterConfig
+	ResourceMatchers []services.ResourceMatcher
+	OnReconcile      func(types.KubeClusters)
+	OnEvent          func(apievents.AuditEvent)
 }
 
-// setupTestContext creates a kube service with clusters configured.
-func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testContext {
+// SetupTestContext creates a kube service with clusters configured.
+func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestContext {
 	ctx, cancel := context.WithCancel(ctx)
-	testCtx := &testContext{
-		clusterName: "root.example.com",
-		hostID:      uuid.New().String(),
-		ctx:         ctx,
+	testCtx := &TestContext{
+		ClusterName: "root.example.com",
+		HostID:      uuid.New().String(),
+		Context:     ctx,
 		cancel:      cancel,
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
-	kubeConfigLocation := newKubeConfigFile(ctx, t, cfg.clusters...)
+	kubeConfigLocation := newKubeConfigFile(ctx, t, cfg.Clusters...)
 
 	// Create and start test auth server.
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Clock:       clockwork.NewFakeClockAt(time.Now()),
-		ClusterName: testCtx.clusterName,
+		ClusterName: testCtx.ClusterName,
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
-	testCtx.tlsServer, err = authServer.NewTestTLSServer()
+	testCtx.TLSServer, err = authServer.NewTestTLSServer()
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, testCtx.tlsServer.Close()) })
+	t.Cleanup(func() { require.NoError(t, testCtx.TLSServer.Close()) })
 
-	testCtx.authServer = testCtx.tlsServer.Auth()
+	testCtx.AuthServer = testCtx.TLSServer.Auth()
 
 	// Use sync recording to not involve the uploader.
 	recConfig, err := authServer.AuthServer.GetSessionRecordingConfig(ctx)
@@ -118,12 +121,12 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 	require.NoError(t, err)
 
 	// Auth client for Kube service.
-	testCtx.authClient, err = testCtx.tlsServer.NewClient(auth.TestServerID(types.RoleKube, testCtx.hostID))
+	testCtx.AuthClient, err = testCtx.TLSServer.NewClient(auth.TestServerID(types.RoleKube, testCtx.HostID))
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, testCtx.authClient.Close()) })
+	t.Cleanup(func() { require.NoError(t, testCtx.AuthClient.Close()) })
 
 	// Auth client, lock watcher and authorizer for Kube proxy.
-	proxyAuthClient, err := testCtx.tlsServer.NewClient(auth.TestBuiltin(types.RoleProxy))
+	proxyAuthClient, err := testCtx.TLSServer.NewClient(auth.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
 
@@ -137,45 +140,45 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 	t.Cleanup(func() {
 		proxyLockWatcher.Close()
 	})
-	proxyAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
-		ClusterName: testCtx.clusterName,
+	testCtx.Authz, err = auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: testCtx.ClusterName,
 		AccessPoint: proxyAuthClient,
 		LockWatcher: proxyLockWatcher,
 	})
 	require.NoError(t, err)
 
 	// TLS config for kube proxy and Kube service.
-	serverIdentity, err := auth.NewServerIdentity(authServer.AuthServer, testCtx.hostID, types.RoleKube)
+	serverIdentity, err := auth.NewServerIdentity(authServer.AuthServer, testCtx.HostID, types.RoleKube)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
 
 	// Create test audit events emitter.
-	testCtx.emitter = eventstest.NewChannelEmitter(100)
+	testCtx.Emitter = eventstest.NewChannelEmitter(100)
 	go func() {
 		for {
 			select {
-			case evt := <-testCtx.emitter.C():
-				if cfg.onEvent != nil {
-					cfg.onEvent(evt)
+			case evt := <-testCtx.Emitter.C():
+				if cfg.OnEvent != nil {
+					cfg.OnEvent(evt)
 				}
-			case <-testCtx.ctx.Done():
+			case <-testCtx.Context.Done():
 				return
 			}
 		}
 	}()
-	keyGen := keygen.New(testCtx.ctx)
+	keyGen := keygen.New(testCtx.Context)
 
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
-	heartbeatsWaitChannel := make(chan struct{}, len(cfg.clusters)+1)
+	heartbeatsWaitChannel := make(chan struct{}, len(cfg.Clusters)+1)
 
 	// Create kubernetes service server.
-	testCtx.kubeServer, err = NewTLSServer(TLSServerConfig{
+	testCtx.KubeServer, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
 			Namespace:   apidefaults.Namespace,
 			Keygen:      keyGen,
-			ClusterName: testCtx.clusterName,
-			Authz:       proxyAuthorizer,
+			ClusterName: testCtx.ClusterName,
+			Authz:       testCtx.Authz,
 			// fileStreamer continues to write events after the server is shutdown and
 			// races against os.RemoveAll leading the test to fail.
 			// Using "node-sync" mode to write the events and session recordings
@@ -185,11 +188,11 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 			AuthClient: newAuthClientWithStreamer(testCtx),
 			// StreamEmitter is required although not used because we are using
 			// "node-sync" as session recording mode.
-			StreamEmitter:     testCtx.emitter,
+			StreamEmitter:     testCtx.Emitter,
 			DataDir:           t.TempDir(),
-			CachingAuthClient: testCtx.authClient,
-			HostID:            testCtx.hostID,
-			Context:           testCtx.ctx,
+			CachingAuthClient: testCtx.AuthClient,
+			HostID:            testCtx.HostID,
+			Context:           testCtx.Context,
 			KubeconfigPath:    kubeConfigLocation,
 			KubeServiceType:   KubeService,
 			Component:         teleport.ComponentKube,
@@ -202,7 +205,7 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 		},
 		DynamicLabels: nil,
 		TLS:           tlsConfig,
-		AccessPoint:   testCtx.authClient,
+		AccessPoint:   testCtx.AuthClient,
 		LimiterConfig: limiter.Config{
 			MaxConnections:   1000,
 			MaxNumberOfUsers: 1000,
@@ -218,13 +221,13 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 			}
 		},
 		GetRotation:      func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-		ResourceMatchers: cfg.resourceMatchers,
-		OnReconcile:      cfg.onReconcile,
+		ResourceMatchers: cfg.ResourceMatchers,
+		OnReconcile:      cfg.OnReconcile,
 	})
 	require.NoError(t, err)
 
 	// Waits for len(clusters) heartbeats to start
-	waitForHeartbeats := len(cfg.clusters)
+	waitForHeartbeats := len(cfg.Clusters)
 
 	testCtx.startKubeService(t)
 
@@ -236,12 +239,12 @@ func setupTestContext(ctx context.Context, t *testing.T, cfg testConfig) *testCo
 }
 
 // startKubeService starts kube service to handle connections.
-func (c *testContext) startKubeService(t *testing.T) {
+func (c *TestContext) startKubeService(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	c.listener = listener
 	go func() {
-		err := c.kubeServer.Serve(listener)
+		err := c.KubeServer.Serve(listener)
 		// ignore server closed error returned when .Close is called.
 		if errors.Is(err, http.ErrServerClosed) {
 			return
@@ -251,62 +254,62 @@ func (c *testContext) startKubeService(t *testing.T) {
 }
 
 // Close closes resources associated with the test context.
-func (c *testContext) Close() error {
+func (c *TestContext) Close() error {
 	// kubeServer closes the listener
-	err := c.kubeServer.Close()
-	authCErr := c.authClient.Close()
-	authSErr := c.authServer.Close()
+	err := c.KubeServer.Close()
+	authCErr := c.AuthClient.Close()
+	authSErr := c.AuthServer.Close()
 	c.cancel()
 	return trace.NewAggregate(err, authCErr, authSErr)
 }
 
 // KubeServiceAddress returns the address of the kube service
-func (c *testContext) KubeServiceAddress() string {
+func (c *TestContext) KubeServiceAddress() string {
 	return c.listener.Addr().String()
 }
 
-// roleSpec defiens the role name and kube details to be created.
-type roleSpec struct {
-	name           string
-	kubeUsers      []string
-	kubeGroups     []string
-	sessionRequire []*types.SessionRequirePolicy
-	sessionJoin    []*types.SessionJoinPolicy
-	setupRoleFunc  func(types.Role) // If nil all pods are allowed.
+// RoleSpec defiens the role name and kube details to be created.
+type RoleSpec struct {
+	Name           string
+	KubeUsers      []string
+	KubeGroups     []string
+	SessionRequire []*types.SessionRequirePolicy
+	SessionJoin    []*types.SessionJoinPolicy
+	SetupRoleFunc  func(types.Role) // If nil all pods are allowed.
 }
 
-// createUserAndRole creates Teleport user and role with specified names
-func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, username string, roleSpec roleSpec) (types.User, types.Role) {
-	user, role, err := auth.CreateUserAndRole(c.tlsServer.Auth(), username, []string{roleSpec.name})
+// CreateUserAndRole creates Teleport user and role with specified names
+func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, username string, roleSpec RoleSpec) (types.User, types.Role) {
+	user, role, err := auth.CreateUserAndRole(c.TLSServer.Auth(), username, []string{roleSpec.Name})
 	require.NoError(t, err)
-	role.SetKubeUsers(types.Allow, roleSpec.kubeUsers)
-	role.SetKubeGroups(types.Allow, roleSpec.kubeGroups)
-	role.SetSessionRequirePolicies(roleSpec.sessionRequire)
-	role.SetSessionJoinPolicies(roleSpec.sessionJoin)
-	if roleSpec.setupRoleFunc == nil {
+	role.SetKubeUsers(types.Allow, roleSpec.KubeUsers)
+	role.SetKubeGroups(types.Allow, roleSpec.KubeGroups)
+	role.SetSessionRequirePolicies(roleSpec.SessionRequire)
+	role.SetSessionJoinPolicies(roleSpec.SessionJoin)
+	if roleSpec.SetupRoleFunc == nil {
 		role.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard}})
 	} else {
-		roleSpec.setupRoleFunc(role)
+		roleSpec.SetupRoleFunc(role)
 	}
-	err = c.tlsServer.Auth().UpsertRole(ctx, role)
+	err = c.TLSServer.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	return user, role
 }
 
-func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...kubeClusterConfig) string {
+func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...KubeClusterConfig) string {
 	tmpDir := t.TempDir()
 
 	kubeConf := clientcmdapi.NewConfig()
 	for _, cluster := range clusters {
-		kubeConf.Clusters[cluster.name] = &clientcmdapi.Cluster{
-			Server:                cluster.apiEndpoint,
+		kubeConf.Clusters[cluster.Name] = &clientcmdapi.Cluster{
+			Server:                cluster.APIEndpoint,
 			InsecureSkipTLSVerify: true,
 		}
-		kubeConf.AuthInfos[cluster.name] = &clientcmdapi.AuthInfo{}
+		kubeConf.AuthInfos[cluster.Name] = &clientcmdapi.AuthInfo{}
 
-		kubeConf.Contexts[cluster.name] = &clientcmdapi.Context{
-			Cluster:  cluster.name,
-			AuthInfo: cluster.name,
+		kubeConf.Contexts[cluster.Name] = &clientcmdapi.Context{
+			Cluster:  cluster.Name,
+			AuthInfo: cluster.Name,
 		}
 	}
 	kubeConfigLocation := filepath.Join(tmpDir, "kubeconfig")
@@ -315,9 +318,9 @@ func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...kubeCluste
 	return kubeConfigLocation
 }
 
-// genTestKubeClientTLSCert generates a kube client to access kube service
-func (c *testContext) genTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string) (*kubernetes.Clientset, *rest.Config) {
-	authServer := c.authServer
+// GenTestKubeClientTLSCert generates a kube client to access kube service
+func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string) (*kubernetes.Clientset, *rest.Config) {
+	authServer := c.AuthServer
 	clusterName, err := authServer.GetClusterName()
 	require.NoError(t, err)
 
@@ -330,13 +333,13 @@ func (c *testContext) genTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 
 	ttl := roles.AdjustSessionTTL(10 * time.Minute)
 
-	ca, err := authServer.GetCertAuthority(c.ctx, types.CertAuthID{
+	ca, err := authServer.GetCertAuthority(c.Context, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	require.NoError(t, err)
 
-	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(c.ctx, ca)
+	caCert, signer, err := authServer.GetKeyStore().GetTLSCertAndSigner(c.Context, ca)
 	require.NoError(t, err)
 
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
@@ -354,7 +357,7 @@ func (c *testContext) genTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 		KubernetesUsers:   user.GetKubeUsers(),
 		KubernetesGroups:  user.GetKubeGroups(),
 		KubernetesCluster: kubeCluster,
-		RouteToCluster:    c.clusterName,
+		RouteToCluster:    c.ClusterName,
 	}
 	subj, err := id.Subject()
 	require.NoError(t, err)
@@ -384,7 +387,8 @@ func (c *testContext) genTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 	return client, restConfig
 }
 
-func (c *testContext) newJoiningSession(cfg *rest.Config, sessionID string, mode types.SessionParticipantMode) (*streamproto.SessionStream, error) {
+// NewJoiningSession creates a new session stream for joining an existing session.
+func (c *TestContext) NewJoiningSession(cfg *rest.Config, sessionID string, mode types.SessionParticipantMode) (*streamproto.SessionStream, error) {
 	ws, err := newWebSocketClient(cfg, http.MethodPost, &url.URL{
 		Scheme: "wss",
 		Host:   c.KubeServiceAddress(),
@@ -411,8 +415,8 @@ type authClientWithStreamer struct {
 }
 
 // newAuthClientWithStreamer creates a new authClient wrapper.
-func newAuthClientWithStreamer(testCtx *testContext) *authClientWithStreamer {
-	return &authClientWithStreamer{Client: testCtx.authClient, streamer: events.NewTeeStreamer(testCtx.authClient, testCtx.emitter)}
+func newAuthClientWithStreamer(testCtx *TestContext) *authClientWithStreamer {
+	return &authClientWithStreamer{Client: testCtx.AuthClient, streamer: events.NewTeeStreamer(testCtx.AuthClient, testCtx.Emitter)}
 }
 
 func (a *authClientWithStreamer) CreateAuditStream(ctx context.Context, sID sessPkg.ID) (apievents.Stream, error) {

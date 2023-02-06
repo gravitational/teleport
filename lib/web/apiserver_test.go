@@ -6149,7 +6149,7 @@ func TestCreateDatabase(t *testing.T) {
 	}
 }
 
-func TestUpdateDatabase(t *testing.T) {
+func TestUpdateDatabase_Errors(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -6188,17 +6188,9 @@ func TestUpdateDatabase(t *testing.T) {
 		errAssert      require.ErrorAssertionFunc
 	}{
 		{
-			name: "valid",
-			req: updateDatabaseRequest{
-				CACert: fakeValidTLSCert,
-			},
-			expectedStatus: http.StatusOK,
-			errAssert:      require.NoError,
-		},
-		{
 			name: "empty ca_cert",
 			req: updateDatabaseRequest{
-				CACert: "",
+				CACert: strPtr(""),
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
@@ -6208,30 +6200,206 @@ func TestUpdateDatabase(t *testing.T) {
 		{
 			name: "invalid certificate",
 			req: updateDatabaseRequest{
-				CACert: "Not a certificate",
+				CACert: strPtr("Not a certificate"),
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, "could not parse provided CA as X.509 PEM certificate")
 			},
 		},
+
+		{
+			name: "invalid awsRDS missing resourceID field",
+			req: updateDatabaseRequest{
+				AWSRDS: &awsRDS{
+					AccountID: "123123123123",
+				},
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "missing aws rds field resource id")
+			},
+		},
+		{
+			name: "invalid awsRDS missing accountID field",
+			req: updateDatabaseRequest{
+				AWSRDS: &awsRDS{
+					ResourceID: "123123123123",
+				},
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "missing aws rds field account id")
+			},
+		},
+		{
+			name:           "no fields defined",
+			req:            updateDatabaseRequest{},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "missing fields to update the database")
+			},
+		},
 	} {
-		// Update database's CA Cert
-		updateDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases", databaseName)
-		resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
-		tt.errAssert(t, err)
+		t.Run(tt.name, func(t *testing.T) {
+			// Update database's CA Cert
+			updateDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases", databaseName)
+			resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
+			tt.errAssert(t, err)
 
-		require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+			require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+		})
+	}
+}
 
-		if err != nil {
-			continue
-		}
+func TestUpdateDatabase_NonErrors(t *testing.T) {
+	t.Parallel()
 
-		// Ensure database was updated
-		database, err := env.proxies[0].client.GetDatabase(ctx, databaseName)
-		require.NoError(t, err)
+	ctx := context.Background()
+	databaseName := "somedb"
+	username := "someuser"
+	roleCreateUpdateDatabase, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindDatabase,
+					[]string{types.VerbCreate, types.VerbUpdate, types.VerbRead}),
+			},
+			DatabaseLabels: types.Labels{
+				types.Wildcard: {types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
 
-		require.Equal(t, database.GetCA(), fakeValidTLSCert)
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+	pack := env.proxies[0].authPack(t, username, []types.Role{roleCreateUpdateDatabase})
+
+	// Create a database.
+	dbProtocol := "mysql"
+	database, err := getNewDatabaseResource(createDatabaseRequest{
+		Name:     databaseName,
+		Protocol: dbProtocol,
+		URI:      "someuri:3306",
+	})
+	require.NoError(t, err)
+	require.NoError(t, env.server.Auth().CreateDatabase(ctx, database))
+
+	requiredOriginLabel := ui.Label{Name: types.OriginLabel, Value: types.OriginDynamic}
+
+	// Each test case builds on top of each other.
+	for _, tt := range []struct {
+		name           string
+		req            updateDatabaseRequest
+		expectedFields ui.Database
+		expectedAWSRDS awsRDS
+	}{
+		{
+			name: "update caCert",
+			req: updateDatabaseRequest{
+				CACert: &fakeValidTLSCert,
+			},
+			expectedFields: ui.Database{
+				Name:     databaseName,
+				Protocol: dbProtocol,
+				Type:     "self-hosted",
+				Hostname: "someuri",
+				Labels:   []ui.Label{requiredOriginLabel},
+			},
+		},
+		{
+			name: "update URI",
+			req: updateDatabaseRequest{
+				URI: "something-else:3306",
+			},
+			expectedFields: ui.Database{
+				Name:     databaseName,
+				Protocol: dbProtocol,
+				Type:     "self-hosted",
+				Hostname: "something-else",
+				Labels:   []ui.Label{requiredOriginLabel},
+			},
+		},
+		{
+			name: "update aws rds fields",
+			req: updateDatabaseRequest{
+				URI: "llama.cgi8.us-west-2.rds.amazonaws.com:3306",
+				AWSRDS: &awsRDS{
+					AccountID:  "123123123123",
+					ResourceID: "db-1234",
+				},
+			},
+			expectedAWSRDS: awsRDS{
+				AccountID:  "123123123123",
+				ResourceID: "db-1234",
+			},
+			expectedFields: ui.Database{
+				Name:     databaseName,
+				Protocol: dbProtocol,
+				Type:     "rds",
+				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
+				Labels:   []ui.Label{requiredOriginLabel},
+			},
+		},
+		{
+			name: "update labels",
+			req: updateDatabaseRequest{
+				Labels: []ui.Label{{Name: "env", Value: "prod"}},
+			},
+			expectedAWSRDS: awsRDS{
+				AccountID:  "123123123123",
+				ResourceID: "db-1234",
+			},
+			expectedFields: ui.Database{
+				Name:     databaseName,
+				Protocol: dbProtocol,
+				Type:     "rds",
+				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
+				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
+			},
+		},
+		{
+			name: "update multiple fields",
+			req: updateDatabaseRequest{
+				URI: "alpaca.cgi8.us-east-1.rds.amazonaws.com:3306",
+				AWSRDS: &awsRDS{
+					AccountID:  "000000000000",
+					ResourceID: "db-0000",
+				},
+			},
+			expectedAWSRDS: awsRDS{
+				AccountID:  "000000000000",
+				ResourceID: "db-0000",
+			},
+			expectedFields: ui.Database{
+				Name:     databaseName,
+				Protocol: dbProtocol,
+				Type:     "rds",
+				Hostname: "alpaca.cgi8.us-east-1.rds.amazonaws.com",
+				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			updateDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases", databaseName)
+			resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
+			require.NoError(t, err)
+			var dbResp ui.Database
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &dbResp))
+			require.Equal(t, tt.expectedFields, dbResp)
+
+			// Ensure database was updated
+			database, err := env.proxies[0].client.GetDatabase(ctx, databaseName)
+			require.NoError(t, err)
+
+			require.Equal(t, database.GetCA(), fakeValidTLSCert) // should not have changed
+			require.Equal(t, database.GetType(), tt.expectedFields.Type)
+			require.Equal(t, database.GetProtocol(), tt.expectedFields.Protocol)
+			require.Equal(t, database.GetURI(), fmt.Sprintf("%s:3306", tt.expectedFields.Hostname))
+
+			require.Equal(t, database.GetAWS().AccountID, tt.expectedAWSRDS.AccountID)
+			require.Equal(t, database.GetAWS().RDS.ResourceID, tt.expectedAWSRDS.ResourceID)
+		})
 	}
 }
 

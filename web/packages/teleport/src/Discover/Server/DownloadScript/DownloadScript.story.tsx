@@ -17,17 +17,12 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { ContextProvider, Context as TeleportContext } from 'teleport';
+import { Context as TeleportContext, ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import {
-  clearCachedJoinTokenResult,
-  JoinTokenProvider,
-} from 'teleport/Discover/Shared/JoinTokenContext';
+import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { userContext } from 'teleport/Main/fixtures';
 import { ResourceKind } from 'teleport/Discover/Shared';
-import { DiscoverProvider } from 'teleport/Discover/useDiscover';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 
 import DownloadScript from './DownloadScript';
 
@@ -39,7 +34,7 @@ export default {
     Story => {
       // Reset request handlers added in individual stories.
       worker.resetHandlers();
-      clearCachedJoinTokenResult();
+      clearCachedJoinTokenResult(ResourceKind.Server);
       return <Story />;
     },
   ],
@@ -126,19 +121,12 @@ const Provider = props => {
       ]}
     >
       <ContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={[]}>
-          <DiscoverProvider>
-            <JoinTokenProvider timeout={props.timeout || 100000}>
-              <PingTeleportProvider
-                timeout={props.timeout || 100000}
-                interval={props.interval || 100000}
-                resourceKind={ResourceKind.Server}
-              >
-                {props.children}
-              </PingTeleportProvider>
-            </JoinTokenProvider>
-          </DiscoverProvider>
-        </FeaturesContextProvider>
+        <PingTeleportProvider
+          interval={props.interval || 100000}
+          resourceKind={ResourceKind.Server}
+        >
+          {props.children}
+        </PingTeleportProvider>
       </ContextProvider>
     </MemoryRouter>
   );
