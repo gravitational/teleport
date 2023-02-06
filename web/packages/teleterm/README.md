@@ -48,7 +48,7 @@ Prepare Webapps repo
 $ git clone https://github.com/gravitational/webapps.git
 $ cd webapps
 $ yarn install
-$ CONNECT_TSH_BIN_PATH=$PWD/../teleport/build/tsh yarn build-and-package-term
+$ yarn build-term && CONNECT_TSH_BIN_PATH=$PWD/../teleport/build/tsh yarn package-term
 ```
 
 The installable file can be found in `/webapps/packages/teleterm/build/release/`
@@ -103,8 +103,7 @@ Resulting files can be found in `sharedProcess/api/protogen`.
 
 ## Build process
 
-`yarn package-term` is ran as a part of `yarn build-and-package-term` and is responsible for
-packaging the app code for distribution.
+`yarn package-term` is responsible for packaging the app code for distribution.
 
 On all platforms, with the exception of production builds on macOS, the `CONNECT_TSH_BIN_PATH` env
 var is used to provide the path to the tsh binary that will be included in the package.
@@ -130,7 +129,7 @@ To make a fully-fledged build on macOS with Touch ID support, you need two thing
 - a signed version of tsh.app
 - an Apple Developer ID certificate in your Keychain
 
-When running `yarn build-and-package-term`, you need to provide these environment variables:
+When running `yarn package-term`, you need to provide these environment variables:
 
 - `APPLE_USERNAME`
 - `APPLE_PASSWORD`
