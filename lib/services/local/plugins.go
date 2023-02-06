@@ -53,10 +53,6 @@ func (s *PluginsService) CreatePlugin(ctx context.Context, req *proto.CreatePlug
 
 	// TODO: exchange initial credentials for live credentials
 
-	if err := plugin.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
 	value, err := services.MarshalPlugin(plugin)
 	if err != nil {
 		return trace.Wrap(err)
@@ -175,10 +171,6 @@ func (s *PluginsService) update(ctx context.Context, name string, modify func(ty
 
 	err = modify(newPlugin)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := newPlugin.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
