@@ -6,7 +6,7 @@ description: How the Teleport Kubernetes Service applies RBAC to manage access t
 This guide explains the way the Teleport Kubernetes Service applies role-based
 access controls when a Teleport user interacts with a Kubernetes cluster. The
 Kubernetes Service intercepts requests to a Kubernetes API server and modifies
-each request depending on the user's Teleport roles. 
+each request depending on the user's Teleport roles.
 
 In this guide, we will show you how to configure the fields available in a
 Teleport role to manage access to Kubernetes clusters you have connected to
@@ -19,7 +19,7 @@ guide](./manage-access/rbac.mdx).
 ## Role fields for managing Kubernetes access
 
 In this section, we will explain the fields within a Teleport role that
-configure access to Kubernetes clusters. 
+configure access to Kubernetes clusters.
 
 To manage access to Kubernetes clusters, a Teleport role must include the
 following fields in the `spec.allow` section:
@@ -96,7 +96,7 @@ spec:
 Otherwise, the Kubernetes Service checks whether all of the keys in
 `kubernetes_labels` match the keys corresponding to a registered Kubernetes
 cluster. If they do not, there is no matching Kubernetes cluster, and the
-Kubernetes Service denies the request. 
+Kubernetes Service denies the request.
 
 For example, a cluster with labels that include the `environment` key but not
 the `region` key would not match the `kubernetes_labels` field in the
@@ -105,7 +105,7 @@ the `region` key would not match the `kubernetes_labels` field in the
 The Kubernetes Service then retrieves the values of the Kubernetes cluster
 labels with the keys in `kubernetes_labels`. The value of each key in
 `kubernetes_labels` *must* match the value of a Kubernetes cluster's label
-before the Kubernetes Service lets a user access the cluster. 
+before the Kubernetes Service lets a user access the cluster.
 
 For example, the `kube-access` role above allows a user to access Kubernetes
 clusters with the `region` key and any value. It restricts the user to
@@ -127,7 +127,7 @@ Kubernetes Service will treat it as a regular expression using Go's `re2` syntax
 (see the `re2` [README](https://github.com/google/re2/wiki/Syntax)).
 
 Otherwise, the Kubernetes Service evaluates wildcards within the value, matching
-them to any sequence of characters in a label. 
+them to any sequence of characters in a label.
 
 Here is an example:
 
@@ -179,7 +179,7 @@ to do this depends on how you have launched the service:
   </TabItem>
 
   <TabItem label="Config">
-  Setl labels when enabling the Teleport Kubernetes Service in a `teleport`
+  Set labels when enabling the Teleport Kubernetes Service in a `teleport`
   instance's configuration file:
 
     ```yaml
@@ -249,7 +249,7 @@ user's roles.
 
 If a user has exactly one value in `kubernetes_users`, the Teleport Kubernetes
 Service impersonates that user. If there are no values in `kubernetes_users`,
-the Kubernetes Service uses the user's Teleport username. 
+the Kubernetes Service uses the user's Teleport username.
 
 The Kubernetes Service will deny a request if a user has multiple
 `kubernetes_users` and has not specified one when authenticating to a cluster
@@ -328,7 +328,7 @@ subjects:
 You can specify Kubernetes groups and users for each Teleport user individually,
 rather than hardcoding this information into your Teleport roles. To do so, you
 can add template variables to Teleport your roles, and the Teleport Auth Service
-will populate them with information from each authenticating user. 
+will populate them with information from each authenticating user.
 
 ##### Single Sign-On provider traits
 
@@ -396,7 +396,7 @@ version: v2
 metadata:
   name: alice
 spec:
-  roles: 
+  roles:
     - group-member
   traits:
     groups:
@@ -436,7 +436,7 @@ fields:
   In the `kube-access` role, we are allowing access to a pod in the
   `production` namespace.
 - `name`: The name of the pod to allow access to. In `kube-access`, this is
-  the `webapp` pod. 
+  the `webapp` pod.
 
 For both the `namespace` and `name` fields, you can add a wildcard character
 (`*`) to replace any sequence of characters. For example, `name: "pod-*-*"`
@@ -457,7 +457,7 @@ the appropriate API server.
 ### Authorizing user requests
 
 When the Teleport Kubernetes Service receives a request, it evaluates two fields
-within the user's roles. If one of these fields does not allow the user to
+within the user's roles. If either of these fields does not allow the user to
 perform the request, the Kubernetes Service returns an error to the user:
 
 #### `kubernetes_labels`
@@ -494,7 +494,7 @@ request against a Kubernetes cluster and (if applicable) a particular resource,
 it assembles a request to the upstream API server. It adds impersonation headers
 to the request based on the `kubernetes_groups` and `kubernetes_users` fields in
 the user's role (see the [discussion of these
-fields](#kubernetes_groups_and_kubernetes_users) earlier).
+fields](#kubernetes_groups-and-kubernetes_users) earlier).
 
 Because the Teleport Kubernetes Service accesses the upstream API server via the
 RBAC principals listed in the Teleport user's `kubernetes_groups` and
@@ -511,7 +511,7 @@ Before evaluating a user's request to a Kubernetes API server, the Teleport
 Kubernetes Service checks each of the user's roles. If one role's
 `spec.allow.kubernetes_labels` or `spec.allow.kubernetes_resources` conditions
 do not match the user's request, the Kubernetes Service checks the next role,
-and so on. 
+and so on.
 
 If the Kubernetes Service finds a role with a `spec.allow` condition that
 matches all of the cluster's labels and the request's resources, it looks up the
@@ -651,7 +651,7 @@ spec:
 In this case, the `kube-viewer` role maps a user to the Kubernetes `viewer`
 group, which allows a user to get and list pods but not execute commands and
 retrieve logs. With the `nginx-exec` role, the user can access the `execAndLogs`
-group, which can execute commands and retrieve logs, but only `nginx` on pods. 
+group, which can execute commands and retrieve logs, but only on `nginx` pods.
 
 In this setup, you could also combine the `kube-viewer` role with other roles
 that grant elevated access to subsets of pods, depending on the requirements of
@@ -715,7 +715,7 @@ spec:
 Since the `kube-access-2` role maps the user to `system:masters`, when the
 Kubernetes Service forwards a request from this user, it will fetch all pods
 from the Kubernetes cluster by adding the `system:masters` group to the
-request's impersonation headers. 
+request's impersonation headers.
 
 However, since the user also has a role (`kube-access-1`) that allows access to
 all pods in all namespaces, the Kubernetes Service will not filter the pods it
@@ -727,7 +727,7 @@ the `webapp` pod in the `default` namespace.
 
 If you have namespace restrictions in your Teleport RBAC, you should
 make sure that the same namespace restrictions exist in the Kubernetes RBAC
-resources you map to your Teleport users. 
+resources you map to your Teleport users.
 
 For example, you should rewrite the `kube-access-1` role to have the following
 permissions, restricting the user to pods in the `default` namespace:
