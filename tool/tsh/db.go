@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -400,17 +402,11 @@ func onDatabaseEnv(cf *CLIConf) error {
 	}
 
 	if !dbprofile.IsSupported(*database) {
-		return trace.BadParameter(dbCmdUnsupportedDBProtocol,
-			cf.CommandWithBinary(),
-			defaults.ReadableDatabaseProtocol(database.Protocol),
-		)
+		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, database))
 	}
-	// MySQL requires ALPN local proxy in signle port mode.
+	// MySQL requires ALPN local proxy in single port mode.
 	if tc.TLSRoutingEnabled && database.Protocol == defaults.ProtocolMySQL {
-		return trace.BadParameter(dbCmdUnsupportedTLSRouting,
-			cf.CommandWithBinary(),
-			defaults.ReadableDatabaseProtocol(database.Protocol),
-		)
+		return trace.BadParameter(formatDbCmdUnsupportedTLSRouting(cf, database))
 	}
 
 	env, err := dbprofile.Env(tc, *database)
@@ -466,18 +462,12 @@ func onDatabaseConfig(cf *CLIConf) error {
 	// "tsh db config" prints out instructions for native clients to connect to
 	// the remote proxy directly. Return errors here when direct connection
 	// does NOT work (e.g. when ALPN local proxy is required).
-	if isLocalProxyAlwaysRequired(database.Protocol) {
-		return trace.BadParameter(dbCmdUnsupportedDBProtocol,
-			cf.CommandWithBinary(),
-			defaults.ReadableDatabaseProtocol(database.Protocol),
-		)
+	if isLocalProxyAlwaysRequired(tc, database.Protocol) {
+		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, database))
 	}
-	// MySQL requires ALPN local proxy in signle port mode.
+	// MySQL requires ALPN local proxy in single port mode.
 	if tc.TLSRoutingEnabled && database.Protocol == defaults.ProtocolMySQL {
-		return trace.BadParameter(dbCmdUnsupportedTLSRouting,
-			cf.CommandWithBinary(),
-			defaults.ReadableDatabaseProtocol(database.Protocol),
-		)
+		return trace.BadParameter(formatDbCmdUnsupportedTLSRouting(cf, database))
 	}
 
 	host, port := tc.DatabaseProxyHostPort(*database)
@@ -558,13 +548,18 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf, tc *client.TeleportC
 		return []dbcmd.ConnectCommandFunc{}, nil
 	}
 
-	// Some protocols (Snowflake, Elasticsearch) only works in the local tunnel mode.
+	// Some protocols (Snowflake) only work in the local tunnel mode.
+	// ElasticSearch can work without the --tunnel flag, but not via `tsh db connect`.
 	localProxyTunnel := cf.LocalProxyTunnel
-	if db.Protocol == defaults.ProtocolSnowflake || db.Protocol == defaults.ProtocolElasticsearch {
+	if requiresLocalProxyTunnel(tc, db.Protocol) || db.Protocol == defaults.ProtocolElasticsearch {
 		localProxyTunnel = true
 	}
 
-	log.Debugf("Starting local proxy")
+	if localProxyTunnel {
+		log.Debug("Starting local proxy tunnel")
+	} else {
+		log.Debug("Starting local proxy")
+	}
 
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
@@ -1061,12 +1056,16 @@ func formatDatabaseConfigCommand(clusterFlag string, db tlsca.RouteToDatabase) s
 // shouldUseLocalProxyForDatabase returns true if the ALPN local proxy should
 // be used for connecting to the provided database.
 func shouldUseLocalProxyForDatabase(tc *client.TeleportClient, db *tlsca.RouteToDatabase) bool {
-	return tc.TLSRoutingEnabled || isLocalProxyAlwaysRequired(db.Protocol)
+	return tc.TLSRoutingEnabled || isLocalProxyAlwaysRequired(tc, db.Protocol)
 }
 
 // isLocalProxyAlwaysRequired returns true for protocols that always requires
 // an ALPN local proxy.
-func isLocalProxyAlwaysRequired(protocol string) bool {
+func isLocalProxyAlwaysRequired(tc *client.TeleportClient, protocol string) bool {
+	switch tc.PrivateKeyPolicy {
+	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
+		return true
+	}
 	switch protocol {
 	case defaults.ProtocolSQLServer,
 		defaults.ProtocolSnowflake,
@@ -1075,6 +1074,42 @@ func isLocalProxyAlwaysRequired(protocol string) bool {
 	default:
 		return false
 	}
+}
+
+// formatDbCmdUnsupportedWithCondition is a helper func that formats a generic unsupported DB error message.
+// The condition argument is optional and can be "", but otherwise it should be a specific condition for which this DB subcommand
+// is not supported, e.g. "when TLS routing is enabled" or "without using the --tunnel flag".
+func formatDbCmdUnsupportedWithCondition(cf *CLIConf, database *tlsca.RouteToDatabase, condition string) string {
+	templateData := map[string]any{
+		"command":      cf.CommandWithBinary(),
+		"protocol":     defaults.ReadableDatabaseProtocol(database.Protocol),
+		"alternatives": getDbCmdAlternatives(cf.SiteName, database),
+		"condition":    condition,
+	}
+
+	buf := bytes.NewBuffer(nil)
+	_ = dbCmdUnsupportedTemplate.Execute(buf, templateData)
+	return buf.String()
+}
+
+// formatDbCmdUnsupportedDBProtocol is a helper func that formats the unsupported DB protocol error message unconditionally.
+func formatDbCmdUnsupportedDBProtocol(cf *CLIConf, database *tlsca.RouteToDatabase) string {
+	return formatDbCmdUnsupportedWithCondition(cf, database, "")
+}
+
+// formatDbCmdUnsupportedTLSRouting is a helper func that formats an unsupported DB Protocol error with a TLS routing condition.
+func formatDbCmdUnsupportedTLSRouting(cf *CLIConf, database *tlsca.RouteToDatabase) string {
+	return formatDbCmdUnsupportedWithCondition(cf, database, "when TLS routing is enabled on the Teleport Proxy Service")
+}
+
+// getDbCmdAlternatives is a helper func that returns alternative tsh commands for connecting to a database.
+func getDbCmdAlternatives(clusterFlag string, database *tlsca.RouteToDatabase) []string {
+	var alts []string
+	// prefer displaying the connect command as the first suggested command alternative.
+	alts = append(alts, formatDatabaseConnectCommand(clusterFlag, *database))
+	// all db protocols support this command.
+	alts = append(alts, formatDatabaseProxyCommand(clusterFlag, *database))
+	return alts
 }
 
 const (
@@ -1088,36 +1123,40 @@ const (
 	dbFormatYAML = "yaml"
 )
 
-const (
-	// dbCmdUnsupportedTLSRouting is the error message printed when some
-	// database subcommands are not supported because TLS routing is enabled.
-	dbCmdUnsupportedTLSRouting = `"%v" is not supported for %v databases when TLS routing is enabled on the Teleport Proxy Service.
-
-Please use "tsh db connect" or "tsh proxy db" to connect to the database.`
-
-	// dbCmdUnsupportedDBProtocol is the error message printed when some
-	// database subcommands are run against unsupported database protocols.
-	dbCmdUnsupportedDBProtocol = `"%v" is not supported for %v databases.
-
-Please use "tsh db connect" or "tsh proxy db" to connect to the database.`
+var (
+	// dbCmdUnsupportedTemplate is the error message printed when some
+	// database subcommands are not supported.
+	dbCmdUnsupportedTemplate = template.Must(template.New("").Parse(`"{{.command}}" is not supported for {{.protocol}} databases{{if .condition}} {{.condition}}{{end}}.
+{{if eq (len .alternatives) 1}}
+Please use the following command to connect to the database:
+    {{index .alternatives 0 -}}{{else}}
+Please use one of the following commands to connect to the database:
+	{{- range .alternatives}}
+    {{.}}{{end -}}
+{{- end}}`))
 )
 
 var (
 	// dbConnectTemplate is the message printed after a successful "tsh db login" on how to connect.
 	dbConnectTemplate = template.Must(template.New("").Parse(`Connection information for database "{{ .name }}" has been saved.
 
+{{if .connectCommand -}}
+
 You can now connect to it using the following command:
 
   {{.connectCommand}}
 
+{{end -}}
 {{if .configCommand -}}
-Or view the connect command for the native database CLI client:
+
+You can view the connect command for the native database CLI client:
 
   {{ .configCommand }}
 
 {{end -}}
 {{if .proxyCommand -}}
-Or start a local proxy for database GUI clients:
+
+You can start a local proxy for database GUI clients:
 
   {{ .proxyCommand }}
 
