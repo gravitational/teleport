@@ -118,8 +118,6 @@ message Event {
     types.InstallerV1 Installer = 34 [(gogoproto.jsontag) = "installer,omitempty"];
     // DatabaseService is a DatabaseService resource
     types.DatabaseServiceV1 DatabaseService = 35 [(gogoproto.jsontag) = "database_service,omitempty"];
-    // Plugin is a plugin resource
-    types.PluginV1 Plugin = 36 [(gogoproto.jsontag) = "plugin,omitempty"];
   }
 }
 
@@ -2031,32 +2029,6 @@ message GetLicenseRequest {
 // GetLicenseEvent is used to submit an external usage event.
 message ListReleasesRequest {
   // ListReleases currently takes no params
-}
-
-// CreatePluginRequest creates a new plugin from the given spec and initial credentials.
-message CreatePluginRequest {
-  // Plugin is the plugin object without live credentials.
-  types.PluginV1 Plugin = 1 [(gogoproto.jsontag) = "plugin"];
-  // InitialCredentials are the initial credentials of the plugin.
-  // In the scope of processing this request, these are exchanged for
-  // "live" credentials, which are stored in the Plugin.
-  types.PluginInitialCredentialsV1 InitialCredentials = 2 [(gogoproto.jsontag) = "initial_credentials"];
-}
-
-// SetPluginCredentialsRequest is a request to set credentials for an existing plugin
-message SetPluginCredentialsRequest {
-  // Name is the name of the plugin instance.
-  string Name = 1 [(gogoproto.jsontag) = "name"];
-  // Credentials are the live plugin credentials.
-  types.PluginCredentialsV1 Credentials = 2 [(gogoproto.jsontag) = "credentials"];
-}
-
-// SetPluginStatusRequest is a request to set the status for an existing plugin
-message SetPluginStatusRequest {
-  // Name is the name of the plugin instance.
-  string Name = 1 [(gogoproto.jsontag) = "name"];
-  // Status is the plugin status.
-  types.PluginStatusV1 Status = 2 [(gogoproto.jsontag) = "status"];
 }
 
 // AuthService is authentication/authorization service implementation

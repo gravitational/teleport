@@ -22,7 +22,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/trace"
@@ -64,9 +63,9 @@ func TestPluginsCRUD(t *testing.T) {
 	require.Equal(t, 0, len(out))
 
 	// Create both plugins.
-	err = service.CreatePlugin(ctx, &proto.CreatePluginRequest{Plugin: plugin1})
+	err = service.CreatePlugin(ctx, plugin1)
 	require.NoError(t, err)
-	err = service.CreatePlugin(ctx, &proto.CreatePluginRequest{Plugin: plugin2})
+	err = service.CreatePlugin(ctx, plugin2)
 	require.NoError(t, err)
 
 	// Fetch all plugins.
@@ -88,7 +87,7 @@ func TestPluginsCRUD(t *testing.T) {
 	require.IsType(t, trace.NotFound(""), err)
 
 	// Try to create a duplicate plugin.
-	err = service.CreatePlugin(ctx, &proto.CreatePluginRequest{Plugin: plugin1})
+	err = service.CreatePlugin(ctx, plugin1)
 	require.IsType(t, trace.AlreadyExists(""), err)
 
 	// Set plugin status.
