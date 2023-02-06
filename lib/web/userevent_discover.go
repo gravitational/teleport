@@ -30,6 +30,10 @@ type DiscoverEventData struct {
 	// Example: "DISCOVER_RESOURCE_SERVER"
 	Resource string `json:"resource,omitempty"`
 
+	// AutoDiscoverResourcesCount is the number of auto-discovered resources in the Auto Discovering resources screen.
+	// This value is only considered for the 'tp.ui.discover.autoDiscoveredResources'.
+	AutoDiscoverResourcesCount int `json:"autoDiscoverResourcesCount,omitempty"`
+
 	// StepStatus is the Wizard step status result.
 	// Its possible values are the usageevents.DiscoverStepStatus proto enum values.
 	// Example: "DISCOVER_STATUS_SUCCESS"
@@ -86,6 +90,98 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*v1.UsageEventOneOf,
 				Status:   status,
 			},
 		}}, nil
+
+	case uiDiscoverDeployServiceEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
+			UiDiscoverDeployServiceEvent: &v1.UIDiscoverDeployServiceEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
+	case uiDiscoverDatabaseRegisterEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverDatabaseRegisterEvent{
+			UiDiscoverDatabaseRegisterEvent: &v1.UIDiscoverDatabaseRegisterEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
+	case uiDiscoverDatabaseConfigureMTLSEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverDatabaseConfigureMtlsEvent{
+			UiDiscoverDatabaseConfigureMtlsEvent: &v1.UIDiscoverDatabaseConfigureMTLSEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
+	case uiDiscoverDesktopActiveDirectoryToolsInstallEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryToolsInstallEvent{
+			UiDiscoverDesktopActiveDirectoryToolsInstallEvent: &v1.UIDiscoverDesktopActiveDirectoryToolsInstallEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
+	case uiDiscoverDesktopActiveDirectoryConfigureEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryConfigureEvent{
+			UiDiscoverDesktopActiveDirectoryConfigureEvent: &v1.UIDiscoverDesktopActiveDirectoryConfigureEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
+	case uiDiscoverAutoDiscoveredResourcesEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
+			UiDiscoverAutoDiscoveredResourcesEvent: &v1.UIDiscoverAutoDiscoveredResourcesEvent{
+				Metadata:       metadata,
+				Resource:       resource,
+				Status:         status,
+				ResourcesCount: int64(d.AutoDiscoverResourcesCount),
+			},
+		}}, nil
+
+	case uiDiscoverDatabaseConfigureIAMPolicyEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverDatabaseConfigureIamPolicyEvent{
+			UiDiscoverDatabaseConfigureIamPolicyEvent: &v1.UIDiscoverDatabaseConfigureIAMPolicyEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
+	case uiDiscoverPrincipalsConfigureEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverPrincipalsConfigureEvent{
+			UiDiscoverPrincipalsConfigureEvent: &v1.UIDiscoverPrincipalsConfigureEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
+	case uiDiscoverTestConnectionEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverTestConnectionEvent{
+			UiDiscoverTestConnectionEvent: &v1.UIDiscoverTestConnectionEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
+	case uiDiscoverCompletedEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverCompletedEvent{
+			UiDiscoverCompletedEvent: &v1.UIDiscoverCompletedEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
 	}
 
 	return nil, trace.BadParameter("invalid event name %q", eventName)
