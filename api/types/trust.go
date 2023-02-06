@@ -23,7 +23,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// CertAuthType specifies certificate authority type
+// CertAuthType specifies certificate authority type. New variants should be
+// added to CertAuthTypes and, for one major version, to NewlyAdded().
 type CertAuthType string
 
 const (
