@@ -18,6 +18,7 @@ import React from 'react';
 
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { AgentStepComponent } from 'teleport/Discover/types';
+import { DiscoverEvent } from 'teleport/services/userEvent';
 
 type ViewFunction<T> = (t: T) => View[];
 
@@ -35,6 +36,12 @@ export interface View {
   hide?: boolean;
   index?: number;
   views?: View[];
+  eventName?: DiscoverEvent;
+  // manuallyEmitSuccessEvent is a flag that when true
+  // means success events will be sent by the children
+  // (current view component) instead of the default
+  // which is sent by the parent context.
+  manuallyEmitSuccessEvent?: boolean;
 }
 
 // computeViewChildrenSize calculates how many children a view has, without counting the first

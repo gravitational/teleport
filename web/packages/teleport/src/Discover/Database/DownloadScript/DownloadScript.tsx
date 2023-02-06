@@ -101,7 +101,7 @@ export default function Container(
               <ActionButtons
                 onProceed={() => null}
                 disableProceed={true}
-                onSkip={props.nextStep}
+                onSkip={() => props.nextStep(0)}
               />
             </Box>
           )}
@@ -118,7 +118,7 @@ export default function Container(
                 <ActionButtons
                   onProceed={() => null}
                   disableProceed={true}
-                  onSkip={props.nextStep}
+                  onSkip={() => props.nextStep(0)}
                 />
               </Box>
             }
@@ -137,7 +137,7 @@ export default function Container(
                 <ActionButtons
                   onProceed={() => null}
                   disableProceed={true}
-                  onSkip={props.nextStep}
+                  onSkip={() => props.nextStep(0)}
                 />
               </Box>
             )}
@@ -242,7 +242,7 @@ export function DownloadScript(
       <ActionButtons
         onProceed={handleNextStep}
         disableProceed={poll.state !== 'success' || props.labels.length === 0}
-        onSkip={props.nextStep}
+        onSkip={() => props.nextStep(0)}
       />
     </Box>
   );
