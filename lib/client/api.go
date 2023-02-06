@@ -2451,7 +2451,7 @@ func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opt
 	}
 
 	if !quiet {
-		config.cfg.ProgressWriter = func(fileInfo os.FileInfo) io.Writer {
+		config.cfg.ProgressStream = func(fileInfo os.FileInfo) io.ReadWriter {
 			return sftp.NewProgressBar(fileInfo.Size(), fileInfo.Name(), tc.Stdout)
 		}
 	}

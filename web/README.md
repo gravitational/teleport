@@ -1,16 +1,14 @@
 # Gravitational Web Applications and Packages
 
-This mono-repository contains the source code for:
+This directory contains the source code for:
 
 - the web UIs served by the `teleport` server
-  - [`packages/teleport`](packages/teleport) for the OSS version
-  - `packages/webapps.e/teleport` for the enterprise version
+  - [`packages/teleport`](packages/teleport)
 - the Electron app of [Teleport Connect](https://goteleport.com/connect/)
   - [`packages/teleterm`](packages/teleterm)
-  - `packages/webapps.e/teleterm` for the enterprise version
 
 The code is organized in terms of independent yarn packages which reside in
-the [packages directory](https://github.com/gravitational/webapps/tree/master/packages).
+the [packages directory](packages).
 
 ## Getting Started with Teleport Web UI
 
@@ -30,22 +28,22 @@ $ yarn install
 To build the Teleport open source version
 
 ```
-$ yarn build-teleport-oss
+$ yarn build-ui-oss
 ```
 
-The resulting output will be in the `/packages/{package-name}/dist/` folders respectively.
+The resulting output will be in the `packages/{package-name}/dist/` folders respectively.
 
 ### Docker Build
 
 To build the Teleport community version
 
 ```
-$ make build-teleport-oss
+$ make docker-ui
 ```
 
 ## Getting Started with Teleport Connect
 
-See [`README.md` in `packages/teleterm`](packages/teleterm).
+See [`README.md` in `packages/teleterm`](packages/teleterm#readme).
 
 ## Development
 
@@ -75,7 +73,7 @@ By default, Webpack will store a cache in `node_modules/.cache/webpack` during d
 makes starting `webpack-dev-server` really quick after having ran it once, as it will re-use the
 cache from the last time it was running.
 
-If you want to change the location of the cache, you can set `WEBPACK_CACHE_DIRECTORY` to an 
+If you want to change the location of the cache, you can set `WEBPACK_CACHE_DIRECTORY` to an
 absolute file path of the folder where you want to store Webpack's cache.
 
 If you wish to disable the cache, you can set `WEBPACK_CACHE_DISABLED` to `yes`.
