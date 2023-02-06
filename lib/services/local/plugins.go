@@ -127,19 +127,19 @@ func (s *PluginsService) GetPlugins(ctx context.Context, withSecrets bool) ([]ty
 
 // SetPluginCredentials implements services.Plugins
 func (s *PluginsService) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
-	return s.update(ctx, name, func(p types.Plugin) error {
+	return s.updateAndSwap(ctx, name, func(p types.Plugin) error {
 		return trace.Wrap(p.SetCredentials(creds))
 	})
 }
 
 // SetPluginStatus implements services.Plugins
 func (s *PluginsService) SetPluginStatus(ctx context.Context, name string, status types.PluginStatus) error {
-	return s.update(ctx, name, func(p types.Plugin) error {
+	return s.updateAndSwap(ctx, name, func(p types.Plugin) error {
 		return trace.Wrap(p.SetStatus(status))
 	})
 }
 
-func (s *PluginsService) update(ctx context.Context, name string, modify func(types.Plugin) error) error {
+func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify func(types.Plugin) error) error {
 	key := backend.Key(pluginsPrefix, name)
 	item, err := s.backend.Get(ctx, key)
 	if err != nil {
