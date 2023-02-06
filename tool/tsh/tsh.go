@@ -3116,6 +3116,9 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if c.PrivateKeyPolicy == "" {
+			c.PrivateKeyPolicy = keys.GetPrivateKeyPolicy(key.PrivateKey)
+		}
 
 		rootCluster, err := key.RootClusterName()
 		if err != nil {
