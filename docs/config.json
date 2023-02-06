@@ -69,7 +69,7 @@
           "slug": "/choose-an-edition/introduction/"
         },
         {
-          "title": "Teleport Cloud",
+          "title": "Teleport Enterprise Cloud",
           "slug": "/choose-an-edition/teleport-cloud/introduction/",
           "forScopes": ["cloud"],
           "entries": [
@@ -962,8 +962,12 @@
           "slug": "/desktop-access/getting-started/"
         },
         {
-          "title": "Manual Setup",
-          "slug": "/desktop-access/manual-setup/"
+          "title": "Active Directory",
+          "slug": "/desktop-access/active-directory/"
+        },
+        {
+          "title": "Active Directory (Manual)",
+          "slug": "/desktop-access/active-directory-manual/"
         },
         {
           "title": "Access Controls",
