@@ -20,9 +20,7 @@ $ tctl users add \
 | <nobr>`--db-users`</nobr> | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
 | <nobr>`--db-names`</nobr> | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
 
-<Admonition type="warning">
-  Database names are only enforced for PostgreSQL and MongoDB databases.
-</Admonition>
+(!docs/pages/includes/generated/database-access/create-user-db-name-warning.mdx!)
 
 For more detailed information about database access controls and how to restrict
 access see [RBAC](../../database-access/rbac.mdx) documentation.
