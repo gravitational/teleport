@@ -48,6 +48,7 @@ export function useCreateDatabase(props: AgentStepProps) {
 
   const [pollTimeout, setPollTimeout] = useState(0);
   const [pollActive, setPollActive] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
 
   // Required persisted states to determine if we can skip a request
   // because there can be multiple failed points:
@@ -59,17 +60,29 @@ export function useCreateDatabase(props: AgentStepProps) {
   //      backend error or network failure)
   const [createdDb, setCreatedDb] = useState<CreateDatabaseRequest>();
 
-  const { timedOut, result } = usePoll<DatabaseResource>(
+  const result = usePoll<DatabaseResource>(
     signal => fetchDatabaseServer(signal),
-    pollTimeout,
     pollActive,
     3000 // interval: poll every 3 seconds
   );
 
   // Handles polling timeout.
   useEffect(() => {
-    if (pollActive && Date.now() > pollTimeout) {
+    if (pollActive && pollTimeout > Date.now()) {
+      const id = window.setTimeout(() => {
+        setTimedOut(true);
+      }, pollTimeout - Date.now());
+
+      return () => clearTimeout(id);
+    }
+  }, [pollActive, pollTimeout]);
+
+  useEffect(() => {
+    if (timedOut) {
+      // reset timer fields and set errors.
+      setPollTimeout(null);
       setPollActive(false);
+      setTimedOut(false);
       setAttempt({
         status: 'failed',
         statusText:
@@ -79,7 +92,7 @@ export function useCreateDatabase(props: AgentStepProps) {
         `timeout polling for new database with an existing service`
       );
     }
-  }, [pollActive, pollTimeout, timedOut]);
+  }, [timedOut]);
 
   // Handles when polling successfully gets
   // a response.
