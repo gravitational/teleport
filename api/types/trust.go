@@ -52,6 +52,16 @@ const (
 // CertAuthTypes lists all certificate authority types.
 var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, OpenSSHCA, JWTSigner, SAMLIDPCA}
 
+// NewlyAdded should return true for CA types that were added in the current
+// major version, so that we can avoid erroring out when a potentially older
+// remote server doesn't know about them.
+func (c CertAuthType) NewlyAdded() bool {
+	switch c {
+	default:
+		return false
+	}
+}
+
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {
 	for _, caType := range CertAuthTypes {
