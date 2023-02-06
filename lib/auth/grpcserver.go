@@ -2441,6 +2441,17 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 		return trace.Wrap(err)
 	}
 
+	// Device trust: authorize device before issuing certificates.
+	// We do this here, in addition to the check at generateUserCerts, so users
+	// won't be asked to tap the security key if using an untrusted device.
+	authPref, err := actx.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := actx.verifyUserDeviceForCertIssuance(initReq.Usage, authPref.GetDeviceTrust()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// 2. send MFAChallenge
 	// 3. receive and validate MFAResponse
 	mfaDev, err := userSingleUseCertsAuthChallenge(actx, stream)
