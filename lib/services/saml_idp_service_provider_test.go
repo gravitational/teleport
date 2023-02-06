@@ -32,7 +32,7 @@ func TestSAMLIdPServiceProviderUnmarshal(t *testing.T) {
 			Name: "test-sp",
 		},
 		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: "<valid />",
+			EntityDescriptor: testEntityDescriptor,
 		})
 	require.NoError(t, err)
 	data, err := utils.ToJSON([]byte(samlIDPServiceProviderYAML))
@@ -49,7 +49,7 @@ func TestSAMLIdPServiceProviderMarshal(t *testing.T) {
 			Name: "test-sp",
 		},
 		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: "<valid />",
+			EntityDescriptor: testEntityDescriptor,
 		})
 	require.NoError(t, err)
 	data, err := MarshalSAMLIdPServiceProvider(expected)
@@ -66,5 +66,24 @@ metadata:
   name: test-sp
 spec:
   version: v1
-  entity_descriptor: <valid />
+  entity_descriptor: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+       <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+          <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+       </md:SPSSODescriptor>
+    </md:EntityDescriptor>
+`
+
+// A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.
+const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+      <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+   </md:SPSSODescriptor>
+</md:EntityDescriptor>
 `

@@ -17,12 +17,9 @@ limitations under the License.
 package types
 
 import (
-	"encoding/xml"
-	"errors"
 	"fmt"
-	io "io"
-	"strings"
 
+	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -34,7 +31,11 @@ type SAMLIdPServiceProvider interface {
 	// GetEntityDescriptor returns the entity descriptor of the service provider.
 	GetEntityDescriptor() string
 	// SetEntityDescriptor sets the entity descriptor of the service provider.
-	SetEntityDescriptor(string)
+	SetEntityDescriptor(string) error
+	// GetEntityID returns the entity ID from the entity descriptor.
+	GetEntityID() string
+	// UnsetEntityID will set the entity ID to an empty string.
+	UnsetEntityID()
 }
 
 // NewSAMLIdPServiceProvider returns a new SAMLIdPServiceProvider based off a metadata object and SAMLIdPServiceProviderSpecV1.
@@ -45,6 +46,9 @@ func NewSAMLIdPServiceProvider(metadata Metadata, spec SAMLIdPServiceProviderSpe
 		},
 		Spec: spec,
 	}
+
+	// Make sure the entity ID is empty so that it's set properly during the check and set defaults.
+	s.UnsetEntityID()
 	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -57,8 +61,26 @@ func (s *SAMLIdPServiceProviderV1) GetEntityDescriptor() string {
 }
 
 // SetEntityDescriptor sets the entity descriptor.
-func (s *SAMLIdPServiceProviderV1) SetEntityDescriptor(entityDescriptor string) {
+func (s *SAMLIdPServiceProviderV1) SetEntityDescriptor(entityDescriptor string) error {
+	ed, err := samlsp.ParseMetadata([]byte(entityDescriptor))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.Spec.EntityID = ed.EntityID
 	s.Spec.EntityDescriptor = entityDescriptor
+
+	return nil
+}
+
+// GetEntityID returns the entity ID from the entity descriptor.
+func (s *SAMLIdPServiceProviderV1) GetEntityID() string {
+	return s.Spec.EntityID
+}
+
+// UnsetEntityID will set the entity ID to an empty string.
+func (s *SAMLIdPServiceProviderV1) UnsetEntityID() {
+	s.Spec.EntityID = ""
 }
 
 // String returns the SAML IdP service provider string representation.
@@ -70,7 +92,7 @@ func (s *SAMLIdPServiceProviderV1) String() string {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (s *SAMLIdPServiceProviderV1) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(s.GetAllLabels()), s.GetName())
+	fieldVals := append(utils.MapToStrings(s.GetAllLabels()), s.GetEntityID(), s.GetName())
 	return MatchSearch(fieldVals, values, nil)
 }
 
@@ -87,31 +109,15 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if strings.TrimSpace(s.Spec.EntityDescriptor) == "" {
-		return trace.BadParameter("missing entity descriptor")
-	}
-
-	// Validate the entity descriptor is valid XML. Ideally this would
-	// validate the XML against the SAML schema
-	// (https://docs.oasis-open.org/security/saml/v2.0/saml-schema-metadata-2.0.xsd),
-	// but there doesn't appear to be a good XSD library for go.
-	decoder := xml.NewDecoder(strings.NewReader(s.Spec.EntityDescriptor))
-	readAnyXML := false
-	decodeTarget := new(interface{})
-	for {
-		err := decoder.Decode(decodeTarget)
-		switch {
-		case err == nil:
-			readAnyXML = true
-		case errors.Is(err, io.EOF):
-			if !readAnyXML {
-				return trace.BadParameter("entity descriptor is not valid XML")
-			}
-			return nil
-		default:
+	// Only run SetEntityDescriptor if EntityID is empty. This will avoid
+	// unnecessary parses of the entity descriptor during listing.
+	if s.Spec.EntityID == "" {
+		if err := s.SetEntityDescriptor(s.Spec.EntityDescriptor); err != nil {
 			return trace.Wrap(err)
 		}
 	}
+
+	return nil
 }
 
 // SAMLIdPServiceProviders is a list of SAML IdP service provider resources.

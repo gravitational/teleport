@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -48,7 +49,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 			Name: "sp1",
 		},
 		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: "<valid />",
+			EntityDescriptor: newEntityDescriptor("sp1"),
 		})
 	require.NoError(t, err)
 	sp2, err := types.NewSAMLIdPServiceProvider(
@@ -56,7 +57,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 			Name: "sp2",
 		},
 		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: "<valid />",
+			EntityDescriptor: newEntityDescriptor("sp2"),
 		})
 	require.NoError(t, err)
 
@@ -71,6 +72,31 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	require.NoError(t, err)
 	err = service.CreateSAMLIdPServiceProvider(ctx, sp2)
 	require.NoError(t, err)
+
+	// Create a service provider with a duplicate entity ID.
+	_, err = types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp3",
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor("sp1"),
+		})
+	require.NoError(t, err)
+	err = service.CreateSAMLIdPServiceProvider(ctx, sp2)
+	require.Error(t, err)
+
+	// Create a service provider with an entity ID that doesn't match the metadata.
+	_, err = types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp3",
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor("sp3"),
+			EntityID:         "some-other-entity-id",
+		})
+	require.NoError(t, err)
+	err = service.CreateSAMLIdPServiceProvider(ctx, sp2)
+	require.Error(t, err)
 
 	// Fetch all service providers.
 	out, nextToken, err = service.ListSAMLIdPServiceProviders(ctx, 200, "")
@@ -115,7 +141,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	require.True(t, trace.IsAlreadyExists(err))
 
 	// Update a service provider.
-	sp1.SetEntityDescriptor("<updated />")
+	sp1.SetEntityDescriptor(newEntityDescriptor("updated-sp1"))
 	err = service.UpdateSAMLIdPServiceProvider(ctx, sp1)
 	require.NoError(t, err)
 	sp, err = service.GetSAMLIdPServiceProvider(ctx, sp1.GetName())
@@ -146,3 +172,18 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
 }
+
+func newEntityDescriptor(entityID string) string {
+	return fmt.Sprintf(testEntityDescriptor, entityID)
+}
+
+// A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.
+const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="%s" validUntil="2025-12-09T09:13:31.006Z">
+   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+      <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+   </md:SPSSODescriptor>
+</md:EntityDescriptor>
+`

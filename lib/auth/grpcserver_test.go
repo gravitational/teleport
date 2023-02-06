@@ -2407,7 +2407,7 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 			Name: "sp1",
 		},
 		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: "<valid />",
+			EntityDescriptor: newEntityDescriptor("sp1"),
 		})
 	require.NoError(t, err)
 
@@ -2416,7 +2416,7 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 			Name: "sp2",
 		},
 		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: "<valid />",
+			EntityDescriptor: newEntityDescriptor("sp2"),
 		})
 	require.NoError(t, err)
 
@@ -2441,7 +2441,7 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 	))
 
 	// Update a service provider.
-	sp1.SetEntityDescriptor("<updated />")
+	sp1.SetEntityDescriptor(newEntityDescriptor("updated-sp1"))
 
 	err = clt.UpdateSAMLIdPServiceProvider(ctx, sp1)
 	require.NoError(t, err)
@@ -3122,3 +3122,19 @@ func TestSAMLValidation(t *testing.T) {
 		})
 	}
 }
+
+func newEntityDescriptor(entityID string) string {
+	return fmt.Sprintf(testEntityDescriptor, entityID)
+}
+
+// A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.
+const testEntityDescriptor = `
+<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="%s" validUntil="2025-12-09T09:13:31.006Z">
+   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+      <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+   </md:SPSSODescriptor>
+</md:EntityDescriptor>
+`

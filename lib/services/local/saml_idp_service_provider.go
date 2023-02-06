@@ -94,9 +94,41 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
+	// Check to make sure the entity ID, if present, is properly set to the value seen in the
+	// metadata.
+	currentEntityID := sp.GetEntityID()
+	sp.UnsetEntityID()
+
 	if err := sp.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// If the entity ID was not set, this check is unnecessary.
+	if currentEntityID != "" && currentEntityID != sp.GetEntityID() {
+		return trace.BadParameter("entity ID is set to %s but the entity ID extracted from the provider is %s", currentEntityID, sp.GetEntityID())
+	}
+
+	// Make sure no other service provider has the same entity ID.
+	var nextToken string
+	for {
+		var listSps []types.SAMLIdPServiceProvider
+		var err error
+		listSps, nextToken, err = s.ListSAMLIdPServiceProviders(ctx, samlIDPServiceProviderMaxPageSize, nextToken)
+
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, listSp := range listSps {
+			if listSp.GetEntityID() == sp.GetEntityID() {
+				trace.BadParameter("service provider %s has the same entity ID %s", listSp.GetName(), listSp.GetEntityID())
+			}
+		}
+		if nextToken == "" {
+			break
+		}
+	}
+
 	value, err := services.MarshalSAMLIdPServiceProvider(sp)
 	if err != nil {
 		return trace.Wrap(err)

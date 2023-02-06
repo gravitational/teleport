@@ -4873,6 +4873,8 @@ message SAMLIdPServiceProviderV1 {
 message SAMLIdPServiceProviderSpecV1 {
   // EntityDescriptor is the entity descriptor for the service provider
   string EntityDescriptor = 1 [(gogoproto.jsontag) = "entity_descriptor"];
+  // EntityID is the entity ID for the entity descriptor. Please do not set this directly
+  string EntityID = 2 [(gogoproto.jsontag) = "entity_id"];
 }
 
 // IdPOptions specify options related to access Teleport IdPs.
