@@ -1314,7 +1314,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 	// Remove party for the term writer
 	s.io.DeleteWriter(string(p.id))
 
-	// Emit session leave event to both the Audit Log as well as over the
+	// Emit session leave event to both the Audit Log and over the
 	// "x-teleport-event" channel in the SSH connection.
 	s.emitSessionLeaveEvent(p.ctx)
 
@@ -1324,7 +1324,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 	}
 
 	if !canRun {
-		if policyOptions.TerminateOnLeave {
+		if policyOptions.OnLeaveAction == types.OnSessionLeaveTerminate {
 			// Force termination in goroutine to avoid deadlock
 			go s.registry.ForceTerminate(s.scx)
 			return nil
