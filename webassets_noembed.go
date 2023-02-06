@@ -1,5 +1,4 @@
-//go:build webassets_embed
-// +build webassets_embed
+//go:build !webassets_embed
 
 /*
 Copyright 2021 Gravitational, Inc.
@@ -17,25 +16,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package web
+package teleport
 
 import (
-	"embed"
-	"io/fs"
 	"net/http"
 
 	"github.com/gravitational/trace"
 )
 
-//go:embed webassets/teleport
-var webassetFS embed.FS
+const webAssetsMissingError = "the teleport binary was built without web assets, try building with `make release`"
 
-// NewStaticFileSystem returns the initialized implementation of http.FileSystem
-// interface which can be used to serve Teleport Proxy Web UI
-func NewStaticFileSystem() (http.FileSystem, error) {
-	wfs, err := fs.Sub(webassetFS, "build/webassets")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return http.FS(wfs), nil
+// NewWebAssetsFilesystem is a no-op in this build mode.
+func NewWebAssetsFilesystem() (http.FileSystem, error) { //nolint:staticcheck
+	return nil, trace.NotFound(webAssetsMissingError)
 }
