@@ -1,5 +1,5 @@
 const { env, platform } = require('process');
-
+const fs = require('fs');
 const isMac = platform === 'darwin';
 
 // The following checks make no sense when cross-building because they check the platform of the
@@ -28,6 +28,8 @@ if (!isMac && env.CONNECT_TSH_BIN_PATH === undefined) {
   throw new Error('You must provide CONNECT_TSH_BIN_PATH');
 }
 
+let tshAppPlist;
+
 /**
  * @type { import('electron-builder').Configuration }
  */
@@ -36,9 +38,38 @@ module.exports = {
   asar: true,
   asarUnpack: '**\\*.{node,dll}',
   afterSign: 'notarize.js',
-  files: ['build/app/dist'],
+  afterPack: packed => {
+    // Unfortunately, @electron/universal adds `ElectronAsarIntegrity` key to every .plist file it finds.
+    // It causes signature verification to fail for tsh.app during the build (error: invalid Info.plist (plist or
+    // signature have been modified)).
+    // The workaround is to copy the tsh.app plist file before adding the key (from x64 build) and replace it after
+    // it is done (in universal build).
+
+    if (!env.CONNECT_TSH_APP_PATH) {
+      return;
+    }
+
+    const path = `${packed.appOutDir}/Teleport Connect.app/Contents/MacOS/tsh.app/Contents/Info.plist`;
+    if (packed.appOutDir.endsWith('mac-universal--x64')) {
+      tshAppPlist = fs.readFileSync(path);
+    }
+    if (packed.appOutDir.endsWith('mac-universal')) {
+      fs.writeFileSync(path, tshAppPlist);
+    }
+  },
+  files: [
+    'build/app/dist',
+    // .forge-meta file and files from the bin directory break reconciling (error: can't reconcile two non-macho files)
+    '!**/node_modules/node-pty/build/Release/.forge-meta',
+    '!**/node_modules/node-pty/bin',
+  ],
   mac: {
-    target: 'dmg',
+    target: {
+      target: 'dmg',
+      arch: 'universal',
+    },
+    // `x64ArchFiles` is meant for both x64 and universal files (lipo tool should skip them)
+    x64ArchFiles: 'Contents/MacOS/tsh.app/Contents/MacOS/tsh',
     category: 'public.app-category.developer-tools',
     type: 'distribution',
     hardenedRuntime: true,
