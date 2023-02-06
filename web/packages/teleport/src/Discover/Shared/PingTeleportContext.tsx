@@ -6,6 +6,8 @@ import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
 import { useJoinTokenValue } from 'teleport/Discover/Shared/JoinTokenContext';
 import { ResourceKind } from 'teleport/Discover/Shared/ResourceKind';
 
+import { useDiscover } from '../useDiscover';
+
 interface PingTeleportContextState<T> {
   active: boolean;
   start: () => void;
@@ -28,6 +30,7 @@ export function PingTeleportProvider<T>(props: {
 
   const [active, setActive] = useState(false);
   const [timeout, setPollTimeout] = useState<number>(null);
+  const { emitErrorEvent } = useDiscover();
 
   // alternateSearchTerm when set will be used as the search term
   // instead of the default search term which is the internal resource ID.
@@ -82,6 +85,8 @@ export function PingTeleportProvider<T>(props: {
 
   useEffect(() => {
     if (active && Date.now() > timeout) {
+      // This means the polling timed out.
+      emitErrorEvent('polling for resource discovery has timed out');
       setActive(false);
     }
   }, [active, timeout, timedOut]);
