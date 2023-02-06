@@ -174,7 +174,11 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	}
 
 	// Create the kube server to service listener.
-	authorizer, err := auth.NewAuthorizer(teleportClusterName, accessPoint, lockWatcher)
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: teleportClusterName,
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -180,11 +180,11 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	// Grant the user's role access to the application label "bar: baz".
-	s.role = &types.RoleV5{
+	s.role = &types.RoleV6{
 		Metadata: types.Metadata{
 			Name: "foo",
 		},
-		Spec: types.RoleSpecV5{
+		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				AppLabels:   roleAppLabels,
 				AWSRoleARNs: []string{"readonly"},
@@ -290,7 +290,11 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		},
 	})
 	require.NoError(t, err)
-	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient, lockWatcher)
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: "cluster-name",
+		AccessPoint: s.authClient,
+		LockWatcher: lockWatcher,
+	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {

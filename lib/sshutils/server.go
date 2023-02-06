@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -100,6 +101,11 @@ type Server struct {
 
 	// clock is used to control time.
 	clock clockwork.Clock
+
+	// ingressReporter reports new and active connections.
+	ingressReporter *ingress.Reporter
+	// ingressService the service name passed to the ingress reporter.
+	ingressService string
 }
 
 const (
@@ -120,6 +126,15 @@ const (
 
 // ServerOption is a functional argument for server
 type ServerOption func(cfg *Server) error
+
+// SetIngressReporter sets the reporter for reporting new and active connections.
+func SetIngressReporter(service string, r *ingress.Reporter) ServerOption {
+	return func(s *Server) error {
+		s.ingressReporter = r
+		s.ingressService = service
+		return nil
+	}
+}
 
 // SetLogger sets the logger for the server
 func SetLogger(logger logrus.FieldLogger) ServerOption {
@@ -310,6 +325,9 @@ func (s *Server) Start() error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+
+	listener = s.limiter.WrapListener(listener)
+
 	s.log.WithField("addr", listener.Addr().String()).Debug("Server start.")
 	if err := s.setListener(listener); err != nil {
 		return trace.Wrap(err)
@@ -393,6 +411,12 @@ func (s *Server) acceptConnections() {
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				proxyConnectionLimitHitCount.Inc()
+				s.log.Error(err.Error())
+				continue
+			}
+
 			if utils.IsUseOfClosedNetworkError(err) {
 				s.log.Debugf("Server %v has closed.", addr)
 				return
@@ -420,21 +444,10 @@ func (s *Server) trackUserConnections(delta int32) int32 {
 // this is the foundation of all SSH connections in Teleport (between clients
 // and proxies, proxies and servers, servers and auth, etc).
 func (s *Server) HandleConnection(conn net.Conn) {
-	// initiate an SSH connection, note that we don't need to close the conn here
-	// in case of error as ssh server takes care of this
-	remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
-	if err != nil {
-		s.log.Errorf(err.Error())
+	if s.ingressReporter != nil {
+		s.ingressReporter.ConnectionAccepted(s.ingressService, conn)
+		defer s.ingressReporter.ConnectionClosed(s.ingressService, conn)
 	}
-	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
-		if trace.IsLimitExceeded(err) {
-			proxyConnectionLimitHitCount.Inc()
-		}
-		s.log.Errorf(err.Error())
-		conn.Close()
-		return
-	}
-	defer s.limiter.ReleaseConnection(remoteAddr)
 
 	// apply idle read/write timeout to this connection.
 	conn = utils.ObeyIdleTimeout(conn,
@@ -462,6 +475,10 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		return
 	}
 
+	if s.ingressReporter != nil {
+		s.ingressReporter.ConnectionAuthenticated(s.ingressService, conn)
+		defer s.ingressReporter.AuthenticatedConnectionClosed(s.ingressService, conn)
+	}
 	ctx := tracing.WithPropagationContext(context.Background(), wrappedConn.traceContext)
 
 	certType := "unknown"

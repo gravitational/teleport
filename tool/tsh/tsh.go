@@ -55,8 +55,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -181,6 +180,10 @@ type CLIConf struct {
 	DaemonAddr string
 	// DaemonCertsDir is the directory containing certs used to create secure gRPC connection with daemon service
 	DaemonCertsDir string
+	// DaemonPrehogAddr is the URL where prehog events should be submitted.
+	DaemonPrehogAddr string
+	// DaemonPid is the PID to be stopped
+	DaemonPid int
 	// DatabaseService specifies the database proxy server to log into.
 	DatabaseService string
 	// DatabaseUser specifies database user to embed in the certificate.
@@ -347,6 +350,11 @@ type CLIConf struct {
 	// AzureCommandArgs contains arguments that will be forwarded to Azure CLI binary.
 	AzureCommandArgs []string
 
+	// GCPServiceAccount is GCP service account name that will be used for GCP CLI access.
+	GCPServiceAccount string
+	// GCPCommandArgs contains arguments that will be forwarded to GCP CLI binary.
+	GCPCommandArgs []string
+
 	// Reason is the reason for starting an ssh or kube session.
 	Reason string
 
@@ -492,6 +500,7 @@ const (
 	mfaModeEnvVar          = "TELEPORT_MFA_MODE"
 	debugEnvVar            = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
 	identityFileEnvVar     = "TELEPORT_IDENTITY_FILE"
+	gcloudSecretEnvVar     = "TELEPORT_GCLOUD_SECRET"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -623,6 +632,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	daemonStart := daemon.Command("start", "Starts tsh daemon service").Hidden()
 	daemonStart.Flag("addr", "Addr is the daemon listening address.").StringVar(&cf.DaemonAddr)
 	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
+	daemonStart.Flag("prehog-addr", "URL where prehog events should be submitted").StringVar(&cf.DaemonPrehogAddr)
+	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it").Hidden()
+	daemonStop.Flag("pid", "PID to be stopped").IntVar(&cf.DaemonPid)
 
 	// AWS.
 	// Use Interspersed(false) to forward all flags to AWS CLI.
@@ -635,6 +647,15 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
 	azure.Flag("app", "Optional name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
+
+	gcloud := app.Command("gcloud", "Access GCP API with the gcloud command.").Interspersed(false)
+	gcloud.Arg("command", "`gcloud` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
+	gcloud.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	gcloud.Alias("gcp")
+
+	gsutil := app.Command("gsutil", "Access Google Cloud Storage with the gsutil command.").Interspersed(false)
+	gsutil.Arg("command", "`gsutil` command and subcommands arguments.").StringsVar(&cf.GCPCommandArgs)
+	gsutil.Flag("app", "Optional name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
 
 	// Applications.
 	apps := app.Command("apps", "View and control proxied applications.").Alias("app")
@@ -650,6 +671,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
+	appLogin.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
 	appLogout := apps.Command("logout", "Remove app certificate.")
 	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
 	appConfig := apps.Command("config", "Print app connection information.")
@@ -690,13 +712,19 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyAWS.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').BoolVar(&cf.AWSEndpointURLMode)
-	proxyAWS.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
+	proxyAWS.Flag("format", awsProxyFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, awsProxyFormats...)
 
 	proxyAzure := proxy.Command("azure", "Start local proxy for Azure access.")
 	proxyAzure.Flag("app", "Optional Name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
 	proxyAzure.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAzure.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyAzure.Alias("az")
+
+	proxyGcloud := proxy.Command("gcloud", "Start local proxy for GCP access.")
+	proxyGcloud.Flag("app", "Optional Name of the GCP application to use if logged into multiple.").StringVar(&cf.AppName)
+	proxyGcloud.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
+	proxyGcloud.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
+	proxyGcloud.Alias("gcp")
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -748,7 +776,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// scp
 	scp := app.Command("scp", "Transfer files to a remote Node")
 	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
+	scp.Arg("from, to", "Source and destination to copy, one must be a local path and one must be a remote path").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
 	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int32Var(&cf.NodePort)
 	scp.Flag("preserve", "Preserves access and modification times from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
@@ -865,7 +893,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
-
+	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster").Interspersed(false)
+	// This hack is required in order to accept any args for tsh kubectl.
+	kubectl.Arg("", "").StringsVar(new([]string))
 	// Kubernetes subcommands.
 	kube := newKubeCommand(app)
 	// MFA subcommands.
@@ -1088,6 +1118,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onProxyCommandAWS(&cf)
 	case proxyAzure.FullCommand():
 		err = onProxyCommandAzure(&cf)
+	case proxyGcloud.FullCommand():
+		err = onProxyCommandGCloud(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)
@@ -1127,8 +1159,14 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onAWS(&cf)
 	case azure.FullCommand():
 		err = onAzure(&cf)
+	case gcloud.FullCommand():
+		err = onGcloud(&cf)
+	case gsutil.FullCommand():
+		err = onGsutil(&cf)
 	case daemonStart.FullCommand():
 		err = onDaemonStart(&cf)
+	case daemonStop.FullCommand():
+		err = onDaemonStop(&cf)
 	case f2Diag.FullCommand():
 		err = onFIDO2Diag(&cf)
 	case tid.diag.FullCommand():
@@ -1141,6 +1179,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = deviceCmd.collect.run(&cf)
 	case deviceCmd.keyget.FullCommand():
 		err = deviceCmd.keyget.run(&cf)
+	case kubectl.FullCommand():
+		idx := slices.Index(args, kubectl.FullCommand())
+		err = onKubectlCommand(&cf, args[idx:])
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -1257,7 +1298,7 @@ func onVersion(cf *CLIConf) error {
 
 // fetchProxyVersion returns the current version of the Teleport Proxy.
 func fetchProxyVersion(cf *CLIConf) (string, error) {
-	profile, _, err := client.Status(cf.HomePath, cf.Proxy)
+	profile, err := cf.ProfileStatus()
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return "", nil
@@ -1436,7 +1477,7 @@ func onLogin(cf *CLIConf) error {
 
 	// Get the status of the active profile as well as the status
 	// of any other proxies the user is logged into.
-	profile, profiles, err := client.Status(cf.HomePath, cf.Proxy)
+	profile, profiles, err := cf.FullProfileStatus()
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -1449,6 +1490,10 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	tc.HomePath = cf.HomePath
+
+	// DEPRECATED DELETE IN 14.0
+	var warnOnDeprecatedKubeSNIPrinted bool
+	updateKubeConfigOption := withWarnOnDeprecatedSNI(&warnOnDeprecatedKubeSNIPrinted)
 
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
@@ -1464,7 +1509,7 @@ func onLogin(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
 				return trace.Wrap(err)
 			}
 			env := getTshEnv()
@@ -1481,13 +1526,13 @@ func onLogin(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 
-			if err := tc.SaveProfile(cf.HomePath, true); err != nil {
+			if err := tc.SaveProfile(true); err != nil {
 				return trace.Wrap(err)
 			}
 
 			// Try updating kube config. If it fails, then we may have
 			// switched to an inactive profile. Continue to normal login.
-			if err := updateKubeConfig(cf, tc, ""); err == nil {
+			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err == nil {
 				return trace.Wrap(onStatus(cf))
 			}
 
@@ -1507,10 +1552,10 @@ func onLogin(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := tc.SaveProfile(cf.HomePath, true); err != nil {
+			if err := tc.SaveProfile(true); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1526,7 +1571,7 @@ func onLogin(cf *CLIConf) error {
 			if err := executeAccessRequest(cf, tc); err != nil {
 				return trace.Wrap(err)
 			}
-			if err := updateKubeConfig(cf, tc, ""); err != nil {
+			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(onStatus(cf))
@@ -1540,9 +1585,6 @@ func onLogin(cf *CLIConf) error {
 	if cf.Username == "" {
 		cf.Username = tc.Username
 	}
-
-	// -i flag specified? save the retrieved cert into an identity file
-	makeIdentityFile := (cf.IdentityFileOut != "")
 
 	// stdin hijack is OK for login, since it tsh doesn't read input after the
 	// login ceremony is complete.
@@ -1563,21 +1605,22 @@ func onLogin(cf *CLIConf) error {
 	// "authoritative" source.
 	cf.Username = tc.Username
 
+	if err := tc.ActivateKey(cf.Context, key); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// TODO(fspmarshall): Refactor access request & cert reissue logic to allow
 	// access requests to be applied to identity files.
-	if makeIdentityFile {
-		if err := setupNoninteractiveClient(tc, key); err != nil {
-			return trace.Wrap(err)
-		}
+	if cf.IdentityFileOut != "" {
 		// key.TrustedCA at this point only has the CA of the root cluster we
 		// logged into. We need to fetch all the CAs for leaf clusters too, to
 		// make them available in the identity file.
-		rootClusterName := key.TrustedCA[0].ClusterName
+		rootClusterName := key.TrustedCerts[0].ClusterName
 		authorities, err := tc.GetTrustedCA(cf.Context, rootClusterName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		key.TrustedCA = auth.AuthoritiesToTrustedCerts(authorities)
+		key.TrustedCerts = auth.AuthoritiesToTrustedCerts(authorities)
 		// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
 		kubeTLSServerName := ""
 		if tc.TLSRoutingEnabled {
@@ -1585,7 +1628,7 @@ func onLogin(cf *CLIConf) error {
 			kubeHost, _ := tc.KubeProxyHostPort()
 			kubeTLSServerName = client.GetKubeTLSServerName(kubeHost)
 		}
-		filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+		filesWritten, err := identityfile.Write(cf.Context, identityfile.WriteConfig{
 			OutputPath:           cf.IdentityFileOut,
 			Key:                  key,
 			Format:               cf.IdentityFormat,
@@ -1602,10 +1645,6 @@ func onLogin(cf *CLIConf) error {
 		return nil
 	}
 
-	if err := tc.ActivateKey(cf.Context, key); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Attempt device login. This activates a fresh key if successful.
 	// We do not save the resulting in the identity file above on purpose, as this
 	// certificate is bound to the present device.
@@ -1615,7 +1654,7 @@ func onLogin(cf *CLIConf) error {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := updateKubeConfig(cf, tc, ""); err != nil {
+		if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1626,7 +1665,7 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// Regular login without -i flag.
-	if err := tc.SaveProfile(cf.HomePath, true); err != nil {
+	if err := tc.SaveProfile(true); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1697,10 +1736,16 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// Show on-login alerts, all high severity alerts are shown by onStatus
-	// so can be excluded here.
+	// so can be excluded here, except when Hardware Key Touch is required
+	// which skips on-status alerts.
+	alertSeverityMax := types.AlertSeverity_MEDIUM
+	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
+		alertSeverityMax = types.AlertSeverity_HIGH
+	}
+
 	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
-	}, types.AlertSeverity_LOW, types.AlertSeverity_MEDIUM); err != nil {
+	}, types.AlertSeverity_LOW, alertSeverityMax); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
@@ -1712,93 +1757,10 @@ func onLogin(cf *CLIConf) error {
 	return nil
 }
 
-// setupNoninteractiveClient sets up existing client to use
-// non-interactive authentication methods
-func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error {
-	certUsername, err := key.CertUsername()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	tc.Username = certUsername
-
-	// Extract and set the HostLogin to be the first principal. It doesn't
-	// matter what the value is, but some valid principal has to be set
-	// otherwise the certificate won't be validated.
-	certPrincipals, err := key.CertPrincipals()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(certPrincipals) == 0 {
-		return trace.BadParameter("no principals found")
-	}
-	tc.HostLogin = certPrincipals[0]
-
-	authMethod, err := key.AsAuthMethod()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	rootCluster, err := key.RootClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	tc.TLS, err = key.TeleportClientTLSConfig(nil, []string{rootCluster})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	tc.AuthMethods = []ssh.AuthMethod{authMethod}
-	tc.Interactive = false
-	tc.SkipLocalAuth = true
-
-	// When user logs in for the first time without a CA in ~/.tsh/known_hosts,
-	// and specifies the -out flag, we need to avoid writing anything to
-	// ~/.tsh/ but still validate the proxy cert. Because the existing
-	// client.Client methods have a side-effect of persisting the CA on disk,
-	// we do all of this by hand.
-	//
-	// Wrap tc.HostKeyCallback with a another checker. This outer checker uses
-	// key.TrustedCA to validate the remote host cert first, before falling
-	// back to the original HostKeyCallback.
-	oldHostKeyCallback := tc.HostKeyCallback
-	tc.HostKeyCallback = func(hostname string, remote net.Addr, hostKey ssh.PublicKey) error {
-		checker := ssh.CertChecker{
-			// ssh.CertChecker will parse hostKey, extract public key of the
-			// signer (CA) and call IsHostAuthority. IsHostAuthority in turn
-			// has to match hostCAKey to any known trusted CA.
-			IsHostAuthority: func(hostCAKey ssh.PublicKey, address string) bool {
-				for _, ca := range key.TrustedCA {
-					caKeys, err := ca.SSHCertPublicKeys()
-					if err != nil {
-						return false
-					}
-					for _, caKey := range caKeys {
-						if apisshutils.KeysEqual(caKey, hostCAKey) {
-							return true
-						}
-					}
-				}
-				return false
-			},
-		}
-		err := checker.CheckHostKey(hostname, remote, hostKey)
-		if err != nil {
-			if oldHostKeyCallback == nil {
-				return trace.Wrap(err)
-			}
-			errOld := oldHostKeyCallback(hostname, remote, hostKey)
-			if errOld != nil {
-				return trace.NewAggregate(err, errOld)
-			}
-		}
-		return nil
-	}
-	return nil
-}
-
 // onLogout deletes a "session certificate" from ~/.tsh for a given proxy
 func onLogout(cf *CLIConf) error {
 	// Extract all clusters the user is currently logged into.
-	active, available, err := client.Status(cf.HomePath, "")
+	active, available, err := cf.FullProfileStatus()
 	if err != nil {
 		if trace.IsNotFound(err) {
 			fmt.Printf("All users logged out.\n")
@@ -1829,7 +1791,7 @@ func onLogout(cf *CLIConf) error {
 		}
 
 		// Load profile for the requested proxy/user.
-		profile, err := client.StatusFor(cf.HomePath, proxyHost, cf.Username)
+		profile, err := tc.ProfileStatus()
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -1872,10 +1834,6 @@ func onLogout(cf *CLIConf) error {
 		fmt.Printf("Logged out %v from %v.\n", cf.Username, proxyHost)
 	// Remove all keys.
 	case proxyHost == "" && cf.Username == "":
-		// The makeClient function requires a proxy. However this value is not used
-		// because the user will be logged out from all proxies. Pass a dummy value
-		// to allow creation of the TeleportClient.
-		cf.Proxy = "dummy:1234"
 		tc, err := makeClient(cf, true)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1940,7 +1898,7 @@ func onListNodes(cf *CLIConf) error {
 		return nodes[i].GetHostname() < nodes[j].GetHostname()
 	})
 
-	if err := printNodes(nodes, cf.Format, cf.Verbose); err != nil {
+	if err := printNodes(nodes, cf); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1979,20 +1937,9 @@ func listNodesAllClusters(cf *CLIConf) error {
 	group, groupCtx := errgroup.WithContext(cf.Context)
 	group.SetLimit(4)
 
-	nodeListingsResultChan := make(chan nodeListings)
-	nodeListingsCollectChan := make(chan nodeListings)
-	go func() {
-		var listings nodeListings
-		for {
-			select {
-			case items := <-nodeListingsResultChan:
-				listings = append(listings, items...)
-			case <-groupCtx.Done():
-				nodeListingsCollectChan <- listings
-				return
-			}
-		}
-	}()
+	// mu guards access to listings
+	var mu sync.Mutex
+	var listings nodeListings
 
 	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
 		group.Go(func() error {
@@ -2007,23 +1954,25 @@ func listNodesAllClusters(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 
-			var listings nodeListings
 			for _, site := range sites {
 				nodes, err := proxy.FindNodesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
 				if err != nil {
 					return trace.Wrap(err)
 				}
 
+				localListings := make(nodeListings, 0, len(nodes))
 				for _, node := range nodes {
-					listings = append(listings, nodeListing{
+					localListings = append(localListings, nodeListing{
 						Proxy:   profile.ProxyURL.Host,
 						Cluster: site.Name,
 						Node:    node,
 					})
 				}
+				mu.Lock()
+				listings = append(listings, localListings...)
+				mu.Unlock()
 			}
 
-			nodeListingsCollectChan <- listings
 			return nil
 		})
 
@@ -2037,32 +1986,38 @@ func listNodesAllClusters(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	listings := <-nodeListingsResultChan
 	sort.Sort(listings)
 
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		printNodesWithClusters(listings, cf.Verbose)
+		if err := printNodesWithClusters(listings, cf.Verbose, cf.Stdout()); err != nil {
+			return trace.Wrap(err)
+		}
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeNodesWithClusters(listings, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+
+		if _, err := fmt.Fprintln(cf.Stdout(), out); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
 
 	// Sometimes a user won't see any nodes because they're missing principals.
 	if len(listings) == 0 {
-		fmt.Fprintln(os.Stderr, missingPrincipalsFooter)
+		if _, err := fmt.Fprintln(cf.Stderr(), missingPrincipalsFooter); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
 }
 
-func printNodesWithClusters(nodes []nodeListing, verbose bool) {
+func printNodesWithClusters(nodes []nodeListing, verbose bool, output io.Writer) error {
 	var rows [][]string
 	for _, n := range nodes {
 		rows = append(rows, getNodeRow(n.Proxy, n.Cluster, n.Node, verbose))
@@ -2073,7 +2028,10 @@ func printNodesWithClusters(nodes []nodeListing, verbose bool) {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
 	}
-	fmt.Println(t.AsBuffer().String())
+	if _, err := fmt.Fprintln(output, t.AsBuffer().String()); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func serializeNodesWithClusters(nodes []nodeListing, format string) (string, error) {
@@ -2222,20 +2180,26 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	return trace.Wrap(onRequestResolution(cf, tc, resolvedReq))
 }
 
-func printNodes(nodes []types.Server, format string, verbose bool) error {
-	format = strings.ToLower(format)
+func printNodes(nodes []types.Server, conf *CLIConf) error {
+	format := strings.ToLower(conf.Format)
 	switch format {
 	case teleport.Text, "":
-		printNodesAsText(nodes, verbose)
+		if err := printNodesAsText(conf.Stdout(), nodes, conf.Verbose); err != nil {
+			return trace.Wrap(err)
+		}
 	case teleport.JSON, teleport.YAML:
 		out, err := serializeNodes(nodes, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		if _, err := fmt.Fprintln(conf.Stdout(), out); err != nil {
+			return trace.Wrap(err)
+		}
 	case teleport.Names:
 		for _, n := range nodes {
-			fmt.Println(n.GetHostname())
+			if _, err := fmt.Fprintln(conf.Stdout(), n.GetHostname()); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	default:
 		return trace.BadParameter("unsupported format %q", format)
@@ -2243,7 +2207,9 @@ func printNodes(nodes []types.Server, format string, verbose bool) error {
 
 	// Sometimes a user won't see any nodes because they're missing principals.
 	if len(nodes) == 0 {
-		fmt.Fprintln(os.Stderr, missingPrincipalsFooter)
+		if _, err := fmt.Fprintln(conf.Stderr(), missingPrincipalsFooter); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -2285,7 +2251,7 @@ func getNodeRow(proxy, cluster string, node types.Server, verbose bool) []string
 	return row
 }
 
-func printNodesAsText(nodes []types.Server, verbose bool) {
+func printNodesAsText(output io.Writer, nodes []types.Server, verbose bool) error {
 	var rows [][]string
 	for _, n := range nodes {
 		rows = append(rows, getNodeRow("", "", n, verbose))
@@ -2301,7 +2267,11 @@ func printNodesAsText(nodes []types.Server, verbose bool) {
 	case false:
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
 	}
-	fmt.Println(t.AsBuffer().String())
+	if _, err := fmt.Fprintln(output, t.AsBuffer().String()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func sortedLabels(labels map[string]string) string {
@@ -2664,7 +2634,7 @@ func onListClusters(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	profile, _, err := client.Status(cf.HomePath, cf.Proxy)
+	profile, err := cf.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2908,11 +2878,11 @@ func onSSH(cf *CLIConf) error {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				fmt.Fprintf(os.Stderr, "error: ambiguous host could match multiple nodes\n\n")
-				printNodesAsText(nodes, true)
-				fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
-				fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
-				fmt.Fprintf(os.Stderr, "\n")
+				fmt.Fprintf(cf.Stderr(), "error: ambiguous host could match multiple nodes\n\n")
+				printNodesAsText(cf.Stderr(), nodes, true)
+				fmt.Fprintf(cf.Stderr(), "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
+				fmt.Fprintf(cf.Stderr(), "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
+				fmt.Fprintf(cf.Stderr(), "\n")
 				return trace.Wrap(&common.ExitCodeError{Code: 1})
 			}
 			return trace.Wrap(err)
@@ -3122,89 +3092,18 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.JumpHosts = hosts
 	}
 
-	var key *client.Key
-
-	// Look if a user identity was given via -i flag
-	if cf.IdentityFileIn != "" {
-		// Ignore local authentication methods when identity file is provided
-		c.SkipLocalAuth = true
-		// Force the use of the certificate principals so Unix
-		// username does not get used when logging in
-		c.UseKeyPrincipals = hostLogin == ""
-
-		var (
-			expiryDate   time.Time
-			hostAuthFunc ssh.HostKeyCallback
-		)
-		// read the ID file and create an "auth method" from it:
-		key, err = client.KeyFromIdentityFile(cf.IdentityFileIn)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		rootCluster, err := key.RootClusterName()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		clusters := []string{rootCluster}
-		if cf.SiteName != "" {
-			clusters = append(clusters, cf.SiteName)
-		} else {
-			cf.SiteName = rootCluster
-		}
-		hostAuthFunc, err = key.HostKeyCallbackForClusters(cf.InsecureSkipVerify, apiutils.Deduplicate(clusters))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if hostAuthFunc != nil {
-			c.HostKeyCallback = hostAuthFunc
-		} else {
-			return nil, trace.BadParameter("missing trusted certificate authorities in the identity, upgrade to newer version of tctl, export identity and try again")
-		}
-		certUsername, err := key.CertUsername()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		log.Debugf("Extracted username %q from the identity file %v.", certUsername, cf.IdentityFileIn)
-		c.Username = certUsername
-
-		// Also configure missing KeyIndex fields.
-		key.ProxyHost, err = utils.Host(proxy)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		key.ClusterName = rootCluster
-		key.Username = certUsername
-
-		// With the key index fields properly set, preload this key into a local store.
-		c.PreloadKey = key
-
-		authMethod, err := key.AsAuthMethod()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		c.AuthMethods = []ssh.AuthMethod{authMethod}
-
-		if len(key.TLSCert) > 0 {
-			c.TLS, err = key.TeleportClientTLSConfig(nil, clusters)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-		// check the expiration date
-		expiryDate, _ = key.CertValidBefore()
-		if expiryDate.Before(time.Now()) {
-			fmt.Fprintf(os.Stderr, "WARNING: the certificate has expired on %v\n", expiryDate)
-		}
-	} else {
-		// load profile. if no --proxy is given the currently active profile is used, otherwise
-		// fetch profile for exact proxy we are trying to connect to.
-		err = c.LoadProfile(cf.HomePath, proxy)
-		if err != nil {
-			fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, err)
-		}
+	c.ClientStore, err = initClientStore(cf, proxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	// load profile. if no --proxy is given the currently active profile is used, otherwise
+	// fetch profile for exact proxy we are trying to connect to.
+	profileErr := c.LoadProfile(c.ClientStore, proxy)
+	if profileErr != nil && !trace.IsNotFound(profileErr) {
+		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, profileErr)
+	}
+
 	// 3: override with the CLI flags
 	if cf.Namespace != "" {
 		c.Namespace = cf.Namespace
@@ -3328,6 +3227,11 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.AddKeysToAgent = client.AddKeysToAgentNo
 	}
 
+	// avoid adding keys to agent when using an identity file.
+	if (cf.IdentityFileOut != "" || cf.IdentityFileIn != "") && c.AddKeysToAgent == client.AddKeysToAgentAuto {
+		c.AddKeysToAgent = client.AddKeysToAgentNo
+	}
+
 	c.EnableEscapeSequences = cf.EnableEscapeSequences
 
 	// pass along mock sso login if provided (only used in tests)
@@ -3340,6 +3244,10 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.KeysDir = c.HomePath
 	}
 
+	if cf.IdentityFileIn != "" {
+		c.SkipLocalAuth = true
+	}
+
 	tc, err := client.NewClient(c)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3350,41 +3258,26 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// be found, or the key isn't supported as an agent key.
 	if profileSiteName != "" {
 		if err := tc.LoadKeyForCluster(profileSiteName); err != nil {
-			log.WithError(err).Infof("Could not load key for %s into the local agent.", profileSiteName)
-			if !trace.IsNotImplemented(err) && !trace.IsNotFound(err) {
+			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
 				return nil, trace.Wrap(err)
 			}
+			log.WithError(err).Infof("Could not load key for %s into the local agent.", profileSiteName)
 		}
 	}
 
-	// If identity file was provided, we skip loading the local profile info
-	// (above). This profile info provides the proxy-advertised listening
-	// addresses.
-	// To compensate, when using an identity file, explicitly fetch these
-	// addresses from the proxy (this is what Ping does).
-	if cf.IdentityFileIn != "" {
+	// If we are missing client profile information, ping the webproxy
+	// for proxy info and load it into the client config.
+	if profileErr != nil || cf.IdentityFileIn != "" {
 		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
 		_, err := tc.Ping(cf.Context)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		// If, after pinging the proxy, we've determined that the client should load
-		// all CAs, update the host key callback and TLS config.
-		if tc.LoadAllCAs {
-			sites, err := key.GetClusterNames()
-			if err != nil {
+		// Identityfile uses a placeholder profile. Save missing profile info.
+		if cf.IdentityFileIn != "" {
+			if err := tc.SaveProfile(true); err != nil {
 				return nil, trace.Wrap(err)
-			}
-			tc.Config.HostKeyCallback, err = key.HostKeyCallbackForClusters(cf.InsecureSkipVerify, sites)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if len(key.TLSCert) > 0 {
-				tc.Config.TLS, err = key.TeleportClientTLSConfig(nil, sites)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
 			}
 		}
 	}
@@ -3396,6 +3289,55 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	tc.Config.Invited = cf.Invited
 	tc.Config.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	return tc, nil
+}
+
+func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
+	if cf.IdentityFileIn != "" {
+		keyStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return keyStore, nil
+	}
+
+	// When logging in with an identity file output, we want to avoid writing
+	// any keys to disk, so we use a full memory client store.
+	if cf.IdentityFileOut != "" {
+		return client.NewMemClientStore(), nil
+	}
+
+	clientStore := client.NewFSClientStore(cf.HomePath)
+
+	// Store client keys in memory, but still save trusted certs and profile to disk.
+	if cf.AddKeysToAgent == client.AddKeysToAgentOnly {
+		clientStore.KeyStore = client.NewMemKeyStore()
+	}
+
+	return clientStore, nil
+}
+
+func (c *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
+	clientStore, err := initClientStore(c, c.Proxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	profile, err := clientStore.ReadProfileStatus(c.Proxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return profile, nil
+}
+
+func (c *CLIConf) FullProfileStatus() (*client.ProfileStatus, []*client.ProfileStatus, error) {
+	clientStore, err := initClientStore(c, c.Proxy)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	currentProfile, profiles, err := clientStore.FullProfileStatus()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return currentProfile, profiles, nil
 }
 
 type mfaModeOpts struct {
@@ -3516,7 +3458,7 @@ func refuseArgs(command string, args []string) error {
 
 // onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
 func onShow(cf *CLIConf) error {
-	key, err := client.KeyFromIdentityFile(cf.IdentityFileIn)
+	key, err := identityfile.KeyFromIdentityFile(cf.IdentityFileIn, cf.Proxy, cf.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3622,7 +3564,7 @@ func onStatus(cf *CLIConf) error {
 	// of any other proxies the user is logged into.
 	//
 	// Return error if not logged in, no active profile, or expired.
-	profile, profiles, err := client.Status(cf.HomePath, cf.Proxy)
+	profile, profiles, err := cf.FullProfileStatus()
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("Not logged in.")
@@ -3660,9 +3602,13 @@ func onStatus(cf *CLIConf) error {
 		return nil
 	}
 
-	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
-		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
-		log.WithError(err).Warn("Failed to display cluster alerts.")
+	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
+		log.Debug("Skipping cluster alerts due to Hardware Key Touch requirement.")
+	} else {
+		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
+			types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+			log.WithError(err).Warn("Failed to display cluster alerts.")
+		}
 	}
 
 	return nil
@@ -3986,7 +3932,7 @@ func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.Acces
 // reissueWithRequests handles a certificate reissue, applying new requests by ID,
 // and saving the updated profile.
 func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []string, dropRequests []string) error {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := tc.ClientStore.ReadProfileStatus(cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4010,10 +3956,10 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 	if err := tc.ReissueUserCerts(cf.Context, client.CertCacheDrop, params); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := tc.SaveProfile(cf.HomePath, true); err != nil {
+	if err := tc.SaveProfile(true); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := updateKubeConfig(cf, tc, ""); err != nil {
+	if err := updateKubeConfigOnLogin(cf, tc); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -4039,7 +3985,7 @@ func onApps(cf *CLIConf) error {
 	}
 
 	// Retrieve profile to be able to show which apps user is logged into.
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4102,7 +4048,7 @@ func listAppsAllClusters(cf *CLIConf) error {
 
 	sort.Sort(listings)
 
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := cf.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4188,7 +4134,7 @@ func onRecordings(cf *CLIConf) error {
 
 // onEnvironment handles "tsh env" command.
 func onEnvironment(cf *CLIConf) error {
-	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := cf.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4325,7 +4271,7 @@ func validateParticipantMode(mode types.SessionParticipantMode) error {
 
 // forEachProfile performs an action for each profile a user is currently logged in to.
 func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *client.ProfileStatus) error) error {
-	profile, profiles, err := client.Status(cf.HomePath, "")
+	profile, profiles, err := cf.FullProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4352,4 +4298,85 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 	}
 
 	return trace.NewAggregate(errors...)
+}
+
+type updateKubeConfigOpt struct {
+	warnOnDeprecatedSNI bool
+	// warnSNIPrinted is a pointer to bool forwarded from outside and set internally to
+	// prevent printing deprecated warning server times in a single tsh flow.
+	// Example usage:
+	//  var warnOnDeprecatedKubeSNIPrinted bool
+	//	updateKubeConfigOption := withWarnOnDeprecatedSNI(&warnOnDeprecatedKubeSNIPrinted)
+	// then sequence  call of updateKubeConfigOption like
+	//  updateKubeConfigOnLogin(cf, tc,  updateKubeConfigOption)
+	//  updateKubeConfigOnLogin(cf, tc,  updateKubeConfigOption)
+	// will print the warning message only once.
+	warnSNIPrinted *bool
+}
+
+type updateKubeConfigOnLoginOpt func(opt *updateKubeConfigOpt)
+
+func withWarnOnDeprecatedSNI(printed *bool) updateKubeConfigOnLoginOpt {
+	return func(opt *updateKubeConfigOpt) {
+		opt.warnOnDeprecatedSNI = true
+		opt.warnSNIPrinted = printed
+	}
+}
+
+// updateKubeConfigOnLogin checks if the `--kube-cluster` flag was provided to
+// tsh login call and updates the default kubeconfig with its value,
+// otherwise does nothing.
+func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, opts ...updateKubeConfigOnLoginOpt) error {
+	var settings updateKubeConfigOpt
+	for _, opt := range opts {
+		opt(&settings)
+	}
+	defer func() {
+		// DEPRECATED DELETE IN 14.0
+		if !settings.warnOnDeprecatedSNI {
+			return
+		}
+		if settings.warnSNIPrinted == nil || *settings.warnSNIPrinted == true {
+			return
+		}
+		warnOnDeprecatedKubeConfigServerName(cf, tc)
+		*settings.warnSNIPrinted = true
+	}()
+
+	if len(cf.KubernetesCluster) == 0 {
+		return nil
+	}
+	err := updateKubeConfig(cf, tc, "")
+	return trace.Wrap(err)
+}
+
+// DEPRECATED DELETE IN 14.0
+func warnOnDeprecatedKubeConfigServerName(cf *CLIConf, tc *client.TeleportClient) {
+	if !tc.TLSRoutingEnabled {
+		// The ServerName in KUBECONFIG is used only when the TLS Routing is enabled.
+		return
+	}
+	kubeConfigPath := getKubeConfigPath(cf, "")
+	value, err := kubeconfig.Load(kubeConfigPath)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return
+		}
+		log.Warnf("Failed to load KUBECONFIG file: %v", err)
+		return
+	}
+
+	var outdatedClusters []string
+	k8host, _ := tc.KubeProxyHostPort()
+	for name, cluster := range value.Clusters {
+		if cluster.TLSServerName == client.GetOldKubeTLSServerName(k8host) {
+			outdatedClusters = append(outdatedClusters, name)
+		}
+	}
+
+	if len(outdatedClusters) == 0 {
+		return
+	}
+	fmt.Printf("Deprecated tls-server-name value detected in %s KUBECONFIG file for [%v] clusters\n", kubeConfigPath, strings.Join(outdatedClusters, ", "))
+	fmt.Printf("Please re-login and update your KUBECONFIG cluster configuration by running the 'tsh kube login' command.\n\n")
 }

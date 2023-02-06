@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +35,9 @@ func TestTrimToMaxSize(t *testing.T) {
 		maxSize int
 		in      AuditEvent
 		want    AuditEvent
+		cmpOpts []cmp.Option
 	}{
+		// DatabaseSessionQuery
 		{
 			name:    "Query exceeds max limit size",
 			maxSize: 6000,
@@ -99,6 +102,28 @@ func TestTrimToMaxSize(t *testing.T) {
 				DatabaseQuery: `{"a": "b","a":`,
 			},
 		},
+		// UserLogin
+		{
+			name:    "UserLogin event with error",
+			maxSize: 3000,
+			in: &UserLogin{
+				Status: Status{
+					Error:       strings.Repeat("A", 2000),
+					UserMessage: strings.Repeat("A", 2000),
+				},
+			},
+			want: &UserLogin{
+				Status: Status{
+					Error:       strings.Repeat("A", 1336),
+					UserMessage: strings.Repeat("A", 1336),
+				},
+			},
+			cmpOpts: []cmp.Option{
+				// UserLogin.IdentityAttributes has an Equal method which gets used
+				// by cmp.Diff but fails whether nil or an empty struct is supplied.
+				cmpopts.IgnoreFields(UserLogin{}, "IdentityAttributes"),
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -108,7 +133,7 @@ func TestTrimToMaxSize(t *testing.T) {
 
 			got := sr.TrimToMaxSize(tc.maxSize)
 
-			require.Empty(t, cmp.Diff(got, tc.want))
+			require.Empty(t, cmp.Diff(got, tc.want, tc.cmpOpts...))
 			require.Less(t, got.Size(), tc.maxSize)
 		})
 	}

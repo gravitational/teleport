@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Generates protos for Teleport and Teleport API.
 set -eu
@@ -10,23 +10,32 @@ main() {
   # Generated protos are written to
   # <teleport-root>/github.com/gravitational/teleport/..., so we copy them to
   # the correct relative path.
-  trap 'rm -fr github.com' EXIT   # don't leave github.com/ behind
-  rm -fr api/gen/proto gen/proto  # cleanup gen/proto folders
+  trap 'rm -fr github.com' EXIT  # don't leave github.com/ behind
+  rm -fr api/gen/proto gen/proto # cleanup gen/proto folders
 
-  # Generate Gogo protos (default).
-  buf generate --template=buf-gogo.gen.yaml
+  # Generate Gogo protos.
+  buf generate --template=buf-gogo.gen.yaml api/proto
+  buf generate --template=buf-gogo.gen.yaml proto
 
   # Generate protoc-gen-go protos (preferred).
   # Add your protos to the list if you can.
   buf generate --template=buf-go.gen.yaml \
     --path=api/proto/teleport/devicetrust/ \
     --path=api/proto/teleport/loginrule/ \
-    --path=proto/teleport/lib/multiplexer/
+    --path=api/proto/teleport/proxy/ \
+    --path=proto/teleport/lib/multiplexer/ \
+    --path=proto/teleport/lib/teleterm/
+
+  # Generate connect-go protos.
+  buf generate --template=buf-connect-go.gen.yaml \
+    --path=proto/prehog/
+
+  # Generate JS protos.
+	buf generate --template=buf-js.gen.yaml \
+    --path=proto/prehog/ \
+    --path=proto/teleport/lib/teleterm/
 
   cp -r github.com/gravitational/teleport/* .
-
-  # Generate prehog protos.
-  cd lib/prehog && buf generate
 }
 
 main "$@"

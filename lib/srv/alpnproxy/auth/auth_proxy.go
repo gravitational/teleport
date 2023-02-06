@@ -55,7 +55,7 @@ type AuthProxyDialerService struct {
 	localClusterName    string
 	authServers         []string
 	jwtSigner           multiplexer.PROXYSigner
-	signingCert         []byte
+	signingCert         []byte // DER-encoded TLS certificate
 }
 
 func (s *AuthProxyDialerService) HandleConnection(ctx context.Context, conn net.Conn, connInfo alpnproxy.ConnectionInfo) error {
