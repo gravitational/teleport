@@ -38,6 +38,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
@@ -899,6 +900,240 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 
 			if test.assertCert != nil {
 				test.assertCert(t, gotCert)
+			}
+		})
+	}
+}
+
+func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
+	})
+
+	testServer := newTestTLSServer(t)
+
+	ctx := context.Background()
+	clock := testServer.Clock()
+	clusterName := testServer.ClusterName()
+	authServer := testServer.Auth()
+
+	// Create a user for testing.
+	user, _, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"})
+	require.NoError(t, err, "CreateUserAndRole failed")
+	username := user.GetName()
+
+	// Create clients with and without device extensions.
+	clientWithoutDevice, err := testServer.NewClient(TestUser(username))
+	require.NoError(t, err, "NewClient failed")
+
+	clientWithDevice, err := testServer.NewClient(
+		TestUserWithDeviceExtensions(username, tlsca.DeviceExtensions{
+			DeviceID:     "deviceid1",
+			AssetTag:     "assettag1",
+			CredentialID: "credentialid1",
+		}))
+	require.NoError(t, err, "NewClient failed")
+
+	// updateAuthPref is a helper used throughout the test.
+	updateAuthPref := func(t *testing.T, modify func(ap types.AuthPreference)) {
+		authPref, err := authServer.GetAuthPreference(ctx)
+		require.NoError(t, err, "GetAuthPreference failed")
+
+		modify(authPref)
+
+		require.NoError(t,
+			authServer.SetAuthPreference(ctx, authPref),
+			"SetAuthPreference failed")
+	}
+
+	// Register MFA devices for the user.
+	// Required to issue certificates with MFA.
+	const rpID = "localhost"
+	const origin = "https://" + rpID + ":3080" // matches RPID.
+	updateAuthPref(t, func(authPref types.AuthPreference) {
+		authPref.SetSecondFactor(constants.SecondFactorOptional)
+		authPref.SetWebauthn(&types.Webauthn{
+			RPID: "localhost",
+		})
+	})
+	mfaDevices := addOneOfEachMFADevice(t, clientWithoutDevice, clock, origin)
+
+	// Create a public key for UserCertsRequest.
+	_, pub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err, "GenerateKeyPair failed")
+
+	expires := clock.Now().Add(1 * time.Hour)
+	sshReq := proto.UserCertsRequest{
+		PublicKey:      pub,
+		Username:       username,
+		Expires:        expires,
+		RouteToCluster: clusterName,
+		NodeName:       "mynode",
+		Usage:          proto.UserCertsRequest_SSH,
+	}
+	appReq := proto.UserCertsRequest{
+		PublicKey:      pub,
+		Username:       username,
+		Expires:        expires,
+		RouteToCluster: clusterName,
+		Usage:          proto.UserCertsRequest_App,
+		RouteToApp: proto.RouteToApp{
+			Name:        "hello",
+			SessionID:   "mysessionid",
+			PublicAddr:  "hello.cluster.dev",
+			ClusterName: clusterName,
+		},
+	}
+	winReq := proto.UserCertsRequest{
+		PublicKey:      pub,
+		Username:       username,
+		Expires:        expires,
+		RouteToCluster: clusterName,
+		Usage:          proto.UserCertsRequest_WindowsDesktop,
+		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
+			WindowsDesktop: "mydesktop",
+			Login:          username,
+		},
+	}
+
+	assertSuccess := func(t *testing.T, err error) {
+		assert.NoError(t, err, "GenerateUserCerts error mismatch")
+	}
+	assertAccessDenied := func(t *testing.T, err error) {
+		assert.True(t, trace.IsAccessDenied(err), "GenerateUserCerts error mismatch, got=%v (%T), want trace.AccessDeniedError", err, err)
+	}
+
+	// generateCertsMFA is used to run the MFA-aware, streaming certificate
+	// issuance ceremony.
+	generateCertsMFA := func(t *testing.T, client *Client, req proto.UserCertsRequest) (cert *proto.SingleUseUserCert, err error) {
+		defer func() {
+			// Translate gRPC to trace errors, as our clients do.
+			err = trail.FromGRPC(err)
+		}()
+
+		stream, err := client.GenerateUserSingleUseCerts(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := stream.Send(&proto.UserSingleUseCertsRequest{
+			Request: &proto.UserSingleUseCertsRequest_Init{
+				Init: &req,
+			},
+		}); err != nil {
+			return nil, err
+		}
+		resp, err := stream.Recv()
+		if err != nil {
+			return nil, err
+		}
+		mfaResp := mfaDevices.webAuthHandler(t, resp.GetMFAChallenge())
+
+		if err := stream.Send(&proto.UserSingleUseCertsRequest{
+			Request: &proto.UserSingleUseCertsRequest_MFAResponse{
+				MFAResponse: mfaResp,
+			},
+		}); err != nil {
+			return nil, err
+		}
+		resp, err = stream.Recv()
+		if err != nil {
+			return nil, err
+		}
+		cert = resp.GetCert()
+		if cert == nil {
+			return nil, fmt.Errorf("unexpected response, cert is nil: %v", resp)
+		}
+		return cert, nil
+	}
+
+	tests := []struct {
+		name                     string
+		clusterDeviceMode        string
+		client                   *Client
+		req                      proto.UserCertsRequest
+		skipGenerateUserCertsRPC bool // aka non-MFA issuance.
+		skipSingleUseCertsRPC    bool // aka MFA/streaming issuance.
+		assertErr                func(t *testing.T, err error)
+	}{
+		{
+			name:              "mode=optional without extensions",
+			clusterDeviceMode: constants.DeviceTrustModeOptional,
+			client:            clientWithoutDevice,
+			req:               sshReq,
+			assertErr:         assertSuccess,
+		},
+		{
+			name:              "mode=optional with extensions",
+			clusterDeviceMode: constants.DeviceTrustModeOptional,
+			client:            clientWithDevice,
+			req:               sshReq,
+			assertErr:         assertSuccess,
+		},
+		{
+			name:              "nok: mode=required without extensions",
+			clusterDeviceMode: constants.DeviceTrustModeRequired,
+			client:            clientWithoutDevice,
+			req:               sshReq,
+			assertErr:         assertAccessDenied,
+		},
+		{
+			name:              "mode=required with extensions",
+			clusterDeviceMode: constants.DeviceTrustModeRequired,
+			client:            clientWithDevice,
+			req:               sshReq,
+			assertErr:         assertSuccess,
+		},
+		{
+			name:                  "mode=required ignores App Access requests (non-MFA)",
+			clusterDeviceMode:     constants.DeviceTrustModeRequired,
+			client:                clientWithoutDevice,
+			req:                   appReq,
+			skipSingleUseCertsRPC: true,
+			assertErr:             assertSuccess,
+		},
+		{
+			// Tracked here because, if this changes, then the scenario should be the
+			// same as the one above.
+			name:                     "GenerateUserSingleUseCerts does not allow App usage",
+			clusterDeviceMode:        constants.DeviceTrustModeRequired,
+			client:                   clientWithoutDevice,
+			req:                      appReq,
+			skipGenerateUserCertsRPC: true,
+			assertErr: func(t *testing.T, err error) {
+				assert.ErrorContains(t, err, "app access certificates", "GenerateUserSingleUseCerts expected to fail for usage=App")
+			},
+		},
+		{
+			name:              "mode=required ignores Desktop Access requests",
+			clusterDeviceMode: constants.DeviceTrustModeRequired,
+			client:            clientWithoutDevice,
+			req:               winReq,
+			assertErr:         assertSuccess,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			updateAuthPref(t, func(ap types.AuthPreference) {
+				ap.SetDeviceTrust(&types.DeviceTrust{
+					Mode: test.clusterDeviceMode,
+				})
+			})
+
+			// Test the unary, non-MFA endpoint.
+			if !test.skipGenerateUserCertsRPC {
+				t.Run("GenerateUserCerts", func(t *testing.T) {
+					_, err := test.client.GenerateUserCerts(ctx, test.req)
+					test.assertErr(t, err)
+				})
+			}
+
+			// Test the streaming, MFA-aware endpoint.
+			if !test.skipSingleUseCertsRPC {
+				t.Run("GenerateUserSingleUseCerts", func(t *testing.T) {
+					_, err := generateCertsMFA(t, test.client, test.req)
+					test.assertErr(t, err)
+				})
 			}
 		})
 	}
