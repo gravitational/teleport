@@ -1220,7 +1220,6 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
 	}
 
-	ctx := context.Background()
 	// Rotate CAs.
 	for _, phase := range rotationPhases {
 		err = auth.RotateCertAuthority(ctx, RotateRequest{

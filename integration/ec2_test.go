@@ -126,11 +126,11 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 	return config
 }
 
-func getIID(t *testing.T) imds.InstanceIdentityDocument {
-	cfg, err := config.LoadDefaultConfig(context.TODO())
+func getIID(t *testing.T, ctx context.Context) imds.InstanceIdentityDocument {
+	cfg, err := config.LoadDefaultConfig(ctx)
 	require.NoError(t, err)
 	imdsClient := imds.NewFromConfig(cfg)
-	output, err := imdsClient.GetInstanceIdentityDocument(context.TODO(), nil)
+	output, err := imdsClient.GetInstanceIdentityDocument(ctx, nil)
 	require.NoError(t, err)
 	return output.InstanceIdentityDocument
 }
@@ -154,9 +154,10 @@ func TestEC2NodeJoin(t *testing.T) {
 	if os.Getenv("TELEPORT_TEST_EC2") == "" {
 		t.Skipf("Skipping TestEC2NodeJoin because TELEPORT_TEST_EC2 is not set")
 	}
+	ctx := context.Background()
 
 	// fetch the IID to create a token which will match this instance
-	iid := getIID(t)
+	iid := getIID(t, ctx)
 
 	tokenName := "test_token"
 	token, err := types.NewProvisionTokenFromSpec(
@@ -186,11 +187,11 @@ func TestEC2NodeJoin(t *testing.T) {
 	authServer := authSvc.GetAuthServer()
 	authServer.SetClock(clock)
 
-	err = authServer.UpsertToken(context.Background(), token)
+	err = authServer.UpsertToken(ctx, token)
 	require.NoError(t, err)
 
 	// sanity check there are no nodes to start with
-	nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
+	nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, nodes)
 
@@ -206,7 +207,7 @@ func TestEC2NodeJoin(t *testing.T) {
 
 	// the node should eventually join the cluster and heartbeat
 	require.Eventually(t, func() bool {
-		nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
+		nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(t, err)
 		return len(nodes) > 0
 	}, time.Minute, time.Second, "waiting for node to join cluster")
