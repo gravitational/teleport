@@ -130,23 +130,6 @@ editions of Teleport.
 
 ### Teleport Connect
 
-When you first start the app, Teleport Connect asks for permission to collect & send telemetry data.
-This includes tracking events such as:
-- Login
-- Starting an SSH, database, or kube session
-- File transfer during an SSH session
-- Managing access requests
-- Asking about job role
+(!docs/pages/includes/teleport-connect-telemetry.mdx!)
 
-On login, we also collect some device-related data:
-
-- Operating system and its version
-- App version
-- Processor architecture
-
-The full list of events and collected data is defined as [protocol buffer messages in connect.proto](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/proto/prehog/v1alpha/connect.proto).
-We do not track the details of those events but merely that the given event took place. Each event includes
-cluster name and user name anonymized with HMAC with internal cluster ID as the key – it’s impossible for us
-to resolve that anonymized token back to a particular cluster or user.
-
-If you no longer want to send usage data, see [disabling telemetry](./connect-your-client/teleport-connect.mdx#telemetry).
+If you no longer want to send usage data, see [disabling telemetry](./connect-your-client/teleport-connect.mdx#disabling-telemetry).
