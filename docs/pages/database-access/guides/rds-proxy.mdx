@@ -83,13 +83,6 @@ The Database Service will discover all RDS Proxies according to the
 configuration and register them in the cluster. In addition to the primary
 endpoints of the RDS Proxies, their custom endpoints will also be registered.
 
-<Admonition type="note" title="AWS credentials">
-  The Teleport Database Service uses the default credential provider chain to
-  find AWS credentials. See [Specifying
-  Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials)
-  for more information.
-</Admonition>
-
 ## Step 4/5. Configure database user credentials
 
 The Database Service connects to a RDS Proxy instance using IAM authentication.
