@@ -1049,7 +1049,7 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 	}
 
 	if !canStart {
-		if options.TerminateOnLeave {
+		if options.OnLeaveAction == types.OnSessionLeaveTerminate {
 			go func() {
 				if err := s.Close(); err != nil {
 					s.log.WithError(err).Errorf("Failed to close session")
