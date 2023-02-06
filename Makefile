@@ -412,7 +412,6 @@ build-archive:
 .PHONY:
 release-unix: clean full build-archive
 	@if [ -f e/Makefile ]; then \
-		rm -fr $(ASSETS_BUILDDIR)/webassets; \
 		$(MAKE) -C e release; \
 	fi
 
