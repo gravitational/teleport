@@ -168,13 +168,13 @@
               "forScopes": ["oss", "enterprise"]
             },
             {
-              "title": "Migrating From Older Charts",
-              "slug": "/deploy-a-cluster/helm-deployments/migration/",
+              "title": "Migrating from v11 to v12",
+              "slug": "/deploy-a-cluster/helm-deployments/migration-v12/",
               "forScopes": ["oss", "enterprise"]
             },
             {
-              "title": "Migrating from v11 to v12",
-              "slug": "/deploy-a-cluster/helm-deployments/migration-v12/",
+              "title": "Kubernetes 1.25 and PSP removal",
+              "slug": "/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/",
               "forScopes": ["oss", "enterprise"]
             }
           ]
