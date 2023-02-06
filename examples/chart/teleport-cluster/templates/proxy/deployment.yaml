@@ -169,7 +169,7 @@ spec:
         - name: sshtun
           containerPort: 3024
           protocol: TCP
-        - name: k8s
+        - name: kube
           containerPort: 3026
           protocol: TCP
         - name: mysql

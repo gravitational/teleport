@@ -25,8 +25,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path"
-	"path/filepath"
+	"path" // SFTP requires Linux-style path separators
 	"runtime"
 	"strings"
 	"time"
@@ -202,7 +201,6 @@ func (c *Config) initFS(sshClient *ssh.Client, client *sftp.Client) error {
 	}
 
 	return trace.Wrap(c.expandPaths(srcOK, dstOK))
-
 }
 
 func (c *Config) expandPaths(srcIsRemote, dstIsRemote bool) (err error) {
@@ -221,9 +219,9 @@ func (c *Config) expandPaths(srcIsRemote, dstIsRemote bool) (err error) {
 	return trace.Wrap(err)
 }
 
-func expandPath(path string, getHomeDir homeDirRetriever) (string, error) {
-	if !needsExpansion(path) {
-		return path, nil
+func expandPath(pathStr string, getHomeDir homeDirRetriever) (string, error) {
+	if !needsExpansion(pathStr) {
+		return pathStr, nil
 	}
 
 	homeDir, err := getHomeDir()
@@ -233,7 +231,7 @@ func expandPath(path string, getHomeDir homeDirRetriever) (string, error) {
 
 	// this is safe because we verified that all paths are non-empty
 	// in CreateUploadConfig/CreateDownloadConfig
-	return filepath.Join(homeDir, path[1:]), nil
+	return path.Join(homeDir, pathStr[1:]), nil
 }
 
 // needsExpansion returns true if path is '~', '~/', or '~\' on Windows

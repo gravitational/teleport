@@ -69,7 +69,7 @@
           "slug": "/choose-an-edition/introduction/"
         },
         {
-          "title": "Teleport Cloud",
+          "title": "Teleport Enterprise Cloud",
           "slug": "/choose-an-edition/teleport-cloud/introduction/",
           "forScopes": ["cloud"],
           "entries": [
@@ -171,6 +171,11 @@
               "title": "Migrating From Older Charts",
               "slug": "/deploy-a-cluster/helm-deployments/migration/",
               "forScopes": ["oss", "enterprise"]
+            },
+            {
+              "title": "Migrating from v11 to v12",
+              "slug": "/deploy-a-cluster/helm-deployments/migration-v12/",
+              "forScopes": ["oss", "enterprise"]
             }
           ]
         },
@@ -251,6 +256,11 @@
             {
               "title": "Hardware Key Support (Preview)",
               "slug": "/access-controls/guides/hardware-key-support/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Device Trust (Preview)",
+              "slug": "/access-controls/guides/device-trust/",
               "forScopes": ["enterprise", "cloud"]
             }
           ]
@@ -595,7 +605,25 @@
           "slug": "/application-access/getting-started/"
         },
         {
-          "title": "Access Guides",
+          "title": "Securing Cloud Provider APIs",
+          "slug": "/application-access/cloud-apis/",
+          "entries": [
+            {
+              "title": "Google Cloud CLI Access",
+              "slug": "/application-access/cloud-apis/google-cloud/"
+            },
+            {
+              "title": "AWS CLI and Console Access",
+              "slug": "/application-access/cloud-apis/aws-console/"
+            },
+            {
+              "title": "Azure CLI Access",
+              "slug": "/application-access/cloud-apis/azure/"
+            }
+          ]
+        },
+        {
+          "title": "Securing Internal Applications",
           "slug": "/application-access/guides/",
           "entries": [
             {
@@ -611,21 +639,17 @@
               "slug": "/application-access/guides/api-access/"
             },
             {
-              "title": "AWS Access",
-              "slug": "/application-access/guides/aws-console/"
-            },
-            {
-              "title": "Azure CLI Access",
-              "slug": "/application-access/guides/azure/"
-            },
-            {
               "title": "Dynamic Registration",
               "slug": "/application-access/guides/dynamic-registration/"
+            },
+            {
+              "title": "AWS DynamoDB",
+              "slug": "/application-access/guides/dynamodb/"
             }
           ]
         },
         {
-          "title": "JWT Guides",
+          "title": "Using Teleport-Signed JWTs",
           "slug": "/application-access/jwt/",
           "entries": [
             {
@@ -789,7 +813,7 @@
           "entries": [
             {
                "title": "AWS DynamoDB",
-               "slug": "/database-access/guides/dynamodb/"
+               "slug": "/database-access/guides/aws-dynamodb/"
             },
             {
                "title": "AWS ElastiCache & MemoryDB",
@@ -806,6 +830,10 @@
             {
                "title": "AWS Redshift",
                "slug": "/database-access/guides/postgres-redshift/"
+            },
+            {
+              "title": "AWS Redshift Serverless",
+              "slug": "/database-access/guides/redshift-serverless/"
             },
             {
                "title": "Azure Cache for Redis",
@@ -1255,6 +1283,10 @@
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
       }
+    },
+    "devicetrust": {
+      "asset_tag": "C00AA0AAAA0A",
+      "enroll_token": "AAAAAAAAAAAAAAAAAAAAAAAA-this-is-an-example"
     },
     "docker": {
       "version": "20.10.7",
@@ -2148,6 +2180,21 @@
     {
       "source": "/management/guides/elastic-stack/",
       "destination": "/management/export-audit-events/elastic-stack/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/guides/aws-console/",
+      "destination": "/application-access/cloud-apis/aws-console/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/guides/azure/",
+      "destination": "/application-access/cloud-apis/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/dynamodb/",
+      "destination": "/application-access/guides/dynamodb/",
       "permanent": true
     }
   ]

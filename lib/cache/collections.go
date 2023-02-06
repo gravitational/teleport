@@ -861,6 +861,11 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 		return nil, trace.Wrap(err)
 	}
 
+	applySAMLIDPCAs, err := c.fetchCertAuthorities(ctx, types.SAMLIDPCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return func(ctx context.Context) error {
 		if err := applyHostCAs(ctx); err != nil {
 			return trace.Wrap(err)
@@ -890,7 +895,12 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 				}
 			}
 		}
-		return trace.Wrap(applyJWTSigners(ctx))
+
+		if err := applyJWTSigners(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return trace.Wrap(applySAMLIDPCAs(ctx))
 	}, nil
 }
 

@@ -416,7 +416,7 @@ You can specify multiple selectors by including additional list elements.
 </Admonition>
 
 <Admonition type="note" title="IAM roles">
-  For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx#step-47-create-an-iam-policy-for-teleport).
+  For AWS database auto-discovery to work, your Database Service pods will need to use a role which has appropriate IAM permissions as per the [database documentation](../../database-access/guides/rds.mdx#step-36-create-an-iam-policy-for-teleport).
 
   After configuring a role, you can use an `eks.amazonaws.com/role-arn` annotation with the `annotations.serviceAccount` value to associate it with the service account and grant permissions:
 
@@ -688,9 +688,9 @@ You can specify multiple selectors by adding elements to the list.
 | `string` | `nil`         |
 
 Normally the version of Teleport being used will match the version of the chart being installed. If you install chart version
-7.0.0, you'll be using Teleport 7.0.0.
+10.0.0, you'll be using Teleport 10.0.0.
 
-You can optionally override this to use a different published Teleport Docker image tag like `6.0.2` or `7`.
+You can optionally override this to use a different published Teleport Docker image tag like `10.2.2` or `11`.
 
 See [this link for information on Community Docker image versions](../../management/guides/docker.mdx#step-14-pick-your-image).
 
@@ -702,12 +702,12 @@ See [this link for information on Community Docker image versions](../../managem
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  teleportVersionOverride: "7"
+  teleportVersionOverride: "11"
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set teleportVersionOverride="7"
+  $ --set teleportVersionOverride="11"
   ```
   </TabItem>
 </Tabs>
