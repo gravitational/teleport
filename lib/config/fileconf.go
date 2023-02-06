@@ -1863,8 +1863,10 @@ type Proxy struct {
 	// client connections.
 	MongoPublicAddr apiutils.Strings `yaml:"mongo_public_addr,omitempty"`
 
-	// IDP is configuration for identity providers.
-	IDP IDP `yaml:"idp,omitempty"`
+	// IdP is configuration for identity providers.
+	//
+	//nolint:revive // Because we want this to be IdP.
+	IdP IdP `yaml:"idp,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
@@ -1902,9 +1904,11 @@ func (a ACME) Parse() (*service.ACME, error) {
 	return &out, nil
 }
 
-// IDP represents the configuration for identity providers running within the
+// IdP represents the configuration for identity providers running within the
 // proxy.
-type IDP struct {
+//
+//nolint:revive // Because we want this to be IdP.
+type IdP struct {
 	// SAMLIdP represents configuratino options for the SAML identity provider.
 	SAMLIdP SAMLIdP `yaml:"saml,omitempty"`
 }
