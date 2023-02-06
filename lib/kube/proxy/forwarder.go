@@ -255,6 +255,14 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	fwd.router.UseRawPath = true
 
+	fwd.router.GET("/version", fwd.withAuth(
+		func(ctx *authContext, w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
+			// Forward version requests to the cluster.
+			return fwd.catchAll(ctx, w, r)
+		},
+		withCustomErrFormatter(fwd.writeResponseErrorToBody),
+	))
+
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", fwd.withAuth(fwd.exec))
 	fwd.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", fwd.withAuth(fwd.exec))
 
@@ -506,7 +514,7 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 		}
 
 		return handler(authContext, w, req)
-	}, f.formatResponseError)
+	}, f.formatStatusResponseError)
 }
 
 // acquireConnectionLockWithIdentity acquires a connection lock under a given identity.
@@ -524,7 +532,29 @@ func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, ident
 	return nil
 }
 
-func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
+// authOption is a functional option for authOptions.
+type authOption func(*authOptions)
+
+// authOptions is a set of options for withAuth handler.
+type authOptions struct {
+	// errFormater is a function that formats the error response.
+	errFormater func(http.ResponseWriter, error)
+}
+
+// withCustomErrFormatter allows to override the default error formatter.
+func withCustomErrFormatter(f func(http.ResponseWriter, error)) authOption {
+	return func(o *authOptions) {
+		o.errFormater = f
+	}
+}
+
+func (f *Forwarder) withAuth(handler handlerWithAuthFunc, opts ...authOption) httprouter.Handle {
+	authOpts := authOptions{
+		errFormater: f.formatStatusResponseError,
+	}
+	for _, opt := range opts {
+		opt(&authOpts)
+	}
 	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
 		authContext, err := f.authenticate(req)
 		if err != nil {
@@ -538,7 +568,7 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 			return nil, trace.Wrap(err)
 		}
 		return handler(authContext, w, req, p)
-	}, f.formatResponseError)
+	}, authOpts.errFormater)
 }
 
 // withAuthPassthrough authenticates the request and fetches information but doesn't deny if the user
@@ -556,14 +586,22 @@ func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc) httprouter.
 			return nil, trace.Wrap(err)
 		}
 		return handler(authContext, w, req, p)
-	}, f.formatResponseError)
+	}, f.formatStatusResponseError)
 }
 
 func (f *Forwarder) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, respErr error) {
-	f.formatResponseError(rw, respErr)
+	f.formatStatusResponseError(rw, respErr)
 }
 
-func (f *Forwarder) formatResponseError(rw http.ResponseWriter, respErr error) {
+// writeResponseErrorToBody writes the error response to the body without any formatting.
+// It is used for the /version endpoint since Kubernetes doesn't expect a JSON response
+// for that endpoint.
+func (f *Forwarder) writeResponseErrorToBody(rw http.ResponseWriter, respErr error) {
+	http.Error(rw, respErr.Error(), http.StatusInternalServerError)
+}
+
+// formatStatusResponseError formats the error response into a kube Status object.
+func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr error) {
 	status := &metav1.Status{
 		Status: metav1.StatusFailure,
 		// Don't trace.Unwrap the error, in case it was wrapped with a
