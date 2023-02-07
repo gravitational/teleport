@@ -768,7 +768,7 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 #### Examples
 
 ```code
-$ tsh --proxy=proxy.example.com scp -P example.txt user@host:/destination/dir
+$ tsh --proxy=proxy.example.com scp example.txt user@host:/destination/dir
 ```
 
 ### tsh ls
@@ -2634,7 +2634,8 @@ tctl version
 
 ## Resource filtering
 
-Both `tsh` and `tctl` allow you to filter `nodes`, `apps`, `db`, and `kube` resources using the `--search` and `--query` flags.
+Both `tsh` and `tctl` allow you to filter servers, applications, databases,
+desktops, and Kubernetes clusters using the `--search` and `--query` flags.
 
 The `--search` flag performs a simple fuzzy search on resource fields. For example, `--search=mac` searches for resources containing `mac`.
 

@@ -35,9 +35,11 @@ export type DatabasesResponse = {
   totalCount?: number;
 };
 
-export type UpdateDatabaseRequest = {
-  name: string;
-  caCert: string;
+export type UpdateDatabaseRequest = Omit<
+  Partial<CreateDatabaseRequest>,
+  'protocol'
+> & {
+  caCert?: string;
 };
 
 export type CreateDatabaseRequest = {
