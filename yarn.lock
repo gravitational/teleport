@@ -6695,10 +6695,10 @@ electron-to-chromium@^1.3.564, electron-to-chromium@^1.3.896:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.3.tgz#82480df3ef607f04bb38cc3f30a628d8b895339f"
   integrity sha512-hfpppjYhqIZB8jrNb0rNceQRkSnBN7QJl3W26O1jUv3F3BkQknqy1YTqVXkFnIcFtBc3Qnv5M7r5Lez2iOLgZA==
 
-electron@22.0.0:
-  version "22.0.0"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-22.0.0.tgz#ef84ab9cf23aa3f8c2f42a1e8e000ad7fd941058"
-  integrity sha512-cgRc4wjyM+81A0E8UGv1HNJjL1HBI5cWNh/DUIjzYvoUuiEM0SS0hAH/zaFQ18xOz2ced6Yih8SybpOiOYJhdg==
+electron@23.0.0:
+  version "23.0.0"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-23.0.0.tgz#4da457d7585149bb1a98ea8bddb286e72322a309"
+  integrity sha512-S6hVtTAjauMiiWP9sBVR5RpcUC464cNZ06I2EMUjeZBq+KooS6tLmNsfw0zLpAXDp1qosjlBP3v71NTZ3gd9iA==
   dependencies:
     "@electron/get" "^2.0.0"
     "@types/node" "^16.11.26"
@@ -11164,9 +11164,9 @@ no-case@^3.0.4:
     tslib "^2.0.3"
 
 node-abi@^3.0.0:
-  version "3.28.0"
-  resolved "https://registry.yarnpkg.com/node-abi/-/node-abi-3.28.0.tgz#b0df8b317e1c4f2f323756c5fc8ffccc5bca4718"
-  integrity sha512-fRlDb4I0eLcQeUvGq7IY3xHrSb0c9ummdvDSYWfT9+LKP+3jCKw/tKoqaM7r1BAoiAC6GtwyjaGnOz6B3OtF+A==
+  version "3.32.0"
+  resolved "https://registry.yarnpkg.com/node-abi/-/node-abi-3.32.0.tgz#a22e038efab01d9a35c6b19808b430616ed80539"
+  integrity sha512-HkwdiLzE/LeuOMIQq/dJq70oNyRc88+wt5CH/RXYseE00LkA/c4PkS6Ti1vE4OHYUiKjkwuxjWq9pItgrz8UJw==
   dependencies:
     semver "^7.3.5"
 
