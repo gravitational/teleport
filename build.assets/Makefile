@@ -178,6 +178,7 @@ buildbox-centos7-fips:
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
+		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
@@ -530,9 +531,10 @@ print-buildbox-version:
 	@echo $(BUILDBOX_VERSION)
 
 #
-# Build CentOS 7 assets such as clang.
+# Build CentOS 7 assets - clang.
 #
 .PHONY:build-centos7-assets
 build-centos7-assets:
-	docker build --build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) -t buildbox-centos7-assets -f Dockerfile-centos7-assets .
-	docker run -v $$(pwd):/centos7.assets -it buildbox-centos7-assets cp /centos7-assets.tar.gz /centos7.assets
+	docker build \
+		--tag $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
+		-f Dockerfile-centos7-assets .
