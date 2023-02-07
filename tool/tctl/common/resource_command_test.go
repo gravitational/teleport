@@ -209,6 +209,7 @@ func TestDatabaseResource(t *testing.T) {
 
 // TestDatabaseServiceResource tests tctl db_services get commands.
 func TestDatabaseServiceResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
 	ctx := context.Background()
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
@@ -218,18 +219,18 @@ func TestDatabaseServiceResource(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	var out []*types.DatabaseServiceV1
 
