@@ -66,6 +66,13 @@ output:
   uniq-by-line: false
 
 run:
+  go: '1.19'
+  skip-dirs:
+    - (^|/)node_modules/
+    - ^api/gen/
+    - ^docs/
+    - ^gen/
+    - ^rfd/
+    - ^web/
   skip-dirs-use-default: false
   timeout: 5m
-  go: '1.19'
