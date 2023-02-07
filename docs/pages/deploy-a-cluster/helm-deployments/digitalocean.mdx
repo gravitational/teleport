@@ -74,10 +74,14 @@ TEST SUITE: None
 </TabItem>
 <TabItem scope="enterprise" label="Teleport Enterprise">
 
-Create a namespace for your Teleport cluster resources:
+Create a namespace for your Teleport cluster resources and configure the
+PodSecurityAdmission:
 
 ```code
 $ kubectl create namespace teleport-cluster
+namespace/teleport-cluster created
+$ kubectl label namespace teleport-cluster 'pod-security.kubernetes.io/enforce=baseline'
+namespace/teleport-cluster labeled
 ```
 
 Obtain your Teleport Enterprise license file from the [Teleport Customer

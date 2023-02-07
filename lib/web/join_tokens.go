@@ -305,7 +305,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	}
 
 	// Get the CA pin hashes of the cluster to join.
-	localCAResponse, err := m.GetClusterCACert(context.TODO())
+	localCAResponse, err := m.GetClusterCACert(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
