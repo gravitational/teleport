@@ -991,7 +991,7 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	}
 
 	// get the certificate authority that will be signing the public key of the host
-	ca, err := a.Services.GetCertAuthority(context.TODO(), types.CertAuthID{
+	ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: domainName,
 	}, true)
@@ -1005,7 +1005,7 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	}
 
 	// create and sign!
-	return a.generateHostCert(services.HostCertParams{
+	return a.generateHostCert(ctx, services.HostCertParams{
 		CASigner:      caSigner,
 		PublicHostKey: hostPublicKey,
 		HostID:        hostID,
@@ -1017,8 +1017,10 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	})
 }
 
-func (a *Server) generateHostCert(p services.HostCertParams) ([]byte, error) {
-	authPref, err := a.GetAuthPreference(context.TODO())
+func (a *Server) generateHostCert(
+	ctx context.Context, p services.HostCertParams,
+) ([]byte, error) {
+	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2922,7 +2924,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		return nil, trace.Wrap(err)
 	}
 	// generate host SSH certificate
-	hostSSHCert, err := a.generateHostCert(services.HostCertParams{
+	hostSSHCert, err := a.generateHostCert(ctx, services.HostCertParams{
 		CASigner:      caSigner,
 		PublicHostKey: req.PublicSSHKey,
 		HostID:        req.HostID,
