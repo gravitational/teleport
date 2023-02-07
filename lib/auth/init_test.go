@@ -494,14 +494,14 @@ func TestPresets(t *testing.T) {
 		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
 	})
 
-	// If a default allow rule is not present, ensure it gets added.
-	t.Run("AddDefaultAllowRules", func(t *testing.T) {
+	// If a default allow condition is not present, ensure it gets added.
+	t.Run("AddDefaultAllowConditions", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		access := services.NewPresetEditorRole()
-		rules := access.GetRules(types.Allow)
+		editorRole := services.NewPresetEditorRole()
+		rules := editorRole.GetRules(types.Allow)
 
 		// Create a new set of rules based on the Editor Role, excluding the ConnectioDiagnostic.
 		// ConnectionDiagnostic is part of the default allow rules
@@ -512,18 +512,24 @@ func TestPresets(t *testing.T) {
 			}
 			outdatedRules = append(outdatedRules, r)
 		}
-		access.SetRules(types.Allow, outdatedRules)
+		editorRole.SetRules(types.Allow, outdatedRules)
+		err := as.CreateRole(ctx, editorRole)
+		require.NoError(t, err)
 
-		err := as.CreateRole(ctx, access)
+		// Set up an old Access Role.
+		// Remove the new DatabaseServiceLabels default
+		accessRole := services.NewPresetAccessRole()
+		accessRole.SetDatabaseServiceLabels(types.Allow, types.Labels{})
+		err = as.CreateRole(ctx, accessRole)
 		require.NoError(t, err)
 
 		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetRole(ctx, access.GetName())
+		outEditor, err := as.GetRole(ctx, editorRole.GetName())
 		require.NoError(t, err)
 
-		allowRules := out.GetRules(types.Allow)
+		allowRules := outEditor.GetRules(types.Allow)
 		require.Condition(t, func() (success bool) {
 			for _, r := range allowRules {
 				if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
@@ -532,6 +538,11 @@ func TestPresets(t *testing.T) {
 			}
 			return false
 		}, "missing default rule")
+
+		outAccess, err := as.GetRole(ctx, accessRole.GetName())
+		require.NoError(t, err)
+		allowedDatabaseServiceLabels := outAccess.GetDatabaseServiceLabels(types.Allow)
+		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, allowedDatabaseServiceLabels, "missing default DatabaseServiceLabels")
 	})
 
 	// Don't set a default allow rule if the resource is present in the role.
@@ -541,8 +552,9 @@ func TestPresets(t *testing.T) {
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		access := services.NewPresetEditorRole()
-		allowRules := access.GetRules(types.Allow)
+		// Set up a changed Editor Role
+		editorRole := services.NewPresetEditorRole()
+		allowRules := editorRole.GetRules(types.Allow)
 
 		// Create a new set of rules based on the Editor Role,
 		// setting a deny rule for a default allow rule
@@ -553,24 +565,35 @@ func TestPresets(t *testing.T) {
 			}
 			outdateAllowRules = append(outdateAllowRules, r)
 		}
-		access.SetRules(types.Allow, outdateAllowRules)
+		editorRole.SetRules(types.Allow, outdateAllowRules)
 
 		// Explicitly deny Create to ConnectionDiagnostic
-		denyRules := access.GetRules(types.Deny)
+		denyRules := editorRole.GetRules(types.Deny)
 		denyConnectionDiagnosticRule := types.NewRule(types.KindConnectionDiagnostic, []string{types.VerbCreate})
 		denyRules = append(denyRules, denyConnectionDiagnosticRule)
-		access.SetRules(types.Deny, denyRules)
+		editorRole.SetRules(types.Deny, denyRules)
 
-		err := as.CreateRole(ctx, access)
+		err := as.CreateRole(ctx, editorRole)
 		require.NoError(t, err)
 
+		// Set up a changed Access Role
+		accessRole := services.NewPresetAccessRole()
+		// Remove a default allow label as well.
+		accessRole.SetDatabaseServiceLabels(types.Allow, types.Labels{})
+		// Explicitly deny DatabaseServiceLabels
+		accessRole.SetDatabaseServiceLabels(types.Deny, types.Labels{types.Wildcard: []string{types.Wildcard}})
+
+		err = as.CreateRole(ctx, accessRole)
+		require.NoError(t, err)
+
+		// Apply defaults.
 		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetRole(ctx, access.GetName())
+		outEditor, err := as.GetRole(ctx, editorRole.GetName())
 		require.NoError(t, err)
 
-		allowRules = out.GetRules(types.Allow)
+		allowRules = outEditor.GetRules(types.Allow)
 		require.Condition(t, func() (success bool) {
 			for _, r := range allowRules {
 				if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
@@ -579,7 +602,107 @@ func TestPresets(t *testing.T) {
 			}
 			return true
 		}, "missing default rule")
+
+		outAccess, err := as.GetRole(ctx, accessRole.GetName())
+		require.NoError(t, err)
+		allowedDatabaseServiceLabels := outAccess.GetDatabaseServiceLabels(types.Allow)
+		require.Nil(t, allowedDatabaseServiceLabels, "does not set Allowed DatabaseService Labels")
+		deniedDatabaseServiceLabels := outAccess.GetDatabaseServiceLabels(types.Deny)
+		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, deniedDatabaseServiceLabels, "keeps the deny label for DatabaseService")
 	})
+
+	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
+		presetRoleCount := 3
+
+		roleManager := &mockRoleManager{
+			roles: make(map[string]types.Role, presetRoleCount),
+		}
+
+		err := createPresets(ctx, roleManager)
+		require.NoError(t, err)
+
+		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpectd call to UpsertRole")
+		require.Equal(t, 0, roleManager.getRoleCallsCount, "unexpectd call to GetRole")
+		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+
+		// Running a second time should return Already Exists, so it fetches the role.
+		// The role was not changed, so it can't call the UpsertRole method.
+		roleManager.ResetCallCounters()
+
+		err = createPresets(ctx, roleManager)
+		require.NoError(t, err)
+
+		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpectd call to UpsertRole")
+		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
+		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+
+		// Removing a specific resource which is part of the Default Allow Rules should trigger an UpsertRole call
+		editorRole := roleManager.roles[teleport.PresetEditorRoleName]
+		allowRulesWithoutConnectionDiag := []types.Rule{}
+
+		for _, r := range editorRole.GetRules(types.Allow) {
+			if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
+				continue
+			}
+			allowRulesWithoutConnectionDiag = append(allowRulesWithoutConnectionDiag, r)
+		}
+		editorRole.SetRules(types.Allow, allowRulesWithoutConnectionDiag)
+		roleManager.UpsertRole(ctx, editorRole)
+
+		roleManager.ResetCallCounters()
+		err = createPresets(ctx, roleManager)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, roleManager.upsertRoleCallsCount, "unexpectd call to UpsertRole")
+		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
+		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+	})
+}
+
+type mockRoleManager struct {
+	roles                map[string]types.Role
+	getRoleCallsCount    int
+	createRoleCallsCount int
+	upsertRoleCallsCount int
+}
+
+// ResetCallCounters resets the method call counters.
+func (m *mockRoleManager) ResetCallCounters() {
+	m.getRoleCallsCount = 0
+	m.createRoleCallsCount = 0
+	m.upsertRoleCallsCount = 0
+}
+
+// GetRole returns role by name.
+func (m *mockRoleManager) GetRole(ctx context.Context, name string) (types.Role, error) {
+	m.getRoleCallsCount = m.getRoleCallsCount + 1
+
+	role, ok := m.roles[name]
+	if !ok {
+		return nil, trace.NotFound("role not found")
+	}
+	return role, nil
+}
+
+// CreateRole creates a role.
+func (m *mockRoleManager) CreateRole(ctx context.Context, role types.Role) error {
+	m.createRoleCallsCount = m.createRoleCallsCount + 1
+
+	_, ok := m.roles[role.GetName()]
+	if ok {
+		return trace.AlreadyExists("role not found")
+	}
+
+	m.roles[role.GetName()] = role
+	return nil
+}
+
+// UpsertRole creates or updates a role and emits a related audit event.
+func (m *mockRoleManager) UpsertRole(ctx context.Context, role types.Role) error {
+	m.upsertRoleCallsCount = m.upsertRoleCallsCount + 1
+	m.roles[role.GetName()] = role
+
+	return nil
 }
 
 func setupConfig(t *testing.T) InitConfig {

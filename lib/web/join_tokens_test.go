@@ -20,8 +20,8 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -29,26 +29,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/modules"
 )
-
-func TestCreateNodeJoinToken(t *testing.T) {
-	t.Parallel()
-	m := &mockedNodeAPIGetter{}
-	m.mockGenerateToken = func(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-		return "some-token-id", nil
-	}
-
-	token, err := createJoinToken(context.Background(), m, types.SystemRoles{
-		types.RoleNode,
-		types.RoleApp,
-	})
-	require.NoError(t, err)
-
-	require.Equal(t, defaults.NodeJoinTokenTTL, token.Expiry.Sub(time.Now().UTC()).Round(time.Second))
-	require.Equal(t, "some-token-id", token.ID)
-}
 
 func TestGenerateIAMTokenName(t *testing.T) {
 	t.Parallel()
@@ -806,19 +789,61 @@ func TestIsSameRuleSet(t *testing.T) {
 	}
 }
 
+func TestJoinScriptEnterprise(t *testing.T) {
+	validToken := "f18da1c9f6630a51e8daf121e7451daa"
+
+	m := &mockedNodeAPIGetter{
+		mockGetProxyServers: func() ([]types.Server, error) {
+			return []types.Server{
+				&types.ServerV2{
+					Spec: types.ServerSpecV2{PublicAddr: "test-host:12345678"},
+				},
+			}, nil
+		},
+		mockGetClusterCACert: func(context.Context) (*proto.GetClusterCACertResponse, error) {
+			fakeBytes := []byte(fixtures.SigningCertPEM)
+			return &proto.GetClusterCACertResponse{TLSCA: fakeBytes}, nil
+		},
+		mockGetToken: func(_ context.Context, token string) (types.ProvisionToken, error) {
+			return &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: token,
+				},
+			}, nil
+		},
+	}
+
+	isTeleportOSSLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/teleport[-_]v?\${TELEPORT_VERSION}`)
+	isTeleportEntLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/teleport-ent[-_]v?\${TELEPORT_VERSION}`)
+
+	// Using the OSS Version, all the links must contain only teleport as package name.
+	script, err := getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
+	require.NoError(t, err)
+
+	matches := isTeleportOSSLinkRegex.FindAllString(script, -1)
+	require.ElementsMatch(t, matches, []string{
+		"https://get.gravitational.com/teleport-v${TELEPORT_VERSION}",
+		"https://get.gravitational.com/teleport_${TELEPORT_VERSION}",
+		"https://get.gravitational.com/teleport-${TELEPORT_VERSION}",
+	})
+
+	// Using the Enterprise Version, all the links must contain teleport-ent as package name
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	script, err = getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
+	require.NoError(t, err)
+
+	matches = isTeleportEntLinkRegex.FindAllString(script, -1)
+	require.ElementsMatch(t, matches, []string{
+		"https://get.gravitational.com/teleport-ent-v${TELEPORT_VERSION}",
+		"https://get.gravitational.com/teleport-ent_${TELEPORT_VERSION}",
+		"https://get.gravitational.com/teleport-ent-${TELEPORT_VERSION}",
+	})
+}
+
 type mockedNodeAPIGetter struct {
-	mockGenerateToken    func(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 	mockGetProxyServers  func() ([]types.Server, error)
 	mockGetClusterCACert func(ctx context.Context) (*proto.GetClusterCACertResponse, error)
 	mockGetToken         func(ctx context.Context, token string) (types.ProvisionToken, error)
-}
-
-func (m *mockedNodeAPIGetter) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-	if m.mockGenerateToken != nil {
-		return m.mockGenerateToken(ctx, req)
-	}
-
-	return "", trace.NotImplemented("mockGenerateToken not implemented")
 }
 
 func (m *mockedNodeAPIGetter) GetProxies() ([]types.Server, error) {

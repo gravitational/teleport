@@ -61,11 +61,11 @@ func TestListPodRBAC(t *testing.T) {
 	t.Cleanup(func() { kubeMock.Close() })
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
-	testCtx := setupTestContext(
+	testCtx := SetupTestContext(
 		context.Background(),
 		t,
-		testConfig{
-			clusters: []kubeClusterConfig{{name: kubeCluster, apiEndpoint: kubeMock.URL}},
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 		},
 	)
 	// close tests
@@ -73,16 +73,16 @@ func TestListPodRBAC(t *testing.T) {
 
 	// create a user with full access to kubernetes Pods.
 	// (kubernetes_user and kubernetes_groups specified)
-	userWithFullAccess, _ := testCtx.createUserAndRole(
-		testCtx.ctx,
+	userWithFullAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
 		t,
 		usernameWithFullAccess,
-		roleSpec{
-			name:       usernameWithFullAccess,
-			kubeUsers:  roleKubeUsers,
-			kubeGroups: roleKubeGroups,
+		RoleSpec{
+			Name:       usernameWithFullAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
 
-			setupRoleFunc: func(r types.Role) {
+			SetupRoleFunc: func(r types.Role) {
 				r.SetKubeResources(types.Allow, []types.KubernetesResource{
 					{
 						Kind:      types.KindKubePod,
@@ -95,15 +95,15 @@ func TestListPodRBAC(t *testing.T) {
 	)
 	// create a user with full access to kubernetes Pods.
 	// (kubernetes_user and kubernetes_groups specified)
-	userWithNamespaceAccess, _ := testCtx.createUserAndRole(
-		testCtx.ctx,
+	userWithNamespaceAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
 		t,
 		usernameWithNamespaceAccess,
-		roleSpec{
-			name:       usernameWithNamespaceAccess,
-			kubeUsers:  roleKubeUsers,
-			kubeGroups: roleKubeGroups,
-			setupRoleFunc: func(r types.Role) {
+		RoleSpec{
+			Name:       usernameWithNamespaceAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
@@ -118,15 +118,15 @@ func TestListPodRBAC(t *testing.T) {
 
 	// create a moderator user with access to kubernetes
 	// (kubernetes_user and kubernetes_groups specified)
-	userWithLimitedAccess, _ := testCtx.createUserAndRole(
-		testCtx.ctx,
+	userWithLimitedAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
 		t,
 		usernameWithLimitedAccess,
-		roleSpec{
-			name:       usernameWithLimitedAccess,
-			kubeUsers:  roleKubeUsers,
-			kubeGroups: roleKubeGroups,
-			setupRoleFunc: func(r types.Role) {
+		RoleSpec{
+			Name:       usernameWithLimitedAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
@@ -239,14 +239,14 @@ func TestListPodRBAC(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			// generate a kube client with user certs for auth
-			client, _ := testCtx.genTestKubeClientTLSCert(
+			client, _ := testCtx.GenTestKubeClientTLSCert(
 				t,
 				tt.args.user.GetName(),
 				kubeCluster,
 			)
 
 			rsp, err := client.CoreV1().Pods(tt.args.namespace).List(
-				testCtx.ctx,
+				testCtx.Context,
 				metav1.ListOptions{},
 			)
 			require.NoError(t, err)
@@ -254,7 +254,7 @@ func TestListPodRBAC(t *testing.T) {
 			require.Equal(t, tt.want.listPodsResult, getPodsFromPodList(rsp.Items))
 
 			_, err = client.CoreV1().Pods(metav1.NamespaceDefault).Get(
-				testCtx.ctx,
+				testCtx.Context,
 				testPodName,
 				metav1.GetOptions{},
 			)
@@ -592,11 +592,11 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 	t.Cleanup(func() { kubeMock.Close() })
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
-	testCtx := setupTestContext(
+	testCtx := SetupTestContext(
 		context.Background(),
 		t,
-		testConfig{
-			clusters: []kubeClusterConfig{{name: kubeCluster, apiEndpoint: kubeMock.URL}},
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 		},
 	)
 	// close tests
@@ -604,16 +604,16 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 
 	// create a user with full access to kubernetes Pods.
 	// (kubernetes_user and kubernetes_groups specified)
-	userWithFullAccess, _ := testCtx.createUserAndRole(
-		testCtx.ctx,
+	userWithFullAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
 		t,
 		usernameWithFullAccess,
-		roleSpec{
-			name:       usernameWithFullAccess,
-			kubeUsers:  roleKubeUsers,
-			kubeGroups: roleKubeGroups,
+		RoleSpec{
+			Name:       usernameWithFullAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
 
-			setupRoleFunc: func(r types.Role) {
+			SetupRoleFunc: func(r types.Role) {
 				r.SetKubeResources(types.Allow, []types.KubernetesResource{
 					{
 						Kind:      types.KindKubePod,
@@ -626,15 +626,15 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 	)
 	// create a user with full access to kubernetes Pods.
 	// (kubernetes_user and kubernetes_groups specified)
-	userWithNamespaceAccess, _ := testCtx.createUserAndRole(
-		testCtx.ctx,
+	userWithNamespaceAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
 		t,
 		usernameWithNamespaceAccess,
-		roleSpec{
-			name:       usernameWithNamespaceAccess,
-			kubeUsers:  roleKubeUsers,
-			kubeGroups: roleKubeGroups,
-			setupRoleFunc: func(r types.Role) {
+		RoleSpec{
+			Name:       usernameWithNamespaceAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
@@ -649,15 +649,15 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 
 	// create a moderator user with access to kubernetes
 	// (kubernetes_user and kubernetes_groups specified)
-	userWithLimitedAccess, _ := testCtx.createUserAndRole(
-		testCtx.ctx,
+	userWithLimitedAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
 		t,
 		usernameWithLimitedAccess,
-		roleSpec{
-			name:       usernameWithLimitedAccess,
-			kubeUsers:  roleKubeUsers,
-			kubeGroups: roleKubeGroups,
-			setupRoleFunc: func(r types.Role) {
+		RoleSpec{
+			Name:       usernameWithLimitedAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
@@ -733,13 +733,13 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 			t.Parallel()
 			requestID := kubetypes.UID(uuid.NewString())
 			// generate a kube client with user certs for auth
-			client, _ := testCtx.genTestKubeClientTLSCert(
+			client, _ := testCtx.GenTestKubeClientTLSCert(
 				t,
 				tt.args.user.GetName(),
 				kubeCluster,
 			)
 			err := client.CoreV1().Pods(tt.args.namespace).DeleteCollection(
-				testCtx.ctx,
+				testCtx.Context,
 				metav1.DeleteOptions{
 					// We send the requestID as precondition to identify the request where it came
 					// from. kubemock receives this metav1.DeleteOptions and

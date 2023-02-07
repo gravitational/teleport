@@ -19,23 +19,21 @@ This guide will help you to:
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - AWS account with a Redshift cluster and permissions to create and attach IAM
   policies.
 - Command-line client `psql` installed and added to your system's `PATH` environment variable.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
-## Step 1/6. Install Teleport
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-## Step 2/6. Create a Teleport user
+## Step 1/5. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/6. Create a Database Service configuration
+## Step 2/5. Create a Database Service configuration
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -72,7 +70,7 @@ The command will generate a Database Service configuration with Redshift
 database auto-discovery enabled on the `us-west-1` region and place it at the
 `/etc/teleport.yaml` location.
 
-## Step 4/6. Create an IAM policy for Teleport
+## Step 3/5. Create an IAM policy for Teleport
 
 Teleport needs AWS IAM permissions to be able to:
 
@@ -81,7 +79,7 @@ Teleport needs AWS IAM permissions to be able to:
 
 (!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
-## Step 5/6. Start the Database Service
+## Step 4/5. Start the Database Service
 
 Run the following command on the Database Service node:
 
@@ -103,7 +101,7 @@ may not propagate immediately and can take a few minutes to come into effect.
 
 </Admonition>
 
-## Step 6/6. Connect
+## Step 5/5. Connect
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 

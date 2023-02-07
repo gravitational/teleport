@@ -297,6 +297,7 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
     * [ ] Azure AD
     * [ ] Azure RBAC
   * [ ] Verify that AWS EKS clusters are discovered and enrolled
+  * [ ] Verify that GCP GKE clusters are discovered and enrolled
 * [ ] Verify dynamic registration.
   * [ ] Can register a new Kubernetes cluster using `tctl create`.
   * [ ] Can update registered Kubernetes cluster using `tctl create -f`.
@@ -310,6 +311,22 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
       * [ ] Restart the agent after token TTL expires to see if it reuses the same identity.
     * [ ] Force cluster CA rotation
 
+### Kubernetes Pod RBAC
+
+* [ ] Verify the following scenarios for `kubernetes_resources`:
+    * [ ] `{"kind":"pod","name":"*","namespace":"*"}` - must allow access to every pod.
+    * [ ] `{"kind":"pod","name":"<somename>","namespace":"*"}` - must allow access to pod `<somename>` in every namespace.
+    * [ ] `{"kind":"pod","name":"*","namespace":"<somenamespace>"}` - must allow access to any pod in `<somenamespace>` namespace.
+    * [ ] Verify support for  `*` wildcards - `<some-name>-*` and regex for `name` and `namespace` fields.
+    * [ ] Verify support for delete pods collection - must use `go-client`.
+* [ ] Verify scenarios with multiple roles defining `kubernetes_resources`:
+    * [ ] Validate that the returned list of pods is the union of every role.
+    * [ ] Validate that access to other pods is denied by RBAC.
+    * [ ] Validate that the Kubernetes Groups/Users are correctly selected depending on the role that applies to the pod.
+        * [ ] Test with a `kubernetes_groups` that denies exec into a pod
+* [ ] Verify the following scenarios for Resource Access Requests to Pods:
+    * [ ] Create a valid resource access request and validate if access to other pods is denied.
+    * [ ] Validate if creating a resource access request with Kubernetes resources denied by `search_as_roles` is not allowed.
 
 ### Teleport with FIPS mode
 
@@ -631,8 +648,7 @@ These tests should be carried out sequentially. `tsh` tests should be carried ou
 
 Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings.
 
-- [ ] Database Acces: `tsh proxy db`
-- [ ] Application Access: `tsh login app && tsh proxy app`
+- [ ] Database Access: `tsh proxy db --tunnel`
 
 ## Moderated session
 
@@ -744,7 +760,9 @@ tsh bench sessions --max=5000 --web user ls
 - [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh app login`.
 - [ ] Verify [AWS console access](https://goteleport.com/docs/application-access/cloud-apis/aws-console/).
   - [ ] Can log into AWS web console through the web UI.
-  - [ ] Can interact with AWS using `tsh aws` commands.
+  - [ ] Can interact with AWS using `tsh` commands.
+    - [ ] `tsh aws`
+    - [ ] `tsh aws --endpoint-url` (this is a hidden flag)
 - [ ] Verify [Azure CLI access](https://goteleport.com/docs/application-access/cloud-apis/azure/) with `tsh app login`.
   - [ ] Can interact with Azure using `tsh az` commands.
   - [ ] Can interact with Azure using a combination of `tsh proxy az` and `az` commands.
@@ -860,14 +878,30 @@ tsh bench sessions --max=5000 --web user ls
 
 ## TLS Routing
 
-- [ ] Verify that teleport proxy `v2` configuration starts only a single listener.
+- [ ] Verify that teleport proxy `v2` configuration starts only a single listener for proxy service, in contrast with `v1` configuration.
+  Given configuration:
   ```
   version: v2
-  teleport:
-    proxy_service:
-      enabled: "yes"
-      public_addr: ['root.example.com']
-      web_listen_addr: 0.0.0.0:3080
+  proxy_service:
+    enabled: "yes"
+    public_addr: ['root.example.com']
+    web_listen_addr: 0.0.0.0:3080
+  ```
+  There should be total of three listeners, with only `*:3080` for proxy service. Given the configuration above, 3022 and 3025 will be opened for other services.
+  ```
+  lsof -i -P | grep teleport | grep LISTEN
+    teleport  ...  TCP *:3022 (LISTEN)
+    teleport  ...  TCP *:3025 (LISTEN)
+    teleport  ...  TCP *:3080 (LISTEN) # <-- proxy service
+  ```
+  In contrast for the same configuration with version `v1`, there should be additional ports 3023 and 3024.
+  ```
+  lsof -i -P | grep teleport | grep LISTEN
+    teleport  ...  TCP *:3022 (LISTEN) 
+    teleport  ...  TCP *:3025 (LISTEN)
+    teleport  ...  TCP *:3023 (LISTEN) # <-- extra proxy service port
+    teleport  ...  TCP *:3024 (LISTEN) # <-- extra proxy service port
+    teleport  ...  TCP *:3080 (LISTEN) # <-- proxy service
   ```
 - [ ] Run Teleport Proxy in `multiplex` mode `auth_service.proxy_listener_mode: "multiplex"`
   - [ ] Trusted cluster

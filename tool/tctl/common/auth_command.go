@@ -166,7 +166,17 @@ func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 	return true, trace.Wrap(err)
 }
 
-var allowedCertificateTypes = []string{"user", "host", "tls-host", "tls-user", "tls-user-der", "windows", "db", "openssh"}
+var allowedCertificateTypes = []string{
+	"user",
+	"host",
+	"tls-host",
+	"tls-user",
+	"tls-user-der",
+	"windows",
+	"db",
+	"openssh",
+	"saml-idp",
+}
 
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
 // If --type flag is given, only prints keys for CAs of this type, otherwise
@@ -276,7 +286,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI auth.C
 		return trace.Wrap(err)
 	}
 
-	_, err = identityfile.Write(identityfile.WriteConfig{
+	_, err = identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath: a.output,
 		Key: &client.Key{
 			// the godocs say the map key is the desktop server name,
@@ -317,7 +327,7 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 
 	key.TrustedCerts = []auth.TrustedCerts{{TLSCertificates: services.GetTLSCerts(databaseCA)}}
 
-	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
 		Key:                  key,
 		Format:               a.outputFormat,
@@ -423,7 +433,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 		filePath = principals[0]
 	}
 
-	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           filePath,
 		Key:                  key,
 		Format:               a.outputFormat,
@@ -754,7 +764,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	}
 
 	// write the cert+private key to the output:
-	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
 		Key:                  key,
 		Format:               a.outputFormat,

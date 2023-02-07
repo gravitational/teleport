@@ -23,9 +23,9 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/types"
+	prehogapi "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
-	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/usagereporter"
@@ -573,6 +573,13 @@ func (s *Service) Stop() {
 
 	for _, gateway := range s.gateways {
 		gateway.Close()
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
+	defer cancel()
+
+	if err := s.usageReporter.GracefulStop(timeoutCtx); err != nil {
+		s.cfg.Log.WithError(err).Error("Gracefully stopping usage reporter failed")
 	}
 
 	// s.closeContext is used for the tshd events client which might make requests as long as any of

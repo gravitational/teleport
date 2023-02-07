@@ -277,6 +277,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.BotJoin{}
 	case InstanceJoinEvent:
 		e = &events.InstanceJoin{}
+	case LoginRuleCreateEvent:
+		e = &events.LoginRuleCreate{}
+	case LoginRuleDeleteEvent:
+		e = &events.LoginRuleDelete{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 

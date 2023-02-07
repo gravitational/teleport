@@ -30,9 +30,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-	"github.com/hashicorp/go-uuid"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
@@ -289,6 +289,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureCreate.Flag("output",
 		"Write to stdout with -o=stdout, default config file with -o=file or custom path with -o=file:///path").Short('o').Default(
 		teleport.SchemeStdout).StringVar(&dbConfigCreateFlags.output)
+	dbConfigureCreate.Flag("dynamic-resources-labels", "Comma-separated list(s) of labels to match dynamic resources, for example env=dev,dept=it. Required to enable dynamic resources matching.").StringsVar(&dbConfigCreateFlags.DynamicResourcesRawLabels)
 	dbConfigureCreate.Alias(dbCreateConfigExamples) // We're using "alias" section to display usage examples.
 
 	dbConfigureBootstrap := dbConfigure.Command("bootstrap", "Bootstrap the necessary configuration for the database agent. It reads the provided agent configuration to determine what will be bootstrapped.")
@@ -542,7 +543,7 @@ func authenticatedUserClientFromIdentity(ctx context.Context, fips bool, proxy u
 	var tlsConfig *tls.Config
 	var err error
 	var cipherSuites []uint16
-	if !fips {
+	if fips {
 		cipherSuites = defaults.FIPSCipherSuites
 	}
 	tlsConfig, err = id.TLSConfig(cipherSuites)
@@ -641,8 +642,7 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 	}
 
 	// TODO(amk) get uuid from a cli argument once agentless inventory management is implemented to allow tsh ssh access via uuid
-	uuid, err := uuid.GenerateUUID()
-	_ = err
+	uuid := uuid.NewString()
 
 	principals := []string{uuid}
 	for _, principal := range strings.Split(clf.AdditionalPrincipals, ",") {

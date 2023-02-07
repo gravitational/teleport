@@ -19,12 +19,12 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-GOLANG_VERSION ?= go1.19.5
+GOLANG_VERSION ?= go1.20
 
 NODE_VERSION ?= 16.18.1
 
 # run lint-rust check locally before merging code after you bump this
-RUST_VERSION ?= 1.66.1
+RUST_VERSION ?= 1.67.0
 LIBBPF_VERSION ?= 0.7.0-teleport
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
@@ -132,6 +132,7 @@ buildbox:
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg NODE_VERSION=$(NODE_VERSION) \
+			--build-arg GRPC_NODE_PLUGIN_BINARY_TYPE=$(GRPC_NODE_PLUGIN_BINARY_TYPE) \
 			--build-arg PROTOC_VER=$(PROTOC_VER) \
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
@@ -220,33 +221,17 @@ buildbox-arm-fips: buildbox-fips
 		--cache-from $(BUILDBOX_ARM_FIPS) \
 		--tag $(BUILDBOX_ARM_FIPS) -f Dockerfile-arm-fips .
 
-#
-# Builds a Docker buildbox which has tools needed to install grpc-tools npm package on arm64.
-# See the `grpc-teleterm` target in the main Makefile for more details.
-#
-.PHONY:buildbox-teleterm
-buildbox-teleterm: buildbox
-	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_TELETERM) 2>&1 >/dev/null; then docker pull $(BUILDBOX_TELETERM) || true; fi;
-	docker build \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
-		--build-arg GRPC_NODE_PLUGIN_BINARY_TYPE=$(GRPC_NODE_PLUGIN_BINARY_TYPE) \
-		--cache-from $(BUILDBOX) \
-		--cache-from $(BUILDBOX_TELETERM) \
-		--tag $(BUILDBOX_TELETERM) -f Dockerfile-teleterm .
-
 CONNECT_VERSION ?= $(VERSION)
 ifeq ($(CONNECT_VERSION),)
 CONNECT_VERSION := $(BUILDBOX_VERSION)-dev
 endif
 
 #
-# Builds Teleport Connect inside the buildbox-teleterm container.
+# Builds Teleport Connect inside the buildbox container.
 #
 .PHONY:teleterm
-teleterm: buildbox-teleterm
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_TELETERM) \
+teleterm: buildbox
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
 		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
 # Builds webassets inside Docker.
@@ -259,15 +244,15 @@ ui: buildbox
 .PHONY: grpc
 grpc: buildbox
 	docker run \
-		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX) \
+		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		make -C /go/src/github.com/gravitational/teleport grpc/host
 
-# grpc-teleterm generates GRPC stubs for Teleterm from inside buildbox-teleterm
-.PHONY: grpc-teleterm
-grpc-teleterm: buildbox-teleterm
+# protos-up-to-date checks if GRPC stubs are up to date from inside the buildbox
+.PHONY: protos-up-to-date
+protos-up-to-date: buildbox
 	docker run \
-		$(DOCKERFLAGS) -e CLANG_FORMAT=/usr/bin/clang-format-10 -t $(BUILDBOX_TELETERM) \
-		make -C /go/src/github.com/gravitational/teleport grpc-teleterm/host
+		$(DOCKERFLAGS) -t $(BUILDBOX) \
+		make -C /go/src/github.com/gravitational/teleport protos-up-to-date/host
 
 # fix-imports runs GCI to sort and re-order Go imports in a deterministic way.
 .PHONY: fix-imports
@@ -379,14 +364,6 @@ enter-root: buildbox
 enter/centos7: buildbox
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
-
-#
-# Starts shell inside the teleterm container
-#
-.PHONY:enter/teleterm
-enter/teleterm: buildbox-teleterm
-	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
-		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_TELETERM) /bin/bash
 
 #
 # Create a Teleport package using the build container.

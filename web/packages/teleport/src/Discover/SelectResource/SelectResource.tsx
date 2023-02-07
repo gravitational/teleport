@@ -25,6 +25,10 @@ import useTeleport from 'teleport/useTeleport';
 import { Acl } from 'teleport/services/user';
 
 import { ResourceKind, Header, HeaderSubtitle } from 'teleport/Discover/Shared';
+import {
+  DiscoverEvent,
+  DiscoverEventStatus,
+} from 'teleport/services/userEvent';
 
 import { ApplicationResource } from '../Application/ApplicationResource';
 import { DatabaseResource } from '../Database/DatabaseResource';
@@ -32,6 +36,7 @@ import { DesktopResource } from '../Desktop/DesktopResource';
 import { KubernetesResource } from '../Kubernetes/KubernetesResource';
 import { ServerResource } from '../Server/ServerResource';
 import { DatabaseEngine, DatabaseLocation } from '../Database/resources';
+import { useDiscover } from '../useDiscover';
 
 import k8sIcon from './assets/kubernetes.png';
 import serverIcon from './assets/server.png';
@@ -67,6 +72,7 @@ interface SelectResourceProps<T = any> {
 
 export function SelectResource(props: SelectResourceProps) {
   const ctx = useTeleport();
+  const { emitEvent } = useDiscover();
 
   const userContext = ctx.storeUser.state;
   const { acl } = userContext;
@@ -122,8 +128,8 @@ export function SelectResource(props: SelectResourceProps) {
       <Header>Select Resource Type</Header>
       <HeaderSubtitle>
         Users are able to add and access many different types of resources
-        through Teleport. <br />
-        Start by selecting the type of resource you want to add.
+        through Teleport. Start by selecting the type of resource you want to
+        add.
       </HeaderSubtitle>
       <SlideTabs
         initialSelected={selectedTabIndex}
@@ -136,18 +142,27 @@ export function SelectResource(props: SelectResourceProps) {
           onProceed={() => {
             const state = props.resourceState as Database;
             if (state.location === DatabaseLocation.SelfHosted) {
-              if (state.engine === DatabaseEngine.PostgreSQL) {
+              if (
+                state.engine === DatabaseEngine.PostgreSQL ||
+                state.engine === DatabaseEngine.MySQL
+              ) {
                 props.onNext();
+                return;
               }
             }
 
             if (state.location === DatabaseLocation.AWS) {
-              if (state.engine === DatabaseEngine.PostgreSQL) {
+              if (
+                state.engine === DatabaseEngine.PostgreSQL ||
+                state.engine === DatabaseEngine.MySQL
+              ) {
                 props.onNext();
+                return;
               }
             }
 
             // Unsupported databases will default to the modal popup.
+            emitEvent({ stepStatus: DiscoverEventStatus.Success });
             return setShowAddDB(true);
           }}
         />
@@ -155,7 +170,13 @@ export function SelectResource(props: SelectResourceProps) {
       {props.selectedResourceKind === ResourceKind.Application && (
         <ApplicationResource
           disabled={disabled}
-          onProceed={() => setShowAddApp(true)}
+          onProceed={() => {
+            setShowAddApp(true);
+            emitEvent(
+              { stepStatus: DiscoverEventStatus.Success },
+              { eventName: DiscoverEvent.ResourceSelection }
+            );
+          }}
         />
       )}
       {props.selectedResourceKind === ResourceKind.Desktop && (
