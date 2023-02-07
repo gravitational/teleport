@@ -13,15 +13,16 @@ This guide will help you to set up Teleport to access your AWS RDS proxies.
 </ScopedBlock>
 
 <Admonition type="note" title="Supported Engine Family">
-Teleport currently supports RDS Proxies with engine family **PostgreSQL** or **MariaDB and MySQL**.
+Teleport currently supports RDS Proxy instances with engine family
+**PostgreSQL** or **MariaDB and MySQL**.
 </Admonition>
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- AWS account with RDS Proxies and permissions to create and attach IAM policies.
-- Any RDS Proxies intended for connection through Teleport must have TLS enabled.
+- AWS account with RDS Proxy instances and permissions to create and attach IAM policies.
+- Any RDS Proxy instances intended for connection through Teleport must have TLS enabled.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
 
@@ -47,14 +48,14 @@ $ teleport db configure create \
    --rdsproxy-discovery=<Var name="us-west-1" />
 ```
 
-The command will generate a Database Service configuration with RDS Proxies
-auto-discovery enabled on the <Var name="us-west-1" /> region and place it at the
-`/etc/teleport.yaml` location.
+The command will generate a Database Service configuration with RDS Proxy
+instances auto-discovery enabled on the <Var name="us-west-1" /> region and
+place it at the `/etc/teleport.yaml` location.
 
 ## Step 2/5. Create an IAM policy for Teleport
 
 Teleport needs AWS IAM permissions to be able to discover and register RDS
-Proxies.
+Proxy instances.
 
 (!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
@@ -66,15 +67,17 @@ Start the Database Service:
 $ teleport start --config=/etc/teleport.yaml
 ```
 
-The Database Service will discover all RDS Proxies according to the
+The Database Service will discover all RDS Proxy instances according to the
 configuration and register them in the cluster. In addition to the primary
-endpoints of the RDS Proxies, their custom endpoints will also be registered.
+endpoints of the RDS Proxy instances, their custom endpoints will also be
+registered.
 
 ## Step 4/5. Configure database user credentials
 
-The Database Service connects to a RDS Proxy instance using IAM authentication.
-In addition, the RDS Proxy instance must also be able to connect to the RDS
-DB instance or Aurora DB cluster using pre-configured database user credentials.
+The Database Service connects to an RDS Proxy instance using IAM
+authentication. In addition, the RDS Proxy instance must also be able to
+connect to the RDS DB instance or Aurora DB cluster using pre-configured
+database user credentials.
 
 First, use Secrets Manager to store sets of user name and password credentials.
 You create a separate Secrets Manager secret for each database user account
@@ -198,4 +201,4 @@ $ tsh db logout rds-proxy
   Manager](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-setup.html)
   and [Setting up AWS Identity and Access Management (IAM)
   policies](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-setup.html)
-  for RDS Proxies
+  for RDS Proxy
