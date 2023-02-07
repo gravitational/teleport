@@ -25,11 +25,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -101,11 +101,7 @@ func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 }
 
 func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
-	tc, err := simulateLogin(pack.Root.User.GetName(), pack, creds)
-	require.NoError(t, err)
-	// The profile on disk created by NewClientWithCreds doesn't have WebProxyAddr set.
-	tc.WebProxyAddr = pack.Root.Cluster.Web
-	tc.SaveProfile(false /* makeCurrent */)
+	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
 
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
@@ -207,11 +203,7 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	})
 	require.NoError(t, err)
 
-	tc, err := simulateLogin(userName, pack, creds)
-	require.NoError(t, err)
-	// The profile on disk created by NewClientWithCreds doesn't have WebProxyAddr set.
-	tc.WebProxyAddr = pack.Root.Cluster.Web
-	tc.SaveProfile(false /* makeCurrent */)
+	tc := mustLogin(t, userName, pack, creds)
 
 	storage, err := clusters.NewStorage(clusters.Config{
 		Dir:                tc.KeysDir,
@@ -247,10 +239,14 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	require.ElementsMatch(t, []string{suggestedReviewer}, response.LoggedInUser.SuggestedReviewers)
 }
 
-func simulateLogin(userName string, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) (*client.TeleportClient, error) {
-	return pack.Root.Cluster.NewClientWithCreds(helpers.ClientConfig{
+func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) *client.TeleportClient {
+	tc, err := pack.Root.Cluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   userName,
 		Cluster: pack.Root.Cluster.Secrets.SiteName,
 	}, *creds)
-
+	require.NoError(t, err)
+	// The profile on disk created by NewClientWithCreds doesn't have WebProxyAddr set.
+	tc.WebProxyAddr = pack.Root.Cluster.Web
+	tc.SaveProfile(false /* makeCurrent */)
+	return tc
 }
