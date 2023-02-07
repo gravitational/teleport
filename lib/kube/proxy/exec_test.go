@@ -56,29 +56,29 @@ func TestExecKubeService(t *testing.T) {
 	t.Cleanup(func() { kubeMock.Close() })
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
-	testCtx := setupTestContext(
+	testCtx := SetupTestContext(
 		context.Background(),
 		t,
-		testConfig{
-			clusters: []kubeClusterConfig{{name: kubeCluster, apiEndpoint: kubeMock.URL}},
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 		},
 	)
 
 	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
 
-	// create a userWithSingleKubeUser with access to kubernetes (kubernetes_user and kubernetes_groups specified)
-	userWithSingleKubeUser, _ := testCtx.createUserAndRole(
-		testCtx.ctx,
+	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
+	userWithSingleKubeUser, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
 		t,
 		username,
-		roleSpec{
-			name:       roleName,
-			kubeUsers:  roleKubeUsers,
-			kubeGroups: roleKubeGroups,
+		RoleSpec{
+			Name:       roleName,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
 		})
 
 	// generate a kube client with user certs for auth
-	_, configWithSingleKubeUser := testCtx.genTestKubeClientTLSCert(
+	_, configWithSingleKubeUser := testCtx.GenTestKubeClientTLSCert(
 		t,
 		userWithSingleKubeUser.GetName(),
 		kubeCluster,
@@ -86,18 +86,18 @@ func TestExecKubeService(t *testing.T) {
 	require.NoError(t, err)
 
 	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
-	userMultiKubeUsers, _ := testCtx.createUserAndRole(
-		testCtx.ctx,
+	userMultiKubeUsers, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
 		t,
 		usernameMultiUsers,
-		roleSpec{
-			name:       roleNameMultiUsers,
-			kubeUsers:  append(roleKubeUsers, "admin"),
-			kubeGroups: roleKubeGroups,
+		RoleSpec{
+			Name:       roleNameMultiUsers,
+			KubeUsers:  append(roleKubeUsers, "admin"),
+			KubeGroups: roleKubeGroups,
 		})
 
 	// generate a kube client with user certs for auth
-	_, configMultiKubeUsers := testCtx.genTestKubeClientTLSCert(
+	_, configMultiKubeUsers := testCtx.GenTestKubeClientTLSCert(
 		t,
 		userMultiKubeUsers.GetName(),
 		kubeCluster,
@@ -196,7 +196,7 @@ func TestExecKubeService(t *testing.T) {
 			exec, err := tt.args.executorBuilder(tt.args.config, http.MethodPost, req.URL())
 			require.NoError(t, err)
 
-			err = exec.StreamWithContext(testCtx.ctx, streamOpts)
+			err = exec.StreamWithContext(testCtx.Context, streamOpts)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
