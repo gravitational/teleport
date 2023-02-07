@@ -54,6 +54,7 @@ export default class MainProcess {
     this.configService = opts.configService;
     this.fileStorage = opts.fileStorage;
     this.windowsManager = opts.windowsManager;
+    console.log(process.version);
   }
 
   static create(opts: Options) {
