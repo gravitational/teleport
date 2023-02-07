@@ -10,6 +10,9 @@ on:
     branches:
       - master
       - branch/**
+  pull_request:
+    branches:
+      - master
 
 env:
   REGISTRY: ghcr.io
