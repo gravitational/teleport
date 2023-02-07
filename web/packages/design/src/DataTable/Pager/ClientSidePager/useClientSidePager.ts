@@ -19,7 +19,7 @@ export default function useClientSidePager({
   currentPage,
   pageSize,
   ...props
-}: Props) {
+}: Props): State {
   const currentPageData = paginatedData[currentPage] || [];
   const searchFrom = currentPage * pageSize;
 
@@ -55,4 +55,14 @@ export type Props = {
   fetchStatus?: FetchStatus;
 };
 
-export type State = ReturnType<typeof useClientSidePager>;
+export type State = {
+  from: number;
+  to: number;
+  count: number;
+  isNextDisabled: boolean;
+  isPrevDisabled: boolean;
+  nextPage: () => void;
+  prevPage: () => void;
+  onFetchMore?: () => void;
+  FetchStatus?: FetchStatus;
+};
