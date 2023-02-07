@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -172,30 +171,8 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	user.AddRole(userRole.GetName())
 	require.NoError(t, err)
 
-	watcher, err := authServer.NewWatcher(context.Background(), types.Watch{
-		Kinds: []types.WatchKind{
-			{Kind: types.KindUser},
-		},
-	})
-	require.NoError(t, err)
-	defer watcher.Close()
-
-	select {
-	case <-time.After(time.Second * 30):
-		t.Fatalf("Timeout waiting for OpInit event.")
-	case event := <-watcher.Events():
-		if event.Type != types.OpInit {
-			t.Fatalf("Unexpected event type.")
-		}
-		require.Equal(t, event.Type, types.OpInit)
-	case <-watcher.Done():
-		t.Fatal(watcher.Error())
-	}
-
 	err = authServer.UpsertUser(user)
 	require.NoError(t, err)
-
-	WaitForResource(t, watcher, user.GetKind(), user.GetName())
 
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 		Process:  pack.Root.Cluster.Process,
