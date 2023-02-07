@@ -2820,10 +2820,15 @@ func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req p
 func GetKubernetesResourcesWithFilters(ctx context.Context, clt kubeproto.KubeServiceClient, req kubeproto.ListKubernetesResourcesRequest) ([]types.ResourceWithLabels, error) {
 	var (
 		resources []types.ResourceWithLabels
-		startKey  string
+		startKey  = req.StartKey
 		// Retrieve the complete list of resources in chunks.
-		chunkSize = int32(defaults.DefaultChunkSize)
+		chunkSize = req.Limit
 	)
+
+	// Set the chunk size to the default if it is not set.
+	if chunkSize == 0 {
+		chunkSize = int32(defaults.DefaultChunkSize)
+	}
 
 	for {
 		// Reset startKey to the previous page's nextKey.
