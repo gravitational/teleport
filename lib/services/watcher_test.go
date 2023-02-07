@@ -1064,7 +1064,7 @@ func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
 
 	spService := local.NewSAMLIdPServiceProviderService(bk)
 	w, err := services.NewSAMLIdPServiceProviderWatcher(ctx, services.SAMLIdPServiceProviderWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
+		RWCfg: services.ResourceWatcherConfig{
 			Component:      "test",
 			MaxRetryPeriod: 200 * time.Millisecond,
 			Client: &client{
@@ -1076,16 +1076,16 @@ func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
 		SAMLIdPServiceProvidersC: make(chan types.SAMLIdPServiceProviders, 10),
 	})
 	require.NoError(t, err)
-	t.Cleanup(w.Close)
+	t.Cleanup(w.ResourceWatcher.Close)
 
 	// Initially there are no service providers so watcher should send an empty list.
 	select {
-	case changeset := <-w.SAMLIdPServiceProvidersC:
-		require.Len(t, changeset, 0)
-	case <-w.Done():
+	case changeset := <-w.Collector.Cfg.SAMLIdPServiceProvidersC:
+		require.Len(t, changeset, 0, "initial provider list should be empty")
+	case <-w.ResourceWatcher.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for the first event.")
+		t.Fatal("Timeout waiting for the initial empty event.")
 	}
 
 	// Add a service provider.
@@ -1094,10 +1094,11 @@ func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
 
 	// The first event is always the current list of service providers.
 	select {
-	case changeset := <-w.SAMLIdPServiceProvidersC:
-		require.Len(t, changeset, 1)
-		require.Empty(t, resourceDiff(changeset[0], sp1))
-	case <-w.Done():
+	case changeset := <-w.Collector.Cfg.SAMLIdPServiceProvidersC:
+		require.Empty(t, cmp.Diff(types.SAMLIdPServiceProviders{sp1}, changeset,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		), "should be no differences in the changeset after adding the first service provider")
+	case <-w.ResourceWatcher.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for the first event.")
@@ -1109,9 +1110,11 @@ func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
 
 	// Watcher should detect the service provider list change.
 	select {
-	case changeset := <-w.SAMLIdPServiceProvidersC:
-		require.Len(t, changeset, 2)
-	case <-w.Done():
+	case changeset := <-w.Collector.Cfg.SAMLIdPServiceProvidersC:
+		require.Empty(t, cmp.Diff(types.SAMLIdPServiceProviders{sp1, sp2}, changeset,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		), "should be no difference in the changeset after adding the second service provider")
+	case <-w.ResourceWatcher.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for the second event.")
@@ -1123,9 +1126,11 @@ func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
 
 	// Watcher should detect the service provider list change.
 	select {
-	case changeset := <-w.SAMLIdPServiceProvidersC:
-		require.Len(t, changeset, 2)
-	case <-w.Done():
+	case changeset := <-w.Collector.Cfg.SAMLIdPServiceProvidersC:
+		require.Empty(t, cmp.Diff(types.SAMLIdPServiceProviders{sp1, sp2}, changeset,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		), "should be no difference in the changeset after update")
+	case <-w.ResourceWatcher.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for the updated event.")
@@ -1136,10 +1141,11 @@ func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
 
 	// Watcher should detect the service provider list change.
 	select {
-	case changeset := <-w.SAMLIdPServiceProvidersC:
-		require.Len(t, changeset, 1)
-		require.Empty(t, resourceDiff(changeset[0], sp2))
-	case <-w.Done():
+	case changeset := <-w.Collector.Cfg.SAMLIdPServiceProvidersC:
+		require.Empty(t, cmp.Diff(types.SAMLIdPServiceProviders{sp2}, changeset,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		), "should be no difference in the changeset after deleting the first service provider")
+	case <-w.ResourceWatcher.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for the update event.")
