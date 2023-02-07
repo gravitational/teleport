@@ -21,6 +21,7 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -1095,7 +1096,12 @@ func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
 	// The first event is always the current list of service providers.
 	select {
 	case changeset := <-w.Collector.Cfg.SAMLIdPServiceProvidersC:
-		require.Empty(t, cmp.Diff(types.SAMLIdPServiceProviders{sp1}, changeset,
+		expected := types.SAMLIdPServiceProviders{sp1}
+		sortedChangeset := changeset
+		sort.Sort(expected)
+		sort.Sort(sortedChangeset)
+
+		require.Empty(t, cmp.Diff(expected, sortedChangeset,
 			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		), "should be no differences in the changeset after adding the first service provider")
 	case <-w.ResourceWatcher.Done():
@@ -1111,7 +1117,12 @@ func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
 	// Watcher should detect the service provider list change.
 	select {
 	case changeset := <-w.Collector.Cfg.SAMLIdPServiceProvidersC:
-		require.Empty(t, cmp.Diff(types.SAMLIdPServiceProviders{sp1, sp2}, changeset,
+		expected := types.SAMLIdPServiceProviders{sp1, sp2}
+		sortedChangeset := changeset
+		sort.Sort(expected)
+		sort.Sort(sortedChangeset)
+
+		require.Empty(t, cmp.Diff(expected, sortedChangeset,
 			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		), "should be no difference in the changeset after adding the second service provider")
 	case <-w.ResourceWatcher.Done():
@@ -1127,7 +1138,12 @@ func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
 	// Watcher should detect the service provider list change.
 	select {
 	case changeset := <-w.Collector.Cfg.SAMLIdPServiceProvidersC:
-		require.Empty(t, cmp.Diff(types.SAMLIdPServiceProviders{sp1, sp2}, changeset,
+		expected := types.SAMLIdPServiceProviders{sp1, sp2}
+		sortedChangeset := changeset
+		sort.Sort(expected)
+		sort.Sort(sortedChangeset)
+
+		require.Empty(t, cmp.Diff(expected, sortedChangeset,
 			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		), "should be no difference in the changeset after update")
 	case <-w.ResourceWatcher.Done():
@@ -1142,6 +1158,11 @@ func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
 	// Watcher should detect the service provider list change.
 	select {
 	case changeset := <-w.Collector.Cfg.SAMLIdPServiceProvidersC:
+		expected := types.SAMLIdPServiceProviders{sp2}
+		sortedChangeset := changeset
+		sort.Sort(expected)
+		sort.Sort(sortedChangeset)
+
 		require.Empty(t, cmp.Diff(types.SAMLIdPServiceProviders{sp2}, changeset,
 			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		), "should be no difference in the changeset after deleting the first service provider")
