@@ -28,13 +28,13 @@ import (
 
 // GetEC2IdentityDocument fetches the PKCS7 RSA2048 InstanceIdentityDocument
 // from the IMDS for this EC2 instance.
-func GetEC2IdentityDocument() ([]byte, error) {
-	cfg, err := config.LoadDefaultConfig(context.TODO())
+func GetEC2IdentityDocument(ctx context.Context) ([]byte, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	imdsClient := imds.NewFromConfig(cfg)
-	output, err := imdsClient.GetDynamicData(context.TODO(), &imds.GetDynamicDataInput{
+	output, err := imdsClient.GetDynamicData(ctx, &imds.GetDynamicDataInput{
 		Path: "instance-identity/rsa2048",
 	})
 	if err != nil {
@@ -52,14 +52,14 @@ func GetEC2IdentityDocument() ([]byte, error) {
 
 // GetEC2NodeID returns the node ID to use for this EC2 instance when using
 // Simplified Node Joining.
-func GetEC2NodeID() (string, error) {
+func GetEC2NodeID(ctx context.Context) (string, error) {
 	// fetch the raw IID
-	cfg, err := config.LoadDefaultConfig(context.TODO())
+	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	imdsClient := imds.NewFromConfig(cfg)
-	output, err := imdsClient.GetInstanceIdentityDocument(context.TODO(), nil)
+	output, err := imdsClient.GetInstanceIdentityDocument(ctx, nil)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
