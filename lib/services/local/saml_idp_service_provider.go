@@ -35,8 +35,7 @@ type SAMLIdPServiceProviderService struct {
 func NewSAMLIdPServiceProviderService(backend backend.Backend) *SAMLIdPServiceProviderService {
 	return &SAMLIdPServiceProviderService{
 		genericResourceService: genericResourceService[types.SAMLIdPServiceProvider]{
-			Backend: backend,
-
+			backend:                   backend,
 			limit:                     samlIDPServiceProviderMaxPageSize,
 			resourceHumanReadableName: "SAML IdP service provider",
 			backendPrefix:             samlIDPServiceProviderPrefix,

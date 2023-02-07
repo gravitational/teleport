@@ -19,21 +19,27 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
+
+// marshalFunc is a type signature for a marshaling function.
+type marshalFunc[T types.Resource] func(T, ...services.MarshalOption) ([]byte, error)
+
+// UnmarshalFunc is a type signature for an unmarshaling function.
+type unmarshalFunc[T types.Resource] func([]byte, ...services.MarshalOption) (T, error)
 
 // genericResourceService is a generic service for interacting with resources in the backend.
 type genericResourceService[T types.Resource] struct {
-	backend.Backend
-
+	backend                   backend.Backend
 	resourceHumanReadableName string
 	limit                     int
 	backendPrefix             string
-	marshalFunc               services.MarshalFunc[T]
-	unmarshalFunc             services.UnmarshalFunc[T]
+	marshalFunc               marshalFunc[T]
+	unmarshalFunc             unmarshalFunc[T]
 }
 
 // ListResources returns a paginated list of resources.
@@ -47,17 +53,10 @@ func (s *genericResourceService[T]) listResources(ctx context.Context, pageSize 
 	}
 
 	// If backend.NoLimit is requested and the service permits it, set the limit to NoLimit.
-	var limit int
-	if s.limit == backend.NoLimit && pageSize == backend.NoLimit {
-		limit = backend.NoLimit
-	} else {
-		// Increment pageSize to allow for the extra item represented by nextKey.
-		// We skip this item in the results below.
-		limit = pageSize + 1
-	}
+	limit := pageSize + 1
 
 	// no filter provided get the range directly
-	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+	result, err := s.backend.GetRange(ctx, rangeStart, rangeEnd, limit)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -71,9 +70,8 @@ func (s *genericResourceService[T]) listResources(ctx context.Context, pageSize 
 		out = append(out, resource)
 	}
 
-	// Skip the pagination logic if backend.NoLimit has been requested.
 	var nextKey string
-	if limit != backend.NoLimit && len(out) > pageSize {
+	if len(out) > pageSize {
 		nextKey = backend.GetPaginationKey(out[len(out)-1])
 		// Truncate the last item that was used to determine next row existence.
 		out = out[:pageSize]
@@ -83,16 +81,16 @@ func (s *genericResourceService[T]) listResources(ctx context.Context, pageSize 
 }
 
 // getResource returns the specified resource.
-func (s *genericResourceService[T]) getResource(ctx context.Context, name string, extraKeyParts ...string) (T, error) {
+func (s *genericResourceService[T]) getResource(ctx context.Context, name string, extraKeyParts ...string) (resource T, err error) {
 	key := s.fullKey(name, extraKeyParts...)
-	item, err := s.Get(ctx, key)
+	item, err := s.backend.Get(ctx, key)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return *new(T), trace.NotFound("%s %q doesn't exist", s.resourceHumanReadableName, string(key))
+			return resource, trace.NotFound("%s %q doesn't exist", s.resourceHumanReadableName, string(key))
 		}
-		return *new(T), trace.Wrap(err)
+		return resource, trace.Wrap(err)
 	}
-	resource, err := s.unmarshalFunc(item.Value,
+	resource, err = s.unmarshalFunc(item.Value,
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 	return resource, trace.Wrap(err)
 }
@@ -112,11 +110,8 @@ func (s *genericResourceService[T]) createResource(ctx context.Context, resource
 		Expires: resource.Expiry(),
 		ID:      resource.GetResourceID(),
 	}
-	_, err = s.Create(ctx, item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	_, err = s.backend.Create(ctx, item)
+	return trace.Wrap(err)
 }
 
 // updateResource updates an existing resource.
@@ -134,17 +129,14 @@ func (s *genericResourceService[T]) updateResource(ctx context.Context, resource
 		Expires: resource.Expiry(),
 		ID:      resource.GetResourceID(),
 	}
-	_, err = s.Update(ctx, item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	_, err = s.backend.Update(ctx, item)
+	return trace.Wrap(err)
 }
 
 // deleteResource removes the specified resource.
 func (s *genericResourceService[T]) deleteResource(ctx context.Context, name string, extraKeyParts ...string) error {
 	key := s.fullKey(name, extraKeyParts...)
-	err := s.Delete(ctx, key)
+	err := s.backend.Delete(ctx, key)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("%s %q doesn't exist", s.resourceHumanReadableName, string(key))
@@ -157,11 +149,7 @@ func (s *genericResourceService[T]) deleteResource(ctx context.Context, name str
 // DeleteAllResources removes all resources.
 func (s *genericResourceService[T]) deleteAllResources(ctx context.Context) error {
 	startKey := backend.Key(s.backendPrefix)
-	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(s.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
 // fullKey calculates a key from a name and extra key parts.
