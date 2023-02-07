@@ -1,6 +1,6 @@
 # Changelog
 
-## 12.0.0
+## 12.0.1
 
 Teleport 12 brings the following marquee features and improvements:
 
