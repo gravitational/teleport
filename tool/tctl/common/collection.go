@@ -1008,7 +1008,9 @@ type samlIDPServiceProviderCollection struct {
 	serviceProviders []types.SAMLIdPServiceProvider
 }
 
-func (c *samlIDPServiceProviderCollection) resources() (r []types.Resource) {
+func (c *samlIDPServiceProviderCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.serviceProviders))
+	for _, resource := range c.serviceProviders {
 	for _, resource := range c.serviceProviders {
 		r = append(r, resource)
 	}
