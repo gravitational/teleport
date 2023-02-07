@@ -1,15 +1,34 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { ChannelCredentials, ClientDuplexStream } from '@grpc/grpc-js';
+import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
+import { TerminalServiceClient } from 'gen-proto-js/teleport/lib/teleterm/v1/service_grpc_pb';
+import {
+  AccessRequest,
+  ResourceID,
+} from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
 
 import Logger from 'teleterm/logger';
 import * as uri from 'teleterm/ui/uri';
 
-import * as api from './v1/service_pb';
-import { TerminalServiceClient } from './v1/service_grpc_pb';
 import { createFileTransferStream } from './createFileTransferStream';
 import middleware, { withLogging } from './middleware';
 import * as types from './types';
 import createAbortController from './createAbortController';
-import { AccessRequest, ResourceID } from './v1/access_request_pb';
 import { mapUsageEvent } from './mapUsageEvent';
 import { ReportUsageEventRequest } from './types';
 

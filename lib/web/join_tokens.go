@@ -169,20 +169,6 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 	}, nil
 }
 
-func (h *Handler) createNodeTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	roles := types.SystemRoles{
-		types.RoleNode,
-		types.RoleApp,
-	}
-
-	return createJoinToken(r.Context(), clt, roles)
-}
-
 func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	scripts.SetScriptHeaders(w.Header())
 
@@ -272,22 +258,6 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 
 	return nil, nil
 }
-func createJoinToken(ctx context.Context, m nodeAPIGetter, roles types.SystemRoles) (*nodeJoinToken, error) {
-	req := &proto.GenerateTokenRequest{
-		Roles: roles,
-		TTL:   proto.Duration(defaults.NodeJoinTokenTTL),
-	}
-
-	token, err := m.GenerateToken(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &nodeJoinToken{
-		ID:     token,
-		Expiry: time.Now().UTC().Add(defaults.NodeJoinTokenTTL),
-	}, nil
-}
 
 func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter) (string, error) {
 	switch types.JoinMethod(settings.joinMethod) {
@@ -335,7 +305,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	}
 
 	// Get the CA pin hashes of the cluster to join.
-	localCAResponse, err := m.GetClusterCACert(context.TODO())
+	localCAResponse, err := m.GetClusterCACert(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -450,15 +420,6 @@ func isSameRuleSet(r1 []*types.TokenRule, r2 []*types.TokenRule) bool {
 }
 
 type nodeAPIGetter interface {
-	// GenerateToken creates a special provisioning token for a new SSH server.
-	//
-	// This token is used by SSH server to authenticate with Auth server
-	// and get a signed certificate.
-	//
-	// If token is not supplied, it will be auto generated and returned.
-	// If TTL is not supplied, token will be valid until removed.
-	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
-
 	// GetToken looks up a provisioning token.
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
 

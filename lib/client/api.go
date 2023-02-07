@@ -1596,7 +1596,6 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 	}
 	defer nodeClient.Close()
 	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
-
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
@@ -1893,14 +1892,14 @@ func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opt
 	defer span.End()
 
 	if len(args) < 2 {
-		return trace.Errorf("need at least two arguments for scp")
+		return trace.Errorf("local and remote destinations are required")
 	}
 	first := args[0]
 	last := args[len(args)-1]
 
 	// local copy?
 	if !isRemoteDest(first) && !isRemoteDest(last) {
-		return trace.BadParameter("making local copies is not supported")
+		return trace.BadParameter("no remote destination specified")
 	}
 
 	var config *sftpConfig
