@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import {
@@ -10,6 +10,9 @@ import { TerminalLine } from 'shared/components/AnimatedTerminal/content';
 import { KeywordHighlight } from 'shared/components/AnimatedTerminal/TerminalContent';
 
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
+
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import { ResourceKind } from 'teleport/Discover/Shared';
 
 import type { WindowsDesktopService } from 'teleport/services/desktops';
 
@@ -73,22 +76,10 @@ export function StartTeleportTerminalAnimation() {
   const [animationFinished, setAnimationFinished] = useState(false);
   const [lines, setLines] = useState<TerminalLine[]>([...startLines]);
 
-  const { active, result, timedOut, timeout } =
-    usePingTeleport<WindowsDesktopService>();
-
-  const savedTimeout = useRef(0);
-  useEffect(() => {
-    if (result) {
-      savedTimeout.current = null;
-
-      return;
-    }
-
-    savedTimeout.current = timeout;
-  }, [timeout, result]);
+  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
+  const { active, result } = usePingTeleport<WindowsDesktopService>(joinToken);
 
   const [ranConnectingAnimation, setRanConnectingAnimation] = useState(false);
-  const [ranTimedOutAnimation, setRanTimedOutAnimation] = useState(false);
   const [ranConnectedAnimation, setRanConnectedAnimation] = useState(false);
 
   useEffect(() => {
@@ -138,16 +129,8 @@ export function StartTeleportTerminalAnimation() {
           text: '- Waiting to hear from your Teleport node',
           frames: flip.map(spinner => {
             return () => {
-              if (Date.now() > savedTimeout.current) {
-                return { text: '- Waiting to hear from your Teleport node' };
-              }
-
-              const { minutes, seconds } = millisecondsToMinutesSeconds(
-                savedTimeout.current - Date.now()
-              );
-
               return {
-                text: `${spinner} Waiting to hear from your Teleport node (${minutes}:${seconds} remaining)`,
+                text: `${spinner} Waiting to hear from your Teleport node`,
                 delay: 70,
               };
             };
@@ -156,31 +139,13 @@ export function StartTeleportTerminalAnimation() {
       ]);
     }
 
-    if (timedOut && !ranTimedOutAnimation) {
-      setLines(lines => [
-        ...lines,
-        {
-          isCommand: false,
-          text: '',
-        },
-        {
-          isCommand: false,
-          text: "✖ Oh no! We couldn't find your Teleport node.",
-        },
-      ]);
-    }
-
     if (animationFinished) {
       setRanConnectingAnimation(active);
     }
-
-    setRanTimedOutAnimation(timedOut);
   }, [
     result,
-    timedOut,
     active,
     ranConnectedAnimation,
-    ranTimedOutAnimation,
     ranConnectingAnimation,
     animationFinished,
   ]);
@@ -201,16 +166,3 @@ export function StartTeleportTerminalAnimation() {
 const AnimationContainer = styled.div`
   --content-height: 400px;
 `;
-
-function millisecondsToMinutesSeconds(ms: number) {
-  if (ms < 0) {
-    return { minutes: 0, seconds: 0 };
-  }
-
-  const minutes = Math.floor(ms / 60000);
-  const seconds = Math.floor((ms % 60000) / 1000)
-    .toFixed(0)
-    .padStart(2, '0');
-
-  return { minutes, seconds };
-}
