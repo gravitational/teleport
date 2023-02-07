@@ -275,6 +275,8 @@ RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gog
      git reset --hard ${GOGO_PROTO_TAG} && \
      make install)
 ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
+# Install protoc-gen-go for lib/teleterm as #17267 and #17302 were not backported to v10.
+RUN go install github.com/golang/protobuf/protoc-gen-go@v1.4.3
 
 # Install addlicense.
 RUN go install github.com/google/addlicense@v1.0.0
