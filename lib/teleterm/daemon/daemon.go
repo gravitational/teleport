@@ -137,8 +137,8 @@ func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
 	return cluster, nil
 }
 
-// ResolveClusterWithDetails returns more detailed cluster information. It makes a request to the auth server and includes
-// details about the cluster and logged in user
+// ResolveClusterWithDetails returns fully detailed cluster information. It makes requests to the auth server and includes
+// details about the cluster and logged in user.
 func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*clusters.ClusterWithDetails, error) {
 	cluster, err := s.ResolveCluster(uri)
 	if err != nil {

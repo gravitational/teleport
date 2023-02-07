@@ -60,9 +60,9 @@ type ClusterWithDetails struct {
 	// AuthClusterID is the unique cluster ID that is set once
 	// during the first auth server startup.
 	AuthClusterID string
-	// SuggestedReviewers for the given user
+	// SuggestedReviewers for the given user.
 	SuggestedReviewers []string
-	// RequestableRoles for the given user
+	// RequestableRoles for the given user.
 	RequestableRoles []string
 }
 
@@ -71,8 +71,8 @@ func (c *Cluster) Connected() bool {
 	return c.status.Name != "" && !c.status.IsExpired(c.clock)
 }
 
-// GetWithDetails will make a network request to the auth server and return details of the
-// current Cluster that cannot be found on the disk only, including details about the user
+// GetWithDetails makes requests to the auth server to return details of the current
+// Cluster that cannot be found on the disk only, including details about the user
 // and enabled enterprise features. This method requires a valid cert.
 func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, error) {
 	var (
