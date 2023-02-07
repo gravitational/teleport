@@ -336,7 +336,7 @@ type CLIConf struct {
 	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
 	LocalProxyTunnel bool
 
-	// Command to run via tsh aws
+	// Exec is the command to run via tsh aws.
 	Exec string
 	// AWSRole is Amazon Role ARN or role name that will be used for AWS CLI access.
 	AWSRole string
