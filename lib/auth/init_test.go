@@ -495,14 +495,14 @@ func TestPresets(t *testing.T) {
 		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
 	})
 
-	// If a default allow rule is not present, ensure it gets added.
-	t.Run("AddDefaultAllowRules", func(t *testing.T) {
+	// If a default allow condition is not present, ensure it gets added.
+	t.Run("AddDefaultAllowConditions", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		access := services.NewPresetEditorRole()
-		rules := access.GetRules(types.Allow)
+		editorRole := services.NewPresetEditorRole()
+		rules := editorRole.GetRules(types.Allow)
 
 		// Create a new set of rules based on the Editor Role, excluding the ConnectioDiagnostic.
 		// ConnectionDiagnostic is part of the default allow rules
@@ -513,18 +513,24 @@ func TestPresets(t *testing.T) {
 			}
 			outdatedRules = append(outdatedRules, r)
 		}
-		access.SetRules(types.Allow, outdatedRules)
+		editorRole.SetRules(types.Allow, outdatedRules)
+		err := as.CreateRole(ctx, editorRole)
+		require.NoError(t, err)
 
-		err := as.CreateRole(ctx, access)
+		// Set up an old Access Role.
+		// Remove the new DatabaseServiceLabels default
+		accessRole := services.NewPresetAccessRole()
+		accessRole.SetDatabaseServiceLabels(types.Allow, types.Labels{})
+		err = as.CreateRole(ctx, accessRole)
 		require.NoError(t, err)
 
 		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetRole(ctx, access.GetName())
+		outEditor, err := as.GetRole(ctx, editorRole.GetName())
 		require.NoError(t, err)
 
-		allowRules := out.GetRules(types.Allow)
+		allowRules := outEditor.GetRules(types.Allow)
 		require.Condition(t, func() (success bool) {
 			for _, r := range allowRules {
 				if apiutils.SliceContainsStr(r.Resources, types.KindConnectionDiagnostic) {
@@ -533,6 +539,11 @@ func TestPresets(t *testing.T) {
 			}
 			return false
 		}, "missing default rule")
+
+		outAccess, err := as.GetRole(ctx, accessRole.GetName())
+		require.NoError(t, err)
+		allowedDatabaseServiceLabels := outAccess.GetDatabaseServiceLabels(types.Allow)
+		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, allowedDatabaseServiceLabels, "missing default DatabaseServiceLabels")
 	})
 
 	// Don't set a default allow rule if the resource is present in the role.
@@ -542,8 +553,9 @@ func TestPresets(t *testing.T) {
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		access := services.NewPresetEditorRole()
-		allowRules := access.GetRules(types.Allow)
+		// Set up a changed Editor Role
+		editorRole := services.NewPresetEditorRole()
+		allowRules := editorRole.GetRules(types.Allow)
 
 		// Create a new set of rules based on the Editor Role,
 		// setting a deny rule for a default allow rule
@@ -554,24 +566,35 @@ func TestPresets(t *testing.T) {
 			}
 			outdateAllowRules = append(outdateAllowRules, r)
 		}
-		access.SetRules(types.Allow, outdateAllowRules)
+		editorRole.SetRules(types.Allow, outdateAllowRules)
 
 		// Explicitly deny Create to ConnectionDiagnostic
-		denyRules := access.GetRules(types.Deny)
+		denyRules := editorRole.GetRules(types.Deny)
 		denyConnectionDiagnosticRule := types.NewRule(types.KindConnectionDiagnostic, []string{types.VerbCreate})
 		denyRules = append(denyRules, denyConnectionDiagnosticRule)
-		access.SetRules(types.Deny, denyRules)
+		editorRole.SetRules(types.Deny, denyRules)
 
-		err := as.CreateRole(ctx, access)
+		err := as.CreateRole(ctx, editorRole)
 		require.NoError(t, err)
 
+		// Set up a changed Access Role
+		accessRole := services.NewPresetAccessRole()
+		// Remove a default allow label as well.
+		accessRole.SetDatabaseServiceLabels(types.Allow, types.Labels{})
+		// Explicitly deny DatabaseServiceLabels
+		accessRole.SetDatabaseServiceLabels(types.Deny, types.Labels{types.Wildcard: []string{types.Wildcard}})
+
+		err = as.CreateRole(ctx, accessRole)
+		require.NoError(t, err)
+
+		// Apply defaults.
 		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetRole(ctx, access.GetName())
+		outEditor, err := as.GetRole(ctx, editorRole.GetName())
 		require.NoError(t, err)
 
-		allowRules = out.GetRules(types.Allow)
+		allowRules = outEditor.GetRules(types.Allow)
 		require.Condition(t, func() (success bool) {
 			for _, r := range allowRules {
 				if apiutils.SliceContainsStr(r.Resources, types.KindConnectionDiagnostic) {
@@ -580,6 +603,13 @@ func TestPresets(t *testing.T) {
 			}
 			return true
 		}, "missing default rule")
+
+		outAccess, err := as.GetRole(ctx, accessRole.GetName())
+		require.NoError(t, err)
+		allowedDatabaseServiceLabels := outAccess.GetDatabaseServiceLabels(types.Allow)
+		require.Nil(t, allowedDatabaseServiceLabels, "does not set Allowed DatabaseService Labels")
+		deniedDatabaseServiceLabels := outAccess.GetDatabaseServiceLabels(types.Deny)
+		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, deniedDatabaseServiceLabels, "keeps the deny label for DatabaseService")
 	})
 
 	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {

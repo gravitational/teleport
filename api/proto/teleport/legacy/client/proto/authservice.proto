@@ -116,6 +116,8 @@ message Event {
     types.KubernetesClusterV3 KubernetesCluster = 33 [(gogoproto.jsontag) = "kubernetes_cluster,omitempty"];
     // Installer is an installer resource
     types.InstallerV1 Installer = 34 [(gogoproto.jsontag) = "installer,omitempty"];
+    // DatabaseService is a DatabaseService resource
+    types.DatabaseServiceV1 DatabaseService = 35 [(gogoproto.jsontag) = "database_service,omitempty"];
   }
 }
 
@@ -797,6 +799,15 @@ message DeleteAllDatabaseServersRequest {
   // Namespace is the database servers namespace.
   string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
 }
+
+// UpsertDatabaseServiceRequest is a request to register DatabaseService.
+message UpsertDatabaseServiceRequest {
+  // Service is the database service to register.
+  types.DatabaseServiceV1 Service = 1 [(gogoproto.jsontag) = "service"];
+}
+
+// DeleteAllDatabaseServicesRequest is a request to delete all DatabaseServices.
+message DeleteAllDatabaseServicesRequest {}
 
 // DatabaseCSRRequest is a request to generate a client certificate used
 // by the proxy to authenticate with a remote database service.
@@ -1554,6 +1565,8 @@ message PaginatedResource {
     types.KubernetesServerV3 KubernetesServer = 7 [(gogoproto.jsontag) = "kubernetes_server,omitempty"];
     // WindowsDesktopService represents a WindowsDesktopServiceV3 resource.
     types.WindowsDesktopServiceV3 WindowsDesktopService = 8 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
+    // DatabaseService represents a DatabaseService resource.
+    types.DatabaseServiceV1 DatabaseService = 9 [(gogoproto.jsontag) = "database_service,omitempty"];
   }
 }
 
@@ -2175,6 +2188,15 @@ service AuthService {
   rpc DeleteDatabaseServer(DeleteDatabaseServerRequest) returns (google.protobuf.Empty);
   // DeleteAllDatabaseServers removes all registered database proxy servers.
   rpc DeleteAllDatabaseServers(DeleteAllDatabaseServersRequest) returns (google.protobuf.Empty);
+
+  // UpsertDatabaseService registers a new DatabaseService.
+  rpc UpsertDatabaseService(UpsertDatabaseServiceRequest) returns (types.KeepAlive);
+  // DeleteDatabaseService removes the specified DatabaseService.
+  rpc DeleteDatabaseService(types.ResourceRequest) returns (google.protobuf.Empty);
+  // DeleteAllDatabaseServices removes all registered DatabaseServices.
+  // If there's an error deleting the resources, there's no guarantee of a rollback.
+  // A subset of resources might be deleted while others still exist.
+  rpc DeleteAllDatabaseServices(DeleteAllDatabaseServicesRequest) returns (google.protobuf.Empty);
 
   // SignDatabaseCSR generates client certificate used by proxy to
   // authenticate with a remote database service.
