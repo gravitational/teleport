@@ -1,6 +1,6 @@
 ---
 authors: Tiago Silva (tiago.silva@goteleport.com)
-state: implemented
+state: implemented (v12.0.1)
 ---
 
 # RFD 101 - Kubernetes Per-pod RBAC
