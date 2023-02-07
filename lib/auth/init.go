@@ -106,7 +106,7 @@ type InitConfig struct {
 	Trust services.Trust
 
 	// Presence service is a discovery and heartbeat tracker
-	Presence services.Presence
+	Presence services.PresenceInternal
 
 	// Provisioner is a service that keeps track of provisioning tokens
 	Provisioner services.Provisioner
@@ -134,6 +134,9 @@ type InitConfig struct {
 
 	// Databases is a service that manages database resources.
 	Databases services.Databases
+
+	// DatabaseServices is a service that manages DatabaseService resources.
+	DatabaseServices services.DatabaseServices
 
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
@@ -177,6 +180,9 @@ type InitConfig struct {
 
 	// WindowsServices is a service that manages Windows desktop resources.
 	WindowsDesktops services.WindowsDesktops
+
+	// SAMLIdPServiceProviders is a service that manages SAML IdP service providers.
+	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
 
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
@@ -551,6 +557,20 @@ func shouldInitReplaceResourceWithOrigin(stored, candidate types.ResourceWithOri
 	return false, nil
 }
 
+// migrationStart marks the migration as active.
+// It should be called when a migration starts.
+func migrationStart(ctx context.Context, migrationName string) {
+	log.Debugf("Migrations: %q migration started.", migrationName)
+	migrations.WithLabelValues(migrationName).Set(1)
+}
+
+// migrationEnd marks the migration as inactive.
+// It should be called when a migration ends.
+func migrationEnd(ctx context.Context, migrationName string) {
+	log.Debugf("Migrations: %q migration ended.", migrationName)
+	migrations.WithLabelValues(migrationName).Set(0)
+}
+
 func migrateLegacyResources(ctx context.Context, asrv *Server) error {
 	if err := migrateRemoteClusters(ctx, asrv); err != nil {
 		return trace.Wrap(err)
@@ -558,28 +578,44 @@ func migrateLegacyResources(ctx context.Context, asrv *Server) error {
 	return nil
 }
 
+// PresetRoleManager contains the required Role Management methods to create a Preset Role.
+type PresetRoleManager interface {
+	// GetRole returns role by name.
+	GetRole(ctx context.Context, name string) (types.Role, error)
+	// CreateRole creates a role.
+	CreateRole(ctx context.Context, role types.Role) error
+	// UpsertRole creates or updates a role and emits a related audit event.
+	UpsertRole(ctx context.Context, role types.Role) error
+}
+
 // createPresets creates preset resources (eg, roles).
-func createPresets(ctx context.Context, asrv *Server) error {
+func createPresets(ctx context.Context, rm PresetRoleManager) error {
 	roles := []types.Role{
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
 	}
 	for _, role := range roles {
-		err := asrv.CreateRole(ctx, role)
+		err := rm.CreateRole(ctx, role)
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return trace.WrapWithMessage(err, "failed to create preset role %v", role.GetName())
 			}
 
-			currentRole, err := asrv.GetRole(ctx, role.GetName())
+			currentRole, err := rm.GetRole(ctx, role.GetName())
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
-			role = services.AddDefaultAllowRules(currentRole)
+			role, err := services.AddDefaultAllowConditions(currentRole)
+			if trace.IsAlreadyExists(err) {
+				continue
+			}
+			if err != nil {
+				return trace.Wrap(err)
+			}
 
-			err = asrv.UpsertRole(ctx, role)
+			err = rm.UpsertRole(ctx, role)
 			if err != nil {
 				return trace.WrapWithMessage(err, "failed to update preset role %v", role.GetName())
 			}
@@ -620,7 +656,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			var hasKeys bool
 			var signerErr error
 			switch r.GetType() {
-			case types.HostCA, types.UserCA:
+			case types.HostCA, types.UserCA, types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
 			case types.DatabaseCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
@@ -1024,6 +1060,9 @@ func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
 // where the presence of remote cluster was identified only by presence
 // of host certificate authority with cluster name not equal local cluster name
 func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
+	migrationStart(ctx, "remote_clusters")
+	defer migrationEnd(ctx, "remote_clusters")
+
 	clusterName, err := asrv.Services.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1081,6 +1120,9 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 //
 // DELETE IN 11.0
 func migrateDBAuthority(ctx context.Context, asrv *Server) error {
+	migrationStart(ctx, "db_authority")
+	defer migrationEnd(ctx, "db_authority")
+
 	localClusterName, err := asrv.Services.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)

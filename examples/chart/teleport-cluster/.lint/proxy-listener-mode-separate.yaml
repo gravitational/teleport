@@ -1,0 +1,2 @@
+clusterName: test-proxy-listener-mode
+proxyListenerMode: separate

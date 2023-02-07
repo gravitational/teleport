@@ -55,11 +55,16 @@ teleport:
   {{- end }}
 db_service:
   enabled: "yes"
-  # Matchers for database resources created with "tctl create" command.
-  # For more information: https://goteleport.com/docs/database-access/guides/dynamic-registration/
+  # Matchers for database resources created with "tctl create" command or by the discovery service.
+  # For more information about dynamic registration: https://goteleport.com/docs/database-access/guides/dynamic-registration/
   resources:
+  {{- range $index, $resourceLabel := .DynamicResourcesLabels }}
   - labels:
-      "*": "*"
+	{{- range $name, $value := $resourceLabel }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
+  {{- end }}
+
   {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .MemoryDBDiscoveryRegions}}
   # Matchers for registering AWS-hosted databases.
   aws:
@@ -154,10 +159,9 @@ db_service:
       "{{ $name }}": "{{ $value }}"
     {{- end }}
   {{- end }}
-  {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions .AzureRedisDiscoveryRegions}}
+  {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions .AzureRedisDiscoveryRegions .AzureSQLServerDiscoveryRegions }}
   # Matchers for registering Azure-hosted databases.
   azure:
-  {{- end }}
   {{- if or .AzureMySQLDiscoveryRegions }}
   # Azure MySQL databases auto-discovery.
   # For more information about Azure MySQL auto-discovery: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
@@ -258,20 +262,26 @@ db_service:
       "{{ $name }}": "{{ $value }}"
     {{- end }}
   {{- end }}
+  {{- end }}
   # Lists statically registered databases proxied by this agent.
   {{- if .StaticDatabaseName }}
   databases:
   - name: {{ .StaticDatabaseName }}
     protocol: {{ .StaticDatabaseProtocol }}
+    {{- if .StaticDatabaseURI }}
     uri: {{ .StaticDatabaseURI }}
+    {{- end}}
     {{- if .DatabaseCACertFile }}
     tls:
       ca_cert_file: {{ .DatabaseCACertFile }}
     {{- end }}
-    {{- if or .DatabaseAWSRegion .DatabaseAWSRedshiftClusterID }}
+    {{- if or .DatabaseAWSRegion .DatabaseAWSRedshiftClusterID .DatabaseAWSExternalID }}
     aws:
       {{- if .DatabaseAWSRegion }}
       region: {{ .DatabaseAWSRegion }}
+      {{- end }}
+      {{- if .DatabaseAWSExternalID }}
+      external_id: {{ .DatabaseAWSExternalID }}
       {{- end }}
       {{- if .DatabaseAWSRedshiftClusterID }}
       redshift:
@@ -411,6 +421,10 @@ proxy_service:
 
 // DatabaseSampleFlags specifies configuration parameters for a database agent.
 type DatabaseSampleFlags struct {
+	// DynamicResourcesRawLabels is the "raw" list of labels for dynamic "resources".
+	DynamicResourcesRawLabels []string
+	// DynamicResourcesLabels is the list of labels for dynamic "resources".
+	DynamicResourcesLabels []map[string]string
 	// StaticDatabaseName static database name provided by the user.
 	StaticDatabaseName string
 	// StaticDatabaseProtocol static databse protocol provided by the user.
@@ -482,6 +496,8 @@ type DatabaseSampleFlags struct {
 	DatabaseProtocols []string
 	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
 	DatabaseAWSRegion string
+	// DatabaseAWSExternalID is an optional AWS database external ID, used when assuming roles.
+	DatabaseAWSExternalID string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
 	// DatabaseADDomain is the Active Directory domain for authentication.
@@ -542,6 +558,15 @@ func (f *DatabaseSampleFlags) CheckAndSetDefaults() error {
 				return trace.Wrap(err)
 			}
 		}
+	}
+
+	// Labels for "resources" section.
+	for i := range f.DynamicResourcesRawLabels {
+		labels, err := client.ParseLabelSpec(f.DynamicResourcesRawLabels[i])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		f.DynamicResourcesLabels = append(f.DynamicResourcesLabels, labels)
 	}
 
 	return nil

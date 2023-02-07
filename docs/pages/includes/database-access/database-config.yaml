@@ -2,7 +2,14 @@ db_service:
   # Enables the Database Service.
   enabled: "yes"
 
-  # Matchers for database resources created with "tctl create" command.
+  # Matchers for database resources created with "tctl create" command or by the
+  # discovery service.
+  #
+  # All database resources have a predefined "teleport.dev/origin" label with
+  # one of the following values:
+  # "dynamic": database resources created with "tctl create" command
+  # "cloud": database resources created by the discovery service
+  # "config": database resources defined in the "databases" array below
   resources:
   - labels:
       "*": "*"
@@ -133,6 +140,13 @@ db_service:
       spn: MSSQLSvc/ec2amaz-4kn05du.dbadir.teleportdemo.net:1433
       # Optional path to Kerberos configuration file. Defaults to /etc/krb5.conf.
       krb5_file: /etc/krb5.conf
+
+    # Optional configuration for Azure hosted databases.
+    azure:
+      # Set is_flexi_server to true when using an Azure flexible server.
+      is_flexi_server: false
+      # Resource ID for the database in Azure. This field is required for Azure Cache for Redis databases.
+      resource_id: "/subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/example-group/providers/Microsoft.Cache/Redis/example-db-name"
 
     # Static labels to assign to the database. Used in RBAC.
     static_labels:

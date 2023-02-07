@@ -57,11 +57,26 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access"})
 
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice),
+		withAuthConfig(func(cfg *service.AuthConfig) {
+			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}))
 	makeTestDatabaseServer(t, authProcess, proxyProcess, service.Database{
 		Name:     "postgres",
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
+	}, service.Database{
+		Name:     "mysql",
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:3306",
+	}, service.Database{
+		Name:     "cassandra",
+		Protocol: defaults.ProtocolCassandra,
+		URI:      "localhost:9042",
+	}, service.Database{
+		Name:     "snowflake",
+		Protocol: defaults.ProtocolSnowflake,
+		URI:      "localhost.snowflakecomputing.com",
 	}, service.Database{
 		Name:     "mongo",
 		Protocol: defaults.ProtocolMongoDB,
@@ -70,6 +85,15 @@ func TestDatabaseLogin(t *testing.T) {
 		Name:     "mssql",
 		Protocol: defaults.ProtocolSQLServer,
 		URI:      "localhost:1433",
+	}, service.Database{
+		Name:     "dynamodb",
+		Protocol: defaults.ProtocolDynamoDB,
+		URI:      "", // uri can be blank for DynamoDB, it will be derived from the region and requests.
+		AWS: service.DatabaseAWS{
+			AccountID:  "12345",
+			ExternalID: "123123123",
+			Region:     "us-west-1",
+		},
 	})
 
 	authServer := authProcess.GetAuthServer()
@@ -110,6 +134,30 @@ func TestDatabaseLogin(t *testing.T) {
 			expectErrForConfigCmd: true, // "tsh db config" not supported for MSSQL.
 			expectErrForEnvCmd:    true, // "tsh db env" not supported for MSSQL.
 		},
+		{
+			databaseName:          "mysql",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for MySQL with TLS routing.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for MySQL with TLS routing.
+		},
+		{
+			databaseName:          "cassandra",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for Cassandra.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for Cassandra.
+		},
+		{
+			databaseName:          "snowflake",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for Snowflake.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for Snowflake.
+		},
+		{
+			databaseName:          "dynamodb",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for DynamoDB.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for DynamoDB.
+		},
 	}
 
 	// Note: keystore currently races when multiple tsh clients work in the
@@ -124,14 +172,16 @@ func TestDatabaseLogin(t *testing.T) {
 			require.NoError(t, err)
 
 			// Fetch the active profile.
-			profile, err := client.StatusFor(tmpHomePath, proxyAddr.Host(), alice.GetName())
+			clientStore := client.NewFSClientStore(tmpHomePath)
+			profile, err := clientStore.ReadProfileStatus(proxyAddr.Host())
 			require.NoError(t, err)
+			require.Equal(t, alice.GetName(), profile.Username)
 
 			// Verify certificates.
 			certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", test.databaseName))
 			require.NoError(t, err)
-			require.Len(t, certs, test.expectCertsLen)
-			require.Len(t, keys, test.expectKeysLen)
+			require.Equal(t, test.expectCertsLen, len(certs)) // don't use require.Len, because it spams PEM bytes on fail.
+			require.Equal(t, test.expectKeysLen, len(keys))   // don't use require.Len, because it spams PEM bytes on fail.
 		})
 	}
 
@@ -378,25 +428,15 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	cfg.SetToken(token)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
 	cfg.Databases.Enabled = true
 	cfg.Databases.Databases = dbs
 	cfg.Log = utils.NewLoggerForTests()
 
-	db, err = service.NewTeleport(cfg)
-	require.NoError(t, err)
-	require.NoError(t, db.Start())
-
-	t.Cleanup(func() {
-		db.Close()
-	})
-
-	// Wait for database agent to start.
-	_, err = db.WaitForEventTimeout(10*time.Second, service.DatabasesReady)
-	require.NoError(t, err, "database server didn't start after 10s")
+	db = runTeleport(t, cfg)
 
 	// Wait for all databases to register to avoid races.
 	waitForDatabases(t, auth, dbs)
-
 	return db
 }
 
@@ -501,6 +541,12 @@ func TestFormatDatabaseConnectArgs(t *testing.T) {
 			cluster:   "",
 			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMySQL, Username: "bob", ServiceName: "svc"},
 			wantFlags: []string{"svc"},
+		},
+		{
+			name:      "match user name, dynamodb",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolDynamoDB, ServiceName: "svc"},
+			wantFlags: []string{"--db-user=<user>", "svc"},
 		},
 	}
 	for _, tt := range tests {

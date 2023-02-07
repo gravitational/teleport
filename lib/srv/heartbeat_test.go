@@ -117,10 +117,31 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "keep alive database service",
+			mode: HeartbeatModeDatabaseService,
+			makeServer: func() types.Resource {
+				return &types.DatabaseServiceV1{
+					ResourceHeader: types.ResourceHeader{
+						Kind:    types.KindDatabaseService,
+						Version: types.V1,
+						Metadata: types.Metadata{
+							Name:      "1",
+							Namespace: apidefaults.Namespace,
+						},
+					},
+					Spec: types.DatabaseServiceSpecV1{
+						ResourceMatchers: []*types.DatabaseResourceMatcher{
+							{Labels: &types.Labels{"env": []string{"prod", "qa"}}},
+						},
+					},
+				}
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.TODO())
+			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			clock := clockwork.NewFakeClock()
 			announcer := newFakeAnnouncer(ctx)
@@ -227,7 +248,7 @@ func TestHeartbeatAnnounce(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.mode.String(), func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.TODO())
+			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			clock := clockwork.NewFakeClock()
 
@@ -405,6 +426,13 @@ func (f *fakeAnnouncer) UpdateWindowsDesktop(ctx context.Context, s types.Window
 	return f.err
 }
 
+func (f *fakeAnnouncer) UpsertDatabaseService(ctx context.Context, s types.DatabaseService) (*types.KeepAlive, error) {
+	f.upsertCalls[HeartbeatModeDatabaseService]++
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &types.KeepAlive{}, nil
+}
 func (f *fakeAnnouncer) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 	return f, f.err
 }

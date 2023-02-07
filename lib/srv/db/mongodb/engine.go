@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
 
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -151,19 +150,19 @@ func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Ses
 // authorizeConnection does authorization check for MongoDB connection about
 // to be established.
 func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Session) error {
-	ap, err := e.Auth.GetAuthPreference(ctx)
+	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	mfaParams := sessionCtx.MFAParams(ap.GetRequireMFAType())
+	state := sessionCtx.GetAccessState(authPref)
 	// Only the username is checked upon initial connection. MongoDB sends
 	// database name with each protocol message (for query, update, etc.)
 	// so it is checked when we receive a message from client.
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
-		mfaParams,
-		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
+		state,
+		services.NewDatabaseUserMatcher(sessionCtx.Database, sessionCtx.DatabaseUser),
 	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
@@ -195,8 +194,9 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 	// Legacy OP_KILL_CURSORS command doesn't contain database information.
 	if _, ok := message.(*protocol.MessageOpKillCursors); ok {
 		return sessionCtx.Checker.CheckAccess(sessionCtx.Database,
-			services.AccessMFAParams{Verified: true},
-			&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
+			services.AccessState{MFAVerified: true},
+			services.NewDatabaseUserMatcher(sessionCtx.Database, sessionCtx.DatabaseUser),
+		)
 	}
 	// Do not allow certain commands that deal with authentication.
 	command, err := message.GetCommand()
@@ -209,9 +209,9 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 	}
 	// Otherwise authorize the command against allowed databases.
 	return sessionCtx.Checker.CheckAccess(sessionCtx.Database,
-		services.AccessMFAParams{Verified: true},
+		services.AccessState{MFAVerified: true},
 		role.DatabaseRoleMatchers(
-			defaults.ProtocolMongoDB,
+			sessionCtx.Database,
 			sessionCtx.DatabaseUser,
 			database)...)
 }

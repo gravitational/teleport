@@ -35,18 +35,92 @@
       "title": "Try out Teleport",
       "entries": [
         {
+          "title": "Introduction",
+          "slug": "/try-out-teleport/introduction/"
+        },
+        {
+          "title": "Linux Server",
+          "slug": "/try-out-teleport/linux-server/"
+        },
+        {
+          "title": "Digital Ocean",
+          "slug": "/try-out-teleport/digitalocean/"
+        },
+        {
           "title": "Browser Labs",
           "slug": "/try-out-teleport/browser-labs/"
         },
         {
           "title": "Docker Compose",
-          "slug": "/try-out-teleport/docker-compose/",
-          "forScopes": ["oss"]
+          "slug": "/try-out-teleport/docker-compose/"
         },
         {
           "title": "Local Kubernetes Lab",
-          "slug": "/try-out-teleport/local-kubernetes/",
-          "forScopes": ["oss"]
+          "slug": "/try-out-teleport/local-kubernetes/"
+        }
+      ]
+    },
+    {
+      "icon": "success",
+      "title": "Choose an Edition",
+      "entries": [
+        {
+          "title": "Introduction",
+          "slug": "/choose-an-edition/introduction/"
+        },
+        {
+          "title": "Teleport Enterprise Cloud",
+          "slug": "/choose-an-edition/teleport-cloud/introduction/",
+          "forScopes": ["cloud"],
+          "entries": [
+            {
+              "title": "Getting Started",
+              "slug": "/choose-an-edition/teleport-cloud/getting-started/",
+              "forScopes": ["cloud"]
+            },
+            {
+              "title": "Architecture",
+              "slug": "/choose-an-edition/teleport-cloud/architecture/",
+              "forScopes": ["cloud"]
+            },
+            {
+              "title": "Downloads",
+              "slug": "/choose-an-edition/teleport-cloud/downloads/",
+              "forScopes": ["cloud"]
+            },
+            {
+              "title": "FAQ",
+              "slug": "/choose-an-edition/teleport-cloud/faq/",
+              "forScopes": ["cloud"]
+            }
+          ]
+        },
+        {
+          "title": "Teleport Enterprise",
+          "slug": "/choose-an-edition/teleport-enterprise/introduction/",
+          "forScopes": ["enterprise"],
+          "entries": [
+            {
+              "title": "Getting Started",
+              "slug": "/choose-an-edition/teleport-enterprise/getting-started/",
+              "forScopes": ["enterprise"]
+            },
+            {
+              "title": "HSM",
+              "slug": "/choose-an-edition/teleport-enterprise/hsm/",
+              "forScopes": ["enterprise"]
+            },
+            {
+              "title": "Google Cloud KMS",
+              "slug": "/choose-an-edition/teleport-enterprise/gcp-kms/",
+              "forScopes": ["enterprise"]
+            },
+            {
+              "title": "Enterprise License File",
+              "slug": "/choose-an-edition/teleport-enterprise/license/",
+              "forScopes": ["enterprise"]
+            }
+          ]
         }
       ]
     },
@@ -55,63 +129,13 @@
       "title": "Deploy a Cluster",
       "entries": [
         {
-          "title": "Open Source Teleport",
-          "slug": "/deploy-a-cluster/open-source/",
-          "forScopes": ["oss"]
+          "title": "Introduction",
+          "slug": "/deploy-a-cluster/introduction/"
         },
         {
-          "title": "Teleport Cloud",
-          "slug": "/deploy-a-cluster/teleport-cloud/introduction/",
-          "forScopes": ["cloud"],
-          "entries": [
-            {
-              "title": "Getting Started",
-              "slug": "/deploy-a-cluster/teleport-cloud/getting-started/",
-              "forScopes": ["cloud"]
-            },
-            {
-              "title": "Architecture",
-              "slug": "/deploy-a-cluster/teleport-cloud/architecture/",
-              "forScopes": ["cloud"]
-            },
-            {
-              "title": "Downloads",
-              "slug": "/deploy-a-cluster/teleport-cloud/downloads/",
-              "forScopes": ["cloud"]
-            },
-            {
-              "title": "FAQ",
-              "slug": "/deploy-a-cluster/teleport-cloud/faq/",
-              "forScopes": ["cloud"]
-            }
-          ]
-        },
-        {
-          "title": "Teleport Enterprise",
-          "slug": "/deploy-a-cluster/teleport-enterprise/introduction/",
-          "forScopes": ["enterprise"],
-          "entries": [
-            {
-              "title": "Getting Started",
-              "slug": "/deploy-a-cluster/teleport-enterprise/getting-started/",
-              "forScopes": ["enterprise"]
-            },
-            {
-              "title": "HSM",
-              "slug": "/deploy-a-cluster/teleport-enterprise/hsm/",
-              "forScopes": ["enterprise"]
-            },
-            {
-              "title": "Google Cloud KMS",
-              "slug": "/deploy-a-cluster/teleport-enterprise/gcp-kms/",
-              "forScopes": ["enterprise"]
-            },
-            {
-              "title": "Enterprise License File",
-              "slug": "/deploy-a-cluster/teleport-enterprise/license/",
-              "forScopes": ["enterprise"]
-            }
-          ]
+          "title": "High Availability Deployments",
+          "slug": "/deploy-a-cluster/high-availability/",
+          "forScopes": ["oss", "enterprise"]
         },
         {
           "title": "Deploy with Helm",
@@ -144,8 +168,13 @@
               "forScopes": ["oss", "enterprise"]
             },
             {
-              "title": "Migrating From Older Charts",
-              "slug": "/deploy-a-cluster/helm-deployments/migration/",
+              "title": "Migrating from v11 to v12",
+              "slug": "/deploy-a-cluster/helm-deployments/migration-v12/",
+              "forScopes": ["oss", "enterprise"]
+            },
+            {
+              "title": "Kubernetes 1.25 and PSP removal",
+              "slug": "/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/",
               "forScopes": ["oss", "enterprise"]
             }
           ]
@@ -168,11 +197,6 @@
             {
               "title": "IBM",
               "slug": "/deploy-a-cluster/deployments/ibm/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Digital Ocean",
-              "slug": "/deploy-a-cluster/deployments/digitalocean/",
               "forScopes": ["oss", "enterprise"]
             }
           ]
@@ -204,7 +228,7 @@
               "slug": "/access-controls/guides/locking/"
             },
             {
-              "title": "Passwordless (Preview)",
+              "title": "Passwordless",
               "slug": "/access-controls/guides/passwordless/"
             },
             {
@@ -232,6 +256,11 @@
             {
               "title": "Hardware Key Support (Preview)",
               "slug": "/access-controls/guides/hardware-key-support/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Device Trust (Preview)",
+              "slug": "/access-controls/guides/device-trust/",
               "forScopes": ["enterprise", "cloud"]
             }
           ]
@@ -576,7 +605,25 @@
           "slug": "/application-access/getting-started/"
         },
         {
-          "title": "Access Guides",
+          "title": "Securing Cloud Provider APIs",
+          "slug": "/application-access/cloud-apis/",
+          "entries": [
+            {
+              "title": "Google Cloud CLI Access",
+              "slug": "/application-access/cloud-apis/google-cloud/"
+            },
+            {
+              "title": "AWS CLI and Console Access",
+              "slug": "/application-access/cloud-apis/aws-console/"
+            },
+            {
+              "title": "Azure CLI Access",
+              "slug": "/application-access/cloud-apis/azure/"
+            }
+          ]
+        },
+        {
+          "title": "Securing Internal Applications",
           "slug": "/application-access/guides/",
           "entries": [
             {
@@ -592,21 +639,17 @@
               "slug": "/application-access/guides/api-access/"
             },
             {
-              "title": "AWS Access",
-              "slug": "/application-access/guides/aws-console/"
-            },
-            {
-              "title": "Azure CLI Access",
-              "slug": "/application-access/guides/azure/"
-            },
-            {
               "title": "Dynamic Registration",
               "slug": "/application-access/guides/dynamic-registration/"
+            },
+            {
+              "title": "AWS DynamoDB",
+              "slug": "/application-access/guides/dynamodb/"
             }
           ]
         },
         {
-          "title": "JWT Guides",
+          "title": "Using Teleport-Signed JWTs",
           "slug": "/application-access/jwt/",
           "entries": [
             {
@@ -707,36 +750,6 @@
           "slug": "/kubernetes-access/getting-started/"
         },
         {
-          "title": "Guides",
-          "slug": "/kubernetes-access/guides/",
-          "entries": [
-            {
-              "title": "Multiple Clusters",
-              "slug": "/kubernetes-access/guides/multiple-clusters/"
-            },
-            {
-              "title": "CI/CD",
-              "slug": "/kubernetes-access/guides/cicd/"
-            },
-            {
-              "title": "Federation",
-              "slug": "/kubernetes-access/guides/federation/"
-            },
-            {
-              "title": "Standalone",
-              "slug": "/kubernetes-access/guides/standalone-teleport/"
-            },
-            {
-              "title": "Dynamic Registration",
-              "slug": "/kubernetes-access/guides/dynamic-registration/"
-            }
-          ]
-        },
-        {
-          "title": "Access Controls",
-          "slug": "/kubernetes-access/controls/"
-        },
-        {
           "title": "Kubernetes Discovery (Preview)",
           "slug": "/kubernetes-access/discovery/",
           "entries": [
@@ -753,6 +766,42 @@
               "slug": "/kubernetes-access/discovery/google-cloud/"
             }
           ]
+        },
+        {
+          "title": "Manual Cluster Registration",
+          "slug": "/kubernetes-access/register-clusters/",
+          "entries": [
+            {
+              "title": "Register a Cluster by Deploying Teleport",
+              "slug": "/kubernetes-access/register-clusters/register-via-deployment/"
+            },
+            {
+              "title": "Register a Cluster with Static kubeconfigs",
+              "slug": "/kubernetes-access/register-clusters/static-kubeconfig/"
+            },
+            {
+              "title": "Register Clusters Dynamically",
+              "slug": "/kubernetes-access/register-clusters/dynamic-registration/"
+            }
+          ]
+        },
+        {
+          "title": "Configuring Access",
+          "slug": "/kubernetes-access/manage-access/",
+          "entries": [
+            {
+              "title": "Setting up Role-Based Access Controls",
+              "slug": "/kubernetes-access/manage-access/rbac/"
+            },
+            {
+              "title": "Federation",
+              "slug": "/kubernetes-access/manage-access/federation/"
+            }
+          ]
+        },
+        {
+          "title": "Access Controls Reference",
+          "slug": "/kubernetes-access/controls/"
         }
       ]
     },
@@ -773,96 +822,104 @@
           "slug": "/database-access/guides/",
           "entries": [
             {
-              "title": "AWS RDS & Aurora",
-              "slug": "/database-access/guides/rds/"
+               "title": "AWS DynamoDB",
+               "slug": "/database-access/guides/aws-dynamodb/"
             },
             {
-              "title": "AWS Redshift",
-              "slug": "/database-access/guides/postgres-redshift/"
+               "title": "AWS ElastiCache & MemoryDB",
+               "slug": "/database-access/guides/redis-aws/"
             },
             {
-              "title": "AWS ElastiCache & MemoryDB",
-              "slug": "/database-access/guides/redis-aws/"
+               "title": "AWS Keyspaces (Apache Cassandra)",
+               "slug": "/database-access/guides/aws-cassandra-keyspaces/"
             },
             {
-              "title": "AWS DynamoDB",
-              "slug": "/database-access/guides/dynamodb/"
+               "title": "AWS RDS & Aurora",
+               "slug": "/database-access/guides/rds/"
             },
             {
-              "title": "AWS Keyspaces (Apache Cassandra)",
-              "slug": "/database-access/guides/aws-cassandra-keyspaces/"
+              "title": "AWS RDS Proxy",
+              "slug": "/database-access/guides/rds-proxy/"
             },
             {
-              "title": "GCP Cloud SQL PostgreSQL",
-              "slug": "/database-access/guides/postgres-cloudsql/"
+               "title": "AWS Redshift",
+               "slug": "/database-access/guides/postgres-redshift/"
             },
             {
-              "title": "GCP Cloud SQL MySQL",
-              "slug": "/database-access/guides/mysql-cloudsql/"
+              "title": "AWS Redshift Serverless",
+              "slug": "/database-access/guides/redshift-serverless/"
             },
             {
-              "title": "Azure PostgreSQL & MySQL",
-              "slug": "/database-access/guides/azure-postgres-mysql/"
+               "title": "Azure Cache for Redis",
+               "slug": "/database-access/guides/azure-redis/"
             },
             {
-              "title": "Azure Cache for Redis",
-              "slug": "/database-access/guides/azure-redis/"
+               "title": "Azure PostgreSQL & MySQL",
+               "slug": "/database-access/guides/azure-postgres-mysql/"
             },
             {
-              "title": "Azure SQL Server (Preview)",
-              "slug": "/database-access/guides/azure-sql-server-ad/"
+               "title": "Azure SQL Server (Preview)",
+               "slug": "/database-access/guides/azure-sql-server-ad/"
             },
             {
-              "title": "MongoDB Atlas",
-              "slug": "/database-access/guides/mongodb-atlas/"
+               "title": "Dynamic Registration",
+               "slug": "/database-access/guides/dynamic-registration/"
             },
             {
-              "title": "Self-Hosted Elasticsearch",
-              "slug": "/database-access/guides/elastic/"
+               "title": "GCP Cloud SQL MySQL",
+               "slug": "/database-access/guides/mysql-cloudsql/"
             },
             {
-              "title": "Self-Hosted PostgreSQL",
-              "slug": "/database-access/guides/postgres-self-hosted/"
+               "title": "GCP Cloud SQL PostgreSQL",
+               "slug": "/database-access/guides/postgres-cloudsql/"
             },
             {
-              "title": "Self-Hosted MySQL/MariaDB",
-              "slug": "/database-access/guides/mysql-self-hosted/"
+               "title": "High Availability",
+               "slug": "/database-access/guides/ha/"
             },
             {
-              "title": "Self-Hosted MongoDB",
-              "slug": "/database-access/guides/mongodb-self-hosted/"
+               "title": "MongoDB Atlas",
+               "slug": "/database-access/guides/mongodb-atlas/"
             },
             {
-              "title": "Self-Hosted CockroachDB",
-              "slug": "/database-access/guides/cockroachdb-self-hosted/"
+               "title": "SQL Server (Preview)",
+               "slug": "/database-access/guides/sql-server-ad/"
             },
             {
-              "title": "Self-Hosted Redis",
-              "slug": "/database-access/guides/redis/"
+               "title": "Self-Hosted Cassandra & ScyllaDB",
+               "slug": "/database-access/guides/cassandra-self-hosted/"
             },
             {
-              "title": "Self-Hosted Redis Cluster",
-              "slug": "/database-access/guides/redis-cluster/"
+               "title": "Self-Hosted CockroachDB",
+               "slug": "/database-access/guides/cockroachdb-self-hosted/"
             },
             {
-              "title": "SQL Server (Preview)",
-              "slug": "/database-access/guides/sql-server-ad/"
+               "title": "Self-Hosted Elasticsearch",
+               "slug": "/database-access/guides/elastic/"
             },
             {
-              "title": "Snowflake (Preview)",
-              "slug": "/database-access/guides/snowflake/"
+               "title": "Self-Hosted MongoDB",
+               "slug": "/database-access/guides/mongodb-self-hosted/"
             },
             {
-              "title": "Self-Hosted Cassandra & ScyllaDB",
-              "slug": "/database-access/guides/cassandra-self-hosted/"
+               "title": "Self-Hosted MySQL/MariaDB",
+               "slug": "/database-access/guides/mysql-self-hosted/"
             },
             {
-              "title": "Dynamic Registration",
-              "slug": "/database-access/guides/dynamic-registration/"
+               "title": "Self-Hosted PostgreSQL",
+               "slug": "/database-access/guides/postgres-self-hosted/"
             },
             {
-              "title": "High Availability",
-              "slug": "/database-access/guides/ha/"
+               "title": "Self-Hosted Redis",
+               "slug": "/database-access/guides/redis/"
+            },
+            {
+               "title": "Self-Hosted Redis Cluster",
+               "slug": "/database-access/guides/redis-cluster/"
+            },
+            {
+               "title": "Snowflake (Preview)",
+               "slug": "/database-access/guides/snowflake/"
             }
           ]
         },
@@ -919,8 +976,12 @@
           "slug": "/desktop-access/getting-started/"
         },
         {
-          "title": "Manual Setup",
-          "slug": "/desktop-access/manual-setup/"
+          "title": "Active Directory",
+          "slug": "/desktop-access/active-directory/"
+        },
+        {
+          "title": "Active Directory (Manual)",
+          "slug": "/desktop-access/active-directory-manual/"
         },
         {
           "title": "Access Controls",
@@ -987,6 +1048,14 @@
               "slug": "/machine-id/guides/github-actions/"
             },
             {
+              "title": "CircleCI",
+              "slug": "/machine-id/guides/circleci/"
+            },
+            {
+              "title": "GitHub Actions & Kubernetes",
+              "slug": "/machine-id/guides/github-actions-kubernetes/"
+            },
+            {
               "title": "Jenkins",
               "slug": "/machine-id/guides/jenkins/"
             },
@@ -1019,6 +1088,10 @@
             {
               "title": "Configuration",
               "slug": "/machine-id/reference/configuration/"
+            },
+            {
+              "title": "GitHub Actions",
+              "slug": "/machine-id/reference/github-actions/"
             }
           ]
         },
@@ -1170,6 +1243,10 @@
           "slug": "/architecture/nodes/"
         },
         {
+          "title": "Session Recording",
+          "slug": "/architecture/session-recording/"
+        },
+        {
           "title": "TLS Routing",
           "slug": "/architecture/tls-routing/"
         },
@@ -1218,12 +1295,16 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "11.1.3",
+      "version": "11.3.1",
       "major_version": "11",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
       }
+    },
+    "devicetrust": {
+      "asset_tag": "C00AA0AAAA0A",
+      "enroll_token": "AAAAAAAAAAAAAAAAAAAAAAAA-this-is-an-example"
     },
     "docker": {
       "version": "20.10.7",
@@ -1366,7 +1447,7 @@
     },
     {
       "source": "/enterprise/quickstart-enterprise/",
-      "destination": "/deploy-a-cluster/teleport-enterprise/getting-started/",
+      "destination": "/choose-an-edition/teleport-enterprise/getting-started/",
       "permanent": true
     },
     {
@@ -1391,7 +1472,7 @@
     },
     {
       "source": "/cloud/",
-      "destination": "/deploy-a-cluster/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/",
       "permanent": true
     },
     {
@@ -1416,7 +1497,7 @@
     },
     {
       "source": "/quickstart/",
-      "destination": "/getting-started/",
+      "destination": "/try-out-teleport/introduction/",
       "permanent": true
     },
     {
@@ -1426,7 +1507,7 @@
     },
     {
       "source": "/preview/cloud/",
-      "destination": "/deploy-a-cluster/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/",
       "permanent": true
     },
     {
@@ -1486,7 +1567,7 @@
     },
     {
       "source": "/setup/reference/license/",
-      "destination": "/deploy-a-cluster/teleport-enterprise/license/",
+      "destination": "/choose-an-edition/teleport-enterprise/license/",
       "permanent": true
     },
     {
@@ -1500,18 +1581,13 @@
       "permanent": true
     },
     {
-      "source": "/server-access/guides/ansible/",
-      "destination": "/machine-id/guides/ansible/",
-      "permanent": true
-    },
-    {
       "source": "/server-access/guides/tsh/",
       "destination": "/connect-your-client/tsh/",
       "permanent": true
     },
     {
       "source": "/cluster/",
-      "destination": "/kubernetes-access/guides/multiple-clusters/",
+      "destination": "/kubernetes-access/register-clusters/register-via-deployment/",
       "permanent": true
     },
     {
@@ -1521,7 +1597,7 @@
     },
     {
       "source": "/getting-started/digitalocean/",
-      "destination": "/deploy-a-cluster/deployments/digitalocean/",
+      "destination": "/try-out-teleport/digitalocean/",
       "permanent": true
     },
     {
@@ -1566,7 +1642,7 @@
     },
     {
       "source": "/kubernetes-access/helm/guides/migration/",
-      "destination": "/deploy-a-cluster/helm-deployments/migration/",
+      "destination": "/deploy-a-cluster/helm-deployments/migration-v12/",
       "permanent": true
     },
     {
@@ -1726,7 +1802,7 @@
     },
     {
       "source": "/setup/deployments/digitalocean/",
-      "destination": "/deploy-a-cluster/deployments/digitalocean/",
+      "destination": "/try-out-teleport/digitalocean/",
       "permanent": true
     },
     {
@@ -1771,57 +1847,57 @@
     },
     {
       "source": "/setup/helm-deployments/migration/",
-      "destination": "/deploy-a-cluster/helm-deployments/migration/",
+      "destination": "/deploy-a-cluster/helm-deployments/migration-v12/",
       "permanent": true
     },
     {
       "source": "/getting-started/linux-server/",
-      "destination": "/deploy-a-cluster/open-source/",
+      "destination": "/try-out-teleport/linux-server/",
       "permanent": true
     },
     {
       "source": "/cloud/architecture/",
-      "destination": "/deploy-a-cluster/teleport-cloud/architecture/",
+      "destination": "/choose-an-edition/teleport-cloud/architecture/",
       "permanent": true
     },
     {
       "source": "/cloud/downloads/",
-      "destination": "/deploy-a-cluster/teleport-cloud/downloads/",
+      "destination": "/choose-an-edition/teleport-cloud/downloads/",
       "permanent": true
     },
     {
       "source": "/cloud/faq/",
-      "destination": "/deploy-a-cluster/teleport-cloud/faq/",
+      "destination": "/choose-an-edition/teleport-cloud/faq/",
       "permanent": true
     },
     {
       "source": "/cloud/getting-started/",
-      "destination": "/deploy-a-cluster/teleport-cloud/getting-started/",
+      "destination": "/choose-an-edition/teleport-cloud/getting-started/",
       "permanent": true
     },
     {
       "source": "/cloud/introduction/",
-      "destination": "/deploy-a-cluster/teleport-cloud/introduction/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {
       "source": "/enterprise/getting-started/",
-      "destination": "/deploy-a-cluster/teleport-enterprise/getting-started/",
+      "destination": "/choose-an-edition/teleport-enterprise/getting-started/",
       "permanent": true
     },
     {
       "source": "/enterprise/hsm/",
-      "destination": "/deploy-a-cluster/teleport-enterprise/hsm/",
+      "destination": "/choose-an-edition/teleport-enterprise/hsm/",
       "permanent": true
     },
     {
       "source": "/enterprise/introduction/",
-      "destination": "/deploy-a-cluster/teleport-enterprise/introduction/",
+      "destination": "/choose-an-edition/teleport-enterprise/introduction/",
       "permanent": true
     },
     {
       "source": "/enterprise/license/",
-      "destination": "/deploy-a-cluster/teleport-enterprise/license/",
+      "destination": "/choose-an-edition/teleport-enterprise/license/",
       "permanent": true
     },
     {
@@ -2042,6 +2118,126 @@
     {
       "source": "/architecture/overview/",
       "destination": "/core-concepts/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/cicd/",
+      "destination": "/machine-id/guides/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-cloud/architecture/",
+      "destination": "/choose-an-edition/teleport-cloud/architecture/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-cloud/downloads/",
+      "destination": "/choose-an-edition/teleport-cloud/downloads/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-cloud/faq/",
+      "destination": "/choose-an-edition/teleport-cloud/faq/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-cloud/getting-started/",
+      "destination": "/choose-an-edition/teleport-cloud/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-cloud/introduction/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-enterprise/gcp-kms/",
+      "destination": "/choose-an-edition/teleport-enterprise/gcp-kms/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-enterprise/getting-started/",
+      "destination": "/choose-an-edition/teleport-enterprise/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-enterprise/hsm/",
+      "destination": "/choose-an-edition/teleport-enterprise/hsm/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-enterprise/introduction/",
+      "destination": "/choose-an-edition/teleport-enterprise/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-enterprise/license/",
+      "destination": "/choose-an-edition/teleport-enterprise/license/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/deployments/digitalocean/",
+      "destination": "/try-out-teleport/digitalocean/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/open-source/",
+      "destination": "/try-out-teleport/linux-server/",
+      "permanent": true
+    },
+    {
+      "source": "/getting-started/",
+      "destination": "/try-out-teleport/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/fluentd/",
+      "destination": "/management/export-audit-events/fluentd/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/elastic-stack/",
+      "destination": "/management/export-audit-events/elastic-stack/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/guides/aws-console/",
+      "destination": "/application-access/cloud-apis/aws-console/",
+      "permanent": true
+    },
+    {
+      "source": "/application-access/guides/azure/",
+      "destination": "/application-access/cloud-apis/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/database-access/guides/dynamodb/",
+      "destination": "/application-access/guides/dynamodb/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/federation/",
+      "destination": "/kubernetes-access/manage-access/federation/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/dynamic-registration/",
+      "destination": "/kubernetes-access/register-clusters/dynamic-registration/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/multiple-clusters/",
+      "destination": "/kubernetes-access/register-clusters/register-via-deployment/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/standalone-teleport/",
+      "destination": "/kubernetes-access/register-clusters/static-kubeconfig/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/",
+      "destination": "/kubernetes-access/introduction/",
       "permanent": true
     }
   ]

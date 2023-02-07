@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -70,14 +71,14 @@ func TestModeratedSessions(t *testing.T) {
 	t.Cleanup(func() { kubeMock.Close() })
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
-	testCtx := setupTestContext(
+	testCtx := SetupTestContext(
 		context.Background(),
 		t,
-		testConfig{
-			clusters: []kubeClusterConfig{{name: kubeCluster, apiEndpoint: kubeMock.URL}},
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 			// onEvent is called each time a new event is produced. We only care about
 			// sessionEnd events.
-			onEvent: func(ae apievents.AuditEvent) {
+			OnEvent: func(ae apievents.AuditEvent) {
 				if ae.GetType() == events.SessionEndEvent {
 					atomic.AddInt64(numSessionEndEvents, 1)
 				}
@@ -100,28 +101,28 @@ func TestModeratedSessions(t *testing.T) {
 
 	// create a user with access to kubernetes that does not require any moderator.
 	// (kubernetes_user and kubernetes_groups specified)
-	user, _ := testCtx.createUserAndRole(
-		testCtx.ctx,
+	user, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
 		t,
 		username,
-		roleSpec{
-			name:       roleName,
-			kubeUsers:  roleKubeUsers,
-			kubeGroups: roleKubeGroups,
+		RoleSpec{
+			Name:       roleName,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
 		})
 
 	// create a moderator user with access to kubernetes
 	// (kubernetes_user and kubernetes_groups specified)
-	moderator, modRole := testCtx.createUserAndRole(
-		testCtx.ctx,
+	moderator, modRole := testCtx.CreateUserAndRole(
+		testCtx.Context,
 		t,
 		moderatorUsername,
-		roleSpec{
-			name:       moderatorRoleName,
-			kubeUsers:  roleKubeUsers,
-			kubeGroups: roleKubeGroups,
+		RoleSpec{
+			Name:       moderatorRoleName,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
 			// sessionJoin:
-			sessionJoin: []*types.SessionJoinPolicy{
+			SessionJoin: []*types.SessionJoinPolicy{
 				{
 					Name:  "Auditor oversight",
 					Roles: []string{"*"},
@@ -133,15 +134,15 @@ func TestModeratedSessions(t *testing.T) {
 
 	// create a userRequiringModerator with access to kubernetes thar requires
 	// one moderator to join the session.
-	userRequiringModerator, _ := testCtx.createUserAndRole(
-		testCtx.ctx,
+	userRequiringModerator, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
 		t,
 		userRequiringModeration,
-		roleSpec{
-			name:       roleRequiringModeration,
-			kubeUsers:  roleKubeUsers,
-			kubeGroups: roleKubeGroups,
-			sessionRequire: []*types.SessionRequirePolicy{
+		RoleSpec{
+			Name:       roleRequiringModeration,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SessionRequire: []*types.SessionRequirePolicy{
 				{
 					Name:   "Auditor oversight",
 					Filter: fmt.Sprintf("contains(user.spec.roles, %q)", modRole.GetName()),
@@ -229,7 +230,7 @@ func TestModeratedSessions(t *testing.T) {
 			group := &errgroup.Group{}
 
 			// generate a kube client with user certs for auth
-			_, config := testCtx.genTestKubeClientTLSCert(
+			_, config := testCtx.GenTestKubeClientTLSCert(
 				t,
 				tt.args.user.GetName(),
 				kubeCluster,
@@ -265,10 +266,10 @@ func TestModeratedSessions(t *testing.T) {
 			sessionIDC := make(chan string, 1)
 			// moderatorJoined is used to syncronize when the moderator joins the session.
 			moderatorJoined := make(chan struct{})
-
+			once := sync.Once{}
 			if tt.args.moderator != nil {
 				// generate moderator certs
-				_, config := testCtx.genTestKubeClientTLSCert(
+				_, config := testCtx.GenTestKubeClientTLSCert(
 					t,
 					tt.args.moderator.GetName(),
 					kubeCluster,
@@ -280,10 +281,13 @@ func TestModeratedSessions(t *testing.T) {
 					sessionID := <-sessionIDC
 					t.Logf("moderator is joining sessionID %q", sessionID)
 					// join the session.
-					stream, err := testCtx.newJoiningSession(config, sessionID, types.SessionModeratorMode)
+					stream, err := testCtx.NewJoiningSession(config, sessionID, types.SessionModeratorMode)
 					if err != nil {
 						return trace.Wrap(err)
 					}
+					t.Cleanup(func() {
+						require.NoError(t, stream.Close())
+					})
 					// always send the force terminate even when the session is normally closed.
 					defer func() {
 						stream.ForceTerminate()
@@ -375,11 +379,13 @@ func TestModeratedSessions(t *testing.T) {
 					// checks if moderator has joined the session.
 					// Each time a user joins a session the following message is broadcasted
 					// User <user> joined the session.
-					if strings.Contains(stringData, moderatorUsername) {
+					if strings.Contains(stringData, fmt.Sprintf("User %s joined the session.", moderatorUsername)) {
 						t.Logf("identified that moderator joined the session")
 						// inform moderator goroutine that the user detected that he joined the
 						// session.
-						close(moderatorJoined)
+						once.Do(func() {
+							close(moderatorJoined)
+						})
 					}
 
 					// if podContainerName is received, it means the session has already reached
@@ -411,7 +417,7 @@ func TestModeratedSessions(t *testing.T) {
 					stdoutWritter.Close()
 				}()
 				// start user session.
-				err := exec.Stream(streamOpts)
+				err := exec.StreamWithContext(testCtx.Context, streamOpts)
 				// ignore closed pipes error.
 				if errors.Is(err, io.ErrClosedPipe) {
 					return nil

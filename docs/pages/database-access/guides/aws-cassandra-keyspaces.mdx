@@ -29,20 +29,15 @@ This guide will help you to:
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - AWS Account with AWS Keyspaces database and permissions to create and attach IAM policies
 - The `cqlsh` Cassandra client installed and added to your system's `PATH` environment variable.
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database Service.
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
-
-## Step 1/5. Install and configure Teleport
-
-### Set up the Teleport Auth and Proxy Services
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-### Set up the Teleport Database Service
+## Step 1/5. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -197,8 +192,9 @@ $ tsh db logout
 ```
 
 ## Further reading
-* [How Amazon Keyspaces works with IAM](https://docs.aws.amazon.com/keyspaces/latest/devguide/security_iam_service-with-iam.html)
-* [What is Amazon Keyspaces (for Apache Cassandra)?](https://docs.aws.amazon.com/keyspaces/latest/devguide/what-is-keyspaces.html)
+
+- [How Amazon Keyspaces works with IAM](https://docs.aws.amazon.com/keyspaces/latest/devguide/security_iam_service-with-iam.html)
+- [What is Amazon Keyspaces (for Apache Cassandra)?](https://docs.aws.amazon.com/keyspaces/latest/devguide/what-is-keyspaces.html)
 
 ## Next steps
 

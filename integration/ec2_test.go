@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/service"
@@ -66,6 +67,7 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	config.SetAuthServerAddress(authAddr)
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	return config
 }
 
@@ -87,6 +89,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	config.SetAuthServerAddress(authAddr)
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	return config
 }
 
@@ -119,14 +122,15 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 	config.Clock = clock
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	return config
 }
 
-func getIID(t *testing.T) imds.InstanceIdentityDocument {
-	cfg, err := config.LoadDefaultConfig(context.TODO())
+func getIID(ctx context.Context, t *testing.T) imds.InstanceIdentityDocument {
+	cfg, err := config.LoadDefaultConfig(ctx)
 	require.NoError(t, err)
 	imdsClient := imds.NewFromConfig(cfg)
-	output, err := imdsClient.GetInstanceIdentityDocument(context.TODO(), nil)
+	output, err := imdsClient.GetInstanceIdentityDocument(ctx, nil)
 	require.NoError(t, err)
 	return output.InstanceIdentityDocument
 }
@@ -150,9 +154,10 @@ func TestEC2NodeJoin(t *testing.T) {
 	if os.Getenv("TELEPORT_TEST_EC2") == "" {
 		t.Skipf("Skipping TestEC2NodeJoin because TELEPORT_TEST_EC2 is not set")
 	}
+	ctx := context.Background()
 
 	// fetch the IID to create a token which will match this instance
-	iid := getIID(t)
+	iid := getIID(ctx, t)
 
 	tokenName := "test_token"
 	token, err := types.NewProvisionTokenFromSpec(
@@ -182,11 +187,11 @@ func TestEC2NodeJoin(t *testing.T) {
 	authServer := authSvc.GetAuthServer()
 	authServer.SetClock(clock)
 
-	err = authServer.UpsertToken(context.Background(), token)
+	err = authServer.UpsertToken(ctx, token)
 	require.NoError(t, err)
 
 	// sanity check there are no nodes to start with
-	nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
+	nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, nodes)
 
@@ -202,7 +207,7 @@ func TestEC2NodeJoin(t *testing.T) {
 
 	// the node should eventually join the cluster and heartbeat
 	require.Eventually(t, func() bool {
-		nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
+		nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(t, err)
 		return len(nodes) > 0
 	}, time.Minute, time.Second, "waiting for node to join cluster")
@@ -365,13 +370,13 @@ func TestEC2Labels(t *testing.T) {
 
 	helpers.EnableKubernetesService(t, tconf)
 
-	imClient := &mockIMDSClient{
+	tconf.InstanceMetadataClient = &mockIMDSClient{
 		tags: map[string]string{
 			"Name": "my-instance",
 		},
 	}
 
-	proc, err := service.NewTeleport(tconf, service.WithIMDSClient(imClient))
+	proc, err := service.NewTeleport(tconf)
 	require.NoError(t, err)
 	require.NoError(t, proc.Start())
 	t.Cleanup(func() { require.NoError(t, proc.Close()) })
@@ -466,13 +471,13 @@ func TestEC2Hostname(t *testing.T) {
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)
 
-	imClient := &mockIMDSClient{
+	tconf.InstanceMetadataClient = &mockIMDSClient{
 		tags: map[string]string{
 			types.CloudHostnameTag: teleportHostname,
 		},
 	}
 
-	proc, err := service.NewTeleport(tconf, service.WithIMDSClient(imClient))
+	proc, err := service.NewTeleport(tconf)
 	require.NoError(t, err)
 	require.NoError(t, proc.Start())
 	t.Cleanup(func() { require.NoError(t, proc.Close()) })

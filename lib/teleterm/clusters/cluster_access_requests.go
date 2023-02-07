@@ -22,16 +22,71 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
+
+type ResourceDetails struct {
+	Hostname string
+}
 
 type AccessRequest struct {
 	URI uri.ResourceURI
 	types.AccessRequest
+	ResourceDetails map[string]ResourceDetails
+}
+
+// GetAccessRequest returns a specific access request by ID and includes resource details
+func (c *Cluster) GetAccessRequest(ctx context.Context, req types.AccessRequestFilter) (*AccessRequest, error) {
+	var (
+		request         types.AccessRequest
+		resourceDetails map[string]ResourceDetails
+		proxyClient     *client.ProxyClient
+		authClient      auth.ClientI
+		err             error
+	)
+
+	err = addMetadataToRetryableError(ctx, func() error {
+		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		requests, err := proxyClient.GetAccessRequests(ctx, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// This has to happen inside this scope because we need access to the authClient
+		// We can remove this once we make the change to keep around the proxy and auth clients
+		if len(requests) < 1 {
+			return trace.NotFound("Access request not found.")
+		}
+		request = requests[0]
+
+		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		resourceDetails, err = getResourceDetails(ctx, request, authClient)
+
+		return err
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &AccessRequest{
+		URI:             c.URI.AppendAccessRequest(request.GetName()),
+		AccessRequest:   request,
+		ResourceDetails: resourceDetails,
+	}, nil
 }
 
 // Returns all access requests available to the user.
@@ -69,9 +124,10 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	resourceIDs := make([]types.ResourceID, 0, len(req.ResourceIds))
 	for _, resource := range req.ResourceIds {
 		resourceIDs = append(resourceIDs, types.ResourceID{
-			ClusterName: resource.ClusterName,
-			Name:        resource.Name,
-			Kind:        resource.Kind,
+			ClusterName:     resource.ClusterName,
+			Name:            resource.Name,
+			Kind:            resource.Kind,
+			SubResourceName: resource.SubResourceName,
 		})
 	}
 
@@ -203,10 +259,29 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 		return trace.Wrap(err)
 	}
 
-	err = c.clusterClient.SaveProfile(c.dir, true)
+	err = c.clusterClient.SaveProfile(true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
+}
+
+func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.ClientI) (map[string]ResourceDetails, error) {
+	resourceIDsByCluster := services.GetNodeResourceIDsByCluster(req)
+
+	resourceDetails := make(map[string]ResourceDetails)
+	for clusterName, resourceIDs := range resourceIDsByCluster {
+		details, err := services.GetResourceDetails(ctx, clusterName, clt, resourceIDs)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for id, d := range details {
+			resourceDetails[id] = ResourceDetails{
+				Hostname: d.Hostname,
+			}
+		}
+	}
+
+	return resourceDetails, nil
 }

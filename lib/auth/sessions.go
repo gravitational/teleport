@@ -77,14 +77,17 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
-		appSessionID:   uuid.New().String(),
-		appPublicAddr:  req.PublicAddr,
-		appClusterName: req.ClusterName,
-		awsRoleARN:     req.AWSRoleARN,
+		appSessionID:      uuid.New().String(),
+		appPublicAddr:     req.PublicAddr,
+		appClusterName:    req.ClusterName,
+		awsRoleARN:        req.AWSRoleARN,
+		azureIdentity:     req.AzureIdentity,
+		gcpServiceAccount: req.GCPServiceAccount,
 		// Since we are generating the keys and certs directly on the Auth Server,
 		// we need to skip attestation.
 		skipAttestation: true,
-		azureIdentity:   req.AzureIdentity,
+		// Pass along device extensions from the user.
+		deviceExtensions: DeviceExtensions(identity.DeviceExtensions),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -95,12 +98,17 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	bearer, err := utils.CryptoRandomHex(SessionTokenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
-		User:    req.Username,
-		Priv:    privateKey,
-		Pub:     certs.SSH,
-		TLSCert: certs.TLS,
-		Expires: s.clock.Now().Add(ttl),
+		User:        req.Username,
+		Priv:        privateKey,
+		Pub:         certs.SSH,
+		TLSCert:     certs.TLS,
+		Expires:     s.clock.Now().Add(ttl),
+		BearerToken: bearer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

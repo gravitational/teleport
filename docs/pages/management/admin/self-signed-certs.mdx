@@ -94,7 +94,7 @@ For example, this Teleport Proxy Service configuration would use self-signed cer
 </TabItem>
 </Tabs>
 
-## How to use self-signed certs with Teleport binaries
+## How to use self-signed certs with Teleport binaries and clients
 
 ### `teleport`
 
@@ -216,9 +216,14 @@ In order to use `tsh` in this case, you need to use the `--insecure` flag.
 
 For example: `tsh login --proxy=tele.example.com:443 --user=alice --insecure`
 
+### Teleport Connect
+
+Teleport Connect lets you [skip TLS certificate verification with the `--insecure`
+flag](../../connect-your-client/teleport-connect.mdx#skipping-tls-certificate-verification).
+
 ## Further reading
 
-- [Configuring Teleport TLS Certs](../../deploy-a-cluster/open-source.mdx#configure-teleport)
+- [Configuring Teleport TLS Certs](../../try-out-teleport/linux-server.mdx#configure-teleport)
 - [Run Teleport as a systemd Daemon](./daemon.mdx)
 - [Teleport Proxy Service](../../architecture/proxy.mdx)
 - [Teleport Authentication](../../architecture/authentication.mdx)

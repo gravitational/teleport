@@ -27,12 +27,14 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
 type ResourceCollection interface {
@@ -926,4 +928,78 @@ func (c *installerCollection) writeText(w io.Writer) error {
 		}
 	}
 	return nil
+}
+
+type databaseServiceCollection struct {
+	databaseServices []types.DatabaseService
+}
+
+func (c *databaseServiceCollection) resources() (r []types.Resource) {
+	for _, service := range c.databaseServices {
+		r = append(r, service)
+	}
+	return r
+}
+
+func databaseResourceMatchersToString(in []*types.DatabaseResourceMatcher) string {
+	resourceMatchersStrings := make([]string, 0, len(in))
+
+	for _, resMatcher := range in {
+		if resMatcher == nil || resMatcher.Labels == nil {
+			continue
+		}
+
+		labelsString := make([]string, 0, len(*resMatcher.Labels))
+		for key, values := range *resMatcher.Labels {
+			if key == types.Wildcard {
+				labelsString = append(labelsString, "<all databases>")
+				continue
+			}
+			labelsString = append(labelsString, fmt.Sprintf("%v=%v", key, values))
+		}
+
+		resourceMatchersStrings = append(resourceMatchersStrings, fmt.Sprintf("(Labels: %s)", strings.Join(labelsString, ",")))
+	}
+	return strings.Join(resourceMatchersStrings, ",")
+}
+
+// writeText formats the DatabaseServices into a table and writes them into w.
+// Example:
+//
+// Name                                 Resource Matchers
+// ------------------------------------ --------------------------------------
+// a6065ee9-d5ee-4555-8d47-94a78625277b (Labels: <all databases>)
+// d4e13f2b-0a55-4e0a-b363-bacfb1a11294 (Labels: env=[prod],aws-tag=[xyz abc])
+func (c *databaseServiceCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Resource Matchers"})
+
+	for _, dbService := range c.databaseServices {
+		t.AddRow([]string{
+			dbService.GetName(), databaseResourceMatchersToString(dbService.GetResourceMatchers()),
+		})
+	}
+
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type loginRuleCollection struct {
+	rules []*loginrulepb.LoginRule
+}
+
+func (l *loginRuleCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Priority"})
+	for _, rule := range l.rules {
+		t.AddRow([]string{rule.Metadata.Name, strconv.FormatInt(int64(rule.Priority), 10)})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func (l *loginRuleCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(l.rules))
+	for i, rule := range l.rules {
+		resources[i] = loginrule.ProtoToResource(rule)
+	}
+	return resources
 }

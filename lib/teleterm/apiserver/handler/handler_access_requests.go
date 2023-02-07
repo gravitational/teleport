@@ -16,11 +16,12 @@ package handler
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
@@ -50,13 +51,13 @@ func (s *Handler) GetAccessRequests(ctx context.Context, req *api.GetAccessReque
 
 // GetAccessRequest returns a single access request by id.
 func (s *Handler) GetAccessRequest(ctx context.Context, req *api.GetAccessRequestRequest) (*api.GetAccessRequestResponse, error) {
-	requests, err := s.DaemonService.GetAccessRequest(ctx, req)
+	request, err := s.DaemonService.GetAccessRequest(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	response := &api.GetAccessRequestResponse{}
-	response.Request = newAPIAccessRequest(requests[0])
+	response.Request = newAPIAccessRequest(*request)
 
 	return response, nil
 }
@@ -103,14 +104,12 @@ func (s *Handler) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 		Request: newAPIAccessRequest(*request),
 	}
 	return response, nil
-
 }
 
 func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 	reviews := []*api.AccessRequestReview{}
 	requestReviews := req.GetReviews()
 	for _, rev := range requestReviews {
-
 		reviews = append(reviews, &api.AccessRequestReview{
 			Author:  rev.Author,
 			Roles:   rev.Roles,
@@ -130,10 +129,27 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 	requestedResourceIDs := make([]*api.ResourceID, 0, len(req.GetRequestedResourceIDs()))
 	for _, r := range req.GetRequestedResourceIDs() {
 		requestedResourceIDs = append(requestedResourceIDs, &api.ResourceID{
-			ClusterName: r.ClusterName,
-			Kind:        r.Kind,
-			Name:        r.Name,
+			ClusterName:     r.ClusterName,
+			Kind:            r.Kind,
+			Name:            r.Name,
+			SubResourceName: r.SubResourceName,
 		})
+	}
+	resources := make([]*api.Resource, len(requestedResourceIDs))
+	for i, r := range requestedResourceIDs {
+		details := req.ResourceDetails[resourceIDToString(r)]
+
+		resources[i] = &api.Resource{
+			Id: &api.ResourceID{
+				ClusterName:     r.ClusterName,
+				Kind:            r.Kind,
+				Name:            r.Name,
+				SubResourceName: r.SubResourceName,
+			},
+			// If there are no details for this resource, the map lookup returns
+			// the default value which is empty details
+			Details: newAPIResourceDetails(details),
+		}
 	}
 
 	return &api.AccessRequest{
@@ -149,5 +165,20 @@ func newAPIAccessRequest(req clusters.AccessRequest) *api.AccessRequest {
 		SuggestedReviewers: req.GetSuggestedReviewers(),
 		ThresholdNames:     thresholdNames,
 		ResourceIds:        requestedResourceIDs,
+		Resources:          resources,
+	}
+}
+
+// resourceIDToString marshals a ResourceID to a string.
+func resourceIDToString(id *api.ResourceID) string {
+	if id.SubResourceName == "" {
+		return fmt.Sprintf("/%s/%s/%s", id.ClusterName, id.Kind, id.Name)
+	}
+	return fmt.Sprintf("/%s/%s/%s/%s", id.ClusterName, id.Kind, id.Name, id.SubResourceName)
+}
+
+func newAPIResourceDetails(details clusters.ResourceDetails) *api.ResourceDetails {
+	return &api.ResourceDetails{
+		Hostname: details.Hostname,
 	}
 }

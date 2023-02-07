@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -64,10 +65,10 @@ func (h *Handler) desktopConnectHandle(
 		return nil, trace.BadParameter("missing desktopName in request URL")
 	}
 
-	log := sctx.cfg.Log.WithField("desktop-name", desktopName)
+	log := sctx.cfg.Log.WithField("desktop-name", desktopName).WithField("cluster-name", site.GetName())
 	log.Debug("New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(w, r, desktopName, log, sctx, site); err != nil {
+	if err := h.createDesktopConnection(w, r, desktopName, site.GetName(), log, sctx, site); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
@@ -88,6 +89,7 @@ func (h *Handler) createDesktopConnection(
 	w http.ResponseWriter,
 	r *http.Request,
 	desktopName string,
+	clusterName string,
 	log *logrus.Entry,
 	sctx *SessionContext,
 	site reversetunnel.RemoteSite,
@@ -169,7 +171,7 @@ func (h *Handler) createDesktopConnection(
 		site:     site,
 		userAddr: r.RemoteAddr,
 	}
-	serviceConn, err := c.connectToWindowsService(sctx.cfg.RootClusterName, validServiceIDs)
+	serviceConn, err := c.connectToWindowsService(clusterName, validServiceIDs)
 	if err != nil {
 		return sendTDPError(trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
@@ -202,9 +204,10 @@ func (h *Handler) createDesktopConnection(
 		return sendTDPError(err)
 	}
 
-	if err := proxyWebsocketConn(ws, serviceConnTLS); err != nil {
-		log.WithError(err).Warningf("Error proxying a desktop protocol websocket to windows_desktop_service")
-	}
+	// proxyWebsocketConn hangs here until connection is closed
+	handleProxyWebsocketConnErr(
+		proxyWebsocketConn(ws, serviceConnTLS), log)
+
 	return nil
 }
 
@@ -239,7 +242,10 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		return nil, trace.Wrap(err)
 	}
 
-	var wsLock sync.Mutex
+	stream, err := NewTerminalStream(ws)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
 			WindowsDesktop: desktopName,
@@ -252,7 +258,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 			TLSCert:             sessCtx.cfg.Session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),
 		},
-	}, promptMFAChallenge(ws, &wsLock, tdpMFACodec{}))
+	}, promptMFAChallenge(stream, tdpMFACodec{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -346,7 +352,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		// need to split the stream into individual messages and
 		// write them to the websocket
 		for {
-			raw, err := tc.ReadRaw()
+			msg, err := tc.ReadMessage()
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
 				return
@@ -373,8 +379,12 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				errs <- err
 				return
 			}
-
-			err = ws.WriteMessage(websocket.BinaryMessage, raw)
+			encoded, err := msg.Encode()
+			if err != nil {
+				errs <- err
+				return
+			}
+			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
 			if utils.IsOKNetworkError(err) {
 				errs <- nil
 				return
@@ -405,6 +415,40 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		retErrs = append(retErrs, <-errs)
 	}
 	return trace.NewAggregate(retErrs...)
+}
+
+// handleProxyWebsocketConnErr handles the error returned by proxyWebsocketConn by
+// unwrapping it and determining whether to log an error.
+func handleProxyWebsocketConnErr(proxyWsConnErr error, log *logrus.Entry) {
+	if proxyWsConnErr == nil {
+		log.Debug("proxyWebsocketConn returned with no error")
+		return
+	}
+
+	errs := []error{proxyWsConnErr}
+	for len(errs) > 0 {
+		err := errs[0] // pop first error
+		errs = errs[1:]
+
+		switch err := err.(type) {
+		case trace.Aggregate:
+			errs = append(errs, err.Errors()...)
+		case *websocket.CloseError:
+			switch err.Code {
+			case websocket.CloseNormalClosure, // when the user hits "disconnect" from the menu
+				websocket.CloseGoingAway: // when the user closes the tab
+				log.Debugf("Web socket closed by client with code: %v", err.Code)
+				return
+			}
+			return
+		default:
+			if wrapped := errors.Unwrap(err); wrapped != nil {
+				errs = append(errs, wrapped)
+			}
+		}
+	}
+
+	log.WithError(proxyWsConnErr).Warning("Error proxying a desktop protocol websocket to windows_desktop_service")
 }
 
 // createCertificateBlob creates Certificate BLOB

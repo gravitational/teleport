@@ -35,6 +35,21 @@ var (
 	}
 )
 
+func TestDatabaseResourceMatchersToString(t *testing.T) {
+	resMatch := []*types.DatabaseResourceMatcher{
+		nil,
+		{
+			Labels: nil,
+		},
+		{
+			Labels: &types.Labels{
+				"x": []string{"y"},
+			},
+		},
+	}
+	require.Equal(t, databaseResourceMatchersToString(resMatch), "(Labels: x=[y])")
+}
+
 func Test_kubeClusterCollection_writeText(t *testing.T) {
 	extraLabel := map[string]string{
 		"ultra_long_label_for_teleport_kubernetes_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_list_kube_clusters_method",

@@ -23,10 +23,12 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/types"
+	prehogapi "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/usagereporter"
 )
 
 const (
@@ -45,11 +47,20 @@ func New(cfg Config) (*Service, error) {
 
 	closeContext, cancel := context.WithCancel(context.Background())
 
+	connectUsageReporter, err := NewConnectUsageReporter(closeContext, cfg.PrehogAddr)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	go connectUsageReporter.Run(closeContext)
+
 	return &Service{
-		cfg:          &cfg,
-		closeContext: closeContext,
-		cancel:       cancel,
-		gateways:     make(map[string]*gateway.Gateway),
+		cfg:           &cfg,
+		closeContext:  closeContext,
+		cancel:        cancel,
+		gateways:      make(map[string]*gateway.Gateway),
+		usageReporter: connectUsageReporter,
 	}, nil
 }
 
@@ -126,19 +137,18 @@ func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
 	return cluster, nil
 }
 
-// ResolveFullCluster returns full cluster information. It makes a request to the auth server.
+// ResolveFullCluster returns full cluster information. It makes a request to the auth server and includes
+// details about the cluster and logged in user
 func (s *Service) ResolveFullCluster(ctx context.Context, uri string) (*clusters.Cluster, error) {
 	cluster, err := s.ResolveCluster(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	features, err := cluster.GetClusterFeatures(ctx)
+	cluster, err = cluster.EnrichWithDetails(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	cluster.Features = features
 
 	return cluster, nil
 }
@@ -430,7 +440,7 @@ func (s *Service) GetAccessRequests(ctx context.Context, req *api.GetAccessReque
 }
 
 // GetAccessRequest returns AccessRequests filtered by ID
-func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessRequestRequest) ([]clusters.AccessRequest, error) {
+func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessRequestRequest) (*clusters.AccessRequest, error) {
 	if req.AccessRequestId == "" {
 		return nil, trace.BadParameter("missing request id")
 	}
@@ -440,7 +450,7 @@ func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessReques
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := cluster.GetAccessRequests(ctx, types.AccessRequestFilter{
+	response, err := cluster.GetAccessRequest(ctx, types.AccessRequestFilter{
 		ID: req.AccessRequestId,
 	})
 	if err != nil {
@@ -565,6 +575,13 @@ func (s *Service) Stop() {
 		gateway.Close()
 	}
 
+	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
+	defer cancel()
+
+	if err := s.usageReporter.GracefulStop(timeoutCtx); err != nil {
+		s.cfg.Log.WithError(err).Error("Gracefully stopping usage reporter failed")
+	}
+
 	// s.closeContext is used for the tshd events client which might make requests as long as any of
 	// the resources managed by daemon.Service are up and running. So let's cancel the context only
 	// after closing those resources.
@@ -620,6 +637,8 @@ type Service struct {
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways map[string]*gateway.Gateway
+	// usageReporter batches the events and sends them to prehog
+	usageReporter *usagereporter.UsageReporter[prehogapi.SubmitConnectEventRequest]
 }
 
 type CreateGatewayParams struct {

@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -504,19 +505,20 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 		// optional parameter: error_description
 		errDesc := q.Get("error_description")
-		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, errParam, q).AddUserMessage("Github returned error: %v [%v]", errDesc, errParam)
+		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, errParam, q)
+		return nil, trace.WithUserMessage(oauthErr, "Github returned error: %v [%v]", errDesc, errParam)
 	}
 
 	code := q.Get("code")
 	if code == "" {
-		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest,
-			"code query param must be set", q).AddUserMessage("Invalid parameters received from Github.")
+		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, "code query param must be set", q)
+		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from Github.")
 	}
 
 	stateToken := q.Get("state")
 	if stateToken == "" {
-		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest,
-			"missing state query param", q).AddUserMessage("Invalid parameters received from Github.")
+		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, "missing state query param", q)
+		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from Github.")
 	}
 	diagCtx.RequestID = stateToken
 
@@ -590,7 +592,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 	// Calculate (figure out name, roles, traits, session TTL) of user and
 	// create the user in the backend.
-	params, err := a.calculateGithubUser(connector, claims, req)
+	params, err := a.calculateGithubUser(ctx, connector, claims, req)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to calculate user attributes.")
 	}
@@ -697,7 +699,7 @@ type CreateUserParams struct {
 	SessionTTL time.Duration
 }
 
-func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *types.GithubClaims, request *types.GithubAuthRequest) (*CreateUserParams, error) {
+func (a *Server) calculateGithubUser(ctx context.Context, connector types.GithubConnector, claims *types.GithubClaims, request *types.GithubAuthRequest) (*CreateUserParams, error) {
 	p := CreateUserParams{
 		ConnectorName: connector.GetName(),
 		Username:      claims.Username,
@@ -714,6 +716,22 @@ func (a *Server) calculateGithubUser(connector types.GithubConnector, claims *ty
 		constants.TraitKubeUsers:  p.KubeUsers,
 		teleport.TraitTeams:       claims.Teams,
 	}
+
+	evaluationInput := &loginrule.EvaluationInput{
+		Traits: p.Traits,
+	}
+	evaluationOutput, err := a.GetLoginRuleEvaluator().Evaluate(ctx, evaluationInput)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.Traits = evaluationOutput.Traits
+
+	// Kube groups and users are ultimately only set in the traits, not any
+	// other property of the User. In case the login rules changed the relevant
+	// traits values, reset the value on the user params for accurate
+	// diagnostics.
+	p.KubeGroups = p.Traits[constants.TraitKubeGroups]
+	p.KubeUsers = p.Traits[constants.TraitKubeUsers]
 
 	// Pick smaller for role: session TTL from role or requested TTL.
 	roles, err := services.FetchRoles(p.Roles, a, p.Traits)

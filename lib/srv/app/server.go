@@ -48,9 +48,10 @@ import (
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
 	appazure "github.com/gravitational/teleport/lib/srv/app/azure"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	appgcp "github.com/gravitational/teleport/lib/srv/app/gcp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/aws"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 type appServerContextKey string
@@ -211,8 +212,9 @@ type Server struct {
 
 	cache *sessionChunkCache
 
-	awsSigner    *appaws.SigningService
-	azureHandler *appazure.Forwarder
+	awsHandler   http.Handler
+	azureHandler http.Handler
+	gcpHandler   http.Handler
 
 	// watcher monitors changes to application resources.
 	watcher *services.AppWatcher
@@ -263,14 +265,24 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		}
 	}()
 
-	awsSigner, err := appaws.NewSigningService(appaws.SigningServiceConfig{})
+	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	awsHandler, err := appaws.NewAWSSignerHandler(closeContext, appaws.SignerHandlerConfig{
+		SigningService: awsSigner,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	azureHandler, err := appazure.NewForwarder(closeContext, appazure.ForwarderConfig{})
+	azureHandler, err := appazure.NewAzureHandler(closeContext, appazure.HandlerConfig{})
 	if err != nil {
-		closeFunc()
+		return nil, trace.Wrap(err)
+	}
+
+	gcpHandler, err := appgcp.NewGCPHandler(closeContext, appgcp.HandlerConfig{})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -283,8 +295,9 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
 		connAuth:      make(map[net.Conn]error),
-		awsSigner:     awsSigner,
+		awsHandler:    awsHandler,
 		azureHandler:  azureHandler,
+		gcpHandler:    gcpHandler,
 		monitoredApps: monitoredApps{
 			static: c.Apps,
 		},
@@ -794,12 +807,15 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	identity := authCtx.Identity.GetIdentity()
 	switch {
 	case app.IsAWSConsole():
-		//  Requests from AWS applications are signed by AWS Signature Version
-		//  4 algorithm. AWS CLI and AWS SDKs automatically use SigV4 for all
-		//  services that support it (All services expect Amazon SimpleDB but
-		//  this AWS service has been deprecated)
-		if aws.IsSignedByAWSSigV4(r) {
-			return s.serveSession(w, r, &identity, app, s.withAWSForwarder)
+		// Requests from AWS applications are signed by AWS Signature Version 4
+		// algorithm. AWS CLI and AWS SDKs automatically use SigV4 for all
+		// services that support it (All services expect Amazon SimpleDB but
+		// this AWS service has been deprecated)
+		//
+		// Also check header common.TeleportAWSAssumedRole which is added by
+		// the local proxy for AWS requests signed by assumed roles.
+		if awsutils.IsSignedByAWSSigV4(r) || r.Header.Get(common.TeleportAWSAssumedRole) != "" {
+			return s.serveSession(w, r, &identity, app, s.withAWSSigner)
 		}
 
 		// Request for AWS console access originated from Teleport Proxy WebUI
@@ -807,12 +823,14 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		return s.serveAWSWebConsole(w, r, &identity, app)
 
 	case app.IsAzureCloud():
-		return s.serveSession(w, r, &identity, app, s.withAzureForwarder)
+		return s.serveSession(w, r, &identity, app, s.withAzureHandler)
+
+	case app.IsGCP():
+		return s.serveSession(w, r, &identity, app, s.withGCPHandler)
 
 	default:
 		return s.serveSession(w, r, &identity, app, s.withJWTTokenForwarder)
 	}
-
 }
 
 // serveAWSWebConsole generates a sign-in URL for AWS management console and
@@ -844,8 +862,16 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 	}
 	defer session.release()
 
+	// Create session context.
+	sessionCtx := &common.SessionContext{
+		Identity: identity,
+		App:      app,
+		ChunkID:  session.id,
+		Audit:    session.audit,
+	}
+
 	// Forward request to the target application.
-	session.fwd.ServeHTTP(w, common.WithSessionContext(r, session.sessionCtx))
+	session.handler.ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
 	return nil
 }
 
@@ -896,7 +922,7 @@ func (s *Server) authorizeContext(ctx context.Context) (*auth.Context, types.App
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	ap, err := s.c.AccessPoint.GetAuthPreference(ctx)
+	authPref, err := s.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -918,10 +944,18 @@ func (s *Server) authorizeContext(ctx context.Context) (*auth.Context, types.App
 		})
 	}
 
-	mfaParams := authContext.MFAParams(ap.GetRequireMFAType())
+	// When accessing GCP API, check permissions to assume
+	// requested GCP service account as well.
+	if app.IsGCP() {
+		matchers = append(matchers, &services.GCPServiceAccountMatcher{
+			ServiceAccount: identity.RouteToApp.GCPServiceAccount,
+		})
+	}
+
+	state := authContext.GetAccessState(authPref)
 	err = authContext.Checker.CheckAccess(
 		app,
-		mfaParams,
+		state,
 		matchers...)
 	if err != nil {
 		return nil, nil, utils.OpaqueAccessDenied(err)

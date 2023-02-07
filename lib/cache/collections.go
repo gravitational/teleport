@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -186,6 +187,14 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &databaseServer{watch: watch, Cache: c}
+		case types.KindDatabaseService:
+			if c.DatabaseServices == nil {
+				return nil, trace.BadParameter("missing parameter DatabaseServices")
+			}
+			if c.Presence == nil {
+				return nil, trace.BadParameter("missing parameter Presence")
+			}
+			collections[resourceKind] = &databaseService{watch: watch, Cache: c}
 		case types.KindApp:
 			if c.Apps == nil {
 				return nil, trace.BadParameter("missing parameter Apps")
@@ -813,58 +822,30 @@ type certAuthority struct {
 }
 
 func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	applyHostCAs, err := c.fetchCertAuthorities(ctx, types.HostCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	applyUserCAs, err := c.fetchCertAuthorities(ctx, types.UserCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// DELETE IN 11.0.
-	// missingDatabaseCA is needed only when leaf cluster v9 is connected
-	// to root cluster v10. Database CA has been added in v10, so older
-	// clusters don't have it and fetchCertAuthorities() returns an error.
-	missingDatabaseCA := false
-	applyDatabaseCAs, err := c.fetchCertAuthorities(ctx, types.DatabaseCA)
-	if trace.IsBadParameter(err) {
-		missingDatabaseCA = true
-	} else if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	applyJWTSigners, err := c.fetchCertAuthorities(ctx, types.JWTSigner)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	fs := make([]func(context.Context) error, 0, len(types.CertAuthTypes))
+	for _, caType := range types.CertAuthTypes {
+		f, err := c.fetchCertAuthorities(ctx, caType)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		fs = append(fs, f)
 	}
 
 	return func(ctx context.Context) error {
-		if err := applyHostCAs(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := applyUserCAs(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-		if !missingDatabaseCA {
-			if err := applyDatabaseCAs(ctx); err != nil {
+		for _, f := range fs {
+			if err := f(ctx); err != nil {
 				return trace.Wrap(err)
 			}
-		} else {
-			if err := c.trustCache.DeleteAllCertAuthorities(types.DatabaseCA); err != nil {
-				if !trace.IsNotFound(err) {
-					return trace.Wrap(err)
-				}
-			}
 		}
-		return trace.Wrap(applyJWTSigners(ctx))
+		return nil
 	}, nil
 }
 
 func (c *certAuthority) fetchCertAuthorities(ctx context.Context, caType types.CertAuthType) (apply func(ctx context.Context) error, err error) {
 	authorities, err := c.Trust.GetCertAuthorities(ctx, caType, c.watch.LoadSecrets)
-	if err != nil {
+	// if caType was added in this major version we might get a BadParameter
+	// error if we're connecting to an older upstream that doesn't know about it
+	if err != nil && !(caType.NewlyAdded() && trace.IsBadParameter(err)) {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1333,6 +1314,86 @@ func (s *databaseServer) processEvent(ctx context.Context, event types.Event) er
 }
 
 func (s *databaseServer) watchKind() types.WatchKind {
+	return s.watch
+}
+
+type databaseService struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (s *databaseService) erase(ctx context.Context) error {
+	err := s.databaseServicesCache.DeleteAllDatabaseServices(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *databaseService) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	return func(ctx context.Context) error {
+		if err := s.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+
+		nextKey := ""
+		for {
+			listResp, err := s.Presence.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindDatabaseService,
+				Limit:        apidefaults.DefaultChunkSize,
+				StartKey:     nextKey,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			databaseServices, err := types.ResourcesWithLabels(listResp.Resources).AsDatabaseServices()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			for _, resource := range databaseServices {
+				if _, err := s.databaseServicesCache.UpsertDatabaseService(ctx, resource); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+
+			nextKey = listResp.NextKey
+			if nextKey == "" || len(listResp.Resources) == 0 {
+				break
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (s *databaseService) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := s.databaseServicesCache.DeleteDatabaseService(ctx, event.Resource.GetName())
+		if err != nil {
+			// Resource could be missing in the cache expired or not created,
+			// if the first consumed event is delete.
+			if !trace.IsNotFound(err) {
+				s.Logger.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.DatabaseService)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if _, err := s.databaseServicesCache.UpsertDatabaseService(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		s.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (s *databaseService) watchKind() types.WatchKind {
 	return s.watch
 }
 

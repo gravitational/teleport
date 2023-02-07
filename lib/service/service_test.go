@@ -17,6 +17,8 @@ package service
 
 import (
 	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -36,6 +38,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -46,7 +51,9 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -503,10 +510,14 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake-ping",
 				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
+				"teleport-dynamodb-ping",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
 				"teleport-tcp",
+				"teleport-proxy-ssh-grpc",
+				"teleport-proxy-grpc",
+				"teleport-proxy-grpc-mtls",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
@@ -515,6 +526,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake",
 				"teleport-cassandra",
 				"teleport-elasticsearch",
+				"teleport-dynamodb",
 			},
 		},
 		{
@@ -529,6 +541,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake-ping",
 				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
+				"teleport-dynamodb-ping",
 				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
 				"h2",
@@ -536,6 +549,9 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-reversetunnel",
 				"teleport-auth@",
 				"teleport-tcp",
+				"teleport-proxy-ssh-grpc",
+				"teleport-proxy-grpc",
+				"teleport-proxy-grpc-mtls",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
@@ -544,6 +560,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake",
 				"teleport-cassandra",
 				"teleport-elasticsearch",
+				"teleport-dynamodb",
 			},
 		},
 	}
@@ -557,6 +574,8 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			cfg.Proxy.PublicAddrs = utils.MustParseAddrList("localhost")
 			process := TeleportProcess{
 				Config: cfg,
+				// Setting Supervisor so that `ExitContext` can be called.
+				Supervisor: NewSupervisor("process-id", cfg.Log),
 			}
 			conn := &Connector{
 				ServerIdentity: &auth.Identity{
@@ -900,4 +919,176 @@ func (f *fakeKubeBackend) Put(ctx context.Context, i backend.Item) (*backend.Lea
 // Get returns a single item or not found error
 func (f *fakeKubeBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	return f.getData, f.getErr
+}
+
+func TestProxyGRPCServers(t *testing.T) {
+	hostID := uuid.NewString()
+	// Create a test auth server to extract the server identity (SSH and TLS
+	// certificates).
+	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clockwork.NewFakeClockAt(time.Now()),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, testAuthServer.Close())
+	})
+
+	tlsServer, err := testAuthServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, tlsServer.Close())
+	})
+	// Create a new client using the server identity.
+	client, err := tlsServer.NewClient(auth.TestServerID(types.RoleProxy, hostID))
+	require.NoError(t, err)
+	// TLS config for proxy service.
+	serverIdentity, err := auth.NewServerIdentity(testAuthServer.AuthServer, hostID, types.RoleProxy)
+	require.NoError(t, err)
+
+	testConnector := &Connector{
+		ServerIdentity: serverIdentity,
+		Client:         client,
+	}
+
+	// Create a listener for the insecure gRPC server.
+	insecureListener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := insecureListener.Close()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		require.NoError(t, err)
+	})
+
+	// Create a listener for the secure gRPC server.
+	secureListener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := secureListener.Close()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		require.NoError(t, err)
+	})
+
+	// Create a new Teleport process to initialize the gRPC servers with KubeProxy
+	// enabled.
+	log := logrus.New()
+	process := &TeleportProcess{
+		Supervisor: NewSupervisor(hostID, log),
+		Config: &Config{
+			Proxy: ProxyConfig{Kube: KubeProxyConfig{Enabled: true}},
+		},
+		log: log,
+	}
+
+	// Create a limiter with no limits.
+	limiter, err := limiter.NewLimiter(limiter.Config{})
+	require.NoError(t, err)
+
+	// Create a error channel to collect the errors from the gRPC servers.
+	errC := make(chan error, 2)
+	t.Cleanup(func() {
+		for i := 0; i < 2; i++ {
+			err := <-errC
+			if errors.Is(err, net.ErrClosed) {
+				continue
+			}
+			require.NoError(t, err)
+		}
+	})
+
+	// Insecure gRPC server.
+	insecureGPRC := process.initPublicGRPCServer(limiter, testConnector, insecureListener)
+	t.Cleanup(insecureGPRC.GracefulStop)
+
+	proxyLockWatcher, err := services.NewLockWatcher(context.Background(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    testConnector.Client,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		proxyLockWatcher.Close()
+	})
+	// Secure gRPC server.
+	secureGRPC, err := process.initSecureGRPCServer(initSecureGRPCServerCfg{
+		limiter:     limiter,
+		conn:        testConnector,
+		listener:    secureListener,
+		accessPoint: testConnector.Client,
+		lockWatcher: proxyLockWatcher,
+		emitter:     testConnector.Client,
+	})
+	require.NoError(t, err)
+	t.Cleanup(secureGRPC.GracefulStop)
+
+	// Start the gRPC servers.
+	go func() {
+		errC <- trace.Wrap(insecureGPRC.Serve(insecureListener))
+	}()
+	go func() {
+		errC <- secureGRPC.Serve(secureListener)
+	}()
+
+	tests := []struct {
+		name         string
+		credentials  credentials.TransportCredentials
+		listenerAddr string
+		assertErr    require.ErrorAssertionFunc
+	}{
+		{
+			name:         "insecure client to insecure server",
+			credentials:  insecure.NewCredentials(),
+			listenerAddr: insecureListener.Addr().String(),
+			assertErr:    require.NoError,
+		},
+		{
+			name:         "insecure client to secure server with insecure skip verify",
+			credentials:  credentials.NewTLS(&tls.Config{InsecureSkipVerify: true}),
+			listenerAddr: secureListener.Addr().String(),
+			assertErr:    require.Error,
+		},
+		{
+			name:         "insecure client to secure server",
+			credentials:  credentials.NewTLS(&tls.Config{}),
+			listenerAddr: secureListener.Addr().String(),
+			assertErr:    require.Error,
+		},
+		{
+			name: "secure client to secure server",
+			credentials: func() credentials.TransportCredentials {
+				// Create a new client using the server identity.
+				creds, err := testConnector.ServerIdentity.TLSConfig(nil)
+				require.NoError(t, err)
+				return credentials.NewTLS(creds)
+			}(),
+			listenerAddr: secureListener.Addr().String(),
+			assertErr:    require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			t.Cleanup(cancel)
+			_, err := grpc.DialContext(
+				ctx,
+				tt.listenerAddr,
+				grpc.WithTransportCredentials(tt.credentials),
+				// This setting is required to return the connection error instead of
+				// wrapping it in a "context deadline exceeded" error.
+				// It also enforces the grpc.WithBlock() option.
+				grpc.WithReturnConnectionError(),
+				grpc.WithDisableRetry(),
+				grpc.FailOnNonTempDialError(true),
+			)
+			tt.assertErr(t, err)
+		})
+	}
 }

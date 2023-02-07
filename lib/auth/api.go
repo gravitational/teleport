@@ -70,6 +70,9 @@ type Announcer interface {
 	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
 	// UpdateWindowsDesktop updates a Windows desktop host.
 	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
+
+	// UpsertDatabaseService registers a DatabaseService.
+	UpsertDatabaseService(context.Context, types.DatabaseService) (*types.KeepAlive, error)
 }
 
 // accessPoint is an API interface implemented by a certificate authority (CA)
@@ -694,6 +697,9 @@ type ReadDiscoveryAccessPoint interface {
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
+
+	// GetDatabases returns all database resources.
+	GetDatabases(ctx context.Context) ([]types.Database, error)
 }
 
 // DiscoveryAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -711,6 +717,13 @@ type DiscoveryAccessPoint interface {
 	UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error
 	// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
 	DeleteKubernetesCluster(ctx context.Context, name string) error
+
+	// CreateDatabase creates a new database resource.
+	CreateDatabase(ctx context.Context, database types.Database) error
+	// UpdateDatabase updates an existing database resource.
+	UpdateDatabase(ctx context.Context, database types.Database) error
+	// DeleteDatabase deletes a database resource.
+	DeleteDatabase(ctx context.Context, name string) error
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -1073,6 +1086,21 @@ func (w *DiscoveryWrapper) UpdateKubernetesCluster(ctx context.Context, cluster 
 // DeleteKubernetesCluster deletes specified kubernetes cluster resource.
 func (w *DiscoveryWrapper) DeleteKubernetesCluster(ctx context.Context, name string) error {
 	return w.NoCache.DeleteKubernetesCluster(ctx, name)
+}
+
+// CreateDatabase creates a new database resource.
+func (w *DiscoveryWrapper) CreateDatabase(ctx context.Context, database types.Database) error {
+	return w.NoCache.CreateDatabase(ctx, database)
+}
+
+// UpdateDatabase updates an existing database resource.
+func (w *DiscoveryWrapper) UpdateDatabase(ctx context.Context, database types.Database) error {
+	return w.NoCache.UpdateDatabase(ctx, database)
+}
+
+// DeleteDatabase deletes a database resource.
+func (w *DiscoveryWrapper) DeleteDatabase(ctx context.Context, name string) error {
+	return w.NoCache.DeleteDatabase(ctx, name)
 }
 
 // Close closes all associated resources

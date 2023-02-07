@@ -43,6 +43,11 @@ func NewConn(conn net.Conn) *Conn {
 	}
 }
 
+// NetConn returns the underlying net.Conn.
+func (c *Conn) NetConn() net.Conn {
+	return c.Conn
+}
+
 // Read reads from connection
 func (c *Conn) Read(p []byte) (int, error) {
 	return c.reader.Read(p)

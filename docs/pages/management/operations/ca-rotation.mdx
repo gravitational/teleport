@@ -22,7 +22,14 @@ Teleport signs Windows Desktop certificates with the user certificate authority.
 If the user CA is rotated, the new CA certificate will need to be exported and
 configured in group policy.
 
-[Read more about exporting the Teleport CA](../../desktop-access/manual-setup.mdx#export-the-teleport-ca)
+[Read more about exporting the Teleport CA](../../desktop-access/active-directory-manual.mdx#export-the-teleport-ca)
+</Admonition>
+
+<Admonition type="warning" title="Certificate Authority Types">
+Prior to Teleport 12, `--type` would default to rotating all certificate authorities.
+It is best to rotate CAs one at a time for increased stability. Future versions of
+Teleport will require this, but you can opt in to the previous behavior by adding
+an explicit `--type=all` flag.
 </Admonition>
 
 ### Rotation phases
@@ -62,8 +69,8 @@ following order:
 Administrators can abort the rotation and revert all changes any time before
 the rotation is completed by entering the `rollback` phase.
 
-```sh
-$ tctl auth rotate --phase=rollback --manual
+```code
+$ tctl auth rotate --phase=rollback --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 ```
 
 For example, if an admin has detected that some nodes failed to upgrade during
@@ -77,9 +84,11 @@ the phase transitions look like this:
   and gotchas before going with semi-automatic version.
 </Admonition>
 
-It is possible to rotate a specific set of certificate authorities using the 
-`--type` flag. If this flag is not provided, then all certificate authorities
-will be rotated. 
+To specify which certificate authority to rotate, you must provide a value via
+the `--type` flag. If no value is provided, `tctl` will display an error and exit. To replicate the functionality of versions prior to 12, where
+all certificate authorities were rotated by default, you can pass in
+`--type=all`. Keep in mind that this functionality is deprecated and will be removed
+in a future version.
 
 ## Manual rotation
 
@@ -91,7 +100,7 @@ of the cluster.
 Initiate the manual rotation of host certificate authorities:
 
 ```code
-$ tctl auth rotate --phase=init --manual
+$ tctl auth rotate --phase=init --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 Updated rotation phase to "init". To check status use 'tctl status'
 ```
 
@@ -135,7 +144,7 @@ transitions.
 Execute the transition from `init` to `update_clients`:
 
 ```code
-$ tctl auth rotate --phase=update_clients --manual
+$ tctl auth rotate --phase=update_clients --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 # Updated rotation phase to "update_clients". To check status use 'tctl status'
 $ tctl status
 # Cluster  acme.cluster
@@ -165,7 +174,7 @@ Now that all nodes have caught up, execute the transition from `update_clients`
 to `update_servers`:
 
 ```code
-$ tctl auth rotate --phase=update_servers --manual
+$ tctl auth rotate --phase=update_servers --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 # Updated rotation phase to "update_servers". To check status use 'tctl status'
 
 $ tctl status
@@ -206,7 +215,7 @@ $ tsh ssh hello@terminal
 </Admonition>
 
 ```code
-$ tctl auth rotate --phase=standby --manual
+$ tctl auth rotate --phase=standby --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 ```
 
 Verify that the rotation has completed with `tctl`:
@@ -244,12 +253,12 @@ You can trigger semi-automatic rotation by omitting the `--manual` and `--phase`
 flags.
 
 ```code
-$ tctl auth rotate
+$ tctl auth rotate --type=host
 ```
 
-This will trigger a rotation process for both hosts and users with a default
-grace period of 48 hours. During the grace period, certificates issued both by
-old and new certificate authority work.
+This will trigger a rotation process for hosts with a default grace period of
+48 hours. During the grace period, certificates issued both by old and new
+certificate authority work.
 
 You can customize grace period and CA type with additional flags:
 
@@ -310,7 +319,7 @@ Rollback must be performed before the rotation enters `standby` state.
 First, enter the rollback phase with a manual phase transition:
 
 ```code
-$ tctl auth rotate --phase=rollback --manual
+$ tctl auth rotate --phase=rollback --type=<Var name="type" description="Certificate authority to rotate"/> --manual
 # Updated rotation phase to "rollback". To check status use 'tctl status'
 ```
 

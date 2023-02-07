@@ -20,10 +20,22 @@ on:
       - '**.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+  merge_group:
+    paths-ignore:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '**.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
 
 jobs:
   build:
-    name: Skipped
+    name: Build on Mac OS
     runs-on: macos-12
 
     permissions:

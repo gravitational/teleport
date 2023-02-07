@@ -1103,7 +1103,7 @@ func (proxy *ProxyClient) ConnectToRootCluster(ctx context.Context) (auth.Client
 }
 
 func (proxy *ProxyClient) loadTLS(clusterName string) (*tls.Config, error) {
-	if proxy.teleportClient.SkipLocalAuth {
+	if proxy.teleportClient.TLS != nil {
 		return proxy.teleportClient.TLS.Clone(), nil
 	}
 	tlsKey, err := proxy.localAgent().GetCoreKey()
@@ -1206,7 +1206,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		return proxy.dialAuthServer(ctx, clusterName)
 	})
 
-	if proxy.teleportClient.SkipLocalAuth {
+	if proxy.teleportClient.TLS != nil {
 		return auth.NewClient(client.Config{
 			Context: ctx,
 			Dialer:  dialer,
@@ -1267,7 +1267,7 @@ func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName stri
 			return nil, trace.Wrap(err)
 		}
 		return clt, nil
-	case proxy.teleportClient.SkipLocalAuth:
+	case proxy.teleportClient.TLS != nil:
 		clt, err := client.NewTracingClient(ctx, client.Config{
 			Dialer:           dialer,
 			DialInBackground: true,
@@ -1314,11 +1314,6 @@ func nodeName(node string) string {
 	return n
 }
 
-type proxyResponse struct {
-	isRecord bool
-	err      error
-}
-
 // clusterDetails retrieves information about the current cluster needed to connect to nodes.
 func (proxy *ProxyClient) clusterDetails(ctx context.Context) (sshutils.ClusterDetails, error) {
 	ctx, span := proxy.Tracer.Start(
@@ -1334,83 +1329,12 @@ func (proxy *ProxyClient) clusterDetails(ctx context.Context) (sshutils.ClusterD
 		return details, trace.Wrap(err)
 	}
 
-	// server understood the ClusterDetailsReqType
 	if ok {
 		err = ssh.Unmarshal(resp, &details)
 		return details, trace.Wrap(err)
 	}
 
-	// talking to an older server which doesn't know about ClusterDetailsReqType
-	// fallback to sending multiple requests
-	recordingProxy, err := proxy.isRecordingProxy(ctx)
-	if err != nil {
-		return details, trace.Wrap(err)
-	}
-
-	pong, err := proxy.CurrentCluster().Ping(ctx)
-	if err != nil {
-		return details, trace.Wrap(err)
-	}
-
-	details.RecordingProxy = recordingProxy
-	details.FIPSEnabled = pong.IsBoring
-
-	return details, nil
-}
-
-// isRecordingProxy returns true if the proxy is in recording mode. Note, this
-// function can only be called after authentication has occurred and should be
-// called before the first session is created.
-//
-// DEPRECATED: clusterDetails should be used instead to avoid multiple round trips for
-// cluster information.
-// TODO(tross):DELETE IN 12.0
-func (proxy *ProxyClient) isRecordingProxy(ctx context.Context) (bool, error) {
-	ctx, span := proxy.Tracer.Start(
-		ctx,
-		"proxyClient/isRecordingProxy",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	responseCh := make(chan proxyResponse)
-
-	// we have to run this in a goroutine because older version of Teleport handled
-	// global out-of-band requests incorrectly: Teleport would ignore requests it
-	// does not know about and never reply to them. So if we wait a second and
-	// don't hear anything back, most likley we are trying to connect to an older
-	// version of Teleport and we should not try and forward our agent.
-	go func() {
-		ok, responseBytes, err := proxy.Client.SendRequest(ctx, teleport.RecordingProxyReqType, true, nil)
-		if err != nil {
-			responseCh <- proxyResponse{isRecord: false, err: trace.Wrap(err)}
-			return
-		}
-		if !ok {
-			responseCh <- proxyResponse{isRecord: false, err: trace.AccessDenied("unable to determine proxy type")}
-			return
-		}
-
-		recordingProxy, err := strconv.ParseBool(string(responseBytes))
-		if err != nil {
-			responseCh <- proxyResponse{isRecord: false, err: trace.Wrap(err)}
-			return
-		}
-
-		responseCh <- proxyResponse{isRecord: recordingProxy, err: nil}
-	}()
-
-	select {
-	case resp := <-responseCh:
-		if resp.err != nil {
-			return false, trace.Wrap(resp.err)
-		}
-		return resp.isRecord, nil
-	case <-time.After(1 * time.Second):
-		// probably the older version of the proxy or at least someone that is
-		// responding incorrectly, don't forward agent to it
-		return false, nil
-	}
+	return details, trace.BadParameter("failed to get cluster details")
 }
 
 // dialAuthServer returns auth server connection forwarded via proxy
@@ -1700,6 +1624,9 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			conn.Close()
+			// TODO(codingllama): Improve error message below for device trust.
+			//  An alternative we have here is querying the cluster to check if device
+			//  trust is required, a check similar to `IsMFARequired`.
 			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeAddress, err)
 			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, sshConfig.User, nodeAddress)
 		}
