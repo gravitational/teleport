@@ -414,7 +414,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// Expired sessions are purged immediately
 	var sessionLingeringThreshold time.Duration
-	fs, err := teleport.NewWebAssetsFilesystem()
+	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 
 	handler, err := NewHandler(Config{
@@ -6783,7 +6783,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
 
-	fs, err := teleport.NewWebAssetsFilesystem()
+	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
 		Proxy:            revTunServer,
