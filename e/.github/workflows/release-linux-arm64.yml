@@ -51,6 +51,9 @@ jobs:
       ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
       save-artifacts: ${{ inputs.upload-artifacts }}
       builder: ${{ toJSON(matrix.builder) }}
+    secrets:
+      dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+      dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
   upload-artifacts-to-dronestaging:
     if: ${{ inputs.upload-artifacts }}
