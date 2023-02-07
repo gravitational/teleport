@@ -152,8 +152,9 @@ However, `gopsutil` is using [`golang.org/x/sys/unix.Uname`](https://pkg.go.dev/
 Different installation methods will be tracked with a new `TELEPORT_INSTALL_METHOD` environment variable:
 - [Dockerfile](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/charts/Dockerfile): `ENV TELEPORT_INSTALL_METHOD=Dockerfile` will be added to the Dockerfile.
 - [`teleport-kube-agent`](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent) Helm chart: `TELEPORT_INSTALL_METHOD` will be set to `"teleport-kube-agent"` in the [deployment spec](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/chart/teleport-kube-agent/templates/deployment.yaml#L129).
+- [`*-ad*.ps1`](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/desktop): `setx TELEPORT_INSTALL_METHOD=ps1` will be added to one of these scripts. They are the recommended way to configure windows desktops.
 - [`install-node.sh`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/node-join/install.sh): `export TELEPORT_INSTALL_METHOD="install-node.sh"` will be added to this script. It is the recommended way to install SSH nodes, apps and many databases. Even though `export` doesn't persist across restarts, we can have the agent persist such value (and maybe all of the values sent in `UpstreamInventoryHello`) when it first starts.
-- [`*-ad*.ps1`](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/desktop):  `setx TELEPORT_INSTALL_METHOD=ps1` will be added to one of these scripts. They are the recommended way to configure windows desktops.
+- tarball: Similarly to the above, we can add `export TELEPORT_INSTALL_METHOD="tarball"` to the [`install`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/install) script. If the customer does not use the `install` script and instead moves the binaries manually, we won't be able to track this installation method.
 - `teleport configure`:
   - TODO: tarball, `.deb`/`.rpm`/`.pkg` packages, APT or YUM repository
   - TODO: can it conflict with `install-node.sh`
@@ -182,7 +183,7 @@ The above work will be divided in the following tasks:
 1. Add new message type `AgentMetadataEvent` to PreHog.
 2. Extend `UpstreamInventoryHello` message with new fields. These will be set to an empty string initially. (This is okay since being empty means that the field could not be determined, which may happen anyways.)
 3. Extend auth server to convert `UpstreamInventoryHello` messages to `AgentMetadataEvent` messages and push them to PreHog.
-4. Gradually instrument & add new code that computes each new `UpstreamInventoryHello` message field.
+4. Gradually instrument & add new code that fills each new `UpstreamInventoryHello` message field.
 
 We could decide to do step 4 together with step 2 if we don't want to risk adding fields to `UpstreamInventoryHello` that possibly won't be used in the end (if for some reason we figure out they can't/shouldn't be tracked).
 However, step 4 requires several changes (Go code & files used by the multiple installation methods) which we may want to review separately.
@@ -203,5 +204,6 @@ TODO
 - Should we [Teleport AMIs](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/aws/terraform/AMIS.md) an installation method?
 - Which [\*-ad*.ps1](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/desktop) script should be changed? Are these scripts going away with non-AD desktop access?
   - Does `setx` take effect right away or requires some sort of restart?
+- Is the [`install`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/install) script used for anything else?
 - Which container runtimes are we interested in tracking?
 - Do we want to track cloud environments? If so, which?
