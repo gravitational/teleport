@@ -42,13 +42,13 @@ linters-settings:
     list-type: denylist
     include-go-root: true # check against stdlib
     packages-with-error-message:
-    - io/ioutil: 'use "io" or "os" packages instead'
-    - github.com/golang/protobuf: 'use "google.golang.org/protobuf"'
-    - github.com/hashicorp/go-uuid: 'use "github.com/google/uuid" instead'
-    - github.com/pborman/uuid: 'use "github.com/google/uuid" instead'
-    - github.com/siddontang/go-log/log: 'use "github.com/sirupsen/logrus" instead'
-    - github.com/siddontang/go/log: 'use "github.com/sirupsen/logrus" instead'
-    - go.uber.org/atomic: 'use "sync/atomic" instead'
+      - io/ioutil: 'use "io" or "os" packages instead'
+      - github.com/golang/protobuf: 'use "google.golang.org/protobuf"'
+      - github.com/hashicorp/go-uuid: 'use "github.com/google/uuid" instead'
+      - github.com/pborman/uuid: 'use "github.com/google/uuid" instead'
+      - github.com/siddontang/go-log/log: 'use "github.com/sirupsen/logrus" instead'
+      - github.com/siddontang/go/log: 'use "github.com/sirupsen/logrus" instead'
+      - go.uber.org/atomic: 'use "sync/atomic" instead'
   misspell:
     locale: US
   gci:
