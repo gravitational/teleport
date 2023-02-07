@@ -24,8 +24,8 @@ func buildContainerImagePipelines() []pipeline {
 	// ****** These need to be updated on each major release. ******
 	// ****** After updating, "make dronegen" must be reran.  ******
 	// *************************************************************
-	latestMajorVersions := []string{"v11", "v10", "v9"}
-	branchMajorVersion := "v11"
+	latestMajorVersions := []string{"v12", "v11", "v10"}
+	branchMajorVersion := "v12"
 
 	triggers := []*TriggerInfo{
 		NewTagTrigger(branchMajorVersion),
