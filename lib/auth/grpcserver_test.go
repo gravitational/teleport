@@ -2408,6 +2408,7 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 		},
 		types.SAMLIdPServiceProviderSpecV1{
 			EntityDescriptor: newEntityDescriptor("sp1"),
+			EntityID:         "sp1",
 		})
 	require.NoError(t, err)
 
@@ -2417,6 +2418,7 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 		},
 		types.SAMLIdPServiceProviderSpecV1{
 			EntityDescriptor: newEntityDescriptor("sp2"),
+			EntityID:         "sp2",
 		})
 	require.NoError(t, err)
 

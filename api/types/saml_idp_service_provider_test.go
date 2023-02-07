@@ -27,11 +27,13 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 	tests := []struct {
 		name             string
 		entityDescriptor string
+		entityID         string
 		errAssertion     require.ErrorAssertionFunc
 	}{
 		{
 			name:             "valid entity descriptor",
 			entityDescriptor: testEntityDescriptor,
+			entityID:         "IAMShowcase",
 			errAssertion:     require.NoError,
 		},
 		{
@@ -54,6 +56,11 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			entityDescriptor: "<invalid />",
 			errAssertion:     require.Error,
 		},
+		{
+			name:             "empty entity ID",
+			entityDescriptor: testEntityDescriptor,
+			errAssertion:     require.Error,
+		},
 	}
 
 	for _, test := range tests {
@@ -62,6 +69,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 				Name: "test",
 			}, SAMLIdPServiceProviderSpecV1{
 				EntityDescriptor: test.entityDescriptor,
+				EntityID:         test.entityID,
 			})
 
 			test.errAssertion(t, err)

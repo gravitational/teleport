@@ -33,6 +33,7 @@ func TestSAMLIdPServiceProviderUnmarshal(t *testing.T) {
 		},
 		types.SAMLIdPServiceProviderSpecV1{
 			EntityDescriptor: testEntityDescriptor,
+			EntityID:         "IAMShowcase",
 		})
 	require.NoError(t, err)
 	data, err := utils.ToJSON([]byte(samlIDPServiceProviderYAML))
@@ -50,6 +51,7 @@ func TestSAMLIdPServiceProviderMarshal(t *testing.T) {
 		},
 		types.SAMLIdPServiceProviderSpecV1{
 			EntityDescriptor: testEntityDescriptor,
+			EntityID:         "IAMShowcase",
 		})
 	require.NoError(t, err)
 	data, err := MarshalSAMLIdPServiceProvider(expected)
@@ -75,6 +77,7 @@ spec:
           <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
        </md:SPSSODescriptor>
     </md:EntityDescriptor>
+  entity_id: IAMShowcase
 `
 
 // A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.

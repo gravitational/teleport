@@ -18,7 +18,9 @@ package local
 
 import (
 	"context"
+	"time"
 
+	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -26,7 +28,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const samlIDPServiceProviderMaxPageSize = 200
+const (
+	samlIDPServiceProviderCreateLock    = "saml_idp_service_provider_create_lock"
+	samlIDPServiceProviderCreateLockTTL = time.Second * 5
+	samlIDPServiceProviderMaxPageSize   = 200
+)
 
 // SAMLIdPServiceProviderService manages IdP service providers in the Backend.
 type SAMLIdPServiceProviderService struct {
@@ -94,56 +100,54 @@ func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Co
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	// Check to make sure the entity ID, if present, is properly set to the value seen in the
-	// metadata.
-	currentEntityID := sp.GetEntityID()
-	sp.UnsetEntityID()
+	return trace.Wrap(backend.RunWhileLocked(ctx, s.Backend, samlIDPServiceProviderCreateLock, samlIDPServiceProviderCreateLockTTL, func(ctx context.Context) error {
+		if err := sp.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 
-	if err := sp.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// If the entity ID was not set, this check is unnecessary.
-	if currentEntityID != "" && currentEntityID != sp.GetEntityID() {
-		return trace.BadParameter("entity ID is set to %s but the entity ID extracted from the provider is %s", currentEntityID, sp.GetEntityID())
-	}
-
-	// Make sure no other service provider has the same entity ID.
-	var nextToken string
-	for {
-		var listSps []types.SAMLIdPServiceProvider
-		var err error
-		listSps, nextToken, err = s.ListSAMLIdPServiceProviders(ctx, samlIDPServiceProviderMaxPageSize, nextToken)
-
+		ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		for _, listSp := range listSps {
-			if listSp.GetEntityID() == sp.GetEntityID() {
-				trace.BadParameter("service provider %s has the same entity ID %s", listSp.GetName(), listSp.GetEntityID())
+		if ed.EntityID != sp.GetEntityID() {
+			return trace.BadParameter("entity ID in the entity descriptor does not match the supplied entity descriptor")
+		}
+
+		// Make sure no other service provider has the same entity ID.
+		var nextToken string
+		for {
+			var listSps []types.SAMLIdPServiceProvider
+			var err error
+			listSps, nextToken, err = s.ListSAMLIdPServiceProviders(ctx, samlIDPServiceProviderMaxPageSize, nextToken)
+
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			for _, listSp := range listSps {
+				if listSp.GetEntityID() == sp.GetEntityID() {
+					trace.BadParameter("service provider %s has the same entity ID %s", listSp.GetName(), listSp.GetEntityID())
+				}
+			}
+			if nextToken == "" {
+				break
 			}
 		}
-		if nextToken == "" {
-			break
-		}
-	}
 
-	value, err := services.MarshalSAMLIdPServiceProvider(sp)
-	if err != nil {
+		value, err := services.MarshalSAMLIdPServiceProvider(sp)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		item := backend.Item{
+			Key:     backend.Key(samlIDPServiceProviderPrefix, sp.GetName()),
+			Value:   value,
+			Expires: sp.Expiry(),
+			ID:      sp.GetResourceID(),
+		}
+		_, err = s.Create(ctx, item)
 		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(samlIDPServiceProviderPrefix, sp.GetName()),
-		Value:   value,
-		Expires: sp.Expiry(),
-		ID:      sp.GetResourceID(),
-	}
-	_, err = s.Create(ctx, item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	}))
 }
 
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.

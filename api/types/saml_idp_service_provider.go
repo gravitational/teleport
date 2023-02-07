@@ -19,7 +19,6 @@ package types
 import (
 	"fmt"
 
-	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -31,11 +30,11 @@ type SAMLIdPServiceProvider interface {
 	// GetEntityDescriptor returns the entity descriptor of the service provider.
 	GetEntityDescriptor() string
 	// SetEntityDescriptor sets the entity descriptor of the service provider.
-	SetEntityDescriptor(string) error
-	// GetEntityID returns the entity ID from the entity descriptor.
+	SetEntityDescriptor(string)
+	// GetEntityID returns the entity ID.
 	GetEntityID() string
-	// UnsetEntityID will set the entity ID to an empty string.
-	UnsetEntityID()
+	// SetEntityID sets the entity ID.
+	SetEntityID(string)
 }
 
 // NewSAMLIdPServiceProvider returns a new SAMLIdPServiceProvider based off a metadata object and SAMLIdPServiceProviderSpecV1.
@@ -48,7 +47,6 @@ func NewSAMLIdPServiceProvider(metadata Metadata, spec SAMLIdPServiceProviderSpe
 	}
 
 	// Make sure the entity ID is empty so that it's set properly during the check and set defaults.
-	s.UnsetEntityID()
 	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -61,26 +59,18 @@ func (s *SAMLIdPServiceProviderV1) GetEntityDescriptor() string {
 }
 
 // SetEntityDescriptor sets the entity descriptor.
-func (s *SAMLIdPServiceProviderV1) SetEntityDescriptor(entityDescriptor string) error {
-	ed, err := samlsp.ParseMetadata([]byte(entityDescriptor))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	s.Spec.EntityID = ed.EntityID
+func (s *SAMLIdPServiceProviderV1) SetEntityDescriptor(entityDescriptor string) {
 	s.Spec.EntityDescriptor = entityDescriptor
-
-	return nil
 }
 
-// GetEntityID returns the entity ID from the entity descriptor.
+// GetEntityID returns the entity ID.
 func (s *SAMLIdPServiceProviderV1) GetEntityID() string {
 	return s.Spec.EntityID
 }
 
-// UnsetEntityID will set the entity ID to an empty string.
-func (s *SAMLIdPServiceProviderV1) UnsetEntityID() {
-	s.Spec.EntityID = ""
+// SetEntityID sets the entity ID.
+func (s *SAMLIdPServiceProviderV1) SetEntityID(entityID string) {
+	s.Spec.EntityID = entityID
 }
 
 // String returns the SAML IdP service provider string representation.
@@ -109,12 +99,12 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	// Only run SetEntityDescriptor if EntityID is empty. This will avoid
-	// unnecessary parses of the entity descriptor during listing.
+	if s.Spec.EntityDescriptor == "" {
+		return trace.BadParameter("entity descriptor is missing")
+	}
+
 	if s.Spec.EntityID == "" {
-		if err := s.SetEntityDescriptor(s.Spec.EntityDescriptor); err != nil {
-			return trace.Wrap(err)
-		}
+		return trace.BadParameter("entity ID is missing")
 	}
 
 	return nil
