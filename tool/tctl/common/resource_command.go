@@ -735,22 +735,18 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 	}
 
 	serviceProviderName := sp.GetName()
-	_, err = client.GetSAMLIdPServiceProvider(ctx, serviceProviderName)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	exists := (err == nil)
-
 	if err := sp.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if exists {
-		if err = client.UpdateSAMLIdPServiceProvider(ctx, sp); err != nil {
-			return trace.Wrap(err)
+	exists := false
+	if err = client.CreateSAMLIdPServiceProvider(ctx, sp); err != nil {
+		if trace.IsAlreadyExists(err) {
+			exists = true
+			err = client.UpdateSAMLIdPServiceProvider(ctx, sp)
 		}
-	} else {
-		if err = client.CreateSAMLIdPServiceProvider(ctx, sp); err != nil {
+
+		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1559,29 +1555,29 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		})
 		return &loginRuleCollection{[]*loginrulepb.LoginRule{rule}}, trail.FromGRPC(err)
 	case types.KindSAMLIdPServiceProvider:
-		if rc.ref.Name == "" {
-			var resources []types.SAMLIdPServiceProvider
-			nextKey := ""
-			for {
-				var sps []types.SAMLIdPServiceProvider
-				var err error
-				sps, nextKey, err = client.ListSAMLIdPServiceProviders(ctx, 200, nextKey)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				resources = append(resources, sps...)
-				if nextKey == "" {
-					break
-				}
+		if rc.ref.Name != "" {
+			serviceProvider, err := client.GetSAMLIdPServiceProvider(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
-			return &samlIDPServiceProviderCollection{serviceProviders: resources}, nil
+			return &samlIDPServiceProviderCollection{serviceProviders: []types.SAMLIdPServiceProvider{serviceProvider}}, nil
 		}
-		serviceProvider, err := client.GetSAMLIdPServiceProvider(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		var resources []types.SAMLIdPServiceProvider
+		nextKey := ""
+		for {
+			var sps []types.SAMLIdPServiceProvider
+			var err error
+			sps, nextKey, err = client.ListSAMLIdPServiceProviders(ctx, 0, nextKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources = append(resources, sps...)
+			if nextKey == "" {
+				break
+			}
 		}
-		return &samlIDPServiceProviderCollection{serviceProviders: []types.SAMLIdPServiceProvider{serviceProvider}}, nil
+		return &samlIDPServiceProviderCollection{serviceProviders: resources}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

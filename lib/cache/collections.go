@@ -2735,7 +2735,7 @@ func (s *samlIDPServiceProviders) fetch(ctx context.Context) (apply func(ctx con
 	for {
 		var samlProviders []types.SAMLIdPServiceProvider
 		var err error
-		samlProviders, nextKey, err = s.SAMLIdPServiceProviders.ListSAMLIdPServiceProviders(ctx, 200, nextKey)
+		samlProviders, nextKey, err = s.SAMLIdPServiceProviders.ListSAMLIdPServiceProviders(ctx, 0, nextKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2752,17 +2752,11 @@ func (s *samlIDPServiceProviders) fetch(ctx context.Context) (apply func(ctx con
 		}
 
 		for _, resource := range resources {
-			if _, err := s.samlIdpServiceProvidersCache.GetSAMLIdPServiceProvider(ctx, resource.GetName()); trace.IsNotFound(err) {
-				err = s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				return nil
-			} else if err != nil {
-				return trace.Wrap(err)
+			err = s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
+			if trace.IsAlreadyExists(err) {
+				err = trace.Wrap(s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource))
 			}
-			if err := s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource); err != nil {
+			if err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -2783,18 +2777,11 @@ func (s *samlIDPServiceProviders) processEvent(ctx context.Context, event types.
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		if _, err := s.samlIdpServiceProvidersCache.GetSAMLIdPServiceProvider(ctx, resource.GetName()); trace.IsNotFound(err) {
-			err = s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			return nil
-		} else if err != nil {
-			return trace.Wrap(err)
+		err := s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
+		if trace.IsAlreadyExists(err) {
+			err = s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource)
 		}
-		if err := s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource); err != nil {
-			return trace.Wrap(err)
-		}
+		return trace.Wrap(err)
 	default:
 		s.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
 	}
