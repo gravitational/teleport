@@ -45,7 +45,7 @@ func TestMarshalPluginRoundTrip(t *testing.T) {
 		},
 	}
 
-	plugin := types.NewPluginV1("foobar", spec, creds)
+	plugin := types.NewPluginV1(types.Metadata{Name: "foobar"}, spec, creds)
 
 	payload, err := MarshalPlugin(plugin)
 	require.NoError(t, err)

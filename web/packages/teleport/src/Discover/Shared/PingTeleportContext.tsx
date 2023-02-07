@@ -1,19 +1,33 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 
 import { useTeleport } from 'teleport';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
-import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
-import { useJoinTokenValue } from 'teleport/Discover/Shared/JoinTokenContext';
+import {
+  INTERNAL_RESOURCE_ID_LABEL_KEY,
+  JoinToken,
+} from 'teleport/services/joinToken';
 import { ResourceKind } from 'teleport/Discover/Shared/ResourceKind';
-
-import { useDiscover } from '../useDiscover';
 
 interface PingTeleportContextState<T> {
   active: boolean;
-  start: () => void;
+  start: (joinToken: JoinToken) => void;
   setAlternateSearchTerm: (resourceName: string) => void;
-  timeout: number;
-  timedOut: boolean;
   result: T | null;
 }
 
@@ -21,7 +35,6 @@ const pingTeleportContext =
   React.createContext<PingTeleportContextState<any>>(null);
 
 export function PingTeleportProvider<T>(props: {
-  timeout: number;
   interval?: number;
   children?: React.ReactNode;
   resourceKind: ResourceKind;
@@ -29,8 +42,6 @@ export function PingTeleportProvider<T>(props: {
   const ctx = useTeleport();
 
   const [active, setActive] = useState(false);
-  const [timeout, setPollTimeout] = useState<number>(null);
-  const { emitErrorEvent } = useDiscover();
 
   // alternateSearchTerm when set will be used as the search term
   // instead of the default search term which is the internal resource ID.
@@ -38,9 +49,9 @@ export function PingTeleportProvider<T>(props: {
   // that proxies a database that goes by this alternateSearchTerm (eg. resourceName).
   const [alternateSearchTerm, setAlternateSearchTerm] = useState('');
 
-  const joinToken = useJoinTokenValue();
+  const [joinToken, setJoinToken] = useState<JoinToken | null>(null);
 
-  const { timedOut, result } = usePoll<T>(
+  const result = usePoll<T>(
     signal =>
       servicesFetchFn(signal).then(res => {
         if (res.agents.length) {
@@ -49,7 +60,6 @@ export function PingTeleportProvider<T>(props: {
 
         return null;
       }),
-    timeout,
     active,
     props.interval
   );
@@ -77,28 +87,16 @@ export function PingTeleportProvider<T>(props: {
         return ctx.kubeService.fetchKubernetes(clusterId, request, signal);
       case ResourceKind.Database:
         return ctx.databaseService.fetchDatabases(clusterId, request, signal);
-      // TODO (when we start implementing them)
-      // the fetch XXX needs a param defined for abort signal
-      // case 'app':
     }
   }
 
-  useEffect(() => {
-    if (active && Date.now() > timeout) {
-      // This means the polling timed out.
-      emitErrorEvent('polling for resource discovery has timed out');
-      setActive(false);
-    }
-  }, [active, timeout, timedOut]);
-
-  const start = useCallback(() => {
-    setPollTimeout(Date.now() + props.timeout);
+  const start = useCallback((joinToken: JoinToken) => {
+    setJoinToken(joinToken);
     setActive(true);
-  }, [props.timeout]);
+  }, []);
 
   useEffect(() => {
     if (result) {
-      setPollTimeout(null);
       setActive(false);
     }
   }, [result]);
@@ -109,8 +107,6 @@ export function PingTeleportProvider<T>(props: {
         active,
         start,
         result,
-        timedOut,
-        timeout,
         setAlternateSearchTerm,
       }}
     >
@@ -119,12 +115,15 @@ export function PingTeleportProvider<T>(props: {
   );
 }
 
-export function usePingTeleport<T>(alternateSearchTerm?: string) {
+export function usePingTeleport<T>(
+  joinToken: JoinToken,
+  alternateSearchTerm?: string
+) {
   const ctx = useContext<PingTeleportContextState<T>>(pingTeleportContext);
 
   useEffect(() => {
     if (!ctx.active) {
-      ctx.start();
+      ctx.start(joinToken);
       ctx.setAlternateSearchTerm(alternateSearchTerm);
     }
   }, []);

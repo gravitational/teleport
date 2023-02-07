@@ -1,11 +1,11 @@
 /**
- * Copyright 2022 Gravitational, Inc.
+ * Copyright 2023 Gravitational, Inc
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,6 +14,20 @@
  * limitations under the License.
  */
 
-export { CommandWithTimer } from './CommandWithTimer';
+import { useEffect, useState } from 'react';
 
-export type { Poll } from './CommandWithTimer';
+const SHOW_HINT_TIMEOUT = 1000 * 60 * 5; // 5 minutes
+
+export function useShowHint(enabled: boolean) {
+  const [showHint, setShowHint] = useState(false);
+
+  useEffect(() => {
+    if (enabled) {
+      const id = window.setTimeout(() => setShowHint(true), SHOW_HINT_TIMEOUT);
+
+      return () => window.clearTimeout(id);
+    }
+  }, [enabled]);
+
+  return showHint;
+}

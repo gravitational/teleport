@@ -4,8 +4,8 @@ templates:
 tests:
   - it: creates a PodSecurityPolicy when enabled in values and supported
     capabilities:
-      apiVersions:
-        - policy/v1beta1
+      majorVersion: 1
+      minorVersion: 22
     set:
       podSecurityPolicy:
         enabled: true
@@ -25,8 +25,8 @@ tests:
 
   - it: sets PodSecurityPolicy labels when specified
     capabilities:
-      apiVersions:
-        - policy/v1beta1
+      majorVersion: 1
+      minorVersion: 22
     values:
       - ../.lint/extra-labels.yaml
     set:
@@ -44,6 +44,9 @@ tests:
       - matchSnapshot: {}
 
   - it: does not create a PodSecurityPolicy when enabled in values but not supported
+    capabilities:
+      majorVersion: 1
+      minorVersion: 25
     set:
       podSecurityPolicy:
         enabled: true
