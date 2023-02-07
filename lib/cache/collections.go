@@ -2732,7 +2732,7 @@ func (s *samlIDPServiceProviders) fetch(ctx context.Context) (apply func(ctx con
 		for _, resource := range resources {
 			err = s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
 			if trace.IsAlreadyExists(err) {
-				err = trace.Wrap(s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource))
+				err = s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource)
 			}
 			if err != nil {
 				return trace.Wrap(err)
