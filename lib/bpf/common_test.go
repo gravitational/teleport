@@ -17,7 +17,9 @@ limitations under the License.
 package bpf
 
 import (
+	"io"
 	"os"
+	osexec "os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -26,8 +28,26 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// reexecInCGroupCmd is a cmd argument used to re-exec the test binary.
+const reexecInCGroupCmd = "reexecCgroup"
+
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+
+	// Check if the re-exec was requested.
+	if len(os.Args) >= 3 && os.Args[1] == reexecInCGroupCmd {
+		// Get the command to run passed as the 3rd argument.
+		cmd := os.Args[2]
+
+		if err := waitAndRun(cmd); err != nil {
+			// Something went wrong, exit with error.
+			os.Exit(1)
+		}
+
+		// The rexec was handled and nothing bad happened.
+		os.Exit(0)
+	}
+
 	os.Exit(m.Run())
 }
 
@@ -78,4 +98,18 @@ func TestCheckAndSetDefaults(t *testing.T) {
 		require.Equal(t, *tt.outConfig.DiskBufferSize, *tt.inConfig.DiskBufferSize)
 		require.Equal(t, *tt.outConfig.NetworkBufferSize, *tt.inConfig.NetworkBufferSize)
 	}
+}
+
+// waitAndRun opens FD 3 and waits for at least one byte. After it runs the
+// passed command and waits until returns.
+func waitAndRun(cmd string) error {
+	waitFD := os.NewFile(3, "/proc/self/fd/3")
+	defer waitFD.Close()
+
+	buff := make([]byte, 1)
+	if _, err := waitFD.Read(buff); err != nil && err != io.EOF {
+		return err
+	}
+
+	return osexec.Command(cmd).Run()
 }
