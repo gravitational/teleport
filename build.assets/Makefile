@@ -370,9 +370,9 @@ enter/centos7: buildbox
 # Don't use this target directly; call named Makefile targets like release-amd64.
 #
 .PHONY:release
-release: buildbox
+release: buildbox-centos7
 	@echo "Build Assets Release"
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
+	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
 # These are aliases used to make build commands uniform.
@@ -382,7 +382,7 @@ release-amd64:
 
 .PHONY: release-amd64-fips
 release-amd64-fips:
-	$(MAKE) release-fips ARCH=amd64 FIPS=yes BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
+	$(MAKE) release-fips ARCH=amd64 FIPS=yes BUILDBOX_FIPS_NAME=$(BUILDBOX_CENTOS7_FIPS)
 
 .PHONY: release-386
 release-386:
@@ -399,14 +399,6 @@ release-amd64-centos7: buildbox-centos7
 .PHONY: release-amd64-centos7-fips
 release-amd64-centos7-fips: buildbox-centos7-fips
 	$(MAKE) release-centos7-fips ARCH=amd64 FIPS=yes
-
-# #############################################################################
-# Legacy Drone ARM build targets
-# #############################################################################
-
-.PHONY: release-arm64
-release-arm64: buildbox-arm
-	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
 
 # #############################################################################
 # GHA release build targets
