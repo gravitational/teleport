@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 )
 
-func TestTeletermRPCService(t *testing.T) {
+func TestTeleterm(t *testing.T) {
 	pack := dbhelpers.SetupDatabaseTest(t,
 		dbhelpers.WithListenerSetupDatabaseTest(helpers.SingleProxyPortSetup),
 		dbhelpers.WithLeafConfig(func(config *service.Config) {
@@ -60,15 +60,15 @@ func TestTeletermRPCService(t *testing.T) {
 		testAddingRootCluster(t, pack, creds)
 	})
 
-	t.Run("list root clusters returning logged in user", func(t *testing.T) {
+	t.Run("ListRootClusters returns logged in user", func(t *testing.T) {
 		t.Parallel()
 
-		testIfListRootClustersReturnsLoggedInUser(t, pack, creds)
+		testListRootClustersReturnsLoggedInUser(t, pack, creds)
 	})
-	t.Run("get cluster returns properties from auth server", func(t *testing.T) {
+	t.Run("GetCluster returns properties from auth server", func(t *testing.T) {
 		t.Parallel()
 
-		testIfGetClusterReturnsPropertiesFromAuthServer(t, pack)
+		testGetClusterReturnsPropertiesFromAuthServer(t, pack)
 	})
 }
 
@@ -100,7 +100,7 @@ func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *he
 	require.ElementsMatch(t, clusterURIs, []uri.ResourceURI{addedCluster.URI})
 }
 
-func testIfListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
+func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
 	tc, err := simulateLogin(pack.Root.User.GetName(), pack, creds)
 	require.NoError(t, err)
 	// The profile on disk created by NewClientWithCreds doesn't have WebProxyAddr set.
@@ -135,7 +135,7 @@ func testIfListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.Dat
 	require.Equal(t, pack.Root.User.GetName(), response.Clusters[0].LoggedInUser.Name)
 }
 
-func testIfGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers.DatabasePack) {
+func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers.DatabasePack) {
 	authServer := pack.Root.Cluster.Process.GetAuthServer()
 
 	// Use random names to not collide with other tests.
