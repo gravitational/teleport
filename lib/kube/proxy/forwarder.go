@@ -842,8 +842,9 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	if err := f.setupForwardingHeaders(sess, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if sess.noAuditEvents {
+	// TODO: tigrato: This is a temporary fix to prevent the session from not
+	// being redirected to the correct cluster.
+	if sess.noAuditEvents || sess.teleportCluster.isRemote {
 		return f.remoteJoin(ctx, w, req, p, sess)
 	}
 
