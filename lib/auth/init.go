@@ -131,6 +131,9 @@ type InitConfig struct {
 	// Databases is a service that manages database resources.
 	Databases services.Databases
 
+	// DatabaseServices is a service that manages DatabaseService resources.
+	DatabaseServices services.DatabaseServices
+
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
 
@@ -588,7 +591,7 @@ func createPresets(ctx context.Context, rm PresetRoleManager) error {
 				return trace.Wrap(err)
 			}
 
-			role, err := services.AddDefaultAllowRules(currentRole)
+			role, err := services.AddDefaultAllowConditions(currentRole)
 			if trace.IsAlreadyExists(err) {
 				continue
 			}
