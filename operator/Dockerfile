@@ -18,6 +18,7 @@ RUN go mod download
 
 COPY *.go ./
 COPY lib/ lib/
+COPY gen/ gen/
 COPY operator/apis/ operator/apis/
 COPY operator/controllers/ operator/controllers/
 COPY operator/sidecar/ operator/sidecar/

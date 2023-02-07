@@ -18,19 +18,23 @@ This guide will help you to:
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+<Notice type="warning">
+
+Teleport Database Access for PostgreSQL is available starting from the `6.0`
+release.
+
+</Notice>
+
 - A self-hosted PostgreSQL instance.
 - Command-line client `psql` installed and added to your system's `PATH` environment variable.
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
   Service.
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
-## Step 1/5. Set up the Teleport Auth and Proxy services
-
-Teleport Database Access for PostgreSQL is available starting from the `6.0`
-release.
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
+## Step 1/5. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 

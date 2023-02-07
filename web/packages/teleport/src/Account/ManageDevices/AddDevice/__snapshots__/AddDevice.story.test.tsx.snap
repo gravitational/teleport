@@ -137,6 +137,10 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   cursor: not-allowed;
 }
 
+.c17:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
 .c12 {
   color: #FFFFFF;
   display: block;
@@ -724,6 +728,10 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 
 .c18:read-only {
   cursor: not-allowed;
+}
+
+.c18:disabled {
+  color: rgba(0,0,0,0.5);
 }
 
 .c13 {
@@ -1320,6 +1328,10 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 
 .c19:read-only {
   cursor: not-allowed;
+}
+
+.c19:disabled {
+  color: rgba(0,0,0,0.5);
 }
 
 .c15 {

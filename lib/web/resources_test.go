@@ -56,6 +56,7 @@ metadata:
 }
 
 func TestCheckResourceUpsert(t *testing.T) {
+	ctx := context.Background()
 	tests := []struct {
 		desc                string
 		httpMethod          string
@@ -146,7 +147,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
-			err := CheckResourceUpsert(context.TODO(), tc.httpMethod, tc.httpParams, tc.payloadResourceName, tc.get)
+			err := CheckResourceUpsert(ctx, tc.httpMethod, tc.httpParams, tc.payloadResourceName, tc.get)
 			tc.assertErr(t, err)
 		})
 	}

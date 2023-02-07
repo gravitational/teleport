@@ -133,6 +133,7 @@ func TestReadWriteStatus(t *testing.T) {
 }
 
 func TestMakeUnknownCommandErrorForCmd(t *testing.T) {
+	ctx := context.Background()
 	tests := []struct {
 		name          string
 		command       []interface{}
@@ -162,7 +163,7 @@ func TestMakeUnknownCommandErrorForCmd(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := redis.NewCmd(context.TODO(), test.command...)
+			cmd := redis.NewCmd(ctx, test.command...)
 			actualError := MakeUnknownCommandErrorForCmd(cmd)
 			require.Equal(t, test.expectedError, actualError)
 		})
