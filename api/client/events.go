@@ -171,6 +171,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_DatabaseService{
 			DatabaseService: r,
 		}
+	case *types.SAMLIdPServiceProviderV1:
+		out.Resource = &proto.Event_SAMLIdPServiceProvider{
+			SAMLIdPServiceProvider: r,
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -300,6 +304,9 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetDatabaseService(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetSAMLIdPServiceProvider(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else {

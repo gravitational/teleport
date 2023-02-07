@@ -233,9 +233,11 @@ func MakeAWSRequestMetadata(req *http.Request, awsEndpoint *endpoints.ResolvedEn
 	if awsEndpoint == nil {
 		return &apievents.AWSRequestMetadata{}
 	}
+
 	return &apievents.AWSRequestMetadata{
-		AWSRegion:  awsEndpoint.SigningRegion,
-		AWSService: awsEndpoint.SigningName,
-		AWSHost:    req.URL.Host,
+		AWSRegion:      awsEndpoint.SigningRegion,
+		AWSService:     awsEndpoint.SigningName,
+		AWSHost:        req.URL.Host,
+		AWSAssumedRole: GetAWSAssumedRole(req),
 	}
 }

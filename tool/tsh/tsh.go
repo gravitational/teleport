@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -775,7 +776,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// scp
 	scp := app.Command("scp", "Transfer files to a remote Node")
 	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
+	scp.Arg("from, to", "Source and destination to copy, one must be a local path and one must be a remote path").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
 	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int32Var(&cf.NodePort)
 	scp.Flag("preserve", "Preserves access and modification times from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
@@ -1735,10 +1736,16 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// Show on-login alerts, all high severity alerts are shown by onStatus
-	// so can be excluded here.
+	// so can be excluded here, except when Hardware Key Touch is required
+	// which skips on-status alerts.
+	alertSeverityMax := types.AlertSeverity_MEDIUM
+	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
+		alertSeverityMax = types.AlertSeverity_HIGH
+	}
+
 	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
-	}, types.AlertSeverity_LOW, types.AlertSeverity_MEDIUM); err != nil {
+	}, types.AlertSeverity_LOW, alertSeverityMax); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
@@ -3092,8 +3099,9 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 	// load profile. if no --proxy is given the currently active profile is used, otherwise
 	// fetch profile for exact proxy we are trying to connect to.
-	if err = c.LoadProfile(c.ClientStore, proxy); err != nil && !trace.IsNotFound(err) {
-		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, err)
+	profileErr := c.LoadProfile(c.ClientStore, proxy)
+	if profileErr != nil && !trace.IsNotFound(profileErr) {
+		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, profileErr)
 	}
 
 	// 3: override with the CLI flags
@@ -3236,6 +3244,10 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.KeysDir = c.HomePath
 	}
 
+	if cf.IdentityFileIn != "" {
+		c.SkipLocalAuth = true
+	}
+
 	tc, err := client.NewClient(c)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3246,25 +3258,27 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// be found, or the key isn't supported as an agent key.
 	if profileSiteName != "" {
 		if err := tc.LoadKeyForCluster(profileSiteName); err != nil {
-			if !trace.IsNotFound(err) {
+			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
 				return nil, trace.Wrap(err)
 			}
 			log.WithError(err).Infof("Could not load key for %s into the local agent.", profileSiteName)
 		}
 	}
 
-	// If we are using an idenitity file which uses a  placeholder profile, ping the webproxy
-	// for profile info and load it into the client.
-	if cf.IdentityFileIn != "" {
+	// If we are missing client profile information, ping the webproxy
+	// for proxy info and load it into the client config.
+	if profileErr != nil || cf.IdentityFileIn != "" {
 		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
-
 		_, err := tc.Ping(cf.Context)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if err := tc.SaveProfile(true); err != nil {
-			return nil, trace.Wrap(err)
+		// Identityfile uses a placeholder profile. Save missing profile info.
+		if cf.IdentityFileIn != "" {
+			if err := tc.SaveProfile(true); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 
@@ -3588,9 +3602,13 @@ func onStatus(cf *CLIConf) error {
 		return nil
 	}
 
-	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
-		types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
-		log.WithError(err).Warn("Failed to display cluster alerts.")
+	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
+		log.Debug("Skipping cluster alerts due to Hardware Key Touch requirement.")
+	} else {
+		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
+			types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+			log.WithError(err).Warn("Failed to display cluster alerts.")
+		}
 	}
 
 	return nil
@@ -4302,7 +4320,6 @@ func withWarnOnDeprecatedSNI(printed *bool) updateKubeConfigOnLoginOpt {
 	return func(opt *updateKubeConfigOpt) {
 		opt.warnOnDeprecatedSNI = true
 		opt.warnSNIPrinted = printed
-
 	}
 }
 
