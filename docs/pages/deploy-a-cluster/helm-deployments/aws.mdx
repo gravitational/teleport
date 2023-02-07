@@ -124,7 +124,7 @@ communications and allow external clients to connect.
 There are three supported options when using AWS. You must choose only one of
 these options:
 
-#### Using `cert-manager` 
+#### Using `cert-manager`
 
 You can use `cert-manager` to provision and automatically renew TLS credentials
 by completing ACME challenges via Let's Encrypt. We recommend this approach if
@@ -147,7 +147,7 @@ provision TLS credentials for Teleport:
 - Using ACM through a AWS Load Balancer prevents the required traffic for
   Postgres or MongoDB through Teleport's web port. If you choose to use the ACM
   approach, we will show you how to configure a separate listener for Postgres
-  or MongoDB. 
+  or MongoDB.
 
 <Notice type="warning">
 
@@ -262,13 +262,14 @@ After you have created the `Issuer` and updated the values, add it to your clust
 
 ```code
 $ kubectl create namespace teleport
+$ kubectl label namespace teleport 'pod-security.kubernetes.io/enforce=baseline'
 $ kubectl --namespace teleport create -f aws-issuer.yaml
 ```
 
 </TabItem>
 <TabItem label="AWS Certificate Manager">
 In this step, you will configure Teleport to use AWS Certificate Manager (ACM)
-to provision your Teleport instances with TLS credentials. 
+to provision your Teleport instances with TLS credentials.
 
 To use ACM to handle TLS, add annotations to the chart specifying the ACM
 certificate ARN to use and the port it should be served on.
@@ -298,7 +299,7 @@ internet-facing NLB), you should add two annotations:
 
 If you plan to use Postgres or MongoDB with Teleport, add the following options,
 depending on whether you are running PostgreSQL or MongoDB, to your values file:
-  
+
   ```yaml
   separatePostgresListener: true
   separateMongoListener: true
@@ -351,6 +352,8 @@ a file called `aws-values.yaml` and write the values you've chosen above to it:
 
 <ScopedBlock scope={["oss", "cloud"]}>
 
+<Tabs>
+<TabItem label="cert-manager">
 ```yaml
 chartMode: aws
 clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below.
@@ -367,11 +370,43 @@ highAvailability:
   certManager:
     enabled: true                                 # Enable cert-manager support to get TLS certificates
     issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
+# If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
+podSecurityPolicy:
+  enabled: false
 ```
+</TabItem>
+<TabItem label="AWS Certificate Manager">
+```yaml
+chartMode: aws
+clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below.
+aws:
+  region: us-west-2                               # AWS region
+  backendTable: teleport-helm-backend             # DynamoDB table to use for the Teleport backend
+  auditLogTable: teleport-helm-events             # DynamoDB table to use for the Teleport audit log (must be different to the backend table)
+  auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
+  sessionRecordingBucket: teleport-helm-sessions  # S3 bucket to use for Teleport session recordings
+  backups: true                                   # Whether or not to turn on DynamoDB backups
+  dynamoAutoScaling: false                        # Whether Teleport should configure DynamoDB's autoscaling.
+highAvailability:
+  replicaCount: 2                                 # Number of replicas to configure
+annotations:
+  service:
+    # Replace with your AWS certificate ARN
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: ssl
+# If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
+podSecurityPolicy:
+  enabled: false
+```
+</TabItem>
+</Tabs>
 
 </ScopedBlock>
 <ScopedBlock scope={["enterprise"]}>
 
+<Tabs>
+<TabItem label="cert-manager">
 ```yaml
 chartMode: aws
 clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below.
@@ -389,7 +424,38 @@ highAvailability:
     enabled: true                                 # Enable cert-manager support to get TLS certificates
     issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
 enterprise: true                                  # Indicate that this is a Teleport Enterprise deployment
+# If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
+podSecurityPolicy:
+  enabled: false
 ```
+</TabItem>
+<TabItem label="AWS Certificate Manager">
+```yaml
+chartMode: aws
+clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below.
+aws:
+  region: us-west-2                               # AWS region
+  backendTable: teleport-helm-backend             # DynamoDB table to use for the Teleport backend
+  auditLogTable: teleport-helm-events             # DynamoDB table to use for the Teleport audit log (must be different to the backend table)
+  auditLogMirrorOnStdout: false                   # Whether to mirror audit log entries to stdout in JSON format (useful for external log collectors)
+  sessionRecordingBucket: teleport-helm-sessions  # S3 bucket to use for Teleport session recordings
+  backups: true                                   # Whether or not to turn on DynamoDB backups
+  dynamoAutoScaling: false                        # Whether Teleport should configure DynamoDB's autoscaling.
+highAvailability:
+  replicaCount: 2                                 # Number of replicas to configure
+enterprise: true                                  # Indicate that this is a Teleport Enterprise deployment
+annotations:
+  service:
+    # Replace with your AWS certificate ARN
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: ssl
+# If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
+podSecurityPolicy:
+  enabled: false
+```
+</TabItem>
+</Tabs>
 
 </ScopedBlock>
 

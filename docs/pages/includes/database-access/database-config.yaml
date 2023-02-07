@@ -9,6 +9,7 @@ db_service:
   # one of the following values:
   # "dynamic": database resources created with "tctl create" command
   # "cloud": database resources created by the discovery service
+  # "config": database resources defined in the "databases" array below
   resources:
   - labels:
       "*": "*"

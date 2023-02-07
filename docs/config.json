@@ -168,13 +168,13 @@
               "forScopes": ["oss", "enterprise"]
             },
             {
-              "title": "Migrating From Older Charts",
-              "slug": "/deploy-a-cluster/helm-deployments/migration/",
+              "title": "Migrating from v11 to v12",
+              "slug": "/deploy-a-cluster/helm-deployments/migration-v12/",
               "forScopes": ["oss", "enterprise"]
             },
             {
-              "title": "Migrating from v11 to v12",
-              "slug": "/deploy-a-cluster/helm-deployments/migration-v12/",
+              "title": "Kubernetes 1.25 and PSP removal",
+              "slug": "/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/",
               "forScopes": ["oss", "enterprise"]
             }
           ]
@@ -750,32 +750,6 @@
           "slug": "/kubernetes-access/getting-started/"
         },
         {
-          "title": "Guides",
-          "slug": "/kubernetes-access/guides/",
-          "entries": [
-            {
-              "title": "Multiple Clusters",
-              "slug": "/kubernetes-access/guides/multiple-clusters/"
-            },
-            {
-              "title": "Federation",
-              "slug": "/kubernetes-access/guides/federation/"
-            },
-            {
-              "title": "Standalone",
-              "slug": "/kubernetes-access/guides/standalone-teleport/"
-            },
-            {
-              "title": "Dynamic Registration",
-              "slug": "/kubernetes-access/guides/dynamic-registration/"
-            }
-          ]
-        },
-        {
-          "title": "Access Controls",
-          "slug": "/kubernetes-access/controls/"
-        },
-        {
           "title": "Kubernetes Discovery (Preview)",
           "slug": "/kubernetes-access/discovery/",
           "entries": [
@@ -792,6 +766,42 @@
               "slug": "/kubernetes-access/discovery/google-cloud/"
             }
           ]
+        },
+        {
+          "title": "Manual Cluster Registration",
+          "slug": "/kubernetes-access/register-clusters/",
+          "entries": [
+            {
+              "title": "Register a Cluster by Deploying Teleport",
+              "slug": "/kubernetes-access/register-clusters/register-via-deployment/"
+            },
+            {
+              "title": "Register a Cluster with Static kubeconfigs",
+              "slug": "/kubernetes-access/register-clusters/static-kubeconfig/"
+            },
+            {
+              "title": "Register Clusters Dynamically",
+              "slug": "/kubernetes-access/register-clusters/dynamic-registration/"
+            }
+          ]
+        },
+        {
+          "title": "Configuring Access",
+          "slug": "/kubernetes-access/manage-access/",
+          "entries": [
+            {
+              "title": "Setting up Role-Based Access Controls",
+              "slug": "/kubernetes-access/manage-access/rbac/"
+            },
+            {
+              "title": "Federation",
+              "slug": "/kubernetes-access/manage-access/federation/"
+            }
+          ]
+        },
+        {
+          "title": "Access Controls Reference",
+          "slug": "/kubernetes-access/controls/"
         }
       ]
     },
@@ -962,8 +972,12 @@
           "slug": "/desktop-access/getting-started/"
         },
         {
-          "title": "Manual Setup",
-          "slug": "/desktop-access/manual-setup/"
+          "title": "Active Directory",
+          "slug": "/desktop-access/active-directory/"
+        },
+        {
+          "title": "Active Directory (Manual)",
+          "slug": "/desktop-access/active-directory-manual/"
         },
         {
           "title": "Access Controls",
@@ -1569,7 +1583,7 @@
     },
     {
       "source": "/cluster/",
-      "destination": "/kubernetes-access/guides/multiple-clusters/",
+      "destination": "/kubernetes-access/register-clusters/register-via-deployment/",
       "permanent": true
     },
     {
@@ -1624,7 +1638,7 @@
     },
     {
       "source": "/kubernetes-access/helm/guides/migration/",
-      "destination": "/deploy-a-cluster/helm-deployments/migration/",
+      "destination": "/deploy-a-cluster/helm-deployments/migration-v12/",
       "permanent": true
     },
     {
@@ -1829,7 +1843,7 @@
     },
     {
       "source": "/setup/helm-deployments/migration/",
-      "destination": "/deploy-a-cluster/helm-deployments/migration/",
+      "destination": "/deploy-a-cluster/helm-deployments/migration-v12/",
       "permanent": true
     },
     {
@@ -2195,6 +2209,31 @@
     {
       "source": "/database-access/guides/dynamodb/",
       "destination": "/application-access/guides/dynamodb/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/federation/",
+      "destination": "/kubernetes-access/manage-access/federation/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/dynamic-registration/",
+      "destination": "/kubernetes-access/register-clusters/dynamic-registration/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/multiple-clusters/",
+      "destination": "/kubernetes-access/register-clusters/register-via-deployment/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/standalone-teleport/",
+      "destination": "/kubernetes-access/register-clusters/static-kubeconfig/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/",
+      "destination": "/kubernetes-access/introduction/",
       "permanent": true
     }
   ]

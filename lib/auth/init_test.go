@@ -1190,10 +1190,11 @@ func TestMigrateDatabaseCA(t *testing.T) {
 }
 
 func TestRotateDuplicatedCerts(t *testing.T) {
+	ctx := context.Background()
 	conf := setupConfig(t)
 
 	// suite.NewTestCA() uses the same SSH key for all created keys, which in this scenario triggers extra CA rotation.
-	keygen := keygen.New(context.TODO())
+	keygen := keygen.New(ctx)
 	privHost, _, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	privUser, _, err := keygen.GenerateKeyPair()
@@ -1219,7 +1220,6 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
 	}
 
-	ctx := context.Background()
 	// Rotate CAs.
 	for _, phase := range rotationPhases {
 		err = auth.RotateCertAuthority(ctx, RotateRequest{

@@ -44,6 +44,10 @@ exports[`snapshot tests 1`] = `
   cursor: not-allowed;
 }
 
+.c3:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
 .c1 {
   color: #ff1744;
   display: block;
