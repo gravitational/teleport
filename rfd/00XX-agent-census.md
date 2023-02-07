@@ -13,7 +13,7 @@ state: draft
 ## What
 
 This RFD details how we'll track more information about agents (aka Agent Census) and how this data is expected to be used in PostHog.
-A brief description of this task was described in [Cloud's RFD 53](https://github.com/gravitational/cloud/blob/master/rfd/0053-prehog.md).
+A brief description of this task was described in [Cloud's RFD 53](https://github.com/gravitational/cloud/tree/54559795b45b2e8515ea7e159d26cadfbb52482f/rfd/0053-prehog.md).
 
 <!--
 ### Goals
@@ -54,10 +54,9 @@ We want to start tracking the following data in PreHog:
 4. OS version (e.g. Linux distribution)
 5. Host architecture (e.g. `amd64`)
 6. `glibc` version
-7. [Installation method](https://goteleport.com/docs/installation/) (tarball, `.deb`/`.rpm`/`.pkg` packages, APT or YUM repository)
-8. Container runtime (e.g. Docker)
-9. Container orchestrator (e.g. Kubernetes)
-10. Cloud environment (e.g. AWS, GCP, Azure)
+7. [Install method](https://goteleport.com/docs/installation/) (Dockerfile, Helm, `install-node.sh`, `*-ad*.ps1`, tarball, `.deb`/`.rpm`/`.pkg` packages, APT or YUM repository)
+8. Container orchestrator (e.g. Kubernetes)
+9. Cloud environment (e.g. AWS, GCP, Azure)
 
 #### Data collection
 
@@ -84,10 +83,9 @@ message UpstreamInventoryHello {
   string OSVersion = 6;
   string HostArchitecture = 7;
   string GLibCVersion = 8;
-  string InstallationMethod = 9;
-  string ContainerRuntime = 10;
-  string ContainerOrchestrator = 11;
-  string CloudEnvironment = 12;
+  string InstallMethod = 9;
+  string ContainerOrchestrator = 10;
+  string CloudEnvironment = 11;
 }
 ```
 
@@ -103,10 +101,9 @@ message AgentMetadataEvent {
   string os_version = 5;
   string host_architecture = 6;
   string glibc_version = 7;
-  string installation_method = 8;
-  string container_runtime = 9;
-  string container_orchestrator = 10;
-  string cloud_environment = 11;
+  string install_method = 8;
+  string container_orchestrator = 9;
+  string cloud_environment = 10;
 }
 
 enum TeleportAccessProtocol {
@@ -150,27 +147,26 @@ However, `gopsutil` is using [`golang.org/x/sys/unix.Uname`](https://pkg.go.dev/
 
 - `linux`: `ldd --version | head -n1 | awk '{ print $NF }'` (e.g. "2.35")
 
-##### 7. Installation method
+##### 7. Install method
 
-TODO
+Different installation methods will be tracked with a new `TELEPORT_INSTALL_METHOD` environment variable:
+- [Dockerfile](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/charts/Dockerfile): `ENV TELEPORT_INSTALL_METHOD=Dockerfile` will be added to the Dockerfile.
+- [`teleport-kube-agent`](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent) Helm chart: `TELEPORT_INSTALL_METHOD` will be set to `"teleport-kube-agent"` in the [deployment spec](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/chart/teleport-kube-agent/templates/deployment.yaml#L129).
+- [`install-node.sh`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/node-join/install.sh): `export TELEPORT_INSTALL_METHOD="install-node.sh"` will be added to this script. It is the recommended way to install SSH nodes, apps and many databases. Even though `export` doesn't persist across restarts, we can have the agent persist such value (and maybe all of the values sent in `UpstreamInventoryHello`) when it first starts.
+- [`*-ad*.ps1`](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/desktop):  `setx TELEPORT_INSTALL_METHOD=ps1` will be added to one of these scripts. They are the recommended way to configure windows desktops.
+- `teleport configure`:
+  - TODO: tarball, `.deb`/`.rpm`/`.pkg` packages, APT or YUM repository
+  - TODO: can it conflict with `install-node.sh`
 
 The following installation methods won't be tracked:
 - _built from source_: While it's technically possible for customers to build Teleport from source, we won't try to track this installation method as it seems an unlikely use-case.
 - `homebrew`: It's also possible to install Teleport on macOS using `homebrew`. The Teleport package in `homebrew` is not maintained by us, so we will also not track this installation method.
 
-##### 8. Container runtime
-
-To determine if the agent is running on Docker, we can first check if the file `/proc/self/cgroup` exists, and if so, if it contains the string "docker".
-
-This is how `gopsutil` is doing it ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/internal/common/common_linux.go#L130-L278)).
-As it can be seen in the link, `gopsutil` is also detecting other container runtimes.
-So if we're interested in tracking other container runtimes, we could follow their approach.
-
-##### 9. Container orchestrator
+##### 8. Container orchestrator
 
 To determine if the agent is running on a Kubernetes pod, we can check if the `KUBERNETES_SERVICE_HOST` environment variable is set or if the `/var/run/secrets/kubernetes.io/serviceaccount` directory exists ([docs](https://kubernetes.io/docs/tasks/run-application/access-api-from-pod/#directly-accessing-the-rest-api)).
 
-##### 10. Cloud environment
+##### 9. Cloud environment
 
 The only way to determine this seems to be by hitting certain HTTP endpoints specific to each cloud environment:
 - AWS ([docs](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html)): http://169.254.169.254/latest/
@@ -192,11 +188,11 @@ We could decide to do step 4 together with step 2 if we don't want to risk addin
 However, step 4 requires several changes (Go code & files used by the multiple installation methods) which we may want to review separately.
 A similar reasoning also applies to step 1 since each field in `AgentMetadataEvent` should only exist if it also exists in `UpstreamInventoryHello`.
 
-<!--
 ### Security
 
-TODO
+Besides the tracking of which cloud environment the agent is running on, there doesn't seem to be any further concern.
 
+<!--
 ### UX
 
 TODO
@@ -204,5 +200,8 @@ TODO
 
 ### Open questions
 
+- Should we [Teleport AMIs](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/aws/terraform/AMIS.md) an installation method?
+- Which [\*-ad*.ps1](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/desktop) script should be changed? Are these scripts going away with non-AD desktop access?
+  - Does `setx` take effect right away or requires some sort of restart?
 - Which container runtimes are we interested in tracking?
 - Do we want to track cloud environments? If so, which?
