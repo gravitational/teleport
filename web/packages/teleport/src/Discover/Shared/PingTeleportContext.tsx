@@ -26,7 +26,7 @@ import { ResourceKind } from 'teleport/Discover/Shared/ResourceKind';
 
 interface PingTeleportContextState<T> {
   active: boolean;
-  start: (joinToken: JoinToken, alternateSearchTerm?: string) => void;
+  start: (tokenOrTerm: JoinToken | string) => void;
   result: T | null;
 }
 
@@ -41,18 +41,18 @@ export function PingTeleportProvider<T>(props: {
   const ctx = useTeleport();
 
   // Start in an inactive state so that polling doesn't begin
-  // until a call to usePingTeleport passes in the joinToken and optional
-  // alternateSearchTerm.
+  // until a call to usePingTeleport passes in the joinToken or
+  // searchTerm.
   const [active, setActive] = useState(false);
 
-  // alternateSearchTerm, when set, will be used as the search term
-  // instead of the default search term which is the internal resource ID.
-  // Only applies to certain resource's eg: looking up database server
-  // that proxies a database that goes by this alternateSearchTerm (eg. resourceName).
-  const [alternateSearchTerm, setAlternateSearchTerm] = useState('');
+  // searchTerm can be passed in by the caller of usePingTeleport
+  // to be used as the search term.
+  // Applies to certain resource's eg: looking up database server
+  // that proxies a database that goes by this searchTerm (eg. resourceName).
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // joinToken is passed in by the caller of usePingTeleport, which is necessary so
-  // that useJoinTokenSuspender can be called and used with <Suspense>.
+  // joinToken can be passed in by the caller of usePingTeleport to have its
+  // internalResourceId used as the search term.
   const [joinToken, setJoinToken] = useState<JoinToken | null>(null);
 
   const result = usePoll<T>(
@@ -70,9 +70,11 @@ export function PingTeleportProvider<T>(props: {
 
   function servicesFetchFn(signal: AbortSignal) {
     const clusterId = ctx.storeUser.getClusterId();
-    let search = `${INTERNAL_RESOURCE_ID_LABEL_KEY} ${joinToken.internalResourceId}`;
-    if (alternateSearchTerm) {
-      search = alternateSearchTerm;
+    let search: string;
+    if (searchTerm) {
+      search = searchTerm;
+    } else {
+      search = `${INTERNAL_RESOURCE_ID_LABEL_KEY} ${joinToken.internalResourceId}`;
     }
     const request = {
       search,
@@ -96,16 +98,15 @@ export function PingTeleportProvider<T>(props: {
 
   // start is called by usePingTeleport. It begins polling if polling is not
   // yet active AND we haven't yet found a result.
-  const start = useCallback(
-    (joinToken: JoinToken, alternateSearchTerm?: string) => {
-      if (!active && !result) {
-        setJoinToken(joinToken);
-        setAlternateSearchTerm(alternateSearchTerm);
-        setActive(true);
-      }
-    },
-    [active, result]
-  );
+  // start updates state to start polling.
+  const start = useCallback((tokenOrTerm: JoinToken | string) => {
+    if (typeof tokenOrTerm === 'string') {
+      setSearchTerm(searchTerm);
+    } else {
+      setJoinToken(tokenOrTerm);
+    }
+    setActive(true);
+  }, []);
 
   useEffect(() => {
     if (result) {
@@ -129,14 +130,19 @@ export function PingTeleportProvider<T>(props: {
   );
 }
 
-export function usePingTeleport<T>(
-  joinToken: JoinToken,
-  alternateSearchTerm?: string
-) {
+/**
+ * usePingTeleport, when first called within a component hierarchy wrapped by
+ * PingTeleportProvider, will poll the server for the resource described by
+ * the internal resource id on the joinToken or the search term.
+ */
+export function usePingTeleport<T>(tokenOrTerm: JoinToken | string) {
   const ctx = useContext<PingTeleportContextState<T>>(pingTeleportContext);
 
   useEffect(() => {
-    ctx.start(joinToken, alternateSearchTerm);
+    // start polling only on the first call to usePingTeleport
+    if (!ctx.active && !ctx.result) {
+      ctx.start(tokenOrTerm);
+    }
   }, []);
 
   return ctx;
