@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -90,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
 	"github.com/gravitational/teleport/lib/jwt"
+	kubegprc "github.com/gravitational/teleport/lib/kube/grpc"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -3988,16 +3990,21 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	var (
-		grpcServerInsecure *grpc.Server
-		grpcServerSecure   *grpc.Server
+		grpcServerPublic *grpc.Server
+		grpcServerMTLS   *grpc.Server
 	)
 	if alpnRouter != nil {
-		grpcServerInsecure = process.initInsecureGRPCServer(proxyLimiter, conn, listeners.grpcPublic)
+		grpcServerPublic = process.initPublicGRPCServer(proxyLimiter, conn, listeners.grpcPublic)
 
-		grpcServerSecure, err = process.initSecureGRPCServer(
-			proxyLimiter,
-			conn,
-			listeners.grpcMTLS,
+		grpcServerMTLS, err = process.initSecureGRPCServer(
+			initSecureGRPCServerCfg{
+				limiter:     proxyLimiter,
+				conn:        conn,
+				listener:    listeners.grpcMTLS,
+				accessPoint: accessPoint,
+				lockWatcher: lockWatcher,
+				emitter:     asyncEmitter,
+			},
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -4079,11 +4086,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if kubeServer != nil {
 				warnOnErr(kubeServer.Close(), log)
 			}
-			if grpcServerInsecure != nil {
-				grpcServerInsecure.Stop()
+			if grpcServerPublic != nil {
+				grpcServerPublic.Stop()
 			}
-			if grpcServerSecure != nil {
-				grpcServerSecure.Stop()
+			if grpcServerMTLS != nil {
+				grpcServerMTLS.Stop()
 			}
 			if alpnServer != nil {
 				warnOnErr(alpnServer.Close(), log)
@@ -4114,11 +4121,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if kubeServer != nil {
 				warnOnErr(kubeServer.Shutdown(ctx), log)
 			}
-			if grpcServerInsecure != nil {
-				grpcServerInsecure.GracefulStop()
+			if grpcServerPublic != nil {
+				grpcServerPublic.GracefulStop()
 			}
-			if grpcServerSecure != nil {
-				grpcServerSecure.GracefulStop()
+			if grpcServerMTLS != nil {
+				grpcServerMTLS.GracefulStop()
 			}
 			if alpnServer != nil {
 				warnOnErr(alpnServer.Close(), log)
@@ -4358,15 +4365,15 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 		})
 		listeners.web = webWrapper
 	}
-	// grpcInsecureListener is a listener that does not enforce mTLS authentication.
+	// grpcPublicListener is a listener that does not enforce mTLS authentication.
 	// It must not be used for any services that require authentication and currently
 	// it is only used by the join service which nodes rely on to join the cluster.
-	grpcInsecureListener := alpnproxy.NewMuxListenerWrapper(nil /* serviceListener */, listeners.web)
+	grpcPublicListener := alpnproxy.NewMuxListenerWrapper(nil /* serviceListener */, listeners.web)
 	router.Add(alpnproxy.HandlerDecs{
 		MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolProxyGRPCInsecure),
-		Handler:   grpcInsecureListener.HandleConnection,
+		Handler:   grpcPublicListener.HandleConnection,
 	})
-	listeners.grpcPublic = grpcInsecureListener
+	listeners.grpcPublic = grpcPublicListener
 
 	// grpcSecureListener is a listener that is used by a gRPC server that enforces
 	// mTLS authentication. It must be used for any gRPC services that require authentication.
@@ -5072,7 +5079,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *Config, kubeBackend kubernet
 				}
 				cfg.HostUUID = rawID.String()
 			case types.JoinMethodEC2:
-				cfg.HostUUID, err = utils.GetEC2NodeID()
+				cfg.HostUUID, err = utils.GetEC2NodeID(ctx)
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -5171,10 +5178,10 @@ func writeHostIDToKubeSecret(ctx context.Context, kubeBackend kubernetesBackend,
 	return trace.Wrap(err)
 }
 
-// initInsecureGRPCServer creates and registers a gRPC server that does not use mTLS for
-// authentication. This is used for the join service, which is used by nodes
-// to receive a signed certificate from the auth server.
-func (process *TeleportProcess) initInsecureGRPCServer(
+// initPublicGRPCServer creates and registers a gRPC server that does not use client
+// certificates for authentication. This is used by the join service, which nodes
+// use to receive a signed certificate from the auth server.
+func (process *TeleportProcess) initPublicGRPCServer(
 	limiter *limiter.Limiter,
 	conn *Connector,
 	listener net.Listener,
@@ -5208,7 +5215,7 @@ func (process *TeleportProcess) initInsecureGRPCServer(
 	)
 	joinServiceServer := joinserver.NewJoinServiceGRPCServer(conn.Client)
 	proto.RegisterJoinServiceServer(server, joinServiceServer)
-	process.RegisterCriticalFunc("proxy.grpc.insecure", func() error {
+	process.RegisterCriticalFunc("proxy.grpc.public", func() error {
 		process.log.Infof("Starting proxy gRPC server on %v.", listener.Addr())
 		return trace.Wrap(server.Serve(listener))
 	})
@@ -5220,16 +5227,21 @@ func (process *TeleportProcess) initInsecureGRPCServer(
 // safely access Kubernetes clusters resources via Teleport without leaking certificates.
 // The gRPC server handles the mTLS because we require the client certificate to be
 // subject in order to determine his identity.
-func (process *TeleportProcess) initSecureGRPCServer(
-	limiter *limiter.Limiter,
-	conn *Connector,
-	listener net.Listener,
-) (*grpc.Server, error) {
+func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg) (*grpc.Server, error) {
 	if !process.Config.Proxy.Kube.Enabled {
 		return nil, nil
 	}
+	clusterName := cfg.conn.ServerIdentity.ClusterName
+	serverTLSConfig, err := cfg.conn.ServerIdentity.TLSConfig(process.Config.CipherSuites)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	serverTLSConfig, err := conn.ServerIdentity.TLSConfig(process.Config.CipherSuites)
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: cfg.accessPoint,
+		LockWatcher: cfg.lockWatcher,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5238,8 +5250,9 @@ func (process *TeleportProcess) initSecureGRPCServer(
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		AccessPoint: conn.Client,
-		Limiter:     limiter,
+		AccessPoint:   cfg.accessPoint,
+		Limiter:       cfg.limiter,
+		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}
 
 	server := grpc.NewServer(
@@ -5254,15 +5267,41 @@ func (process *TeleportProcess) initSecureGRPCServer(
 			authMiddleware.StreamInterceptor(),
 		),
 		grpc.Creds(credentials.NewTLS(
-			copyAndConfigureTLS(serverTLSConfig, process.log, authMiddleware.AccessPoint, conn.ServerIdentity.ClusterName),
+			copyAndConfigureTLS(serverTLSConfig, process.log, cfg.accessPoint, clusterName),
 		)),
 	)
 
+	kubeServer, err := kubegprc.New(kubegprc.Config{
+		Signer:      cfg.conn.Client,
+		AccessPoint: cfg.accessPoint,
+		Authz:       authorizer,
+		Log:         process.log,
+		Emitter:     cfg.emitter,
+		// listener is using the underlying web listener, so we can just use its address.
+		// since tls routing is enabled.
+		KubeProxyAddr: cfg.listener.Addr().String(),
+		ClusterName:   clusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kubeproto.RegisterKubeServiceServer(server, kubeServer)
+
 	process.RegisterCriticalFunc("proxy.grpc.secure", func() error {
-		process.log.Infof("Starting proxy gRPC server on %v.", listener.Addr())
-		return trace.Wrap(server.Serve(listener))
+		process.log.Infof("Starting proxy gRPC server on %v.", cfg.listener.Addr())
+		return trace.Wrap(server.Serve(cfg.listener))
 	})
 	return server, nil
+}
+
+// initSecureGRPCServerCfg is a configuration for initSecureGRPCServer function.
+type initSecureGRPCServerCfg struct {
+	conn        *Connector
+	limiter     *limiter.Limiter
+	listener    net.Listener
+	accessPoint auth.ProxyAccessPoint
+	lockWatcher *services.LockWatcher
+	emitter     apievents.Emitter
 }
 
 // copyAndConfigureTLS can be used to copy and modify an existing *tls.Config

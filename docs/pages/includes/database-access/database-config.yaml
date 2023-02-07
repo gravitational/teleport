@@ -9,6 +9,7 @@ db_service:
   # one of the following values:
   # "dynamic": database resources created with "tctl create" command
   # "cloud": database resources created by the discovery service
+  # "config": database resources defined in the "databases" array below
   resources:
   - labels:
       "*": "*"
@@ -142,6 +143,8 @@ db_service:
 
     # Optional configuration for Azure hosted databases.
     azure:
+      # Set is_flexi_server to true when using an Azure flexible server.
+      is_flexi_server: false
       # Resource ID for the database in Azure. This field is required for Azure Cache for Redis databases.
       resource_id: "/subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/example-group/providers/Microsoft.Cache/Redis/example-db-name"
 

@@ -15,6 +15,6 @@ limitations under the License.
 */
 
 import ClientSidePager from './ClientSidePager/ClientSidePager';
-import ServerSidePager from './ServerSidePager';
+import ServerSidePager from './ServersidePager';
 
 export { ClientSidePager, ServerSidePager };

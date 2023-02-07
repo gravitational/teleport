@@ -1,3 +1,19 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
 // @ts-ignore
 import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
@@ -5,19 +21,20 @@ import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/us
 import { RequestState } from 'e-teleport/services/workflow';
 import { SortType } from 'design/DataTable/types';
 import { FileTransferListeners } from 'shared/components/FileTransfer';
+import apiCluster from 'gen-proto-js/teleport/lib/teleterm/v1/cluster_pb';
+import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
+import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
+import apiServer from 'gen-proto-js/teleport/lib/teleterm/v1/server_pb';
+import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
+import apiApp from 'gen-proto-js/teleport/lib/teleterm/v1/app_pb';
+import apiService, {
+  FileTransferDirection,
+} from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
+import apiAuthSettings from 'gen-proto-js/teleport/lib/teleterm/v1/auth_settings_pb';
+import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
+import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
 
 import * as uri from 'teleterm/ui/uri';
-
-import apiCluster from './v1/cluster_pb';
-import apiDb from './v1/database_pb';
-import apigateway from './v1/gateway_pb';
-import apiServer from './v1/server_pb';
-import apiKube from './v1/kube_pb';
-import apiApp from './v1/app_pb';
-import apiService from './v1/service_pb';
-import apiAuthSettings from './v1/auth_settings_pb';
-import apiAccessRequest from './v1/access_request_pb';
-import apiUsageEvents from './v1/usage_events_pb';
 
 export type Application = apiApp.App.AsObject;
 
@@ -29,7 +46,7 @@ export interface Server extends apiServer.Server.AsObject {
   uri: uri.ServerUri;
 }
 
-export interface Gateway extends apigateway.Gateway.AsObject {
+export interface Gateway extends apiGateway.Gateway.AsObject {
   uri: uri.GatewayUri;
   targetUri: uri.DatabaseUri;
 }
@@ -263,6 +280,8 @@ export type AssumedRequest = {
   expires: Date;
   roles: string[];
 };
+
+export { FileTransferDirection };
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;

@@ -1,16 +1,16 @@
 ---
-title: Teleport Cloud Architecture
+title: Teleport Enterprise Cloud Architecture
 description: Cloud security, availability, and networking details.
 ---
 
 ## Security
 
-We have designed the Teleport Cloud environment to be secure. We work with independent
+We have designed the Teleport Enterprise Cloud environment to be secure. We work with independent
 security auditors on a regular basis to identify and correct any gaps, while also
 continuing to iterate on improvements to fortify the platform for the most strict of
 compliance use-cases.
 
-The Teleport Cloud environment is protected from network and transport layer DDoS attacks 
+The Teleport Enterprise Cloud environment is protected from network and transport layer DDoS attacks 
 that may target Teleport tenants by leveraging [AWS Shield](https://aws.amazon.com/shield/).
 
 ## Compliance
@@ -20,11 +20,11 @@ that may target Teleport tenants by leveraging [AWS Shield](https://aws.amazon.c
 ## Managed Teleport Settings
 
 SSH sessions are recorded [on nodes](../../architecture/nodes.mdx).
-Teleport Cloud Proxy does not terminate SSH sessions when using OpenSSH and `tsh` sessions.
+Teleport Enterprise Cloud Proxy does not terminate SSH sessions when using OpenSSH and `tsh` sessions.
 The Cloud Proxy terminates TLS for Application, Database, and Kubernetes sessions.
 
 ## Data retention
-Data retention cannot currently be configured by customers. All Teleport Cloud
+Data retention cannot currently be configured by customers. All Teleport Enterprise Cloud
 customers have audit logs retained in DynamoDB for 1 year, cluster configuration
 retained in DynamoDB indefinitely, and session recordings retained in S3 indefinitely.
 When data retention policies are introduced, customers will be contacted and
@@ -52,10 +52,10 @@ The multi-region option is currently opt-in by default. Once you have an account
 
 ## Releases
 
-Teleport Cloud only serves the latest stable release of the Teleport software
+Teleport Enterprise Cloud only serves the latest stable release of the Teleport software
 for its customers.
 
-Teleport Cloud team upgrades the service with patch releases weekly and major
+Teleport Enterprise Cloud team upgrades the service with patch releases weekly and major
 releases quarterly. The team waits for the first minor release before a major
 upgrade. For example, the team will deploy (=cloud.major_version=).1.0
 instead of (=cloud.major_version=).0.0. The first minor release happens 3-4
@@ -67,7 +67,7 @@ customer.
 Major releases do require customers to upgrade all instances of Teleport they
 are running within 3 months of the upgrade. Failure to upgrade Teleport instances to the
 latest major release during this window may lead to compatibility issues with
-Teleport Cloud and a loss of access to your infrastructure.
+Teleport Enterprise Cloud and a loss of access to your infrastructure.
 
 Subscribe to status updates at
 [status.teleport.sh](https://status.teleport.sh/) for Cloud upgrade
@@ -75,6 +75,6 @@ notifications.
 
 ## Service Level Agreement
 
-Teleport Cloud commits to an SLA of (=cloud.sla.monthly_percentage=) of monthly uptime,
+Teleport Enterprise Cloud commits to an SLA of (=cloud.sla.monthly_percentage=) of monthly uptime,
 a maximum of (=cloud.sla.monthly_downtime=) of downtime per month. As we continue to invest in the
 cloud product and infrastructure, the SLA will be increased.
