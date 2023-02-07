@@ -129,9 +129,6 @@ type Config struct {
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	// CloudUsers manage users for cloud hosted databases.
 	CloudUsers *users.Users
-	// HasForkedProcess returns true if the process has a running child forked
-	// from itself.
-	HasForkedProcess func() bool
 	// discoveryResourceChecker performs some pre-checks when creating databases
 	// discovered by the discovery service.
 	discoveryResourceChecker discoveryResourceChecker
@@ -747,20 +744,21 @@ func (s *Server) startServiceHeartbeat() error {
 
 // Close stops proxying all server's databases and frees up other resources.
 func (s *Server) Close() error {
+	return trace.Wrap(s.close(s.closeContext))
+}
+
+// Shutdown performs a graceful shutdown.
+func (s *Server) Shutdown(ctx context.Context) error {
+	// TODO wait active connections.
+	return trace.Wrap(s.close(ctx))
+}
+
+func (s *Server) close(ctx context.Context) error {
 	var errors []error
 	// Stop proxying all databases.
-	//
-	// A child process can be forked to upgrade the Teleport binary. The child
-	// will take over the heartbeats so do NOT delete the database servers in
-	// that case. In worst case scenarios if the child fails to register these
-	// databases, they will get cleanup when the old heartbeats expire.
-	deleteDatabaseServer := true
-	if s.cfg.HasForkedProcess != nil && s.cfg.HasForkedProcess() {
-		s.log.Debug("Forked process found. Not deleting database servers.")
-		deleteDatabaseServer = false
-	}
+	deleteDatabaseServer := services.ShouldDeleteServerHeartbeatsOnShutdown(ctx)
 	for _, database := range s.getProxiedDatabases() {
-		if err := s.stopProxyingDatabase(s.closeContext, database, deleteDatabaseServer); err != nil {
+		if err := s.stopProxyingDatabase(ctx, database, deleteDatabaseServer); err != nil {
 			errors = append(errors, trace.WrapWithMessage(
 				err, "stopping database %v", database.GetName()))
 		}
