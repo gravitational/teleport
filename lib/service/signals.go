@@ -591,8 +591,3 @@ func (process *TeleportProcess) getForkedPIDs() []int {
 	copy(out, process.forkedPIDs)
 	return out
 }
-
-func (process *TeleportProcess) hasForkedProcess() bool {
-	process.collectStatuses()
-	return len(process.getForkedPIDs()) > 0
-}

@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestDatabaseServerStart validates that started database server updates its
@@ -248,21 +249,21 @@ func TestHeartbeatEvents(t *testing.T) {
 	}
 }
 
-func TestServerClose(t *testing.T) {
+func TestShutdown(t *testing.T) {
 	tests := []struct {
-		name                          string
-		hasForkedProcess              bool
-		wantDatabaseServersAfterClose bool
+		name                             string
+		hasForkedChild                   bool
+		wantDatabaseServersAfterShutdown bool
 	}{
 		{
-			name:                          "no forked process",
-			hasForkedProcess:              false,
-			wantDatabaseServersAfterClose: false,
+			name:                             "regular shutdown",
+			hasForkedChild:                   false,
+			wantDatabaseServersAfterShutdown: false,
 		},
 		{
-			name:                          "has forked process",
-			hasForkedProcess:              true,
-			wantDatabaseServersAfterClose: true,
+			name:                             "has forked child",
+			hasForkedChild:                   true,
+			wantDatabaseServersAfterShutdown: true,
 		},
 	}
 
@@ -279,9 +280,6 @@ func TestServerClose(t *testing.T) {
 
 			server := testCtx.setupDatabaseServer(ctx, t, agentParams{
 				Databases: []types.Database{db0},
-				HasForkedProcess: func() bool {
-					return test.hasForkedProcess
-				},
 			})
 
 			// Validate that the server is proxying db0 after start.
@@ -294,30 +292,25 @@ func TestServerClose(t *testing.T) {
 			require.Len(t, dbServers, 1)
 			require.Equal(t, dbServers[0].GetDatabase(), db0)
 
-			// Close/Wait should not return error.
-			require.NoError(t, server.Close())
-
-			waitError := make(chan error, 1)
-			go func() {
-				waitError <- server.Wait()
-			}()
-			select {
-			case <-time.After(time.Second):
-				require.Fail(t, "failed to wait")
-			case err := <-waitError:
-				require.NoError(t, err)
+			// Shutdown should not return error.
+			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+			t.Cleanup(cancel)
+			if test.hasForkedChild {
+				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
 			}
+
+			require.NoError(t, server.Shutdown(shutdownCtx))
 
 			// Validate that the server is not proxying db0 after close.
 			require.Empty(t, server.getProxiedDatabases())
 
 			// Validate database servers based on the test.
-			dbServersAfterClose, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+			dbServersAfterShutdown, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
-			if test.wantDatabaseServersAfterClose {
-				require.Equal(t, dbServers, dbServersAfterClose)
+			if test.wantDatabaseServersAfterShutdown {
+				require.Equal(t, dbServers, dbServersAfterShutdown)
 			} else {
-				require.Empty(t, dbServersAfterClose)
+				require.Empty(t, dbServersAfterShutdown)
 			}
 		})
 	}

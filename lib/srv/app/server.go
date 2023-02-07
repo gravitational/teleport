@@ -354,15 +354,17 @@ func (s *Server) startApp(ctx context.Context, app types.Application) error {
 }
 
 // stopApp uninitializes the app with the specified name.
-func (s *Server) stopApp(ctx context.Context, name string) error {
+func (s *Server) stopApp(ctx context.Context, name string, removeAppServer bool) error {
 	s.stopDynamicLabels(name)
 	if err := s.stopHeartbeat(name); err != nil {
 		return trace.Wrap(err)
 	}
 	// Heartbeat is stopped but if we don't remove this app server,
 	// it can linger for up to ~10m until its TTL expires.
-	if err := s.removeAppServer(ctx, name); err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
+	if removeAppServer {
+		if err := s.removeAppServer(ctx, name); err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
 	}
 	s.log.Debugf("Stopped app %q.", name)
 	return nil
@@ -502,12 +504,12 @@ func (s *Server) registerApp(ctx context.Context, app types.Application) error {
 // updateApp updates application that is already registered.
 func (s *Server) updateApp(ctx context.Context, app types.Application) error {
 	// Stop heartbeat and dynamic labels before starting new ones.
-	if err := s.stopApp(ctx, app.GetName()); err != nil {
+	if err := s.stopApp(ctx, app.GetName(), true); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := s.registerApp(ctx, app); err != nil {
 		// If we failed to re-register, don't keep proxying the old app.
-		if errUnregister := s.unregisterApp(ctx, app.GetName()); errUnregister != nil {
+		if errUnregister := s.unregisterApp(ctx, app.GetName(), true); errUnregister != nil {
 			return trace.NewAggregate(err, errUnregister)
 		}
 		return trace.Wrap(err)
@@ -516,8 +518,8 @@ func (s *Server) updateApp(ctx context.Context, app types.Application) error {
 }
 
 // unregisterApp stops proxying the app.
-func (s *Server) unregisterApp(ctx context.Context, name string) error {
-	if err := s.stopApp(ctx, name); err != nil {
+func (s *Server) unregisterApp(ctx context.Context, name string, removeAppServer bool) error {
+	if err := s.stopApp(ctx, name, removeAppServer); err != nil {
 		return trace.Wrap(err)
 	}
 	s.mu.Lock()
@@ -561,11 +563,22 @@ func (s *Server) Start(ctx context.Context) (err error) {
 
 // Close will shut the server down and unblock any resources.
 func (s *Server) Close() error {
+	return trace.Wrap(s.close(s.closeContext))
+}
+
+// Shutdown performs a graceful shutdown.
+func (s *Server) Shutdown(ctx context.Context) error {
+	// TODO wait active connections.
+	return trace.Wrap(s.close(ctx))
+}
+
+func (s *Server) close(ctx context.Context) error {
 	var errs []error
 
 	// Stop all proxied apps.
+	removeAppServer := services.ShouldDeleteServerHeartbeatsOnShutdown(ctx)
 	for _, app := range s.getApps() {
-		if err := s.unregisterApp(s.closeContext, app.GetName()); err != nil {
+		if err := s.unregisterApp(ctx, app.GetName(), removeAppServer); err != nil {
 			errs = append(errs, err)
 		}
 	}
