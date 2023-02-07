@@ -89,7 +89,7 @@ implementation. It is _fully compatible with OpenSSH_,
 
 | Follow the [Installation](https://goteleport.com/docs/installation/) Guide
 
-Download the [latest binary release](https://goteleport.com/teleport/download),
+Download the [latest binary release](https://goteleport.com/download),
 unpack the .tar.gz and run `sudo ./install`. This will copy Teleport binaries into
 `/usr/local/bin`.
 
@@ -331,19 +331,22 @@ We offer a few different options for support. First of all, we try to provide cl
 * If you want to contribute to Teleport or file a bug report/issue, you can create an issue here in Github.
 * If you are interested in Teleport Enterprise or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://goteleport.com/pricing/) to arrange for a POC.
 
-## Is Teleport Secure and Production Ready?
+## Is Teleport Secure and Production-Ready?
 
-Teleport is used by leading companies to enable engineers to quickly access any
-computing resource anywhere. Teleport has completed several security audits from the nationally recognized technology security companies. We make some of our audits public, view our latest [audit reports](https://goteleport.com/resources/audits/).
-We are comfortable with the use of Teleport from a security perspective.
+Yes -- Teleport is production-ready and designed to protect and facilitate
+access to the most precious and mission critical applications.
+
+Teleport has completed several security audits from nationally and
+internationally recognized technology security companies. 
+
+We publicize some of our audit results, security philosophy and related
+information on our [trust page](https://trust.goteleport.com/).
 
 You can see the list of companies who use Teleport in production on the Teleport
 [product page](https://goteleport.com/case-study/).
 
-You can find the latest stable Teleport build on our [Releases](https://goteleport.com/teleport/download) page.
-
 ## Who Built Teleport?
 
-Teleport was created by [Gravitational Inc](https://goteleport.com). We have
+Teleport was created by [Gravitational, Inc.](https://goteleport.com). We have
 built Teleport by borrowing from our previous experiences at Rackspace. [Learn more
 about Teleport and our history](https://goteleport.com/about/).
