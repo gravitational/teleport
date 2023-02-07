@@ -2433,6 +2433,32 @@ func (c *Client) DeleteAllDatabases(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
+// UpsertDatabaseService creates or updates existing DatabaseService resource.
+func (c *Client) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) (*types.KeepAlive, error) {
+	serviceV1, ok := service.(*types.DatabaseServiceV1)
+	if !ok {
+		return nil, trace.BadParameter("unsupported DatabaseService type %T", serviceV1)
+	}
+	keepAlive, err := c.grpc.UpsertDatabaseService(ctx, &proto.UpsertDatabaseServiceRequest{
+		Service: serviceV1,
+	}, c.callOpts...)
+
+	return keepAlive, trail.FromGRPC(err)
+}
+
+// DeleteDatabaseService deletes a specific DatabaseService resource.
+func (c *Client) DeleteDatabaseService(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteDatabaseService(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllDatabaseServices deletes all DatabaseService resources.
+// If an error occurs, a partial delete may happen.
+func (c *Client) DeleteAllDatabaseServices(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllDatabaseServices(ctx, &proto.DeleteAllDatabaseServicesRequest{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // GetWindowsDesktopServices returns all registered windows desktop services.
 func (c *Client) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsDesktopService, error) {
 	resp, err := c.grpc.GetWindowsDesktopServices(ctx, &emptypb.Empty{}, c.callOpts...)
@@ -2659,6 +2685,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 		switch req.ResourceType {
 		case types.KindDatabaseServer:
 			resources[i] = respResource.GetDatabaseServer()
+		case types.KindDatabaseService:
+			resources[i] = respResource.GetDatabaseService()
 		case types.KindAppServer:
 			resources[i] = respResource.GetAppServer()
 		case types.KindNode:
