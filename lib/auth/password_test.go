@@ -445,7 +445,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 
 			c.setAuthPreference()
 
-			token, err := srv.Auth().CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
+			token, err := srv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
 				Name: username,
 			})
 			require.NoError(t, err)
