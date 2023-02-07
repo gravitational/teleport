@@ -1794,7 +1794,7 @@ func TestPluginData(t *testing.T) {
 	require.NoError(t, err)
 
 	plugin := "my-plugin"
-	_, err = CreateAccessPluginUser(context.TODO(), tt.server.Auth(), plugin)
+	_, err = CreateAccessPluginUser(ctx, tt.server.Auth(), plugin)
 	require.NoError(t, err)
 
 	pluginUser := TestUser(plugin)
@@ -1805,9 +1805,9 @@ func TestPluginData(t *testing.T) {
 	req, err := services.NewAccessRequest(user, role)
 	require.NoError(t, err)
 
-	require.NoError(t, userClient.CreateAccessRequest(context.TODO(), req))
+	require.NoError(t, userClient.CreateAccessRequest(ctx, req))
 
-	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
+	err = pluginClient.UpdatePluginData(ctx, types.PluginDataUpdateParams{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
@@ -1817,7 +1817,7 @@ func TestPluginData(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	data, err := pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
+	data, err := pluginClient.GetPluginData(ctx, types.PluginDataFilter{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 	})
@@ -1828,7 +1828,7 @@ func TestPluginData(t *testing.T) {
 	require.Equal(t, ok, true)
 	require.Empty(t, cmp.Diff(entry.Data, map[string]string{"foo": "bar"}))
 
-	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
+	err = pluginClient.UpdatePluginData(ctx, types.PluginDataUpdateParams{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
@@ -1842,7 +1842,7 @@ func TestPluginData(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	data, err = pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
+	data, err = pluginClient.GetPluginData(ctx, types.PluginDataFilter{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 	})
