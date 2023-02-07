@@ -1773,8 +1773,8 @@ func (p *samlIDPServiceProviderCollector) getResourcesAndUpdateCurrent(ctx conte
 		newCurrent[samlIDPServiceProvider.GetName()] = samlIDPServiceProvider
 	}
 	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.current = newCurrent
-	p.mu.Unlock()
 	p.defineCollectorAsInitialized()
 
 	select {

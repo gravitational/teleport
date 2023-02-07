@@ -1148,7 +1148,7 @@ func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
 	case <-w.ResourceWatcher.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for the update event.")
+		t.Fatal("Timeout waiting for the delete event.")
 	}
 }
 
