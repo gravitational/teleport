@@ -97,7 +97,7 @@ func (*DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 		"event_type":  event.GetType(),
 		"event_time":  event.GetTime(),
 		"event_index": event.GetIndex(),
-	}).Debugf("Discarding stream event")
+	}).Traceln("Discarding stream event")
 	return nil
 }
 
