@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -606,13 +607,62 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	// Make sure the cert is allowed to access the cluster.
+	// At this point we already know that the user has access to the cluster
+	// via the RBAC rules, but we also need to make sure that the user has
+	// access to the cluster with at least one kubernetes_user or kubernetes_group
+	// defined.
+	if err := checkIfCertsAreAllowedToAccessCluster(k, c.kubeCluster); err != nil {
+		return trace.Wrap(err)
+	}
 	// Cache the new cert on disk for reuse.
 	if err := tc.LocalAgent().AddKey(k); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return c.writeResponse(cf.Stdout(), k, c.kubeCluster)
+}
+
+// checkIfCertsAreAllowedToAccessCluster evaluates if the new cert created by the user
+// to access kubeCluster has at least one kubernetes_user or kubernetes_group
+// defined. If not, it returns an error.
+// This is a safety check in order to print a better message to the user even
+// before hitting Teleport Kubernetes Proxy.
+func checkIfCertsAreAllowedToAccessCluster(k *client.Key, kubeCluster string) error {
+	for k8sCluster, cert := range k.KubeTLSCerts {
+		if k8sCluster != kubeCluster {
+			continue
+		}
+		log.Debugf("Got TLS cert for Kubernetes cluster %q", k8sCluster)
+		exist, err := checkIfCertHasKubeGroupsAndUsers(cert)
+		if err != nil {
+			return trace.Wrap(err)
+		} else if exist {
+			return nil
+		}
+	}
+	errMsg := "Your user's Teleport role does not allow Kubernetes access." +
+		" Please ask cluster administrator to ensure your role has appropriate kubernetes_groups and kubernetes_users set."
+	return trace.AccessDenied(errMsg)
+}
+
+// checkIfCertHasKubeGroupsAndUsers checks if the certificate has Kubernetes groups or users
+// in the Subject Name. If it does, it returns true, otherwise false.
+// Having no Kubernetes groups or users in the certificate means that the user
+// is not allowed to access the Kubernetes cluster since Kubernetes Access enforces
+// the presence of at least one of Kubernetes groups or users in the certificate.
+// If the certificate does not have any Kubernetes groups or users, the
+func checkIfCertHasKubeGroupsAndUsers(certB []byte) (bool, error) {
+	cert, err := tlsca.ParseCertificatePEM(certB)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, name := range cert.Subject.Names {
+		if name.Type.Equal(tlsca.KubeGroupsASN1ExtensionOID) || name.Type.Equal(tlsca.KubeUsersASN1ExtensionOID) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (c *kubeCredentialsCommand) writeResponse(output io.Writer, key *client.Key, kubeClusterName string) error {
