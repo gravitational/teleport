@@ -117,11 +117,11 @@ check-vars:
 .PHONY: update-ami-ids-terraform
 update-ami-ids-terraform:
 	@echo -e "\nUpdating OSS Terraform image IDs"
-	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -t oss -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+	go run main.go --aws-account $(AWS_ACCOUNT_ID) --regions $(DESTINATION_REGIONS) --version $(TELEPORT_VERSION) --type oss
 	@echo -e "\nUpdating Enterprise Terraform image IDs"
-	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -t ent -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+	go run main.go --aws-account $(AWS_ACCOUNT_ID) --regions $(DESTINATION_REGIONS) --version $(TELEPORT_VERSION) --type ent
 	@echo -e "\nUpdating Enterprise FIPS Terraform image IDs"
-	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -t ent-fips -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+	go run main.go --aws-account $(AWS_ACCOUNT_ID) --regions $(DESTINATION_REGIONS) --version $(TELEPORT_VERSION) --type ent-fips
 
 # you will need the Github 'gh' CLI installed and working to be able to use this target
 # https://github.com/cli/cli/releases/latest
