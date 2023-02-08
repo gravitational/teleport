@@ -612,9 +612,7 @@ func (l *Log) purgeExpiredEvents() error {
 
 				batchWriteLatencies.Observe(time.Since(start).Seconds())
 				batchWriteRequests.Inc()
-				if len(errs) > 0 {
-					return trace.NewAggregate(errs...)
-				}
+				return trace.NewAggregate(errs...)
 			}
 		}
 	}
