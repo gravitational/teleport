@@ -305,6 +305,26 @@ func upsertTrustedCluster(ctx context.Context, clt resourcesAPIGetter, content, 
 	return ui.NewResourceItem(tc)
 }
 
+// CheckResourceUpsertableByError checks if the resource is upsertable by the state of error with
+// the request http method used.
+// TODO(vitorenesduarte): Remove once teleport.e PR is merged.
+func CheckResourceUpsertableByError(err error, httpMethod, resourceName string) error {
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	exists := err == nil
+	if exists && httpMethod == http.MethodPost {
+		return trace.AlreadyExists("resource name %q already exists", resourceName)
+	}
+
+	if !exists && httpMethod == http.MethodPut {
+		return trace.NotFound("cannot find resource with name %q", resourceName)
+	}
+
+	return nil
+}
+
 // getResource tries to retrieve a resource (by name),
 // returning a NotFound error if the resource does not exist.
 type getResource func(context.Context, string) (types.Resource, error)
