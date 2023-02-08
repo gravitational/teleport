@@ -262,7 +262,7 @@ func readXauthPacketInitBuf(initBuf []byte) (protoLen int, dataLen int, err erro
 	// The first byte in the packet determines the
 	// byte order of the initial buffer's bytes.
 	var e binary.ByteOrder
-	binary.BigEndian.GoString()
+
 	switch initBuf[0] {
 	case bigEndian:
 		e = binary.BigEndian

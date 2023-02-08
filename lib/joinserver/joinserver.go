@@ -31,10 +31,14 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 )
 
-const iamJoinRequestTimeout = time.Minute
+const (
+	iamJoinRequestTimeout   = time.Minute
+	azureJoinRequestTimeout = time.Minute
+)
 
 type joinServiceClient interface {
-	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error)
+	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error)
+	RegisterUsingAzureMethod(ctx context.Context, challengeResponse client.RegisterAzureChallengeResponseFunc) (*proto.Certs, error)
 }
 
 // JoinServiceGRPCServer implements proto.JoinServiceServer and is designed
@@ -113,6 +117,66 @@ func (s *JoinServiceGRPCServer) registerUsingIAMMethod(ctx context.Context, srv 
 
 	// finally, send the certs on the response stream
 	return trace.Wrap(srv.Send(&proto.RegisterUsingIAMMethodResponse{
+		Certs: certs,
+	}))
+}
+
+// RegisterUsingAzureMethod allows nodes and proxies to join the cluster using the
+// Azure join method.
+//
+// The server will generate a base64-encoded crypto-random challenge and
+// send it on the server stream. The caller is expected to respond on
+// the client stream with a RegisterUsingTokenRequest including a signed
+// attested data document with the challenge string. Finally, the signed
+// cluster certs are sent on the server stream.
+func (s *JoinServiceGRPCServer) RegisterUsingAzureMethod(srv proto.JoinService_RegisterUsingAzureMethodServer) error {
+	ctx := srv.Context()
+
+	// Enforce a timeout on the entire RPC so that misbehaving clients cannot
+	// hold connections open indefinitely.
+	timeout := s.clock.After(azureJoinRequestTimeout)
+
+	// The only way to cancel a blocked Send or Recv on the server side without
+	// adding an interceptor to the entire gRPC service is to return from the
+	// handler https://github.com/grpc/grpc-go/issues/465#issuecomment-179414474
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- s.registerUsingAzureMethod(ctx, srv)
+	}()
+	select {
+	case err := <-errCh:
+		// Completed before the deadline, return the error (may be nil).
+		return trace.Wrap(err)
+	case <-timeout:
+		nodeAddr := ""
+		if peerInfo, ok := peer.FromContext(ctx); ok {
+			nodeAddr = peerInfo.Addr.String()
+		}
+		logrus.Warnf("Azure join attempt timed out, node at (%s) is misbehaving or did not close the connection after encountering an error.", nodeAddr)
+		// Returning here should cancel any blocked Send or Recv operations.
+		return trace.LimitExceeded("RegisterUsingAzureMethod timed out after %s, terminating the stream on the server", azureJoinRequestTimeout)
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	}
+}
+
+func (s *JoinServiceGRPCServer) registerUsingAzureMethod(ctx context.Context, srv proto.JoinService_RegisterUsingAzureMethodServer) error {
+	certs, err := s.joinServiceClient.RegisterUsingAzureMethod(ctx, func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
+		err := srv.Send(&proto.RegisterUsingAzureMethodResponse{
+			Challenge: challenge,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		req, err := srv.Recv()
+		return req, trace.Wrap(err)
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(srv.Send(&proto.RegisterUsingAzureMethodResponse{
 		Certs: certs,
 	}))
 }

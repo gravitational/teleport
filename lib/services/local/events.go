@@ -1401,7 +1401,7 @@ type samlIDPServiceProviderParser struct {
 func (p *samlIDPServiceProviderParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindSAMLIdPServiceProvider, types.V3, 0)
+		return resourceHeader(event, types.KindSAMLIdPServiceProvider, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalSAMLIdPServiceProvider(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
