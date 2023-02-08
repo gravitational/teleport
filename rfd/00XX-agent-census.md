@@ -12,22 +12,20 @@ state: draft
 
 ## What
 
-This RFD details how we'll track more information about agents (aka Agent Census) and how this data is expected to be used in PostHog.
+This RFD details how we'll track more information about agents (aka Agent Census).
 A brief description of this task was described in [Cloud's RFD 53](https://github.com/gravitational/cloud/tree/54559795b45b2e8515ea7e159d26cadfbb52482f/rfd/0053-prehog.md).
 
-<!--
-### Goals
+#### Goals
 
-TODO
+- Track more information about each Teleport agent.
 
-### Non-goals
+#### Non-goals
 
-TODO
+- Detail how this information will be analyzed / visualized.
 
 ## Why
 
-TODO
--->
+We want to understand how agents are installed and where they are running so that we can prioritize the work around [cloud agent upgrades](https://github.com/gravitational/teleport/pull/20622).
 
 ## Details
 
@@ -54,7 +52,7 @@ We want to start tracking the following data in PreHog:
 4. OS version (e.g. Linux distribution)
 5. Host architecture (e.g. `amd64`)
 6. `glibc` version
-7. [Install method](https://goteleport.com/docs/installation/) (Dockerfile, Helm, `install-node.sh`, `*-ad*.ps1`, tarball, `.deb`/`.rpm`/`.pkg` packages, APT or YUM repository)
+7. [Install method](https://goteleport.com/docs/installation/) (Dockerfile, Helm, `install-node.sh` and `*-ad*.ps1` scripts)
 8. Container orchestrator (e.g. Kubernetes)
 9. Cloud environment (e.g. AWS, GCP, Azure)
 
@@ -152,14 +150,11 @@ However, `gopsutil` is using [`golang.org/x/sys/unix.Uname`](https://pkg.go.dev/
 Different installation methods will be tracked with a new `TELEPORT_INSTALL_METHOD` environment variable:
 - [Dockerfile](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/charts/Dockerfile): `ENV TELEPORT_INSTALL_METHOD=Dockerfile` will be added to the Dockerfile.
 - [`teleport-kube-agent`](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent) Helm chart: `TELEPORT_INSTALL_METHOD` will be set to `"teleport-kube-agent"` in the [deployment spec](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/chart/teleport-kube-agent/templates/deployment.yaml#L129).
-- [`*-ad*.ps1`](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/desktop): `setx TELEPORT_INSTALL_METHOD=ps1` will be added to one of these scripts. They are the recommended way to configure windows desktops.
+- [`*-ad*.ps1`](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/desktop): `setx TELEPORT_INSTALL_METHOD=ps1` will be added to one of these scripts as they are the recommended way to configure windows desktops.
 - [`install-node.sh`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/node-join/install.sh): `export TELEPORT_INSTALL_METHOD="install-node.sh"` will be added to this script. It is the recommended way to install SSH nodes, apps and many databases. Even though `export` doesn't persist across restarts, we can have the agent persist such value (and maybe all of the values sent in `UpstreamInventoryHello`) when it first starts.
-- tarball: Similarly to the above, we can add `export TELEPORT_INSTALL_METHOD="tarball"` to the [`install`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/install) script. If the customer does not use the `install` script and instead moves the binaries manually, we won't be able to track this installation method.
-- `teleport configure`:
-  - TODO: tarball, `.deb`/`.rpm`/`.pkg` packages, APT or YUM repository
-  - TODO: can it conflict with `install-node.sh`
 
-The following installation methods won't be tracked:
+The following installation methods won't be tracked for now:
+- tarball, `.deb`/`.rpm`/`.pkg` packages, APT or YUM repository: For tarball, we can add `export TELEPORT_INSTALL_METHOD="tarball"` to the [`install`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/install) script. (However, if the customer does not use the `install` script and instead moves the binaries manually, we won't be able to track this installation method.) We'll try to these methods if, once we start tracking the above installation methods, we notice that we're not yet covering most installation methods. (It's also unclear ATM if tracking these methods could conflict with the tracking of `install-node.sh`.)
 - _built from source_: While it's technically possible for customers to build Teleport from source, we won't try to track this installation method as it seems an unlikely use-case.
 - `homebrew`: It's also possible to install Teleport on macOS using `homebrew`. The Teleport package in `homebrew` is not maintained by us, so we will also not track this installation method.
 
@@ -191,13 +186,11 @@ A similar reasoning also applies to step 1 since each field in `AgentMetadataEve
 
 ### Security
 
-Besides the tracking of which cloud environment the agent is running on, there doesn't seem to be any further concern.
+Besides hitting certain HTTP endpoints to track which cloud environment the agent is running on, there doesn't seem to be any further concern.
 
-<!--
 ### UX
 
-TODO
--->
+Data analysis and visualization is not a goal of this RFD, so no UX concerns for now.
 
 ### Open questions
 
