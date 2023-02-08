@@ -149,7 +149,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
-		{Kind: types.KindSAMLIdPServiceProvider},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
