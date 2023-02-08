@@ -52,7 +52,7 @@ We want to start tracking the following data in PreHog:
 4. OS version (e.g. Linux distribution)
 5. Host architecture (e.g. `amd64`)
 6. `glibc` version
-7. [Install method](https://goteleport.com/docs/installation/) (Dockerfile, Helm, `install-node.sh` and `*-ad*.ps1` scripts)
+7. [Installation methods](https://goteleport.com/docs/installation/) (Dockerfile, Helm, `install-node.sh` and `*-ad*.ps1` scripts)
 8. Container orchestrator (e.g. Kubernetes)
 9. Cloud environment (e.g. AWS, GCP, Azure)
 
@@ -81,7 +81,7 @@ message UpstreamInventoryHello {
   string OSVersion = 6;
   string HostArchitecture = 7;
   string GLibCVersion = 8;
-  string InstallMethod = 9;
+  repeated string InstallMethods = 9;
   string ContainerOrchestrator = 10;
   string CloudEnvironment = 11;
 }
@@ -99,7 +99,7 @@ message AgentMetadataEvent {
   string os_version = 5;
   string host_architecture = 6;
   string glibc_version = 7;
-  string install_method = 8;
+  repeated string install_methods = 8;
   string container_orchestrator = 9;
   string cloud_environment = 10;
 }
@@ -145,22 +145,33 @@ However, `gopsutil` is using [`golang.org/x/sys/unix.Uname`](https://pkg.go.dev/
 
 - `linux`: `ldd --version | head -n1 | awk '{ print $NF }'` (e.g. "2.35")
 
-##### 7. Install method
+##### 7. Installation methods
 
-Different installation methods will be tracked with a new `TELEPORT_INSTALL_METHOD` environment variable:
-- [Dockerfile](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/charts/Dockerfile): `ENV TELEPORT_INSTALL_METHOD=Dockerfile` will be added to the Dockerfile.
-- [`teleport-kube-agent`](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent) Helm chart: `TELEPORT_INSTALL_METHOD` will be set to `"teleport-kube-agent"` in the [deployment spec](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/chart/teleport-kube-agent/templates/deployment.yaml#L129).
-- [`*-ad*.ps1`](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/desktop): `setx TELEPORT_INSTALL_METHOD=ps1` will be added to one of these scripts as they are the recommended way to configure windows desktops.
-- [`install-node.sh`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/node-join/install.sh): `export TELEPORT_INSTALL_METHOD="install-node.sh"` will be added to this script. It is the recommended way to install SSH nodes, apps and many databases. Even though `export` doesn't persist across restarts, we can have the agent persist such value (and maybe all of the values sent in `UpstreamInventoryHello`) when it first starts.
+Different installation methods will be tracked by setting new `TELEPORT_INSTALL_METHOD_$NAME` environment variables to `true` (where `$NAME` is the installation method).
+We have one environment variable for each installation method as some of the installation methods below may occur at the same time (e.g. `Dockerfile` and `teleport-kube-agent`, or `install-node.sh` and `APT`).
 
-The following installation methods won't be tracked for now:
-- tarball, `.deb`/`.rpm`/`.pkg` packages, APT or YUM repository: For tarball, we can add `export TELEPORT_INSTALL_METHOD="tarball"` to the [`install`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/install) script. (However, if the customer does not use the `install` script and instead moves the binaries manually, we won't be able to track this installation method.) We'll try to these methods if, once we start tracking the above installation methods, we notice that we're not yet covering most installation methods. (It's also unclear ATM if tracking these methods could conflict with the tracking of `install-node.sh`.)
+- [Dockerfile](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/charts/Dockerfile): `ENV TELEPORT_INSTALL_METHOD_DOCKERFILE=true` will be added to the Dockerfile.
+- [`teleport-kube-agent`](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent) Helm chart: `TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT` will be set to `true` in the [deployment spec](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/chart/teleport-kube-agent/templates/deployment.yaml#L129).
+- [`*-ad*.ps1`](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/desktop): `setx TELEPORT_INSTALL_METHOD_WINDOWS_SCRIPT=true` will be added to one of these scripts as they are the recommended way to configure windows desktops.
+- [`install-node.sh`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/node-join/install.sh): `export TELEPORT_INSTALL_METHOD_NODE_SCRIPT="true"` will be added to this script. It is the recommended way to install SSH nodes, apps and many databases. Even though `export` doesn't persist across restarts, we can have the agent persist such value (and maybe all of the values sent in `UpstreamInventoryHello`) when it first starts.
+
+The installation methods below won't be tracked for now.
+Later on, we'll try to track these methods if, once we start tracking the above installation methods, we notice that we're not yet covering most installation methods.
+- tarball: We can add `export TELEPORT_INSTALL_METHOD_TARBALL="true"` to the [`install`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/install) script. (However, if the customer does not use the `install` script and instead moves the binaries manually, we won't be able to track this installation method.)
+- `.deb`/`.rpm`/`.pkg` packages, APT or YUM repository: It's unclear how these can be tracked.
 - _built from source_: While it's technically possible for customers to build Teleport from source, we won't try to track this installation method as it seems an unlikely use-case.
 - `homebrew`: It's also possible to install Teleport on macOS using `homebrew`. The Teleport package in `homebrew` is not maintained by us, so we will also not track this installation method.
+
+In summary, for now we'll have the following new environment variables and respective value in `UpstreamInventoryHello.InstallMethods`:
+- `TELEPORT_INSTALL_METHOD_DOCKERFILE`: `dockerfile`
+- `TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT`: `helm-kube-agent`
+- `TELEPORT_INSTALL_METHOD_WINDOWS_SCRIPT`: `windows-script`
+- `TELEPORT_INSTALL_METHOD_NODE_SCRIPT`: `node-script`
 
 ##### 8. Container orchestrator
 
 To determine if the agent is running on a Kubernetes pod, we can check if the `KUBERNETES_SERVICE_HOST` environment variable is set or if the `/var/run/secrets/kubernetes.io/serviceaccount` directory exists ([docs](https://kubernetes.io/docs/tasks/run-application/access-api-from-pod/#directly-accessing-the-rest-api)).
+If so, `UpstreamInventoryHello.ContainerOrchestrator` will be set to `kubernetes`.
 
 ##### 9. Cloud environment
 
