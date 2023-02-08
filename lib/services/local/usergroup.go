@@ -108,7 +108,7 @@ func (s *UserGroupService) CreateUserGroup(ctx context.Context, group types.User
 	}
 	_, err = s.Create(ctx, item)
 	if trace.IsAlreadyExists(err) {
-		return nil, trace.AlreadyExists("user_group %q already exists", group.GetName())
+		return trace.AlreadyExists("user_group %q already exists", group.GetName())
 	}
 	return trace.Wrap(err)
 }
