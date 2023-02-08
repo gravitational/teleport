@@ -82,7 +82,7 @@ func (s *UserGroupService) GetUserGroup(ctx context.Context, name string) (types
 	item, err := s.Get(ctx, backend.Key(userGroupPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("group %q doesn't exist", name)
+			return nil, trace.NotFound("user_group %q doesn't exist", name)
 		}
 		return nil, trace.Wrap(err)
 	}
