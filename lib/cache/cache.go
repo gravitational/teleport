@@ -100,6 +100,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
+		{Kind: types.KindDiscoveredServer},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindNetworkRestrictions},
 		{Kind: types.KindLock},
@@ -2007,6 +2008,19 @@ func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, e
 	}
 	defer rg.Release()
 	return rg.databases.GetDatabase(ctx, name)
+}
+
+// GetDiscoveredServer returns the specified discovered server resource.
+func (c *Cache) GetDiscoveredServer(ctx context.Context, instanceID, accountID string) (*types.DiscoveredServerV1, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetDiscoveredServer")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.presence.GetDiscoveredServer(ctx, instanceID, accountID)
 }
 
 // GetWebSession gets a regular web session.

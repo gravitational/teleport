@@ -944,7 +944,28 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 	if err := a.action(s.GetNamespace(), types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Use labels from discovered resources instead of ones reported by discovered ec2 instances
+	s, err := a.filterEC2Labels(ctx, s)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return a.authServer.UpsertNode(ctx, s)
+}
+
+func (s *ServerWithRoles) filterEC2Labels(ctx context.Context, server types.Server) (types.Server, error) {
+	instanceID := server.GetMetadata().Labels[types.AWSInstanceIDLabel]
+	accountID := server.GetMetadata().Labels[types.AWSAccountIDLabel]
+	if instanceID == "" && accountID == "" {
+		return server, nil
+	}
+	discovered, err := s.GetDiscoveredServer(ctx, instanceID, accountID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	newServer := server.DeepCopy()
+	newServer.SetStaticLabels(discovered.GetDiscoveredLabels())
+	return newServer, nil
 }
 
 // DELETE IN: 5.1.0
@@ -3984,6 +4005,30 @@ func (a *ServerWithRoles) GetDiscoveredServer(ctx context.Context, instanceID, a
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.GetDiscoveredServer(ctx, instanceID, accountID)
+}
+
+// GetDiscoveredServers gets all DiscoveredServer resources.
+func (a *ServerWithRoles) GetDiscoveredServers(ctx context.Context) ([]*types.DiscoveredServerV1, error) {
+	if err := a.action(apidefaults.Namespace, types.KindDiscoveredServer, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetDiscoveredServers(ctx)
+}
+
+// DeleteDiscoveredServer removes a specific DiscoveredServer resource.
+func (a *ServerWithRoles) DeleteDiscoveredServer(ctx context.Context, instanceID, accountID string) error {
+	if err := a.action(apidefaults.Namespace, types.KindDiscoveredServer, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteDiscoveredServer(ctx, instanceID, accountID)
+}
+
+// DeleteAllDiscoveredServers removes all DiscoveredServer resources.
+func (a *ServerWithRoles) DeleteAllDiscoveredServers(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindDiscoveredServer, types.VerbList, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteAllDiscoveredServers(ctx)
 }
 
 // SignDatabaseCSR generates a client certificate used by proxy when talking

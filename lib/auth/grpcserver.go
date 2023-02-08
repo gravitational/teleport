@@ -1266,6 +1266,47 @@ func (g GRPCServer) GetDiscoveredServer(ctx context.Context, req *types.GetDisco
 	return auth.GetDiscoveredServer(ctx, req.InstanceID, req.AccountID)
 }
 
+// GetDiscoveredServers retrieves all discovered server resources.
+func (g GRPCServer) GetDiscoveredServers(ctx context.Context, _ *emptypb.Empty) (*types.GetDiscoveredServersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := auth.GetDiscoveredServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &types.GetDiscoveredServersResponse{
+		Servers: servers,
+	}, nil
+}
+
+// DeleteDiscoveredServer deletes a discovered server resource.
+func (g GRPCServer) DeleteDiscoveredServer(ctx context.Context, req *types.DeleteDiscoveredServerRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteDiscoveredServer(ctx, req.InstanceID, req.AccountID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteAllDiscoveredServers removes all registered DiscoveredServers.
+func (g *GRPCServer) DeleteAllDiscoveredServers(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.DeleteAllDiscoveredServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
 func (g *GRPCServer) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {

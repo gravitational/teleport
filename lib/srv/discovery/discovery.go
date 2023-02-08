@@ -413,7 +413,7 @@ func (s *Server) recordDiscoveredInstance(accountID string, instance *ec2.Instan
 		types.AWSInstanceIDLabel: *instance.InstanceId,
 	}
 	for _, tag := range instance.Tags {
-		labels[*tag.Key] = *tag.Value
+		labels["aws/"+*tag.Key] = *tag.Value
 	}
 	discoveredServer := types.DiscoveredServerSpecV1{
 		InstanceID: aws.StringValue(instance.InstanceId),

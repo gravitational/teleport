@@ -195,6 +195,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[resourceKind] = &databaseService{watch: watch, Cache: c}
+		case types.KindDiscoveredServer:
+			if c.Presence == nil {
+				return nil, trace.BadParameter("missing parameter Presence")
+			}
+			collections[resourceKind] = &discoveredServer{watch: watch, Cache: c}
 		case types.KindApp:
 			if c.Apps == nil {
 				return nil, trace.BadParameter("missing parameter Apps")
@@ -1365,6 +1370,71 @@ func (s *databaseServer) processEvent(ctx context.Context, event types.Event) er
 }
 
 func (s *databaseServer) watchKind() types.WatchKind {
+	return s.watch
+}
+
+type discoveredServer struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (s *discoveredServer) erase(ctx context.Context) error {
+	err := s.presenceCache.DeleteAllDiscoveredServers(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *discoveredServer) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := s.Presence.GetDiscoveredServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := s.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, resource := range resources {
+			if _, err := s.presenceCache.UpsertDiscoveredServer(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (s *discoveredServer) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		resource, ok := event.Resource.(types.DiscoveredServer)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		err := s.presenceCache.DeleteDiscoveredServer(ctx, resource.GetInstanceID(), resource.GetAccountID())
+		if err != nil {
+			// Resource could be missing in the cache expired or not created,
+			// if the first consumed event is delete.
+			if !trace.IsNotFound(err) {
+				s.Logger.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.DiscoveredServer)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if _, err := s.presenceCache.UpsertDiscoveredServer(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		s.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (s *discoveredServer) watchKind() types.WatchKind {
 	return s.watch
 }
 

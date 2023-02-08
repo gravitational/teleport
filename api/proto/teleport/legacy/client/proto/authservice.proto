@@ -2259,10 +2259,16 @@ service AuthService {
   // A subset of resources might be deleted while others still exist.
   rpc DeleteAllDatabaseServices(DeleteAllDatabaseServicesRequest) returns (google.protobuf.Empty);
 
-  // UpsertDiscoveredServer registers a new DiscoveredServer.
+  // UpsertDiscoveredServer creates a new DiscoveredServer resource.
   rpc UpsertDiscoveredServer(types.UpsertDiscoveredServerRequest) returns (types.KeepAlive);
   // GetDiscoveredServer returns a DiscoveredServer.
   rpc GetDiscoveredServer(types.GetDiscoveredServerRequest) returns (types.DiscoveredServerV1);
+  // GetDiscoveredServers returns all DiscoveredServers.
+  rpc GetDiscoveredServers(google.protobuf.Empty) returns (types.GetDiscoveredServersResponse);
+  // DeleteDiscoveredServer deletes a DiscoveredServer resource.
+  rpc DeleteDiscoveredServer(types.DeleteDiscoveredServerRequest) returns (google.protobuf.Empty);
+  // DeleteAllDiscoveredServers deletes all discoveredServer resources.
+  rpc DeleteAllDiscoveredServers(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // SignDatabaseCSR generates client certificate used by proxy to
   // authenticate with a remote database service.

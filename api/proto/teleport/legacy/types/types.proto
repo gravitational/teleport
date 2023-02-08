@@ -4658,10 +4658,21 @@ message UpsertDiscoveredServerRequest {
   DiscoveredServerV1 Server = 1 [(gogoproto.jsontag) = "server"];
 }
 
+// DeleteDiscoveredServerRequest is a request to delete a discovered server.
+message DeleteDiscoveredServerRequest {
+  string InstanceID = 1 [(gogoproto.jsontag) = "instance_id"];
+  string AccountID = 2 [(gogoproto.jsontag) = "account_id"];
+}
+
 // GetDiscoveredserverRequest is a request to retrieve a discovered server.
 message GetDiscoveredServerRequest {
   string InstanceID = 1 [(gogoproto.jsontag) = "instance_id"];
   string AccountID = 2 [(gogoproto.jsontag) = "account_id"];
+}
+
+// GetDiscoveredServersResponse is a request to retrieve all discovered servers.
+message GetDiscoveredServersResponse {
+  repeated DiscoveredServerV1 Servers = 1 [(gogoproto.jsontag) = "servers"];
 }
 
 // AlertSeverity represents how problematic/urgent an alert is, and is used to assist

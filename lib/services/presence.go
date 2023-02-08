@@ -246,6 +246,15 @@ type Presence interface {
 
 	// GetDiscoveredServer gets an existing DiscoveredServer resource.
 	GetDiscoveredServer(context.Context, string, string) (*types.DiscoveredServerV1, error)
+
+	// GetDiscoveredServer gets all existing DiscoveredServer resources.
+	GetDiscoveredServers(context.Context) ([]*types.DiscoveredServerV1, error)
+
+	// DeleteAllDiscoveredServers deletes all discovered server resources
+	DeleteAllDiscoveredServers(context.Context) error
+
+	// DeleteDiscoveredServer deletes the specified discovered server
+	DeleteDiscoveredServer(context.Context, string, string) error
 }
 
 // PresenceInternal extends the Presence interface with auth-specific internal methods.

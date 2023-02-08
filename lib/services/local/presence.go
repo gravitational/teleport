@@ -249,12 +249,6 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
 	}
 
-	// Use labels from discovered resources instead of ones reported by discovered ec2 instances
-	server, err := s.filterEC2Labels(ctx, server)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	value, err := services.MarshalServer(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -276,21 +270,6 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		LeaseID: lease.ID,
 		Name:    server.GetName(),
 	}, nil
-}
-
-func (s *PresenceService) filterEC2Labels(ctx context.Context, server types.Server) (types.Server, error) {
-	instanceID := server.GetMetadata().Labels[types.AWSInstanceIDLabel]
-	accountID := server.GetMetadata().Labels[types.AWSAccountIDLabel]
-	if instanceID == "" && accountID == "" {
-		return server, nil
-	}
-	discovered, err := s.GetDiscoveredServer(ctx, instanceID, accountID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	newServer := server.DeepCopy()
-	newServer.SetStaticLabels(discovered.GetDiscoveredLabels())
-	return newServer, nil
 }
 
 // DELETE IN: 5.1.0.
@@ -1684,6 +1663,40 @@ func (s *PresenceService) GetDiscoveredServer(ctx context.Context, instanceID, a
 		services.WithExpires(item.Expires),
 	)
 	return server.(*types.DiscoveredServerV1), err
+}
+
+// GetDiscoveredServers returns all registered discovered servers.
+func (s *PresenceService) GetDiscoveredServers(ctx context.Context) ([]*types.DiscoveredServerV1, error) {
+	startKey := backend.Key(discoveredServerPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers := make([]*types.DiscoveredServerV1, len(result.Items))
+	for i, item := range result.Items {
+		server, err := services.UnmarshalDiscoveredServer(
+			item.Value)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		s, ok := server.(*types.DiscoveredServerV1)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", s)
+		}
+		servers[i] = s
+	}
+	return servers, nil
+}
+
+// DeleteAllDiscoveredServers deletes all discovered server resources
+func (s *PresenceService) DeleteAllDiscoveredServers(ctx context.Context) error {
+	return s.DeleteRange(context.TODO(), backend.Key(discoveredServerPrefix),
+		backend.RangeEnd(backend.Key(discoveredServerPrefix)))
+}
+
+// DeleteDiscoveredServers deletes the specified discovered server resource
+func (s *PresenceService) DeleteDiscoveredServer(ctx context.Context, instanceID, accountID string) error {
+	return s.Delete(ctx, backend.Key(discoveredServerPrefix, instanceID, accountID))
 }
 
 // listResourcesWithSort supports sorting by falling back to retrieving all resources
