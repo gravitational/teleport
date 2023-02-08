@@ -2,7 +2,14 @@ db_service:
   # Enables the Database Service.
   enabled: "yes"
 
-  # Matchers for database resources created with "tctl create" command.
+  # Matchers for database resources created with "tctl create" command or by the
+  # discovery service.
+  #
+  # All database resources have a predefined "teleport.dev/origin" label with
+  # one of the following values:
+  # "dynamic": database resources created with "tctl create" command
+  # "cloud": database resources created by the discovery service
+  # "config": database resources defined in the "databases" array below
   resources:
   - labels:
       "*": "*"
