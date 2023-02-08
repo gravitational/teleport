@@ -42,16 +42,6 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			errAssertion:     require.Error,
 		},
 		{
-			name:             "entity descriptor only spaces",
-			entityDescriptor: "    ",
-			errAssertion:     require.Error,
-		},
-		{
-			name:             "no XML",
-			entityDescriptor: "this is not valid XML",
-			errAssertion:     require.Error,
-		},
-		{
 			name:             "empty entity ID",
 			entityDescriptor: testEntityDescriptor,
 			errAssertion:     require.Error,

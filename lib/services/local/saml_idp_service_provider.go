@@ -108,22 +108,24 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 		return trace.Wrap(err)
 	}
 
-	if err := s.ensureEntityIDIsUnique(ctx, sp); err != nil {
-		return trace.Wrap(err)
-	}
+	return trace.Wrap(backend.RunWhileLocked(ctx, s.Backend, samlIDPServiceProviderModifyLock, samlIDPServiceProviderModifyLockTTL, func(ctx context.Context) error {
+		if err := s.ensureEntityIDIsUnique(ctx, sp); err != nil {
+			return trace.Wrap(err)
+		}
 
-	value, err := services.MarshalSAMLIdPServiceProvider(sp)
-	if err != nil {
+		value, err := services.MarshalSAMLIdPServiceProvider(sp)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		item := backend.Item{
+			Key:     backend.Key(samlIDPServiceProviderPrefix, sp.GetName()),
+			Value:   value,
+			Expires: sp.Expiry(),
+			ID:      sp.GetResourceID(),
+		}
+		_, err = s.Create(ctx, item)
 		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(samlIDPServiceProviderPrefix, sp.GetName()),
-		Value:   value,
-		Expires: sp.Expiry(),
-		ID:      sp.GetResourceID(),
-	}
-	_, err = s.Create(ctx, item)
-	return trace.Wrap(err)
+	}))
 }
 
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
@@ -136,25 +138,24 @@ func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context
 		return trace.Wrap(err)
 	}
 
-	if err := s.ensureEntityIDIsUnique(ctx, sp); err != nil {
-		return trace.Wrap(err)
-	}
+	return trace.Wrap(backend.RunWhileLocked(ctx, s.Backend, samlIDPServiceProviderModifyLock, samlIDPServiceProviderModifyLockTTL, func(ctx context.Context) error {
+		if err := s.ensureEntityIDIsUnique(ctx, sp); err != nil {
+			return trace.Wrap(err)
+		}
 
-	value, err := services.MarshalSAMLIdPServiceProvider(sp)
-	if err != nil {
+		value, err := services.MarshalSAMLIdPServiceProvider(sp)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		item := backend.Item{
+			Key:     backend.Key(samlIDPServiceProviderPrefix, sp.GetName()),
+			Value:   value,
+			Expires: sp.Expiry(),
+			ID:      sp.GetResourceID(),
+		}
+		_, err = s.Update(ctx, item)
 		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(samlIDPServiceProviderPrefix, sp.GetName()),
-		Value:   value,
-		Expires: sp.Expiry(),
-		ID:      sp.GetResourceID(),
-	}
-	_, err = s.Update(ctx, item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	}))
 }
 
 // DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
@@ -185,32 +186,30 @@ const (
 
 // ensureEntityIDIsUnique makes sure that the entity ID in the service provider doesn't already exist in the backend.
 func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	return trace.Wrap(backend.RunWhileLocked(ctx, s.Backend, samlIDPServiceProviderModifyLock, samlIDPServiceProviderModifyLockTTL, func(ctx context.Context) error {
-		// Make sure no other service provider has the same entity ID.
-		var nextToken string
-		for {
-			var listSps []types.SAMLIdPServiceProvider
-			var err error
-			listSps, nextToken, err = s.ListSAMLIdPServiceProviders(ctx, samlIDPServiceProviderMaxPageSize, nextToken)
+	// Make sure no other service provider has the same entity ID.
+	var nextToken string
+	for {
+		var listSps []types.SAMLIdPServiceProvider
+		var err error
+		listSps, nextToken, err = s.ListSAMLIdPServiceProviders(ctx, samlIDPServiceProviderMaxPageSize, nextToken)
 
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			for _, listSp := range listSps {
-				// Only check entity ID duplicates if we're looking at objects other than the one we're trying to validate.
-				// This ensures updates will work and that creates will return an already exists error.
-				if listSp.GetName() != sp.GetName() && listSp.GetEntityID() == sp.GetEntityID() {
-					return trace.BadParameter("service provider %s has the same entity ID %s", listSp.GetName(), listSp.GetEntityID())
-				}
-			}
-			if nextToken == "" {
-				break
-			}
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
-		return nil
-	}))
+		for _, listSp := range listSps {
+			// Only check entity ID duplicates if we're looking at objects other than the one we're trying to validate.
+			// This ensures updates will work and that creates will return an already exists error.
+			if listSp.GetName() != sp.GetName() && listSp.GetEntityID() == sp.GetEntityID() {
+				return trace.BadParameter("service provider %s has the same entity ID %s", listSp.GetName(), listSp.GetEntityID())
+			}
+		}
+		if nextToken == "" {
+			break
+		}
+	}
+
+	return nil
 }
 
 // ensureEntityDescriptorMatchesEntityID ensures that the entity ID in the entity descriptor is the same as the entity ID

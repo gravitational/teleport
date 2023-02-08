@@ -2444,6 +2444,7 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 
 	// Update a service provider.
 	sp1.SetEntityDescriptor(newEntityDescriptor("updated-sp1"))
+	sp1.SetEntityID("updated-sp1")
 
 	err = clt.UpdateSAMLIdPServiceProvider(ctx, sp1)
 	require.NoError(t, err)
