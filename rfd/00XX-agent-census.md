@@ -170,8 +170,21 @@ In summary, for now we'll have the following new environment variables and respe
 
 ##### 8. Container orchestrator
 
-To determine if the agent is running on a Kubernetes pod, we can check if the `KUBERNETES_SERVICE_HOST` environment variable is set or if the `/var/run/secrets/kubernetes.io/serviceaccount` directory exists ([docs](https://kubernetes.io/docs/tasks/run-application/access-api-from-pod/#directly-accessing-the-rest-api)).
-If so, `UpstreamInventoryHello.ContainerOrchestrator` will be set to `kubernetes`.
+To determine if the agent is running on a Kubernetes pod, we can try to initialize a Kubernetes `client` similar to how [Validator.getClient()](https://github.com/gravitational/teleport/blob/master/lib/kubernetestoken/token_validator.go#L50-L68) does it.
+If this succeeds, the agent is running on Kubernetes.
+
+Afterwards, we'll try to detect in which cloud provider the pod is running on.
+For this, we'll call `client.ServerVersion()` and check if the returned `gitVersion` contains a certain substring specific for each provider:
+
+- in EKS, the git version looks like `"v1.24.8-eks-ffeb93d"` (we'll search for substring `"-eks"`)
+- in GPC ([docs](https://cloud.google.com/kubernetes-engine/docs/release-notes)), the git version looks like `"1.23.14-gke.1800"` (we'll search for substring `"-gke"`)
+
+In AKS, the git version looks like "v1.25.2", so it's not possible to detect this environment using this method. (This is also a problem for Helm charts, as reported in [Azure/AKS#3375](https://github.com/Azure/AKS/issues/3375).)
+
+In the end, `UpstreamInventoryHello.ContainerOrchestrator` will be set to:
+- `kubernetes-eks` if on EKS
+- `kubernetes-gke` if on GKE
+- `kubernetes-unknown` otherwise (AKS, other cloud provider, or no cloud provider)
 
 ##### 9. Cloud environment
 
@@ -179,8 +192,6 @@ The only way to determine this seems to be by hitting certain HTTP endpoints spe
 - AWS ([docs](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html)): http://169.254.169.254/latest/
 - GCP ([docs](https://cloud.google.com/compute/docs/metadata/overview#parts-of-a-request)): http://metadata.google.internal/computeMetadata/v1/
 - Azure ([docs](https://learn.microsoft.com/en-us/azure/virtual-machines/linux/instance-metadata-service?tabs=linux#access-azure-instance-metadata-service)): http://169.254.169.254/metadata/instance?api-version=2021-02-01
-
-This may be considered too intrusive, so we have to make a decision on whether we really want to track it and argue why it's okay to do so.
 
 #### Development plan
 
@@ -197,11 +208,13 @@ A similar reasoning also applies to step 1 since each field in `AgentMetadataEve
 
 ### Security
 
-Besides hitting certain HTTP endpoints to track which cloud environment the agent is running on, there doesn't seem to be any further concern.
+Detecting the __8. Container orchestrator__ and __9. Cloud environment__ requires hitting certain HTTP endpoints.
+This may be considered too intrusive, so we have to make a decision on whether we really want to track it and argue why it's okay to do so.
+Besides this, there doesn't seem to be any further concern.
 
 ### UX
 
-Data analysis and visualization is not a goal of this RFD, so no UX concerns for now.
+Data analysis and visualization is not a goal for this RFD, so no UX concerns for now.
 
 ### Open questions
 
