@@ -366,6 +366,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					types.NewRule(types.KindKubeService, services.RO()),
 					types.NewRule(types.KindKubeServer, services.RO()),
 					types.NewRule(types.KindInstaller, services.RO()),
+					types.NewRule(types.KindDatabaseService, services.RO()),
 					// this rule allows remote proxy to update the cluster's certificate authorities
 					// during certificates renewal
 					{
@@ -411,12 +412,13 @@ func roleSpecForProxyWithRecordAtProxy(clusterName string) types.RoleSpecV5 {
 func roleSpecForProxy(clusterName string) types.RoleSpecV5 {
 	return types.RoleSpecV5{
 		Allow: types.RoleConditions{
-			Namespaces:       []string{types.Wildcard},
-			ClusterLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
-			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Namespaces:            []string{types.Wildcard},
+			ClusterLabels:         types.Labels{types.Wildcard: []string{types.Wildcard}},
+			NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindProxy, services.RW()),
 				types.NewRule(types.KindOIDCRequest, services.RW()),
@@ -457,6 +459,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV5 {
 				types.NewRule(types.KindWindowsDesktop, services.RO()),
 				types.NewRule(types.KindInstaller, services.RO()),
 				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+				types.NewRule(types.KindDatabaseService, services.RO()),
 				// this rule allows local proxy to update the remote cluster's host certificate authorities
 				// during certificates renewal
 				{
@@ -594,6 +597,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindDatabaseServer, services.RW()),
+						types.NewRule(types.KindDatabaseService, services.RW()),
 						types.NewRule(types.KindDatabase, services.RW()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
@@ -634,14 +638,15 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					MaxSessionTTL: types.MaxDuration(),
 				},
 				Allow: types.RoleConditions{
-					Namespaces:           []string{types.Wildcard},
-					Logins:               []string{},
-					NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
-					AppLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
-					KubernetesLabels:     types.Labels{types.Wildcard: []string{types.Wildcard}},
-					DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-					ClusterLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Namespaces:            []string{types.Wildcard},
+					Logins:                []string{},
+					NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+					AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					ClusterLabels:         types.Labels{types.Wildcard: []string{types.Wildcard}},
+					WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.Wildcard, services.RW()),
 					},
