@@ -37,10 +37,7 @@ func ShouldDeleteServerHeartbeatsOnShutdown(ctx context.Context) bool {
 	// will take over the heartbeats so do NOT delete them in that case. In
 	// worst case scenarios if the child fails to register new heartbeats, the
 	// old ones will get deleted automatically upon expiry.
-	if HasProcessForked(ctx) {
-		return false
-	}
-	return true
+	return !HasProcessForked(ctx)
 }
 
 func addFlagToContext[FlagType any](parent context.Context) context.Context {
