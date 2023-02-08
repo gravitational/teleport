@@ -664,12 +664,12 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
 
 ## Moderated session
 
-Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator). 
- - [ ] `Ctrl+C` in the #1 terminal should disconnect the moderator. 
+Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
+ - [ ] `Ctrl+C` in the #1 terminal should disconnect the moderator.
  - [ ] `Ctrl+C` in the #2 terminal should disconnect the moderator and terminate the session as session has no moderator.
 
 Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
-- [ ] `t` in any terminal should terminate the session for all participants. 
+- [ ] `t` in any terminal should terminate the session for all participants.
 
 ## Performance
 
@@ -909,7 +909,7 @@ tsh bench sessions --max=5000 --web user ls
   In contrast for the same configuration with version `v1`, there should be additional ports 3023 and 3024.
   ```
   lsof -i -P | grep teleport | grep LISTEN
-    teleport  ...  TCP *:3022 (LISTEN) 
+    teleport  ...  TCP *:3022 (LISTEN)
     teleport  ...  TCP *:3025 (LISTEN)
     teleport  ...  TCP *:3023 (LISTEN) # <-- extra proxy service port
     teleport  ...  TCP *:3024 (LISTEN) # <-- extra proxy service port
