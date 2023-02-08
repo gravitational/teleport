@@ -104,7 +104,11 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 		return trace.Wrap(err)
 	}
 
-	if err := s.validateAndEnsureEntityIDIsUnique(ctx, sp); err != nil {
+	if err := s.ensureEntityDescriptorMatchesEntityID(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.ensureEntityIDIsUnique(ctx, sp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -128,7 +132,11 @@ func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context
 		return trace.Wrap(err)
 	}
 
-	if err := s.validateAndEnsureEntityIDIsUnique(ctx, sp); err != nil {
+	if err := s.ensureEntityDescriptorMatchesEntityID(sp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.ensureEntityIDIsUnique(ctx, sp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -175,17 +183,9 @@ const (
 	samlIDPServiceProviderPrefix = "saml_idp_service_provider"
 )
 
-func (s *SAMLIdPServiceProviderService) validateAndEnsureEntityIDIsUnique(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
+// ensureEntityIDIsUnique makes sure that the entity ID in the service provider doesn't already exist in the backend.
+func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
 	return trace.Wrap(backend.RunWhileLocked(ctx, s.Backend, samlIDPServiceProviderModifyLock, samlIDPServiceProviderModifyLockTTL, func(ctx context.Context) error {
-		ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if ed.EntityID != sp.GetEntityID() {
-			return trace.BadParameter("entity ID in the entity descriptor does not match the supplied entity descriptor")
-		}
-
 		// Make sure no other service provider has the same entity ID.
 		var nextToken string
 		for {
@@ -211,4 +211,19 @@ func (s *SAMLIdPServiceProviderService) validateAndEnsureEntityIDIsUnique(ctx co
 
 		return nil
 	}))
+}
+
+// ensureEntityDescriptorMatchesEntityID ensures that the entity ID in the entity descriptor is the same as the entity ID
+// in the SAMLIdPServiceProvider object.
+func (s *SAMLIdPServiceProviderService) ensureEntityDescriptorMatchesEntityID(sp types.SAMLIdPServiceProvider) error {
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if ed.EntityID != sp.GetEntityID() {
+		return trace.BadParameter("entity ID in the entity descriptor does not match the supplied entity descriptor")
+	}
+
+	return nil
 }
