@@ -55,6 +55,5 @@
     "eslint-import-resolver-webpack": "0.13.2",
     "eslint-loader": "3.0.3",
     "ts-loader": "^9.3.1"
-  },
-  "productName": "Teleport Connect"
+  }
 }
