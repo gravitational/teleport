@@ -105,7 +105,7 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 			identityUsername: "myuser",
 			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsBadParameter(err), "exepcted trace.IsBadParameter error, got: %v", err)
+				require.True(tt, trace.IsBadParameter(err), "expected trace.IsBadParameter error, got: %v", err)
 			},
 		},
 		{
@@ -119,7 +119,7 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 			identityUsername: "myuser",
 			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsBadParameter(err), "exepcted trace.IsBadParameter error, got: %v", err)
+				require.True(tt, trace.IsBadParameter(err), "expected trace.IsBadParameter error, got: %v", err)
 			},
 		},
 		{
@@ -182,7 +182,7 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 			identityUsername: "myuser",
 			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(tt, trace.IsBadParameter(err), "exepcted trace.IsBadParameter error, got: %v", err)
+				require.True(tt, trace.IsBadParameter(err), "expected trace.IsBadParameter error, got: %v", err)
 			},
 		},
 	} {

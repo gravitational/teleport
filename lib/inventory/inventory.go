@@ -86,13 +86,22 @@ type DownstreamSender interface {
 // supplied create func and manage hello exchange with the supplied upstream hello.
 func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) DownstreamHandle {
 	ctx, cancel := context.WithCancel(context.Background())
+	agentMetadataCh := make(chan proto.UpstreamInventoryAgentMetadata, 1)
 	handle := &downstreamHandle{
-		senderC:      make(chan DownstreamSender),
-		pingHandlers: make(map[uint64]DownstreamPingHandler),
-		closeContext: ctx,
-		cancel:       cancel,
+		senderC:         make(chan DownstreamSender),
+		pingHandlers:    make(map[uint64]DownstreamPingHandler),
+		closeContext:    ctx,
+		cancel:          cancel,
+		agentMetadataCh: agentMetadataCh,
 	}
 	go handle.run(fn, hello)
+	go func() {
+		m := fetchAgentMetadata(ctx, hello)
+		select {
+		case agentMetadataCh <- m:
+		case <-ctx.Done():
+		}
+	}()
 	return handle
 }
 
@@ -113,12 +122,13 @@ func SendHeartbeat(ctx context.Context, handle DownstreamHandle, hb proto.Invent
 }
 
 type downstreamHandle struct {
-	mu           sync.Mutex
-	handlerNonce uint64
-	pingHandlers map[uint64]DownstreamPingHandler
-	senderC      chan DownstreamSender
-	closeContext context.Context
-	cancel       context.CancelFunc
+	mu              sync.Mutex
+	handlerNonce    uint64
+	pingHandlers    map[uint64]DownstreamPingHandler
+	senderC         chan DownstreamSender
+	closeContext    context.Context
+	cancel          context.CancelFunc
+	agentMetadataCh chan proto.UpstreamInventoryAgentMetadata
 }
 
 func (h *downstreamHandle) closing() bool {
@@ -192,10 +202,17 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 
 	sender := downstreamSender{stream, downstreamHello}
 
-	// handle incoming messages and distribute sender references
+	// handle incoming messages and distribute sender references.
+	// agent metadata is also sent to the auth server at most once:
+	// if the first attempt does not succeed, the ICS won't try
+	// to send it again.
 	for {
 		select {
 		case h.senderC <- sender:
+		case m := <-h.agentMetadataCh:
+			if err := stream.Send(h.closeContext, m); err != nil {
+				log.Warnf("failed to send agent metadata: %v", err)
+			}
 		case msg := <-stream.Recv():
 			switch m := msg.(type) {
 			case proto.DownstreamInventoryHello:
@@ -346,7 +363,7 @@ type instanceStateTracker struct {
 	lastRawHeartbeat []byte
 
 	// retryHeartbeat is set to true if an unexpected error is hit. We retry exactly once, closing
-	// the stream if the retry does not succeede.
+	// the stream if the retry does not succeed.
 	retryHeartbeat bool
 }
 
@@ -455,7 +472,7 @@ type upstreamHandle struct {
 
 	// sshServer is the most recently heartbeated ssh server resource (if any).
 	sshServer *types.ServerV2
-	// retryUpstert inidcates that writing the ssh server lease failed and should be retried.
+	// retrySSHServerUpsert indicates that writing the ssh server lease failed and should be retried.
 	retrySSHServerUpsert bool
 	// sshServerLease is used to keep alive an ssh server resource that was previously
 	// sent over a heartbeat.

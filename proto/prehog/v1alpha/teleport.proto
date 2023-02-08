@@ -175,7 +175,7 @@ message DiscoverStepStatus {
   // Indicates the step outcome.
   DiscoverStatus status = 1;
   // Contains error details in case of Error Status.
-  // We have to be careful to not include any identifyable infomation like server addresses here.
+  // We have to be careful to not include any identifiable information like server addresses here.
   string error = 2;
 }
 
@@ -272,6 +272,30 @@ message UIDiscoverCompletedEvent {
   DiscoverStepStatus status = 3;
 }
 
+message AgentMetadataEvent {
+  string version = 1;
+  string server_id = 2;
+  repeated TeleportAccessProtocol protocols = 3;
+  string os = 4;
+  string os_version = 5;
+  string host_architecture = 6;
+  string glibc_version = 7;
+  repeated string install_methods = 8;
+  string container_runtime = 9;
+  string container_orchestrator = 10;
+  string cloud_environment = 11;
+}
+
+// TeleportAccessProtocol
+enum TeleportAccessProtocol {
+  TELEPORT_ACCESS_PROTOCOL_UNSPECIFIED = 0;
+  TELEPORT_ACCESS_PROTOCOL_SSH = 1;
+  TELEPORT_ACCESS_PROTOCOL_KUBE = 2;
+  TELEPORT_ACCESS_PROTOCOL_APP = 3;
+  TELEPORT_ACCESS_PROTOCOL_DB = 4;
+  TELEPORT_ACCESS_PROTOCOL_WINDOWS_DESKTOP = 5;
+}
+
 message SubmitEventRequest {
   // anonymized
   string cluster_name = 1;
@@ -318,6 +342,8 @@ message SubmitEventRequest {
     UIDiscoverPrincipalsConfigureEvent ui_discover_principals_configure_event = 28;
     UIDiscoverTestConnectionEvent ui_discover_test_connection_event = 29;
     UIDiscoverCompletedEvent ui_discover_completed_event = 30;
+
+    AgentMetadataEvent agent_metadata_event = 31;
   }
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

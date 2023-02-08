@@ -233,7 +233,7 @@ func (c *Client) GetInstances(ctx context.Context, filter types.InstanceFilter) 
 		cancel()
 		return stream.Fail[types.Instance](trail.FromGRPC(err))
 	}
-	return stream.Func[types.Instance](func() (types.Instance, error) {
+	return stream.Func(func() (types.Instance, error) {
 		instance, err := instances.Recv()
 		if err != nil {
 			if trace.IsEOF(err) {
@@ -332,6 +332,10 @@ func (i *downstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStr
 			case proto.UpstreamInventoryPong:
 				oneOf.Msg = &proto.UpstreamInventoryOneOf_Pong{
 					Pong: &msg,
+				}
+			case proto.UpstreamInventoryAgentMetadata:
+				oneOf.Msg = &proto.UpstreamInventoryOneOf_AgentMetadata{
+					AgentMetadata: &msg,
 				}
 			default:
 				sendMsg.errC <- trace.BadParameter("cannot send unexpected upstream msg type: %T", msg)
