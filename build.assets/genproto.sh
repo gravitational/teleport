@@ -11,9 +11,12 @@ main() {
   # <teleport-root>/github.com/gravitational/teleport/..., so we copy them to
   # the correct relative path.
   trap 'rm -fr github.com' EXIT   # don't leave github.com/ behind
-  rm -fr api/gen/proto gen/proto  # cleanup gen/proto folders
+  rm -fr api/gen/proto gen/proto lib/teleterm/api/protogen  # cleanup gen/proto folders
   buf generate api/proto
   buf generate proto
+
+  buf generate --template=lib/teleterm/buf.gen.yaml lib/teleterm/api/proto
+
   cp -r github.com/gravitational/teleport/* .
 }
 
