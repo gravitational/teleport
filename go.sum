@@ -701,8 +701,8 @@ github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70 h1:To76nCJtM3DI
 github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70/go.mod h1:88hFR45MpUd23d2vNWE/dYtesU50jKsbz0I9kH7UaBY=
 github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90 h1:fPNJE2kaWC0Oy2YKxk1tbnqhKl3aTeXVAfjXzphJmI8=
 github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90/go.mod h1:6FzirJfdffakAVqmHjwVfFkpru/gNbIazUOK5rIhndc=
-github.com/gravitational/go-libfido2 v1.5.3-0.20220630200200-45a8c53e4500 h1:54z7/KbhT1dTmM1HnFQ5ggu5GZ4nUFARYaO6MNsxB1M=
-github.com/gravitational/go-libfido2 v1.5.3-0.20220630200200-45a8c53e4500/go.mod h1:P0V19qHwJNY0htZwZDe9Ilvs/nokGhdFX7faKFyZ6+U=
+github.com/gravitational/go-libfido2 v1.5.3-0.20230202181331-c71192ef1c8a h1:Wudq53GAiVk1Z+4A1tFzyvidhA6X7rGDb5JKGU9NV0c=
+github.com/gravitational/go-libfido2 v1.5.3-0.20230202181331-c71192ef1c8a/go.mod h1:92J9LtSBl0UyUWljElJpTbMMNhC6VeY8dshsu40qjjo=
 github.com/gravitational/go-mssqldb v0.11.1-0.20221006130402-25bef12c7ee1 h1:Cn1pBqXotvV5z9x0Ea03W+RfnVR2a84uj623MOU+Ggc=
 github.com/gravitational/go-mssqldb v0.11.1-0.20221006130402-25bef12c7ee1/go.mod h1:aZarnOTrH0rv5ZCbIic1ptkPP4GYmy8bM6iCMHtMcxY=
 github.com/gravitational/go-mysql v1.5.0-teleport.1 h1:EyFryeiTYyP6KslLVp0Q5QTKwtUG5RioVrTIoP4pOuI=
@@ -731,8 +731,6 @@ github.com/gravitational/roundtrip v1.0.2 h1:eOCY0NEKKaB0ksJmvhO6lPMFz1pIIef+vyP
 github.com/gravitational/roundtrip v1.0.2/go.mod h1:fuI1booM2hLRA/B/m5MRAPOU6mBZNYcNycono2UuTw0=
 github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055 h1:iUQqKNaW1lywWSVZkeCQX0vygPfJ63UGx6Ng94e2t1o=
 github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055/go.mod h1:wHDZ0IZX6JcBYRK1TH9bcVq8G7TLpVHYIGJRFnmPfxg=
-github.com/gravitational/trace v1.2.0 h1:ODrkITHAmumFOTgCLb2zScMRCT2VQVXyIzDpN2CyN6s=
-github.com/gravitational/trace v1.2.0/go.mod h1:n0ijrq6psJY0sOI/NzLp+xdd8xl79jjwzVOFHDY6+kQ=
 github.com/gravitational/trace v1.2.1 h1:Iaf43aqbKV5H8bdiRs1qByjEHgAfADJ0lt0JwRyu+q8=
 github.com/gravitational/trace v1.2.1/go.mod h1:n0ijrq6psJY0sOI/NzLp+xdd8xl79jjwzVOFHDY6+kQ=
 github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c h1:C2iWDiod8vQ3YnOiCdMP9qYeg2UifQ8KSk36r0NswSE=

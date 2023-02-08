@@ -379,12 +379,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase); err != nil {
-		return trace.Wrap(err)
+
+	// Some protocols require the --tunnel flag, e.g. Snowflake.
+	if !cf.LocalProxyTunnel && requiresLocalProxyTunnel(client, routeToDatabase.Protocol) {
+		return trace.BadParameter(formatDbCmdUnsupportedWithCondition(cf, routeToDatabase, "without the --tunnel flag"))
 	}
 
-	if routeToDatabase.Protocol == defaults.ProtocolSnowflake && !cf.LocalProxyTunnel {
-		return trace.BadParameter("Snowflake proxy works only in the tunnel mode. Please add --tunnel flag to enable it")
+	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase); err != nil {
+		return trace.Wrap(err)
 	}
 
 	rootCluster, err := client.RootClusterName(cf.Context)
@@ -825,6 +827,20 @@ func envVarCommand(format, key, value string) (string, error) {
 
 	default:
 		return "", trace.BadParameter("unsupported format %q", format)
+	}
+}
+
+// requiresLocalProxyTunnel returns whether the given protocol requires a local proxy with the --tunnel flag.
+func requiresLocalProxyTunnel(tc *libclient.TeleportClient, protocol string) bool {
+	switch tc.PrivateKeyPolicy {
+	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
+		return true
+	}
+	switch protocol {
+	case defaults.ProtocolSnowflake:
+		return true
+	default:
+		return false
 	}
 }
 

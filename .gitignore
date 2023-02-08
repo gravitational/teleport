@@ -87,3 +87,6 @@ node_modules
 
 .air.toml
 webassets/
+
+# jest --coverage
+coverage

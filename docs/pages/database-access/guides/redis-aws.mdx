@@ -74,7 +74,7 @@ Create the Database Service configuration:
   ```code
   $ teleport db configure create \
      -o file \
-     --proxy=mytenant.teleport.sh \
+     --proxy=mytenant.teleport.sh:443 \
      --token=/tmp/token \
      --elasticache-discovery=us-west-1
   ```
@@ -83,7 +83,7 @@ Create the Database Service configuration:
   ```
   $ teleport db configure create \
      -o file \
-     --proxy=mytenant.teleport.sh \
+     --proxy=mytenant.teleport.sh:443 \
      --token=/tmp/token \
      --memorydb-discovery=us-west-1
   ```
