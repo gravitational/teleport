@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	streamutils "github.com/gravitational/teleport/lib/utils/grpc/stream"
 )
 
 // ClientConfig configures a Client instance.
@@ -356,7 +357,41 @@ func (c *Client) DialNode(
 		return nil, trace.ConnectionProblem(err, "error dialing peer proxies %s: %v", proxyIDs, err)
 	}
 
-	return newStreamConn(stream, src, dst), nil
+	streamRW, err := streamutils.NewReadWriter(frameStream{stream: stream})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newStreamConn(streamRW, src, dst), nil
+}
+
+// stream is the common subset of the [clientapi.ProxyService_DialNodeClient] and
+// [clientapi.ProxyService_DialNodeServer] interfaces.
+type stream interface {
+	Send(*clientapi.Frame) error
+	Recv() (*clientapi.Frame, error)
+}
+
+// frameStream implements [streamutils.Source].
+type frameStream struct {
+	stream stream
+}
+
+func (s frameStream) Send(p []byte) error {
+	return trace.Wrap(s.stream.Send(&clientapi.Frame{Message: &clientapi.Frame_Data{Data: &clientapi.Data{Bytes: p}}}))
+}
+
+func (s frameStream) Recv() ([]byte, error) {
+	frame, err := s.stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if frame.GetData() == nil {
+		return nil, trace.BadParameter("received invalid frame")
+	}
+
+	return frame.GetData().Bytes, nil
 }
 
 // Shutdown gracefully shuts down all existing client connections.
