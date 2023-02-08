@@ -25,7 +25,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
-	admin "cloud.google.com/go/firestore/apiv1/admin/adminpb"
+	"cloud.google.com/go/firestore/apiv1/admin/adminpb"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -537,27 +537,27 @@ func (l *Log) getIndexParent() string {
 func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 	tuples := firestorebk.IndexList{}
 	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
 	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_DESCENDING),
-		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_DESCENDING),
+		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
 	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(eventTypeDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_DESCENDING),
-		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_DESCENDING),
+		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
 	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(eventTypeDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(sessionIDDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(sessionIDDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
 	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, tuples, l.getIndexParent())
 	return trace.Wrap(err)
