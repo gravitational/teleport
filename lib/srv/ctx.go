@@ -1179,7 +1179,12 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 		{Login: id.Login},
 		{Node: serverID},
 		{Node: auth.HostFQDN(serverID, clusterName)},
-		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
+	}
+	if mfaDevice := id.Certificate.Extensions[teleport.CertExtensionMFAVerified]; mfaDevice != "" {
+		lockTargets = append(lockTargets, types.LockTarget{MFADevice: mfaDevice})
+	}
+	if trustedDevice := id.Certificate.Extensions[teleport.CertExtensionDeviceID]; trustedDevice != "" {
+		lockTargets = append(lockTargets, types.LockTarget{Device: trustedDevice})
 	}
 	roles := apiutils.Deduplicate(append(id.AccessChecker.RoleNames(), id.UnmappedRoles...))
 	lockTargets = append(lockTargets, services.RolesToLockTargets(roles)...)
