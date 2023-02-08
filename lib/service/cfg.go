@@ -70,6 +70,16 @@ type Rate struct {
 	Time   time.Duration
 }
 
+// JoinParams is a set of extra parameters for joining the auth server.
+type JoinParams struct {
+	Azure AzureJoinParams
+}
+
+// AzureJoinParams is the parameters specific to the azure join method.
+type AzureJoinParams struct {
+	ClientID string
+}
+
 // Config structure is used to initialize _all_ services Teleport can run.
 // Some settings are global (like DataDir) while others are grouped into
 // sections, like AuthConfig
@@ -85,6 +95,9 @@ type Config struct {
 
 	// JoinMethod is the method the instance will use to join the auth server
 	JoinMethod types.JoinMethod
+
+	// JoinParams is a set of extra parameters for joining the auth server.
+	JoinParams JoinParams
 
 	// ProxyServer is the address of the proxy
 	ProxyServer utils.NetAddr
