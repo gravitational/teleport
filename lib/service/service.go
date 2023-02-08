@@ -5018,8 +5018,7 @@ func newHTTPFileSystem() (http.FileSystem, error) {
 	}
 
 	// Use the supplied HTTP filesystem path (defaults to the current dir).
-	assetsPath := os.Getenv(teleport.DebugAssetsPath)
-	fs, err := web.NewDebugFileSystem(assetsPath)
+	fs, err := web.NewDebugFileSystem()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
