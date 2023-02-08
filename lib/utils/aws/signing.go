@@ -139,7 +139,7 @@ func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, sig
 	if err := signCtx.Check(s.Clock); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	payload, err := GetAndReplaceReqBody(req)
+	payload, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

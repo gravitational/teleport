@@ -31,4 +31,7 @@ export const handlersTeleport = [
       })
     );
   }),
+  rest.post(cfg.api.captureUserEventPath, (req, res, ctx) => {
+    return res(ctx.status(200));
+  }),
 ];

@@ -34,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
@@ -294,7 +295,8 @@ func TestIdentityRead(t *testing.T) {
 
 	var a net.Addr
 	// host auth callback must succeed
-	cb := k.HostKeyCallback("proxy.example.com")
+	cb, err := k.HostKeyCallback()
+	require.NoError(t, err)
 	require.NoError(t, cb(hosts[0], a, cert))
 
 	// load an identity which include TLS certificates
@@ -316,8 +318,6 @@ func fixturePath(path string) string {
 func TestKeyFromIdentityFile(t *testing.T) {
 	t.Parallel()
 	key := newClientKey(t)
-	key.ProxyHost = "proxy.example.com"
-	key.ClusterName = "cluster"
 
 	identityFilePath := filepath.Join(t.TempDir(), "out")
 
@@ -330,13 +330,18 @@ func TestKeyFromIdentityFile(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	const proxyHost = "proxy.example.com"
+	const cluster = "cluster"
+
 	// parsed key is unchanged from original with proxy and cluster provided.
-	parsedKey, err := KeyFromIdentityFile(identityFilePath, key.ProxyHost, key.ClusterName)
+	parsedKey, err := KeyFromIdentityFile(identityFilePath, proxyHost, cluster)
+	key.ClusterName = cluster
+	key.ProxyHost = proxyHost
 	require.NoError(t, err)
 	require.Equal(t, key, parsedKey)
 
 	// Identity file's cluster name defaults to root cluster name.
-	parsedKey, err = KeyFromIdentityFile(identityFilePath, key.ProxyHost, "")
+	parsedKey, err = KeyFromIdentityFile(identityFilePath, proxyHost, "")
 	key.ClusterName = "root"
 	require.NoError(t, err)
 	require.Equal(t, key, parsedKey)
@@ -374,9 +379,10 @@ func TestNewClientStoreFromIdentityFile(t *testing.T) {
 	retrievedProfile, err := clientStore.GetProfile(currentProfile)
 	require.NoError(t, err)
 	require.Equal(t, &profile.Profile{
-		WebProxyAddr: key.ProxyHost + ":3080",
-		SiteName:     key.ClusterName,
-		Username:     key.Username,
+		WebProxyAddr:     key.ProxyHost + ":3080",
+		SiteName:         key.ClusterName,
+		Username:         key.Username,
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 	}, retrievedProfile)
 
 	retrievedKey, err := clientStore.GetKey(key.KeyIndex, client.WithAllCerts...)

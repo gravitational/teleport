@@ -17,10 +17,12 @@ limitations under the License.
 package web
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -39,7 +41,36 @@ const (
 	recoveryCodesCopyClickEvent     = "tp.ui.recoveryCodesCopy.click"
 	recoveryCodesPrintClickEvent    = "tp.ui.recoveryCodesPrint.click"
 	completeGoToDashboardClickEvent = "tp.ui.onboard.completeGoToDashboard.click"
+
+	uiDiscoverStartedEvent                            = "tp.ui.discover.started"
+	uiDiscoverResourceSelectionEvent                  = "tp.ui.discover.resourceSelection"
+	uiDiscoverDeployServiceEvent                      = "tp.ui.discover.deployService"
+	uiDiscoverDatabaseRegisterEvent                   = "tp.ui.discover.database.register"
+	uiDiscoverDatabaseConfigureMTLSEvent              = "tp.ui.discover.database.configure.mtls"
+	uiDiscoverDatabaseConfigureIAMPolicyEvent         = "tp.ui.discover.database.configure.iampolicy"
+	uiDiscoverDesktopActiveDirectoryToolsInstallEvent = "tp.ui.discover.desktop.activeDirectory.tools.install"
+	uiDiscoverDesktopActiveDirectoryConfigureEvent    = "tp.ui.discover.desktop.activeDirectory.configure"
+	uiDiscoverAutoDiscoveredResourcesEvent            = "tp.ui.discover.autoDiscoveredResources"
+	uiDiscoverPrincipalsConfigureEvent                = "tp.ui.discover.principals.configure"
+	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
+	uiDiscoverCompletedEvent                          = "tp.ui.discover.completed"
 )
+
+// Events that require extra metadata.
+var eventsWithDataRequired = []string{
+	uiDiscoverStartedEvent,
+	uiDiscoverResourceSelectionEvent,
+	uiDiscoverDeployServiceEvent,
+	uiDiscoverDatabaseRegisterEvent,
+	uiDiscoverDatabaseConfigureMTLSEvent,
+	uiDiscoverDatabaseConfigureIAMPolicyEvent,
+	uiDiscoverDesktopActiveDirectoryToolsInstallEvent,
+	uiDiscoverDesktopActiveDirectoryConfigureEvent,
+	uiDiscoverAutoDiscoveredResourcesEvent,
+	uiDiscoverPrincipalsConfigureEvent,
+	uiDiscoverTestConnectionEvent,
+	uiDiscoverCompletedEvent,
+}
 
 // createPreUserEventRequest contains the event and properties associated with a user event
 // the usageReporter convert event function will later set the timestamp
@@ -70,12 +101,20 @@ type createUserEventRequest struct {
 	Event string `json:"event"`
 	// Alert is a banner click event property
 	Alert string `json:"alert"`
+
+	// EventData contains the event's metadata.
+	// This field dependes on the Event name, hence the json.RawMessage
+	EventData *json.RawMessage `json:"eventData"`
 }
 
 // CheckAndSetDefaults validates the Request has the required fields.
 func (r *createUserEventRequest) CheckAndSetDefaults() error {
 	if r.Event == "" {
 		return trace.BadParameter("missing required parameter Event")
+	}
+
+	if slices.Contains(eventsWithDataRequired, r.Event) && r.EventData == nil {
+		return trace.BadParameter("eventData is required")
 	}
 
 	return nil
@@ -164,6 +203,59 @@ func (h *Handler) createPreUserEventHandle(w http.ResponseWriter, r *http.Reques
 	return nil, nil
 }
 
+// convertUserEventRequestToUsageEvent receives a createUserEventRequest and creates a new *v1.UsageEventOneOf.
+// Based on the event's name, it creates the corresponding *v1.UsageEventOneOf adding the required fields.
+func convertUserEventRequestToUsageEvent(req createUserEventRequest) (*v1.UsageEventOneOf, error) {
+	switch req.Event {
+	case bannerClickEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiBannerClick{
+				UiBannerClick: &v1.UIBannerClickEvent{
+					Alert: req.Alert,
+				},
+			}},
+			nil
+
+	case addFirstResourceClickEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiOnboardAddFirstResourceClick{
+				UiOnboardAddFirstResourceClick: &v1.UIOnboardAddFirstResourceClickEvent{},
+			}},
+			nil
+
+	case addFirstResourceLaterClickEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiOnboardAddFirstResourceLaterClick{
+				UiOnboardAddFirstResourceLaterClick: &v1.UIOnboardAddFirstResourceLaterClickEvent{},
+			}},
+			nil
+
+	case uiDiscoverStartedEvent,
+		uiDiscoverResourceSelectionEvent,
+		uiDiscoverDeployServiceEvent,
+		uiDiscoverDatabaseRegisterEvent,
+		uiDiscoverDatabaseConfigureMTLSEvent,
+		uiDiscoverDatabaseConfigureIAMPolicyEvent,
+		uiDiscoverDesktopActiveDirectoryToolsInstallEvent,
+		uiDiscoverDesktopActiveDirectoryConfigureEvent,
+		uiDiscoverAutoDiscoveredResourcesEvent,
+		uiDiscoverPrincipalsConfigureEvent,
+		uiDiscoverTestConnectionEvent,
+		uiDiscoverCompletedEvent:
+
+		var discoverEvent DiscoverEventData
+		if err := json.Unmarshal([]byte(*req.EventData), &discoverEvent); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		event, err := discoverEvent.ToUsageEvent(req.Event)
+		if err != nil {
+			return nil, trace.BadParameter("failed to convert eventData: %v", err)
+		}
+		return event, nil
+
+	}
+
+	return nil, trace.BadParameter("invalid event %s", req.Event)
+}
+
 // createUserEventHandle sends a user event to the UserEvent service
 // this handler is for user events with a session
 func (h *Handler) createUserEventHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (interface{}, error) {
@@ -181,28 +273,13 @@ func (h *Handler) createUserEventHandle(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	typedEvent := v1.UsageEventOneOf{}
-	switch req.Event {
-	case bannerClickEvent:
-		typedEvent.Event = &v1.UsageEventOneOf_UiBannerClick{
-			UiBannerClick: &v1.UIBannerClickEvent{
-				Alert: req.Alert,
-			},
-		}
-	case addFirstResourceClickEvent:
-		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardAddFirstResourceClick{
-			UiOnboardAddFirstResourceClick: &v1.UIOnboardAddFirstResourceClickEvent{},
-		}
-	case addFirstResourceLaterClickEvent:
-		typedEvent.Event = &v1.UsageEventOneOf_UiOnboardAddFirstResourceLaterClick{
-			UiOnboardAddFirstResourceLaterClick: &v1.UIOnboardAddFirstResourceLaterClickEvent{},
-		}
-	default:
-		return nil, trace.BadParameter("invalid event %s", req.Event)
+	typedEvent, err := convertUserEventRequestToUsageEvent(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	event := &proto.SubmitUsageEventRequest{
-		Event: &typedEvent,
+		Event: typedEvent,
 	}
 
 	err = client.SubmitUsageEvent(r.Context(), event)

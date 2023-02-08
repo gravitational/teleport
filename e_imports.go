@@ -20,8 +20,12 @@ package teleport
 // access to it (like Dependabot) doesn't wrongly remove them.
 // Any import that is present only in this file, but not in e/, can be safely
 // removed.
+
 import (
 	_ "github.com/beevik/etree"          // hold for e/
+	_ "github.com/coreos/go-oidc/oidc"   // hold for e/
+	_ "github.com/crewjam/saml/samlidp"  // hold for e/
+	_ "github.com/crewjam/saml/samlsp"   // hold for e/
 	_ "github.com/go-piv/piv-go/piv"     // hold for e/
 	_ "github.com/gravitational/form"    // hold for e/
 	_ "github.com/gravitational/license" // hold for e/

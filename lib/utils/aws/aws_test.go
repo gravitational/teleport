@@ -196,3 +196,62 @@ func TestRoles(t *testing.T) {
 		})
 	})
 }
+
+func TestValidateRoleARNAndExtractRoleName(t *testing.T) {
+	tests := []struct {
+		name           string
+		inputARN       string
+		inputPartition string
+		inputAccountID string
+		wantRoleName   string
+		wantError      bool
+	}{
+		{
+			name:           "success",
+			inputARN:       "arn:aws:iam::123456789012:role/role-name",
+			inputPartition: "aws",
+			inputAccountID: "123456789012",
+			wantRoleName:   "role-name",
+		},
+		{
+			name:           "invalid arn",
+			inputARN:       "arn::::aws:iam::123456789012:role/role-name",
+			inputPartition: "aws",
+			inputAccountID: "123456789012",
+			wantError:      true,
+		},
+		{
+			name:           "invalid partition",
+			inputARN:       "arn:aws:iam::123456789012:role/role-name",
+			inputPartition: "aws-cn",
+			inputAccountID: "123456789012",
+			wantError:      true,
+		},
+		{
+			name:           "invalid account ID",
+			inputARN:       "arn:aws:iam::123456789012:role/role-name",
+			inputPartition: "aws",
+			inputAccountID: "123456789000",
+			wantError:      true,
+		},
+		{
+			name:           "not role arn",
+			inputARN:       "arn:aws:iam::123456789012:user/username",
+			inputPartition: "aws",
+			inputAccountID: "123456789012",
+			wantError:      true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actualRoleName, err := ValidateRoleARNAndExtractRoleName(test.inputARN, test.inputPartition, test.inputAccountID)
+			if test.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.wantRoleName, actualRoleName)
+			}
+		})
+	}
+}
