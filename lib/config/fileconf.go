@@ -652,6 +652,12 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 type JoinParams struct {
 	TokenName string           `yaml:"token_name"`
 	Method    types.JoinMethod `yaml:"method"`
+	Azure     AzureJoinParams  `yaml:"azure"`
+}
+
+// AzureJoinParams configures the parameters specific to the Azure join method.
+type AzureJoinParams struct {
+	ClientID string `yaml:"client_id"`
 }
 
 // ConnectionRate configures rate limiter
