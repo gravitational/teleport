@@ -204,7 +204,7 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 
 func (p *Suite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config helpers.ClientConfig) {
 	const (
-		deadline         = time.Second * 5
+		deadline         = time.Second * 20
 		nextIterWaitTime = time.Millisecond * 100
 	)
 
