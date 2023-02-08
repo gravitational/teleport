@@ -23,7 +23,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -147,14 +147,6 @@ func mustDecodeYAML(t *testing.T, r io.Reader, i interface{}) {
 	err := yaml.NewDecoder(r).Decode(i)
 	require.NoError(t, err)
 }
-
-func mustGetFreeLocalListenerAddr(t *testing.T) string {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	defer l.Close()
-	return l.Addr().String()
-}
-
 func mustGetBase64EncFileConfig(t *testing.T, fc *config.FileConfig) string {
 	configYamlContent, err := yaml.Marshal(fc)
 	require.NoError(t, err)
@@ -183,7 +175,8 @@ func mustWriteIdentityFile(t *testing.T, fc *config.FileConfig, username string)
 }
 
 type testServerOptions struct {
-	fileConfig *config.FileConfig
+	fileConfig      *config.FileConfig
+	fileDescriptors []service.FileDescriptor
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -191,6 +184,12 @@ type testServerOptionFunc func(options *testServerOptions)
 func withFileConfig(fc *config.FileConfig) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.fileConfig = fc
+	}
+}
+
+func withFileDescriptors(fds []service.FileDescriptor) testServerOptionFunc {
+	return func(options *testServerOptions) {
+		options.fileDescriptors = fds
 	}
 }
 
@@ -203,6 +202,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	var err error
 	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.FileDescriptors = options.fileDescriptors
 	if options.fileConfig != nil {
 		err = config.ApplyFileConfig(options.fileConfig, cfg)
 		require.NoError(t, err)
@@ -226,6 +226,30 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	require.NoError(t, err, "auth server didn't start after 30s")
 
 	return auth
+}
+
+func newDynamicServiceAddr(t *testing.T) *dynamicServiceAddr {
+	var fds []service.FileDescriptor
+	webAddr := helpers.NewListener(t, service.ListenerProxyWeb, &fds)
+	tunnelAddr := helpers.NewListener(t, service.ListenerProxyTunnel, &fds)
+	authAddr := helpers.NewListener(t, service.ListenerAuth, &fds)
+
+	return &dynamicServiceAddr{
+		descriptors: fds,
+		webAddr:     webAddr,
+		tunnelAddr:  tunnelAddr,
+		authAddr:    authAddr,
+	}
+}
+
+// dynamicServiceAddr collects listeners addresses and sockets descriptors allowing to create and network listeners
+// and pass the file descriptors to teleport service.
+// This is usefully when Teleport service is created from config file where a port is allocated by OS.
+type dynamicServiceAddr struct {
+	webAddr     string
+	tunnelAddr  string
+	authAddr    string
+	descriptors []service.FileDescriptor
 }
 
 func waitForBackendDatabaseResourcePropagation(t *testing.T, authServer *auth.Server) {
