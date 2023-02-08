@@ -607,7 +607,7 @@ func createPresets(ctx context.Context, rm PresetRoleManager) error {
 				return trace.Wrap(err)
 			}
 
-			role, err := services.AddDefaultAllowRules(currentRole)
+			role, err := services.AddDefaultAllowConditions(currentRole)
 			if trace.IsAlreadyExists(err) {
 				continue
 			}
