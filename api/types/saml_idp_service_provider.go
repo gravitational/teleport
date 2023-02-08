@@ -50,7 +50,6 @@ func NewSAMLIdPServiceProvider(metadata Metadata, spec SAMLIdPServiceProviderSpe
 		Spec: spec,
 	}
 
-	// Make sure the entity ID is empty so that it's set properly during the check and set defaults.
 	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
