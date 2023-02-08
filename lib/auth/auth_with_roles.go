@@ -670,8 +670,20 @@ func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.Reg
 //
 // This wrapper does not do any extra authz checks, as the register method has
 // its own authz mechanism.
-func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error) {
+func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error) {
 	certs, err := a.authServer.RegisterUsingIAMMethod(ctx, challengeResponse)
+	return certs, trace.Wrap(err)
+}
+
+// RegisterUsingAzureMethod registers the caller using the Azure join method and
+// returns signed certs to join the cluster.
+//
+// See (*Server).RegisterUsingAzureMethod for further documentation.
+//
+// This wrapper does not do any extra authz checks, as the register method has
+// its own authz mechanism.
+func (a *ServerWithRoles) RegisterUsingAzureMethod(ctx context.Context, challengeResponse client.RegisterAzureChallengeResponseFunc) (*proto.Certs, error) {
+	certs, err := a.authServer.RegisterUsingAzureMethod(ctx, challengeResponse)
 	return certs, trace.Wrap(err)
 }
 
