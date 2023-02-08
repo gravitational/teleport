@@ -234,7 +234,7 @@ export function DownloadScript(
       <ActionButtons
         onProceed={handleNextStep}
         disableProceed={!result || props.labels.length === 0}
-        onSkip={() => props.nextStep(0)}
+        onSkip={() => props.nextStep()}
       />
     </Box>
   );
