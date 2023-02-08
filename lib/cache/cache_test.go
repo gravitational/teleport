@@ -2441,7 +2441,7 @@ func TestDatabases(t *testing.T) {
 func TestSAMLIdPServiceProviders(t *testing.T) {
 	t.Parallel()
 
-	p, err := newPack(t.TempDir(), ForProxy)
+	p, err := newPack(t.TempDir(), ForAuth)
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
 
