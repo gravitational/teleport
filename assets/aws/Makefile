@@ -130,7 +130,8 @@ MAKEFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 .PHONY: create-update-pr
 create-update-pr: update-ami-ids-terraform
 	@echo "Creating PR for updates"
-	sed -i -E "s/^TELEPORT_VERSION \?= [0-9.]+$$/TELEPORT_VERSION ?= $(TELEPORT_VERSION)/g" $(MAKEFILE_PATH)
+	sed -E "s/^TELEPORT_VERSION \?= [0-9.]+$$/TELEPORT_VERSION ?= $(TELEPORT_VERSION)/g" $(MAKEFILE_PATH) > Makefile.tmp
+	mv Makefile.tmp $(MAKEFILE_PATH)
 	git add -A ../../examples/aws $(shell pwd)
 	git checkout -b $(AUTO_BRANCH_NAME)
 	git commit -am "[auto] Update AMI IDs for $(TELEPORT_VERSION)"
