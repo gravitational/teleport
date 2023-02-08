@@ -42,14 +42,34 @@ const (
 	recoveryCodesPrintClickEvent    = "tp.ui.recoveryCodesPrint.click"
 	completeGoToDashboardClickEvent = "tp.ui.onboard.completeGoToDashboard.click"
 
-	uiDiscoverStartedEvent           = "tp.ui.discover.started.click"
-	uiDiscoverResourceSelectionEvent = "tp.ui.discover.resourceSelection.click"
+	uiDiscoverStartedEvent                            = "tp.ui.discover.started"
+	uiDiscoverResourceSelectionEvent                  = "tp.ui.discover.resourceSelection"
+	uiDiscoverDeployServiceEvent                      = "tp.ui.discover.deployService"
+	uiDiscoverDatabaseRegisterEvent                   = "tp.ui.discover.database.register"
+	uiDiscoverDatabaseConfigureMTLSEvent              = "tp.ui.discover.database.configure.mtls"
+	uiDiscoverDatabaseConfigureIAMPolicyEvent         = "tp.ui.discover.database.configure.iampolicy"
+	uiDiscoverDesktopActiveDirectoryToolsInstallEvent = "tp.ui.discover.desktop.activeDirectory.tools.install"
+	uiDiscoverDesktopActiveDirectoryConfigureEvent    = "tp.ui.discover.desktop.activeDirectory.configure"
+	uiDiscoverAutoDiscoveredResourcesEvent            = "tp.ui.discover.autoDiscoveredResources"
+	uiDiscoverPrincipalsConfigureEvent                = "tp.ui.discover.principals.configure"
+	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
+	uiDiscoverCompletedEvent                          = "tp.ui.discover.completed"
 )
 
 // Events that require extra metadata.
 var eventsWithDataRequired = []string{
 	uiDiscoverStartedEvent,
 	uiDiscoverResourceSelectionEvent,
+	uiDiscoverDeployServiceEvent,
+	uiDiscoverDatabaseRegisterEvent,
+	uiDiscoverDatabaseConfigureMTLSEvent,
+	uiDiscoverDatabaseConfigureIAMPolicyEvent,
+	uiDiscoverDesktopActiveDirectoryToolsInstallEvent,
+	uiDiscoverDesktopActiveDirectoryConfigureEvent,
+	uiDiscoverAutoDiscoveredResourcesEvent,
+	uiDiscoverPrincipalsConfigureEvent,
+	uiDiscoverTestConnectionEvent,
+	uiDiscoverCompletedEvent,
 }
 
 // createPreUserEventRequest contains the event and properties associated with a user event
@@ -208,7 +228,17 @@ func convertUserEventRequestToUsageEvent(req createUserEventRequest) (*v1.UsageE
 			nil
 
 	case uiDiscoverStartedEvent,
-		uiDiscoverResourceSelectionEvent:
+		uiDiscoverResourceSelectionEvent,
+		uiDiscoverDeployServiceEvent,
+		uiDiscoverDatabaseRegisterEvent,
+		uiDiscoverDatabaseConfigureMTLSEvent,
+		uiDiscoverDatabaseConfigureIAMPolicyEvent,
+		uiDiscoverDesktopActiveDirectoryToolsInstallEvent,
+		uiDiscoverDesktopActiveDirectoryConfigureEvent,
+		uiDiscoverAutoDiscoveredResourcesEvent,
+		uiDiscoverPrincipalsConfigureEvent,
+		uiDiscoverTestConnectionEvent,
+		uiDiscoverCompletedEvent:
 
 		var discoverEvent DiscoverEventData
 		if err := json.Unmarshal([]byte(*req.EventData), &discoverEvent); err != nil {

@@ -43,7 +43,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -58,7 +57,6 @@ import (
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/mailgun/timetools"
 	"github.com/pquerna/otp/totp"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
@@ -66,7 +64,6 @@ import (
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
-	"golang.org/x/text/encoding/unicode"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
 	corev1 "k8s.io/api/core/v1"
@@ -1221,9 +1218,6 @@ func TestNewTerminalHandler(t *testing.T) {
 	require.Equal(t, validCfg.Term, term.term)
 	require.Equal(t, validCfg.DisplayLogin, term.displayLogin)
 	// newly added
-	require.NotNil(t, term.encoder)
-	require.NotNil(t, term.decoder)
-	require.NotNil(t, term.wsLock)
 	require.NotNil(t, term.log)
 }
 
@@ -1446,14 +1440,7 @@ func TestTerminal(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-			termHandler := newTerminalHandler()
-			stream := termHandler.asTerminalStream(ws)
-
-			// here we intentionally run a command where the output we're looking
-			// for is not present in the command itself
-			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
-			require.NoError(t, err)
-			require.NoError(t, waitForOutput(stream, "teleport"))
+			validateTerminalStream(t, ws)
 		})
 	}
 }
@@ -1535,8 +1522,8 @@ func TestTerminalRouting(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { tt.wsCloseAssertion(t, ws.Close()) })
 
-			termHandler := newTerminalHandler()
-			stream := termHandler.asTerminalStream(ws)
+			stream, err := NewTerminalStream(ws)
+			require.NoError(t, err)
 
 			// here we intentionally run a command where the output we're looking
 			// for is not present in the command itself
@@ -1687,12 +1674,12 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chals))
 
 			// Send response over ws.
-			termHandler := newTerminalHandler()
-			_, err = termHandler.write(tc.getChallengeResponseBytes(chals, dev), ws)
+			stream, err := NewTerminalStream(ws)
+			require.NoError(t, err)
+			_, err = stream.Write(tc.getChallengeResponseBytes(chals, dev))
 			require.Nil(t, err)
 
 			// Test we can write.
-			stream := termHandler.asTerminalStream(ws)
 			_, err = io.WriteString(stream, "echo alpacas\r\n")
 			require.Nil(t, err)
 			require.Nil(t, waitForOutput(stream, "alpacas"))
@@ -1879,8 +1866,8 @@ func TestWebAgentForward(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(ws)
+	stream, err := NewTerminalStream(ws)
+	require.NoError(t, err)
 
 	_, err = io.WriteString(stream, "echo $SSH_AUTH_SOCK\r\n")
 	require.NoError(t, err)
@@ -1979,8 +1966,8 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(ws)
+	stream, err := NewTerminalStream(ws)
+	require.NoError(t, err)
 
 	// to make sure we have a session
 	_, err = io.WriteString(stream, "expr 137 + 39\r\n")
@@ -6080,7 +6067,7 @@ func TestCreateDatabase(t *testing.T) {
 	}
 }
 
-func TestUpdateDatabase(t *testing.T) {
+func TestUpdateDatabase_Errors(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -6119,17 +6106,9 @@ func TestUpdateDatabase(t *testing.T) {
 		errAssert      require.ErrorAssertionFunc
 	}{
 		{
-			name: "valid",
-			req: updateDatabaseRequest{
-				CACert: fakeValidTLSCert,
-			},
-			expectedStatus: http.StatusOK,
-			errAssert:      require.NoError,
-		},
-		{
 			name: "empty ca_cert",
 			req: updateDatabaseRequest{
-				CACert: "",
+				CACert: strPtr(""),
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
@@ -6139,30 +6118,206 @@ func TestUpdateDatabase(t *testing.T) {
 		{
 			name: "invalid certificate",
 			req: updateDatabaseRequest{
-				CACert: "Not a certificate",
+				CACert: strPtr("Not a certificate"),
 			},
 			expectedStatus: http.StatusBadRequest,
 			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, "could not parse provided CA as X.509 PEM certificate")
 			},
 		},
+
+		{
+			name: "invalid awsRDS missing resourceID field",
+			req: updateDatabaseRequest{
+				AWSRDS: &awsRDS{
+					AccountID: "123123123123",
+				},
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "missing aws rds field resource id")
+			},
+		},
+		{
+			name: "invalid awsRDS missing accountID field",
+			req: updateDatabaseRequest{
+				AWSRDS: &awsRDS{
+					ResourceID: "123123123123",
+				},
+			},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "missing aws rds field account id")
+			},
+		},
+		{
+			name:           "no fields defined",
+			req:            updateDatabaseRequest{},
+			expectedStatus: http.StatusBadRequest,
+			errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(tt, err, "missing fields to update the database")
+			},
+		},
 	} {
-		// Update database's CA Cert
-		updateDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases", databaseName)
-		resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
-		tt.errAssert(t, err)
+		t.Run(tt.name, func(t *testing.T) {
+			// Update database's CA Cert
+			updateDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases", databaseName)
+			resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
+			tt.errAssert(t, err)
 
-		require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+			require.Equal(t, resp.Code(), tt.expectedStatus, "invalid status code received")
+		})
+	}
+}
 
-		if err != nil {
-			continue
-		}
+func TestUpdateDatabase_NonErrors(t *testing.T) {
+	t.Parallel()
 
-		// Ensure database was updated
-		database, err := env.proxies[0].client.GetDatabase(ctx, databaseName)
-		require.NoError(t, err)
+	ctx := context.Background()
+	databaseName := "somedb"
+	username := "someuser"
+	roleCreateUpdateDatabase, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindDatabase,
+					[]string{types.VerbCreate, types.VerbUpdate, types.VerbRead}),
+			},
+			DatabaseLabels: types.Labels{
+				types.Wildcard: {types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
 
-		require.Equal(t, database.GetCA(), fakeValidTLSCert)
+	env := newWebPack(t, 1)
+	clusterName := env.server.ClusterName()
+	pack := env.proxies[0].authPack(t, username, []types.Role{roleCreateUpdateDatabase})
+
+	// Create a database.
+	dbProtocol := "mysql"
+	database, err := getNewDatabaseResource(createDatabaseRequest{
+		Name:     databaseName,
+		Protocol: dbProtocol,
+		URI:      "someuri:3306",
+	})
+	require.NoError(t, err)
+	require.NoError(t, env.server.Auth().CreateDatabase(ctx, database))
+
+	requiredOriginLabel := ui.Label{Name: types.OriginLabel, Value: types.OriginDynamic}
+
+	// Each test case builds on top of each other.
+	for _, tt := range []struct {
+		name           string
+		req            updateDatabaseRequest
+		expectedFields ui.Database
+		expectedAWSRDS awsRDS
+	}{
+		{
+			name: "update caCert",
+			req: updateDatabaseRequest{
+				CACert: &fakeValidTLSCert,
+			},
+			expectedFields: ui.Database{
+				Name:     databaseName,
+				Protocol: dbProtocol,
+				Type:     "self-hosted",
+				Hostname: "someuri",
+				Labels:   []ui.Label{requiredOriginLabel},
+			},
+		},
+		{
+			name: "update URI",
+			req: updateDatabaseRequest{
+				URI: "something-else:3306",
+			},
+			expectedFields: ui.Database{
+				Name:     databaseName,
+				Protocol: dbProtocol,
+				Type:     "self-hosted",
+				Hostname: "something-else",
+				Labels:   []ui.Label{requiredOriginLabel},
+			},
+		},
+		{
+			name: "update aws rds fields",
+			req: updateDatabaseRequest{
+				URI: "llama.cgi8.us-west-2.rds.amazonaws.com:3306",
+				AWSRDS: &awsRDS{
+					AccountID:  "123123123123",
+					ResourceID: "db-1234",
+				},
+			},
+			expectedAWSRDS: awsRDS{
+				AccountID:  "123123123123",
+				ResourceID: "db-1234",
+			},
+			expectedFields: ui.Database{
+				Name:     databaseName,
+				Protocol: dbProtocol,
+				Type:     "rds",
+				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
+				Labels:   []ui.Label{requiredOriginLabel},
+			},
+		},
+		{
+			name: "update labels",
+			req: updateDatabaseRequest{
+				Labels: []ui.Label{{Name: "env", Value: "prod"}},
+			},
+			expectedAWSRDS: awsRDS{
+				AccountID:  "123123123123",
+				ResourceID: "db-1234",
+			},
+			expectedFields: ui.Database{
+				Name:     databaseName,
+				Protocol: dbProtocol,
+				Type:     "rds",
+				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
+				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
+			},
+		},
+		{
+			name: "update multiple fields",
+			req: updateDatabaseRequest{
+				URI: "alpaca.cgi8.us-east-1.rds.amazonaws.com:3306",
+				AWSRDS: &awsRDS{
+					AccountID:  "000000000000",
+					ResourceID: "db-0000",
+				},
+			},
+			expectedAWSRDS: awsRDS{
+				AccountID:  "000000000000",
+				ResourceID: "db-0000",
+			},
+			expectedFields: ui.Database{
+				Name:     databaseName,
+				Protocol: dbProtocol,
+				Type:     "rds",
+				Hostname: "alpaca.cgi8.us-east-1.rds.amazonaws.com",
+				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			updateDatabaseEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "databases", databaseName)
+			resp, err := pack.clt.PutJSON(ctx, updateDatabaseEndpoint, tt.req)
+			require.NoError(t, err)
+			var dbResp ui.Database
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &dbResp))
+			require.Equal(t, tt.expectedFields, dbResp)
+
+			// Ensure database was updated
+			database, err := env.proxies[0].client.GetDatabase(ctx, databaseName)
+			require.NoError(t, err)
+
+			require.Equal(t, database.GetCA(), fakeValidTLSCert) // should not have changed
+			require.Equal(t, database.GetType(), tt.expectedFields.Type)
+			require.Equal(t, database.GetProtocol(), tt.expectedFields.Protocol)
+			require.Equal(t, database.GetURI(), fmt.Sprintf("%s:3306", tt.expectedFields.Hostname))
+
+			require.Equal(t, database.GetAWS().AccountID, tt.expectedAWSRDS.AccountID)
+			require.Equal(t, database.GetAWS().RDS.ResourceID, tt.expectedAWSRDS.ResourceID)
+		})
 	}
 }
 
@@ -6279,7 +6434,7 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 	return ws, &sessResp.Session, nil
 }
 
-func waitForOutput(stream *terminalStream, substr string) error {
+func waitForOutput(stream *TerminalStream, substr string) error {
 	timeoutCh := time.After(10 * time.Second)
 
 	for {
@@ -6368,15 +6523,6 @@ func removeSpace(in string) string {
 		in = strings.Replace(in, c, " ", -1)
 	}
 	return strings.TrimSpace(in)
-}
-
-func newTerminalHandler() TerminalHandler {
-	return TerminalHandler{
-		log:     logrus.WithFields(logrus.Fields{}),
-		encoder: unicode.UTF8.NewEncoder(),
-		decoder: unicode.UTF8.NewDecoder(),
-		wsLock:  &sync.Mutex{},
-	}
 }
 
 func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
@@ -6976,14 +7122,14 @@ func login(t *testing.T, clt *TestWebClient, cookieToken, reqToken string, reqDa
 	return resp
 }
 
-func validateTerminalStream(t *testing.T, conn *websocket.Conn) {
+func validateTerminalStream(t *testing.T, ws *websocket.Conn) {
 	t.Helper()
-	termHandler := newTerminalHandler()
-	stream := termHandler.asTerminalStream(conn)
+	stream, err := NewTerminalStream(ws)
+	require.NoError(t, err)
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
-	_, err := io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
+	_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
 	require.NoError(t, err)
 	require.NoError(t, waitForOutput(stream, "teleport"))
 }
