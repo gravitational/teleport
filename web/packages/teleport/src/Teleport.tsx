@@ -21,11 +21,7 @@ import { Router, Route, Switch } from 'teleport/components/Router';
 import { CatchError } from 'teleport/components/CatchError';
 import Authenticated from 'teleport/components/Authenticated';
 
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-
 import { getOSSFeatures } from 'teleport/features';
-
-import { Feature } from 'teleport/types';
 
 import TeleportContextProvider from './TeleportContextProvider';
 import TeleportContext from './teleportContext';
@@ -42,8 +38,6 @@ const Teleport: React.FC<Props> = props => {
   const createPublicRoutes = props.renderPublicRoutes || publicOSSRoutes;
   const createPrivateRoutes = props.renderPrivateRoutes || privateOSSRoutes;
 
-  const features = props.features || getOSSFeatures();
-
   return (
     <CatchError>
       <ThemeProvider>
@@ -54,15 +48,13 @@ const Teleport: React.FC<Props> = props => {
               <Route path={cfg.routes.root}>
                 <Authenticated>
                   <TeleportContextProvider ctx={ctx}>
-                    <FeaturesContextProvider value={features}>
-                      <Switch>
-                        <Route
-                          path={cfg.routes.appLauncher}
-                          component={AppLauncher}
-                        />
-                        <Route>{createPrivateRoutes()}</Route>
-                      </Switch>
-                    </FeaturesContextProvider>
+                    <Switch>
+                      <Route
+                        path={cfg.routes.appLauncher}
+                        component={AppLauncher}
+                      />
+                      <Route>{createPrivateRoutes()}</Route>
+                    </Switch>
                   </TeleportContextProvider>
                 </Authenticated>
               </Route>
@@ -95,9 +87,6 @@ const Player = React.lazy(
 );
 const DesktopSession = React.lazy(
   () => import(/* webpackChunkName: "desktop-session" */ './DesktopSession')
-);
-const Discover = React.lazy(
-  () => import(/* webpackChunkName: "discover" */ './Discover')
 );
 
 const Main = React.lazy(() => import(/* webpackChunkName: "main" */ './Main'));
@@ -152,9 +141,11 @@ export function getSharedPublicRoutes() {
 function privateOSSRoutes() {
   return (
     <Switch>
-      <Route path={cfg.routes.discover} component={Discover} />
       {getSharedPrivateRoutes()}
-      <Route path={cfg.routes.root} component={Main} />
+      <Route
+        path={cfg.routes.root}
+        render={() => <Main features={getOSSFeatures()} />}
+      />
     </Switch>
   );
 }
@@ -174,7 +165,6 @@ export function getSharedPrivateRoutes() {
 export default Teleport;
 
 export type Props = {
-  features?: Feature[];
   ctx: TeleportContext;
   history: History;
   renderPublicRoutes?: () => React.ReactNode[];

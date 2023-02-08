@@ -45,8 +45,9 @@ export function Roles(props: State) {
     resources.status === 'creating' ? 'Create a new role' : 'Edit role';
 
   function handleSave(content: string) {
+    const name = resources.item.name;
     const isNew = resources.status === 'creating';
-    return save(content, isNew);
+    return save(name, content, isNew);
   }
 
   return (

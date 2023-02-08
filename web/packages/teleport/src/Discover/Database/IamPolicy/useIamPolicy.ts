@@ -18,12 +18,14 @@ import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import TeleportContext from 'teleport/teleportContext';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 
 import type { AgentStepProps } from '../../types';
 import type { DatabaseIamPolicyResponse } from 'teleport/services/databases';
 
 export function useIamPolicy({ ctx, props }: Props) {
   const { attempt, run } = useAttempt('');
+  const { emitErrorEvent } = useDiscover();
 
   const [iamPolicy, setIamPolicy] = useState<DatabaseIamPolicyResponse>();
 
@@ -41,6 +43,10 @@ export function useIamPolicy({ ctx, props }: Props) {
       ctx.databaseService
         .fetchDatabaseIamPolicy(clusterId, props.agentMeta.resourceName)
         .then(setIamPolicy)
+        .catch((error: Error) => {
+          emitErrorEvent(error.message);
+          throw error;
+        })
     );
   }
 

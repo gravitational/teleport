@@ -48,7 +48,7 @@ Prepare Webapps repo
 $ git clone https://github.com/gravitational/webapps.git
 $ cd webapps
 $ yarn install
-$ CONNECT_TSH_BIN_PATH=$PWD/../teleport/build/tsh yarn build-and-package-term
+$ yarn build-term && CONNECT_TSH_BIN_PATH=$PWD/../teleport/build/tsh yarn package-term
 ```
 
 The installable file can be found in `/webapps/packages/teleterm/build/release/`
@@ -85,39 +85,15 @@ For a quick restart which restarts all processes and the `tsh` daemon, press `F6
 
 ### Generating tshd gRPC protobuf files
 
-Rebulding them is needed only if you change any of the files in `/teleport/lib/teleterm/api/proto/`
-dir.
+Rebuilding them is needed only if you change any of the files in `proto/teleport/lib/teleterm` dir.
 
-1. To rebuild and update `tsh` grpc proto files
-
-```sh
-$ cd teleport
-$ make grpc-teleterm
-```
-
-Resulting files both `nodejs` and `golang` can be found in `/teleport/lib/teleterm/api/protogen/` directory.
-
-```pro
-lib/teleterm/api/protogen/
-├── golang
-│   └── v1
-│       ├── auth_challenge.pb.go
-│       ├── auth_settings.pb.go
-│       ├── ...
-│       └── ...
-└── js
-    └── v1
-        ├── service_grpc_pb.js
-        ├── service_pb.d.ts
-        └── ...
-```
-
-2. Update `nodejs` files by copying them to the `/webapps/packages/teleterm/src/services/tshd/` location
+To rebuild and update gRPC proto files:
 
 ```sh
-$ cd webapps
-$ rm -rf ./packages/teleterm/src/services/tshd/v1/ && cp -R ../teleport/lib/teleterm/api/protogen/js/v1 ./packages/teleterm/src/services/tshd/v1
+$ make grpc
 ```
+
+Resulting Go and JS files can be found in `gen/proto`.
 
 ### Generating shared process gRPC protobuf files
 
@@ -127,8 +103,7 @@ Resulting files can be found in `sharedProcess/api/protogen`.
 
 ## Build process
 
-`yarn package-term` is ran as a part of `yarn build-and-package-term` and is responsible for
-packaging the app code for distribution.
+`yarn package-term` is responsible for packaging the app code for distribution.
 
 On all platforms, with the exception of production builds on macOS, the `CONNECT_TSH_BIN_PATH` env
 var is used to provide the path to the tsh binary that will be included in the package.
@@ -154,7 +129,7 @@ To make a fully-fledged build on macOS with Touch ID support, you need two thing
 - a signed version of tsh.app
 - an Apple Developer ID certificate in your Keychain
 
-When running `yarn build-and-package-term`, you need to provide these environment variables:
+When running `yarn package-term`, you need to provide these environment variables:
 
 - `APPLE_USERNAME`
 - `APPLE_PASSWORD`

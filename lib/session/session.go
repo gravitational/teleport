@@ -104,6 +104,8 @@ type Session struct {
 	DatabaseName string `json:"database_name"`
 	// AppName is the name of the app being accessed.
 	AppName string `json:"app_name"`
+	// Owner is the name of the session owner, ie the one who created the session.
+	Owner string `json:"owner"`
 }
 
 // Participants returns the usernames of the current session participants.

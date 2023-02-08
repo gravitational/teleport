@@ -27,9 +27,15 @@ export default {
   title: 'Teleport/Discover/Database/CreateDatabase',
 };
 
-export const InitSelfHosted = () => (
+export const InitSelfHostedPostgres = () => (
   <MemoryRouter>
     <CreateDatabaseView {...props} />
+  </MemoryRouter>
+);
+
+export const InitSelfHostedMySql = () => (
+  <MemoryRouter>
+    <CreateDatabaseView {...props} dbEngine={DatabaseEngine.MySQL} />
   </MemoryRouter>
 );
 
@@ -69,7 +75,8 @@ const props: State = {
   clearAttempt: () => null,
   registerDatabase: () => null,
   canCreateDatabase: true,
-  // pollTimeout: Date.now() + 30000,
+  pollTimeout: Date.now() + 30000,
   dbEngine: DatabaseEngine.PostgreSQL,
   dbLocation: DatabaseLocation.SelfHosted,
+  isDbCreateErr: false,
 };

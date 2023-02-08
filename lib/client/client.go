@@ -746,6 +746,7 @@ func (proxy *ProxyClient) GetClusterAlerts(ctx context.Context, req types.GetClu
 
 // FindNodesByFiltersForCluster returns list of the nodes in a specified cluster which have filters matched.
 func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.Server, error) {
+	req.ResourceType = types.KindNode
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/FindNodesByFiltersForCluster",
@@ -759,8 +760,6 @@ func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req 
 		),
 	)
 	defer span.End()
-
-	req.ResourceType = types.KindNode
 
 	site, err := proxy.ConnectToCluster(ctx, cluster)
 	if err != nil {
@@ -962,6 +961,7 @@ func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req 
 
 // FindDatabaseServersByFiltersForCluster returns all registered database proxy servers in the provided cluster.
 func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.DatabaseServer, error) {
+	req.ResourceType = types.KindDatabaseServer
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/FindDatabaseServersByFiltersForCluster",
@@ -976,7 +976,6 @@ func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Con
 	)
 	defer span.End()
 
-	req.ResourceType = types.KindDatabaseServer
 	authClient, err := proxy.ConnectToCluster(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1103,7 +1102,7 @@ func (proxy *ProxyClient) ConnectToRootCluster(ctx context.Context) (auth.Client
 }
 
 func (proxy *ProxyClient) loadTLS(clusterName string) (*tls.Config, error) {
-	if proxy.teleportClient.SkipLocalAuth {
+	if proxy.teleportClient.TLS != nil {
 		return proxy.teleportClient.TLS.Clone(), nil
 	}
 	tlsKey, err := proxy.localAgent().GetCoreKey()
@@ -1206,7 +1205,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		return proxy.dialAuthServer(ctx, clusterName)
 	})
 
-	if proxy.teleportClient.SkipLocalAuth {
+	if proxy.teleportClient.TLS != nil {
 		return auth.NewClient(client.Config{
 			Context: ctx,
 			Dialer:  dialer,
@@ -1267,7 +1266,7 @@ func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName stri
 			return nil, trace.Wrap(err)
 		}
 		return clt, nil
-	case proxy.teleportClient.SkipLocalAuth:
+	case proxy.teleportClient.TLS != nil:
 		clt, err := client.NewTracingClient(ctx, client.Config{
 			Dialer:           dialer,
 			DialInBackground: true,
@@ -1624,6 +1623,9 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			conn.Close()
+			// TODO(codingllama): Improve error message below for device trust.
+			//  An alternative we have here is querying the cluster to check if device
+			//  trust is required, a check similar to `IsMFARequired`.
 			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeAddress, err)
 			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, sshConfig.User, nodeAddress)
 		}
