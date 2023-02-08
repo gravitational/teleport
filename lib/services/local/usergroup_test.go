@@ -104,7 +104,7 @@ func TestUserGroupCRUD(t *testing.T) {
 
 	// Try to fetch a user group that doesn't exist.
 	_, err = service.GetUserGroup(ctx, "doesnotexist")
-	require.IsType(t, trace.NotFound(""), err)
+	require.True(t, trace.IsNotFound(err))
 
 	// Try to create the same user group.
 	err = service.CreateUserGroup(ctx, g1)
