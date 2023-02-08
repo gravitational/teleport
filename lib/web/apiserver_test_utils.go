@@ -24,6 +24,7 @@ import (
 
 // NewDebugFileSystem returns the HTTP file system implementation
 func newDebugFileSystem() (http.FileSystem, error) {
+	// If the location of the UI changes on disk then this will need to be updated.
 	assetsPath := "../../webassets/teleport"
 
 	// Ensure we have the built assets available before continuing.
