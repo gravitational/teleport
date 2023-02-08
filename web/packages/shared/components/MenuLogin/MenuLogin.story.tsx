@@ -18,8 +18,6 @@ import React from 'react';
 import { storiesOf } from '@storybook/react';
 import { Flex } from 'design';
 
-import { MenuLoginTheme } from 'teleterm/ui/DocumentCluster/ClusterResources/MenuLoginTheme';
-
 import { MenuLogin } from './MenuLogin';
 import { MenuLoginHandle } from './types';
 
@@ -27,18 +25,7 @@ storiesOf('Shared/MenuLogin', module).add('MenuLogin', () => {
   return <MenuLoginExamples />;
 });
 
-storiesOf('Shared/MenuLogin', module).add(
-  'MenuLogin in Teleport Connect',
-  () => {
-    return (
-      <MenuLoginTheme>
-        <MenuLoginExamples />
-      </MenuLoginTheme>
-    );
-  }
-);
-
-function MenuLoginExamples() {
+export function MenuLoginExamples() {
   return (
     <Flex
       width="400px"
