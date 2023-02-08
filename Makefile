@@ -17,6 +17,9 @@ DOCKER_IMAGE ?= teleport
 
 GOPATH ?= $(shell go env GOPATH)
 
+# This directory will be the real path of the directory of the first Makefile in the list.
+MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
+
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
@@ -109,7 +112,6 @@ with_bpf := yes
 BPF_TAG := bpf
 BPF_MESSAGE := "with BPF support"
 CLANG ?= $(shell which clang || which clang-10)
-CLANG_FORMAT ?= $(shell which clang-format || which clang-format-10)
 LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-10)
 KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/')
 INCLUDES :=
@@ -216,15 +218,14 @@ export
 
 TEST_LOG_DIR = ${abspath ./test-logs}
 
-CLANG_FORMAT_STYLE = '{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
 #
 # 'make all' builds all 3 executables and places them in the current directory.
 #
-# IMPORTANT: the binaries will not contain the web UI assets and `teleport`
-#            won't start without setting the environment variable DEBUG=1
-#            This is the default build target for convenience of working on
-#            a web UI.
+# IMPORTANT:
+# Unless called with the `WEBASSETS_TAG` env variable set to "webassets_embed"
+# the binaries will not contain the web UI assets and `teleport` won't start
+# without setting the environment variable DEBUG=1.
 .PHONY: all
 all: version
 	@echo "---> Building OSS binaries."
@@ -315,7 +316,7 @@ endif
 # only tsh is built.
 #
 .PHONY:full
-full: $(ASSETS_BUILDDIR)/webassets
+full: ensure-webassets
 ifneq ("$(OS)", "windows")
 	$(MAKE) all WEBASSETS_TAG="webassets_embed"
 endif
@@ -324,10 +325,9 @@ endif
 # make full-ent - Builds Teleport enterprise binaries
 #
 .PHONY:full-ent
-full-ent:
+full-ent: ensure-webassets-e
 ifneq ("$(OS)", "windows")
 	@if [ -f e/Makefile ]; then \
-	rm $(ASSETS_BUILDDIR)/webassets; \
 	$(MAKE) -C e full; fi
 endif
 
@@ -335,7 +335,7 @@ endif
 # make clean - Removes all build artifacts.
 #
 .PHONY: clean
-clean:
+clean: clean-ui
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
 	rm -rf $(ER_BPF_BUILDDIR)
@@ -348,15 +348,22 @@ clean:
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
 
+.PHONY: clean-ui
+clean-ui:
+	rm -rf webassets/*
+	find . -type d -name node_modules -prune -exec rm -rf {} \;
+
 #
 # make release - Produces a binary release tarball.
 #
 .PHONY:
 export
 release:
-	@echo "---> $(RELEASE_MESSAGE)"
+	@echo "---> OSS $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
 	$(MAKE) --no-print-directory release-windows
+else ifeq ("$(OS)", "darwin")
+	$(MAKE) --no-print-directory release-darwin
 else
 	$(MAKE) --no-print-directory release-unix
 endif
@@ -403,9 +410,24 @@ build-archive:
 .PHONY:
 release-unix: clean full build-archive
 	@if [ -f e/Makefile ]; then \
-		rm -fr $(ASSETS_BUILDDIR)/webassets; \
 		$(MAKE) -C e release; \
 	fi
+
+.PHONY: release-darwin-unsigned
+release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
+release-darwin-unsigned: clean full build-archive
+
+.PHONY: release-darwin
+release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
+release-darwin: release-darwin-unsigned
+	# Only run if Apple username/pass for notarization are provided
+	if [ -n "$$APPLE_USERNAME" -a -n "$$APPLE_PASSWORD" ]; then \
+		cd ./build.assets/tooling/ && \
+		go run ./cmd/notarize-apple-binaries/*.go \
+			--log-level=debug $(ABSOLUTE_BINARY_PATHS); \
+	fi
+	$(MAKE) build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
 # make release-unix-only - Produces an Enterprise binary release tarball containing
@@ -792,7 +814,8 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'lib/web/build/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
-		-ignore 'web/**' \
+		-ignore '**/node_modules/**' \
+		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
 		-ignore 'ignoreme'
 
 .PHONY: lint-license
@@ -925,12 +948,6 @@ enter-root:
 enter/centos7:
 	make -C build.assets enter/centos7
 
-# Interactively enters a Docker container (which you can build and run Teleport Connect inside of).
-# Similar to `enter`, but uses the teleterm container.
-.PHONY:enter/teleterm
-enter/teleterm:
-	make -C build.assets enter/teleterm
-
 
 BUF := buf
 
@@ -998,25 +1015,6 @@ must-start-clean/host:
 
 print/env:
 	env
-
-# grpc-teleterm generates Go, TypeScript and JavaScript gRPC stubs from definitions for Teleport
-# Terminal. This target runs in the buildbox-teleterm container.
-#
-# It exists as a separate target because on M1 MacBooks we must build grpc_node_plugin from source.
-# That involves apt-get install of cmake & build-essential as well pulling hundreds of megabytes of
-# git repos. It would significantly increase the time it takes to build buildbox for M1 users that
-# don't need to generate Teleterm gRPC files.
-# TODO(ravicious): incorporate grpc-teleterm into grpc once grpc-tools adds arm64 binary.
-# https://github.com/grpc/grpc-node/issues/1405
-.PHONY: grpc-teleterm
-grpc-teleterm:
-	$(MAKE) -C build.assets grpc-teleterm
-
-# grpc-teleterm/host generates GRPC stubs.
-# Unlike grpc-teleterm, this target runs locally.
-.PHONY: grpc-teleterm/host
-grpc-teleterm/host: protos/all
-	$(BUF) generate --template=lib/teleterm/buf.gen.yaml lib/teleterm/api/proto
 
 .PHONY: goinstall
 goinstall:
@@ -1119,46 +1117,26 @@ test-compat:
 
 .PHONY: ensure-webassets
 ensure-webassets:
-	@if [ ! -d $(shell pwd)/webassets/teleport/ ]; then \
-		$(MAKE) init-webapps-submodules; \
-	fi;
+	@MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" OSS webassets/oss-sha build-ui web
 
 .PHONY: ensure-webassets-e
 ensure-webassets-e:
-	@if [ ! -d $(shell pwd)/webassets/e/teleport ]; then \
-		$(MAKE) init-webapps-submodules-e; \
-	fi;
-
-.PHONY: init-webapps-submodules
-init-webapps-submodules:
-	echo "init webassets submodule"
-	git submodule update --init webassets
-
-.PHONY: init-webapps-submodules-e
-init-webapps-submodules-e:
-	echo "init webassets oss and enterprise submodules"
-	git submodule update --init --recursive webassets
+	@MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web
 
 .PHONY: init-submodules-e
-init-submodules-e: init-webapps-submodules-e
+init-submodules-e:
 	git submodule init e
 	git submodule update
-
-# update-webassets updates the minified code in the webassets repo using the latest webapps
-# repo and creates a PR in the teleport repo to update webassets submodule.
-.PHONY: update-webassets
-update-webassets: WEBAPPS_BRANCH ?= 'master'
-update-webassets: TELEPORT_BRANCH ?= 'master'
-update-webassets:
-	build.assets/webapps/update-teleport-webassets.sh -w $(WEBAPPS_BRANCH) -t $(TELEPORT_BRANCH)
 
 # dronegen generates .drone.yml config
 #
 #    Usage:
-#    - install github.com/gravitational/tdr
-#    - set $DRONE_TOKEN and $DRONE_SERVER (https://drone.platform.teleport.sh)
+#    - install drone cli
+#    - set $DRONE_TOKEN
 #    - tsh login --proxy=platform.teleport.sh
 #    - tsh app login drone
+#    - tsh proxy app drone
+#    - export DRONE_SERVER=https://localhost:$TSH_PROXY_PORT
 #    - make dronegen
 .PHONY: dronegen
 dronegen:
@@ -1169,3 +1147,19 @@ dronegen:
 .PHONY: backport
 backport:
 	(cd ./assets/backport && go run main.go -pr=$(PR) -to=$(TO))
+
+.PHONY: ensure-js-deps
+ensure-js-deps:
+	yarn install --ignore-scripts
+
+.PHONY: build-ui
+build-ui: ensure-js-deps
+	yarn build-ui-oss
+
+.PHONY: build-ui-e
+build-ui-e: ensure-js-deps
+	yarn build-ui-e
+
+.PHONY: docker-ui
+docker-ui:
+	$(MAKE) -C build.assets ui

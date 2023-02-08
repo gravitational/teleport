@@ -7,6 +7,12 @@
 # teleport built on any newer Ubuntu version will not run on Centos 7 because
 # of this.
 
+# GRPC_NODE_PLUGIN_BINARY_TYPE has to be defined above the first FROM as it's
+# used in another FROM instruction. See the comment for grpc_node_plugin image
+# for more details.
+# Valid values are "prebuilt" and "compiled".
+ARG GRPC_NODE_PLUGIN_BINARY_TYPE
+
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
@@ -25,9 +31,9 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 &&
     make clean
 
 # Install libcbor.
-RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.1 && \
+RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
     cd libcbor && \
-    [ "$(git rev-parse HEAD)" = '5c1bb892c94b6ae2ef99e3c6673d5e0857242f38' ] && \
+    [ "$(git rev-parse HEAD)" = 'efa6c0886bae46bdaef9b679f61f4b9d8bc296ae' ] && \
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
@@ -49,6 +55,33 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
     make && \
     make install  && \
     make clean
+
+## GRPC_NODE_PLUGIN ###########################################################
+
+# grpc_node_plugin is built only on arm64.
+#
+# To generate JS protofiles, we need the grpc-tools npm package. Unfortunately,
+# it doesn't ship with a prebuilt grpc_node_plugin binary for Linux arm64. [1]
+#
+# We have to build it from source. Cloning all submodules takes a lot of time
+# and bandwith so we build the binary in a separate image.
+#
+# [1] https://github.com/grpc/grpc-node/issues/1405#issuecomment-1282201879
+
+FROM buildpack-deps:18.04 AS grpc_node_plugin
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends cmake
+COPY teleterm_linux_arm64.toolchain.cmake ./linux_arm64.toolchain.cmake
+RUN git clone --depth=1 --branch=grpc-tools@1.11.2 https://github.com/grpc/grpc-node.git && \
+    mv linux_arm64.toolchain.cmake grpc-node/packages/grpc-tools/. && \
+    cd grpc-node && \
+    git submodule update --init --recursive && \
+    cd packages/grpc-tools && \
+    cmake -DCMAKE_TOOLCHAIN_FILE=linux_arm64.toolchain.cmake . && \
+    cmake --build . --target clean && cmake --build . --target grpc_node_plugin -- -j 12 && \
+    mv grpc_node_plugin ../../../. && \
+    cd ../../.. && \
+    rm -rf grpc-node
 
 ## BUILDBOX ###################################################################
 #
@@ -119,6 +152,8 @@ RUN apt-get -y update && \
         python3-setuptools \
         python3-wheel \
         pkg-config \
+        # Used during tag builds to build the RPM package of Connect.
+        rpm \
         shellcheck \
         softhsm2 \
         sudo \
@@ -172,6 +207,18 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
 # Switch back to root for the remaining instructions and keep it as the default
 # user.
 USER root
+
+# Install Node.js
+ARG NODE_VERSION
+ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
+ENV NODE_PATH="/usr/local/lib/nodejs-linux"
+ENV PATH="$PATH:${NODE_PATH}/bin"
+RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo "arm64"; fi) && \
+    export NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" && \
+    mkdir -p ${NODE_PATH} && \
+    curl -o /tmp/nodejs.tar.xz -L ${NODE_URL} && \
+    tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
+RUN corepack enable yarn
 
 # Install Go.
 ARG GOLANG_VERSION
@@ -228,6 +275,8 @@ RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gog
      git reset --hard ${GOGO_PROTO_TAG} && \
      make install)
 ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
+# Install protoc-gen-go for lib/teleterm as #17267 and #17302 were not backported to v10.
+RUN go install github.com/golang/protobuf/protoc-gen-go@v1.4.3
 
 # Install addlicense.
 RUN go install github.com/google/addlicense@v1.0.0
@@ -249,7 +298,7 @@ RUN BIN="/usr/local/bin" && \
       chmod +x "${BIN}/buf"
 
 # Copy libfido2 libraries.
-# Do this last to take better advantage of the multi-stage build.
+# Do this near the end to take better advantage of the multi-stage build.
 COPY --from=libfido2 /usr/local/include/ /usr/local/include/
 COPY --from=libfido2 /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
 COPY --from=libfido2 \
@@ -263,6 +312,23 @@ RUN cd /usr/local/lib && \
     ln -s libfido2.so.1 libfido2.so && \
     ldconfig
 COPY pkgconfig/buildbox/ /
+
+# Install JS gRPC tools
+RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1)
+
+FROM buildbox AS grpc_node_plugin_binary_prebuilt
+ONBUILD RUN (npm install --global grpc-tools@1.11.2)
+
+FROM buildbox AS grpc_node_plugin_binary_compiled
+COPY --from=grpc_node_plugin grpc_node_plugin ./grpc_node_plugin
+ONBUILD RUN npm install --global --ignore-scripts grpc-tools@1.11.2 && \
+    mv grpc_node_plugin $(npm root -g)/grpc-tools/bin/. && \
+    # grpc-tools needs protoc but we already install it a couple of steps above.
+    ln -s $(which protoc) $(npm root -g)/grpc-tools/bin/protoc
+
+# A "conditional" FROM like this breaks up the number of steps in the progress bar of the given
+# image, so let's use it at the end. This way the progress bar for buildbox stays mostly untouched.
+FROM grpc_node_plugin_binary_${GRPC_NODE_PLUGIN_BINARY_TYPE} as buildbox
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
