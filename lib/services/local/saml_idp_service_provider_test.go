@@ -145,6 +145,7 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 
 	// Update a service provider.
 	sp1.SetEntityDescriptor(newEntityDescriptor("updated-sp1"))
+	sp1.SetEntityID("updated-sp1")
 	err = service.UpdateSAMLIdPServiceProvider(ctx, sp1)
 	require.NoError(t, err)
 	sp, err = service.GetSAMLIdPServiceProvider(ctx, sp1.GetName())
@@ -152,6 +153,14 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff(sp1, sp,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
+
+	// Update a service provider to an existing entity ID.
+	sp, err = service.GetSAMLIdPServiceProvider(ctx, sp1.GetName())
+	require.NoError(t, err)
+	sp.SetEntityDescriptor(newEntityDescriptor("sp2"))
+	sp.SetEntityID("sp2")
+	err = service.UpdateSAMLIdPServiceProvider(ctx, sp)
+	require.Error(t, err)
 
 	// Delete a service provider.
 	err = service.DeleteSAMLIdPServiceProvider(ctx, sp1.GetName())
