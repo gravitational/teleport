@@ -263,7 +263,7 @@ func TestDeleteDocuments(t *testing.T) {
 				// useless deduplication in the BulkWriter API.
 				rs := reflect.ValueOf(docs[i].Ref).Elem()
 				rf := rs.FieldByName("shortPath")
-				require.Equal(t, rf.Type(), reflect.TypeOf(""))
+				require.Equal(t, rf.Kind(), reflect.String)
 				*(*string)(unsafe.Pointer(rf.UnsafeAddr())) = docs[i].Ref.Path
 			}
 
