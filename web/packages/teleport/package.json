@@ -20,7 +20,7 @@
     "@gravitational/design": "1.0.0",
     "@gravitational/shared": "1.0.0",
     "xterm": "^5.0.0",
-    "xterm-addon-fit": "^0.5.0"
+    "xterm-addon-fit": "^0.7.0"
   },
   "devDependencies": {
     "@gravitational/build": "^1.0.0",
