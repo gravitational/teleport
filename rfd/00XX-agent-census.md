@@ -173,7 +173,7 @@ In summary, for now we'll have the following new environment variables and respe
 
 ##### 8. Container runtime
 
-To determine if the agent is running on Docker, we can first check if the file `/proc/self/cgroup` exists, and if so, if it contains the string "docker".
+To determine if the agent is running on Docker, we can first check if the file `/proc/self/cgroup` exists, and if so, if it contains the string `"docker"`.
 
 This is how `gopsutil` does it ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/internal/common/common_linux.go#L130-L278)).
 As it can be seen in the link, `gopsutil` is also detecting other container runtimes.
@@ -209,7 +209,7 @@ The only way to determine this seems to be by hitting certain HTTP endpoints spe
 The above work will be divided in the following tasks:
 
 1. Add new message type `AgentMetadataEvent` to PreHog.
-2. Extend `UpstreamInventoryHello` message with new fields. These will be set to an empty string initially. (This is okay since being empty means that the field could not be determined, which may happen anyways.)
+2. Extend `UpstreamInventoryHello` message with new fields. These will be empty initially. (This is okay since being empty means that the field could not be determined, which may happen anyways.)
 3. Extend auth server to convert `UpstreamInventoryHello` messages to `AgentMetadataEvent` messages and push them to PreHog.
 4. Gradually instrument & add new code that fills each new `UpstreamInventoryHello` message field.
 
@@ -230,7 +230,7 @@ Data analysis and visualization is not a goal for this RFD, so no UX concerns fo
 ### Open questions
 
 - Which alternative should we use for __5. Host architecture__?
-- Should we [Teleport AMIs](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/aws/terraform/AMIS.md) an installation method?
+- Should we consider [Teleport AMIs](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/aws/terraform/AMIS.md) an installation method?
 - Which [\*-ad*.ps1](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/desktop) script should be changed? Are these scripts going away with non-AD desktop access?
   - Does `setx` take effect right away or requires some sort of restart?
 - Is the [`install`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/install) script used for anything else?
