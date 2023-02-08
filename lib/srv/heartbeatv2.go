@@ -41,14 +41,14 @@ type SSHServerHeartbeatConfig struct {
 	InventoryHandle inventory.DownstreamHandle
 	// GetServer gets the latest server spec.
 	GetServer func() *types.ServerV2
+
+	// -- below values are all optional
+
 	// Announcer is a fallback used to perform basic upsert-style heartbeats
 	// if the control stream is unavailable.
 	//
 	// DELETE IN: 11.0 (only exists for back-compat with v9 auth servers)
 	Announcer auth.Announcer
-
-	// -- below values are all optional
-
 	// OnHeartbeat is a per-attempt callback (optional).
 	OnHeartbeat func(error)
 	// AnnounceInterval is the interval at which heartbeats are attempted (optional).
@@ -63,9 +63,6 @@ func (c *SSHServerHeartbeatConfig) Check() error {
 	}
 	if c.GetServer == nil {
 		return trace.BadParameter("missing required parameter GetServer for ssh heartbeat")
-	}
-	if c.Announcer == nil {
-		return trace.BadParameter("missing required parameter Announcer for ssh heartbeat")
 	}
 	return nil
 }
