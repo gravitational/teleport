@@ -613,7 +613,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	ver := app.Command("version", "Print the version of your tsh binary and version of the Teleport proxy in current tsh profile")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
-	ver.Flag("client", "Only display the version of the tsh client. Does not connect to a Teleport proxy").
+	ver.Flag("client", "Show the client version only (no server required).").
 		BoolVar(&cf.clientOnlyVersionCheck)
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
