@@ -1672,8 +1672,8 @@ func (*accessRequestCollector) notifyStale() {}
 type SAMLIdPServiceProviderWatcherConfig struct {
 	// RWCfg is the resource watcher configuration.
 	RWCfg ResourceWatcherConfig
-	// spService is responsible for fetching access SAML IdP service providers.
-	spService SAMLIdPServiceProviders
+	// SPService is responsible for fetching access SAML IdP service providers.
+	SPService SAMLIdPServiceProviders
 	// PageSize is the number of providers to list at a time.
 	PageSize int
 	// SAMLIdPServiceProvidersC receives up-to-date list of all SAML IdP service provider resources.
@@ -1685,12 +1685,12 @@ func (cfg *SAMLIdPServiceProviderWatcherConfig) CheckAndSetDefaults() error {
 	if err := cfg.RWCfg.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if cfg.spService == nil {
+	if cfg.SPService == nil {
 		getter, ok := cfg.RWCfg.Client.(SAMLIdPServiceProviders)
 		if !ok {
 			return trace.BadParameter("missing parameter SAMLIdPServiceProviders and Client not usable as SAMLIdPServiceProviders")
 		}
-		cfg.spService = getter
+		cfg.SPService = getter
 	}
 	if cfg.SAMLIdPServiceProvidersC == nil {
 		cfg.SAMLIdPServiceProvidersC = make(chan types.SAMLIdPServiceProviders)
@@ -1705,8 +1705,8 @@ func NewSAMLIdPServiceProviderWatcher(ctx context.Context, cfg SAMLIdPServicePro
 		return nil, trace.Wrap(err)
 	}
 	collector := &samlIDPServiceProviderCollector{
-		Log:             cfg.RWCfg.Log,
-		Cfg:             cfg,
+		log:             cfg.RWCfg.Log,
+		cfg:             cfg,
 		initializationC: make(chan struct{}),
 	}
 	watcher, err := newResourceWatcher(ctx, collector, cfg.RWCfg)
@@ -1714,22 +1714,37 @@ func NewSAMLIdPServiceProviderWatcher(ctx context.Context, cfg SAMLIdPServicePro
 		return nil, trace.Wrap(err)
 	}
 	return &SAMLIdPServiceProviderWatcher{
-		ResourceWatcher: watcher,
-		Collector:       collector,
+		resourceWatcher: watcher,
+		collector:       collector,
 	}, nil
 }
 
 // SAMLIdPServiceProviderWatcher is built on top of resourceWatcher to monitor SAML IdP service provider resources.
 type SAMLIdPServiceProviderWatcher struct {
-	ResourceWatcher *resourceWatcher
-	Collector       *samlIDPServiceProviderCollector
+	resourceWatcher *resourceWatcher
+	collector       *samlIDPServiceProviderCollector
+}
+
+// CollectorChan is the channel that collects the SAML IdP service providers.
+func (s *SAMLIdPServiceProviderWatcher) CollectorChan() chan types.SAMLIdPServiceProviders {
+	return s.collector.cfg.SAMLIdPServiceProvidersC
+}
+
+// Close closes the underlying resource watcher
+func (s *SAMLIdPServiceProviderWatcher) Close() {
+	s.resourceWatcher.Close()
+}
+
+// Done returns the channel that signals watcher closer.
+func (s *SAMLIdPServiceProviderWatcher) Done() <-chan struct{} {
+	return s.resourceWatcher.Done()
 }
 
 // samlIDPServiceProviderCollector accompanies resourceWatcher when monitoring SAML IdP service provider resources.
 type samlIDPServiceProviderCollector struct {
-	Log logrus.FieldLogger
+	log logrus.FieldLogger
 	// SAMLIdPServiceProviderWatcherConfig is the watcher configuration.
-	Cfg SAMLIdPServiceProviderWatcherConfig
+	cfg SAMLIdPServiceProviderWatcherConfig
 	// mu guards "current"
 	mu sync.RWMutex
 	// current holds a map of the currently known SAML IdP service provider resources.
@@ -1756,7 +1771,7 @@ func (p *samlIDPServiceProviderCollector) getResourcesAndUpdateCurrent(ctx conte
 	for {
 		var sps []types.SAMLIdPServiceProvider
 		var err error
-		sps, nextToken, err = p.Cfg.spService.ListSAMLIdPServiceProviders(ctx, p.Cfg.PageSize, nextToken)
+		sps, nextToken, err = p.cfg.SPService.ListSAMLIdPServiceProviders(ctx, p.cfg.PageSize, nextToken)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1779,7 +1794,7 @@ func (p *samlIDPServiceProviderCollector) getResourcesAndUpdateCurrent(ctx conte
 	select {
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
-	case p.Cfg.SAMLIdPServiceProvidersC <- samlIDPServiceProviders:
+	case p.cfg.SAMLIdPServiceProvidersC <- samlIDPServiceProviders:
 	}
 
 	return nil
@@ -1794,32 +1809,38 @@ func (p *samlIDPServiceProviderCollector) defineCollectorAsInitialized() {
 // processEventAndUpdateCurrent is called when a watcher event is received.
 func (p *samlIDPServiceProviderCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
 	if event.Resource == nil || event.Resource.GetKind() != types.KindSAMLIdPServiceProvider {
-		p.Log.Warnf("Unexpected event: %v.", event)
+		p.log.Warnf("Unexpected event: %v.", event)
 		return
 	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	switch event.Type {
 	case types.OpDelete:
+		p.mu.Lock()
 		delete(p.current, event.Resource.GetName())
+		resources := resourcesToSlice(p.current)
+		p.mu.Unlock()
+
 		select {
 		case <-ctx.Done():
-		case p.Cfg.SAMLIdPServiceProvidersC <- resourcesToSlice(p.current):
+		case p.cfg.SAMLIdPServiceProvidersC <- resources:
 		}
 	case types.OpPut:
 		samlIDPServiceProvider, ok := event.Resource.(types.SAMLIdPServiceProvider)
 		if !ok {
-			p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+			p.log.Warnf("Unexpected resource type %T.", event.Resource)
 			return
 		}
+		p.mu.Lock()
 		p.current[samlIDPServiceProvider.GetName()] = samlIDPServiceProvider
+		resources := resourcesToSlice(p.current)
+		p.mu.Unlock()
+
 		select {
 		case <-ctx.Done():
-		case p.Cfg.SAMLIdPServiceProvidersC <- resourcesToSlice(p.current):
+		case p.cfg.SAMLIdPServiceProvidersC <- resources:
 		}
 
 	default:
-		p.Log.Warnf("Unsupported event type %s.", event.Type)
+		p.log.Warnf("Unsupported event type %s.", event.Type)
 		return
 	}
 }
