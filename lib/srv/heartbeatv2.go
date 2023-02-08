@@ -143,6 +143,7 @@ type HeartbeatV2 struct {
 
 	announceFailed error
 	fallbackFailed error
+	icsUnavailable error
 
 	announce *interval.Interval
 	poll     *interval.Interval
@@ -200,6 +201,7 @@ func (h *HeartbeatV2) run() {
 	// so we just allocate something reasonably descriptive once.
 	h.announceFailed = trace.Errorf("control stream heartbeat failed (variant=%T)", h.inner)
 	h.fallbackFailed = trace.Errorf("upsert fallback heartbeat failed (variant=%T)", h.inner)
+	h.icsUnavailable = trace.Errorf("ics unavailable for heartbeat (variant=%T)", h.inner)
 
 	// set up interval for forced announcement (i.e. heartbeat even if state is unchanged).
 	h.announce = interval.New(interval.Config{
@@ -233,9 +235,9 @@ func (h *HeartbeatV2) run() {
 
 	for {
 		// outer loop performs announcement via the fallback method (used for backwards compatibility
-		// with older auth servers).
+		// with older auth servers). Not all drivers support fallback.
 
-		if h.shouldAnnounce {
+		if h.shouldAnnounce && h.inner.SupportsFallback() {
 			if time.Now().After(h.fallbackBackoffTime) {
 				if ok := h.inner.FallbackAnnounce(h.closeContext); ok {
 					h.testEvent(hbv2FallbackOk)
@@ -258,6 +260,9 @@ func (h *HeartbeatV2) run() {
 			} else {
 				h.testEvent(hbv2FallbackBackoff)
 			}
+		} else {
+			// we want to heartbeat, but cannot due to missing control stream
+			h.onHeartbeat(h.icsUnavailable)
 		}
 
 		// wait for a sender to become available. until one does, announce/poll
@@ -397,6 +402,8 @@ type heartbeatV2Driver interface {
 	FallbackAnnounce(ctx context.Context) (ok bool)
 	// Announce attempts to heartbeat via the inventory control stream.
 	Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool)
+	// SupportsFallback checks if the driver supports fallback.
+	SupportsFallback() bool
 }
 
 // sshServerHeartbeatV2 is the heartbeatV2 implementation for ssh servers.
@@ -411,6 +418,10 @@ func (h *sshServerHeartbeatV2) Poll() (changed bool) {
 		return true
 	}
 	return services.CompareServers(h.getServer(), h.prev) == services.Different
+}
+
+func (h *sshServerHeartbeatV2) SupportsFallback() bool {
+	return h.announcer != nil
 }
 
 func (h *sshServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
