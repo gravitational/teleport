@@ -818,6 +818,8 @@ pub struct CGOBitmapCacheLoad {
     pub cache_index: u16,
     pub dest_left: u16,
     pub dest_top: u16,
+    pub dest_right: u16,
+    pub dest_bottom: u16,
 }
 
 
@@ -1240,6 +1242,7 @@ fn read_rdp_output_inner(client: &Client) -> ReadRdpOutputReturns {
             if err == CGOErrCode::ErrCodeSuccess {
                 match rdp_event {
                     RdpEvent::Bitmap(bitmap) => {
+                        debug!("RdpRevent::Bitmap: {:?}", bitmap);
                         let mut cpng = match CGOPNG::try_from(bitmap) {
                             Ok(cb) => cb,
                             Err(e) => {
@@ -1259,12 +1262,15 @@ fn read_rdp_output_inner(client: &Client) -> ReadRdpOutputReturns {
                             DrawingOrder::PrimaryDrawingOrder(primary_order) => {
                                 match primary_order {
                                     PrimaryDrawingOrder::MemBlt(order) => {
-                                        debug!("MemBlt: {:?}", order);
+                                        debug!("LOAD BITMAP: {:?}", order);
                                         let mut bitmap_cache_load = CGOBitmapCacheLoad{
                                             cache_id: order.cache_id as u16,
                                             cache_index: order.cache_index,
                                             dest_left: order.n_left_rect as u16,
                                             dest_top: order.n_top_rect as u16,
+                                            // TODO: change types in source
+                                            dest_right: (order.n_left_rect + order.n_width) as u16,
+                                            dest_bottom: (order.n_top_rect + order.n_height) as u16,
                                         };
 
                                         unsafe {
@@ -1277,7 +1283,7 @@ fn read_rdp_output_inner(client: &Client) -> ReadRdpOutputReturns {
                             DrawingOrder::DrawingOrderSecondary(secondary_order) => {
                                 match secondary_order {
                                     DrawingOrderSecondary::CacheBitmapCompressedRev2(order) => {
-                                        debug!("CacheBitmapCompressedRev2: {:?}", order);
+                                        debug!("SAVE BITMAP: {:?}", order);
 
                                         let mut bitmap_cache_save = CGOBitmapCacheSave{
                                             cache_id: order.cache_id,
@@ -1288,7 +1294,7 @@ fn read_rdp_output_inner(client: &Client) -> ReadRdpOutputReturns {
                                         };
 
                                         let mut encoded = Vec::with_capacity(8192);
-                                        encode_png(&mut encoded, order.width, order.height, rdp::codec::rle::decompress(&order.data, order.width as u32, order.height as u32, order.bits_per_pixel).unwrap());
+                                        encode_png(&mut encoded, order.width, order.height, rdp::codec::rle::decompress(&order.data, order.width as u32, order.height as u32, order.bits_per_pixel).unwrap()).unwrap();
 
                                         bitmap_cache_save.data_ptr = encoded.as_mut_ptr();
                                         bitmap_cache_save.data_len = encoded.len();

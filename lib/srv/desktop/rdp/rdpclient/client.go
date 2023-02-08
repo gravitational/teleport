@@ -641,18 +641,18 @@ func (c *Client) handleRemoteCopy(data []byte) C.CGOErrCode {
 func tdp_bitmap_cache_save(handle C.uintptr_t, req *C.CGOBitmapCacheSave) C.CGOErrCode {
 	ptr := unsafe.Pointer(req.data_ptr)
 	uptr := (*uint8)(ptr)
-	data := unsafe.Slice(uptr, int(req.data_len))
+	goData := C.GoBytes(unsafe.Pointer(uptr), C.int(req.data_len))
+	// data := unsafe.Slice(uptr, int(req.data_len))
 
 	return cgo.Handle(handle).Value().(*Client).bitmapCacheSave(tdp.BitmapCacheSave{
 		CacheId:    uint32(req.cache_id),
 		CacheIndex: uint32(req.cache_index),
 		DataLength: uint32(req.data_len),
-		Data:       data,
+		Data:       goData,
 	})
 }
 
 func (c *Client) bitmapCacheSave(req tdp.BitmapCacheSave) C.CGOErrCode {
-
 	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send BitmapCacheSave: %v", err)
 		return C.ErrCodeFailure
@@ -667,6 +667,8 @@ func tdp_bitmap_cache_load(handle C.uintptr_t, req *C.CGOBitmapCacheLoad) C.CGOE
 		CacheIndex: uint32(req.cache_index),
 		Top:        uint32(req.dest_top),
 		Left:       uint32(req.dest_left),
+		Bottom:     uint32(req.dest_bottom),
+		Right:      uint32(req.dest_right),
 	})
 }
 

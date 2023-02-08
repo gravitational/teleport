@@ -670,7 +670,7 @@ func (s BitmapCacheSave) Encode() ([]byte, error) {
 }
 
 func decodeBitmapCacheSave(in io.Reader) (BitmapCacheSave, error) {
-	var cacheId, cacheIndex uint32
+	var cacheId, cacheIndex, dataLength uint32
 	err := binary.Read(in, binary.BigEndian, &cacheId)
 	if err != nil {
 		return BitmapCacheSave{}, trace.Wrap(err)
@@ -681,9 +681,21 @@ func decodeBitmapCacheSave(in io.Reader) (BitmapCacheSave, error) {
 		return BitmapCacheSave{}, trace.Wrap(err)
 	}
 
+	err = binary.Read(in, binary.BigEndian, &dataLength)
+	if err != nil {
+		return BitmapCacheSave{}, trace.Wrap(err)
+	}
+
+	data := make([]byte, int(dataLength))
+	if _, err := io.ReadFull(in, data); err != nil {
+		return BitmapCacheSave{}, trace.Wrap(err)
+	}
+
 	return BitmapCacheSave{
 		CacheId:    cacheId,
 		CacheIndex: cacheIndex,
+		DataLength: dataLength,
+		Data:       data,
 	}, nil
 }
 
@@ -693,6 +705,8 @@ type BitmapCacheLoad struct {
 	CacheIndex uint32
 	Top        uint32
 	Left       uint32
+	Bottom     uint32
+	Right      uint32
 }
 
 func (s BitmapCacheLoad) Encode() ([]byte, error) {
@@ -702,11 +716,13 @@ func (s BitmapCacheLoad) Encode() ([]byte, error) {
 	writeUint32(buf, s.CacheIndex)
 	writeUint32(buf, s.Top)
 	writeUint32(buf, s.Left)
+	writeUint32(buf, s.Bottom)
+	writeUint32(buf, s.Right)
 	return buf.Bytes(), nil
 }
 
 func decodeBitmapCacheLoad(in io.Reader) (BitmapCacheLoad, error) {
-	var cacheId, cacheIndex, top, left uint32
+	var cacheId, cacheIndex, top, left, bottom, right uint32
 
 	err := binary.Read(in, binary.BigEndian, &cacheId)
 	if err != nil {
@@ -728,11 +744,23 @@ func decodeBitmapCacheLoad(in io.Reader) (BitmapCacheLoad, error) {
 		return BitmapCacheLoad{}, trace.Wrap(err)
 	}
 
+	err = binary.Read(in, binary.BigEndian, &bottom)
+	if err != nil {
+		return BitmapCacheLoad{}, trace.Wrap(err)
+	}
+
+	err = binary.Read(in, binary.BigEndian, &right)
+	if err != nil {
+		return BitmapCacheLoad{}, trace.Wrap(err)
+	}
+
 	return BitmapCacheLoad{
 		CacheId:    cacheId,
 		CacheIndex: cacheIndex,
 		Top:        top,
 		Left:       left,
+		Bottom:     bottom,
+		Right:      right,
 	}, nil
 }
 

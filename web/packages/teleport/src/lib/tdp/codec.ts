@@ -257,6 +257,8 @@ export type BitmapCacheLoad = {
   cacheIndex: number,
   top: number,
   left: number,
+  bottom: number,
+  right: number,
 }
 
 export type BitmapCacheSave = {
@@ -1151,7 +1153,7 @@ export default class Codec {
   }
 
 
-  // | message type (30) | cache_id uint32 | cache_index uint32 | top uint32 | left uint32 |
+  // | message type (30) | cache_id uint32 | cache_index uint32 | top uint32 | left uint32 | bottom uint32 | right uint32
   decodeBitmapCacheLoad(
     buffer: ArrayBuffer
   ): BitmapCacheLoad {
@@ -1166,20 +1168,35 @@ export default class Codec {
     offset += uint32Length; // cache_index 
 
     const top = dv.getUint32(offset);
-    offset += uint32Length; // cache_index 
+    offset += uint32Length; // top
 
     const left = dv.getUint32(offset);
-    offset += uint32Length; // cache_index 
+    offset += uint32Length; // left
+
+    const bottom = dv.getUint32(offset);
+    offset += uint32Length; // bottom 
+
+    const right = dv.getUint32(offset);
+    offset += uint32Length; // right
 
     return {
       cacheId,
       cacheIndex,
       top,
       left,
+      bottom,
+      right,
     };
   }
 
+  createPngFrame(top: number, left: number, bottom: number, right: number, data: Uint8Array): PngFrame {
+    const image = new Image();
+    const pngFrame = { left, top, right, bottom, data: image };
+    // pngFrame.data.onload = onload(pngFrame);
+    pngFrame.data.src = this.asBase64Url(data, 0);
+    return pngFrame;
 
+  }
 
   // asBase64Url creates a data:image uri from the png data part of a PNG_FRAME tdp message.
   private asBase64Url(buffer: ArrayBuffer, offset: number): string {

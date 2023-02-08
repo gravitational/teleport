@@ -71,6 +71,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   protected socket: WebSocket | undefined;
   private socketAddr: string;
   private sdManager: SharedDirectoryManager;
+  private cache: Array<Record<number, Uint8Array>>;
 
   private logger = Logger.create('TDPClient');
 
@@ -79,6 +80,13 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.socketAddr = socketAddr;
     this.codec = new Codec();
     this.sdManager = new SharedDirectoryManager();
+    this.cache = [
+      {},
+      {},
+      {},
+      {},
+      {},
+    ];
   }
 
   // Connect to the websocket and register websocket event handlers.
@@ -444,13 +452,23 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   async handleBitmapCacheSave(buffer: ArrayBuffer) {
+    console.log("handleBitmapCacheSave1", buffer);
     const req = this.codec.decodeBitmapCacheSave(buffer);
-    console.log(req);
+    this.cache[req.cacheId][req.cacheIndex] = req.data;
+    // console.log(this.cache);
+    // console.log(req);
   }
 
   async handleBitmapCacheLoad(buffer: ArrayBuffer) {
+    // console.log("handleBitmapCacheLoad", buffer);
     const req = this.codec.decodeBitmapCacheLoad(buffer);
     console.log(req);
+
+    var frame = this.codec.createPngFrame(req.top, req.left, req.bottom, req.right, this.cache[req.cacheId][req.cacheIndex]);
+    console.log("LOADING FRAME", frame);
+    this.emit(TdpClientEvent.TDP_PNG_FRAME, frame);
+
+    // console.log("LOADING: ", req.cacheIndex, " -> ", this.cache[req.cacheId][req.cacheIndex]);
   }
 
 
