@@ -263,8 +263,8 @@ func TestDeleteDocuments(t *testing.T) {
 				// useless deduplication in the BulkWriter API.
 				rs := reflect.ValueOf(docs[i].Ref).Elem()
 				rf := rs.FieldByName("shortPath")
-				require.Equal(t, rf.Kind(), reflect.String)
-				*(*string)(unsafe.Pointer(rf.UnsafeAddr())) = docs[i].Ref.Path
+				rf = reflect.NewAt(rf.Type(), unsafe.Pointer(rf.UnsafeAddr())).Elem()
+				rf.SetString(docs[i].Ref.Path)
 			}
 
 			mockFirestore := &mockFirestoreServer{
