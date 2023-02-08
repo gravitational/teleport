@@ -29,6 +29,8 @@ type UserGroup interface {
 	ResourceWithLabels
 }
 
+var _ ResourceWithLabels = &UserGroupV1{}
+
 // NewUserGroup returns a new UserGroup.
 func NewUserGroup(metadata Metadata) (UserGroup, error) {
 	g := &UserGroupV1{
@@ -64,7 +66,7 @@ func (g *UserGroupV1) setStaticFields() {
 // CheckAndSetDefaults checks and sets default values
 func (g *UserGroupV1) CheckAndSetDefaults() error {
 	g.setStaticFields()
-	if err := g.Metadata.CheckAndSetDefaults(); err != nil {
+	if err := g.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -75,10 +77,10 @@ func (g *UserGroupV1) CheckAndSetDefaults() error {
 type UserGroups []UserGroup
 
 // AsResources returns these groups as resources with labels.
-func (g UserGroups) AsResources() (ResourcesWithLabels) {
-	resources := make([]ResourcesWithLabels, 0, len(g))
-	for _, group := range g {
-		resources = append(resources, group)
+func (g UserGroups) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, len(g))
+	for i, group := range g {
+		resources[i] = group
 	}
 	return resources
 }
