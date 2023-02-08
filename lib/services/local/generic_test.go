@@ -102,12 +102,12 @@ func TestGenericCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	service := genericResourceService[*testResource]{
-		backend:                   backend,
-		resourceHumanReadableName: "generic resource",
-		limit:                     200,
-		backendPrefix:             "generic_prefix",
-		unmarshalFunc:             unmarshalResource,
-		marshalFunc:               marshalResource,
+		backend:       backend,
+		resourceKind:  "generic resource",
+		limit:         200,
+		backendPrefix: "generic_prefix",
+		unmarshalFunc: unmarshalResource,
+		marshalFunc:   marshalResource,
 	}
 
 	// Create a couple test resources.
@@ -126,8 +126,8 @@ func TestGenericCRUD(t *testing.T) {
 	err = service.createResource(ctx, r2, r2.GetName())
 	require.NoError(t, err)
 
-	// Fetch all resources.
-	out, nextToken, err = service.listResources(ctx, 200, "")
+	// Fetch all resources using paging default.
+	out, nextToken, err = service.listResources(ctx, 0, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource{r1, r2}, out,
@@ -163,13 +163,13 @@ func TestGenericCRUD(t *testing.T) {
 	// Try to fetch a resource that doesn't exist.
 	_, err = service.getResource(ctx, "doesnotexist")
 	require.True(t, trace.IsNotFound(err))
-	require.Equal(t, `generic resource "/generic_prefix/doesnotexist" doesn't exist`, err.Error())
+	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
 
 	// Try to create the same resource.
 	err = service.createResource(ctx, r1, r1.GetName())
 	require.True(t, trace.IsAlreadyExists(err))
 
-	// Update a resource
+	// Update a resource.
 	r1.SetStaticLabels(map[string]string{"newlabel": "newvalue"})
 	err = service.updateResource(ctx, r1, r1.GetName())
 	require.NoError(t, err)
@@ -178,6 +178,11 @@ func TestGenericCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff(r1, r,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
+
+	// Update a resource that doesn't exist.
+	err = service.updateResource(ctx, r1, "doesnotexist")
+	require.True(t, trace.IsNotFound(err))
+	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
 
 	// Delete a resource.
 	err = service.deleteResource(ctx, r1.GetName())
@@ -192,7 +197,7 @@ func TestGenericCRUD(t *testing.T) {
 	// Try to delete a resource that doesn't exist.
 	err = service.deleteResource(ctx, "doesnotexist")
 	require.True(t, trace.IsNotFound(err))
-	require.Equal(t, `generic resource "/generic_prefix/doesnotexist" doesn't exist`, err.Error())
+	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
 
 	// Delete all resources.
 	err = service.deleteAllResources(ctx)

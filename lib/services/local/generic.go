@@ -18,6 +18,8 @@ package local
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -34,12 +36,12 @@ type unmarshalFunc[T types.Resource] func([]byte, ...services.MarshalOption) (T,
 
 // genericResourceService is a generic service for interacting with resources in the backend.
 type genericResourceService[T types.Resource] struct {
-	backend                   backend.Backend
-	resourceHumanReadableName string
-	limit                     int
-	backendPrefix             string
-	marshalFunc               marshalFunc[T]
-	unmarshalFunc             unmarshalFunc[T]
+	backend       backend.Backend
+	resourceKind  string
+	limit         int
+	backendPrefix string
+	marshalFunc   marshalFunc[T]
+	unmarshalFunc unmarshalFunc[T]
 }
 
 // ListResources returns a paginated list of resources.
@@ -86,7 +88,7 @@ func (s *genericResourceService[T]) getResource(ctx context.Context, name string
 	item, err := s.backend.Get(ctx, key)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return resource, trace.NotFound("%s %q doesn't exist", s.resourceHumanReadableName, string(key))
+			return resource, trace.NotFound("%s %q doesn't exist", s.resourceKind, s.displayName(name, extraKeyParts...))
 		}
 		return resource, trace.Wrap(err)
 	}
@@ -110,7 +112,12 @@ func (s *genericResourceService[T]) createResource(ctx context.Context, resource
 		Expires: resource.Expiry(),
 		ID:      resource.GetResourceID(),
 	}
+
 	_, err = s.backend.Create(ctx, item)
+	if trace.IsAlreadyExists(err) {
+		return trace.AlreadyExists("%s %q already exists", s.resourceKind, s.displayName(name, extraKeyParts...))
+	}
+
 	return trace.Wrap(err)
 }
 
@@ -129,7 +136,12 @@ func (s *genericResourceService[T]) updateResource(ctx context.Context, resource
 		Expires: resource.Expiry(),
 		ID:      resource.GetResourceID(),
 	}
+
 	_, err = s.backend.Update(ctx, item)
+	if trace.IsNotFound(err) {
+		return trace.NotFound("%s %q doesn't exist", s.resourceKind, s.displayName(name, extraKeyParts...))
+	}
+
 	return trace.Wrap(err)
 }
 
@@ -139,7 +151,7 @@ func (s *genericResourceService[T]) deleteResource(ctx context.Context, name str
 	err := s.backend.Delete(ctx, key)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.NotFound("%s %q doesn't exist", s.resourceHumanReadableName, string(key))
+			return trace.NotFound("%s %q doesn't exist", s.resourceKind, s.displayName(name, extraKeyParts...))
 		}
 		return trace.Wrap(err)
 	}
@@ -155,4 +167,14 @@ func (s *genericResourceService[T]) deleteAllResources(ctx context.Context) erro
 // fullKey calculates a key from a name and extra key parts.
 func (s *genericResourceService[T]) fullKey(name string, extraKeyParts ...string) []byte {
 	return backend.Key(append([]string{s.backendPrefix, name}, extraKeyParts...)...)
+}
+
+// displayName creates a display name for a name and its extra key parts.
+func (s *genericResourceService[T]) displayName(name string, extraKeyParts ...string) string {
+	displayName := name
+	if len(extraKeyParts) != 0 {
+		displayName += fmt.Sprintf(" (%s)", strings.Join(extraKeyParts, string(backend.Separator)))
+	}
+
+	return displayName
 }
