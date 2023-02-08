@@ -36,6 +36,8 @@ type armCompute interface {
 type VirtualMachinesClient interface {
 	// Get returns the Virtual Machine for the given resource ID.
 	Get(ctx context.Context, resourceID string) (*VirtualMachine, error)
+	// GetByVMID returns the Virtual Machine for a given VM ID.
+	GetByVMID(ctx context.Context, resourceGroup, vmID string) (*VirtualMachine, error)
 	// ListVirtualMachines gets all of the virtual machines in the given resource group.
 	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error)
 }
@@ -46,6 +48,12 @@ type VirtualMachine struct {
 	ID string `json:"id,omitempty"`
 	// Name resource name.
 	Name string `json:"name,omitempty"`
+	// Subscription is the Azure subscription the VM is in.
+	Subscription string
+	// ResourceGroup is the resource group the VM is in.
+	ResourceGroup string
+	// VMID is the VM's ID.
+	VMID string
 	// Identities are the identities associated with the resource.
 	Identities []Identity
 }
@@ -80,6 +88,38 @@ func NewVirtualMachinesClientByAPI(api armCompute) VirtualMachinesClient {
 	}
 }
 
+func parseVirtualMachine(vm *armcompute.VirtualMachine) (*VirtualMachine, error) {
+	resourceID, err := arm.ParseResourceID(*vm.ID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var identities []Identity
+	if vm.Identity != nil {
+		if systemAssigned := StringVal(vm.Identity.PrincipalID); systemAssigned != "" {
+			identities = append(identities, Identity{ResourceID: systemAssigned})
+		}
+
+		for identityID := range vm.Identity.UserAssignedIdentities {
+			identities = append(identities, Identity{ResourceID: identityID})
+		}
+	}
+
+	var vmID string
+	if vm.Properties != nil {
+		vmID = *vm.Properties.VMID
+	}
+
+	return &VirtualMachine{
+		ID:            *vm.ID,
+		Name:          *vm.Name,
+		Subscription:  resourceID.SubscriptionID,
+		ResourceGroup: resourceID.ResourceGroupName,
+		VMID:          vmID,
+		Identities:    identities,
+	}, nil
+}
+
 // Get returns the Virtual Machine for the given resource ID.
 func (c *vmClient) Get(ctx context.Context, resourceID string) (*VirtualMachine, error) {
 	parsedResourceID, err := arm.ParseResourceID(resourceID)
@@ -92,22 +132,23 @@ func (c *vmClient) Get(ctx context.Context, resourceID string) (*VirtualMachine,
 		return nil, trace.Wrap(err)
 	}
 
-	var identities []Identity
-	if resp.Identity != nil {
-		if systemAssigned := StringVal(resp.Identity.PrincipalID); systemAssigned != "" {
-			identities = append(identities, Identity{ResourceID: systemAssigned})
-		}
+	vm, err := parseVirtualMachine(&resp.VirtualMachine)
+	return vm, trace.Wrap(err)
+}
 
-		for identityID := range resp.Identity.UserAssignedIdentities {
-			identities = append(identities, Identity{ResourceID: identityID})
+// GetByVMID returns the Virtual Machine for a given VM ID.
+func (c *vmClient) GetByVMID(ctx context.Context, resourceGroup, vmID string) (*VirtualMachine, error) {
+	vms, err := c.ListVirtualMachines(ctx, resourceGroup)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, vm := range vms {
+		if vm.Properties != nil && *vm.Properties.VMID == vmID {
+			result, err := parseVirtualMachine(vm)
+			return result, trace.Wrap(err)
 		}
 	}
-
-	return &VirtualMachine{
-		ID:         *resp.ID,
-		Name:       *resp.Name,
-		Identities: identities,
-	}, nil
+	return nil, trace.NotFound("no VM with ID %q", vmID)
 }
 
 // ListVirtualMachines lists all virtual machines in a given resource group using the Azure Virtual Machines API.
