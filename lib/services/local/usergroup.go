@@ -107,6 +107,9 @@ func (s *UserGroupService) CreateUserGroup(ctx context.Context, group types.User
 		ID:      group.GetResourceID(),
 	}
 	_, err = s.Create(ctx, item)
+	if trace.IsAlreadyExists(err) {
+		return nil, trace.AlreadyExists("user_group %q already exists", group.GetName())
+	}
 	return trace.Wrap(err)
 }
 
@@ -134,7 +137,7 @@ func (s *UserGroupService) DeleteUserGroup(ctx context.Context, name string) err
 	err := s.Delete(ctx, backend.Key(userGroupPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.NotFound("group %q doesn't exist", name)
+			return trace.NotFound("user_group %q doesn't exist", name)
 		}
 		return trace.Wrap(err)
 	}

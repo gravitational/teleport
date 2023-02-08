@@ -69,7 +69,7 @@ func TestUserGroupCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Fetch all user groups.
-	out, nextToken, err = service.ListUserGroups(ctx, 200, "")
+	out, nextToken, err = service.ListUserGroups(ctx, 0, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]types.UserGroup{g1, g2}, out,

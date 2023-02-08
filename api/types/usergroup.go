@@ -29,7 +29,7 @@ type UserGroup interface {
 	ResourceWithLabels
 }
 
-var _ ResourceWithLabels = &UserGroupV1{}
+var _ ResourceWithLabels = (*UserGroupV1)(nil)
 
 // NewUserGroup returns a new UserGroup.
 func NewUserGroup(metadata Metadata) (UserGroup, error) {
