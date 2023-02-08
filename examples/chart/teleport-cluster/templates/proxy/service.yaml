@@ -29,7 +29,7 @@ spec:
   {{- toYaml . | nindent 2 }}
 {{- end }}
   ports:
-  - name: https
+  - name: tls
     port: 443
     targetPort: 3080
     protocol: TCP

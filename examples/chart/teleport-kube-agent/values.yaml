@@ -140,7 +140,8 @@ existingDataVolume: ""
 
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
-# Note: the PSP won't be deployed if Kubernetes does not support the resource (Kubernetes >= 1.25)
+# WARNING: the PSP won't be deployed for Kubernetes 1.23 and higher.
+# Please read https://goteleport.com/docs/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/
 podSecurityPolicy:
   enabled: true
 

@@ -27,12 +27,12 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 )
 
 // SyncAuthPreference fetches Teleport auth preferences and stores it in the cluster profile
@@ -160,8 +160,6 @@ func (c *Cluster) updateClientFromPingResponse(ctx context.Context) (*webclient.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	c.clusterClient.PrivateKeyPolicy = pingResp.Auth.PrivateKeyPolicy
 
 	return pingResp, nil
 }

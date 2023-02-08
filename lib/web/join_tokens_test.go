@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -30,27 +29,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 )
-
-func TestCreateNodeJoinToken(t *testing.T) {
-	t.Parallel()
-	m := &mockedNodeAPIGetter{}
-	m.mockGenerateToken = func(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-		return "some-token-id", nil
-	}
-
-	token, err := createJoinToken(context.Background(), m, types.SystemRoles{
-		types.RoleNode,
-		types.RoleApp,
-	})
-	require.NoError(t, err)
-
-	require.Equal(t, defaults.NodeJoinTokenTTL, token.Expiry.Sub(time.Now().UTC()).Round(time.Second))
-	require.Equal(t, "some-token-id", token.ID)
-}
 
 func TestGenerateIAMTokenName(t *testing.T) {
 	t.Parallel()
@@ -842,7 +823,6 @@ func TestJoinScriptEnterprise(t *testing.T) {
 	matches := isTeleportOSSLinkRegex.FindAllString(script, -1)
 	require.ElementsMatch(t, matches, []string{
 		"https://get.gravitational.com/teleport-v${TELEPORT_VERSION}",
-		"https://get.gravitational.com/teleport-v${TELEPORT_VERSION}",
 		"https://get.gravitational.com/teleport_${TELEPORT_VERSION}",
 		"https://get.gravitational.com/teleport-${TELEPORT_VERSION}",
 	})
@@ -855,25 +835,15 @@ func TestJoinScriptEnterprise(t *testing.T) {
 	matches = isTeleportEntLinkRegex.FindAllString(script, -1)
 	require.ElementsMatch(t, matches, []string{
 		"https://get.gravitational.com/teleport-ent-v${TELEPORT_VERSION}",
-		"https://get.gravitational.com/teleport-ent-v${TELEPORT_VERSION}",
 		"https://get.gravitational.com/teleport-ent_${TELEPORT_VERSION}",
 		"https://get.gravitational.com/teleport-ent-${TELEPORT_VERSION}",
 	})
 }
 
 type mockedNodeAPIGetter struct {
-	mockGenerateToken    func(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 	mockGetProxyServers  func() ([]types.Server, error)
 	mockGetClusterCACert func(ctx context.Context) (*proto.GetClusterCACertResponse, error)
 	mockGetToken         func(ctx context.Context, token string) (types.ProvisionToken, error)
-}
-
-func (m *mockedNodeAPIGetter) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-	if m.mockGenerateToken != nil {
-		return m.mockGenerateToken(ctx, req)
-	}
-
-	return "", trace.NotImplemented("mockGenerateToken not implemented")
 }
 
 func (m *mockedNodeAPIGetter) GetProxies() ([]types.Server, error) {

@@ -170,14 +170,14 @@ func TestUpdateDatabaseRequestParameters(t *testing.T) {
 		{
 			desc: "valid",
 			req: updateDatabaseRequest{
-				CACert: fakeValidTLSCert,
+				CACert: &fakeValidTLSCert,
 			},
 			errAssert: require.NoError,
 		},
 		{
 			desc: "invalid missing ca_cert",
 			req: updateDatabaseRequest{
-				CACert: "",
+				CACert: strPtr(""),
 			},
 			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
@@ -187,7 +187,7 @@ func TestUpdateDatabaseRequestParameters(t *testing.T) {
 		{
 			desc: "invalid ca_cert format",
 			req: updateDatabaseRequest{
-				CACert: "ca_cert",
+				CACert: strPtr("ca_cert"),
 			},
 			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
@@ -277,6 +277,7 @@ func TestHandleDatabaseServicesGet(t *testing.T) {
 	user := "user"
 	roleRODatabaseServices, err := types.NewRole(services.RoleNameForUser(user), types.RoleSpecV6{
 		Allow: types.RoleConditions{
+			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindDatabaseService,
 					[]string{types.VerbRead, types.VerbList}),
@@ -361,4 +362,8 @@ func requireDatabaseIAMPolicyAWS(t *testing.T, respBody []byte, database types.D
 	require.NoError(t, err)
 	require.Equal(t, expectedPolicyDocument, actualPolicyDocument)
 	require.Equal(t, []string(expectedPlaceholders), resp.AWS.Placeholders)
+}
+
+func strPtr(str string) *string {
+	return &str
 }
