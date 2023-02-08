@@ -1727,7 +1727,6 @@ type SAMLIdPServiceProviderWatcher struct {
 
 // samlIDPServiceProviderCollector accompanies resourceWatcher when monitoring SAML IdP service provider resources.
 type samlIDPServiceProviderCollector struct {
-	// Log is a logger.
 	Log logrus.FieldLogger
 	// SAMLIdPServiceProviderWatcherConfig is the watcher configuration.
 	Cfg SAMLIdPServiceProviderWatcherConfig
@@ -1773,9 +1772,9 @@ func (p *samlIDPServiceProviderCollector) getResourcesAndUpdateCurrent(ctx conte
 		newCurrent[samlIDPServiceProvider.GetName()] = samlIDPServiceProvider
 	}
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	p.current = newCurrent
 	p.defineCollectorAsInitialized()
+	p.mu.Unlock()
 
 	select {
 	case <-ctx.Done():

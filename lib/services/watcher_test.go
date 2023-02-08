@@ -1097,13 +1097,14 @@ func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
 	select {
 	case changeset := <-w.Collector.Cfg.SAMLIdPServiceProvidersC:
 		expected := types.SAMLIdPServiceProviders{sp1}
-		sortedChangeset := changeset
 		sort.Sort(expected)
-		sort.Sort(sortedChangeset)
+		sort.Sort(changeset)
 
-		require.Empty(t, cmp.Diff(expected, sortedChangeset,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-		), "should be no differences in the changeset after adding the first service provider")
+		require.Empty(t,
+			cmp.Diff(expected,
+				changeset,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+			"should be no differences in the changeset after adding the first service provider")
 	case <-w.ResourceWatcher.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
@@ -1118,13 +1119,15 @@ func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
 	select {
 	case changeset := <-w.Collector.Cfg.SAMLIdPServiceProvidersC:
 		expected := types.SAMLIdPServiceProviders{sp1, sp2}
-		sortedChangeset := changeset
 		sort.Sort(expected)
-		sort.Sort(sortedChangeset)
+		sort.Sort(changeset)
 
-		require.Empty(t, cmp.Diff(expected, sortedChangeset,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-		), "should be no difference in the changeset after adding the second service provider")
+		require.Empty(t,
+			cmp.Diff(
+				expected,
+				changeset,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+			"should be no difference in the changeset after adding the second service provider")
 	case <-w.ResourceWatcher.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
@@ -1139,13 +1142,15 @@ func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
 	select {
 	case changeset := <-w.Collector.Cfg.SAMLIdPServiceProvidersC:
 		expected := types.SAMLIdPServiceProviders{sp1, sp2}
-		sortedChangeset := changeset
 		sort.Sort(expected)
-		sort.Sort(sortedChangeset)
+		sort.Sort(changeset)
 
-		require.Empty(t, cmp.Diff(expected, sortedChangeset,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-		), "should be no difference in the changeset after update")
+		require.Empty(t,
+			cmp.Diff(
+				expected,
+				changeset,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+			"should be no difference in the changeset after update")
 	case <-w.ResourceWatcher.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
@@ -1159,13 +1164,15 @@ func TestSAMLIdPServiceProviderWatcher(t *testing.T) {
 	select {
 	case changeset := <-w.Collector.Cfg.SAMLIdPServiceProvidersC:
 		expected := types.SAMLIdPServiceProviders{sp2}
-		sortedChangeset := changeset
 		sort.Sort(expected)
-		sort.Sort(sortedChangeset)
+		sort.Sort(changeset)
 
-		require.Empty(t, cmp.Diff(types.SAMLIdPServiceProviders{sp2}, changeset,
-			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-		), "should be no difference in the changeset after deleting the first service provider")
+		require.Empty(t,
+			cmp.Diff(
+				expected,
+				changeset,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+			"should be no difference in the changeset after deleting the first service provider")
 	case <-w.ResourceWatcher.Done():
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
