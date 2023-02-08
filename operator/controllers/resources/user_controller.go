@@ -93,9 +93,3 @@ func NewUserReconciler(client kclient.Client, accessor sidecar.ClientAccessor) *
 
 	return resourceReconciler
 }
-
-// 2 problemes:
-// - gestion d'erreur sur role invalide
-// - pourquoi created by a pas casse
-
-// next step: fix serialization (breaking ?)
