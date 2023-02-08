@@ -58,7 +58,7 @@ export default function Xterm({ tty }: { tty: Tty }) {
     return cleanup;
   }, [tty]);
 
-  return <StyledXterm style={{ overflow: 'auto' }} ref={refContainer} />;
+  return <StyledXterm ref={refContainer} />;
 }
 
 class TerminalPlayer extends Terminal {
