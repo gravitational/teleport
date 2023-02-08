@@ -600,20 +600,22 @@ func (l *Log) purgeExpiredEvents() error {
 				jobs = append(jobs, job)
 			}
 
-			if len(jobs) > 0 {
-				start = time.Now()
-				var errs []error
-				batch.End()
-				for _, job := range jobs {
-					if _, err := job.Results(); err != nil {
-						errs = append(errs, firestorebk.ConvertGRPCError(err))
-					}
-				}
-
-				batchWriteLatencies.Observe(time.Since(start).Seconds())
-				batchWriteRequests.Inc()
-				return trace.NewAggregate(errs...)
+			if len(jobs) == 0 {
+				continue
 			}
+
+			start = time.Now()
+			var errs []error
+			batch.End()
+			for _, job := range jobs {
+				if _, err := job.Results(); err != nil {
+					errs = append(errs, firestorebk.ConvertGRPCError(err))
+				}
+			}
+
+			batchWriteLatencies.Observe(time.Since(start).Seconds())
+			batchWriteRequests.Inc()
+			return trace.NewAggregate(errs...)
 		}
 	}
 }
