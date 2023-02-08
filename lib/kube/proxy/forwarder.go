@@ -673,9 +673,16 @@ func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemo
 	if !isRemoteCluster {
 		// check signing TTL and return a list of allowed logins for local cluster based on Kubernetes service labels.
 		kubeAccessDetails, err := f.getKubeAccessDetails(roles, kubeCluster, sessionTTL, kubeResource)
-		if err != nil {
+		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
+			// roles.CheckKubeGroupsAndUsers returns trace.NotFound if the user does
+			// does not have at least one configured kubernetes_users or kubernetes_groups.
+		} else if trace.IsNotFound(err) {
+			errMsg := "Your user's Teleport role does not allow Kubernetes access." +
+				" Please ask cluster administrator to ensure your role has appropriate kubernetes_groups and kubernetes_users set."
+			return nil, trace.NotFound(errMsg)
 		}
+
 		kubeUsers = kubeAccessDetails.kubeUsers
 		kubeGroups = kubeAccessDetails.kubeGroups
 		kubeLabels = kubeAccessDetails.clusterLabels
