@@ -18,12 +18,8 @@ package resources
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gravitational/trace"
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/types"
@@ -31,99 +27,75 @@ import (
 	"github.com/gravitational/teleport/operator/sidecar"
 )
 
-// TODO: Have the User controller to use the generic Teleport reconciler
-
-// UserReconciler reconciles a TeleportUser object
-type UserReconciler struct {
-	kclient.Client
-	Scheme                 *runtime.Scheme
+// userClient implements TeleportResourceClient and offers CRUD methods needed to reconcile users
+type userClient struct {
 	TeleportClientAccessor sidecar.ClientAccessor
 }
 
-//+kubebuilder:rbac:groups=resources.teleport.dev,resources=users,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=resources.teleport.dev,resources=users/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=resources.teleport.dev,resources=users/finalizers,verbs=update
-
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.0/pkg/reconcile
-func (r *UserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return ResourceBaseReconciler{
-		Client:         r.Client,
-		DeleteExternal: r.Delete,
-		UpsertExternal: r.Upsert,
-	}.Do(ctx, req, &resourcesv2.TeleportUser{})
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *UserReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&resourcesv2.TeleportUser{}).
-		Complete(r)
-}
-
-func (r *UserReconciler) Delete(ctx context.Context, obj kclient.Object) error {
+// Get gets the Teleport user of a given name
+func (r userClient) Get(ctx context.Context, name string) (types.User, error) {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return teleportClient.DeleteUser(ctx, obj.GetName())
+
+	user, err := teleportClient.GetUser(name, false /* with secrets*/)
+	return user, trace.Wrap(err)
 }
 
-func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
-	k8sResource, ok := obj.(*resourcesv2.TeleportUser)
-	if !ok {
-		return fmt.Errorf("failed to convert Object into resource object: %T", obj)
-	}
-	teleportResource := k8sResource.ToTeleport()
-
+// Create creates a Teleport user
+func (r userClient) Create(ctx context.Context, user types.User) error {
 	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	existingResource, err := teleportClient.GetUser(teleportResource.GetName(), false)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
+	return trace.Wrap(teleportClient.CreateUser(ctx, user))
+}
 
-	exists := !trace.IsNotFound(err)
-
-	newOwnershipCondition, isOwned := checkOwnership(existingResource)
-	meta.SetStatusCondition(&k8sResource.Status.Conditions, newOwnershipCondition)
-	if !isOwned {
-		silentUpdateStatus(ctx, r.Client, k8sResource)
-		return trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName())
-	}
-
-	r.addTeleportResourceOrigin(teleportResource)
-
-	if !exists {
-		err = teleportClient.CreateUser(ctx, teleportResource)
-	} else {
-		// We don't want to lose the "created_by" data populated on creation
-		teleportResource.SetCreatedBy(existingResource.GetCreatedBy())
-		err = teleportClient.UpdateUser(ctx, teleportResource)
-	}
-	// If an error happens we want to put it in status.conditions before returning.
-	newReconciliationCondition := getReconciliationConditionFromError(err)
-	meta.SetStatusCondition(&k8sResource.Status.Conditions, newReconciliationCondition)
+// Update updates a Teleport user
+func (r userClient) Update(ctx context.Context, user types.User) error {
+	teleportClient, err := r.TeleportClientAccessor(ctx)
 	if err != nil {
-		silentUpdateStatus(ctx, r.Client, k8sResource)
 		return trace.Wrap(err)
 	}
 
-	// We update the status conditions on exit
-	return trace.Wrap(r.Status().Update(ctx, k8sResource))
+	return trace.Wrap(teleportClient.UpdateUser(ctx, user))
 }
 
-func (r *UserReconciler) addTeleportResourceOrigin(resource types.User) {
-	metadata := resource.GetMetadata()
-	if metadata.Labels == nil {
-		metadata.Labels = make(map[string]string)
+// Delete deletes a Teleport user
+func (r userClient) Delete(ctx context.Context, name string) error {
+	teleportClient, err := r.TeleportClientAccessor(ctx)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	metadata.Labels[types.OriginLabel] = types.OriginKubernetes
-	resource.SetMetadata(metadata)
+
+	return trace.Wrap(teleportClient.DeleteUser(ctx, name))
 }
+
+// Mutate ensures the spec.createdBy property is persisted
+func (r userClient) Mutate(newUser, existingUser types.User) {
+	if existingUser != nil {
+		newUser.SetCreatedBy(existingUser.GetCreatedBy())
+	}
+}
+
+// NewUserReconciler instantiates a new Kubernetes controller reconciling user resources
+func NewUserReconciler(client kclient.Client, accessor sidecar.ClientAccessor) *TeleportResourceReconciler[types.User, *resourcesv2.TeleportUser] {
+	userClient := &userClient{
+		TeleportClientAccessor: accessor,
+	}
+
+	resourceReconciler := NewTeleportResourceReconciler[types.User, *resourcesv2.TeleportUser](
+		client,
+		userClient,
+	)
+
+	return resourceReconciler
+}
+
+// 2 problemes:
+// - gestion d'erreur sur role invalide
+// - pourquoi created by a pas casse
+
+// next step: fix serialization (breaking ?)

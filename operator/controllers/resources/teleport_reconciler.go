@@ -46,11 +46,19 @@ type TeleportResourceReconciler[T types.ResourceWithOrigin, K TeleportKubernetes
 // TeleportResourceClient is a CRUD client for a specific Teleport resource.
 // Implementing this interface allows to be reconciled by the TeleportResourceReconciler
 // instead of writing a new specific reconciliation loop.
+// TeleportResourceClient implementations can optionally implement TeleportResourceMutator
 type TeleportResourceClient[T types.Resource] interface {
 	Get(context.Context, string) (T, error)
 	Create(context.Context, T) error
 	Update(context.Context, T) error
 	Delete(context.Context, string) error
+}
+
+// TeleportResourceMutator can be implemented by TeleportResourceClients
+// to edit a resource before its creation/update. In case of update mutations
+// the existing resource is passed as well.
+type TeleportResourceMutator[T types.Resource] interface {
+	Mutate(new, existing T)
 }
 
 // NewTeleportResourceReconciler instanciates a TeleportResourceReconciler from a TeleportResourceClient.
@@ -95,11 +103,14 @@ func (r TeleportResourceReconciler[T, K]) Upsert(ctx context.Context, obj kclien
 
 	teleportResource.SetOrigin(types.OriginKubernetes)
 
+	// We apply resource-specific mutations.
+	if mutator, ok := r.resourceClient.(TeleportResourceMutator[T]); ok {
+		mutator.Mutate(teleportResource, existingResource)
+	}
+
 	if !exists {
 		err = r.resourceClient.Create(ctx, teleportResource)
 	} else {
-		/* TODO: handle modifier logic like CreatedBy for users,
-		we can add mutate logic, diffing could also happen here */
 		err = r.resourceClient.Update(ctx, teleportResource)
 	}
 	// If an error happens we want to put it in status.conditions before returning.

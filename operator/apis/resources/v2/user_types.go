@@ -73,6 +73,10 @@ func (u TeleportUser) ToTeleport() types.User {
 	}
 }
 
+func (u *TeleportUser) StatusConditions() *[]metav1.Condition {
+	return &u.Status.Conditions
+}
+
 // Marshal serializes a spec into binary data.
 func (spec *TeleportUserSpec) Marshal() ([]byte, error) {
 	return (*types.UserSpecV2)(spec).Marshal()
