@@ -827,81 +827,30 @@ type certAuthority struct {
 }
 
 func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	applyHostCAs, err := c.fetchCertAuthorities(ctx, types.HostCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	applyUserCAs, err := c.fetchCertAuthorities(ctx, types.UserCA)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// DELETE IN 11.0.
-	// missingDatabaseCA is needed only when leaf cluster v9 is connected
-	// to root cluster v10. Database CA has been added in v10, so older
-	// clusters don't have it and fetchCertAuthorities() returns an error.
-	missingDatabaseCA := false
-	applyDatabaseCAs, err := c.fetchCertAuthorities(ctx, types.DatabaseCA)
-	if trace.IsBadParameter(err) {
-		missingDatabaseCA = true
-	} else if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// DELETE IN 13.0.
-	// missingOpenSSHCA is needed only when leaf cluster v11 is connected
-	// to root cluster v12. OpenSSH CA has been added in v12, so older
-	// clusters don't have it and fetchCertAuthorities() returns an error.
-	var missingOpenSSHCA bool
-	applyOpenSSHCAs, err := c.fetchCertAuthorities(ctx, types.OpenSSHCA)
-	if trace.IsBadParameter(err) {
-		missingOpenSSHCA = true
-	} else if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	applyJWTSigners, err := c.fetchCertAuthorities(ctx, types.JWTSigner)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	fs := make([]func(context.Context) error, 0, len(types.CertAuthTypes))
+	for _, caType := range types.CertAuthTypes {
+		f, err := c.fetchCertAuthorities(ctx, caType)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		fs = append(fs, f)
 	}
 
 	return func(ctx context.Context) error {
-		if err := applyHostCAs(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-		if err := applyUserCAs(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-		if !missingDatabaseCA {
-			if err := applyDatabaseCAs(ctx); err != nil {
+		for _, f := range fs {
+			if err := f(ctx); err != nil {
 				return trace.Wrap(err)
 			}
-		} else {
-			if err := c.trustCache.DeleteAllCertAuthorities(types.DatabaseCA); err != nil {
-				if !trace.IsNotFound(err) {
-					return trace.Wrap(err)
-				}
-			}
 		}
-		if !missingOpenSSHCA {
-			if err := applyOpenSSHCAs(ctx); err != nil {
-				return trace.Wrap(err)
-			}
-		} else {
-			if err := c.trustCache.DeleteAllCertAuthorities(types.OpenSSHCA); err != nil {
-				if !trace.IsNotFound(err) {
-					return trace.Wrap(err)
-				}
-			}
-		}
-		return trace.Wrap(applyJWTSigners(ctx))
+		return nil
 	}, nil
 }
 
 func (c *certAuthority) fetchCertAuthorities(ctx context.Context, caType types.CertAuthType) (apply func(ctx context.Context) error, err error) {
 	authorities, err := c.Trust.GetCertAuthorities(ctx, caType, c.watch.LoadSecrets)
-	if err != nil {
+	// if caType was added in this major version we might get a BadParameter
+	// error if we're connecting to an older upstream that doesn't know about it
+	if err != nil && !(caType.NewlyAdded() && trace.IsBadParameter(err)) {
 		return nil, trace.Wrap(err)
 	}
 
