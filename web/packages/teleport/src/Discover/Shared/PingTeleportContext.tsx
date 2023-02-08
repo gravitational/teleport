@@ -70,16 +70,14 @@ export function PingTeleportProvider<T>(props: {
 
   function servicesFetchFn(signal: AbortSignal) {
     const clusterId = ctx.storeUser.getClusterId();
-    let search: string;
-    if (searchTerm) {
-      search = searchTerm;
-    } else {
-      search = `${INTERNAL_RESOURCE_ID_LABEL_KEY} ${joinToken.internalResourceId}`;
-    }
+    const search =
+      searchTerm ||
+      `${INTERNAL_RESOURCE_ID_LABEL_KEY} ${joinToken.internalResourceId}`;
     const request = {
       search,
       limit: 1,
     };
+
     switch (props.resourceKind) {
       case ResourceKind.Server:
         return ctx.nodeService.fetchNodes(clusterId, request, signal);
@@ -101,7 +99,7 @@ export function PingTeleportProvider<T>(props: {
   // start updates state to start polling.
   const start = useCallback((tokenOrTerm: JoinToken | string) => {
     if (typeof tokenOrTerm === 'string') {
-      setSearchTerm(searchTerm);
+      setSearchTerm(tokenOrTerm);
     } else {
       setJoinToken(tokenOrTerm);
     }
