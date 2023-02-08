@@ -588,6 +588,9 @@ tsh ssh node-that-requires-device-trust
     (mode="off"), then changing the cluster configuration to mode="required" and
     attempting to access a process directly, without a login attempt.
 
+  - [ ] Role-based authz enforces enrolled devices
+        (device_trust.mode="off" or "optional",
+        role.spec.options.device_trust_mode="required")
   - [ ] Device authorization works correctly for both require_session_mfa=false
         and require_session_mfa=true
 
@@ -597,12 +600,21 @@ tsh ssh node-that-requires-device-trust
   - [ ] Device authorization applies to Database access (all items above)
   - [ ] Device authorization applies to Kubernetes access (all items above)
 
+  - [ ] Device authorization __does not__ apply to App access
+        (both cluster-wide and role)
+  - [ ] Device authorization __does not__ apply to Windows Desktop access
+        (both cluster-wide and role)
+
 - [ ] Device audit (see [lib/events/codes.go][device_event_codes])
   - [ ] Inventory management actions issue events (success only)
   - [ ] Device enrollment issues device event (any outcomes)
   - [ ] Device authorization issues device event (any outcomes)
   - [ ] Events with [UserMetadata][event_trusted_device] contain TrustedDevice
         data (for certificates with device extensions)
+
+- [ ] Binary support
+  - [ ] Non-signed and/or non-notarized `tsh` for macOS gives a sane error
+        message for `tsh device enroll` attempts.
 
 [device_event_codes]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/lib/events/codes.go#L389-L400
 [event_trusted_device]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/api/proto/teleport/legacy/types/events/events.proto#L88-L90
