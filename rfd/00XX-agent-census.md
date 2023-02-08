@@ -13,7 +13,7 @@ state: draft
 ## What
 
 This RFD details how we'll track more information about agents (aka Agent Census).
-A brief description of this task was described in [Cloud's RFD 53](https://github.com/gravitational/cloud/tree/54559795b45b2e8515ea7e159d26cadfbb52482f/rfd/0053-prehog.md).
+A brief description of this task can be found in [Cloud's RFD 53](https://github.com/gravitational/cloud/tree/54559795b45b2e8515ea7e159d26cadfbb52482f/rfd/0053-prehog.md).
 
 #### Goals
 
@@ -53,8 +53,9 @@ We want to start tracking the following data in PreHog:
 5. Host architecture (e.g. `amd64`)
 6. `glibc` version
 7. [Installation methods](https://goteleport.com/docs/installation/) (Dockerfile, Helm, `install-node.sh` and `*-ad*.ps1` scripts)
-8. Container orchestrator (e.g. Kubernetes)
-9. Cloud environment (e.g. AWS, GCP, Azure)
+8. Container runtime (e.g. Docker)
+9. Container orchestrator (e.g. Kubernetes)
+10. Cloud environment (e.g. AWS, GCP, Azure)
 
 #### Data collection
 
@@ -82,13 +83,14 @@ message UpstreamInventoryHello {
   string HostArchitecture = 7;
   string GLibCVersion = 8;
   repeated string InstallMethods = 9;
-  string ContainerOrchestrator = 10;
-  string CloudEnvironment = 11;
+  string ContainerRuntime = 10;
+  string ContainerOrchestrator = 11;
+  string CloudEnvironment = 12;
 }
 ```
 
 When the auth server receives an `UpstreamInventoryHello` message, it will take the information in the message and send it to PreHog.
-For this, a new PreHog `AgentMetadataEvent` message will be added (note that only the `UpstreamInventoryHello.Hostname` won't be sent to PreHog):
+For this, a new PreHog `AgentMetadataEvent` message will be added (note that only the `UpstreamInventoryHello.Hostname` won't be sent to PreHog as it can contain PII but also because it doesn't seem useful):
 
 ```protobuf
 message AgentMetadataEvent {
@@ -100,8 +102,9 @@ message AgentMetadataEvent {
   string host_architecture = 6;
   string glibc_version = 7;
   repeated string install_methods = 8;
-  string container_orchestrator = 9;
-  string cloud_environment = 10;
+  string container_runtime = 9;
+  string container_orchestrator = 10;
+  string cloud_environment = 11;
 }
 
 enum TeleportAccessProtocol {
@@ -155,10 +158,10 @@ We have one environment variable for each installation method as some of the ins
 - [`*-ad*.ps1`](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/desktop): `setx TELEPORT_INSTALL_METHOD_WINDOWS_SCRIPT=true` will be added to one of these scripts as they are the recommended way to configure windows desktops.
 - [`install-node.sh`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/node-join/install.sh): `export TELEPORT_INSTALL_METHOD_NODE_SCRIPT="true"` will be added to this script. It is the recommended way to install SSH nodes, apps and many databases. Even though `export` doesn't persist across restarts, we can have the agent persist such value (and maybe all of the values sent in `UpstreamInventoryHello`) when it first starts.
 
-The installation methods below won't be tracked for now.
-Later on, we'll try to track these methods if, once we start tracking the above installation methods, we notice that we're not yet covering most installation methods.
+The installation methods that follow won't be tracked for now.
+Later on, we may try to track these if, once we start tracking the above installation methods, we notice that we're not yet covering most methods.
 - tarball: We can add `export TELEPORT_INSTALL_METHOD_TARBALL="true"` to the [`install`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/install) script. (However, if the customer does not use the `install` script and instead moves the binaries manually, we won't be able to track this installation method.)
-- `.deb`/`.rpm`/`.pkg` packages, APT or YUM repository: It's unclear how these can be tracked.
+- `.deb`/`.rpm`/`.pkg` packages, APT or YUM repository: It's unclear ATM how these can be tracked.
 - _built from source_: While it's technically possible for customers to build Teleport from source, we won't try to track this installation method as it seems an unlikely use-case.
 - `homebrew`: It's also possible to install Teleport on macOS using `homebrew`. The Teleport package in `homebrew` is not maintained by us, so we will also not track this installation method.
 
@@ -168,7 +171,15 @@ In summary, for now we'll have the following new environment variables and respe
 - `TELEPORT_INSTALL_METHOD_WINDOWS_SCRIPT`: `windows-script`
 - `TELEPORT_INSTALL_METHOD_NODE_SCRIPT`: `node-script`
 
-##### 8. Container orchestrator
+##### 8. Container runtime
+
+To determine if the agent is running on Docker, we can first check if the file `/proc/self/cgroup` exists, and if so, if it contains the string "docker".
+
+This is how `gopsutil` does it ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/internal/common/common_linux.go#L130-L278)).
+As it can be seen in the link, `gopsutil` is also detecting other container runtimes.
+If we're interested in tracking other container runtimes, we could follow their approach.
+
+##### 9. Container orchestrator
 
 To determine if the agent is running on a Kubernetes pod, we can try to initialize a Kubernetes `client` similar to how [Validator.getClient()](https://github.com/gravitational/teleport/blob/master/lib/kubernetestoken/token_validator.go#L50-L68) does it.
 If this succeeds, the agent is running on Kubernetes.
@@ -186,7 +197,7 @@ In the end, `UpstreamInventoryHello.ContainerOrchestrator` will be set to:
 - `kubernetes-gke` if on GKE
 - `kubernetes-unknown` otherwise (AKS, other cloud provider, or no cloud provider)
 
-##### 9. Cloud environment
+##### 10. Cloud environment
 
 The only way to determine this seems to be by hitting certain HTTP endpoints specific to each cloud environment:
 - AWS ([docs](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html)): http://169.254.169.254/latest/
@@ -208,7 +219,7 @@ A similar reasoning also applies to step 1 since each field in `AgentMetadataEve
 
 ### Security
 
-Detecting the __8. Container orchestrator__ and __9. Cloud environment__ requires hitting certain HTTP endpoints.
+Detecting the __9. Container orchestrator__ and __10. Cloud environment__ requires hitting certain HTTP endpoints.
 This may be considered too intrusive, so we have to make a decision on whether we really want to track it and argue why it's okay to do so.
 Besides this, there doesn't seem to be any further concern.
 
@@ -218,9 +229,9 @@ Data analysis and visualization is not a goal for this RFD, so no UX concerns fo
 
 ### Open questions
 
+- Which alternative should we use for __5. Host architecture__?
 - Should we [Teleport AMIs](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/aws/terraform/AMIS.md) an installation method?
 - Which [\*-ad*.ps1](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/desktop) script should be changed? Are these scripts going away with non-AD desktop access?
   - Does `setx` take effect right away or requires some sort of restart?
 - Is the [`install`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/install) script used for anything else?
 - Which container runtimes are we interested in tracking?
-- Do we want to track cloud environments? If so, which?
