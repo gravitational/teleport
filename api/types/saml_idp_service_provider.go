@@ -17,7 +17,11 @@ limitations under the License.
 package types
 
 import (
+	"encoding/xml"
+	"errors"
 	"fmt"
+	io "io"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -99,8 +103,35 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if s.Spec.EntityDescriptor == "" {
-		return trace.BadParameter("entity descriptor is missing")
+	if strings.TrimSpace(s.Spec.EntityDescriptor) == "" {
+		return trace.BadParameter("missing entity descriptor")
+	}
+
+	// Validate the entity descriptor is valid XML. Ideally this would
+	// validate the XML against the SAML schema
+	// (https://docs.oasis-open.org/security/saml/v2.0/saml-schema-metadata-2.0.xsd),
+	// but there doesn't appear to be a good XSD library for go.
+	decoder := xml.NewDecoder(strings.NewReader(s.Spec.EntityDescriptor))
+	readAnyXML := false
+	finished := false
+	decodeTarget := new(interface{})
+	for {
+		err := decoder.Decode(decodeTarget)
+		switch {
+		case err == nil:
+			readAnyXML = true
+		case errors.Is(err, io.EOF):
+			if !readAnyXML {
+				return trace.BadParameter("entity descriptor is not valid XML")
+			}
+			finished = true
+		default:
+			return trace.Wrap(err)
+		}
+
+		if finished {
+			break
+		}
 	}
 
 	if s.Spec.EntityID == "" {

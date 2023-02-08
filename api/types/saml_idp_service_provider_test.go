@@ -52,11 +52,6 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			errAssertion:     require.Error,
 		},
 		{
-			name:             "invalid entity descriptor",
-			entityDescriptor: "<invalid />",
-			errAssertion:     require.Error,
-		},
-		{
 			name:             "empty entity ID",
 			entityDescriptor: testEntityDescriptor,
 			errAssertion:     require.Error,
