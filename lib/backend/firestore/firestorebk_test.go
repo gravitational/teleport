@@ -34,9 +34,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
+	"google.golang.org/genproto/googleapis/rpc/code"
 	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
@@ -210,7 +210,7 @@ func (s *mockFirestoreServer) BatchWrite(ctx context.Context, req *firestorepb.B
 	resp := &firestorepb.BatchWriteResponse{}
 	for i := 0; i < len(req.Writes); i++ {
 		resp.Status = append(resp.Status, &status.Status{
-			Code: int32(codes.OK),
+			Code: int32(code.Code_OK),
 		})
 
 		resp.WriteResults = append(resp.WriteResults, &firestorepb.WriteResult{
