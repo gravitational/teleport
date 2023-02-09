@@ -2506,18 +2506,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-	authPref, err := a.authServer.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	identity := a.context.Identity.GetIdentity()
-
-	// Device trust: authorize device before issuing certificates, if applicable.
-	// This gives a better UX by failing earlier in the access attempt.
-	if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), identity); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return a.generateUserCerts(
 		ctx, req,
 		certRequestDeviceExtensions(identity.DeviceExtensions),
@@ -2525,7 +2514,14 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 }
 
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
-	var err error
+	// Device trust: authorize device before issuing certificates.
+	authPref, err := a.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.verifyUserDeviceForCertIssuance(req.Usage, authPref.GetDeviceTrust()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// this prevents clients who have no chance at getting a cert and impersonating anyone
 	// from enumerating local users and hitting database
@@ -2787,6 +2783,23 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 
 	return certs, nil
+}
+
+// verifyUserDeviceForCertIssuance verifies if the user device is a trusted
+// device, in accordance to the certificate usage and the cluster's DeviceTrust
+// settings. It's meant to be called before issuing new user certificates.
+// Each Node (or access server) verifies the device independently, so this check
+// is not paramount to the access system itself, but it stops bad attempts from
+// progressing further and provides better feedback than other protocol-specific
+// failures.
+func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(usage proto.UserCertsRequest_CertUsage, dt *types.DeviceTrust) error {
+	// Ignore App or WindowsDeskop requests, they do not support device trust.
+	if usage == proto.UserCertsRequest_App || usage == proto.UserCertsRequest_WindowsDesktop {
+		return nil
+	}
+
+	identity := a.context.Identity.GetIdentity()
+	return trace.Wrap(dtauthz.VerifyTLSUser(dt, identity))
 }
 
 // CreateBot creates a new certificate renewal bot and returns a join token.
