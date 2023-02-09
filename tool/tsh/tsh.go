@@ -47,6 +47,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -409,6 +410,9 @@ type CLIConf struct {
 	kubernetesImpersonationConfig impersonationConfig
 	// kubeNamespace allows to configure the default Kubernetes namespace.
 	kubeNamespace string
+
+	// kubeAllNamespaces allows users to search for pods in every namespace.
+	kubeAllNamespaces bool
 
 	// kubeConfigPath is the location of the Kubeconfig for the current test.
 	// Setting this value allows Teleport tests to run `tsh login` commands in
@@ -776,7 +780,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// scp
 	scp := app.Command("scp", "Transfer files to a remote Node")
 	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
+	scp.Arg("from, to", "Source and destination to copy, one must be a local path and one must be a remote path").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
 	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int32Var(&cf.NodePort)
 	scp.Flag("preserve", "Preserves access and modification times from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
@@ -890,6 +894,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqSearch.Flag("search", searchHelp).StringVar(&cf.SearchKeywords)
 	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	reqSearch.Flag("labels", labelHelp).StringVar(&cf.UserHost)
+	reqSearch.Flag("kube-cluster", "Kubernetes Cluster to search for Pods").StringVar(&cf.KubernetesCluster)
+	reqSearch.Flag("kube-namespace", "Kubernetes Namespace to search for Pods").Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
+	reqSearch.Flag("all-kube-namespaces", "Search Pods in every namespace").BoolVar(&cf.kubeAllNamespaces)
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)

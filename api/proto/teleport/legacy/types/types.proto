@@ -2456,6 +2456,13 @@ message RoleConditions {
 
   // GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.
   repeated string GCPServiceAccounts = 25 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
+
+  // DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.
+  wrappers.LabelValues DatabaseServiceLabels = 26 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "db_service_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
@@ -4789,4 +4796,30 @@ message IdPSAMLOptions {
     (gogoproto.jsontag) = "enabled",
     (gogoproto.customtype) = "BoolOption"
   ];
+}
+
+// KubernetesResourceV1 represents a Kubernetes resource.
+message KubernetesResourceV1 {
+  // Kind is a resource kind
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource sub kind, used in some resources
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is version
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is KubernetesResourceV1 metadata
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec contains the Kubernetes resource data.
+  KubernetesResourceSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// KubernetesResourceSpecV1 is the Kubernetes resource spec.
+message KubernetesResourceSpecV1 {
+  // Namespace is the resource namespace.
+  string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
 }
