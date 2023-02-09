@@ -18,8 +18,6 @@ package local
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -83,12 +81,11 @@ func (s *genericResourceService[T]) listResources(ctx context.Context, pageSize 
 }
 
 // getResource returns the specified resource.
-func (s *genericResourceService[T]) getResource(ctx context.Context, name string, extraKeyParts ...string) (resource T, err error) {
-	key := s.fullKey(name, extraKeyParts...)
-	item, err := s.backend.Get(ctx, key)
+func (s *genericResourceService[T]) getResource(ctx context.Context, name string) (resource T, err error) {
+	item, err := s.backend.Get(ctx, backend.Key(s.backendPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return resource, trace.NotFound("%s %q doesn't exist", s.resourceKind, s.displayName(name, extraKeyParts...))
+			return resource, trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
 		}
 		return resource, trace.Wrap(err)
 	}
@@ -98,7 +95,7 @@ func (s *genericResourceService[T]) getResource(ctx context.Context, name string
 }
 
 // createResource creates a new resource.
-func (s *genericResourceService[T]) createResource(ctx context.Context, resource T, name string, extraKeyParts ...string) error {
+func (s *genericResourceService[T]) createResource(ctx context.Context, resource T, name string) error {
 	if err := resource.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -107,7 +104,7 @@ func (s *genericResourceService[T]) createResource(ctx context.Context, resource
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     s.fullKey(name, extraKeyParts...),
+		Key:     backend.Key(s.backendPrefix, name),
 		Value:   value,
 		Expires: resource.Expiry(),
 		ID:      resource.GetResourceID(),
@@ -115,14 +112,14 @@ func (s *genericResourceService[T]) createResource(ctx context.Context, resource
 
 	_, err = s.backend.Create(ctx, item)
 	if trace.IsAlreadyExists(err) {
-		return trace.AlreadyExists("%s %q already exists", s.resourceKind, s.displayName(name, extraKeyParts...))
+		return trace.AlreadyExists("%s %q already exists", s.resourceKind, name)
 	}
 
 	return trace.Wrap(err)
 }
 
 // updateResource updates an existing resource.
-func (s *genericResourceService[T]) updateResource(ctx context.Context, resource T, name string, extraKeyParts ...string) error {
+func (s *genericResourceService[T]) updateResource(ctx context.Context, resource T, name string) error {
 	if err := resource.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -131,7 +128,7 @@ func (s *genericResourceService[T]) updateResource(ctx context.Context, resource
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     s.fullKey(name, extraKeyParts...),
+		Key:     backend.Key(s.backendPrefix, name),
 		Value:   value,
 		Expires: resource.Expiry(),
 		ID:      resource.GetResourceID(),
@@ -139,19 +136,18 @@ func (s *genericResourceService[T]) updateResource(ctx context.Context, resource
 
 	_, err = s.backend.Update(ctx, item)
 	if trace.IsNotFound(err) {
-		return trace.NotFound("%s %q doesn't exist", s.resourceKind, s.displayName(name, extraKeyParts...))
+		return trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
 	}
 
 	return trace.Wrap(err)
 }
 
 // deleteResource removes the specified resource.
-func (s *genericResourceService[T]) deleteResource(ctx context.Context, name string, extraKeyParts ...string) error {
-	key := s.fullKey(name, extraKeyParts...)
-	err := s.backend.Delete(ctx, key)
+func (s *genericResourceService[T]) deleteResource(ctx context.Context, name string) error {
+	err := s.backend.Delete(ctx, backend.Key(s.backendPrefix, name))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.NotFound("%s %q doesn't exist", s.resourceKind, s.displayName(name, extraKeyParts...))
+			return trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
 		}
 		return trace.Wrap(err)
 	}
@@ -162,19 +158,4 @@ func (s *genericResourceService[T]) deleteResource(ctx context.Context, name str
 func (s *genericResourceService[T]) deleteAllResources(ctx context.Context) error {
 	startKey := backend.Key(s.backendPrefix)
 	return trace.Wrap(s.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
-}
-
-// fullKey calculates a key from a name and extra key parts.
-func (s *genericResourceService[T]) fullKey(name string, extraKeyParts ...string) []byte {
-	return backend.Key(append([]string{s.backendPrefix, name}, extraKeyParts...)...)
-}
-
-// displayName creates a display name for a name and its extra key parts.
-func (s *genericResourceService[T]) displayName(name string, extraKeyParts ...string) string {
-	displayName := name
-	if len(extraKeyParts) != 0 {
-		displayName += fmt.Sprintf(" (%s)", strings.Join(extraKeyParts, string(backend.Separator)))
-	}
-
-	return displayName
 }
