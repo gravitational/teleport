@@ -296,7 +296,7 @@ func (d *DatabaseV3) SetMySQLServerVersion(version string) {
 
 // IsEmpty returns true if AWS metadata is empty.
 func (a AWS) IsEmpty() bool {
-	return protoEqual(&a, &AWS{})
+	return protoKnownFieldsEqual(&a, &AWS{})
 }
 
 // GetAWS returns the database AWS metadata.
@@ -319,7 +319,7 @@ func (d *DatabaseV3) GetGCP() GCPCloudSQL {
 
 // IsEmpty returns true if Azure metadata is empty.
 func (a Azure) IsEmpty() bool {
-	return protoEqual(&a, &Azure{})
+	return protoKnownFieldsEqual(&a, &Azure{})
 }
 
 // GetAzure returns Azure database server metadata.
