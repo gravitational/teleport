@@ -116,6 +116,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindOIDCConnector:           rc.createOIDCConnector,
 		types.KindSAMLConnector:           rc.createSAMLConnector,
 		types.KindLoginRule:               rc.createLoginRule,
+		types.KindSAMLIdPServiceProvider:  rc.createSAMLIdPServiceProvider,
 	}
 	rc.config = config
 
@@ -726,6 +727,33 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client auth.Clie
 	return trail.FromGRPC(err)
 }
 
+func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	// Create services.SAMLIdPServiceProvider from raw YAML to extract the service provider name.
+	sp, err := services.UnmarshalSAMLIdPServiceProvider(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	serviceProviderName := sp.GetName()
+	if err := sp.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	exists := false
+	if err = client.CreateSAMLIdPServiceProvider(ctx, sp); err != nil {
+		if trace.IsAlreadyExists(err) {
+			exists = true
+			err = client.UpdateSAMLIdPServiceProvider(ctx, sp)
+		}
+
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	fmt.Printf("SAML IdP service provider '%s' has been %s\n", serviceProviderName, UpsertVerb(exists, rc.IsForced()))
+	return nil
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err error) {
 	singletonResources := []string{
@@ -959,6 +987,12 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trail.FromGRPC(err)
 		}
 		fmt.Printf("login rule %q has been deleted\n", rc.ref.Name)
+
+	case types.KindSAMLIdPServiceProvider:
+		if err := client.DeleteSAMLIdPServiceProvider(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("SAML IdP service provider %q has been deleted\n", rc.ref.Name)
 
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
@@ -1520,6 +1554,30 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			Name: rc.ref.Name,
 		})
 		return &loginRuleCollection{[]*loginrulepb.LoginRule{rule}}, trail.FromGRPC(err)
+	case types.KindSAMLIdPServiceProvider:
+		if rc.ref.Name != "" {
+			serviceProvider, err := client.GetSAMLIdPServiceProvider(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &samlIDPServiceProviderCollection{serviceProviders: []types.SAMLIdPServiceProvider{serviceProvider}}, nil
+		}
+		var resources []types.SAMLIdPServiceProvider
+		nextKey := ""
+		for {
+			var sps []types.SAMLIdPServiceProvider
+			var err error
+			sps, nextKey, err = client.ListSAMLIdPServiceProviders(ctx, 0, nextKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources = append(resources, sps...)
+			if nextKey == "" {
+				break
+			}
+		}
+		return &samlIDPServiceProviderCollection{serviceProviders: resources}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -1571,19 +1629,10 @@ func getGithubConnectors(ctx context.Context, client auth.ClientI, name string, 
 
 // UpsertVerb generates the correct string form of a verb based on the action taken
 func UpsertVerb(exists bool, force bool) string {
-	switch {
-	case exists == true && force == true:
-		return "created"
-	case exists == false && force == true:
-		return "created"
-	case exists == true && force == false:
+	if !force && exists {
 		return "updated"
-	case exists == false && force == false:
-		return "created"
-	default:
-		// Unreachable, but compiler requires this.
-		return "unknown"
 	}
+	return "created"
 }
 
 func checkCreateResourceWithOrigin(storedRes types.ResourceWithOrigin, resDesc string, force, confirm bool) error {

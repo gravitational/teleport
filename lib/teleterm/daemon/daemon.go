@@ -137,20 +137,20 @@ func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
 	return cluster, nil
 }
 
-// ResolveFullCluster returns full cluster information. It makes a request to the auth server and includes
-// details about the cluster and logged in user
-func (s *Service) ResolveFullCluster(ctx context.Context, uri string) (*clusters.Cluster, error) {
+// ResolveClusterWithDetails returns fully detailed cluster information. It makes requests to the auth server and includes
+// details about the cluster and logged in user.
+func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*clusters.ClusterWithDetails, error) {
 	cluster, err := s.ResolveCluster(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cluster, err = cluster.EnrichWithDetails(ctx)
+	withDetails, err := cluster.GetWithDetails(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return cluster, nil
+	return withDetails, nil
 }
 
 // ClusterLogout logs a user out from the cluster
@@ -248,41 +248,6 @@ func (s *Service) removeGateway(gateway *gateway.Gateway) error {
 	}
 
 	delete(s.gateways, gateway.URI().String())
-
-	return nil
-}
-
-// RestartGateway stops a gateway and starts a new one with identical parameters.
-// It also keeps the original URI so that from the perspective of Connect it's still the same
-// gateway but with fresh certs.
-func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	oldGateway, err := s.findGateway(gatewayURI)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := s.removeGateway(oldGateway); err != nil {
-		return trace.Wrap(err)
-	}
-
-	newGateway, err := s.createGateway(ctx, CreateGatewayParams{
-		TargetURI:             oldGateway.TargetURI(),
-		TargetUser:            oldGateway.TargetUser(),
-		TargetSubresourceName: oldGateway.TargetSubresourceName(),
-		LocalPort:             oldGateway.LocalPort(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// s.createGateway adds a gateway under a random URI, so we need to place the new gateway under
-	// the URI of the old gateway.
-	delete(s.gateways, newGateway.URI().String())
-	newGateway.SetURI(oldGateway.URI())
-	s.gateways[oldGateway.URI().String()] = newGateway
 
 	return nil
 }

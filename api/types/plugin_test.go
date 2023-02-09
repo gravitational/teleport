@@ -42,7 +42,7 @@ func TestPluginWithoutSecrets(t *testing.T) {
 		},
 	}
 
-	plugin := NewPluginV1("foobar", spec, creds)
+	plugin := NewPluginV1(Metadata{Name: "foobar"}, spec, creds)
 	plugin = plugin.WithoutSecrets().(*PluginV1)
 	require.Nil(t, plugin.Credentials)
 }
