@@ -152,6 +152,7 @@ func TestCertReloader(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
+			ctx := context.Background()
 			// Create empty certs and ensure they get cleaned up.
 			certs := newCerts(t)
 
@@ -164,7 +165,7 @@ func TestCertReloader(t *testing.T) {
 				KeyPairsReloadInterval: 0,
 			}
 			certReloader := NewCertReloader(cfg)
-			err := certReloader.Run(context.TODO())
+			err := certReloader.Run(ctx)
 
 			// Check that certificates load correctly in the synchronous (first) attempt.
 			require.NoError(t, err)
