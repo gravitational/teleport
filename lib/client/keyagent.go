@@ -299,11 +299,6 @@ func (a *LocalKeyAgent) GetKey(clusterName string, opts ...CertOption) (*Key, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	trustedCerts, err := a.clientStore.GetTrustedCerts(idx.ProxyHost)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	key.TrustedCerts = trustedCerts
 	return key, nil
 }
 
