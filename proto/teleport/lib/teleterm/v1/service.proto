@@ -83,10 +83,6 @@ service TerminalService {
   rpc CreateGateway(CreateGatewayRequest) returns (Gateway);
   // RemoveGateway removes a gateway
   rpc RemoveGateway(RemoveGatewayRequest) returns (EmptyResponse);
-  // RestartGateway stops a gateway and starts a new with identical parameters, keeping the
-  // original URI. A temporary workaround until it's possible to refresh certs in a running
-  // database proxy.
-  rpc RestartGateway(RestartGatewayRequest) returns (EmptyResponse);
   // SetGatewayTargetSubresourceName changes the TargetSubresourceName field of gateway.Gateway
   // and returns the updated version of gateway.Gateway.
   //
@@ -378,10 +374,6 @@ message ListGatewaysResponse {
 }
 
 message RemoveGatewayRequest {
-  string gateway_uri = 1;
-}
-
-message RestartGatewayRequest {
   string gateway_uri = 1;
 }
 
