@@ -58,9 +58,8 @@ type Cluster struct {
 	Leaf bool `protobuf:"varint,5,opt,name=leaf,proto3" json:"leaf,omitempty"`
 	// User is the cluster access control list of the logged-in user
 	LoggedInUser *LoggedInUser `protobuf:"bytes,7,opt,name=logged_in_user,json=loggedInUser,proto3" json:"logged_in_user,omitempty"`
-	// features describes the auth servers features
-	// Only present in situations where detailed
-	// information is queried from the auth server.
+	// features describes the auth servers features.
+	// Only present when detailed information is queried from the auth server.
 	Features *Features `protobuf:"bytes,8,opt,name=features,proto3" json:"features,omitempty"`
 }
 
@@ -160,9 +159,13 @@ type LoggedInUser struct {
 	// acl is the user acl
 	Acl *ACL `protobuf:"bytes,4,opt,name=acl,proto3" json:"acl,omitempty"`
 	// active_requests is an array of request-id strings of active requests
-	ActiveRequests     []string `protobuf:"bytes,5,rep,name=active_requests,json=activeRequests,proto3" json:"active_requests,omitempty"`
+	ActiveRequests []string `protobuf:"bytes,5,rep,name=active_requests,json=activeRequests,proto3" json:"active_requests,omitempty"`
+	// suggested_reviewers for the given user.
+	// Only present when detailed information is queried from the auth server.
 	SuggestedReviewers []string `protobuf:"bytes,6,rep,name=suggested_reviewers,json=suggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
-	RequestableRoles   []string `protobuf:"bytes,7,rep,name=requestable_roles,json=requestableRoles,proto3" json:"requestable_roles,omitempty"`
+	// requestable_roles for the given user.
+	// Only present when detailed information is queried from the auth server.
+	RequestableRoles []string `protobuf:"bytes,7,rep,name=requestable_roles,json=requestableRoles,proto3" json:"requestable_roles,omitempty"`
 }
 
 func (x *LoggedInUser) Reset() {
