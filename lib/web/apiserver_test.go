@@ -57,6 +57,7 @@ import (
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/mailgun/timetools"
 	"github.com/pquerna/otp/totp"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
@@ -64,6 +65,8 @@ import (
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
 	corev1 "k8s.io/api/core/v1"
@@ -80,6 +83,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -414,7 +418,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// Expired sessions are purged immediately
 	var sessionLingeringThreshold time.Duration
-	fs, err := NewDebugFileSystem("../../webassets/teleport")
+	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 
 	handler, err := NewHandler(Config{
@@ -1600,7 +1604,6 @@ func TestTerminalNameResolution(t *testing.T) {
 			require.Equal(t, tt.port, resp.ServerHostPort)
 		})
 	}
-
 }
 
 func TestTerminalRequireSessionMfa(t *testing.T) {
@@ -3362,7 +3365,6 @@ func TestClusterDatabasesGet(t *testing.T) {
 		DatabaseUsers: []string{"user1"},
 		DatabaseNames: []string{"name1"},
 	}})
-
 }
 
 func TestClusterDatabaseGet(t *testing.T) {
@@ -3660,6 +3662,94 @@ func TestClusterKubesGet(t *testing.T) {
 		require.Len(t, resp.Items, 2)
 		require.Equal(t, 2, resp.TotalCount)
 		require.ElementsMatch(t, tc.expectedResponse, resp.Items)
+	}
+}
+
+func TestClusterKubePodsGet(t *testing.T) {
+	t.Parallel()
+	kubeClusterName := "kube_cluster"
+
+	roleWithFullAccess := func(username string) []types.Role {
+		ret, err := types.NewRole(services.RoleNameForUser(username), types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Namespaces:       []string{apidefaults.Namespace},
+				KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				Rules: []types.Rule{
+					types.NewRule(types.KindConnectionDiagnostic, services.RW()),
+				},
+				KubeGroups: []string{"groups"},
+				KubernetesResources: []types.KubernetesResource{
+					{
+						Kind:      types.KindKubePod,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		return []types.Role{ret}
+	}
+	require.NotNil(t, roleWithFullAccess)
+
+	env := newWebPack(t, 1)
+
+	type testResponse struct {
+		Items      []ui.KubeResource `json:"items"`
+		TotalCount int               `json:"totalCount"`
+	}
+
+	tt := []struct {
+		name             string
+		user             string
+		expectedResponse []ui.KubeResource
+	}{
+		{
+			name: "get pods from gRPC server",
+			user: "test-user@example.com",
+			expectedResponse: []ui.KubeResource{
+				{
+					Kind:        types.KindKubePod,
+					Name:        "test-pod",
+					Namespace:   "default",
+					Labels:      []ui.Label{{Name: "app", Value: "test"}},
+					KubeCluster: kubeClusterName,
+				},
+				{
+					Kind:        types.KindKubePod,
+					Name:        "test-pod2",
+					Namespace:   "default",
+					Labels:      []ui.Label{{Name: "app", Value: "test2"}},
+					KubeCluster: kubeClusterName,
+				},
+			},
+		},
+	}
+	proxy := env.proxies[0]
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	// Init fake grpc Kube service.
+	initGRPCServer(t, env, listener)
+	addr := utils.MustParseAddr(listener.Addr().String())
+	proxy.handler.handler.cfg.ProxyWebAddr = *addr
+
+	for _, tc := range tt {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			pack := proxy.authPack(t, tc.user, roleWithFullAccess(tc.user))
+
+			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "pods")
+			params := url.Values{}
+			params.Add("kubeCluster", kubeClusterName)
+			re, err := pack.clt.Get(context.Background(), endpoint, params)
+			require.NoError(t, err)
+
+			resp := testResponse{}
+			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+			require.Len(t, resp.Items, 2)
+			require.Equal(t, 2, resp.TotalCount)
+			require.ElementsMatch(t, tc.expectedResponse, resp.Items)
+		})
 	}
 }
 
@@ -6783,7 +6873,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
 
-	fs, err := NewDebugFileSystem("../../webassets/teleport")
+	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
 		Proxy:            revTunServer,
@@ -7741,4 +7831,104 @@ func TestLogout(t *testing.T) {
 	_, err = clt2.Get(ctx, clt2.Endpoint("webapi", "sites"), url.Values{})
 	require.True(t, trace.IsAccessDenied(err))
 	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
+}
+
+// initGRPCServer creates a grpc server serving on the provided listener.
+func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
+	clusterName := env.server.ClusterName()
+	// Auth client, lock watcher and authorizer for Kube proxy.
+	proxyAuthClient, err := env.server.TLS.NewClient(auth.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
+
+	serverIdentity, err := auth.NewServerIdentity(env.server.Auth(), uuid.NewString(), types.RoleProxy)
+	require.NoError(t, err)
+	tlsConfig, err := serverIdentity.TLSConfig(nil)
+	require.NoError(t, err)
+	limiter, err := limiter.NewLimiter(limiter.Config{MaxConnections: 100})
+	require.NoError(t, err)
+	// authMiddleware authenticates request assuming TLS client authentication
+	// adds authentication information to the context
+	// and passes it to the API server
+	authMiddleware := &auth.Middleware{
+		AccessPoint:   proxyAuthClient,
+		Limiter:       limiter,
+		AcceptedUsage: []string{teleport.UsageKubeOnly},
+	}
+
+	grpcServer := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			authMiddleware.UnaryInterceptor(),
+		),
+		grpc.ChainStreamInterceptor(
+			authMiddleware.StreamInterceptor(),
+		),
+		grpc.Creds(credentials.NewTLS(
+			copyAndConfigureTLS(tlsConfig, logrus.New(), proxyAuthClient, clusterName),
+		)),
+	)
+
+	kubeproto.RegisterKubeServiceServer(grpcServer, &fakeKubeService{})
+	errC := make(chan error, 1)
+	t.Cleanup(func() {
+		grpcServer.GracefulStop()
+		require.NoError(t, <-errC)
+	})
+	go func() {
+		err := grpcServer.Serve(listener)
+		errC <- trace.Wrap(err)
+	}()
+}
+
+// copyAndConfigureTLS can be used to copy and modify an existing *tls.Config
+// for Teleport application proxy servers.
+func copyAndConfigureTLS(config *tls.Config, log logrus.FieldLogger, accessPoint auth.AccessCache, clusterName string) *tls.Config {
+	tlsConfig := config.Clone()
+
+	// Require clients to present a certificate
+	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+
+	// Configure function that will be used to fetch the CA that signed the
+	// client's certificate to verify the chain presented. If the client does not
+	// pass in the cluster name, this functions pulls back all CA to try and
+	// match the certificate presented against any CA.
+	tlsConfig.GetConfigForClient = auth.WithClusterCAs(tlsConfig.Clone(), accessPoint, clusterName, log)
+
+	return tlsConfig
+}
+
+type fakeKubeService struct {
+	kubeproto.UnimplementedKubeServiceServer
+}
+
+func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kubeproto.ListKubernetesResourcesRequest) (*kubeproto.ListKubernetesResourcesResponse, error) {
+	return &kubeproto.ListKubernetesResourcesResponse{
+		Resources: []*types.KubernetesResourceV1{
+			{
+				Kind: types.KindKubePod,
+				Metadata: types.Metadata{
+					Name: "test-pod",
+					Labels: map[string]string{
+						"app": "test",
+					},
+				},
+				Spec: types.KubernetesResourceSpecV1{
+					Namespace: "default",
+				},
+			},
+			{
+				Kind: types.KindKubePod,
+				Metadata: types.Metadata{
+					Name: "test-pod2",
+					Labels: map[string]string{
+						"app": "test2",
+					},
+				},
+				Spec: types.KubernetesResourceSpecV1{
+					Namespace: "default",
+				},
+			},
+		},
+		TotalCount: 2,
+	}, nil
 }
