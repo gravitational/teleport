@@ -130,3 +130,51 @@ export function debounce<T extends (...args: any) => any>(
   debounced.cancel = cancel;
   return debounced;
 }
+
+interface MapCacheType {
+  delete(key: any): boolean;
+  get(key: any): any;
+  has(key: any): boolean;
+  set(key: any, value: any): this;
+  clear?: (() => void) | undefined;
+}
+
+type MemoizedFunction = {
+  cache: MapCacheType;
+};
+
+// Lift & Shift from lodash
+export function memoize<T extends (...args: any) => any>(
+  func: T
+): T & MemoizedFunction {
+  const memoized = function () {
+    const args = arguments;
+    const key = args[0];
+    const cache = memoized.cache;
+
+    if (cache.has(key)) {
+      return cache.get(key);
+    }
+    const result = func.apply(this, args);
+    memoized.cache = cache.set(key, result) || cache;
+    return result;
+  };
+  memoized.cache = new (memoize.Cache || MapCache)();
+  /* eslint-disable @typescript-eslint/ban-ts-comment*/
+  // @ts-ignore
+  return memoized;
+}
+
+// Expose `MapCache`.
+memoize.Cache = MapCache;
+
+function MapCache(entries?: any) {
+  let index = -1;
+  const length = entries == null ? 0 : entries.length;
+
+  this.clear();
+  while (++index < length) {
+    const entry = entries[index];
+    this.set(entry[0], entry[1]);
+  }
+}
