@@ -648,18 +648,18 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
 	h.GET("/webapi/roles", h.WithAuth(h.getRolesHandle))
-	h.PUT("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
 	h.POST("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
+	h.PUT("/webapi/roles/:name", h.WithAuth(h.upsertRoleHandle))
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
 
 	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
-	h.PUT("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
 	h.POST("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
+	h.PUT("/webapi/github/:name", h.WithAuth(h.upsertGithubConnectorHandle))
 	h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
 
 	h.GET("/webapi/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
-	h.PUT("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
 	h.POST("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
+	h.PUT("/webapi/trustedcluster/:name", h.WithAuth(h.upsertTrustedClusterHandle))
 	h.DELETE("/webapi/trustedcluster/:name", h.WithAuth(h.deleteTrustedCluster))
 
 	h.GET("/webapi/apps/:fqdnHint", h.WithAuth(h.getAppFQDN))
