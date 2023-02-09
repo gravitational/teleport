@@ -112,6 +112,9 @@ const (
 	// KindSnowflakeSession represents a Snowflake specific web session.
 	KindSnowflakeSession = "snowflake_session"
 
+	// KindSAMLIdPSession represents a SAML IdP session.
+	KindSAMLIdPSession = "saml_idp_session"
+
 	// KindEvent is structured audit logging event
 	KindEvent = "event"
 

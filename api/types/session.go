@@ -92,6 +92,10 @@ type WebSession interface {
 	SetConsumedAccessRequestID(string)
 	// GetConsumedAccessRequestID returns the ID of the access request from which additional roles to assume were obtained.
 	GetConsumedAccessRequestID() string
+	// SetData sets the arbitrary data associated with this session. Considered to be a secret.
+	SetData([]byte)
+	// GetData retrieves the arbitrary data associated with this session. Considered to be a secret.
+	GetData() []byte
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -173,6 +177,7 @@ func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
 // WithoutSecrets returns copy of the object but without secrets
 func (ws *WebSessionV2) WithoutSecrets() WebSession {
 	ws.Spec.Priv = nil
+	ws.Spec.Data = nil
 	return ws
 }
 
@@ -184,6 +189,16 @@ func (ws *WebSessionV2) SetConsumedAccessRequestID(requestID string) {
 // GetConsumedAccessRequestID returns the ID of the access request from which additional roles to assume were obtained.
 func (ws *WebSessionV2) GetConsumedAccessRequestID() string {
 	return ws.Spec.ConsumedAccessRequestID
+}
+
+// SetData sets the arbitrary data associated with this session. Considered to be a secret.
+func (ws *WebSessionV2) SetData(data []byte) {
+	ws.Spec.Data = data
+}
+
+// GetData retrieves the arbitrary data associated with this session. Considered to be a secret.
+func (ws *WebSessionV2) GetData() []byte {
+	return ws.Spec.Data
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -310,6 +325,21 @@ func (r *GetSnowflakeSessionRequest) Check() error {
 	return nil
 }
 
+// GetSAMLIdPSessionRequest contains the parameters to request a SAML IdP
+// session.
+type GetSAMLIdPSessionRequest struct {
+	// SessionID is the session ID of the SAML IdP session.
+	SessionID string
+}
+
+// Check validates the request.
+func (r *GetSAMLIdPSessionRequest) Check() error {
+	if r.SessionID == "" {
+		return trace.BadParameter("session ID missing")
+	}
+	return nil
+}
+
 // CreateAppSessionRequest contains the parameters needed to request
 // creating an application web session.
 type CreateAppSessionRequest struct {
@@ -353,6 +383,29 @@ type CreateSnowflakeSessionRequest struct {
 	TokenTTL time.Duration
 }
 
+// CreateSAMLIdPSessionRequest contains the parameters needed to request
+// creating a SAML IdP session.
+type CreateSAMLIdPSessionRequest struct {
+	// SessionID is the identifier for the session.
+	SessionID string
+	// Username is the identity of the user requesting the session.
+	Username string `json:"username"`
+	// Data is the session data associated with the SAML IdP session.
+	Data []byte `json:"data"`
+}
+
+// Check validates the request.
+func (r CreateSAMLIdPSessionRequest) Check() error {
+	if r.Username == "" {
+		return trace.BadParameter("username missing")
+	}
+	if len(r.Data) == 0 {
+		return trace.BadParameter("public address missing")
+	}
+
+	return nil
+}
+
 // DeleteAppSessionRequest are the parameters used to request removal of
 // an application web session.
 type DeleteAppSessionRequest struct {
@@ -362,6 +415,12 @@ type DeleteAppSessionRequest struct {
 // DeleteSnowflakeSessionRequest are the parameters used to request removal of
 // a Snowflake web session.
 type DeleteSnowflakeSessionRequest struct {
+	SessionID string `json:"session_id"`
+}
+
+// DeleteSAMLIdPSessionRequest are the parameters used to request removal of
+// a SAML IdP session.
+type DeleteSAMLIdPSessionRequest struct {
 	SessionID string `json:"session_id"`
 }
 

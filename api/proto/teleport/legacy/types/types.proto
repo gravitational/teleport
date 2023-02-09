@@ -3145,6 +3145,8 @@ message WebSessionSpecV2 {
   // ConsumedAccessRequestID is the ID of the access request from which additional roles to assume
   // were obtained.
   string ConsumedAccessRequestID = 10 [(gogoproto.jsontag) = "consumed_access_request_id,omitempty"];
+  // Data is arbitrary data within a session object. Considered to be a secret.
+  bytes Data = 11 [(gogoproto.jsontag) = "blob,omitempty"];
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.
