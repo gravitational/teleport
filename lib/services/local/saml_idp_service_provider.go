@@ -207,7 +207,7 @@ func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Conte
 			// Only check entity ID duplicates if we're looking at objects other than the one we're trying to validate.
 			// This ensures updates will work and that creates will return an already exists error.
 			if listSp.GetName() != sp.GetName() && listSp.GetEntityID() == sp.GetEntityID() {
-				return trace.BadParameter("%s %s has the same entity ID %s", types.KindSAMLIdPServiceProvider, listSp.GetName(), listSp.GetEntityID())
+				return trace.BadParameter("%s %q has the same entity ID %q", types.KindSAMLIdPServiceProvider, listSp.GetName(), listSp.GetEntityID())
 			}
 		}
 		if nextToken == "" {
