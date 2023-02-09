@@ -126,8 +126,7 @@ export function DownloadScript(props: AgentStepProps) {
 
         <Text mb={3}>
           - The Teleport SSH Service could not join this Teleport cluster. Check
-          the logs for errors by running <Mark>journalctl status teleport</Mark>
-          .
+          the logs for errors by running <Mark>journalctl -fu teleport</Mark>.
         </Text>
 
         <Text>
