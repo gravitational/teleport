@@ -162,12 +162,11 @@ func TestGenericCRUD(t *testing.T) {
 
 	// Try to fetch a resource that doesn't exist.
 	_, err = service.getResource(ctx, "doesnotexist")
-	require.True(t, trace.IsNotFound(err))
 	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
 
 	// Try to create the same resource.
 	err = service.createResource(ctx, r1, r1.GetName())
-	require.True(t, trace.IsAlreadyExists(err))
+	require.ErrorIs(t, err, trace.AlreadyExists(`generic resource "r1" already exists`))
 
 	// Update a resource.
 	r1.SetStaticLabels(map[string]string{"newlabel": "newvalue"})
@@ -181,7 +180,6 @@ func TestGenericCRUD(t *testing.T) {
 
 	// Update a resource that doesn't exist.
 	err = service.updateResource(ctx, r1, "doesnotexist")
-	require.True(t, trace.IsNotFound(err))
 	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
 
 	// Delete a resource.
@@ -196,7 +194,6 @@ func TestGenericCRUD(t *testing.T) {
 
 	// Try to delete a resource that doesn't exist.
 	err = service.deleteResource(ctx, "doesnotexist")
-	require.True(t, trace.IsNotFound(err))
 	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
 
 	// Delete all resources.
