@@ -504,6 +504,11 @@ type ProxyConfig struct {
 	// ACME is ACME protocol support config
 	ACME ACME
 
+	// IdP is the identity provider config
+	//
+	//nolint:revive // Because we want this to be IdP.
+	IdP IdP
+
 	// DisableALPNSNIListener allows turning off the ALPN Proxy listener. Used in tests.
 	DisableALPNSNIListener bool
 }
@@ -516,6 +521,22 @@ type ACME struct {
 	Email string
 	// URI is ACME server URI
 	URI string
+}
+
+// IdP configures identity providers.
+//
+//nolint:revive // Because we want this to be IdP.
+type IdP struct {
+	// SAMLIdP is configuration options for the SAML identity provider.
+	SAMLIdP SAMLIdP
+}
+
+// SAMLIdP configures SAML identity providers
+type SAMLIdP struct {
+	// Enabled enables or disables the identity provider.
+	Enabled bool
+	// BaseURL is the base URL for the identity provider.
+	BaseURL string
 }
 
 // KeyPairPath are paths to a key and certificate file.
@@ -1542,6 +1563,7 @@ func ApplyDefaults(cfg *Config) {
 	// Proxy service defaults.
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.Kube.Enabled = false
+	cfg.Proxy.IdP.SAMLIdP.Enabled = true
 
 	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
 

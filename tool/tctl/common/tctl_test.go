@@ -28,6 +28,7 @@ import (
 
 // TestConnect tests client config and connection logic.
 func TestConnect(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
 	ctx := context.Background()
 
 	fileConfig := &config.FileConfig{
@@ -37,11 +38,11 @@ func TestConnect(t *testing.T) {
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	username := "admin"
 	mustAddUser(t, fileConfig, "admin", "access")
