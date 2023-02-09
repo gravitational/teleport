@@ -353,10 +353,15 @@ const InstallHelmChart = ({
           - The command was not run on the server you were trying to add.
         </Text>
 
-        <Text mb={3}>
+        <Text mb={1}>
           - The Teleport Service could not join this Teleport cluster. Check the
           logs for errors by running
           <Mark>kubectl logs -l app=teleport-agent -n {namespace}</Mark>
+        </Text>
+
+        <Text mb={3}>
+          - Check that your role permissions includes{' '}
+          <Mark>kubernetes_labels: '*': '*'</Mark>
         </Text>
 
         <Text>

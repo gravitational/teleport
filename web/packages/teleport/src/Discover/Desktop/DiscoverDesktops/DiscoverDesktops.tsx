@@ -231,10 +231,15 @@ export function DiscoverDesktops() {
             - There aren't any desktops connected to Active Directory
           </Text>
 
-          <Text mb={3}>
+          <Text mb={1}>
             - A Desktop could have had issues joining the Teleport Desktop
             Service. Check the logs for errors by running{' '}
             <Mark>journalctl -fu teleport</Mark> on your Desktop Service.
+          </Text>
+
+          <Text mb={3}>
+            - Check that your role permissions includes{' '}
+            <Mark>windows_desktop_labels: '*': '*'</Mark>
           </Text>
 
           <Text>
