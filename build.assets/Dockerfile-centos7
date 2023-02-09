@@ -92,6 +92,33 @@ RUN mkdir -p /opt && cd /opt && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     scl enable devtoolset-11 "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install"
 
+# Install newer libbpf.
+FROM centos:7 AS libbpf-1-0-1
+
+# Install required dependencies.
+RUN yum groupinstall -y 'Development Tools' && \
+    yum install -y epel-release && \
+    yum update -y && \
+    yum -y install centos-release-scl-rh && \
+    yum install -y \
+    # required by libbpf
+    centos-release-scl \
+    # required by libbpf
+    devtoolset-11-gcc* \
+    # required by libbpf
+    devtoolset-11-make \
+    # required by libbpf
+    elfutils-libelf-devel-static \
+    git \
+    # required by libbpf
+    scl-utils \
+    yum clean all
+
+RUN mkdir -p /opt && cd /opt && \
+    curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v1.0.1.tar.gz | tar xz && \
+    cd /opt/libbpf-1.0.1/src && \
+    scl enable devtoolset-11 "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install"
+
 ## LIBPCSCLITE #####################################################################
 
 FROM centos:7 AS libpcsclite
@@ -250,7 +277,9 @@ COPY --from=libpcsclite \
 RUN cd / && curl -L https://s3.amazonaws.com/clientbuilds.gravitational.io/go/centos7-assets.tar.gz | tar -xz
 
 # Copy libbpf into the final image.
-COPY --from=libbpf /opt/libbpf/usr /usr
+ARG LIBBPF_VERSION
+COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
+COPY --from=libbpf-1-0-1 /opt/libbpf/usr /usr/libbpf-1.0.1
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
