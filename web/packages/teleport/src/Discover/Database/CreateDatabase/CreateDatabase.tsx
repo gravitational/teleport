@@ -345,7 +345,7 @@ const requirePort = (value: string) => () => {
   if (!isValidId) {
     return {
       valid: false,
-      message: 'port must be a valid port number',
+      message: 'Endpoint Port must be a valid port (1 - 65535).',
     };
   }
   return {
