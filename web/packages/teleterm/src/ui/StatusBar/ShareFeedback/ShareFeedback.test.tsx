@@ -1,11 +1,26 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import React from 'react';
 import { fireEvent, render } from 'design/utils/testing';
 
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { Cluster } from 'teleterm/services/tshd/v1/cluster_pb';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-
 import { IAppContext } from 'teleterm/ui/types';
+import { Cluster } from 'teleterm/services/tshd/types';
 
 import { ShareFeedback } from './ShareFeedback';
 
@@ -28,7 +43,7 @@ test('email field is not prefilled with the username if is not an email', () => 
     .mockImplementation(() => {
       return {
         loggedInUser: { name: 'alice' },
-      } as Cluster.AsObject;
+      } as Cluster;
     });
 
   jest
@@ -53,7 +68,7 @@ test('email field is prefilled with the username if it looks like an email', () 
         loggedInUser: {
           name: 'bob@prod.com',
         },
-      } as Cluster.AsObject;
+      } as Cluster;
     });
 
   jest

@@ -47,6 +47,9 @@
       ],
       "e-teleport/*": [
         "e/web/teleport/src/*"
+      ],
+      "gen-proto-js/*": [
+        "gen/proto/js/*"
       ]
     }
   },
