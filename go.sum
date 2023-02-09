@@ -325,8 +325,6 @@ github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/daviddengcn/go-colortext v1.0.0 h1:ANqDyC0ys6qCSvuEK7l3g5RaehL/Xck9EX8ATG8oKsE=
 github.com/daviddengcn/go-colortext v1.0.0/go.mod h1:zDqEI5NVUop5QPpVJUxE9UO10hRnmkD5G4Pmri9+m4c=
 github.com/dchest/uniuri v1.2.0/go.mod h1:fSzm4SLHzNZvWLvWJew423PhAzkpNQYq+uNLq4kxhkY=
-github.com/denisenkom/go-mssqldb v0.11.0 h1:9rHa233rhdOyrz2GcP9NM+gi2psgJZ4GWDpL/7ND8HI=
-github.com/denisenkom/go-mssqldb v0.11.0/go.mod h1:xbL0rPBG9cCiLr28tMa8zpbdarY27NDyej4t/EjAShU=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible/go.mod h1:E3ru+11k8xSBh+hMPgOLZmtrrCbhqsmaPHjLKYnJCaQ=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTGF7a8hSLbxyZXjz+1KgoB3wDUb6vlszIc=
@@ -620,8 +618,8 @@ github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e6
 github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90/go.mod h1:6FzirJfdffakAVqmHjwVfFkpru/gNbIazUOK5rIhndc=
 github.com/gravitational/go-libfido2 v1.5.3-0.20230202181331-c71192ef1c8a h1:Wudq53GAiVk1Z+4A1tFzyvidhA6X7rGDb5JKGU9NV0c=
 github.com/gravitational/go-libfido2 v1.5.3-0.20230202181331-c71192ef1c8a/go.mod h1:92J9LtSBl0UyUWljElJpTbMMNhC6VeY8dshsu40qjjo=
-github.com/gravitational/go-mssqldb v0.11.1-0.20230207142416-27e45b5cbd63 h1:YFamom8YLbq/YlG4LpQItBBUI17bjMiFfaSCWX49gwQ=
-github.com/gravitational/go-mssqldb v0.11.1-0.20230207142416-27e45b5cbd63/go.mod h1:+8BKOZF/H/PTp3h+jsAcA4z5LVmG4vATYcuOs3CfY6k=
+github.com/gravitational/go-mssqldb v0.11.1-0.20230209180904-0f00ae61fb60 h1:scheLo0b1jteZf9mfgjCgi+0VFGK+3GVENBQQ1DDmfE=
+github.com/gravitational/go-mssqldb v0.11.1-0.20230209180904-0f00ae61fb60/go.mod h1:+8BKOZF/H/PTp3h+jsAcA4z5LVmG4vATYcuOs3CfY6k=
 github.com/gravitational/go-mysql v1.5.0-teleport.1 h1:EyFryeiTYyP6KslLVp0Q5QTKwtUG5RioVrTIoP4pOuI=
 github.com/gravitational/go-mysql v1.5.0-teleport.1/go.mod h1:GX0clmylJLdZEYAojPCDTCvwZxbTBrke93dV55715u0=
 github.com/gravitational/go-oidc v0.0.6 h1:DCllahGYxDAvxWsq8UILgO+/i1EheQRxcNzS+D+wP5I=

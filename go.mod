@@ -38,7 +38,6 @@ require (
 	github.com/creack/pty v1.1.18
 	github.com/crewjam/saml v0.4.12
 	github.com/datastax/go-cassandra-native-protocol v0.0.0-20220706104457-5e8aad05cf90
-	github.com/denisenkom/go-mssqldb v0.11.0 // replaced
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-elasticsearch/v8 v8.6.0
 	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
@@ -372,7 +371,7 @@ replace (
 	github.com/gravitational/teleport/api => ./api
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-0.20230202181331-c71192ef1c8a
-	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20230207142416-27e45b5cbd63
+	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20230209180904-0f00ae61fb60
 	github.com/pkg/sftp => github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055
 	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.0
