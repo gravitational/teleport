@@ -15,7 +15,6 @@
  */
 
 import * as grpc from '@grpc/grpc-js';
-import { transform } from 'lodash';
 import { isObject } from 'shared/utils/highbar';
 
 import Logger from 'teleterm/logger';
