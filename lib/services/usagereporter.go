@@ -30,6 +30,7 @@ import (
 	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	usageevents "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
@@ -68,8 +69,6 @@ const (
 	// should be made to submit a particular event before it's dropped
 	usageReporterRetryAttempts = 5
 )
-
-var defaultTeleportRoles = []string{"access", "auditor", "editor"}
 
 // UsageAnonymizable is an event that can be anonymized.
 type UsageAnonymizable interface {
@@ -270,7 +269,7 @@ type UsageRoleCreate prehogv1.RoleCreateEvent
 
 func (u *UsageRoleCreate) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	role := u.RoleName
-	if !slices.Contains(defaultTeleportRoles, u.RoleName) {
+	if !slices.Contains(teleport.PresetRoles, u.RoleName) {
 		role = a.AnonymizeString(u.RoleName)
 	}
 
