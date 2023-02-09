@@ -1247,9 +1247,11 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
-					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
-					Usage:     proto.UserCertsRequest_SSH,
-					NodeName:  "node-a",
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires:  clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:    proto.UserCertsRequest_SSH,
+					NodeName: "node-a",
 				},
 				checkInitErr: require.NoError,
 				authHandler:  registered.webAuthHandler,
@@ -1301,9 +1303,11 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 			desc: "k8s",
 			opts: generateUserSingleUseCertTestOpts{
 				initReq: &proto.UserCertsRequest{
-					PublicKey:         pub,
-					Username:          user.GetName(),
-					Expires:           clock.Now().Add(teleport.UserSingleUseCertTTL),
+					PublicKey: pub,
+					Username:  user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
 					Usage:             proto.UserCertsRequest_Kubernetes,
 					KubernetesCluster: "kube-a",
 				},
@@ -1334,8 +1338,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				initReq: &proto.UserCertsRequest{
 					PublicKey: pub,
 					Username:  user.GetName(),
-					Expires:   clock.Now().Add(teleport.UserSingleUseCertTTL),
-					Usage:     proto.UserCertsRequest_Database,
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_Database,
 					RouteToDatabase: proto.RouteToDatabase{
 						ServiceName: "db-a",
 					},
@@ -1349,7 +1355,44 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					cert, err := tlsca.ParseCertificatePEM(crt)
 					require.NoError(t, err)
-					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
+					require.Equal(t, clock.Now().Add(teleport.UserSingleUseCertTTL), cert.NotAfter)
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
+					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
+				},
+			},
+		},
+		{
+			desc: "db with ttl limit disabled",
+			opts: generateUserSingleUseCertTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					// This expiry should *not* be adjusted to single user cert TTL,
+					// since ttl limiting is disabled when requester is a local proxy tunnel.
+					// It *should* be adjusted to the user cert ttl though.
+					Expires: clock.Now().Add(1000 * time.Hour),
+					Usage:   proto.UserCertsRequest_Database,
+					RouteToDatabase: proto.RouteToDatabase{
+						ServiceName: "db-a",
+					},
+					RequesterName: proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
+				},
+				checkInitErr: require.NoError,
+				authHandler:  registered.webAuthHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					crt := c.GetTLS()
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, userCertExpires, cert.NotAfter)
 
 					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 					require.NoError(t, err)
@@ -2642,7 +2685,8 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 			Name: "sp1",
 		},
 		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: "<valid />",
+			EntityDescriptor: newEntityDescriptor("sp1"),
+			EntityID:         "sp1",
 		})
 	require.NoError(t, err)
 
@@ -2651,7 +2695,8 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 			Name: "sp2",
 		},
 		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: "<valid />",
+			EntityDescriptor: newEntityDescriptor("sp2"),
+			EntityID:         "sp2",
 		})
 	require.NoError(t, err)
 
@@ -2676,7 +2721,8 @@ func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 	))
 
 	// Update a service provider.
-	sp1.SetEntityDescriptor("<updated />")
+	sp1.SetEntityDescriptor(newEntityDescriptor("updated-sp1"))
+	sp1.SetEntityID("updated-sp1")
 
 	err = clt.UpdateSAMLIdPServiceProvider(ctx, sp1)
 	require.NoError(t, err)
@@ -3357,3 +3403,19 @@ func TestSAMLValidation(t *testing.T) {
 		})
 	}
 }
+
+func newEntityDescriptor(entityID string) string {
+	return fmt.Sprintf(testEntityDescriptor, entityID)
+}
+
+// A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.
+const testEntityDescriptor = `
+<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="%s" validUntil="2025-12-09T09:13:31.006Z">
+   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+      <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+   </md:SPSSODescriptor>
+</md:EntityDescriptor>
+`
