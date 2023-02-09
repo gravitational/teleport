@@ -342,6 +342,26 @@ resources: {}
 #    cpu: "1"
 #    memory: "2Gi"
 
+# Security context to add to the initContainer
+initSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - all
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 9807
+
+# Security context to add to the container
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - all
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 9807
+
 # Priority class name to add to the deployment
 priorityClassName: ""
 

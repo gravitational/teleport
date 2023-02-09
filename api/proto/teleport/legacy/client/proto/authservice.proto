@@ -290,6 +290,16 @@ message UserCertsRequest {
   // ConnectionDiagnosticID is the ID of the ConnectionDiagnostic resource we should use to add
   // traces as we pass certain checkpoints.
   string ConnectionDiagnosticID = 16 [(gogoproto.jsontag) = "connection_diagnostic_id,omitempty"];
+
+  // Requester is the name of the service that sent the request.
+  enum Requester {
+    // UNSPECIFIED is set when the requester in unknown.
+    UNSPECIFIED = 0;
+    // TSH_DB_LOCAL_PROXY_TUNNEL is set when the request was sent by a tsh local proxy tunnel.
+    TSH_DB_LOCAL_PROXY_TUNNEL = 1;
+  }
+  // RequesterName identifies who sent the request.
+  Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
