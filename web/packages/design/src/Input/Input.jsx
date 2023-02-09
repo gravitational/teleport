@@ -54,6 +54,10 @@ const Input = styled.input`
     cursor: not-allowed;
   }
 
+  :disabled {
+    color: rgba(0, 0, 0, 0.5);
+  }
+
   ${color} ${space} ${width} ${height} ${error};
 `;
 
