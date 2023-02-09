@@ -1623,7 +1623,7 @@ func (s *PresenceService) UpsertDiscoveredServer(ctx context.Context, server typ
 		return nil, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(discoveredServerPrefix, server.GetInstanceID(), server.GetAccountID()),
+		Key:     backend.Key(discoveredServerPrefix, server.GetAccountID(), server.GetInstanceID()),
 		Value:   value,
 		Expires: server.Expiry(),
 		ID:      server.GetResourceID(),
@@ -1636,7 +1636,7 @@ func (s *PresenceService) UpsertDiscoveredServer(ctx context.Context, server typ
 		return &types.KeepAlive{}, nil
 	}
 	return &types.KeepAlive{
-		Type:      types.KeepAlive_DATABASE,
+		Type:      types.KeepAlive_DISCOVERED_SERVER,
 		LeaseID:   lease.ID,
 		Namespace: apidefaults.Namespace,
 		Name:      server.GetName(),
@@ -1653,7 +1653,7 @@ func (s *PresenceService) GetDiscoveredServer(ctx context.Context, instanceID, a
 	if accountID == "" {
 		return nil, trace.BadParameter("missing parameter accountID")
 	}
-	item, err := s.Get(ctx, backend.Key(discoveredServerPrefix, instanceID, accountID))
+	item, err := s.Get(ctx, backend.Key(discoveredServerPrefix, accountID, instanceID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1662,7 +1662,14 @@ func (s *PresenceService) GetDiscoveredServer(ctx context.Context, instanceID, a
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
 	)
-	return server.(*types.DiscoveredServerV1), err
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	srv, ok := server.(*types.DiscoveredServerV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", s)
+	}
+	return srv, nil
 }
 
 // GetDiscoveredServers returns all registered discovered servers.
@@ -1690,13 +1697,13 @@ func (s *PresenceService) GetDiscoveredServers(ctx context.Context) ([]*types.Di
 
 // DeleteAllDiscoveredServers deletes all discovered server resources
 func (s *PresenceService) DeleteAllDiscoveredServers(ctx context.Context) error {
-	return s.DeleteRange(context.TODO(), backend.Key(discoveredServerPrefix),
+	return s.DeleteRange(ctx, backend.Key(discoveredServerPrefix),
 		backend.RangeEnd(backend.Key(discoveredServerPrefix)))
 }
 
 // DeleteDiscoveredServers deletes the specified discovered server resource
 func (s *PresenceService) DeleteDiscoveredServer(ctx context.Context, instanceID, accountID string) error {
-	return s.Delete(ctx, backend.Key(discoveredServerPrefix, instanceID, accountID))
+	return s.Delete(ctx, backend.Key(discoveredServerPrefix, accountID, instanceID))
 }
 
 // listResourcesWithSort supports sorting by falling back to retrieving all resources
@@ -1921,5 +1928,5 @@ const (
 	kubeServicesPrefix           = "kubeServices"
 	windowsDesktopServicesPrefix = "windowsDesktopServices"
 	loginTimePrefix              = "hostuser_interaction_time"
-	discoveredServerPrefix       = "discoveredServer"
+	discoveredServerPrefix       = "discoveredServers"
 )

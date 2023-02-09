@@ -349,7 +349,7 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	allInstances := instances.Instances
+	s.recordDiscoveredInstances(instances)
 	s.filterExistingEC2Nodes(instances)
 	if len(instances.Instances) == 0 {
 		return trace.NotFound("all fetched nodes already enrolled")
@@ -365,12 +365,7 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 		Region:       instances.Region,
 		AccountID:    instances.AccountID,
 	}
-	if err := s.ec2Installer.Run(s.ctx, req); err != nil {
-		return trace.Wrap(err)
-	}
-	// Restore full list of instances now new ones have been processed
-	instances.Instances = allInstances
-	return trace.Wrap(s.recordDiscoveredInstances(instances))
+	return trace.Wrap(s.ec2Installer.Run(s.ctx, req))
 }
 
 func (s *Server) recordDiscoveredInstances(instances *server.EC2Instances) error {
@@ -410,10 +405,10 @@ func (s *Server) recordDiscoveredInstances(instances *server.EC2Instances) error
 func (s *Server) recordDiscoveredInstance(accountID string, instance *ec2.Instance) error {
 	labels := map[string]string{
 		types.AWSAccountIDLabel:  accountID,
-		types.AWSInstanceIDLabel: *instance.InstanceId,
+		types.AWSInstanceIDLabel: aws.StringValue(instance.InstanceId),
 	}
 	for _, tag := range instance.Tags {
-		labels["aws/"+*tag.Key] = *tag.Value
+		labels[types.AWSLabelPrefix+aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
 	}
 	discoveredServer := types.DiscoveredServerSpecV1{
 		InstanceID: aws.StringValue(instance.InstanceId),

@@ -532,6 +532,9 @@ const (
 	// the Node that used that token to join the cluster
 	InternalResourceIDLabel = TeleportInternalLabelPrefix + "resource-id"
 
+	// Label prefix used for labels imported from auto discovered ec2 isntances
+	AWSLabelPrefix = "aws/"
+
 	// AlertOnLogin is an internal label that indicates an alert should be displayed to users on login
 	AlertOnLogin = TeleportInternalLabelPrefix + "alert-on-login"
 

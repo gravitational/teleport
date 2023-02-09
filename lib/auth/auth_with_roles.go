@@ -956,12 +956,13 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 func (s *ServerWithRoles) filterEC2Labels(ctx context.Context, server types.Server) (types.Server, error) {
 	instanceID := server.GetMetadata().Labels[types.AWSInstanceIDLabel]
 	accountID := server.GetMetadata().Labels[types.AWSAccountIDLabel]
-	if instanceID == "" && accountID == "" {
+	if instanceID == "" || accountID == "" {
 		return server, nil
 	}
 	discovered, err := s.GetDiscoveredServer(ctx, instanceID, accountID)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		log.Warningf("Failed to retrieve discovered server labels: %v", err)
+		return server, nil
 	}
 	newServer := server.DeepCopy()
 	newServer.SetStaticLabels(discovered.GetDiscoveredLabels())
