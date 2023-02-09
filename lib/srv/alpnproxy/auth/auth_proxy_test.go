@@ -36,7 +36,7 @@ func TestDialLocalAuthServerNoServers(t *testing.T) {
 func TestDialLocalAuthServerNoAvailableServers(t *testing.T) {
 	s := NewAuthProxyDialerService(nil /* reverseTunnelServer */, "clustername", []string{"203.0.113.1:3025"}, nil, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
+	t.Cleanup(cancel)
 	_, err := s.dialLocalAuthServer(ctx)
 	require.Error(t, err, "dialLocalAuthServer expected to fail")
 	var netErr *net.OpError
