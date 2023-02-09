@@ -52,7 +52,7 @@ We want to start tracking the following data in PreHog:
 4. OS version (e.g. Linux distribution)
 5. Host architecture (e.g. `amd64`)
 6. `glibc` version
-7. [Installation methods](https://goteleport.com/docs/installation/) (Dockerfile, Helm, `install-node.sh` and `*-ad*.ps1` scripts)
+7. [Installation methods](https://goteleport.com/docs/installation/) (Dockerfile, Helm, `install-node.sh`)
 8. Container runtime (e.g. Docker)
 9. Container orchestrator (e.g. Kubernetes)
 10. Cloud environment (e.g. AWS, GCP, Azure)
@@ -153,7 +153,6 @@ We have one environment variable for each installation method as some of the ins
 
 - [Dockerfile](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/charts/Dockerfile): `ENV TELEPORT_INSTALL_METHOD_DOCKERFILE=true` will be added to the Dockerfile.
 - [`teleport-kube-agent`](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent) Helm chart: `TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT` will be set to `true` in the [deployment spec](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/chart/teleport-kube-agent/templates/deployment.yaml#L129).
-- [`*-ad*.ps1`](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/desktop): `setx TELEPORT_INSTALL_METHOD_WINDOWS_SCRIPT=true` will be added to one of these scripts as they are the recommended way to configure windows desktops.
 - [`install-node.sh`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/node-join/install.sh): `export TELEPORT_INSTALL_METHOD_NODE_SCRIPT="true"` will be added to this script. It is the recommended way to install SSH nodes, apps and many databases. Even though `export` doesn't persist across restarts, we can have the agent persist such value (and maybe all of the values sent in `UpstreamInventoryHello`) when it first starts.
 
 The installation methods that follow won't be tracked for now.
@@ -228,7 +227,5 @@ Data analysis and visualization is not a goal for this RFD, so no UX concerns fo
 
 - Which alternative should we use for __5. Host architecture__?
 - Should we consider [Teleport AMIs](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/aws/terraform/AMIS.md) an installation method?
-- Which [\*-ad*.ps1](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/desktop) script should be changed? Are these scripts going away with non-AD desktop access?
-  - Does `setx` take effect right away or requires some sort of restart?
 - Is the [`install`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/install) script used for anything else?
 - Which container runtimes are we interested in tracking?
