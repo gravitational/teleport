@@ -210,6 +210,9 @@ type InitConfig struct {
 
 	// UsageReporter is a service that forwards cluster usage events.
 	UsageReporter services.UsageReporter
+
+	// Plugins is a service that manages hosted plugin instances
+	Plugins services.Plugins
 }
 
 // Init instantiates and configures an instance of AuthServer
