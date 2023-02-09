@@ -4892,7 +4892,9 @@ message SAMLIdPServiceProviderV1 {
 message SAMLIdPServiceProviderSpecV1 {
   // EntityDescriptor is the entity descriptor for the service provider
   string EntityDescriptor = 1 [(gogoproto.jsontag) = "entity_descriptor"];
-  // EntityID is the entity ID for the entity descriptor.
+  // EntityID is the entity ID for the entity descriptor. This ID is checked that it matches
+  // the entity ID in the entity descriptor at upsert time to avoid having to parse the
+  // XML blob in the entity descriptor every time we need to use this resource.
   string EntityID = 2 [(gogoproto.jsontag) = "entity_id"];
 }
 

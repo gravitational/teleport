@@ -12730,7 +12730,9 @@ var xxx_messageInfo_SAMLIdPServiceProviderV1 proto.InternalMessageInfo
 type SAMLIdPServiceProviderSpecV1 struct {
 	// EntityDescriptor is the entity descriptor for the service provider
 	EntityDescriptor string `protobuf:"bytes,1,opt,name=EntityDescriptor,proto3" json:"entity_descriptor"`
-	// EntityID is the entity ID for the entity descriptor.
+	// EntityID is the entity ID for the entity descriptor. This ID is checked that it matches
+	// the entity ID in the entity descriptor at upsert time to avoid having to parse the
+	// XML blob in the entity descriptor every time we need to use this resource.
 	EntityID             string   `protobuf:"bytes,2,opt,name=EntityID,proto3" json:"entity_id"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

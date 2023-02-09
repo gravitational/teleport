@@ -25,6 +25,10 @@ import (
 )
 
 // SAMLIdPServiceProvider specifies configuration for service providers for Teleport's built in SAML IdP.
+//
+// Note: The EntityID is the entity ID for the entity descriptor. This ID is checked that it
+// matches the entity ID in the entity descriptor at upsert time to avoid having to parse the
+// XML blob in the entity descriptor every time we need to use this resource.
 type SAMLIdPServiceProvider interface {
 	ResourceWithLabels
 	// GetEntityDescriptor returns the entity descriptor of the service provider.
