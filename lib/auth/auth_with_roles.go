@@ -944,16 +944,10 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 	if err := a.action(s.GetNamespace(), types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Use labels from discovered resources instead of ones reported by discovered ec2 instances
-	s, err := a.filterEC2Labels(ctx, s)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return a.authServer.UpsertNode(ctx, s)
 }
 
-func (s *ServerWithRoles) filterEC2Labels(ctx context.Context, server types.Server) (types.Server, error) {
+func (s *ServerWithRoles) FilterEC2Labels(ctx context.Context, server types.Server) (types.Server, error) {
 	instanceID := server.GetMetadata().Labels[types.AWSInstanceIDLabel]
 	accountID := server.GetMetadata().Labels[types.AWSAccountIDLabel]
 	if instanceID == "" || accountID == "" {

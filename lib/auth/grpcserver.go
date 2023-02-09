@@ -3096,6 +3096,16 @@ func (g *GRPCServer) UpsertNode(ctx context.Context, node *types.ServerV2) (*typ
 	}
 	node.SetAddr(utils.ReplaceLocalhost(node.GetAddr(), p.Addr.String()))
 
+	// Use labels from discovered resources instead of ones reported by discovered ec2 instances
+	filteredNode, err := auth.ServerWithRoles.FilterEC2Labels(ctx, node)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	node, ok = filteredNode.(*types.ServerV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", filteredNode)
+	}
+
 	keepAlive, err := auth.ServerWithRoles.UpsertNode(ctx, node)
 	if err != nil {
 		return nil, trace.Wrap(err)

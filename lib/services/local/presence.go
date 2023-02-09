@@ -1667,7 +1667,7 @@ func (s *PresenceService) GetDiscoveredServer(ctx context.Context, instanceID, a
 	}
 	srv, ok := server.(*types.DiscoveredServerV1)
 	if !ok {
-		return nil, trace.BadParameter("unexpected type %T", s)
+		return nil, trace.BadParameter("unexpected type %T", server)
 	}
 	return srv, nil
 }
