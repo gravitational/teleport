@@ -342,7 +342,7 @@ const requirePort = (value: string) => () => {
   const numberValue = parseInt(value);
   const isValidPort =
     Number.isInteger(numberValue) && numberValue >= 1 && numberValue <= 65535;
-  if (!isValidId) {
+  if (!isValidPort) {
     return {
       valid: false,
       message: 'Endpoint Port must be a valid port (1 - 65535).',
