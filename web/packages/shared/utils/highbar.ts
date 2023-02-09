@@ -14,14 +14,34 @@
  * limitations under the License.
  */
 
+export function isInteger(checkVal: any): boolean {
+  return Number.isInteger(checkVal) || checkVal == parseInt(checkVal);
+}
+
+export function isObject(checkVal) {
+  const type = typeof checkVal;
+  return checkVal != null && (type == 'object' || type == 'function');
+}
+
+// Lift & Shift from lodash
+export function runOnce(func) {
+  let n = 2;
+  let result;
+  return function () {
+    if (--n > 0) {
+      result = func.apply(this, arguments);
+    }
+    if (n <= 1) {
+      func = undefined;
+    }
+    return result;
+  };
+}
+
 export type DebouncedFunc<T extends (...args: any[]) => any> = {
   (...args: Parameters<T>): ReturnType<T> | undefined;
   cancel(): void;
 };
-
-export function isInteger(checkVal: any): boolean {
-  return Number.isInteger(checkVal) || checkVal == parseInt(checkVal);
-}
 
 // Lift & Shift from lodash
 export function debounce<T extends (...args: any) => any>(
