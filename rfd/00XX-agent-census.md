@@ -129,10 +129,8 @@ This will give us either `linux` or `darwin`.
 
 ##### 4. OS version
 
-- `linux`: `$(lsb_release -is) $(lsb_release -rs)` (e.g. "Ubuntu 22.04")
-- `darwin`: `$(sw_vers -productName) $(sw_vers -productVersion)` (e.g. "macOS 13.2")
-
-The actual implementation could follow what `gopsutil` is doing ([linux](https://github.com/shirou/gopsutil/blob/v3.23.1/host/host_linux.go#L128-L314) / [darwin](https://github.com/shirou/gopsutil/blob/v3.23.1/host/host_darwin.go#L94-L120)).
+- `linux`: Inspect `/etc/os-release` and combine the values associated with `"NAME="` and `"VERSION_ID="` (e.g. "Ubuntu 22.04"). If this file does not exist (unlikely, as it seems widely supported), we can fallback to `/etc/lsb-release` and combine the values associated with `"DISTRIB_ID="` and `"DISTRIB_RELEASE="` (which is what `gopsutil` is doing ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/host/host_linux.go#L128-L314))). Following this approach is more reliable than using `/usr/bin/lsb_release` directly as it is not always available (e.g. `docker run -ti ubuntu:22.04 lsb_release` fails).
+- `darwin`: `$(sw_vers -productName) $(sw_vers -productVersion)` (e.g. "macOS 13.2"). This is what `gopsutil` is doing ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/host/host_darwin.go#L94-L120)).
 
 ##### 5. Host architecture
 
