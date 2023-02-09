@@ -171,10 +171,10 @@ In summary, for now we'll have the following new environment variables and respe
 
 ##### 8. Container runtime
 
-To determine if the agent is running on Docker, we can first check if the file `/proc/self/cgroup` exists, and if so, if it contains the string `"docker"`.
+To determine if the agent is running on Docker, we'll check if the file `/.dockerenv` exists.
+Docker itself [does this](https://github.com/moby/libnetwork/blob/1f3b98be6833a93f254aa0f765ff55d407dfdd69/drivers/bridge/setup_bridgenetfiltering.go#L161).
 
-This is how `gopsutil` does it ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/internal/common/common_linux.go#L130-L278)).
-As it can be seen in the link, `gopsutil` is also detecting other container runtimes.
+Besides Docker, `gopsutil` is also detecting other container runtimes ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/internal/common/common_linux.go#L130-L278)).
 If we're interested in tracking other container runtimes, we could follow their approach.
 
 ##### 9. Container orchestrator
