@@ -29,18 +29,22 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 )
 
-// these constants are 1:1 with user events found in the webapps codebase
-// packages/teleport/src/services/userEvent/UserEvents/userEvents.ts
+// these constants are 1:1 with user events found in the web directory
+// web/packages/teleport/src/services/userEvent/types.ts
 const (
-	bannerClickEvent                = "tp.ui.banner.click"
-	setCredentialSubmitEvent        = "tp.ui.onboard.setCredential.submit"
-	registerChallengeSubmitEvent    = "tp.ui.onboard.registerChallenge.submit"
-	addFirstResourceClickEvent      = "tp.ui.onboard.addFirstResource.click"
-	addFirstResourceLaterClickEvent = "tp.ui.onboard.addFirstResourceLater.click"
-	recoveryCodesContinueClickEvent = "tp.ui.recoveryCodesContinue.click"
-	recoveryCodesCopyClickEvent     = "tp.ui.recoveryCodesCopy.click"
-	recoveryCodesPrintClickEvent    = "tp.ui.recoveryCodesPrint.click"
-	completeGoToDashboardClickEvent = "tp.ui.onboard.completeGoToDashboard.click"
+	bannerClickEvent                         = "tp.ui.banner.click"
+	setCredentialSubmitEvent                 = "tp.ui.onboard.setCredential.submit"
+	registerChallengeSubmitEvent             = "tp.ui.onboard.registerChallenge.submit"
+	addFirstResourceClickEvent               = "tp.ui.onboard.addFirstResource.click"
+	addFirstResourceLaterClickEvent          = "tp.ui.onboard.addFirstResourceLater.click"
+	completeGoToDashboardClickEvent          = "tp.ui.onboard.completeGoToDashboard.click"
+	recoveryCodesContinueClickEvent          = "tp.ui.recoveryCodesContinue.click"
+	recoveryCodesCopyClickEvent              = "tp.ui.recoveryCodesCopy.click"
+	recoveryCodesPrintClickEvent             = "tp.ui.recoveryCodesPrint.click"
+	createNewRoleClickEvent                  = "tp.ui.createNewRole.click"
+	createNewRoleSaveClickEvent              = "tp.ui.createNewRoleSave.click"
+	createNewRoleCancelClickEvent            = "tp.ui.createNewRoleCancel.click"
+	createNewRoleViewDocumentationClickEvent = "tp.ui.createNewRoleViewDocumentation.click"
 
 	uiDiscoverStartedEvent                            = "tp.ui.discover.started"
 	uiDiscoverResourceSelectionEvent                  = "tp.ui.discover.resourceSelection"
@@ -250,6 +254,30 @@ func convertUserEventRequestToUsageEvent(req createUserEventRequest) (*v1.UsageE
 			return nil, trace.BadParameter("failed to convert eventData: %v", err)
 		}
 		return event, nil
+
+	case createNewRoleClickEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiCreateNewRoleClick{
+				UiCreateNewRoleClick: &v1.UICreateNewRoleClickEvent{},
+			}},
+			nil
+
+	case createNewRoleSaveClickEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiCreateNewRoleSaveClick{
+				UiCreateNewRoleSaveClick: &v1.UICreateNewRoleSaveClickEvent{},
+			}},
+			nil
+
+	case createNewRoleCancelClickEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiCreateNewRoleCancelClick{
+				UiCreateNewRoleCancelClick: &v1.UICreateNewRoleCancelClickEvent{},
+			}},
+			nil
+
+	case createNewRoleViewDocumentationClickEvent:
+		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiCreateNewRoleViewDocumentationClick{
+				UiCreateNewRoleViewDocumentationClick: &v1.UICreateNewRoleViewDocumentationClickEvent{},
+			}},
+			nil
 
 	}
 
