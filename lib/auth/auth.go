@@ -288,6 +288,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	as.ttlCache, err = utils.NewFnCache(utils.FnCacheConfig{
+		TTL: time.Second * 3,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if as.ghaIDTokenValidator == nil {
 		as.ghaIDTokenValidator = githubactions.NewIDTokenValidator(
 			githubactions.IDTokenValidatorConfig{
@@ -489,6 +497,9 @@ type Server struct {
 	// githubOrgSSOCache is used to cache whether Github organizations use
 	// external SSO or not.
 	githubOrgSSOCache *utils.FnCache
+
+	// ttlCache is a generic ttl cache. typed keys must be used.
+	ttlCache *utils.FnCache
 
 	// traceClient is used to forward spans to the upstream collector for components
 	// within the cluster that don't have a direct connection to said collector
