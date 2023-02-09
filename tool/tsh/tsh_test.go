@@ -2562,17 +2562,19 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSOLoginFunc {
 	return func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
 		// generate certificates for our user
+		clusterName, err := authServer.GetClusterName()
+		require.NoError(t, err)
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
 			priv.MarshalSSHPublicKey(), user.GetName(), time.Hour,
 			constants.CertificateFormatStandard,
-			"localhost", "",
+			clusterName.GetClusterName(), "",
 		)
 		require.NoError(t, err)
 
 		// load CA cert
 		authority, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
-			DomainName: "localhost",
+			DomainName: clusterName.GetClusterName(),
 		}, false)
 		require.NoError(t, err)
 
