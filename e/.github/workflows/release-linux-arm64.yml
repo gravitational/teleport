@@ -2,6 +2,12 @@ name: Build ARM64 Release Artifacts
 on: 
   workflow_dispatch:
     inputs:
+      oss-teleport-repo:
+        description: "The name of the OSS teleport repo to build"
+        required: false
+        default: "gravitational/teleport"
+        type: string
+
       oss-teleport-ref:
         description: 'Tag, branch or reference to OSS teleport to build'
         type: string
@@ -47,6 +53,7 @@ jobs:
     with:
       arch: ${{ matrix.arch }}
       release: ${{ matrix.release }}
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
       save-artifacts: ${{ inputs.upload-artifacts }}

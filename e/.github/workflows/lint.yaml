@@ -23,7 +23,7 @@ jobs:
       - name: Checkout OSS Teleport
         uses: actions/checkout@v3
         with:
-          repository: gravitational/teleport
+          repository: gravitational/teleport  # This may need to be updated
           ref: ${{ github.base_ref }}
 
       - name: Checkout Enterprise Teleport

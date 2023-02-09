@@ -2,6 +2,12 @@ name: Build Generic Linux
 on:
   workflow_call:
     inputs:
+      oss-teleport-repo:
+        description: "The name of the OSS teleport repo to checkout"
+        required: false
+        default: "gravitational/teleport"
+        type: string
+
       oss-teleport-ref:
         description: 'Git SHA, tag or branch of the revision of OSS teleport to build'
         required: true
@@ -76,7 +82,7 @@ jobs:
       - name: Checkout OSS Teleport
         uses: actions/checkout@v3
         with:
-          repository: gravitational/teleport
+          repository: ${{ inputs.oss-teleport-repo }}
           ref: ${{ inputs.oss-teleport-ref }}
 
       - name: Determine Enterprise Teleport reference
