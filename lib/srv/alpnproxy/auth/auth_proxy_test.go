@@ -18,6 +18,7 @@ package alpnproxyauth
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -33,13 +34,15 @@ func TestDialLocalAuthServerNoServers(t *testing.T) {
 }
 
 func TestDialLocalAuthServerNoAvailableServers(t *testing.T) {
-	s := NewAuthProxyDialerService(nil /* reverseTunnelServer */, "clustername", []string{"0.0.0.0:3025"}, nil, nil)
-	_, err := s.dialLocalAuthServer(context.Background())
+	s := NewAuthProxyDialerService(nil /* reverseTunnelServer */, "clustername", []string{"203.0.113.1:3025"}, nil, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	_, err := s.dialLocalAuthServer(ctx)
 	require.Error(t, err, "dialLocalAuthServer expected to fail")
 	var netErr *net.OpError
 	require.ErrorAs(t, err, &netErr)
 	require.Equal(t, "dial", netErr.Op)
-	require.Equal(t, "0.0.0.0:3025", netErr.Addr.String())
+	require.Equal(t, "203.0.113.1:3025", netErr.Addr.String())
 }
 
 func TestDialLocalAuthServerAvailableServers(t *testing.T) {
@@ -51,11 +54,13 @@ func TestDialLocalAuthServerAvailableServers(t *testing.T) {
 	authServers[0] = socket.Addr().String()
 	// multiple invalid servers to minimize chance that we select good one first try
 	for i := 0; i < 10; i++ {
-		authServers = append(authServers, "0.0.0.0:3025")
+		authServers = append(authServers, fmt.Sprintf("203.0.113.%d:3025", i+1))
 	}
 	s := NewAuthProxyDialerService(nil /* reverseTunnelServer */, "clustername", authServers, nil, nil)
 	require.Eventually(t, func() bool {
-		conn, err := s.dialLocalAuthServer(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+		defer cancel()
+		conn, err := s.dialLocalAuthServer(ctx)
 		if err != nil {
 			return false
 		}
