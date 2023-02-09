@@ -1425,7 +1425,7 @@ func (a *Server) AugmentContextUserCertificates(
 
 		// filter and sort TLS and SSH principals for comparison.
 		// Order does not matter and "-teleport-*" principals are filtered out.
-		filterPrincipals := func(s []string) []string {
+		filterAndSortPrincipals := func(s []string) []string {
 			res := make([]string, 0, len(s))
 			for _, principal := range s {
 				// Ignore -teleport- internal principals.
@@ -1448,7 +1448,7 @@ func (a *Server) AugmentContextUserCertificates(
 			return nil, trace.BadParameter("ssh cert type mismatch")
 		case sshCert.KeyId != identity.Username:
 			return nil, trace.BadParameter("identity and SSH user mismatch")
-		case !slices.Equal(filterPrincipals(sshCert.ValidPrincipals), filterPrincipals(identity.Principals)):
+		case !slices.Equal(filterAndSortPrincipals(sshCert.ValidPrincipals), filterAndSortPrincipals(identity.Principals)):
 			return nil, trace.BadParameter("identity and SSH principals mismatch")
 		case !apisshutils.KeysEqual(sshCert.Key, xPubKey):
 			return nil, trace.BadParameter("x509 and SSH public key mismatch")

@@ -1108,7 +1108,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	// Use a >1 list of principals.
 	// This is enough to cause ordering issues between the TLS and SSH principal
 	// lists, which caused a bug in the device trust preview.
-	principals := []string{"login0", "-teleport-internal-join", username}
+	principals := []string{"login0", username, "-teleport-internal-join"}
 
 	// Prepare the user to test with.
 	_, _, err := CreateUserAndRole(authServer, username, principals)
