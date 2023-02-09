@@ -296,7 +296,7 @@ export function CreateDatabaseView({
 //   );
 // };
 
-// Only allows digits with valid port range 1-65535. Not using RegEx as more efficient to use logic comparisons.
+// Only allows digits with valid port range 1-65535.
 const requirePort = (value: string) => () => {
   const numberValue = parseInt(value);
   const isValidPort =
