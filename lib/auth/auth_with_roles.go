@@ -670,8 +670,20 @@ func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.Reg
 //
 // This wrapper does not do any extra authz checks, as the register method has
 // its own authz mechanism.
-func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error) {
+func (a *ServerWithRoles) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error) {
 	certs, err := a.authServer.RegisterUsingIAMMethod(ctx, challengeResponse)
+	return certs, trace.Wrap(err)
+}
+
+// RegisterUsingAzureMethod registers the caller using the Azure join method and
+// returns signed certs to join the cluster.
+//
+// See (*Server).RegisterUsingAzureMethod for further documentation.
+//
+// This wrapper does not do any extra authz checks, as the register method has
+// its own authz mechanism.
+func (a *ServerWithRoles) RegisterUsingAzureMethod(ctx context.Context, challengeResponse client.RegisterAzureChallengeResponseFunc) (*proto.Certs, error) {
+	certs, err := a.authServer.RegisterUsingAzureMethod(ctx, challengeResponse)
 	return certs, trace.Wrap(err)
 }
 
@@ -2141,6 +2153,12 @@ func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.Plu
 	}
 }
 
+// pingCacheKey is used to with Server.ttlCache to cache frequently-loaded
+// values in the Ping method.
+type pingCacheKey struct {
+	kind string
+}
+
 // Ping gets basic info about the auth server.
 func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) {
 	// The Ping method does not require special permissions since it only returns
@@ -2150,14 +2168,19 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 	if err != nil {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
-	heartbeat, err := a.authServer.GetLicenseCheckResult(ctx)
+
+	// license check result is loaded from real backend, and is not modified once loaded, so we
+	// can save a lot of IO by doing short-lived ttl caching.
+	heartbeat, err := utils.FnCacheGet(ctx, a.authServer.ttlCache, pingCacheKey{"license-check-result"}, a.authServer.GetLicenseCheckResult)
 	if err != nil {
-		return proto.PingResponse{}, trace.Wrap(err)
+		log.Warnf("Failed to load license check result for Ping: %v", err)
 	}
 	var warnings []string
-	for _, notification := range heartbeat.Spec.Notifications {
-		if notification.Type == LicenseExpiredNotification {
-			warnings = append(warnings, notification.Text)
+	if heartbeat != nil {
+		for _, notification := range heartbeat.Spec.Notifications {
+			if notification.Type == LicenseExpiredNotification {
+				warnings = append(warnings, notification.Text)
+			}
 		}
 	}
 	return proto.PingResponse{

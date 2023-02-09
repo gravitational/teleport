@@ -78,6 +78,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindDatabaseService, RO()),
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindLoginRule, RW()),
+					types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
