@@ -296,14 +296,14 @@ export function CreateDatabaseView({
 //   );
 // };
 
-// PORT_REGEXP only allows digits with length 4.
-export const PORT_REGEX = /^\d{4}$/;
+// only allows digits with valid port range 1-65535. Not using RegEx as more effienct to use logic comparsions. 
 const requirePort = value => () => {
-  const isValidId = value.match(PORT_REGEX);
+  const numberValue = Number(value);
+  const isValidId = Number.isInteger(numberValue) && (numberValue >=1 && numberValue<=65535);
   if (!isValidId) {
     return {
       valid: false,
-      message: 'port must be 4 digits',
+      message: 'port must be a valid port number',
     };
   }
   return {
