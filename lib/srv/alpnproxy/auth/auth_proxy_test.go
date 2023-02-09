@@ -59,7 +59,7 @@ func TestDialLocalAuthServerAvailableServers(t *testing.T) {
 	s := NewAuthProxyDialerService(nil /* reverseTunnelServer */, "clustername", authServers, nil, nil)
 	require.Eventually(t, func() bool {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-		defer cancel()
+		t.Cleanup(cancel)
 		conn, err := s.dialLocalAuthServer(ctx)
 		if err != nil {
 			return false
