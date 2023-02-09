@@ -1,0 +1,40 @@
+app_service:
+    # Turns 'app' role on. Default is 'no'
+    enabled: yes
+    # Teleport contains a small debug app that can be used to make sure
+    # Application Access is working correctly. The app outputs JWTs so it can
+    # be useful when extending your application.
+    debug_app: true
+    apps:
+    - name: "kubernetes-dashboard"
+      # Optional: For access to cloud provider APIs, specify the cloud
+      # provider. Allowed values are "AWS", "Azure", and "GCP".
+      cloud: ""
+      # URI and Port of Application.
+      uri: "http://10.0.1.27:8000"
+      # Optionally skip TLS verification. default false
+      # insecure_skip_verify: true
+      # Optional Public Addr
+      public_addr: "example.com"
+      # Optional Label: These can be used in combination with RBAC rules
+      # to limit access to applications
+      labels:
+         env: "prod"
+      # Optional Dynamic Labels
+      commands:
+      - name: "os"
+        command: ["/usr/bin/uname"]
+        period: "5s"
+      ## Optional list of rewrite rules to apply to requests and responses
+      # rewrite:
+        ## Optional simple rewriting of Location header
+        ## Rewrite the "Location" header on redirect responses replacing the
+        ## host with the public address of this application.
+        # redirect:
+        #   - "localhost"
+        #   - "jenkins.internal.dev"
+        ## Optional list of extra headers to inject in to requests.
+        # headers:
+        #   For example:
+        #   - "Host: jenkins.example.com"
+
