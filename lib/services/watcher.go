@@ -98,7 +98,7 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 // incl. cfg.CheckAndSetDefaults.
 func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg ResourceWatcherConfig) (*resourceWatcher, error) {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.HalfJitter(cfg.MaxRetryPeriod / 10),
+		First:  utils.FullJitter(cfg.MaxRetryPeriod / 10),
 		Step:   cfg.MaxRetryPeriod / 5,
 		Max:    cfg.MaxRetryPeriod,
 		Jitter: retryutils.NewHalfJitter(),

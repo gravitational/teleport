@@ -765,7 +765,7 @@ func New(config Config) (*Cache, error) {
 // Start the cache. Should only be called once.
 func (c *Cache) Start() error {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.HalfJitter(c.MaxRetryPeriod / 10),
+		First:  utils.FullJitter(c.MaxRetryPeriod / 10),
 		Step:   c.MaxRetryPeriod / 5,
 		Max:    c.MaxRetryPeriod,
 		Jitter: retryutils.NewHalfJitter(),
