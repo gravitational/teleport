@@ -818,7 +818,6 @@ func New(
 		heartbeat, err = srv.NewSSHServerHeartbeat(srv.SSHServerHeartbeatConfig{
 			InventoryHandle: s.inventoryHandle,
 			GetServer:       s.getServerInfo,
-			Announcer:       s.authService,
 			OnHeartbeat:     s.onHeartbeat,
 		})
 	} else {
