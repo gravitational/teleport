@@ -160,7 +160,7 @@ The installation methods that follow won't be tracked for now.
 Later on, we may try to track these if, once we start tracking the above installation methods, we notice that we're not yet covering most methods.
 - tarball: We can add `export TELEPORT_INSTALL_METHOD_TARBALL="true"` to the [`install`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/install) script. (However, if the customer does not use the `install` script and instead moves the binaries manually, we won't be able to track this installation method.)
 - `.deb`/`.rpm`/`.pkg` packages, APT or YUM repository: It's unclear ATM how these can be tracked.
-- _built from source_: While it's technically possible for customers to build Teleport from source, we won't try to track this installation method as it seems an unlikely use-case.
+- built from source: While it's technically possible for customers to build Teleport from source, we won't try to track this installation method as it seems an unlikely use-case.
 - `homebrew`: It's also possible to install Teleport on macOS using `homebrew`. The Teleport package in `homebrew` is not maintained by us, so we will also not track this installation method.
 
 In summary, for now we'll have the following new environment variables and respective value in `UpstreamInventoryHello.InstallMethods`:
@@ -174,8 +174,7 @@ In summary, for now we'll have the following new environment variables and respe
 To determine if the agent is running on Docker, we'll check if the file `/.dockerenv` exists.
 Docker itself [does this](https://github.com/moby/libnetwork/blob/1f3b98be6833a93f254aa0f765ff55d407dfdd69/drivers/bridge/setup_bridgenetfiltering.go#L161).
 
-Besides Docker, `gopsutil` is also detecting other container runtimes ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/internal/common/common_linux.go#L130-L278)).
-If we're interested in tracking other container runtimes, we could follow their approach.
+If we're interested in tracking other container runtimes, we could follow the approach by `gopsutil` ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/internal/common/common_linux.go#L130-L278)).
 
 ##### 9. Container orchestrator
 
@@ -188,7 +187,7 @@ For this, we'll call `client.ServerVersion()` and check if the returned `gitVers
 - in EKS, the git version looks like `"v1.24.8-eks-ffeb93d"` (we'll search for substring `"-eks"`)
 - in GPC ([docs](https://cloud.google.com/kubernetes-engine/docs/release-notes)), the git version looks like `"1.23.14-gke.1800"` (we'll search for substring `"-gke"`)
 
-In AKS, the git version looks like "v1.25.2", so it's not possible to detect this environment using this method. (This is also a problem for Helm charts, as reported in [Azure/AKS#3375](https://github.com/Azure/AKS/issues/3375).)
+In AKS, the git version looks like `"v1.25.2"`, so it's not possible to detect this environment using this method. (This is also a problem for Helm charts, as reported in [Azure/AKS#3375](https://github.com/Azure/AKS/issues/3375).)
 
 In the end, `UpstreamInventoryHello.ContainerOrchestrator` will be set to:
 - `kubernetes-eks` if on EKS
