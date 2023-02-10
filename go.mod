@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/container v1.22.1
 	cloud.google.com/go/storage v1.30.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.4.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3 v3.0.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2 v2.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql v1.0.0
@@ -46,6 +46,7 @@ require (
 	github.com/elastic/go-elasticsearch/v8 v8.6.0
 	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
 	github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
+	github.com/fsouza/fake-gcs-server v1.42.2
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
@@ -161,18 +162,6 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.2.0
 )
 
-// DO NOT UPDATE any of the following dependencies until the
-// deprecated Firestore Batch API is replaced. Updating causes
-// the linter to fail due to deprecation warnings.
-require (
-	cloud.google.com/go/firestore v1.11.0
-	cloud.google.com/go/iam v1.1.1
-	cloud.google.com/go/kms v1.12.1
-	github.com/fsouza/fake-gcs-server v1.42.2
-	google.golang.org/api v0.126.0
-	google.golang.org/genproto v0.0.0-20230711160842-782d3b101e98
-)
-
 // Indirect mailgun dependencies.
 // Updating causes breaking changes.
 require (
@@ -184,6 +173,9 @@ require (
 	cloud.google.com/go v0.110.4 // indirect
 	cloud.google.com/go/compute v1.21.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
+	cloud.google.com/go/firestore v1.11.0
+	cloud.google.com/go/iam v1.1.1
+	cloud.google.com/go/kms v1.12.1
 	cloud.google.com/go/longrunning v0.5.1 // indirect
 	cloud.google.com/go/pubsub v1.32.0 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
@@ -191,7 +183,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.1.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.0.0 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20220621081337-cb9428e4ac1e // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v0.7.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v0.8.1 // indirect
 	github.com/BurntSushi/toml v1.1.0 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
@@ -360,7 +352,9 @@ require (
 	golang.org/x/tools v0.6.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
+	google.golang.org/api v0.126.0
 	google.golang.org/appengine v1.6.7 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22 // indirect
 	k8s.io/component-helpers v0.26.0 // indirect
@@ -373,10 +367,9 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 )
 
-require google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98
-
 require (
 	github.com/google/s2a-go v0.1.4 // indirect
+	google.golang.org/genproto v0.0.0-20230711160842-782d3b101e98 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230711160842-782d3b101e98 // indirect
 )
 
