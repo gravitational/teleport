@@ -14,7 +14,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.39.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.39.0
 	go.opentelemetry.io/otel v1.13.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.12.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.13.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.12.0
 	go.opentelemetry.io/otel/sdk v1.13.0
 	go.opentelemetry.io/otel/trace v1.13.0
@@ -41,7 +41,7 @@ require (
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/russellhaering/goxmldsig v1.2.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.12.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.13.0 // indirect
 	go.opentelemetry.io/otel/metric v0.36.0 // indirect
 	golang.org/x/sys v0.4.0 // indirect
 	golang.org/x/term v0.4.0 // indirect
