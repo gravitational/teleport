@@ -1028,6 +1028,12 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.PeerPublicAddr = *addr
 	}
 
+	if fc.Proxy.IdP.SAMLIdP.Enabled() {
+		cfg.Proxy.IdP.SAMLIdP.Enabled = true
+	}
+
+	cfg.Proxy.IdP.SAMLIdP.BaseURL = fc.Proxy.IdP.SAMLIdP.BaseURL
+
 	acme, err := fc.Proxy.ACME.Parse()
 	if err != nil {
 		return trace.Wrap(err)
@@ -2216,6 +2222,14 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 
 		cfg.JoinMethod = fc.JoinParams.Method
+
+		if fc.JoinParams.Azure != (AzureJoinParams{}) {
+			cfg.JoinParams = service.JoinParams{
+				Azure: service.AzureJoinParams{
+					ClientID: fc.JoinParams.Azure.ClientID,
+				},
+			}
+		}
 	}
 
 	return nil

@@ -521,16 +521,30 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 		s.log.Warnf("Failed to teardown IAM for %v: %v.", database, err)
 	}
 	// Stop heartbeat, labels, etc.
-	if err := s.stopProxyingDatabase(ctx, database); err != nil {
+	if err := s.stopProxyingAndDeleteDatabase(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+
 }
 
 // stopProxyingDatabase winds down the proxied database instance by stopping
 // its heartbeat and dynamic labels and unregistering it from the list of
 // proxied databases.
 func (s *Server) stopProxyingDatabase(ctx context.Context, database types.Database) error {
+	// Stop heartbeat and dynamic labels updates.
+	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
+		return trace.Wrap(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.proxiedDatabases, database.GetName())
+	return nil
+}
+
+// stopProxyingAndDeleteDatabase stops and deletes the database, then
+// unregisters it from the list of proxied databases.
+func (s *Server) stopProxyingAndDeleteDatabase(ctx context.Context, database types.Database) error {
 	// Stop heartbeat and dynamic labels updates.
 	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
 		return trace.Wrap(err)
@@ -742,12 +756,23 @@ func (s *Server) startServiceHeartbeat() error {
 
 // Close stops proxying all server's databases and frees up other resources.
 func (s *Server) Close() error {
+	return trace.Wrap(s.close(s.closeContext))
+}
+
+// Shutdown performs a graceful shutdown.
+func (s *Server) Shutdown(ctx context.Context) error {
+	// TODO wait active connections.
+	return trace.Wrap(s.close(ctx))
+}
+
+func (s *Server) close(ctx context.Context) error {
 	var errors []error
 	// Stop proxying all databases.
 	for _, database := range s.getProxiedDatabases() {
-		if err := s.stopProxyingDatabase(s.closeContext, database); err != nil {
-			errors = append(errors, trace.WrapWithMessage(
-				err, "stopping database %v", database.GetName()))
+		if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
+			errors = append(errors, trace.Wrap(s.stopProxyingAndDeleteDatabase(ctx, database)))
+		} else {
+			errors = append(errors, trace.Wrap(s.stopProxyingDatabase(ctx, database)))
 		}
 	}
 	// Signal to all goroutines to stop.

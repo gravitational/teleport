@@ -18,13 +18,22 @@ package local
 
 import (
 	"context"
+	"time"
+
+	"github.com/crewjam/saml/samlsp"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const samlIDPServiceProviderMaxPageSize = 200
+const (
+	samlIDPServiceProviderPrefix        = "saml_idp_service_provider"
+	samlIDPServiceProviderModifyLock    = "saml_idp_service_provider_modify_lock"
+	samlIDPServiceProviderModifyLockTTL = time.Second * 5
+	samlIDPServiceProviderMaxPageSize   = 200
+)
 
 // SAMLIdPServiceProviderService manages IdP service providers in the Backend.
 type SAMLIdPServiceProviderService struct {
@@ -33,7 +42,7 @@ type SAMLIdPServiceProviderService struct {
 
 // NewSAMLIdPServiceProviderService creates a new SAMLIdPServiceProviderService.
 func NewSAMLIdPServiceProviderService(backend backend.Backend) *SAMLIdPServiceProviderService {
-	return &SAMLIdPServiceProviderService{
+	s := &SAMLIdPServiceProviderService{
 		genericResourceService: genericResourceService[types.SAMLIdPServiceProvider]{
 			backend:       backend,
 			limit:         samlIDPServiceProviderMaxPageSize,
@@ -41,7 +50,15 @@ func NewSAMLIdPServiceProviderService(backend backend.Backend) *SAMLIdPServicePr
 			backendPrefix: samlIDPServiceProviderPrefix,
 			marshalFunc:   services.MarshalSAMLIdPServiceProvider,
 			unmarshalFunc: services.UnmarshalSAMLIdPServiceProvider,
-		}}
+		},
+	}
+
+	s.modificationPostCheckValidator = s.ensureEntityDescriptorMatchesEntityID
+	s.modificationLockName = samlIDPServiceProviderModifyLock
+	s.modificationLockTTL = samlIDPServiceProviderModifyLockTTL
+	s.preModifyValidator = s.ensureEntityIDIsUnique
+
+	return s
 }
 
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
@@ -74,6 +91,45 @@ func (s *SAMLIdPServiceProviderService) DeleteAllSAMLIdPServiceProviders(ctx con
 	return s.deleteAllResources(ctx)
 }
 
-const (
-	samlIDPServiceProviderPrefix = "saml_idp_service_provider"
-)
+// ensureEntityIDIsUnique makes sure that the entity ID in the service provider doesn't already exist in the backend.
+func (s *SAMLIdPServiceProviderService) ensureEntityIDIsUnique(ctx context.Context, sp types.SAMLIdPServiceProvider, _ string) error {
+	// Make sure no other service provider has the same entity ID.
+	var nextToken string
+	for {
+		var listSps []types.SAMLIdPServiceProvider
+		var err error
+		listSps, nextToken, err = s.ListSAMLIdPServiceProviders(ctx, samlIDPServiceProviderMaxPageSize, nextToken)
+
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, listSp := range listSps {
+			// Only check entity ID duplicates if we're looking at objects other than the one we're trying to validate.
+			// This ensures updates will work and that creates will return an already exists error.
+			if listSp.GetName() != sp.GetName() && listSp.GetEntityID() == sp.GetEntityID() {
+				return trace.BadParameter("%s %q has the same entity ID %q", types.KindSAMLIdPServiceProvider, listSp.GetName(), listSp.GetEntityID())
+			}
+		}
+		if nextToken == "" {
+			break
+		}
+	}
+
+	return nil
+}
+
+// ensureEntityDescriptorMatchesEntityID ensures that the entity ID in the entity descriptor is the same as the entity ID
+// in the SAMLIdPServiceProvider object.
+func (s *SAMLIdPServiceProviderService) ensureEntityDescriptorMatchesEntityID(sp types.SAMLIdPServiceProvider, _ string) error {
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if ed.EntityID != sp.GetEntityID() {
+		return trace.BadParameter("entity ID parsed from the entity descriptor does not match the entity ID in the SAML IdP service provider object")
+	}
+
+	return nil
+}
