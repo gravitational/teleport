@@ -36,6 +36,7 @@ import (
 	insecurerand "math/rand"
 	"net"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -179,6 +180,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
+	if cfg.SAMLIdPServiceProviders == nil {
+		cfg.SAMLIdPServiceProviders = local.NewSAMLIdPServiceProviderService(cfg.Backend)
+	}
 	if cfg.ConnectionsDiagnostic == nil {
 		cfg.ConnectionsDiagnostic = local.NewConnectionsDiagnosticService(cfg.Backend)
 	}
@@ -229,26 +233,27 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	services := &Services{
-		Trust:                 cfg.Trust,
-		PresenceInternal:      cfg.Presence,
-		Provisioner:           cfg.Provisioner,
-		Identity:              cfg.Identity,
-		Access:                cfg.Access,
-		DynamicAccessExt:      cfg.DynamicAccessExt,
-		ClusterConfiguration:  cfg.ClusterConfiguration,
-		Restrictions:          cfg.Restrictions,
-		Apps:                  cfg.Apps,
-		Kubernetes:            cfg.Kubernetes,
-		Databases:             cfg.Databases,
-		DatabaseServices:      cfg.DatabaseServices,
-		IAuditLog:             cfg.AuditLog,
-		Events:                cfg.Events,
-		WindowsDesktops:       cfg.WindowsDesktops,
-		SessionTrackerService: cfg.SessionTrackerService,
-		Enforcer:              cfg.Enforcer,
-		ConnectionsDiagnostic: cfg.ConnectionsDiagnostic,
-		StatusInternal:        cfg.Status,
-		UsageReporter:         cfg.UsageReporter,
+		Trust:                   cfg.Trust,
+		PresenceInternal:        cfg.Presence,
+		Provisioner:             cfg.Provisioner,
+		Identity:                cfg.Identity,
+		Access:                  cfg.Access,
+		DynamicAccessExt:        cfg.DynamicAccessExt,
+		ClusterConfiguration:    cfg.ClusterConfiguration,
+		Restrictions:            cfg.Restrictions,
+		Apps:                    cfg.Apps,
+		Kubernetes:              cfg.Kubernetes,
+		Databases:               cfg.Databases,
+		DatabaseServices:        cfg.DatabaseServices,
+		IAuditLog:               cfg.AuditLog,
+		Events:                  cfg.Events,
+		WindowsDesktops:         cfg.WindowsDesktops,
+		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
+		SessionTrackerService:   cfg.SessionTrackerService,
+		Enforcer:                cfg.Enforcer,
+		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
+		StatusInternal:          cfg.Status,
+		UsageReporter:           cfg.UsageReporter,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -286,6 +291,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	as.ttlCache, err = utils.NewFnCache(utils.FnCacheConfig{
+		TTL: time.Second * 3,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if as.ghaIDTokenValidator == nil {
 		as.ghaIDTokenValidator = githubactions.NewIDTokenValidator(
 			githubactions.IDTokenValidatorConfig{
@@ -323,6 +336,7 @@ type Services struct {
 	services.Databases
 	services.DatabaseServices
 	services.WindowsDesktops
+	services.SAMLIdPServiceProviders
 	services.SessionTrackerService
 	services.Enforcer
 	services.ConnectionsDiagnostic
@@ -489,6 +503,9 @@ type Server struct {
 	// githubOrgSSOCache is used to cache whether Github organizations use
 	// external SSO or not.
 	githubOrgSSOCache *utils.FnCache
+
+	// ttlCache is a generic ttl cache. typed keys must be used.
+	ttlCache *utils.FnCache
 
 	// traceClient is used to forward spans to the upstream collector for components
 	// within the cluster that don't have a direct connection to said collector
@@ -986,7 +1003,7 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	}
 
 	// get the certificate authority that will be signing the public key of the host
-	ca, err := a.Services.GetCertAuthority(context.TODO(), types.CertAuthID{
+	ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: domainName,
 	}, true)
@@ -1000,7 +1017,7 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	}
 
 	// create and sign!
-	return a.generateHostCert(services.HostCertParams{
+	return a.generateHostCert(ctx, services.HostCertParams{
 		CASigner:      caSigner,
 		PublicHostKey: hostPublicKey,
 		HostID:        hostID,
@@ -1012,8 +1029,10 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	})
 }
 
-func (a *Server) generateHostCert(p services.HostCertParams) ([]byte, error) {
-	authPref, err := a.GetAuthPreference(context.TODO())
+func (a *Server) generateHostCert(
+	ctx context.Context, p services.HostCertParams,
+) ([]byte, error) {
+	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1404,6 +1423,21 @@ func (a *Server) AugmentContextUserCertificates(
 			return nil, trace.Wrap(err)
 		}
 
+		// filter and sort TLS and SSH principals for comparison.
+		// Order does not matter and "-teleport-*" principals are filtered out.
+		filterAndSortPrincipals := func(s []string) []string {
+			res := make([]string, 0, len(s))
+			for _, principal := range s {
+				// Ignore -teleport- internal principals.
+				if strings.HasPrefix(principal, "-teleport-") {
+					continue
+				}
+				res = append(res, principal)
+			}
+			sort.Strings(res)
+			return res
+		}
+
 		// Verify SSH certificate against identity.
 		// The SSH certificate isn't used to establish the connection that
 		// eventually reaches this method, so we check it more thoroughly.
@@ -1414,7 +1448,7 @@ func (a *Server) AugmentContextUserCertificates(
 			return nil, trace.BadParameter("ssh cert type mismatch")
 		case sshCert.KeyId != identity.Username:
 			return nil, trace.BadParameter("identity and SSH user mismatch")
-		case !slices.Equal(sshCert.ValidPrincipals, identity.Principals):
+		case !slices.Equal(filterAndSortPrincipals(sshCert.ValidPrincipals), filterAndSortPrincipals(identity.Principals)):
 			return nil, trace.BadParameter("identity and SSH principals mismatch")
 		case !apisshutils.KeysEqual(sshCert.Key, xPubKey):
 			return nil, trace.BadParameter("x509 and SSH public key mismatch")
@@ -2917,7 +2951,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		return nil, trace.Wrap(err)
 	}
 	// generate host SSH certificate
-	hostSSHCert, err := a.generateHostCert(services.HostCertParams{
+	hostSSHCert, err := a.generateHostCert(ctx, services.HostCertParams{
 		CASigner:      caSigner,
 		PublicHostKey: req.PublicSSHKey,
 		HostID:        req.HostID,
@@ -4046,7 +4080,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 
 		dbRoleMatchers := role.DatabaseRoleMatchers(
-			db.GetProtocol(),
+			db,
 			t.Database.Username,
 			t.Database.GetDatabase(),
 		)
@@ -4370,6 +4404,13 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 			return keySet, trace.Wrap(err)
 		}
 		keySet.JWT = append(keySet.JWT, jwtKeyPair)
+	case types.SAMLIDPCA:
+		// SAML IDP CA only contains TLS certs.
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.TLS = append(keySet.TLS, tlsKeyPair)
 	default:
 		return keySet, trace.BadParameter("unknown ca type: %s", caID.Type)
 	}

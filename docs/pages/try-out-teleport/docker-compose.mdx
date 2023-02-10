@@ -52,8 +52,8 @@ Let's use `docker-compose` to start Teleport demo lab - a configured local clust
 ```code
 # Download the quick start file from our GitHub repo
 $ curl -Lso teleport-lab.yml https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/docker/teleport-lab.yml
-# Start teleport demo lab using docker-compose
-$ docker-compose -f teleport-lab.yml up -d
+# Pull the latest image and start the teleport demo lab using docker-compose
+$ docker-compose -f teleport-lab.yml pull && docker-compose -f teleport-lab.yml up -d
 ```
 
 <Admonition type="note" title="Note">

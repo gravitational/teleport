@@ -1135,6 +1135,8 @@ message ProvisionTokenSpecV2 {
   ];
   // Kubernetes allows the configuration of options specific to the "kubernetes" join method.
   ProvisionTokenSpecV2Kubernetes Kubernetes = 10 [(gogoproto.jsontag) = "kubernetes,omitempty"];
+  // Azure allows the configuration of options specific to the "azure" join method.
+  ProvisionTokenSpecV2Azure Azure = 11 [(gogoproto.jsontag) = "azure,omitempty"];
 }
 
 // ProvisionTokenSpecV2Github contains the GitHub-specific part of the
@@ -1201,6 +1203,23 @@ message ProvisionTokenSpecV2Kubernetes {
     // ServiceAccount is the namespaced name of the Kubernetes service account.
     // Its format is "namespace:service-account".
     string ServiceAccount = 1 [(gogoproto.jsontag) = "service_account,omitempty"];
+  }
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+// ProvisionTokenSpecV2Azure contains the Azure-specific part of the
+// ProvisionTokenSpecV2.
+message ProvisionTokenSpecV2Azure {
+  // Rule is a set of properties the Azure-issued token might have to be
+  // allowed to use this ProvisionToken.
+  message Rule {
+    // Subscription is the Azure subscription.
+    string Subscription = 1 [(gogoproto.jsontag) = "subscription,omitempty"];
+    // ResourceGroups is a list of Azure resource groups the node is allowed
+    // to join from.
+    repeated string ResourceGroups = 2 [(gogoproto.jsontag) = "resource_groups,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
@@ -2456,6 +2475,13 @@ message RoleConditions {
 
   // GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.
   repeated string GCPServiceAccounts = 25 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
+
+  // DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.
+  wrappers.LabelValues DatabaseServiceLabels = 26 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "db_service_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
@@ -4752,6 +4778,98 @@ enum RequireMFAType {
   HARDWARE_KEY_TOUCH = 3;
 }
 
+// Plugin describes a single instance of a Teleport Plugin
+message PluginV1 {
+  // kind is the plugin resource kind.
+  string kind = 1;
+  // sub_kind is an optional resource subkind.
+  string sub_kind = 2;
+  // version is the resource version.
+  string version = 3;
+
+  // metadata is the resource metadata.
+  Metadata metadata = 4 [(gogoproto.nullable) = false];
+
+  PluginSpecV1 spec = 5 [(gogoproto.nullable) = false];
+
+  PluginStatusV1 status = 6 [(gogoproto.nullable) = false];
+
+  // credentials are "live" credentials to the 3rd party API.
+  // These are considered secrets.
+  PluginCredentialsV1 credentials = 7;
+}
+
+message PluginSpecV1 {
+  option (gogoproto.equal) = true;
+
+  // settings contain provider-specific plugin options.
+  oneof settings {
+    // Settings for the Slack access plugin
+    PluginSlackAccessSettings slack_access_plugin = 1;
+  }
+}
+
+message PluginSlackAccessSettings {
+  option (gogoproto.equal) = true;
+
+  string fallback_channel = 1;
+}
+
+message PluginInitialCredentialsV1 {
+  oneof credentials {
+    PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
+  }
+}
+
+message PluginOAuth2AuthorizationCodeCredentials {
+  string authorization_code = 1;
+  string redirect_uri = 2;
+}
+
+// PluginStatus is the user-facing status for the plugin instance.
+message PluginStatusV1 {
+  PluginStatusCode code = 1;
+}
+
+enum PluginStatusCode {
+  // UNKNOWN is the default value when the plugin has not reported its status yet.
+  UNKNOWN = 0;
+  // RUNNING means the plugin reports running successfully.
+  RUNNING = 1;
+  // OTHER_ERROR indicates that an otherwise-unspecified error has been encountered.
+  OTHER_ERROR = 2;
+  // UNAUTHORIZED indicates that plugin is not able to authenticate to the 3rd party API.
+  // This could be a result of e.g. the user revoking the authorization on the API provider's side.
+  UNAUTHORIZED = 3;
+
+  // SLACK_NOT_IN_CHANNEL is a Slack-specific status code that indicates
+  // that the bot has not been invited to a channel that it is configured to post in.
+  SLACK_NOT_IN_CHANNEL = 10;
+}
+
+// PluginCredentialsV1 represents "live" credentials
+// that are used by the plugin to authenticate to the 3rd party API.
+message PluginCredentialsV1 {
+  oneof credentials {
+    PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
+  }
+}
+
+message PluginOAuth2AccessTokenCredentials {
+  string access_token = 1;
+  string refresh_token = 2;
+  google.protobuf.Timestamp expires = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+}
+
+// PluginList represents a list of plugin resources
+message PluginListV1 {
+  // Plugins is a list of plugin resources.
+  repeated PluginV1 plugins = 1;
+}
+
 // SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
 message SAMLIdPServiceProviderV1 {
   option (gogoproto.goproto_stringer) = false;
@@ -4774,6 +4892,10 @@ message SAMLIdPServiceProviderV1 {
 message SAMLIdPServiceProviderSpecV1 {
   // EntityDescriptor is the entity descriptor for the service provider
   string EntityDescriptor = 1 [(gogoproto.jsontag) = "entity_descriptor"];
+  // EntityID is the entity ID for the entity descriptor. This ID is checked that it matches
+  // the entity ID in the entity descriptor at upsert time to avoid having to parse the
+  // XML blob in the entity descriptor every time we need to use this resource.
+  string EntityID = 2 [(gogoproto.jsontag) = "entity_id"];
 }
 
 // IdPOptions specify options related to access Teleport IdPs.
@@ -4789,4 +4911,30 @@ message IdPSAMLOptions {
     (gogoproto.jsontag) = "enabled",
     (gogoproto.customtype) = "BoolOption"
   ];
+}
+
+// KubernetesResourceV1 represents a Kubernetes resource.
+message KubernetesResourceV1 {
+  // Kind is a resource kind
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource sub kind, used in some resources
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is version
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is KubernetesResourceV1 metadata
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec contains the Kubernetes resource data.
+  KubernetesResourceSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// KubernetesResourceSpecV1 is the Kubernetes resource spec.
+message KubernetesResourceSpecV1 {
+  // Namespace is the resource namespace.
+  string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
 }

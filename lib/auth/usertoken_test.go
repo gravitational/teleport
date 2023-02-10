@@ -91,6 +91,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 func TestCreateResetPasswordTokenErrors(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
+	ctx := context.Background()
 
 	username := "joe@example.com"
 	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
@@ -141,7 +142,7 @@ func TestCreateResetPasswordTokenErrors(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			_, err := srv.Auth().CreateResetPasswordToken(context.TODO(), tc.req)
+			_, err := srv.Auth().CreateResetPasswordToken(ctx, tc.req)
 			require.Error(t, err)
 		})
 	}

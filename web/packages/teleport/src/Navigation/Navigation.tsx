@@ -33,7 +33,7 @@ import { NavigationCategoryContainer } from 'teleport/Navigation/NavigationCateg
 
 import logo from './logo.png';
 
-import type { Location } from 'history';
+import type * as history from 'history';
 
 import type { TeleportFeature } from 'teleport/types';
 
@@ -77,7 +77,7 @@ export function getFirstRouteForCategory(
 
 function getCategoryForRoute(
   features: TeleportFeature[],
-  route: Location<unknown>
+  route: history.Location<unknown> | Location
 ) {
   const feature = features
     .filter(feature => Boolean(feature.route))
@@ -105,20 +105,43 @@ export function Navigation() {
       NavigationCategory.Resources
   );
 
-  const [previousRoute, setPreviousRoute] = useState('');
+  const [previousRoute, setPreviousRoute] = useState<{
+    [category: string]: string;
+  }>({});
 
-  useEffect(() => {
-    return history.listen(next => {
+  const handleLocationChange = useCallback(
+    (next: history.Location<unknown> | Location) => {
       const previousPathName = location.pathname;
 
       const category = getCategoryForRoute(features, next);
 
       if (category && category !== view) {
-        setPreviousRoute(previousPathName);
+        setPreviousRoute(previous => ({
+          ...previous,
+          [view]: previousPathName,
+        }));
         setView(category);
       }
-    });
+    },
+    [location, view]
+  );
+
+  useEffect(() => {
+    return history.listen(handleLocationChange);
   }, [history, location.pathname, features, view]);
+
+  const handlePopState = useCallback(
+    (event: PopStateEvent) => {
+      handleLocationChange((event.currentTarget as Window).location);
+    },
+    [view]
+  );
+
+  useEffect(() => {
+    window.addEventListener('popstate', handlePopState);
+
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [handlePopState]);
 
   const handleCategoryChange = useCallback(
     (category: NavigationCategory) => {
@@ -127,10 +150,10 @@ export function Navigation() {
       }
 
       history.push(
-        previousRoute || getFirstRouteForCategory(features, category)
+        previousRoute[category] || getFirstRouteForCategory(features, category)
       );
     },
-    [view, location.pathname, previousRoute]
+    [view, previousRoute]
   );
 
   const categories = NAVIGATION_CATEGORIES.map((category, index) => (
