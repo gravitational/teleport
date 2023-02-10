@@ -208,7 +208,7 @@ func (s *mockFirestoreServer) BatchWrite(ctx context.Context, req *firestorepb.B
 	}
 
 	resp := &firestorepb.BatchWriteResponse{}
-	for i := 0; i < len(req.Writes); i++ {
+	for range req.Writes {
 		resp.Status = append(resp.Status, &status.Status{
 			Code: int32(code.Code_OK),
 		})
