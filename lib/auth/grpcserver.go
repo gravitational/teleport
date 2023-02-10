@@ -20,6 +20,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/jonboulle/clockwork"
 	"io"
 	"net"
 	"time"
@@ -2990,12 +2992,21 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.Pr
 	}, nil
 }
 
+func setDefaultTokenTTL(clock clockwork.Clock, token *types.ProvisionTokenV2) {
+	if token.Expiry().IsZero() {
+		token.SetExpiry(clock.Now().Add(defaults.ProvisioningTokenTTL))
+	}
+}
+
 // UpsertToken upserts a token.
+// Deprecated: use CreateTokenV2 instead. Delete in 14.0.0.
 func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionTokenV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	g.Warn("Deprecated RPC UpsertToken invoked. Upgrade your client or switch to calling UpsertTokenV2.")
+	setDefaultTokenTTL(g.AuthServer.GetClock(), token)
 	if err = auth.ServerWithRoles.UpsertToken(ctx, token); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3003,10 +3014,55 @@ func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionToke
 }
 
 // CreateToken creates a token.
+// Deprecated: use CreateTokenV2 instead. Delete in 14.0.0.
 func (g *GRPCServer) CreateToken(ctx context.Context, token *types.ProvisionTokenV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	g.Warn("Deprecated RPC CreateToken invoked. Upgrade your client or switch to calling CreateTokenV2.")
+	setDefaultTokenTTL(g.AuthServer.GetClock(), token)
+	if err = auth.ServerWithRoles.CreateToken(ctx, token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// UpsertTokenV2 upserts a token.
+func (g *GRPCServer) UpsertTokenV2(ctx context.Context, req *proto.UpsertTokenV2Request) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// When new token versions are introduced, this can be exchanged for a
+	// switch statement.
+	token := req.GetV2()
+	if token == nil {
+		return nil, trail.ToGRPC(
+			trace.BadParameter("token not provided in request"),
+		)
+	}
+	if err = auth.ServerWithRoles.UpsertToken(ctx, token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// CreateTokenV2 creates a token.
+func (g *GRPCServer) CreateTokenV2(ctx context.Context, req *proto.CreateTokenV2Request) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// When new token versions are introduced, this can be exchanged for a
+	// switch statement.
+	token := req.GetV2()
+	if token == nil {
+		return nil, trail.ToGRPC(
+			trace.BadParameter("token not provided in request"),
+		)
 	}
 	if err = auth.ServerWithRoles.CreateToken(ctx, token); err != nil {
 		return nil, trace.Wrap(err)
