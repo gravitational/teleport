@@ -2422,18 +2422,6 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 		return trace.Wrap(err)
 	}
 
-	authPref, err := actx.authServer.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	identity := actx.Identity.GetIdentity()
-
-	// Device trust: authorize device before issuing certificates, if applicable.
-	// This gives a better UX by failing earlier in the access attempt.
-	if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), identity); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// The RPC is streaming both ways and the message sequence is:
 	// (-> means client-to-server, <- means server-to-client)
 	//
@@ -2453,6 +2441,17 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 	}
 	if err := validateUserSingleUseCertRequest(ctx, actx, initReq); err != nil {
 		g.Entry.Debugf("Validation of single-use cert request failed: %v", err)
+		return trace.Wrap(err)
+	}
+
+	// Device trust: authorize device before issuing certificates.
+	// We do this here, in addition to the check at generateUserCerts, so users
+	// won't be asked to tap the security key if using an untrusted device.
+	authPref, err := actx.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := actx.verifyUserDeviceForCertIssuance(initReq.Usage, authPref.GetDeviceTrust()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2502,6 +2501,8 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 		}
 	case proto.UserCertsRequest_All:
 		return trace.BadParameter("must specify a concrete Usage in UserCertsRequest, one of SSH, Kubernetes or Database")
+	case proto.UserCertsRequest_App:
+		return trace.BadParameter("app access certificates cannot be issued by GenerateUserSingleUseCerts")
 	case proto.UserCertsRequest_WindowsDesktop:
 		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
 			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
@@ -2510,11 +2511,26 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
 
+	if isDBLocalProxyTunnelCertReq(req) {
+		// don't limit the cert expiry to 1 minute for db local proxy tunnel,
+		// because the certs will be kept in-memory by the client to protect
+		// against cert/key exfiltration. When MFA is required, cert expiration
+		// time is bounded by the lifetime of the local proxy tunnel process.
+		return nil
+	}
+
 	maxExpiry := actx.authServer.GetClock().Now().Add(teleport.UserSingleUseCertTTL)
 	if req.Expires.After(maxExpiry) {
 		req.Expires = maxExpiry
 	}
 	return nil
+}
+
+// isDBLocalProxyTunnelCertReq returns whether a cert request is for
+// a database cert and the requester is a local proxy tunnel.
+func isDBLocalProxyTunnelCertReq(req *proto.UserCertsRequest) bool {
+	return req.Usage == proto.UserCertsRequest_Database &&
+		req.RequesterName == proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL
 }
 
 func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService_GenerateUserSingleUseCertsServer) (*types.MFADevice, error) {

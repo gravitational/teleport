@@ -57,7 +57,8 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 				`go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow release-linux-arm64.yml ` +
 					fmt.Sprintf(`-workflow-ref=${%s} `, b.workflowRefVar) +
 					fmt.Sprintf(`-input oss-teleport-ref=${%s} `, b.srcRefVar) +
-					fmt.Sprintf(`-input upload-artifacts=%t`, b.uploadArtifacts),
+					fmt.Sprintf(`-input upload-artifacts=%t `, b.uploadArtifacts) +
+					`-input oss-teleport-repo="${DRONE_REPO}"`,
 			},
 		},
 	}

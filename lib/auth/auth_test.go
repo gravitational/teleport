@@ -1137,8 +1137,13 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	const username = "llama"
 	const pass = "secret!!1!"
 
+	// Use a >1 list of principals.
+	// This is enough to cause ordering issues between the TLS and SSH principal
+	// lists, which caused a bug in the device trust preview.
+	principals := []string{"login0", username, "-teleport-internal-join"}
+
 	// Prepare the user to test with.
-	_, _, err := CreateUserAndRole(authServer, username, []string{username})
+	_, _, err := CreateUserAndRole(authServer, username, principals)
 	require.NoError(t, err, "CreateUserAndRole failed")
 	require.NoError(t,
 		authServer.UpsertPassword(username, []byte(pass)),

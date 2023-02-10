@@ -23,6 +23,7 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	apiproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	proto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -31,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -147,6 +149,9 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 	identity.Groups = userContext.Checker.RoleNames()
 	identity.RouteToCluster = req.TeleportCluster
 	switch {
+	case requiresFakePagination(req):
+		rsp, err := s.listResourcesUsingFakePagination(ctx, identity, req)
+		return rsp, trail.ToGRPC(err)
 	case req.ResourceType == types.KindKubePod:
 		rsp, err := s.listKubernetesPods(ctx, identity, true, req)
 		return rsp, trail.ToGRPC(err)
@@ -310,4 +315,77 @@ func (s *Server) iterateKubernetesPods(
 		}
 		continueKey = podList.Continue
 	}
+}
+
+// listResourcesUsingFakePagination is a helper function that lists Kubernetes
+// resources using fake pagination. It is used when the client requires
+// the total count or sorting.
+func (s *Server) listResourcesUsingFakePagination(
+	ctx context.Context, identity tlsca.Identity,
+	req *proto.ListKubernetesResourcesRequest,
+) (*proto.ListKubernetesResourcesResponse, error) {
+	var (
+		rsp *proto.ListKubernetesResourcesResponse
+		err error
+	)
+	switch {
+	case req.ResourceType == types.KindKubePod:
+		rsp, err = s.listKubernetesPods(ctx, identity, false /* do not respect the limit value */, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		return nil, trace.BadParameter("unsupported resource type %q", req.ResourceType)
+	}
+
+	sortedClusters := types.KubeResources(rsp.Resources)
+	if req.SortBy != nil {
+		if err := sortedClusters.SortByCustom(*req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	// Apply request filters and get pagination info.
+	fakeRsp, err := local.FakePaginate(
+		sortedClusters.AsResources(),
+		// map the request to the fake pagination request.
+		apiproto.ListResourcesRequest{
+			StartKey:            req.StartKey,
+			Limit:               req.Limit,
+			ResourceType:        req.ResourceType,
+			Labels:              req.Labels,
+			PredicateExpression: req.PredicateExpression,
+			SearchKeywords:      req.SearchKeywords,
+			NeedTotalCount:      req.NeedTotalCount,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resources, err := resourcesToKubeResources(fakeRsp.Resources)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &proto.ListKubernetesResourcesResponse{
+		Resources:  resources,
+		NextKey:    fakeRsp.NextKey,
+		TotalCount: int32(fakeRsp.TotalCount),
+	}, nil
+}
+
+// requiresFakePagination returns true if the request requires the fake pagination.
+func requiresFakePagination(req *proto.ListKubernetesResourcesRequest) bool {
+	return req.SortBy != nil && req.SortBy.Field != "" || req.NeedTotalCount
+}
+
+// resourcesToKubeResources converts a list of resources to a list of Kubernetes resources.
+func resourcesToKubeResources(resources types.ResourcesWithLabels) ([]*types.KubernetesResourceV1, error) {
+	kubeResources := make(types.KubeResources, 0, len(resources))
+	for _, resource := range resources {
+		kubeResource, ok := resource.(*types.KubernetesResourceV1)
+		if !ok {
+			return nil, trace.BadParameter("expected resource type %T, got %T", types.KubernetesResourceV1{}, resource)
+		}
+		kubeResources = append(kubeResources, kubeResource)
+	}
+	return kubeResources, nil
 }
