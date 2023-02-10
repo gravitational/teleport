@@ -33,8 +33,8 @@ cloud.google.com/go/firestore v1.9.0 h1:IBlRyxgGySXu5VuW0RgGFlTtLukSnNkpDiEOMkQk
 cloud.google.com/go/firestore v1.9.0/go.mod h1:HMkjKHNTtRyZNiMzu7YAsLr9K3X2udY2AMwDaMEQiiE=
 cloud.google.com/go/iam v0.8.0 h1:E2osAkZzxI/+8pZcxVLcDtAQx/u+hZXVryUaYQ5O0Kk=
 cloud.google.com/go/iam v0.8.0/go.mod h1:lga0/y3iH6CX7sYqypWJ33hf7kkfXJag67naqGESjkE=
-cloud.google.com/go/kms v1.6.0 h1:OWRZzrPmOZUzurjI2FBGtgY2mB1WaJkqhw6oIwSj0Yg=
-cloud.google.com/go/kms v1.6.0/go.mod h1:Jjy850yySiasBUDi6KFUwUv2n1+o7QZFyuUJg6OgjA0=
+cloud.google.com/go/kms v1.8.0 h1:VrJLOsMRzW7IqTTYn+OYupqF3iKSE060Nrn+PECrYjg=
+cloud.google.com/go/kms v1.8.0/go.mod h1:4xFEhYFqvW+4VMELtZyxomGSYtSQKzM178ylFW4jMAg=
 cloud.google.com/go/longrunning v0.4.0 h1:v+X4EwhHl6xE+TG1XgXj4T1XpKKs7ZevcAJ3FOu0YmY=
 cloud.google.com/go/longrunning v0.4.0/go.mod h1:eF3Qsw58iX/bkKtVjMTYpH0LRjQ2goDkjkNQTlzq/ZM=
 cloud.google.com/go/pubsub v1.0.1/go.mod h1:R0Gpsv3s54REJCy4fxDixWD93lHJMoZTyQ2kNxGRt3I=
