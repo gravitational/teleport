@@ -3304,6 +3304,180 @@ func TestExport(t *testing.T) {
 	}
 }
 
+// TestGRPCServer_CreateToken tests the handler of the deprecated CreateToken
+// RPC.
+func TestGRPCServer_CreateToken(t *testing.T) {
+	ctx := context.Background()
+	server := newTestTLSServer(t)
+
+	// Allow us to directly invoke the deprecated gRPC methods with
+	// authentication.
+	user := TestAdmin()
+	ctx = context.WithValue(ctx, ContextUser, user.I)
+
+	// Test default expiry is applied.
+	t.Run("undefined-expiry", func(t *testing.T) {
+		tokenName := "undefined-expiry"
+		roles := types.SystemRoles{types.RoleNode}
+		token, err := types.NewProvisionToken(
+			tokenName,
+			roles,
+			time.Time{},
+		)
+		require.NoError(t, err)
+		_, err = server.TLSServer.grpcServer.CreateToken(
+			ctx, token.(*types.ProvisionTokenV2),
+		)
+		require.NoError(t, err)
+		token, err = server.TLSServer.grpcServer.GetToken(
+			ctx, &types.ResourceRequest{Name: tokenName},
+		)
+		require.NoError(t, err)
+		require.Equal(t, tokenName, token.GetName())
+		ttl := token.Expiry().Sub(server.Clock().Now())
+		defaultTTL := defaults.ProvisioningTokenTTL
+		require.LessOrEqual(t, ttl, defaultTTL)
+		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
+	})
+
+	// Test set expiry is applied.
+	t.Run("set-expiry", func(t *testing.T) {
+		tokenName := "set-expiry"
+		roles := types.SystemRoles{types.RoleNode}
+		ttl := time.Hour * 24
+		token, err := types.NewProvisionToken(
+			tokenName,
+			roles,
+			server.Clock().Now().Add(ttl),
+		)
+		require.NoError(t, err)
+		_, err = server.TLSServer.grpcServer.CreateToken(
+			ctx, token.(*types.ProvisionTokenV2),
+		)
+		require.NoError(t, err)
+		token, err = server.TLSServer.grpcServer.GetToken(
+			ctx, &types.ResourceRequest{Name: tokenName},
+		)
+		require.NoError(t, err)
+		require.Equal(t, tokenName, token.GetName())
+		actualTTL := token.Expiry().Sub(server.Clock().Now())
+		require.LessOrEqual(t, actualTTL, ttl)
+		require.GreaterOrEqual(t, actualTTL, ttl-(time.Second*10))
+	})
+
+	// Test expiry in past is changed to default
+	t.Run("past-expiry", func(t *testing.T) {
+		tokenName := "past-expiry"
+		roles := types.SystemRoles{types.RoleNode}
+		token, err := types.NewProvisionToken(
+			tokenName,
+			roles,
+			server.Clock().Now().Add(-1*time.Hour),
+		)
+		require.NoError(t, err)
+		_, err = server.TLSServer.grpcServer.CreateToken(
+			ctx, token.(*types.ProvisionTokenV2),
+		)
+		require.NoError(t, err)
+		token, err = server.TLSServer.grpcServer.GetToken(
+			ctx, &types.ResourceRequest{Name: tokenName},
+		)
+		require.NoError(t, err)
+		require.Equal(t, tokenName, token.GetName())
+		ttl := token.Expiry().Sub(server.Clock().Now())
+		defaultTTL := defaults.ProvisioningTokenTTL
+		require.LessOrEqual(t, ttl, defaultTTL)
+		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
+	})
+}
+
+// TestGRPCServer_UpsertToken tests the handler of the deprecated CreateToken
+// RPC.
+func TestGRPCServer_UpsertToken(t *testing.T) {
+	ctx := context.Background()
+	server := newTestTLSServer(t)
+
+	// Allow us to directly invoke the deprecated gRPC methods with
+	// authentication.
+	user := TestAdmin()
+	ctx = context.WithValue(ctx, ContextUser, user.I)
+
+	// Test default expiry is applied.
+	t.Run("undefined-expiry", func(t *testing.T) {
+		tokenName := "undefined-expiry"
+		roles := types.SystemRoles{types.RoleNode}
+		token, err := types.NewProvisionToken(
+			tokenName,
+			roles,
+			time.Time{},
+		)
+		require.NoError(t, err)
+		_, err = server.TLSServer.grpcServer.UpsertToken(
+			ctx, token.(*types.ProvisionTokenV2),
+		)
+		require.NoError(t, err)
+		token, err = server.TLSServer.grpcServer.GetToken(
+			ctx, &types.ResourceRequest{Name: tokenName},
+		)
+		require.NoError(t, err)
+		require.Equal(t, tokenName, token.GetName())
+		ttl := token.Expiry().Sub(server.Clock().Now())
+		defaultTTL := defaults.ProvisioningTokenTTL
+		require.LessOrEqual(t, ttl, defaultTTL)
+		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
+	})
+
+	// Test set expiry is applied.
+	t.Run("set-expiry", func(t *testing.T) {
+		tokenName := "set-expiry"
+		roles := types.SystemRoles{types.RoleNode}
+		ttl := time.Hour * 24
+		token, err := types.NewProvisionToken(
+			tokenName,
+			roles,
+			server.Clock().Now().Add(ttl),
+		)
+		require.NoError(t, err)
+		_, err = server.TLSServer.grpcServer.UpsertToken(
+			ctx, token.(*types.ProvisionTokenV2),
+		)
+		require.NoError(t, err)
+		token, err = server.TLSServer.grpcServer.GetToken(
+			ctx, &types.ResourceRequest{Name: tokenName},
+		)
+		require.NoError(t, err)
+		require.Equal(t, tokenName, token.GetName())
+		actualTTL := token.Expiry().Sub(server.Clock().Now())
+		require.LessOrEqual(t, actualTTL, ttl)
+		require.GreaterOrEqual(t, actualTTL, ttl-(time.Second*10))
+	})
+
+	// Test expiry in past is changed to default
+	t.Run("past-expiry", func(t *testing.T) {
+		tokenName := "past-expiry"
+		roles := types.SystemRoles{types.RoleNode}
+		token, err := types.NewProvisionToken(
+			tokenName,
+			roles,
+			server.Clock().Now().Add(-1*time.Hour),
+		)
+		require.NoError(t, err)
+		_, err = server.TLSServer.grpcServer.UpsertToken(
+			ctx, token.(*types.ProvisionTokenV2),
+		)
+		require.NoError(t, err)
+		token, err = server.TLSServer.grpcServer.GetToken(
+			ctx, &types.ResourceRequest{Name: tokenName},
+		)
+		require.NoError(t, err)
+		require.Equal(t, tokenName, token.GetName())
+		ttl := token.Expiry().Sub(server.Clock().Now())
+		defaultTTL := defaults.ProvisioningTokenTTL
+		require.LessOrEqual(t, ttl, defaultTTL)
+		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
+	})
+}
+
 // TestSAMLValidation tests that SAML validation does not perform an HTTP
 // request if the calling user does not have permissions to create or update
 // a SAML connector.
