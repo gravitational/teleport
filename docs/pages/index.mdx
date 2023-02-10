@@ -22,26 +22,27 @@ Teleport is Identity-Native Infrastructure Access for engineers and machines. Wi
 - [Kubernetes](./try-out-teleport/local-kubernetes.mdx): Deploy locally with Kubernetes.
 - [DigitalOcean](./try-out-teleport/digitalocean.mdx): Deploy with our 1-Click DigitalOcean droplet.
 
-Want more details on the [different editions of Teleport](./choose-an-edition/introduction.mdx)?
+## Configure access
 
-## Connect to Teleport
+Secure your infrastructure while keeping your engineers productive.
 
-Already have Teleport running? Start connecting your infrastructure to provide secure access.
+<ScopedBlock scope={["cloud", "enterprise"]}>
+    - [Set up SSO](./access-controls/sso.mdx): Configure Teleport's integration with your SSO provider so you can automatically on– and off-board users.
+</ScopedBlock>
+<ScopedBlock scope={["oss"]}>
+    - [Set up SSO](./access-controls/sso/github-sso.mdx): Configure Teleport's integration with GitHub so you can automatically on– and off-board users.
+</ScopedBlock>
+- [Define roles](./access-controls/guides/role-templates.mdx): Manage who can access which parts of your infrastructure.
+
+## Add your infrastructure
+
+Use Teleport to provide secure access to all of your infrastructure.
 
 - [Server Access](./server-access/getting-started.mdx): Single sign-on, short-lived certificates, and auditing for SSH servers.
 - [Application Access](./application-access/introduction.mdx): Secure access to internal dashboards and web applications.
 - [Kubernetes Access](./kubernetes-access/introduction.mdx): Single sign-on, auditing, and unified access for Kubernetes clusters.
 - [Database Access](./database-access/introduction.mdx): Secure access to SQL and NoSQL databases.
 - [Desktop Access](./desktop-access/introduction.mdx): Secure browser-based access to desktop environments.
-
-## Already familiar with Teleport?
-
-Skip ahead to learn more about:
-
-- Integrating a [SSO provider](./access-controls/sso.mdx).
-- Using [fine-grained controls](./access-controls/guides/guides.mdx) to improve your security policy and access.
-- Configure and deploy Teleport with [Helm](./reference/helm-reference/helm-reference.mdx).
-- Implementing [multiple layers of protection](./management/security/reduce-blast-radius) for your Teleport installation.
 
 <TileSet>
     <TileList title="For developers" icon="stack">
