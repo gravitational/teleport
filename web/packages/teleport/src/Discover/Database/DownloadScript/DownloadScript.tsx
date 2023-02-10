@@ -168,15 +168,10 @@ export function DownloadScript(
           - The command was not run on the server you were trying to add.
         </Text>
 
-        <Text mb={1}>
+        <Text mb={3}>
           - The Teleport Database Service could not join this Teleport cluster.
           Check the logs for errors by running{' '}
           <Mark>journalctl -fu teleport</Mark>.
-        </Text>
-
-        <Text mb={3}>
-          - Check that your role permissions includes{' '}
-          <Mark>db_labels: '*': '*'</Mark>
         </Text>
 
         <Text>
