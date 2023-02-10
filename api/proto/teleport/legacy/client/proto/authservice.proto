@@ -2452,10 +2452,10 @@ service AuthService {
   // GetToken retrieves all tokens.
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
   // UpsertToken upserts a token in a backend.
-  // Deprecated: switch to UpsertTokenV2.
+  // Deprecated: switch to UpsertTokenV2. DELETE IN 14.0.0.
   rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
   // CreateToken creates a token in a backend.
-  // Deprecated: switch to CreateTokenV2.
+  // Deprecated: switch to CreateTokenV2. DELETE IN 14.0.0.
   rpc CreateToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
   // CreateTokenV2 creates a token in a backend.
   rpc CreateTokenV2(CreateTokenV2Request) returns (google.protobuf.Empty);

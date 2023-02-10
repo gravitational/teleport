@@ -14238,10 +14238,10 @@ type AuthServiceClient interface {
 	// GetToken retrieves all tokens.
 	GetTokens(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.ProvisionTokenV2List, error)
 	// UpsertToken upserts a token in a backend.
-	// Deprecated: switch to UpsertTokenV2.
+	// Deprecated: switch to UpsertTokenV2. DELETE IN 14.0.0.
 	UpsertToken(ctx context.Context, in *types.ProvisionTokenV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CreateToken creates a token in a backend.
-	// Deprecated: switch to CreateTokenV2.
+	// Deprecated: switch to CreateTokenV2. DELETE IN 14.0.0.
 	CreateToken(ctx context.Context, in *types.ProvisionTokenV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CreateTokenV2 creates a token in a backend.
 	CreateTokenV2(ctx context.Context, in *CreateTokenV2Request, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -17142,10 +17142,10 @@ type AuthServiceServer interface {
 	// GetToken retrieves all tokens.
 	GetTokens(context.Context, *emptypb.Empty) (*types.ProvisionTokenV2List, error)
 	// UpsertToken upserts a token in a backend.
-	// Deprecated: switch to UpsertTokenV2.
+	// Deprecated: switch to UpsertTokenV2. DELETE IN 14.0.0.
 	UpsertToken(context.Context, *types.ProvisionTokenV2) (*emptypb.Empty, error)
 	// CreateToken creates a token in a backend.
-	// Deprecated: switch to CreateTokenV2.
+	// Deprecated: switch to CreateTokenV2. DELETE IN 14.0.0.
 	CreateToken(context.Context, *types.ProvisionTokenV2) (*emptypb.Empty, error)
 	// CreateTokenV2 creates a token in a backend.
 	CreateTokenV2(context.Context, *CreateTokenV2Request) (*emptypb.Empty, error)
