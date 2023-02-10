@@ -3007,7 +3007,7 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.Pr
 	}, nil
 }
 
-// setDefaultTokenTTL replicates the old server-side behaviour of universally
+// setDefaultTokenTTL replicates the old server-side behavior of universally
 // applying a 30 minute TTL default to newly created tokens.
 // This can be removed when CreateToken and UpsertToken are removed.
 func setDefaultTokenTTL(clock clockwork.Clock, token *types.ProvisionTokenV2) {
