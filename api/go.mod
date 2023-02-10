@@ -22,7 +22,7 @@ require (
 	golang.org/x/crypto v0.2.0 // replaced
 	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9
 	golang.org/x/net v0.5.0
-	google.golang.org/genproto v0.0.0-20230209215440-0dfe4f8abfcc
+	google.golang.org/genproto v0.0.0-20230202175211-008b39050e57
 	google.golang.org/grpc v1.52.3
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v2 v2.4.0
