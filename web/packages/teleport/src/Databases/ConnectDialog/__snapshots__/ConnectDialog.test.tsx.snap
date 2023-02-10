@@ -642,7 +642,7 @@ exports[`render dialog with instructions to connect to database with requestId 1
                   $
                 </div>
                 <div>
-                  tsh login --proxy=localhost:443 --auth=local --user=yassine im-a-cluster --request-id=e1e8072c-1eb8-5df4-a7bd-b6863b19271c
+                  tsh login --proxy=localhost:443 --auth=local --user=yassine --request-id=e1e8072c-1eb8-5df4-a7bd-b6863b19271c
                 </div>
               </div>
               <button
