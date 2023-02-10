@@ -18,6 +18,7 @@ package usageevents
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -26,6 +27,15 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/services"
+)
+
+const (
+	// awsConsoleSessionType is the session_type in tp.session.start for the AWS
+	// console access redirect
+	awsConsoleSessionType = "app_aws"
+	// tcpSessionType is the session_type in tp.session.start for TCP
+	// Application Access
+	tcpSessionType = "app_tcp"
 )
 
 // UsageLogger is a trivial audit log sink that forwards an anonymized subset of
@@ -66,6 +76,7 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 			UserName:      e.User,
 			ConnectorType: e.Method,
 		}))
+
 	case *apievents.SessionStart:
 		// Note: session.start is only SSH and Kubernetes.
 		sessionType := types.SSHSessionKind
@@ -83,15 +94,27 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 			SessionType: string(types.DatabaseSessionKind),
 		}))
 	case *apievents.AppSessionStart:
-		return trace.Wrap(u.report(&services.UsageSessionStart{
-			UserName:    e.User,
-			SessionType: string(types.AppSessionKind),
-		}))
+		// app.session.start is inconsistently emitted for things that are quite
+		// different, so here we only select the ones we care about
+		var sessionType string
+		if e.AWSRoleARN != "" {
+			sessionType = awsConsoleSessionType
+		} else if strings.HasPrefix(e.AppURI, "tcp:") {
+			sessionType = tcpSessionType
+		}
+
+		if sessionType != "" {
+			return trace.Wrap(u.report(&services.UsageSessionStart{
+				UserName:    e.User,
+				SessionType: sessionType,
+			}))
+		}
 	case *apievents.WindowsDesktopSessionStart:
 		return trace.Wrap(u.report(&services.UsageSessionStart{
 			UserName:    e.User,
 			SessionType: string(types.WindowsDesktopSessionKind),
 		}))
+
 	case *apievents.GithubConnectorCreate:
 		return trace.Wrap(u.report(&services.UsageSSOCreate{
 			ConnectorType: types.KindGithubConnector,
@@ -104,6 +127,7 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 		return trace.Wrap(u.report(&services.UsageSSOCreate{
 			ConnectorType: types.KindSAMLConnector,
 		}))
+
 	case *apievents.RoleCreate:
 		return trace.Wrap(u.report(&services.UsageRoleCreate{
 			UserName: e.User,
