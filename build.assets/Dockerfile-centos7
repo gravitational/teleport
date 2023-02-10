@@ -71,17 +71,11 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum update -y && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
-    # required by libbpf
-    centos-release-scl \
-    # required by libbpf
-    devtoolset-11-gcc* \
-    # required by libbpf
-    devtoolset-11-make \
-    # required by libbpf
-    elfutils-libelf-devel-static \
-    git \
-    # required by libbpf
-    scl-utils \
+        centos-release-scl \
+        devtoolset-11-gcc* \
+        devtoolset-11-make \
+        elfutils-libelf-devel-static \
+        scl-utils \
     yum clean all
 
 # Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
@@ -101,17 +95,11 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum update -y && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
-    # required by libbpf
-    centos-release-scl \
-    # required by libbpf
-    devtoolset-11-gcc* \
-    # required by libbpf
-    devtoolset-11-make \
-    # required by libbpf
-    elfutils-libelf-devel-static \
-    git \
-    # required by libbpf
-    scl-utils \
+        centos-release-scl \
+        devtoolset-11-gcc* \
+        devtoolset-11-make \
+        elfutils-libelf-devel-static \
+        scl-utils \
     yum clean all
 
 RUN mkdir -p /opt && cd /opt && \
