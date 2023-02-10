@@ -223,6 +223,7 @@ func ValidateDatabase(db types.Database) error {
 				db.GetName(), awsMeta.AssumeRoleARN, err)
 		}
 	}
+
 	return nil
 }
 

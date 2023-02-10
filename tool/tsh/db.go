@@ -871,6 +871,14 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient) (*tlsca.RouteToData
 		return nil, nil, trace.Wrap(err)
 	}
 
+	// If database has admin user defined, we're most likely using automatic
+	// user provisioning so default to Teleport username unless database
+	// username was provided explicitly.
+	if db.GetAdminUser() != "" && username == "" {
+		log.Debugf("Defaulting to Teleport username %q as database username.", tc.Username)
+		username = tc.Username
+	}
+
 	return &tlsca.RouteToDatabase{
 		ServiceName: db.GetName(),
 		Protocol:    db.GetProtocol(),
