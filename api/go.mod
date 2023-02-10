@@ -22,13 +22,13 @@ require (
 	golang.org/x/crypto v0.2.0 // replaced
 	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9
 	golang.org/x/net v0.5.0
-	google.golang.org/grpc v1.52.3
+	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/yaml.v2 v2.4.0
 )
 
 // DO NOT UPDATE until Teleport supports >= firestore 1.9.0
-require google.golang.org/genproto v0.0.0-20221118155620-16455021b5e6
+require google.golang.org/genproto v0.0.0-20230110181048-76db0878b65f
 
 require (
 	github.com/beevik/etree v1.1.0 // indirect
