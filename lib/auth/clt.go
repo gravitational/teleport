@@ -1699,4 +1699,19 @@ type ClientI interface {
 
 	// ListReleases returns a list of Teleport Enterprise releases
 	ListReleases(ctx context.Context) ([]*types.Release, error)
+
+	// CreatePlugin creates a new plugin instance.
+	CreatePlugin(ctx context.Context, req *proto.CreatePluginRequest) error
+	// DeleteAllPlugins removes all plugin instances.
+	DeleteAllPlugins(ctx context.Context) error
+	// DeletePlugin removes the specified plugin instance.
+	DeletePlugin(ctx context.Context, name string) error
+	// GetPlugin returns a plugin instance by name.
+	GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error)
+	// GetPlugins returns all plugin instances.
+	GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error)
+	// SetPluginCredentials sets the credentials for the given plugin.
+	SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error
+	// SetPluginStatus sets the status for the given plugin.
+	SetPluginStatus(ctx context.Context, name string, creds types.PluginStatus) error
 }
