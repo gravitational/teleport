@@ -29,7 +29,7 @@ export function useServerSidePagination<T extends AgentKind>({
   fetchFunc,
   clusterId,
   params,
-  pageSize = 3,
+  pageSize = 15,
 }: Props<T>): State<T> {
   const { attempt, setAttempt } = useAttempt('processing');
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
