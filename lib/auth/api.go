@@ -73,12 +73,6 @@ type Announcer interface {
 
 	// UpsertDatabaseService registers a DatabaseService.
 	UpsertDatabaseService(context.Context, types.DatabaseService) (*types.KeepAlive, error)
-
-	// UpsertDiscoveredServer registers a DiscoveredServer.
-	UpsertDiscoveredServer(context.Context, types.DiscoveredServer) (*types.KeepAlive, error)
-
-	// GetDiscoveredServer gets a DiscoveredServer.
-	GetDiscoveredServer(context.Context, string, string) (*types.DiscoveredServerV1, error)
 }
 
 // accessPoint is an API interface implemented by a certificate authority (CA)
@@ -102,6 +96,12 @@ type accessPoint interface {
 
 	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
 	services.ConnectionDiagnosticTraceAppender
+
+	// UpsertDiscoveredServer registers a DiscoveredServer.
+	UpsertDiscoveredServer(context.Context, types.DiscoveredServer) (*types.KeepAlive, error)
+
+	// GetDiscoveredServer gets a DiscoveredServer.
+	GetDiscoveredServer(context.Context, string, string) (*types.DiscoveredServerV1, error)
 }
 
 // ReadNodeAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
