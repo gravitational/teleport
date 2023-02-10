@@ -51,6 +51,7 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig) (*mssql
 		User:       config.RouteToDatabase.Username,
 		Database:   config.RouteToDatabase.Database,
 		Encryption: msdsn.EncryptionDisabled,
+		Protocols:  []string{"tcp"},
 	}, nil)
 
 	conn, err := connector.Connect(ctx)
@@ -92,6 +93,7 @@ func (c *TestConnector) Connect(ctx context.Context, sessionCtx *common.Session,
 		Host:         host,
 		Port:         portI,
 		LoginOptions: options,
+		Protocols:    []string{"tcp"},
 	}, nil)
 
 	conn, err := connector.Connect(ctx)
