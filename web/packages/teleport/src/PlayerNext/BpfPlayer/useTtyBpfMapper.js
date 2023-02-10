@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import React from 'react';
-import { throttle } from 'lodash';
+import { debounce } from 'shared/utils/highbar';
 
 export default function useTtyBpfMapper(tty, events) {
   // create a map [time][index] for quick lookups
@@ -33,7 +33,7 @@ export default function useTtyBpfMapper(tty, events) {
       setCursor(index);
     }
 
-    const throttledOnChange = throttle(onChange, 100);
+    const throttledOnChange = debounce(onChange, 100);
 
     function cleanup() {
       throttledOnChange.cancel();
