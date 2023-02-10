@@ -3011,7 +3011,7 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.Pr
 // applying a 30 minute TTL default to newly created tokens.
 // This can be removed when CreateToken and UpsertToken are removed.
 func setDefaultTokenTTL(clock clockwork.Clock, token *types.ProvisionTokenV2) {
-	if token.Expiry().IsZero() {
+	if token.Expiry().IsZero() || token.Expiry().Sub(clock.Now().UTC()) < time.Second {
 		token.SetExpiry(clock.Now().Add(defaults.ProvisioningTokenTTL))
 	}
 }
