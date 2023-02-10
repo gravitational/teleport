@@ -57,7 +57,7 @@ export default function Container(
     // This outer CatchError and Suspense handles
     // join token api fetch error and loading states.
     <CatchError
-      onRetry={clearCachedJoinTokenResult}
+      onRetry={() => clearCachedJoinTokenResult(ResourceKind.Kubernetes)}
       fallbackFn={props => (
         <Box>
           <Heading />

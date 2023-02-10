@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { JoinTokenProvider } from 'teleport/Discover/Shared/JoinTokenContext';
+import {
+  JoinTokenProvider,
+  clearCachedJoinTokenResult,
+} from 'teleport/Discover/Shared/JoinTokenContext';
 import {
   PING_INTERVAL,
   PING_TIMEOUT,
@@ -31,6 +34,13 @@ interface DesktopWrapperProps {
 }
 
 export function DesktopWrapper(props: DesktopWrapperProps) {
+  useEffect(() => {
+    return () => {
+      // once the user leaves the desktop setup flow, delete the existing token
+      clearCachedJoinTokenResult(ResourceKind.Desktop);
+    };
+  }, []);
+
   return (
     <JoinTokenProvider timeout={SCRIPT_TIMEOUT}>
       <PingTeleportProvider
