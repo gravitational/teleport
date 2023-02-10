@@ -16,7 +16,7 @@
 
 import { useState } from 'react';
 import { FetchStatus, Page } from 'design/DataTable/types';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
 import {
   AgentResponse,
@@ -30,7 +30,7 @@ export function useServerSidePagination<T extends AgentKind>({
   clusterId,
   params,
   pageSize = 3,
-}: Props<T>) {
+}: Props<T>): State<T> {
   const { attempt, setAttempt } = useAttempt('processing');
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
   const [page, setPage] = useState<Page>({ keys: [], index: 0 });
@@ -144,6 +144,18 @@ type Props<T extends AgentKind> = {
   clusterId: string;
   params: AgentFilter;
   pageSize?: number;
+};
+
+type State<T extends AgentKind> = {
+  pageIndicators: PageIndicators;
+  fetch: () => void;
+  fetchNext: (() => void) | null;
+  fetchPrev: (() => void) | null;
+  attempt: Attempt;
+  fetchStatus: FetchStatus;
+  page: Page;
+  pageSize: number;
+  fetchedData: AgentResponse<T>;
 };
 
 /** Contains the values needed to display 'Showing X - X of X' on the top right of the table. */
