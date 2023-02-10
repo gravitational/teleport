@@ -56,7 +56,7 @@ output:
   uniq-by-line: false
 
 run:
-  go: '1.18'
+  go: '1.19'
   skip-dirs:
     - (^|/)node_modules/
     - ^api/gen/
