@@ -271,7 +271,7 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 				l.cfg.Log.Warn(errHeader)
 			}
 			for _, infoHeader := range response.Header.Values(commonApp.TeleportAPIInfoHeader) {
-				l.cfg.Log.Info(infoHeader)
+				l.cfg.Log.Infof("Server response info: %v.", infoHeader)
 			}
 
 			if err := l.cfg.HTTPMiddleware.HandleResponse(response); err != nil {

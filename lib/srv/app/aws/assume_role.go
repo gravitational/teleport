@@ -44,9 +44,10 @@ func updateAssumeRoleDuration(identity *tlsca.Identity, w http.ResponseWriter, r
 	}
 
 	requestedDuration := getAssumeRoleDuration(query)
-	identityDuration := identity.Expires.Sub(clock.Now())
+	identityDuration := identity.Expires.Sub(clock.Now()).Round(time.Second)
 	switch {
-	// Deny access if identity is expiring soon.
+	// Deny access if identity duration is shorter than the minimum that can be
+	// requested.
 	case identityDuration < assumeRoleMinDuration:
 		return trace.AccessDenied("minimum AWS session duration is %v but Teleport identity expires in %v", assumeRoleMinDuration, identityDuration)
 
@@ -57,7 +58,7 @@ func updateAssumeRoleDuration(identity *tlsca.Identity, w http.ResponseWriter, r
 		if err := utils.ReplaceRequestBody(req, newBody); err != nil {
 			return trace.Wrap(err)
 		}
-		w.Header().Add(common.TeleportAPIInfoHeader, fmt.Sprintf("Updated AssumeRole duration to %v", identityDuration))
+		w.Header().Add(common.TeleportAPIInfoHeader, fmt.Sprintf("requested DurationSeconds of AssumeRole is overwritten to \"%d\" as the Teleport identity will expire at %v", int(identityDuration.Seconds()), identity.Expires))
 		return nil
 
 	// Use shorter requested duration (no update required).
@@ -77,8 +78,8 @@ func getAssumeRoleQuery(req *http.Request) (url.Values, error) {
 	if err != nil {
 		return nil, trace.Wrap(nil)
 	}
-	if err := clone.ParseForm(); err != nil {
-		return nil, trace.NotFound("request is not a post form")
+	if err := clone.ParseForm(); err != nil || clone.PostForm == nil {
+		return nil, trace.NotFound("request is not a POST form")
 	}
 	if clone.PostForm.Get("Action") != "AssumeRole" {
 		return nil, trace.NotFound("query action is not AssumeRole")
@@ -93,7 +94,7 @@ func getAssumeRoleDuration(query url.Values) time.Duration {
 	return assumeRoleDefaultDuration
 }
 func setAssumeRoleDuration(query url.Values, duration time.Duration) {
-	query.Set(assumeRoleQueryKeyDurationSeconds, strconv.Itoa(int(duration.Round(time.Second).Seconds())))
+	query.Set(assumeRoleQueryKeyDurationSeconds, strconv.Itoa(int(duration.Seconds())))
 }
 
 const (

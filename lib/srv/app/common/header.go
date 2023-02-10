@@ -60,6 +60,7 @@ var ReservedHeaders = append([]string{
 	teleport.AppCFHeader,
 	XForwardedSSL,
 	TeleportAPIErrorHeader,
+	TeleportAPIInfoHeader,
 	TeleportAWSAssumedRole,
 	TeleportAWSAssumedRoleAuthorization,
 },
