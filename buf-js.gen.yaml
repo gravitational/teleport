@@ -6,7 +6,7 @@ plugins:
     opt:
       - import_style=commonjs,binary
 
-  # https://github.com/grpc/grpc-node/tree/grpc-tools%401.11.2/packages/grpc-tools/
+  # https://github.com/grpc/grpc-node/tree/grpc-tools%401.12.4/packages/grpc-tools/
   - name: grpc
     out: gen/proto/js
     opt: grpc_js

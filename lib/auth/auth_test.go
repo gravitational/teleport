@@ -578,94 +578,126 @@ func TestUserLock(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTokensCRUD(t *testing.T) {
-	t.Parallel()
-	s := newAuthSuite(t)
-
-	ctx := context.Background()
-
-	// before we do anything, we should have 0 tokens
-	btokens, err := s.a.GetTokens(ctx)
-	require.NoError(t, err)
-	require.Empty(t, btokens, 0)
-
-	// generate persistent token
-	tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{types.RoleNode},
-	})
-	require.NoError(t, err)
-	require.Len(t, tokenName, 2*TokenLenBytes)
-	tokens, err := s.a.GetTokens(ctx)
-	require.NoError(t, err)
-	require.Len(t, tokens, 1)
-	require.Equal(t, tokens[0].GetName(), tokenName)
-
-	tokenResource, err := s.a.ValidateToken(ctx, tokenName)
-	require.NoError(t, err)
-	roles := tokenResource.GetRoles()
-	require.True(t, roles.Include(types.RoleNode))
-	require.False(t, roles.Include(types.RoleProxy))
-
-	// generate persistent token with defined TTL
-	desiredTTL := 6 * time.Hour
-	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{types.RoleNode},
-		TTL:   proto.Duration(desiredTTL),
-	})
-	require.NoError(t, err)
-	token, err := s.a.GetToken(ctx, tokenName)
-	require.NoError(t, err)
+func requireTokenExpiry(t *testing.T, token types.ProvisionToken, expectExpiry time.Duration) {
+	t.Helper()
 	actualTTL := time.Until(token.Expiry())
-	diff := actualTTL - desiredTTL
+	diff := actualTTL - expectExpiry
 	require.True(
 		t,
 		diff <= time.Minute && diff >= (-1*time.Minute),
 		"Token TTL should be within one minute of the desired TTL",
 	)
+}
 
-	require.NoError(t, s.a.DeleteToken(ctx, tokenName))
+func TestTokensCRUD(t *testing.T) {
+	// TODO(noah): completely refactor this test suite when deprecating
+	// GenerateToken - break this down into separate tests per method rather
+	// than grouping all CRUD methods.
+	t.Parallel()
+	s := newAuthSuite(t)
+	ctx := context.Background()
 
-	// generate predefined token
-	customToken := "custom-token"
-	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{types.RoleNode},
-		Token: customToken,
+	t.Run("GetTokens: start", func(t *testing.T) {
+		// before we do anything, we should have 0 tokens
+		tokens, err := s.a.GetTokens(ctx)
+		require.NoError(t, err)
+		require.Empty(t, tokens, 0)
 	})
-	require.NoError(t, err)
-	require.Equal(t, tokenName, customToken)
 
-	tokenResource, err = s.a.ValidateToken(ctx, tokenName)
-	require.NoError(t, err)
-	roles = tokenResource.GetRoles()
-	require.True(t, roles.Include(types.RoleNode))
-	require.False(t, roles.Include(types.RoleProxy))
+	t.Run("GenerateToken: default TTL", func(t *testing.T) {
+		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+			Roles: types.SystemRoles{types.RoleNode},
+		})
+		require.NoError(t, err)
+		require.Len(t, tokenName, 2*TokenLenBytes)
 
-	err = s.a.DeleteToken(ctx, customToken)
-	require.NoError(t, err)
+		// Ensure GetTokens returns token
+		tokens, err := s.a.GetTokens(ctx)
+		require.NoError(t, err)
+		require.Len(t, tokens, 1)
+		require.Equal(t, tokens[0].GetName(), tokenName)
 
-	// lets use static tokens now
-	roles = types.SystemRoles{types.RoleProxy}
-	st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: []types.ProvisionTokenV1{{
-			Token:   "static-token-value",
-			Roles:   roles,
-			Expires: time.Unix(0, 0).UTC(),
-		}},
+		tokenResource, err := s.a.ValidateToken(ctx, tokenName)
+		require.NoError(t, err)
+		roles := tokenResource.GetRoles()
+		require.True(t, roles.Include(types.RoleNode))
+		require.False(t, roles.Include(types.RoleProxy))
+		// Check that GenerateToken applies a default TTL
+		requireTokenExpiry(t, tokenResource, defaults.ProvisioningTokenTTL)
 	})
-	require.NoError(t, err)
 
-	err = s.a.SetStaticTokens(st)
-	require.NoError(t, err)
+	t.Run("GenerateToken: defined TTL", func(t *testing.T) {
+		// generate persistent token with defined TTL
+		desiredTTL := 6 * time.Hour
+		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+			Roles: types.SystemRoles{types.RoleNode},
+			TTL:   proto.Duration(desiredTTL),
+		})
+		require.NoError(t, err)
+		token, err := s.a.GetToken(ctx, tokenName)
+		require.NoError(t, err)
+		requireTokenExpiry(t, token, desiredTTL)
+		require.NoError(t, s.a.DeleteToken(ctx, tokenName))
+	})
 
-	tokenResource, err = s.a.ValidateToken(ctx, "static-token-value")
-	require.NoError(t, err)
-	fetchesRoles := tokenResource.GetRoles()
-	require.Equal(t, fetchesRoles, roles)
+	t.Run("GenerateToken: defined token name", func(t *testing.T) {
+		customToken := "custom-token"
+		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+			Roles: types.SystemRoles{types.RoleNode},
+			Token: customToken,
+		})
+		require.NoError(t, err)
+		require.Equal(t, tokenName, customToken)
+		token, err := s.a.ValidateToken(ctx, tokenName)
+		require.NoError(t, err)
+		roles := token.GetRoles()
+		require.True(t, roles.Include(types.RoleNode))
+		require.False(t, roles.Include(types.RoleProxy))
+		err = s.a.DeleteToken(ctx, customToken)
+		require.NoError(t, err)
+	})
 
-	// List tokens (should see 2: one static, one regular)
-	tokens, err = s.a.GetTokens(ctx)
-	require.NoError(t, err)
-	require.Len(t, tokens, 2)
+	t.Run("CreateToken: expiryless", func(t *testing.T) {
+		tokenName := "expiryless-token"
+		token, err := types.NewProvisionToken(
+			tokenName,
+			types.SystemRoles{types.RoleNode},
+			time.Time{},
+		)
+		require.NoError(t, err)
+		require.NoError(t, s.a.CreateToken(ctx, token))
+		token, err = s.a.GetToken(ctx, tokenName)
+		require.NoError(t, err)
+		require.True(t, token.GetRoles().Include(types.RoleNode))
+		require.True(t, token.Expiry().IsZero())
+		require.NoError(t, s.a.DeleteToken(ctx, tokenName))
+	})
+
+	t.Run("SetStaticTokens", func(t *testing.T) {
+		// lets use static tokens now
+		roles := types.SystemRoles{types.RoleProxy}
+		st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+			StaticTokens: []types.ProvisionTokenV1{{
+				Token:   "static-token-value",
+				Roles:   roles,
+				Expires: time.Unix(0, 0).UTC(),
+			}},
+		})
+		require.NoError(t, err)
+		err = s.a.SetStaticTokens(st)
+		require.NoError(t, err)
+		token, err := s.a.ValidateToken(ctx, "static-token-value")
+		require.NoError(t, err)
+		fetchesRoles := token.GetRoles()
+		require.Equal(t, fetchesRoles, roles)
+	})
+
+	t.Run("GetTokens: start", func(t *testing.T) {
+		// List tokens not deleted in tests (should see 2: one static, one regular)
+		tokens, err := s.a.GetTokens(ctx)
+		require.NoError(t, err)
+		require.Len(t, tokens, 2)
+	})
 }
 
 func TestBadTokens(t *testing.T) {
@@ -1105,8 +1137,13 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	const username = "llama"
 	const pass = "secret!!1!"
 
+	// Use a >1 list of principals.
+	// This is enough to cause ordering issues between the TLS and SSH principal
+	// lists, which caused a bug in the device trust preview.
+	principals := []string{"login0", username, "-teleport-internal-join"}
+
 	// Prepare the user to test with.
-	_, _, err := CreateUserAndRole(authServer, username, []string{username})
+	_, _, err := CreateUserAndRole(authServer, username, principals)
 	require.NoError(t, err, "CreateUserAndRole failed")
 	require.NoError(t,
 		authServer.UpsertPassword(username, []byte(pass)),
