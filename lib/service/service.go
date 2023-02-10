@@ -36,7 +36,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1905,30 +1904,31 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	}
 
 	return cache.New(cfg.setup(cache.Config{
-		Context:          process.ExitContext(),
-		Backend:          reporter,
-		Events:           cfg.services,
-		ClusterConfig:    cfg.services,
-		Provisioner:      cfg.services,
-		Trust:            cfg.services,
-		Users:            cfg.services,
-		Access:           cfg.services,
-		DynamicAccess:    cfg.services,
-		Presence:         cfg.services,
-		Restrictions:     cfg.services,
-		Apps:             cfg.services,
-		Kubernetes:       cfg.services,
-		DatabaseServices: cfg.services,
-		Databases:        cfg.services,
-		AppSession:       cfg.services,
-		SnowflakeSession: cfg.services,
-		WindowsDesktops:  cfg.services,
-		WebSession:       cfg.services.WebSessions(),
-		WebToken:         cfg.services.WebTokens(),
-		Component:        teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
-		MetricComponent:  teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
-		Tracer:           process.TracingProvider.Tracer(teleport.ComponentCache),
-		Unstarted:        cfg.unstarted,
+		Context:                 process.ExitContext(),
+		Backend:                 reporter,
+		Events:                  cfg.services,
+		ClusterConfig:           cfg.services,
+		Provisioner:             cfg.services,
+		Trust:                   cfg.services,
+		Users:                   cfg.services,
+		Access:                  cfg.services,
+		DynamicAccess:           cfg.services,
+		Presence:                cfg.services,
+		Restrictions:            cfg.services,
+		Apps:                    cfg.services,
+		Kubernetes:              cfg.services,
+		DatabaseServices:        cfg.services,
+		Databases:               cfg.services,
+		AppSession:              cfg.services,
+		SnowflakeSession:        cfg.services,
+		WindowsDesktops:         cfg.services,
+		SAMLIdPServiceProviders: cfg.services,
+		WebSession:              cfg.services.WebSessions(),
+		WebToken:                cfg.services.WebTokens(),
+		Component:               teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
+		MetricComponent:         teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
+		Tracer:                  process.TracingProvider.Tracer(teleport.ComponentCache),
+		Unstarted:               cfg.unstarted,
 	}))
 }
 
@@ -4709,8 +4709,13 @@ func (process *TeleportProcess) initApps() {
 
 		// Execute this when process is asked to exit.
 		process.OnExit("apps.stop", func(payload interface{}) {
-			log.Infof("Shutting down.")
-			warnOnErr(appServer.Close(), log)
+			if payload == nil {
+				log.Infof("Shutting down immediately.")
+				warnOnErr(appServer.Close(), log)
+			} else {
+				log.Infof("Shutting down gracefully.")
+				warnOnErr(appServer.Shutdown(payloadContext(payload, log)), log)
+			}
 			if asyncEmitter != nil {
 				warnOnErr(asyncEmitter.Close(), log)
 			}
@@ -4804,6 +4809,11 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	// imported listeners that haven't been used so far
 	warnOnErr(process.closeImportedDescriptors(""), process.log)
 	warnOnErr(process.stopListeners(), process.log)
+
+	// populate context values
+	if len(process.getForkedPIDs()) > 0 {
+		ctx = services.ProcessForkedContext(ctx)
+	}
 
 	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
 	localCtx, cancel := context.WithCancel(ctx)
@@ -5009,28 +5019,11 @@ func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 // newHTTPFileSystem creates a new HTTP file system for the web handler.
 // It uses external configuration to make the decision
 func newHTTPFileSystem() (http.FileSystem, error) {
-	if !isDebugMode() {
-		fs, err := teleport.NewWebAssetsFilesystem() //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-		if err != nil {                              //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-			return nil, trace.Wrap(err)
-		}
-		return fs, nil
-	}
-
-	// Use the supplied HTTP filesystem path (defaults to the current dir).
-	assetsPath := os.Getenv(teleport.DebugAssetsPath)
-	fs, err := web.NewDebugFileSystem(assetsPath)
-	if err != nil {
+	fs, err := teleport.NewWebAssetsFilesystem() //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+	if err != nil {                              //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
 		return nil, trace.Wrap(err)
 	}
 	return fs, nil
-}
-
-// isDebugMode determines if teleport is running in a "debug" mode.
-// It looks at DEBUG environment variable
-func isDebugMode() bool {
-	v, _ := strconv.ParseBool(os.Getenv(teleport.DebugEnvVar))
-	return v
 }
 
 // readOrGenerateHostID tries to read the `host_uuid` from Kubernetes storage (if available) or local storage.
@@ -5065,7 +5058,8 @@ func readOrGenerateHostID(ctx context.Context, cfg *Config, kubeBackend kubernet
 				types.JoinMethodIAM,
 				types.JoinMethodCircleCI,
 				types.JoinMethodKubernetes,
-				types.JoinMethodGitHub:
+				types.JoinMethodGitHub,
+				types.JoinMethodAzure:
 				// Checking error instead of the usual uuid.New() in case uuid generation
 				// fails due to not enough randomness. It's been known to happen happen when
 				// Teleport starts very early in the node initialization cycle and /dev/urandom
@@ -5079,7 +5073,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *Config, kubeBackend kubernet
 				}
 				cfg.HostUUID = rawID.String()
 			case types.JoinMethodEC2:
-				cfg.HostUUID, err = utils.GetEC2NodeID()
+				cfg.HostUUID, err = utils.GetEC2NodeID(ctx)
 				if err != nil {
 					return trace.Wrap(err)
 				}

@@ -19,6 +19,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -56,6 +58,7 @@ metadata:
 }
 
 func TestCheckResourceUpsert(t *testing.T) {
+	ctx := context.Background()
 	tests := []struct {
 		desc                string
 		httpMethod          string
@@ -146,7 +149,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
-			err := CheckResourceUpsert(context.TODO(), tc.httpMethod, tc.httpParams, tc.payloadResourceName, tc.get)
+			err := CheckResourceUpsert(ctx, tc.httpMethod, tc.httpParams, tc.payloadResourceName, tc.get)
 			tc.assertErr(t, err)
 		})
 	}
@@ -747,4 +750,81 @@ func (m *mockedResourceAPIGetter) ListResources(ctx context.Context, req proto.L
 	}
 
 	return nil, trace.NotImplemented("mockListResources not implemented")
+}
+
+func Test_newKubeListRequest(t *testing.T) {
+	type args struct {
+		query        string
+		site         string
+		resourceKind string
+	}
+	tests := []struct {
+		name string
+		args args
+		want *kubeproto.ListKubernetesResourcesRequest
+	}{
+		{
+			name: "list resources",
+			args: args{
+				query:        "kind=kind1",
+				site:         "site1",
+				resourceKind: "kind1",
+			},
+			want: &kubeproto.ListKubernetesResourcesRequest{
+				TeleportCluster: "site1",
+				ResourceType:    "kind1",
+				SortBy:          &types.SortBy{},
+				Limit:           defaults.MaxIterationLimit,
+			},
+		},
+		{
+			name: "list resources with sort and query",
+			args: args{
+				query:        "kind=kind1&query=foo&sort=bar:desc&limit=10",
+				site:         "site1",
+				resourceKind: "kind1",
+			},
+			want: &kubeproto.ListKubernetesResourcesRequest{
+				TeleportCluster:     "site1",
+				ResourceType:        "kind1",
+				PredicateExpression: "foo",
+				SortBy: &types.SortBy{
+					Field:  "bar",
+					IsDesc: true,
+				},
+				Limit: 10,
+			},
+		},
+		{
+			name: "list resources with search as roles",
+			args: args{
+				query:        "startKey=startK1&query=bar&sort=foo:asc&searchAsRoles=yes&limit=10&kubeCluster=cluster&kubeNamespace=namespace",
+				site:         "site1",
+				resourceKind: "kind1",
+			},
+			want: &kubeproto.ListKubernetesResourcesRequest{
+				StartKey:            "startK1",
+				KubernetesCluster:   "cluster",
+				KubernetesNamespace: "namespace",
+				TeleportCluster:     "site1",
+				ResourceType:        "kind1",
+				PredicateExpression: "bar",
+				SortBy: &types.SortBy{
+					Field:  "foo",
+					IsDesc: false,
+				},
+				UseSearchAsRoles: true,
+				Limit:            10,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			values, err := url.ParseQuery(tt.args.query)
+			require.NoError(t, err)
+			got, err := newKubeListRequest(values, tt.args.site, tt.args.resourceKind)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }
