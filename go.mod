@@ -129,12 +129,12 @@ require (
 	golang.org/x/crypto v0.2.0 // replaced
 	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9
 	golang.org/x/mod v0.7.0
-	golang.org/x/net v0.5.0
-	golang.org/x/oauth2 v0.4.0
+	golang.org/x/net v0.6.0
+	golang.org/x/oauth2 v0.5.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.4.0
-	golang.org/x/term v0.4.0
-	golang.org/x/text v0.6.0
+	golang.org/x/sys v0.5.0
+	golang.org/x/term v0.5.0
+	golang.org/x/text v0.7.0
 	google.golang.org/api v0.109.0
 	google.golang.org/genproto v0.0.0-20230202175211-008b39050e57
 	google.golang.org/grpc v1.52.3
