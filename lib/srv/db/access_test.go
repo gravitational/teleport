@@ -28,7 +28,6 @@ import (
 	"testing"
 	"time"
 
-	mssql "github.com/denisenkom/go-mssqldb"
 	elastic "github.com/elastic/go-elasticsearch/v8"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	mysqllib "github.com/go-mysql-org/go-mysql/mysql"
@@ -37,6 +36,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
+	mssql "github.com/microsoft/go-mssqldb"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
