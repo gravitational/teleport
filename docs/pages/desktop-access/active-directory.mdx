@@ -32,9 +32,8 @@ access to Windows desktops.
 
 ## Prerequisites
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-- One or more hosts to run the Teleport Auth and Proxy services on.
-</ScopedBlock>
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - A server or virtual machine running a Windows Server operating system.
   In this guide, we'll install Active Directory on this server in order
   to support passwordless logins with Teleport to the Windows desktops
@@ -48,13 +47,7 @@ access to Windows desktops.
   encrypted LDAP connection). Typically this means installing
   [AD CS](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/).
 
-## Step 1/2. Install Teleport
-
-### Set up the Teleport Auth and Proxy Services
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-## Step 2/2. Run the discovery wizard
+## Step 1/2. Run the discovery wizard
 
 In your web browser, access the teleport Web UI at <ScopedBlock scope={["oss", "enterprise"]}>
 `teleport.example.com`</ScopedBlock><ScopedBlock scope={["cloud"]}>
@@ -121,6 +114,8 @@ windows_desktop_service:
 ```
 
 Click **Next**.
+
+## Step 2/2. Start Teleport
 
 Once you've saved `/etc/teleport.yaml`, start Teleport:
 
