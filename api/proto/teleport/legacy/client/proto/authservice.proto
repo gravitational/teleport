@@ -290,6 +290,16 @@ message UserCertsRequest {
   // ConnectionDiagnosticID is the ID of the ConnectionDiagnostic resource we should use to add
   // traces as we pass certain checkpoints.
   string ConnectionDiagnosticID = 16 [(gogoproto.jsontag) = "connection_diagnostic_id,omitempty"];
+
+  // Requester is the name of the service that sent the request.
+  enum Requester {
+    // UNSPECIFIED is set when the requester in unknown.
+    UNSPECIFIED = 0;
+    // TSH_DB_LOCAL_PROXY_TUNNEL is set when the request was sent by a tsh local proxy tunnel.
+    TSH_DB_LOCAL_PROXY_TUNNEL = 1;
+  }
+  // RequesterName identifies who sent the request.
+  Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -2063,6 +2073,22 @@ message ListReleasesRequest {
   // ListReleases currently takes no params
 }
 
+// CreateTokenV2Request is used with CreateTokenV2 to create tokens in the
+// backend.
+message CreateTokenV2Request {
+  oneof Token {
+    types.ProvisionTokenV2 V2 = 1 [(gogoproto.jsontag) = "v2,omitempty"];
+  }
+}
+
+// UpsertTokenV2Request is used with UpsertTokenV2 to upsert tokens in the
+// backend.
+message UpsertTokenV2Request {
+  oneof Token {
+    types.ProvisionTokenV2 V2 = 1 [(gogoproto.jsontag) = "v2,omitempty"];
+  }
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2426,9 +2452,15 @@ service AuthService {
   // GetToken retrieves all tokens.
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
   // UpsertToken upserts a token in a backend.
+  // Deprecated: switch to UpsertTokenV2. DELETE IN 14.0.0.
   rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
   // CreateToken creates a token in a backend.
+  // Deprecated: switch to CreateTokenV2. DELETE IN 14.0.0.
   rpc CreateToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+  // CreateTokenV2 creates a token in a backend.
+  rpc CreateTokenV2(CreateTokenV2Request) returns (google.protobuf.Empty);
+  // UpsertTokenV2 upserts a token in a backend.
+  rpc UpsertTokenV2(UpsertTokenV2Request) returns (google.protobuf.Empty);
   // GenerateToken generates a new auth token.
   rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
   // DeleteToken deletes an existing token in a backend described by the given request.
