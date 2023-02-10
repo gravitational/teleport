@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 import { generatePath } from 'react-router';
-import { merge } from 'lodash';
 
 import generateResourcePath from './generateResourcePath';
 
@@ -554,7 +553,7 @@ const cfg = {
   },
 
   init(backendConfig = {}) {
-    merge(this, backendConfig);
+    Object.assign(this, backendConfig);
   },
 };
 

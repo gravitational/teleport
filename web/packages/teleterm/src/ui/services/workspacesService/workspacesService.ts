@@ -16,7 +16,6 @@
 
 import { useStore } from 'shared/libs/stores';
 
-import { isEqual } from 'lodash';
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
 // @ts-ignore
 import { ResourceKind } from 'e-teleport/Workflow/NewRequest/useNewRequest';
@@ -342,11 +341,13 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     const omitUriAndTitle = (documents: Document[]) =>
       documents.map(d => ({ ...d, uri: undefined, title: undefined }));
 
+    const omittedPreviousDocs = omitUriAndTitle(previousDocuments);
+    const omittedCurrentDocs = omitUriAndTitle(currentDocuments);
     return (
       previousDocuments?.length &&
-      !isEqual(
-        omitUriAndTitle(previousDocuments),
-        omitUriAndTitle(currentDocuments)
+      // Ensure they are equal
+      !Object.keys(omittedPreviousDocs).some(
+        key => omittedPreviousDocs[key] === omittedCurrentDocs[key]
       )
     );
   }
