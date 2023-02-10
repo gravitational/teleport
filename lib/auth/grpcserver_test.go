@@ -3332,6 +3332,7 @@ func TestGRPCServer_CreateToken(t *testing.T) {
 		token, err = server.TLSServer.grpcServer.GetToken(
 			ctx, &types.ResourceRequest{Name: tokenName},
 		)
+		require.NoError(t, err)
 		require.Equal(t, tokenName, token.GetName())
 		ttl := token.Expiry().Sub(server.Clock().Now())
 		defaultTTL := defaults.ProvisioningTokenTTL
@@ -3357,6 +3358,7 @@ func TestGRPCServer_CreateToken(t *testing.T) {
 		token, err = server.TLSServer.grpcServer.GetToken(
 			ctx, &types.ResourceRequest{Name: tokenName},
 		)
+		require.NoError(t, err)
 		require.Equal(t, tokenName, token.GetName())
 		actualTTL := token.Expiry().Sub(server.Clock().Now())
 		require.LessOrEqual(t, actualTTL, ttl)
@@ -3380,6 +3382,7 @@ func TestGRPCServer_CreateToken(t *testing.T) {
 		token, err = server.TLSServer.grpcServer.GetToken(
 			ctx, &types.ResourceRequest{Name: tokenName},
 		)
+		require.NoError(t, err)
 		require.Equal(t, tokenName, token.GetName())
 		ttl := token.Expiry().Sub(server.Clock().Now())
 		defaultTTL := defaults.ProvisioningTokenTTL
@@ -3416,6 +3419,7 @@ func TestGRPCServer_UpsertToken(t *testing.T) {
 		token, err = server.TLSServer.grpcServer.GetToken(
 			ctx, &types.ResourceRequest{Name: tokenName},
 		)
+		require.NoError(t, err)
 		require.Equal(t, tokenName, token.GetName())
 		ttl := token.Expiry().Sub(server.Clock().Now())
 		defaultTTL := defaults.ProvisioningTokenTTL
@@ -3441,6 +3445,7 @@ func TestGRPCServer_UpsertToken(t *testing.T) {
 		token, err = server.TLSServer.grpcServer.GetToken(
 			ctx, &types.ResourceRequest{Name: tokenName},
 		)
+		require.NoError(t, err)
 		require.Equal(t, tokenName, token.GetName())
 		actualTTL := token.Expiry().Sub(server.Clock().Now())
 		require.LessOrEqual(t, actualTTL, ttl)
@@ -3464,6 +3469,7 @@ func TestGRPCServer_UpsertToken(t *testing.T) {
 		token, err = server.TLSServer.grpcServer.GetToken(
 			ctx, &types.ResourceRequest{Name: tokenName},
 		)
+		require.NoError(t, err)
 		require.Equal(t, tokenName, token.GetName())
 		ttl := token.Expiry().Sub(server.Clock().Now())
 		defaultTTL := defaults.ProvisioningTokenTTL
