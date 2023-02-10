@@ -1,3 +1,11 @@
+ARG RUST_VERSION
+
+# Create an alias to the assets image. Ref: https://github.com/docker/for-mac/issues/2155
+ARG BUILDARCH
+FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport13-${BUILDARCH} AS teleport-buildbox-centos7-assets
+
+## LIBFIDO2 ###################################################################
+
 # Build libfido2 separately for isolation, speed and flexibility.
 FROM centos:7 AS libfido2
 
@@ -56,6 +64,8 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
       make" && \
     make install && \
     make clean
+
+## LIBBPF #####################################################################
 
 FROM centos:7 AS libbpf
 
@@ -130,7 +140,8 @@ ARG BUILDARCH
 
 # Install etcd.
 RUN (curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz | tar -xz && \
-     cp etcd-v3.3.9-linux-amd64/etcd* /bin/)
+     cp etcd-v3.3.9-linux-amd64/etcd* /bin/ && \
+     rm -rf etcd-v3.3.9-linux-${BUILDARCH})
 
 # Install Go.
 RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-amd64.tar.gz | tar xz && \
@@ -206,11 +217,12 @@ RUN cd /usr/local/lib64 && \
 COPY pkgconfig/centos7/ /
 ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
 
-# Download pre-built CentOS 7 assets with clang needed to build BPF tools.
-RUN cd / && curl -L https://s3.amazonaws.com/clientbuilds.gravitational.io/go/centos7-assets.tar.gz | tar -xz
-
 # Copy libbpf into the final image.
 COPY --from=libbpf /opt/libbpf/usr /usr
+
+# Download pre-built CentOS 7 assets with clang needed to build BPF tools.
+ARG BUILDARCH
+COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
