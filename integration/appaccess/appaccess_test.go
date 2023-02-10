@@ -293,18 +293,18 @@ func testClientCert(p *Pack, t *testing.T) {
 		{
 			desc:          "root cluster, invalid session ID",
 			inTLSConfig:   p.makeTLSConfigNoSession(t, p.rootAppPublicAddr, p.rootAppClusterName),
-			outStatusCode: http.StatusFound,
+			outStatusCode: http.StatusForbidden,
 		},
 		{
 			desc:          "root cluster, invalid session owner",
 			inTLSConfig:   p.makeTLSConfig(t, rootWs.GetName(), evilUser.GetName(), p.rootAppPublicAddr, p.rootAppClusterName),
-			outStatusCode: http.StatusFound,
+			outStatusCode: http.StatusForbidden,
 			outMessage:    "",
 		},
 		{
 			desc:          "leaf cluster, invalid session owner",
 			inTLSConfig:   p.makeTLSConfig(t, leafWs.GetName(), evilUser.GetName(), p.leafAppPublicAddr, p.leafAppClusterName),
-			outStatusCode: http.StatusFound,
+			outStatusCode: http.StatusForbidden,
 			outMessage:    "",
 		},
 	}
@@ -602,7 +602,7 @@ func TestInvalidateAppSessionsOnLogout(t *testing.T) {
 		// redirect because the application sessions are gone.
 		status, _, err = p.makeRequestWithClientCert(reqTLS, http.MethodGet, "/")
 		require.NoError(t, err)
-		return status == http.StatusFound
+		return status == http.StatusForbidden
 	}, time.Second, 250*time.Millisecond)
 }
 
@@ -888,7 +888,7 @@ func testServersHA(p *Pack, t *testing.T) {
 	responseWithError := func(t *testing.T, status int, err error) {
 		if status > 0 {
 			require.NoError(t, err)
-			require.Equal(t, http.StatusInternalServerError, status)
+			require.Equal(t, http.StatusFound, status)
 			return
 		}
 
