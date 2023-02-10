@@ -79,6 +79,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindLoginRule, RW()),
 					types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
+					types.NewRule(types.KindPlugin, append(ReadNoSecrets(), types.VerbCreate, types.VerbUpdate, types.VerbDelete)),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -194,6 +195,7 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindDatabase, RW()),
 			types.NewRule(types.KindDatabaseService, RO()),
 			types.NewRule(types.KindLoginRule, RW()),
+types.NewRule(types.KindPlugin, append(ReadNoSecrets(), types.VerbCreate, types.VerbUpdate, types.VerbDelete)),
 		},
 	}
 }
