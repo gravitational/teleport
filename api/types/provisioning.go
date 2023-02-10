@@ -52,6 +52,9 @@ const (
 	// Kubernetes join method. Documentation regarding implementation can be
 	// found in lib/kubernetestoken
 	JoinMethodKubernetes JoinMethod = "kubernetes"
+	// JoinMethodAzure indicates that the node will join with the Azure join
+	// method.
+	JoinMethodAzure JoinMethod = "azure"
 )
 
 var JoinMethods = []JoinMethod{
@@ -61,6 +64,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodGitHub,
 	JoinMethodCircleCI,
 	JoinMethodKubernetes,
+	JoinMethodAzure,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -247,6 +251,17 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			return trace.BadParameter(
 				`"kubernetes" configuration must be provided for the join method %q`,
 				JoinMethodKubernetes,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case JoinMethodAzure:
+		providerCfg := p.Spec.Azure
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`"azure" configuration must be provided for the join method %q`,
+				JoinMethodAzure,
 			)
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
@@ -529,6 +544,24 @@ func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 				`the %q join method service account rule format is "namespace:service_account", got %q instead`,
 				JoinMethodKubernetes,
 				allowRule.ServiceAccount,
+			)
+		}
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2Azure) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter(
+			"the %q join method requires defined azure allow rules",
+			JoinMethodAzure,
+		)
+	}
+	for _, allowRule := range a.Allow {
+		if allowRule.Subscription == "" {
+			return trace.BadParameter(
+				"the %q join method requires azure allow rules with non-empty subscription",
+				JoinMethodAzure,
 			)
 		}
 	}

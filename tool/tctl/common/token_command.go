@@ -362,7 +362,7 @@ func (c *TokensCommand) List(ctx context.Context, client auth.ClientI) error {
 			now := time.Now()
 			for _, t := range tokens {
 				expiry := "never"
-				if t.Expiry().Unix() > 0 {
+				if !t.Expiry().IsZero() {
 					exptime := t.Expiry().Format(time.RFC822)
 					expdur := t.Expiry().Sub(now).Round(time.Second)
 					expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
