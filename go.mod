@@ -70,6 +70,7 @@ require (
 	github.com/gravitational/reporting v0.0.0-20210923183620-237377721140
 	github.com/gravitational/roundtrip v1.0.2
 	github.com/gravitational/teleport/api v0.0.0
+	github.com/gravitational/teleport/schemagen v0.0.0
 	github.com/gravitational/trace v1.2.1
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2 v2.0.0-rc.3
@@ -369,6 +370,7 @@ replace (
 	github.com/go-redis/redis/v9 => github.com/gravitational/redis/v9 v9.0.0-teleport.3
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/gravitational/teleport/api => ./api
+	github.com/gravitational/teleport/schemagen => ./schemagen
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-0.20230202181331-c71192ef1c8a
 	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20230209180904-0f00ae61fb60

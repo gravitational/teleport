@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"os"
 
-	gogodesc "github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
-	"github.com/gogo/protobuf/protoc-gen-gogo/generator"
 	gogoplugin "github.com/gogo/protobuf/protoc-gen-gogo/plugin"
 	"github.com/gogo/protobuf/vanity/command"
 	"github.com/gravitational/trace"
@@ -29,6 +27,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/schemagen"
 )
 
 func main() {
@@ -49,7 +48,7 @@ func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
 		return trace.Errorf("too many input files")
 	}
 
-	gen, err := newGenerator(req)
+	gen, err := schemagen.NewGenerator(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -57,7 +56,7 @@ func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
 	rootFileName := req.FileToGenerate[0]
 	gen.SetFile(rootFileName)
 	for _, fileDesc := range gen.AllFiles().File {
-		file := gen.addFile(fileDesc)
+		file := gen.AddFile(fileDesc)
 		if fileDesc.GetName() == rootFileName {
 			if err := generateSchema(file, "resources.teleport.dev", gen.Response); err != nil {
 				return trace.Wrap(err)
@@ -70,55 +69,40 @@ func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
 	return nil
 }
 
-func newGenerator(req *gogoplugin.CodeGeneratorRequest) (*Forest, error) {
-	gen := generator.New()
+func generateSchema(file *schemagen.File, groupName string, resp *gogoplugin.CodeGeneratorResponse) error {
+	generator := schemagen.NewSchemaGenerator(groupName)
 
-	gen.Request = req
-	gen.CommandLineParameters(gen.Request.GetParameter())
-	gen.WrapTypes()
-	gen.SetPackageNames()
-	gen.BuildTypeNameMap()
-
-	return &Forest{
-		Generator:  gen,
-		messageMap: make(map[*gogodesc.DescriptorProto]*Message),
-	}, nil
-}
-
-func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGeneratorResponse) error {
-	generator := NewSchemaGenerator(groupName)
-
-	if err := generator.addResource(file, "UserV2"); err != nil {
+	if err := generator.ParseResource(file, "UserV2"); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Use RoleV6 spec but override the version to V5.
 	// This will generate crd based on RoleV6 but with resource version for v5.
-	if err := generator.addResource(file, "RoleV6", types.V5); err != nil {
+	if err := generator.ParseResource(file, "RoleV6", types.V5); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := generator.addResource(file, "RoleV6"); err != nil {
+	if err := generator.ParseResource(file, "RoleV6"); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := generator.addResource(file, "SAMLConnectorV2"); err != nil {
+	if err := generator.ParseResource(file, "SAMLConnectorV2"); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := generator.addResource(file, "OIDCConnectorV3"); err != nil {
+	if err := generator.ParseResource(file, "OIDCConnectorV3"); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := generator.addResource(file, "GithubConnectorV3"); err != nil {
+	if err := generator.ParseResource(file, "GithubConnectorV3"); err != nil {
 		return trace.Wrap(err)
 	}
 
-	for _, root := range generator.roots {
-		crd := root.CustomResourceDefinition()
+	for _, root := range generator.Roots {
+		crd := CustomResourceDefinition(root)
 		data, err := yaml.Marshal(crd)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		name := fmt.Sprintf("%s_%s.yaml", groupName, root.pluralName)
+		name := fmt.Sprintf("%s_%s.yaml", groupName, root.PluralName)
 		content := string(data)
 		resp.File = append(resp.File, &gogoplugin.CodeGeneratorResponse_File{Name: &name, Content: &content})
 	}
