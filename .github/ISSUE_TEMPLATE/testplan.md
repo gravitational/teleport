@@ -588,6 +588,9 @@ tsh ssh node-that-requires-device-trust
     (mode="off"), then changing the cluster configuration to mode="required" and
     attempting to access a process directly, without a login attempt.
 
+  - [ ] Role-based authz enforces enrolled devices
+        (device_trust.mode="off" or "optional",
+        role.spec.options.device_trust_mode="required")
   - [ ] Device authorization works correctly for both require_session_mfa=false
         and require_session_mfa=true
 
@@ -597,12 +600,21 @@ tsh ssh node-that-requires-device-trust
   - [ ] Device authorization applies to Database access (all items above)
   - [ ] Device authorization applies to Kubernetes access (all items above)
 
+  - [ ] Device authorization __does not__ apply to App access
+        (both cluster-wide and role)
+  - [ ] Device authorization __does not__ apply to Windows Desktop access
+        (both cluster-wide and role)
+
 - [ ] Device audit (see [lib/events/codes.go][device_event_codes])
   - [ ] Inventory management actions issue events (success only)
   - [ ] Device enrollment issues device event (any outcomes)
   - [ ] Device authorization issues device event (any outcomes)
   - [ ] Events with [UserMetadata][event_trusted_device] contain TrustedDevice
         data (for certificates with device extensions)
+
+- [ ] Binary support
+  - [ ] Non-signed and/or non-notarized `tsh` for macOS gives a sane error
+        message for `tsh device enroll` attempts.
 
 [device_event_codes]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/lib/events/codes.go#L389-L400
 [event_trusted_device]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/api/proto/teleport/legacy/types/events/events.proto#L88-L90
@@ -652,12 +664,12 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
 
 ## Moderated session
 
-Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator). 
- - [ ] `Ctrl+C` in the #1 terminal should disconnect the moderator. 
+Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
+ - [ ] `Ctrl+C` in the #1 terminal should disconnect the moderator.
  - [ ] `Ctrl+C` in the #2 terminal should disconnect the moderator and terminate the session as session has no moderator.
 
 Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
-- [ ] `t` in any terminal should terminate the session for all participants. 
+- [ ] `t` in any terminal should terminate the session for all participants.
 
 ## Performance
 
@@ -897,7 +909,7 @@ tsh bench sessions --max=5000 --web user ls
   In contrast for the same configuration with version `v1`, there should be additional ports 3023 and 3024.
   ```
   lsof -i -P | grep teleport | grep LISTEN
-    teleport  ...  TCP *:3022 (LISTEN) 
+    teleport  ...  TCP *:3022 (LISTEN)
     teleport  ...  TCP *:3025 (LISTEN)
     teleport  ...  TCP *:3023 (LISTEN) # <-- extra proxy service port
     teleport  ...  TCP *:3024 (LISTEN) # <-- extra proxy service port
