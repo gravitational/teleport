@@ -3881,3 +3881,68 @@ func TestGetLicensePermissions(t *testing.T) {
 		})
 	}
 }
+
+func TestGetPluginWithSecrets(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	tt := []struct {
+		Name                        string
+		Role                        types.RoleSpecV6
+		ErrAssertionRead            require.BoolAssertionFunc
+		ErrAssertionReadWithSecrets require.BoolAssertionFunc
+	}{
+		{
+			Name: "deny if user has no rules regarding plugins",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{}},
+			},
+			ErrAssertionRead:            require.True,
+			ErrAssertionReadWithSecrets: require.True,
+		},
+		{
+			Name: "deny secrets if user has ReadNoSecrets",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{
+					{
+						Resources: []string{types.KindPlugin},
+						Verbs:     []string{types.VerbReadNoSecrets},
+					},
+				}},
+			},
+			ErrAssertionRead:            require.False,
+			ErrAssertionReadWithSecrets: require.True,
+		},
+		{
+			Name: "allow if user has Read",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{
+					{
+						Resources: []string{types.KindPlugin},
+						Verbs:     []string{types.VerbRead},
+					},
+				}},
+			},
+			ErrAssertionRead:            require.False,
+			ErrAssertionReadWithSecrets: require.False,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.Name, func(t *testing.T) {
+			role, err := CreateRole(ctx, srv.Auth(), "test-role", tc.Role)
+			require.Nil(t, err)
+
+			user, err := CreateUser(srv.Auth(), "test-user", role)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			_, err = client.GetPlugin(ctx, "foo", false)
+			_, errWithSecrets := client.GetPlugin(ctx, "foo", true)
+			tc.ErrAssertionRead(t, err != nil && trace.IsAccessDenied(err))
+			tc.ErrAssertionReadWithSecrets(t, err != nil && trace.IsAccessDenied(errWithSecrets))
+		})
+	}
+}
