@@ -118,7 +118,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.12.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.12.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.12.0
-	go.opentelemetry.io/otel/sdk v1.12.0
+	go.opentelemetry.io/otel/sdk v1.13.0
 	go.opentelemetry.io/otel/trace v1.13.0
 	go.opentelemetry.io/proto/otlp v0.19.0
 	golang.org/x/crypto v0.2.0 // replaced
