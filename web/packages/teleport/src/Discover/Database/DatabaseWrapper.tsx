@@ -14,15 +14,12 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { JoinTokenProvider } from 'teleport/Discover/Shared/JoinTokenContext';
-import {
-  PING_INTERVAL,
-  PING_TIMEOUT,
-  SCRIPT_TIMEOUT,
-} from 'teleport/Discover/Database/config';
+import { PING_INTERVAL } from 'teleport/Discover/Database/config';
+
+import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 
 import { ResourceKind } from '../Shared';
 
@@ -31,15 +28,19 @@ interface DatabaseWrapperProps {
 }
 
 export function DatabaseWrapper(props: DatabaseWrapperProps) {
+  useEffect(() => {
+    return () => {
+      // once the user leaves the desktop setup flow, delete the existing token
+      clearCachedJoinTokenResult(ResourceKind.Database);
+    };
+  }, []);
+
   return (
-    <JoinTokenProvider timeout={SCRIPT_TIMEOUT}>
-      <PingTeleportProvider
-        timeout={PING_TIMEOUT}
-        interval={PING_INTERVAL}
-        resourceKind={ResourceKind.Database}
-      >
-        {props.children}
-      </PingTeleportProvider>
-    </JoinTokenProvider>
+    <PingTeleportProvider
+      interval={PING_INTERVAL}
+      resourceKind={ResourceKind.Database}
+    >
+      {props.children}
+    </PingTeleportProvider>
   );
 }
