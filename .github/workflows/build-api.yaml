@@ -4,12 +4,12 @@ run-name: Build API Module
 on:
   pull_request:
     paths:
-      - 'api/**.go'
+      - 'api/**/*.go'
       - 'api/go.mod'
       - 'api/go.sum'
   merge_group:
     paths:
-      - 'api/**.go'
+      - 'api/**/*.go'
       - 'api/go.mod'
       - 'api/go.sum'
 
@@ -17,6 +17,7 @@ jobs:
   build:
     name: Build API
     if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    runs-on: ubuntu-latest
 
     permissions:
       contents: read
