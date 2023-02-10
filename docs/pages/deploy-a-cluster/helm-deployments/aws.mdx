@@ -3,8 +3,7 @@ title: Running an HA Teleport cluster using AWS, EKS, and Helm
 description: Install and configure an HA Teleport cluster using an AWS EKS cluster
 ---
 
-In this guide, we'll go through how to set up a High Availability Teleport cluster with multiple replicas in Kubernetes
-using Teleport Helm charts and AWS products (DynamoDB and S3).
+In this guide, we'll use Teleport Helm charts to set up a high-availability Teleport cluster that runs on AWS EKS.
 
 <Admonition type="tip" title="Have an existing Teleport cluster?">
 If you are already running Teleport on another platform, you can use your
@@ -19,23 +18,18 @@ cluster to Teleport.
 
 (!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
 
-## Step 1/7. Install Helm
-
-(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-install.mdx!)
-
-## Step 2/7. Add the Teleport Helm chart repository
+## Step 1/6. Add the Teleport Helm chart repository
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-## Step 3/7. Set up AWS IAM configuration
+## Step 2/6. Set up AWS IAM configuration
 
 For Teleport to be able to manage the DynamoDB tables, indexes, and the S3
 storage bucket it needs, you'll need to configure AWS IAM policies to allow
 access.
 
 <Admonition type="note">
-  These IAM policies should be added to your AWS account, then granted to the instance role associated with the
-  EKS nodegroups which are running your Kubernetes nodes.
+  Add these IAM policies to your AWS account and then grant it to the role associated with your EKS node group(s).
 </Admonition>
 
 ### DynamoDB IAM policy
@@ -46,7 +40,7 @@ access.
 
 (!docs/pages/includes/s3-iam-policy.mdx!)
 
-## Step 4/7. Configure TLS certificates for Teleport
+## Step 3/6. Configure TLS certificates for Teleport
 
 The `teleport-cluster` chart deploys a Kubernetes `LoadBalancer` to handle incoming connections to the Teleport Proxy Service.
 
@@ -261,7 +255,7 @@ Edit your `values.yaml` file to refer to the name of your secret:
 </TabItem>
 </Tabs>
 
-## Step 5/7. Set values to configure the cluster
+## Step 4/6. Set values to configure the cluster
 
 <ScopedBlock scope="enterprise">
 
@@ -430,7 +424,7 @@ replicaset.apps/teleport-auth-57989d4cbd   2         2         2       22h
 replicaset.apps/teleport-proxy-c6bf55cfc   2         2         2       22h
 ```
 
-## Step 6/7. Set up DNS
+## Step 5/6. Set up DNS
 
 You'll need to set up a DNS `A` record for `teleport.example.com`. In our example, this record is an alias to an ELB.
 
@@ -498,7 +492,7 @@ $ aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
 # "INSYNC"
 ```
 
-## Step 7/7. Create a Teleport user
+## Step 6/6. Create a Teleport user
 
 Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
