@@ -17,6 +17,7 @@ limitations under the License.
 package aws
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -27,11 +28,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func updateAssumeRoleDuration(identity *tlsca.Identity, req *http.Request, clock clockwork.Clock) error {
+func updateAssumeRoleDuration(identity *tlsca.Identity, w http.ResponseWriter, req *http.Request, clock clockwork.Clock) error {
 	// Skip non-AssumeRole request
 	query, err := getAssumeRoleQuery(req)
 	if err != nil {
@@ -52,7 +54,11 @@ func updateAssumeRoleDuration(identity *tlsca.Identity, req *http.Request, clock
 	case identityDuration < requestedDuration:
 		setAssumeRoleDuration(query, identityDuration)
 		newBody := io.NopCloser(strings.NewReader(query.Encode()))
-		return trace.Wrap(utils.ReplaceRequestBody(req, newBody))
+		if err := utils.ReplaceRequestBody(req, newBody); err != nil {
+			return trace.Wrap(err)
+		}
+		w.Header().Add(common.TeleportAPIInfoHeader, fmt.Sprintf("Updated AssumeRole duration to %v", identityDuration))
+		return nil
 
 	// Use shorter requested duration (no update required).
 	default:

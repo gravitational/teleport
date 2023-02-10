@@ -153,7 +153,7 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 		return trace.Wrap(err)
 	}
 
-	unsignedReq, err := s.rewriteCommonRequest(sessCtx, req, re)
+	unsignedReq, err := s.rewriteCommonRequest(sessCtx, w, req, re)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -238,14 +238,14 @@ func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.Resolved
 }
 
 // rewriteCommonRequest updates request signed with the default local proxy credentials.
-func (s *signerHandler) rewriteCommonRequest(sessCtx *common.SessionContext, r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
+func (s *signerHandler) rewriteCommonRequest(sessCtx *common.SessionContext, w http.ResponseWriter, r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
 	req, err := rewriteRequest(s.closeContext, r, re)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if strings.EqualFold(re.SigningName, sts.EndpointsID) {
-		if err := updateAssumeRoleDuration(sessCtx.Identity, req, s.Clock); err != nil {
+		if err := updateAssumeRoleDuration(sessCtx.Identity, w, req, s.Clock); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
