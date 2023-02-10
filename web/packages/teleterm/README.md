@@ -85,39 +85,15 @@ For a quick restart which restarts all processes and the `tsh` daemon, press `F6
 
 ### Generating tshd gRPC protobuf files
 
-Rebulding them is needed only if you change any of the files in `/teleport/lib/teleterm/api/proto/`
-dir.
+Rebuilding them is needed only if you change any of the files in `proto/teleport/lib/teleterm` dir.
 
-1. To rebuild and update `tsh` grpc proto files
-
-```sh
-$ cd teleport
-$ make grpc-teleterm
-```
-
-Resulting files both `nodejs` and `golang` can be found in `/teleport/lib/teleterm/api/protogen/` directory.
-
-```pro
-lib/teleterm/api/protogen/
-├── golang
-│   └── v1
-│       ├── auth_challenge.pb.go
-│       ├── auth_settings.pb.go
-│       ├── ...
-│       └── ...
-└── js
-    └── v1
-        ├── service_grpc_pb.js
-        ├── service_pb.d.ts
-        └── ...
-```
-
-2. Update `nodejs` files by copying them to the `/webapps/packages/teleterm/src/services/tshd/` location
+To rebuild and update gRPC proto files:
 
 ```sh
-$ cd webapps
-$ rm -rf ./packages/teleterm/src/services/tshd/v1/ && cp -R ../teleport/lib/teleterm/api/protogen/js/v1 ./packages/teleterm/src/services/tshd/v1
+$ make grpc
 ```
+
+Resulting Go and JS files can be found in `gen/proto`.
 
 ### Generating shared process gRPC protobuf files
 
