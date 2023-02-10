@@ -135,6 +135,7 @@ function mockOpenRegularDialog(
     .spyOn(mockedAppContext.modalsService, 'openRegularDialog')
     .mockImplementation(dialog => {
       implementation?.(dialog);
+      dialog['onCancel']?.();
       return {
         closeDialog() {},
       };
