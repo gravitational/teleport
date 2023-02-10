@@ -1248,6 +1248,48 @@ func (g *GRPCServer) DeleteAllDatabaseServers(ctx context.Context, req *proto.De
 	return &emptypb.Empty{}, nil
 }
 
+// UpsertDatabaseService registers a new database service.
+func (g *GRPCServer) UpsertDatabaseService(ctx context.Context, req *proto.UpsertDatabaseServiceRequest) (*types.KeepAlive, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keepAlive, err := auth.UpsertDatabaseService(ctx, req.Service)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteDatabaseService removes the specified DatabaseService.
+func (g *GRPCServer) DeleteDatabaseService(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.DeleteDatabaseService(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteAllDatabaseServices removes all registered DatabaseServices.
+func (g *GRPCServer) DeleteAllDatabaseServices(ctx context.Context, _ *proto.DeleteAllDatabaseServicesRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.DeleteAllDatabaseServices(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // SignDatabaseCSR generates a client certificate used by proxy when talking
 // to a remote database service.
 func (g *GRPCServer) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
@@ -3957,6 +3999,13 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: database}}
+		case types.KindDatabaseService:
+			databaseService, ok := resource.(*types.DatabaseServiceV1)
+			if !ok {
+				return nil, trace.BadParameter("database service has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_DatabaseService{DatabaseService: databaseService}}
 		case types.KindAppServer:
 			app, ok := resource.(*types.AppServerV3)
 			if !ok {

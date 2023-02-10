@@ -1901,6 +1901,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Restrictions:     cfg.services,
 		Apps:             cfg.services,
 		Kubernetes:       cfg.services,
+		DatabaseServices: cfg.services,
 		Databases:        cfg.services,
 		AppSession:       cfg.services,
 		SnowflakeSession: cfg.services,
@@ -4581,8 +4582,13 @@ func (process *TeleportProcess) initApps() {
 
 		// Execute this when process is asked to exit.
 		process.OnExit("apps.stop", func(payload interface{}) {
-			log.Infof("Shutting down.")
-			warnOnErr(appServer.Close(), log)
+			if payload == nil {
+				log.Infof("Shutting down immediately.")
+				warnOnErr(appServer.Close(), log)
+			} else {
+				log.Infof("Shutting down gracefully.")
+				warnOnErr(appServer.Shutdown(payloadContext(payload, log)), log)
+			}
 			if asyncEmitter != nil {
 				warnOnErr(asyncEmitter.Close(), log)
 			}
@@ -4676,6 +4682,11 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	// imported listeners that haven't been used so far
 	warnOnErr(process.closeImportedDescriptors(""), process.log)
 	warnOnErr(process.stopListeners(), process.log)
+
+	// populate context values
+	if len(process.getForkedPIDs()) > 0 {
+		ctx = services.ProcessForkedContext(ctx)
+	}
 
 	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
 	localCtx, cancel := context.WithCancel(ctx)

@@ -74,7 +74,7 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 	databaseResourceName := "mypsqldb"
 	databaseDBName := "dbname"
 	databaseDBUser := "dbuser"
-	helpers.MakeTestDatabaseServer(t, *proxyAddr, provisionToken, service.Database{
+	helpers.MakeTestDatabaseServer(t, *proxyAddr, provisionToken, nil /* resource matchers */, service.Database{
 		Name:     databaseResourceName,
 		Protocol: defaults.ProtocolPostgres,
 		URI:      net.JoinHostPort("localhost", postgresTestServer.Port()),

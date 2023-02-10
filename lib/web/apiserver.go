@@ -103,6 +103,11 @@ const (
 
 var metaRedirectTemplate = template.Must(template.New("meta-redirect").Parse(metaRedirectHTML))
 
+// healthCheckAppServerFunc defines a function used to perform a health check
+// to AppServer that can handle application requests (based on cluster name and
+// public address).
+type healthCheckAppServerFunc func(ctx context.Context, publicAddr string, clusterName string) error
+
 // Handler is HTTP web proxy handler
 type Handler struct {
 	log logrus.FieldLogger
@@ -114,6 +119,7 @@ type Handler struct {
 	sessionStreamPollPeriod time.Duration
 	clock                   clockwork.Clock
 	limiter                 *limiter.RateLimiter
+	healthCheckAppServer    healthCheckAppServerFunc
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
@@ -232,6 +238,10 @@ type Config struct {
 
 	// TracerProvider generates tracers to create spans with
 	TracerProvider oteltrace.TracerProvider
+
+	// HealthCheckAppServer is a function that checks if the proxy can handle
+	// application requests.
+	HealthCheckAppServer healthCheckAppServerFunc
 }
 
 type APIHandler struct {
@@ -280,10 +290,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
 	cfg.ProxyClient = auth.WithGithubConnectorConversions(cfg.ProxyClient)
 	h := &Handler{
-		cfg:             cfg,
-		log:             newPackageLogger(),
-		clock:           clockwork.NewRealClock(),
-		ClusterFeatures: cfg.ClusterFeatures,
+		cfg:                  cfg,
+		log:                  newPackageLogger(),
+		clock:                clockwork.NewRealClock(),
+		ClusterFeatures:      cfg.ClusterFeatures,
+		healthCheckAppServer: cfg.HealthCheckAppServer,
 	}
 
 	// for properly handling url-encoded parameter values.
@@ -448,6 +459,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		if h.healthCheckAppServer == nil {
+			h.healthCheckAppServer = appHandler.HealthCheckAppServer
+		}
 	}
 
 	return &APIHandler{
@@ -592,9 +607,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	// token generation
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
 
-	// add Node token generation
-	// DELETE IN 11.0. Deprecated, use /webapi/token for generating tokens of any role.
-	h.POST("/webapi/nodes/token", h.WithAuth(h.createNodeTokenHandle))
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
@@ -609,6 +621,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.handleDatabaseUpdate))
 	h.GET("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.clusterDatabaseGet))
 	h.GET("/webapi/sites/:site/databases/:database/iam/policy", h.WithClusterAuth(h.handleDatabaseGetIAMPolicy))
+
+	// DatabaseService handlers
+	h.GET("/webapi/sites/:site/databaseservices", h.WithClusterAuth(h.clusterDatabaseServicesList))
 
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
@@ -651,18 +666,18 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
 	h.GET("/webapi/roles", h.WithAuth(h.getRolesHandle))
-	h.PUT("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
 	h.POST("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
+	h.PUT("/webapi/roles/:name", h.WithAuth(h.upsertRoleHandle))
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
 
 	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
-	h.PUT("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
 	h.POST("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
+	h.PUT("/webapi/github/:name", h.WithAuth(h.upsertGithubConnectorHandle))
 	h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
 
 	h.GET("/webapi/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
-	h.PUT("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
 	h.POST("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
+	h.PUT("/webapi/trustedcluster/:name", h.WithAuth(h.upsertTrustedClusterHandle))
 	h.DELETE("/webapi/trustedcluster/:name", h.WithAuth(h.deleteTrustedCluster))
 
 	h.GET("/webapi/apps/:fqdnHint", h.WithAuth(h.getAppFQDN))
