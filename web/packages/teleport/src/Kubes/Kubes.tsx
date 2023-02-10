@@ -29,7 +29,7 @@ import useTeleport from 'teleport/useTeleport';
 
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
-import useKubes, { State } from './useKubes';
+import { useKubes, State } from './useKubes';
 
 export default function Container() {
   const ctx = useTeleport();

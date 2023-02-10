@@ -29,7 +29,7 @@ import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
 import DesktopList from './DesktopList';
-import useDesktops, { State } from './useDesktops';
+import { useDesktops, State } from './useDesktops';
 
 const DOC_URL = 'https://goteleport.com/docs/desktop-access/getting-started/';
 

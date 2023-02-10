@@ -133,8 +133,13 @@ export function PageIndicatorText({
   count: number;
 }) {
   return (
-    <Text typography="body2" color="primary.contrastText" mr={1}>
-      SHOWING <strong>{from}</strong> - <strong>{to}</strong> of{' '}
+    <Text
+      typography="body2"
+      color="primary.contrastText"
+      style={{ textTransform: 'uppercase' }}
+      mr={1}
+    >
+      Showing <strong>{from}</strong> - <strong>{to}</strong> of{' '}
       <strong>{count}</strong>
     </Text>
   );

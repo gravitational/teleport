@@ -14,7 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useUrlFiltering } from './useUrlFiltering';
-import encodeUrlQueryParams from './encodeUrlQueryParams';
-
-export { useUrlFiltering, encodeUrlQueryParams };
+export { useUrlFiltering } from './useUrlFiltering';
+export { encodeUrlQueryParams } from './encodeUrlQueryParams';

@@ -20,7 +20,7 @@ const ADVANCED_SEARCH_PARAM = 'query=';
 const SIMPLE_SEARCH_PARAM = 'search=';
 const SORT_SEARCH_PARAM = 'sort=';
 
-export default function encodeUrlQueryParams(
+export function encodeUrlQueryParams(
   pathname: string,
   searchString: string,
   sort: SortType,
@@ -42,8 +42,8 @@ export default function encodeUrlQueryParams(
   const sortParam = `${sort.fieldName}:${sort.dir.toLowerCase()}`;
 
   if (!encodedQuery && sort) {
-    return `${pathname}?${`${SORT_SEARCH_PARAM}${sortParam}`}`;
+    return `${pathname}?${SORT_SEARCH_PARAM}${sortParam}`;
   }
 
-  return `${pathname}?${searchParam}${encodedQuery}&${`${SORT_SEARCH_PARAM}${sortParam}`}`;
+  return `${pathname}?${searchParam}${encodedQuery}&${SORT_SEARCH_PARAM}${sortParam}`;
 }

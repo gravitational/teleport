@@ -23,7 +23,7 @@ import {
   useServerSidePagination,
 } from 'teleport/components/hooks';
 
-export default function useKubes(ctx: TeleportContext) {
+export function useKubes(ctx: TeleportContext) {
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const { username, authType } = ctx.storeUser.state;
   const canCreate = ctx.storeUser.getTokenAccess().create;

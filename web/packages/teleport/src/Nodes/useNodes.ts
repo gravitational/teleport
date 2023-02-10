@@ -27,7 +27,7 @@ import {
 
 import type { Node } from 'teleport/services/nodes';
 
-export default function useNodes(ctx: Ctx) {
+export function useNodes(ctx: Ctx) {
   const { isLeafCluster, clusterId } = useStickerClusterId();
   const canCreate = ctx.storeUser.getTokenAccess().create;
 

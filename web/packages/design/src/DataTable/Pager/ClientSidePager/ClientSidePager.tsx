@@ -23,24 +23,13 @@ import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 
 import { StyledArrowBtn, StyledFetchMoreBtn } from '../StyledPager';
 
-import useClientSidePager, { State, Props } from './useClientSidePager';
+import { useClientSidePager, Props } from './useClientSidePager';
 
-export default function Container(props: Props) {
-  const state = useClientSidePager(props);
-  return <ClientSidePager {...state} />;
-}
+export function ClientSidePager(props: Props) {
+  const { nextPage, prevPage, onFetchMore, fetchStatus } = props;
+  const { from, to, count, isNextDisabled, isPrevDisabled } =
+    useClientSidePager(props);
 
-export function ClientSidePager({
-  nextPage,
-  prevPage,
-  isNextDisabled,
-  isPrevDisabled,
-  from,
-  to,
-  count,
-  onFetchMore,
-  fetchStatus,
-}: State) {
   const isFetchingEnabled = onFetchMore && fetchStatus !== 'disabled';
   return (
     <Flex justifyContent="flex-end" width="100%">

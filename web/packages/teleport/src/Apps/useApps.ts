@@ -23,7 +23,7 @@ import {
   useServerSidePagination,
 } from 'teleport/components/hooks';
 
-export default function useApps(ctx: Ctx) {
+export function useApps(ctx: Ctx) {
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const { isLeafCluster, clusterId } = useStickerClusterId();
   const isEnterprise = ctx.isEnterprise;

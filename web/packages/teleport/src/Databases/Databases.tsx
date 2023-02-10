@@ -29,7 +29,7 @@ import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
 import DatabaseList from './DatabaseList';
-import useDatabases, { State } from './useDatabases';
+import { useDatabases, State } from './useDatabases';
 
 export default function Container() {
   const ctx = useTeleport();

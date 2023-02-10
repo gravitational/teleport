@@ -25,7 +25,7 @@ import {
 } from 'teleport/components/hooks';
 import { openNewTab } from 'teleport/lib/util';
 
-export default function useDesktops(ctx: Ctx) {
+export function useDesktops(ctx: Ctx) {
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const username = ctx.storeUser.state.username;

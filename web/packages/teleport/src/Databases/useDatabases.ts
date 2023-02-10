@@ -23,7 +23,7 @@ import {
   useServerSidePagination,
 } from 'teleport/components/hooks';
 
-export default function useDatabases(ctx: Ctx) {
+export function useDatabases(ctx: Ctx) {
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const username = ctx.storeUser.state.username;
   const canCreate = ctx.storeUser.getTokenAccess().create;

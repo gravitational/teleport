@@ -29,7 +29,7 @@ import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import useTeleport from 'teleport/useTeleport';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
-import useNodes, { State } from './useNodes';
+import { useNodes, State } from './useNodes';
 
 export default function Container() {
   const teleCtx = useTeleport();
