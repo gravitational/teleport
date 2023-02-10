@@ -400,7 +400,7 @@ func (r CreateSAMLIdPSessionRequest) Check() error {
 		return trace.BadParameter("username missing")
 	}
 	if len(r.Data) == 0 {
-		return trace.BadParameter("public address missing")
+		return trace.BadParameter("data missing")
 	}
 
 	return nil
