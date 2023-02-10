@@ -101,6 +101,8 @@ func TestListKubernetesResources(t *testing.T) {
 		searchAsRoles  bool
 		namespace      string
 		searchKeywords []string
+		sortBy         *types.SortBy
+		startKey       string
 	}
 	tests := []struct {
 		name      string
@@ -269,6 +271,70 @@ func TestListKubernetesResources(t *testing.T) {
 			},
 			assertErr: require.NoError,
 		},
+		{
+			name: "user with no access listing dev namespace using search as roles and sort",
+			args: args{
+				user:          userNoAccess,
+				searchAsRoles: true,
+				namespace:     "dev",
+				sortBy: &types.SortBy{
+					Field:  "name",
+					IsDesc: true,
+				},
+			},
+			want: &proto.ListKubernetesResourcesResponse{
+				TotalCount: 2,
+				Resources: []*types.KubernetesResourceV1{
+					{
+						Kind: "pod",
+						Metadata: types.Metadata{
+							Name: "nginx-2",
+						},
+						Spec: types.KubernetesResourceSpecV1{
+							Namespace: "dev",
+						},
+					},
+					{
+						Kind: "pod",
+						Metadata: types.Metadata{
+							Name: "nginx-1",
+						},
+						Spec: types.KubernetesResourceSpecV1{
+							Namespace: "dev",
+						},
+					},
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "user with no access listing dev namespace using search as roles and sort with start key",
+			args: args{
+				user:          userNoAccess,
+				searchAsRoles: true,
+				namespace:     "dev",
+				sortBy: &types.SortBy{
+					Field:  "name",
+					IsDesc: true,
+				},
+				startKey: "nginx-1",
+			},
+			want: &proto.ListKubernetesResourcesResponse{
+				TotalCount: 2,
+				Resources: []*types.KubernetesResourceV1{
+					{
+						Kind: "pod",
+						Metadata: types.Metadata{
+							Name: "nginx-1",
+						},
+						Spec: types.KubernetesResourceSpecV1{
+							Namespace: "dev",
+						},
+					},
+				},
+			},
+			assertErr: require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -290,6 +356,8 @@ func TestListKubernetesResources(t *testing.T) {
 					KubernetesNamespace: tt.args.namespace,
 					UseSearchAsRoles:    tt.args.searchAsRoles,
 					SearchKeywords:      tt.args.searchKeywords,
+					SortBy:              tt.args.sortBy,
+					StartKey:            tt.args.startKey,
 				},
 			)
 			tt.assertErr(t, err)
