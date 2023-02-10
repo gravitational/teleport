@@ -5,8 +5,8 @@ go 1.19
 require (
 	cloud.google.com/go/container v1.10.0
 	cloud.google.com/go/firestore v1.9.0
-	cloud.google.com/go/iam v0.8.0
-	cloud.google.com/go/kms v1.6.0
+	cloud.google.com/go/iam v0.10.0
+	cloud.google.com/go/kms v1.8.0
 	cloud.google.com/go/storage v1.28.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.3.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.1
@@ -46,7 +46,7 @@ require (
 	github.com/elastic/go-elasticsearch/v8 v8.6.0
 	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
 	github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
-	github.com/fsouza/fake-gcs-server v1.42.2
+	github.com/fsouza/fake-gcs-server v1.44.0
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
@@ -122,7 +122,7 @@ require (
 	go.opentelemetry.io/otel v1.13.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.13.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.13.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.12.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.13.0
 	go.opentelemetry.io/otel/sdk v1.13.0
 	go.opentelemetry.io/otel/trace v1.13.0
 	go.opentelemetry.io/proto/otlp v0.19.0
@@ -130,7 +130,7 @@ require (
 	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9
 	golang.org/x/mod v0.8.0
 	golang.org/x/net v0.6.0
-	golang.org/x/oauth2 v0.4.0
+	golang.org/x/oauth2 v0.5.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.5.0
 	golang.org/x/term v0.5.0
@@ -172,7 +172,7 @@ require (
 	cloud.google.com/go/compute v1.18.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	cloud.google.com/go/longrunning v0.4.0 // indirect
-	cloud.google.com/go/pubsub v1.27.1 // indirect
+	cloud.google.com/go/pubsub v1.28.0 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.2 // indirect
 	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
