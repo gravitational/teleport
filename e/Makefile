@@ -198,7 +198,7 @@ $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport: bpf-bytecode-e teleport-fips-check rdpclient
+$(BUILDDIR)/teleport: ensure-webassets-e bpf-bytecode-e teleport-fips-check rdpclient
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
@@ -208,6 +208,10 @@ $(BUILDDIR)/tsh:
 .PHONY: $(BUILDDIR)/tbot
 $(BUILDDIR)/tbot:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "$(FIPS_TAG)" -o $(BUILDDIR)/tbot $(BUILDFLAGS) ../tool/tbot
+
+.PHONY: ensure-webassets-e
+ensure-webassets-e:
+	$(MAKE) -C ../ ensure-webassets-e
 
 #
 # BPF support (IF ENABLED)
