@@ -4575,36 +4575,22 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 		return nil, trace.Wrap(err)
 	}
 	var installersV1 []*types.InstallerV1
-	needDefault := true
-	needDefaultAgentless := true
+	defaultInstallers := map[string]*types.InstallerV1{
+		installers.InstallerScriptName:          installers.DefaultInstaller,
+		installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller,
+	}
+
 	for _, inst := range res {
 		instV1, ok := inst.(*types.InstallerV1)
 		if !ok {
 			return nil, trace.BadParameter("unsupported installer type %T", inst)
 		}
-		switch inst.GetName() {
-		case installers.InstallerScriptName:
-			needDefault = false
-		case installers.InstallerScriptNameAgentless:
-			needDefaultAgentless = false
-		}
+		delete(defaultInstallers, inst.GetName())
 		installersV1 = append(installersV1, instV1)
 	}
 
-	if len(installersV1) == 0 {
-		return &types.InstallerV1List{
-			Installers: []*types.InstallerV1{
-				installers.DefaultInstaller,
-				installers.DefaultAgentlessInstaller,
-			},
-		}, nil
-	}
-
-	if needDefault {
-		installersV1 = append(installersV1, installers.DefaultInstaller)
-	}
-	if needDefaultAgentless {
-		installersV1 = append(installersV1, installers.DefaultAgentlessInstaller)
+	for _, inst := range defaultInstallers {
+		installersV1 = append(installersV1, inst)
 	}
 
 	return &types.InstallerV1List{

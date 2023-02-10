@@ -587,6 +587,12 @@ func checkAndSetDefaultsForAzureMatchers(matcherInput []AzureMatcher) error {
 			}
 		}
 
+		if slices.Contains(matcher.Types, services.AzureMatcherVM) {
+			if err := checkAndSetDefaultsForAzureInstaller(matcher); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
 		if slices.Contains(matcher.Regions, types.Wildcard) || len(matcher.Regions) == 0 {
 			matcher.Regions = []string{types.Wildcard}
 		}
@@ -605,6 +611,35 @@ func checkAndSetDefaultsForAzureMatchers(matcherInput []AzureMatcher) error {
 			}
 		}
 
+	}
+	return nil
+}
+
+func checkAndSetDefaultsForAzureInstaller(matcher *AzureMatcher) error {
+	if matcher.InstallParams == nil {
+		matcher.InstallParams = &InstallParams{
+			JoinParams: JoinParams{
+				TokenName: defaults.AzureInviteTokenName,
+				Method:    types.JoinMethodAzure,
+			},
+			ScriptName: installers.InstallerScriptName,
+		}
+		return nil
+	}
+
+	switch matcher.InstallParams.JoinParams.Method {
+	case types.JoinMethodAzure, "":
+		matcher.InstallParams.JoinParams.Method = types.JoinMethodAzure
+	default:
+		return trace.BadParameter("only Azure joining is supported for Azure auto-discovery")
+	}
+
+	if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
+		matcher.InstallParams.JoinParams.TokenName = defaults.AzureInviteTokenName
+	}
+
+	if installer := matcher.InstallParams.ScriptName; installer == "" {
+		matcher.InstallParams.ScriptName = installers.InstallerScriptName
 	}
 	return nil
 }
@@ -1540,15 +1575,18 @@ type AWSMatcher struct {
 // InstallParams sets join method to use on discovered nodes
 type InstallParams struct {
 	// JoinParams sets the token and method to use when generating
-	// config on EC2 instances
+	// config on cloud instances
 	JoinParams JoinParams `yaml:"join_params,omitempty"`
 	// ScriptName is the name of the teleport installer script
-	// resource for the EC2 instance to execute
+	// resource for the cloud instance to execute
 	ScriptName string `yaml:"script_name,omitempty"`
 	// InstallTeleport disables agentless discovery
 	InstallTeleport string `yaml:"install_teleport,omitempty"`
 	// SSHDConfig provides the path to write sshd configuration changes
 	SSHDConfig string `yaml:"sshd_config,omitempty"`
+	// PublicProxyAddr is the address of the proxy the discovered node should use
+	// to connect to the cluster. Used ony in Azure.
+	PublicProxyAddr string `yaml:"public_proxy_addr,omitempty"`
 }
 
 func (ip *InstallParams) Parse() (services.InstallerParams, error) {
@@ -1592,6 +1630,9 @@ type AzureMatcher struct {
 	Regions []string `yaml:"regions,omitempty"`
 	// ResourceTags are Azure tags on resources to match.
 	ResourceTags map[string]apiutils.Strings `yaml:"tags,omitempty"`
+	// InstallParams sets the join method when installing on
+	// discovered Azure nodes.
+	InstallParams *InstallParams `yaml:"install,omitempty"`
 }
 
 // Database represents a single database proxied by the service.
