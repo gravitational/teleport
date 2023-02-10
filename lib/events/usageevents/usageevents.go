@@ -94,21 +94,16 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 			SessionType: string(types.DatabaseSessionKind),
 		}))
 	case *apievents.AppSessionStart:
-		// app.session.start is inconsistently emitted for things that are quite
-		// different, so here we only select the ones we care about
-		var sessionType string
+		sessionType := string(types.AppSessionKind)
 		if e.AWSRoleARN != "" {
 			sessionType = awsConsoleSessionType
 		} else if strings.HasPrefix(e.AppURI, "tcp:") {
 			sessionType = tcpSessionType
 		}
-
-		if sessionType != "" {
-			return trace.Wrap(u.report(&services.UsageSessionStart{
-				UserName:    e.User,
-				SessionType: sessionType,
-			}))
-		}
+		return trace.Wrap(u.report(&services.UsageSessionStart{
+			UserName:    e.User,
+			SessionType: sessionType,
+		}))
 	case *apievents.WindowsDesktopSessionStart:
 		return trace.Wrap(u.report(&services.UsageSessionStart{
 			UserName:    e.User,
