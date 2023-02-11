@@ -390,17 +390,14 @@ type CreateSAMLIdPSessionRequest struct {
 	SessionID string
 	// Username is the identity of the user requesting the session.
 	Username string `json:"username"`
-	// Data is the session data associated with the SAML IdP session.
-	Data []byte `json:"data"`
+	// SAMLSession is the session data associated with the SAML IdP session.
+	SAMLSession SAMLSessionData `json:"saml_session"`
 }
 
 // Check validates the request.
 func (r CreateSAMLIdPSessionRequest) Check() error {
 	if r.Username == "" {
 		return trace.BadParameter("username missing")
-	}
-	if len(r.Data) == 0 {
-		return trace.BadParameter("data missing")
 	}
 
 	return nil
