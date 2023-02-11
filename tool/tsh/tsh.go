@@ -611,7 +611,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		EnumVar(&cf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
 
-	ver := app.Command("version", "Print the version of your tsh binary and version of the Teleport proxy in current tsh profile")
+	ver := app.Command("version", "Print the tsh client and Proxy server versions for the current context.")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	ver.Flag("client", "Show the client version only (no server required).").
 		BoolVar(&cf.clientOnlyVersionCheck)
@@ -1286,7 +1286,7 @@ func newTraceProvider(cf *CLIConf, command string, ignored []string) (*tracing.P
 func onVersion(cf *CLIConf) error {
 	proxyVersion := ""
 	proxyPublicAddr := ""
-	// Do not check proxy version if client only version parameter is given
+	// Check proxy version if not in client only mode
 	if !cf.clientOnlyVersionCheck {
 		pv, ppa, err := fetchProxyVersion(cf)
 		if err != nil {
