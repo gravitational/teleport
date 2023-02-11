@@ -1182,7 +1182,7 @@ init-submodules-e:
 #
 #    Usage:
 #    - tsh login --proxy=platform.teleport.sh
-#    - tsh app login drone
+#    - tsh apps login drone
 #    - set $DRONE_TOKEN and $DRONE_SERVER (http://localhost:8080)
 #    - tsh proxy app --port=8080 drone
 #    - make dronegen
