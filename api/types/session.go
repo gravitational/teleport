@@ -92,10 +92,10 @@ type WebSession interface {
 	SetConsumedAccessRequestID(string)
 	// GetConsumedAccessRequestID returns the ID of the access request from which additional roles to assume were obtained.
 	GetConsumedAccessRequestID() string
-	// SetData sets the arbitrary data associated with this session. Considered to be a secret.
-	SetData([]byte)
-	// GetData retrieves the arbitrary data associated with this session. Considered to be a secret.
-	GetData() []byte
+	// SetSAMLSession sets the SAML session data. Is considered secret.
+	SetSAMLSession(*SAMLSessionData)
+	// GetSAMLSession gets the SAML session data. Is considered secret.
+	GetSAMLSession() *SAMLSessionData
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -177,7 +177,7 @@ func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
 // WithoutSecrets returns copy of the object but without secrets
 func (ws *WebSessionV2) WithoutSecrets() WebSession {
 	ws.Spec.Priv = nil
-	ws.Spec.Data = nil
+	ws.Spec.SAMLSession = nil
 	return ws
 }
 
@@ -191,14 +191,14 @@ func (ws *WebSessionV2) GetConsumedAccessRequestID() string {
 	return ws.Spec.ConsumedAccessRequestID
 }
 
-// SetData sets the arbitrary data associated with this session. Considered to be a secret.
-func (ws *WebSessionV2) SetData(data []byte) {
-	ws.Spec.Data = data
+// SetSAMLSession sets the SAML session data. Is considered secret.
+func (ws *WebSessionV2) SetSAMLSession(samlSession *SAMLSessionData) {
+	ws.Spec.SAMLSession = samlSession
 }
 
-// GetData retrieves the arbitrary data associated with this session. Considered to be a secret.
-func (ws *WebSessionV2) GetData() []byte {
-	return ws.Spec.Data
+// GetSAMLSession gets the SAML session data. Is considered secret.
+func (ws *WebSessionV2) GetSAMLSession() *SAMLSessionData {
+	return ws.Spec.SAMLSession
 }
 
 // setStaticFields sets static resource header and metadata fields.
