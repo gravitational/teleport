@@ -117,6 +117,11 @@ type AuthPreference interface {
 	// SetDeviceTrust sets the cluster device trust settings.
 	SetDeviceTrust(*DeviceTrust)
 
+	// IsSAMLIdPEnabled returns true if the SAML IdP is enabled.
+	IsSAMLIdPEnabled() bool
+	// SetSAMLIdPEnabled sets the SAML IdP to enabled.
+	SetSAMLIdPEnabled(bool)
+
 	// String represents a human readable version of authentication settings.
 	String() string
 }
@@ -405,6 +410,16 @@ func (c *AuthPreferenceV2) GetDeviceTrust() *DeviceTrust {
 // SetDeviceTrust sets the cluster device trust settings.
 func (c *AuthPreferenceV2) SetDeviceTrust(dt *DeviceTrust) {
 	c.Spec.DeviceTrust = dt
+}
+
+// IsSAMLIdPEnabled returns true if the SAML IdP is enabled.
+func (c *AuthPreferenceV2) IsSAMLIdPEnabled() bool {
+	return c.Spec.IDP.SAML.Enabled.Value
+}
+
+// SetSAMLIdPEnabled sets the SAML IdP to enabled.
+func (c *AuthPreferenceV2) SetSAMLIdPEnabled(enabled bool) {
+	c.Spec.IDP.SAML.Enabled = NewBoolOption(enabled)
 }
 
 // setStaticFields sets static resource header and metadata fields.
