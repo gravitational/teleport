@@ -31,6 +31,8 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -136,63 +138,85 @@ func (l databaseListings) Swap(i, j int) {
 }
 
 func listDatabasesAllClusters(cf *CLIConf) error {
-	// Fetch database listings for profiles in parallel. Set an arbitrary limit
-	// just in case.
-	group, groupCtx := errgroup.WithContext(cf.Context)
-	group.SetLimit(4)
-
-	// mu guards access to dbListings
-	var mu sync.Mutex
-	var dbListings databaseListings
-
-	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
-		group.Go(func() error {
-			proxy, err := tc.ConnectToProxy(groupCtx)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			defer proxy.Close()
-
-			sites, err := proxy.GetSites(groupCtx)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			for _, site := range sites {
-				databases, err := proxy.FindDatabasesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				roleSet, err := fetchRoleSetForCluster(groupCtx, profile, proxy, site.Name)
-				if err != nil {
-					log.Debugf("Failed to fetch user roles: %v.", err)
-				}
-
-				localDBListings := make(databaseListings, 0, len(databases))
-				for _, database := range databases {
-					localDBListings = append(localDBListings, databaseListing{
-						Proxy:    profile.ProxyURL.Host,
-						Cluster:  site.Name,
-						roleSet:  roleSet,
-						Database: database,
-					})
-				}
-				mu.Lock()
-				dbListings = append(dbListings, localDBListings...)
-				mu.Unlock()
-			}
-
-			return nil
-		})
-		return nil
-	})
+	tracer := cf.TracingProvider.Tracer(teleport.ComponentTSH)
+	clusters, err := getClusterClients(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	defer func() {
+		// close all clients
+		for _, cluster := range clusters {
+			_ = cluster.Close()
+		}
+	}()
+
+	// Fetch database listings for all clusters in parallel with an upper limit
+	group, groupCtx := errgroup.WithContext(cf.Context)
+	group.SetLimit(10)
+
+	// mu guards access to dbListings
+	var (
+		mu         sync.Mutex
+		dbListings databaseListings
+		errors     []error
+	)
+	for _, cluster := range clusters {
+		cluster := cluster
+		if cluster.connectionError != nil {
+			mu.Lock()
+			errors = append(errors, cluster.connectionError)
+			mu.Unlock()
+			continue
+		}
+
+		group.Go(func() error {
+			ctx, span := tracer.Start(
+				groupCtx,
+				"ListDatabases",
+				oteltrace.WithAttributes(attribute.String("cluster", cluster.name)))
+			defer span.End()
+
+			logger := log.WithField("cluster", cluster.name)
+			databases, err := cluster.proxy.FindDatabasesByFiltersForCluster(ctx, cluster.req, cluster.name)
+			if err != nil {
+				logger.Errorf("Failed to get databases: %v.", err)
+
+				mu.Lock()
+				errors = append(errors, trace.ConnectionProblem(err, "failed to list databases for cluster %s: %v", cluster.name, err))
+				mu.Unlock()
+				return nil
+			}
+
+			roleSet, err := fetchRoleSetForCluster(ctx, cluster.profile, cluster.proxy, cluster.name)
+			if err != nil {
+				log.Debugf("Failed to fetch user roles: %v.", err)
+			}
+
+			localDBListings := make(databaseListings, 0, len(databases))
+			for _, database := range databases {
+				localDBListings = append(localDBListings, databaseListing{
+					Proxy:    cluster.profile.ProxyURL.Host,
+					Cluster:  cluster.name,
+					roleSet:  roleSet,
+					Database: database,
+				})
+			}
+			mu.Lock()
+			dbListings = append(dbListings, localDBListings...)
+			mu.Unlock()
+
+			return nil
+
+		})
+	}
+
 	if err := group.Wait(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if len(dbListings) == 0 && len(errors) > 0 {
+		return trace.NewAggregate(errors...)
 	}
 
 	sort.Sort(dbListings)
@@ -219,7 +243,8 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
-	return nil
+
+	return trace.NewAggregate(errors...)
 }
 
 // onDatabaseLogin implements "tsh db login" command.
