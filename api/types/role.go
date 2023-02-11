@@ -215,6 +215,11 @@ type Role interface {
 	GetDatabaseServiceLabels(RoleConditionType) Labels
 	// SetDatabaseLabels sets the map of db service labels this role is allowed or denied access to.
 	SetDatabaseServiceLabels(RoleConditionType, Labels)
+
+	// IsSAMLIdPEnabled returns true if the SAML IdP is enabled for this role.
+	IsSAMLIdPEnabled() bool
+	// SetSAMLIdPEnabled sets the SAML IdP to enabled for this role.
+	SetSAMLIdPEnabled(bool)
 }
 
 // NewRole constructs new standard V6 role.
@@ -1433,6 +1438,16 @@ func (r *RoleV6) SetPreviewAsRoles(rct RoleConditionType, roles []string) {
 		roleConditions.ReviewRequests = &AccessReviewConditions{}
 	}
 	roleConditions.ReviewRequests.PreviewAsRoles = roles
+}
+
+// IsSAMLIdPEnabled returns true if the SAML IdP is enabled for this role.
+func (r *RoleV6) IsSAMLIdPEnabled() bool {
+	return r.Spec.Options.IDP.SAML.Enabled.Value
+}
+
+// SetSAMLIdPEnabled sets the SAML IdP to enabled for this role.
+func (r *RoleV6) SetSAMLIdPEnabled(enabled bool) {
+	r.Spec.Options.IDP.SAML.Enabled = NewBoolOption(enabled)
 }
 
 // validateRoleSpecKubeResources validates the Allow/Deny Kubernetes Resources
