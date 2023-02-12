@@ -202,9 +202,9 @@ func TestAuthenticate(t *testing.T) {
 			),
 			activeRequests: activeAccessRequests,
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster: "local",
+				kubeUsers:       utils.StringsSet([]string{"user-a"}),
+				kubeGroups:      utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeClusterName: "local",
 				kubeClusterLabels: map[string]string{
 					"static_label1": "static_value1",
 					"static_label2": "static_value2",
@@ -239,9 +239,9 @@ func TestAuthenticate(t *testing.T) {
 				},
 			),
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster: "local",
+				kubeUsers:       utils.StringsSet([]string{"user-a"}),
+				kubeGroups:      utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeClusterName: "local",
 				kubeClusterLabels: map[string]string{
 					"static_label1": "static_value1",
 					"static_label2": "static_value2",
@@ -276,7 +276,7 @@ func TestAuthenticate(t *testing.T) {
 			wantCtx: &authContext{
 				kubeUsers:         utils.StringsSet([]string{"user-a"}),
 				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster:       "local",
+				kubeClusterName:   "local",
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
 				teleportCluster: teleportClusterClient{
@@ -307,7 +307,7 @@ func TestAuthenticate(t *testing.T) {
 			wantCtx: &authContext{
 				kubeUsers:         utils.StringsSet([]string{"user-a"}),
 				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster:       "local",
+				kubeClusterName:   "local",
 				certExpires:       certExpiration,
 				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
@@ -339,7 +339,7 @@ func TestAuthenticate(t *testing.T) {
 			wantCtx: &authContext{
 				kubeUsers:         utils.StringsSet([]string{"user-a"}),
 				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster:       "local",
+				kubeClusterName:   "local",
 				certExpires:       certExpiration,
 				kubeClusterLabels: make(map[string]string),
 				teleportCluster: teleportClusterClient{
@@ -440,7 +440,7 @@ func TestAuthenticate(t *testing.T) {
 			wantCtx: &authContext{
 				kubeUsers:         utils.StringsSet([]string{"kube-user-a", "kube-user-b"}),
 				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster:       "local",
+				kubeClusterName:   "local",
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
 				teleportCluster: teleportClusterClient{
@@ -488,7 +488,7 @@ func TestAuthenticate(t *testing.T) {
 			wantCtx: &authContext{
 				kubeUsers:         utils.StringsSet([]string{"user-a"}),
 				kubeGroups:        utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster:       "local",
+				kubeClusterName:   "local",
 				kubeClusterLabels: make(map[string]string),
 				certExpires:       certExpiration,
 				teleportCluster: teleportClusterClient{
@@ -541,10 +541,10 @@ func TestAuthenticate(t *testing.T) {
 				},
 			),
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-				kubeCluster: "foo",
-				certExpires: certExpiration,
+				kubeUsers:       utils.StringsSet([]string{"user-a"}),
+				kubeGroups:      utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeClusterName: "foo",
+				certExpires:     certExpiration,
 				kubeClusterLabels: map[string]string{
 					"static_label1": "static_value1",
 					"static_label2": "static_value2",
@@ -565,10 +565,10 @@ func TestAuthenticate(t *testing.T) {
 			tunnel:            tun,
 
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
-				kubeCluster: "foo",
-				certExpires: certExpiration,
+				kubeUsers:       utils.StringsSet([]string{"user-a"}),
+				kubeGroups:      utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
+				kubeClusterName: "foo",
+				certExpires:     certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -652,7 +652,7 @@ func TestAuthenticate(t *testing.T) {
 				username,
 				tt.wantCtx.kubeUsers,
 				tt.wantCtx.kubeGroups,
-				tt.wantCtx.kubeCluster,
+				tt.wantCtx.kubeClusterName,
 				certExpiration.Unix(),
 				tt.activeRequests,
 			)
@@ -815,8 +815,8 @@ func mockAuthCtx(ctx context.Context, t *testing.T, kubeCluster string, isRemote
 			name:     "kube-cluster",
 			isRemote: isRemote,
 		},
-		kubeCluster: "kube-cluster",
-		sessionTTL:  time.Minute,
+		kubeClusterName: "kube-cluster",
+		sessionTTL:      time.Minute,
 	}
 }
 
@@ -843,21 +843,21 @@ func TestNewClusterSessionLocal(t *testing.T) {
 	}
 
 	// Fail when kubeCluster is not specified
-	authCtx.kubeCluster = ""
+	authCtx.kubeClusterName = ""
 	_, err := f.newClusterSession(authCtx)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 	require.Empty(t, 0, f.clientCredentials.Len())
 
 	// Fail when creds aren't available
-	authCtx.kubeCluster = "other"
+	authCtx.kubeClusterName = "other"
 	_, err = f.newClusterSession(authCtx)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 	require.Empty(t, 0, f.clientCredentials.Len())
 
 	// Succeed when creds are available
-	authCtx.kubeCluster = "local"
+	authCtx.kubeClusterName = "local"
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
 	require.Equal(t, []kubeClusterEndpoint{{addr: f.clusterDetails["local"].getTargetAddr()}}, sess.kubeClusterEndpoints)
@@ -997,7 +997,8 @@ func TestClusterSessionDial(t *testing.T) {
 // TestKubeFwdHTTPProxyEnv ensures that kube forwarder doesn't respect HTTPS_PROXY env
 // and Kubernetes API is called directly.
 func TestKubeFwdHTTPProxyEnv(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	f := newMockForwader(ctx, t)
 	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
 
@@ -1008,12 +1009,15 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	t.Cleanup(lockWatcher.Close)
 	f.cfg.LockWatcher = lockWatcher
 
 	var kubeAPICallCount uint32
 	mockKubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddUint32(&kubeAPICallCount, 1)
 	}))
+
+	t.Cleanup(mockKubeAPI.Close)
 
 	authCtx.teleportCluster.dial = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
 		return new(net.Dialer).DialContext(ctx, mockKubeAPI.Listener.Addr().Network(), mockKubeAPI.Listener.Addr().String())
@@ -1038,9 +1042,10 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		},
 	}
 
-	authCtx.kubeCluster = "local"
+	authCtx.kubeClusterName = "local"
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
+	t.Cleanup(sess.close)
 	require.Equal(t, []kubeClusterEndpoint{{addr: f.clusterDetails["local"].getTargetAddr()}}, sess.kubeClusterEndpoints)
 
 	sess.tlsConfig.InsecureSkipVerify = true
@@ -1059,6 +1064,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		require.NoError(t, err)
 		fwd.ServeHTTP(w, r)
 	}))
+	t.Cleanup(kubeProxy.Close)
 
 	req, err := http.NewRequest("GET", kubeProxy.URL, nil)
 	require.NoError(t, err)
@@ -1242,6 +1248,10 @@ func (m *mockWatcher) Close() error {
 	return nil
 }
 
+func (m *mockWatcher) Error() error {
+	return nil
+}
+
 func (m *mockWatcher) Events() <-chan types.Event {
 	return m.eventC
 }
@@ -1406,9 +1416,9 @@ func TestForwarder_clientCreds_cache(t *testing.T) {
 			name: "store first certificate",
 			args: args{
 				ctx: authContext{
-					kubeUsers:   utils.StringsSet([]string{"user-a"}),
-					kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-					kubeCluster: "local",
+					kubeUsers:       utils.StringsSet([]string{"user-a"}),
+					kubeGroups:      utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+					kubeClusterName: "local",
 					Context: auth.Context{
 						User: &types.UserV2{
 							Metadata: types.Metadata{
@@ -1431,9 +1441,9 @@ func TestForwarder_clientCreds_cache(t *testing.T) {
 			name: "store certificate with different certExpires value",
 			args: args{
 				ctx: authContext{
-					kubeUsers:   utils.StringsSet([]string{"user-a"}),
-					kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
-					kubeCluster: "local",
+					kubeUsers:       utils.StringsSet([]string{"user-a"}),
+					kubeGroups:      utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+					kubeClusterName: "local",
 					Context: auth.Context{
 						User: &types.UserV2{
 							Metadata: types.Metadata{
@@ -1456,9 +1466,9 @@ func TestForwarder_clientCreds_cache(t *testing.T) {
 			name: "store certificate with different kube groups",
 			args: args{
 				ctx: authContext{
-					kubeUsers:   utils.StringsSet([]string{"user-a"}),
-					kubeGroups:  utils.StringsSet([]string{"kube-group-b", teleport.KubeSystemAuthenticated}),
-					kubeCluster: "local",
+					kubeUsers:       utils.StringsSet([]string{"user-a"}),
+					kubeGroups:      utils.StringsSet([]string{"kube-group-b", teleport.KubeSystemAuthenticated}),
+					kubeClusterName: "local",
 					Context: auth.Context{
 						User: &types.UserV2{
 							Metadata: types.Metadata{
@@ -1481,9 +1491,9 @@ func TestForwarder_clientCreds_cache(t *testing.T) {
 			name: "store certificate with different kube user",
 			args: args{
 				ctx: authContext{
-					kubeUsers:   utils.StringsSet([]string{"user-test"}),
-					kubeGroups:  utils.StringsSet([]string{"kube-group-b", teleport.KubeSystemAuthenticated}),
-					kubeCluster: "local",
+					kubeUsers:       utils.StringsSet([]string{"user-test"}),
+					kubeGroups:      utils.StringsSet([]string{"kube-group-b", teleport.KubeSystemAuthenticated}),
+					kubeClusterName: "local",
 					Context: auth.Context{
 						User: &types.UserV2{
 							Metadata: types.Metadata{
@@ -1506,9 +1516,9 @@ func TestForwarder_clientCreds_cache(t *testing.T) {
 			name: "store certificate for different user",
 			args: args{
 				ctx: authContext{
-					kubeUsers:   utils.StringsSet([]string{"user-test"}),
-					kubeGroups:  utils.StringsSet([]string{"kube-group-b", teleport.KubeSystemAuthenticated}),
-					kubeCluster: "local",
+					kubeUsers:       utils.StringsSet([]string{"user-test"}),
+					kubeGroups:      utils.StringsSet([]string{"kube-group-b", teleport.KubeSystemAuthenticated}),
+					kubeClusterName: "local",
 					Context: auth.Context{
 						User: &types.UserV2{
 							Metadata: types.Metadata{
@@ -1547,6 +1557,49 @@ func TestForwarder_clientCreds_cache(t *testing.T) {
 			cachedTLSCfg = f.getClientCreds(tt.args.ctx)
 			require.NotNil(t, cachedTLSCfg)
 			require.Equal(t, tlsCfg, cachedTLSCfg)
+		})
+	}
+}
+
+func Test_getPodResourceFromRequest(t *testing.T) {
+	tests := []struct {
+		name       string
+		requestURI string
+		want       *types.KubernetesResource
+	}{
+		{
+			name:       "pod access endpoint",
+			requestURI: "/api/v1/namespaces/default/pods/podName",
+			want: &types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "podName",
+			},
+		},
+		{
+			name:       "pod exec endpoint",
+			requestURI: "/api/v1/namespaces/default/pods/podName/exec",
+			want: &types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "podName",
+			},
+		},
+		{
+			name:       "pod list endpoint",
+			requestURI: "/api/v1/namespaces/default/pods/",
+			want:       nil,
+		},
+		{
+			name:       "secrets get endpoint",
+			requestURI: "/api/v1/namespaces/default/secrets/secretName",
+			want:       nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getPodResourceFromRequest(tt.requestURI)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

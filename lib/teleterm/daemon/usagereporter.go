@@ -23,10 +23,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	prehogapi "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	prehogclient "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/defaults"
-	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
-	prehogclient "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha/prehogv1alphaconnect"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/usagereporter"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -34,22 +34,22 @@ import (
 const (
 	// minBatchSize determines the size at which a batch is sent
 	// regardless of elapsed time
-	minBatchSize = 25
+	minBatchSize = 15
 
 	// maxBatchSize is the largest batch size that will be sent to
 	// the server; batches larger than this will be split into multiple
 	// requests.
-	maxBatchSize = 50
+	maxBatchSize = 30
 
 	// maxBatchAge is the maximum age a batch may reach before
 	// being flushed, regardless of the batch size
-	maxBatchAge = time.Minute * 30
+	maxBatchAge = time.Hour
 
 	// maxBufferSize is the maximum size to which the event buffer
 	// may grow. Events submitted once this limit is reached will be discarded.
 	// Events that were in the submission queue that fail to submit may also be
 	// discarded when requeued.
-	maxBufferSize = 100
+	maxBufferSize = 60
 
 	// submitDelay is a mandatory delay added to each batch submission
 	// to avoid spamming the prehog instance.

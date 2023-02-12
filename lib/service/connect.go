@@ -599,7 +599,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			dataDir = process.Config.DataDir
 		}
 
-		certs, err := auth.Register(auth.RegisterParams{
+		registerParams := auth.RegisterParams{
 			Token:                token,
 			ID:                   id,
 			AuthServers:          process.Config.AuthServerAddresses(),
@@ -616,7 +616,14 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			JoinMethod:           process.Config.JoinMethod,
 			CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 			FIPS:                 process.Config.FIPS,
-		})
+		}
+		if registerParams.JoinMethod == types.JoinMethodAzure {
+			registerParams.AzureParams = auth.AzureParams{
+				ClientID: process.Config.JoinParams.Azure.ClientID,
+			}
+		}
+
+		certs, err := auth.Register(registerParams)
 		if err != nil {
 			if utils.IsUntrustedCertErr(err) {
 				return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)

@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestDatabaseServerStart validates that started database server updates its
@@ -244,6 +245,73 @@ func TestHeartbeatEvents(t *testing.T) {
 			require.Eventually(t, func() bool {
 				return atomic.LoadInt64(&heartbeatEvents) == expectedHeartbeatCount(test.staticDatabases)
 			}, 2*time.Second, 500*time.Millisecond)
+		})
+	}
+}
+
+func TestShutdown(t *testing.T) {
+	tests := []struct {
+		name                             string
+		hasForkedChild                   bool
+		wantDatabaseServersAfterShutdown bool
+	}{
+		{
+			name:                             "regular shutdown",
+			hasForkedChild:                   false,
+			wantDatabaseServersAfterShutdown: false,
+		},
+		{
+			name:                             "has forked child",
+			hasForkedChild:                   true,
+			wantDatabaseServersAfterShutdown: true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			testCtx := setupTestContext(ctx, t)
+
+			db0, err := makeStaticDatabase("db0", nil)
+			require.NoError(t, err)
+
+			server := testCtx.setupDatabaseServer(ctx, t, agentParams{
+				Databases: []types.Database{db0},
+			})
+
+			// Validate that the server is proxying db0 after start.
+			require.Equal(t, server.getProxiedDatabases(), types.Databases{db0})
+
+			// Validate heartbeat is present after start.
+			server.ForceHeartbeat()
+			dbServers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			require.Len(t, dbServers, 1)
+			require.Equal(t, dbServers[0].GetDatabase(), db0)
+
+			// Shutdown should not return error.
+			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+			t.Cleanup(cancel)
+			if test.hasForkedChild {
+				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
+			}
+
+			require.NoError(t, server.Shutdown(shutdownCtx))
+
+			// Validate that the server is not proxying db0 after close.
+			require.Empty(t, server.getProxiedDatabases())
+
+			// Validate database servers based on the test.
+			dbServersAfterShutdown, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			if test.wantDatabaseServersAfterShutdown {
+				require.Equal(t, dbServers, dbServersAfterShutdown)
+			} else {
+				require.Empty(t, dbServersAfterShutdown)
+			}
 		})
 	}
 }

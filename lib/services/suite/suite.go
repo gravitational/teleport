@@ -136,6 +136,15 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 			}},
 			TLS: []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}},
 		}
+	case types.OpenSSHCA:
+		ca.Spec.ActiveKeys = types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PublicKey:  ssh.MarshalAuthorizedKey(signer.PublicKey()),
+				PrivateKey: keyBytes,
+			}},
+		}
+	case types.SAMLIDPCA:
+		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
 	default:
 		panic("unknown CA type")
 	}

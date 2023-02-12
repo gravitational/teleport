@@ -68,6 +68,20 @@ tests:
       - matchSnapshot:
           path: spec.template.spec.affinity
 
+  - it: should set nodeSelector when set in values
+    template: auth/deployment.yaml
+    set:
+      chartMode: scratch
+      clusterName: helm-lint.example.com
+      nodeSelector:
+        role: bastion
+        environment: security
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.nodeSelector
+      - matchSnapshot:
+          path: spec.template.spec
+
   - it: should set required affinity when highAvailability.requireAntiAffinity is set
     template: auth/deployment.yaml
     values:
@@ -383,6 +397,30 @@ tests:
           content:
             name: diag
             containerPort: 3000
+            protocol: TCP
+
+  - it: should expose auth port
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: auth
+            containerPort: 3025
+            protocol: TCP
+
+  - it: should expose kube port
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: kube
+            containerPort: 3026
             protocol: TCP
 
   - it: should set postStart command if set in values

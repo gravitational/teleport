@@ -146,6 +146,9 @@ const (
 	// DatabaseCAMinVersion is the minimum Teleport version that supports Database Certificate Authority.
 	DatabaseCAMinVersion = "10.0.0"
 
+	// OpenSSHCAMinVersion is the minimum Teleport version that supports OpenSSH Certificate Authority.
+	OpenSSHCAMinVersion = "12.0.0"
+
 	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
 	SSHRSAType = "ssh-rsa"
 )
@@ -343,35 +346,6 @@ const (
 	// allowed GCP service accounts.
 	TraitGCPServiceAccounts = "gcp_service_accounts"
 )
-
-// Constants for AWS discovery
-const (
-	AWSServiceTypeEC2 = "ec2"
-	AWSServiceTypeEKS = "eks"
-)
-
-// SupportedAWSDiscoveryServices is list of AWS services currently
-// supported by the Teleport discovery service
-var SupportedAWSDiscoveryServices = []string{AWSServiceTypeEC2, AWSServiceTypeEKS}
-
-// Constants for Azure discovery.
-const (
-	AzureServiceTypeKubernetes = "aks"
-	AzureServiceTypeVM         = "vm"
-)
-
-// SupportedAzureDiscoveryServices is list of Azure services currently
-// supported by the Teleport discovery service.
-var SupportedAzureDiscoveryServices = []string{AzureServiceTypeKubernetes, AzureServiceTypeVM}
-
-// Constants for GCP discovery.
-const (
-	GCPServiceTypeKubernetes = "gke"
-)
-
-// SupportedGCPDiscoveryServices is list of GCP services currently
-// supported by the Teleport discovery service.
-var SupportedGCPDiscoveryServices = []string{GCPServiceTypeKubernetes}
 
 const (
 	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh

@@ -23,7 +23,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// CertAuthType specifies certificate authority type
+// CertAuthType specifies certificate authority type. New variants should be
+// added to CertAuthTypes and, for one major version, to NewlyAdded().
 type CertAuthType string
 
 const (
@@ -33,19 +34,34 @@ const (
 	UserCA CertAuthType = "user"
 	// DatabaseCA is a certificate authority used in database access.
 	DatabaseCA CertAuthType = "db"
+	// OpenSSHCA is a certificate authority used when connecting to agentless nodes.
+	OpenSSHCA CertAuthType = "openssh"
 	// JWTSigner identifies type of certificate authority as JWT signer. In this
 	// case JWT is not a certificate authority because it does not issue
 	// certificates but rather is an authority that signs tokens, however it behaves
 	// much like a CA in terms of rotation and storage.
 	JWTSigner CertAuthType = "jwt"
+	// SAMLIDPCA identifies the certificate authority that will be used by the
+	// SAML identity provider.
+	SAMLIDPCA CertAuthType = "saml_idp"
 	// CertAuthTypeAll is a special type that represents all CertAuthTypes.
-	// DEPRECATED, DELETE IN 14.0.0. For more information see:
+	// DEPRECATED, DELETE IN 13.0.0. For more information see:
 	// https://github.com/gravitational/teleport/issues/17493
 	CertAuthTypeAll CertAuthType = "all"
 )
 
 // CertAuthTypes lists all certificate authority types.
-var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, JWTSigner}
+var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, OpenSSHCA, JWTSigner, SAMLIDPCA}
+
+// NewlyAdded should return true for CA types that were added in the current
+// major version, so that we can avoid erroring out when a potentially older
+// remote server doesn't know about them.
+func (c CertAuthType) NewlyAdded() bool {
+	switch c {
+	default:
+		return false
+	}
+}
 
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {

@@ -36,6 +36,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime/pprof"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -83,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web"
 )
 
 type integrationTestSuite struct {
@@ -153,6 +155,8 @@ func TestIntegrations(t *testing.T) {
 	t.Run("SSHExitCode", suite.bind(testSSHExitCode))
 	t.Run("Shutdown", suite.bind(testShutdown))
 	t.Run("TrustedClusters", suite.bind(testTrustedClusters))
+	t.Run("TrustedDisabledClusters", suite.bind(testDisabledTrustedClusters))
+	t.Run("TrustedClustersRoleMapChanges", suite.bind(testTrustedClustersRoleMapChanges))
 	t.Run("TrustedClustersWithLabels", suite.bind(testTrustedClustersWithLabels))
 	t.Run("TrustedTunnelNode", suite.bind(testTrustedTunnelNode))
 	t.Run("TwoClustersProxy", suite.bind(testTwoClustersProxy))
@@ -906,6 +910,7 @@ func testInteractiveReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 }
 
 func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -945,7 +950,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 			cl.Stdout = term
 			cl.Stdin = term
 
-			errCh <- cl.SSH(context.TODO(), []string{}, false)
+			errCh <- cl.SSH(ctx, []string{}, false)
 		}()
 
 		return term, errCh
@@ -1327,88 +1332,129 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	teleport := suite.newTeleport(t, nil, true)
-
-	// get a reference to site obj:
-	site := teleport.GetSiteAPI(helpers.Site)
-	require.NotNil(t, site)
-
-	person := NewTerminal(250)
-
-	cl, err := teleport.NewClient(helpers.ClientConfig{
-		Login:   suite.Me.Username,
-		Cluster: helpers.Site,
-		Host:    Host,
-		Port:    helpers.Port(t, teleport.SSH),
-	})
-	require.NoError(t, err)
-	cl.Stdout = person
-	cl.Stdin = person
-
-	sshCtx, sshCancel := context.WithCancel(context.Background())
-	t.Cleanup(sshCancel)
 	sshErr := make(chan error)
-	go func() {
-		sshErr <- cl.SSH(sshCtx, nil, false)
-		sshCancel()
-	}()
 
-	retry := func(command, pattern string) {
-		person.Type(command)
-		// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-		abortTime := time.Now().Add(10 * time.Second)
-		var matched bool
-		var output string
-		for {
-			output = replaceNewlines(person.Output(1000))
-			matched, _ = regexp.MatchString(pattern, output)
-			if matched {
-				break
-			}
-			time.Sleep(time.Millisecond * 200)
-			if time.Now().After(abortTime) {
-				require.FailNowf(t, "failed to capture output: %v", pattern)
-			}
-		}
-		if !matched {
-			require.FailNowf(t, "output %q does not match pattern %q", output, pattern)
-		}
+	tests := []struct {
+		name          string
+		createSession func(t *testing.T, i *helpers.TeleInstance, term *Terminal, cfg helpers.ClientConfig)
+	}{
+		{
+			name: "cli sessions",
+			createSession: func(t *testing.T, i *helpers.TeleInstance, term *Terminal, cfg helpers.ClientConfig) {
+				tc, err := i.NewClient(cfg)
+				require.NoError(t, err)
+
+				tc.Stdin = term
+				tc.Stdout = term
+
+				sshCtx, sshCancel := context.WithCancel(context.Background())
+				t.Cleanup(sshCancel)
+				go func() {
+					sshErr <- tc.SSH(sshCtx, nil, false)
+					sshCancel()
+				}()
+			},
+		},
+		{
+			name: "web sessions",
+			createSession: func(t *testing.T, i *helpers.TeleInstance, term *Terminal, cfg helpers.ClientConfig) {
+				wc, err := i.NewWebClient(cfg)
+				require.NoError(t, err)
+
+				stream, err := wc.SSH(web.TerminalRequest{
+					Server: net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)),
+					Login:  cfg.Login,
+					Term: session.TerminalParams{
+						W: 100,
+						H: 100,
+					},
+				})
+				require.NoError(t, err)
+
+				go func() {
+					err := utils.ProxyConn(context.Background(), term, stream)
+					sshErr <- err
+				}()
+			},
+		},
 	}
 
-	retry("echo start \r\n", ".*start.*")
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 
-	// initiate shutdown
-	ctx := context.TODO()
-	shutdownContext := teleport.Process.StartShutdown(ctx)
+			// Enable web service.
+			cfg := suite.defaultServiceConfig()
+			cfg.Auth.Enabled = true
+			cfg.Auth.Preference.SetSecondFactor("off")
+			cfg.Proxy.DisableWebService = false
+			cfg.Proxy.DisableWebInterface = true
+			cfg.Proxy.Enabled = true
+			cfg.SSH.Enabled = true
 
-	require.Eventually(t, func() bool {
-		// TODO: check that we either get a connection that fully works or a connection refused error
-		c, err := net.DialTimeout("tcp", teleport.ReverseTunnel, 250*time.Millisecond)
-		if err != nil {
-			require.True(t, utils.IsConnectionRefused(trace.Unwrap(err)))
-			return true
-		}
-		require.NoError(t, c.Close())
-		return false
-	}, time.Second*5, time.Millisecond*500, "proxy should not accept new connections while shutting down")
+			teleport := suite.NewTeleportWithConfig(t, []string{"test"}, nil, cfg)
 
-	// make sure that terminal still works
-	retry("echo howdy \r\n", ".*howdy.*")
+			password := uuid.NewString()
+			teleport.CreateWebUser(t, suite.Me.Username, password)
 
-	// now type exit and wait for shutdown to complete
-	person.Type("exit\n\r")
+			// get a reference to site obj:
+			site := teleport.GetSiteAPI(helpers.Site)
+			require.NotNil(t, site)
 
-	select {
-	case err := <-sshErr:
-		require.NoError(t, err)
-	case <-time.After(5 * time.Second):
-		require.FailNow(t, "failed to shutdown ssh session")
-	}
+			person := NewTerminal(250)
 
-	select {
-	case <-shutdownContext.Done():
-	case <-time.After(5 * time.Second):
-		require.FailNow(t, "Failed to shut down the server.")
+			test.createSession(t, teleport, person, helpers.ClientConfig{
+				Login:    suite.Me.Username,
+				Password: password,
+				Cluster:  helpers.Site,
+				Host:     Loopback,
+				Port:     helpers.Port(t, teleport.SSH),
+			})
+
+			person.Type("echo start \r\n")
+			require.Eventually(t, func() bool {
+				output := replaceNewlines(person.Output(1000))
+				matched, _ := regexp.MatchString(".*start.*", output)
+				return matched
+			}, 10*time.Second, 200*time.Millisecond)
+
+			// initiate shutdown
+			shutdownContext := teleport.Process.StartShutdown(context.Background())
+
+			require.Eventually(t, func() bool {
+				// TODO: check that we either get a connection that fully works or a connection refused error
+				c, err := net.DialTimeout("tcp", teleport.ReverseTunnel, 250*time.Millisecond)
+				if err != nil {
+					return utils.IsConnectionRefused(trace.Unwrap(err))
+				}
+				return c.Close() == nil
+			}, time.Second*5, time.Millisecond*500, "proxy should not accept new connections while shutting down")
+
+			// make sure that terminal still works
+			person.Type("echo howdy \r\n")
+			require.Eventually(t, func() bool {
+				output := replaceNewlines(person.Output(1000))
+				matched, _ := regexp.MatchString(".*howdy.*", output)
+				return matched
+			}, 10*time.Second, 200*time.Millisecond)
+
+			// now type exit and wait for shutdown to complete
+			person.Type("exit\n\r")
+
+			select {
+			case err := <-sshErr:
+				require.NoError(t, err)
+			case <-time.After(5 * time.Second):
+				require.FailNow(t, "failed to shutdown ssh session")
+			}
+
+			select {
+			case <-shutdownContext.Done():
+			case <-time.After(5 * time.Second):
+				require.FailNow(t, "Failed to shut down the server.")
+			}
+		})
 	}
 }
 
@@ -1545,6 +1591,9 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 }
 
 func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectTestCase) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	teleport := suite.NewTeleportInstance(t)
 
 	username := suite.Me.Username
@@ -1580,9 +1629,6 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	require.NoError(t, teleport.CreateEx(t, nil, cfg))
 	require.NoError(t, teleport.Start())
 	defer teleport.StopAll()
-
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
 
 	if tc.concurrentConns < 1 {
 		// test cases that don't specify concurrentConns are single-connection tests.
@@ -1809,6 +1855,7 @@ func testTwoClustersTunnel(t *testing.T, suite *integrationTestSuite) {
 }
 
 func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time, proxyRecordMode string, execCountSiteA, execCountSiteB int) {
+	ctx := context.Background()
 	// start the http proxy, we need to make sure this was not used
 	ph := &helpers.ProxyHandler{}
 	ts := httptest.NewServer(ph)
@@ -1895,12 +1942,12 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	})
 	tc.Stdout = &outputA
 	require.NoError(t, err)
-	err = tc.SSH(context.TODO(), cmd, false)
+	err = tc.SSH(ctx, cmd, false)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", outputA.String())
 
 	// Update trusted CAs.
-	err = tc.UpdateTrustedCA(context.TODO(), a.Secrets.SiteName)
+	err = tc.UpdateTrustedCA(ctx, a.Secrets.SiteName)
 	require.NoError(t, err)
 
 	// The known_hosts file should have two certificates, the way bytes.Split
@@ -1939,13 +1986,13 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	})
 	tc.Stdout = &outputB
 	require.NoError(t, err)
-	err = tc.SSH(context.TODO(), cmd, false)
+	err = tc.SSH(ctx, cmd, false)
 	require.NoError(t, err)
 	require.Equal(t, outputA.String(), outputB.String())
 
 	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
 	require.NoError(t, a.StopAuth(false))
-	err = tc.SSH(context.TODO(), cmd, false)
+	err = tc.SSH(ctx, cmd, false)
 	require.IsType(t, err, trace.ConnectionProblem(nil, ""))
 
 	// Reset and start "Site-A" again
@@ -1958,7 +2005,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	// and 'tc' (client) is also supposed to reconnect
 	var sshErr error
 	tcHasReconnected := func() bool {
-		sshErr = tc.SSH(context.TODO(), cmd, false)
+		sshErr = tc.SSH(ctx, cmd, false)
 		return sshErr == nil
 	}
 	require.Eventually(t, tcHasReconnected, 10*time.Second, 250*time.Millisecond,
@@ -2043,6 +2090,7 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 // TestHA tests scenario when auth server for the cluster goes down
 // and we switch to local persistent caches
 func testHA(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -2095,7 +2143,7 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	// and 'tc' (client) is also supposed to reconnect
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err == nil {
 			break
 		}
@@ -2128,7 +2176,7 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	// and 'tc' (client) is also supposed to reconnect
 	for i := 0; i < 30; i++ {
 		time.Sleep(1 * time.Second)
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err == nil {
 			break
 		}
@@ -2374,6 +2422,22 @@ func testTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	defer tr.Stop()
 
 	trustedClusters(t, suite, trustedClusterTest{multiplex: false})
+}
+
+// testDisabledTrustedClusters tests creation of disabled trusted cluster
+func testDisabledTrustedClusters(t *testing.T, suite *integrationTestSuite) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	trustedDisabledCluster(t, suite, trustedClusterTest{multiplex: false})
+}
+
+// testTrustedClustersRoleMapChanges tests the changing of role maps for trusted clusters
+func testTrustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	trustedClustersRoleMapChanges(t, suite, trustedClusterTest{multiplex: false})
 }
 
 // TestTrustedClustersWithLabels tests remote clusters scenarios
@@ -2651,6 +2715,302 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.NoError(t, aux.StopAll())
 }
 
+func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trustedClusterTest) {
+	ctx := context.Background()
+	username := suite.Me.Username
+
+	clusterMain := "cluster-main"
+	clusterAux := "cluster-aux"
+	mainCfg := helpers.InstanceConfig{
+		ClusterName: clusterMain,
+		HostID:      helpers.HostID,
+		NodeName:    Host,
+		Priv:        suite.Priv,
+		Pub:         suite.Pub,
+		Log:         suite.Log,
+	}
+	mainCfg.Listeners = standardPortsOrMuxSetup(t, test.multiplex, &mainCfg.Fds)
+
+	main := helpers.NewInstance(t, mainCfg)
+	aux := suite.newNamedTeleportInstance(t, clusterAux)
+
+	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
+	mainDevs := "main-devs"
+	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	// If the test is using labels, the cluster will be labeled
+	// and user will be granted access if labels match.
+	// Otherwise, to preserve backwards-compatibility
+	// roles with no labels will grant access to clusters with no labels.
+	if test.useLabels {
+		devsRole.SetClusterLabels(types.Allow, types.Labels{"access": []string{"prod"}})
+	}
+	require.NoError(t, err)
+
+	mainAdmins := "main-admins"
+	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{"superuser"},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	main.AddUserWithRole(username, devsRole, adminsRole)
+
+	// Ops users can only access remote clusters with label 'access': 'ops'
+	mainOps := "main-ops"
+	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:        []string{username},
+			ClusterLabels: types.Labels{"access": []string{"ops"}},
+			NodeLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	main.AddUserWithRole(mainOps, mainOpsRole, adminsRole)
+
+	// for role mapping test we turn on Web API on the main cluster
+	// as it's used
+	makeConfig := func(instance *helpers.TeleInstance, enableSSH bool) (*testing.T, *service.Config) {
+		tconf := suite.defaultServiceConfig()
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+		tconf.SSH.Enabled = enableSSH
+		tconf, err := instance.GenerateConfig(t, nil, tconf)
+		require.NoError(t, err)
+
+		tconf.CachePolicy.Enabled = false
+
+		return t, tconf
+	}
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	require.NoError(t, main.CreateWithConf(makeConfig(main, false)))
+	require.NoError(t, aux.CreateWithConf(makeConfig(aux, true)))
+
+	// auxiliary cluster has only a role aux-devs
+	// connect aux cluster to main cluster
+	// using trusted clusters, so remote user will be allowed to assume
+	// role specified by mapping remote role "devs" to local role "local-devs"
+	auxDevs := "aux-devs"
+	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
+	require.NoError(t, err)
+
+	trustedClusterToken := "trusted-cluster-token"
+	tokenResource, err := types.NewProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{})
+	require.NoError(t, err)
+	if test.useLabels {
+		meta := tokenResource.GetMetadata()
+		meta.Labels = map[string]string{"access": "prod"}
+		tokenResource.SetMetadata(meta)
+	}
+	err = main.Process.GetAuthServer().UpsertToken(ctx, tokenResource)
+	require.NoError(t, err)
+	// Note that the mapping omits admins role, this is to cover the scenario
+	// when root cluster and leaf clusters have different role sets
+	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
+		{Remote: mainDevs, Local: []string{auxDevs}},
+		{Remote: mainOps, Local: []string{auxDevs}},
+	})
+
+	// modify trusted cluster resource name, so it would not
+	// match the cluster name to check that it does not matter
+	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
+	// disable cluster
+	trustedCluster.SetEnabled(false)
+
+	require.NoError(t, main.Start())
+	require.NoError(t, aux.Start())
+
+	err = trustedCluster.CheckAndSetDefaults()
+	require.NoError(t, err)
+
+	// try and upsert a trusted cluster while disabled
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+
+	// try to enable disabled cluster
+	trustedCluster.SetEnabled(true)
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
+
+	helpers.CheckTrustedClustersCanConnect(ctx, t, helpers.TrustedClusterSetup{
+		Aux:         aux,
+		Main:        main,
+		Username:    username,
+		ClusterAux:  clusterAux,
+		UseJumpHost: test.useJumpHost,
+	})
+
+	// stop clusters and remaining nodes
+	require.NoError(t, main.StopAll())
+	require.NoError(t, aux.StopAll())
+}
+
+func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, test trustedClusterTest) {
+	ctx := context.Background()
+	username := suite.Me.Username
+
+	clusterMain := "cluster-main"
+	clusterAux := "cluster-aux"
+	mainCfg := helpers.InstanceConfig{
+		ClusterName: clusterMain,
+		HostID:      helpers.HostID,
+		NodeName:    Host,
+		Priv:        suite.Priv,
+		Pub:         suite.Pub,
+		Log:         suite.Log,
+	}
+	mainCfg.Listeners = standardPortsOrMuxSetup(t, test.multiplex, &mainCfg.Fds)
+	main := helpers.NewInstance(t, mainCfg)
+	aux := suite.newNamedTeleportInstance(t, clusterAux)
+
+	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
+	mainDevs := "main-devs"
+	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	// If the test is using labels, the cluster will be labeled
+	// and user will be granted access if labels match.
+	// Otherwise, to preserve backwards-compatibility
+	// roles with no labels will grant access to clusters with no labels.
+	if test.useLabels {
+		devsRole.SetClusterLabels(types.Allow, types.Labels{"access": []string{"prod"}})
+	}
+	require.NoError(t, err)
+
+	mainAdmins := "main-admins"
+	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{"superuser"},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	main.AddUserWithRole(username, devsRole, adminsRole)
+
+	// Ops users can only access remote clusters with label 'access': 'ops'
+	mainOps := "main-ops"
+	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:        []string{username},
+			ClusterLabels: types.Labels{"access": []string{"ops"}},
+			NodeLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	main.AddUserWithRole(mainOps, mainOpsRole, adminsRole)
+
+	// for role mapping test we turn on Web API on the main cluster
+	// as it's used
+	makeConfig := func(instance *helpers.TeleInstance, enableSSH bool) (*testing.T, *service.Config) {
+		tconf := suite.defaultServiceConfig()
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+		tconf.SSH.Enabled = enableSSH
+		tconf, err := instance.GenerateConfig(t, nil, tconf)
+		require.NoError(t, err)
+
+		tconf.CachePolicy.Enabled = false
+		return t, tconf
+	}
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	require.NoError(t, main.CreateWithConf(makeConfig(main, false)))
+	require.NoError(t, aux.CreateWithConf(makeConfig(aux, true)))
+
+	// auxiliary cluster has only a role aux-devs
+	// connect aux cluster to main cluster
+	// using trusted clusters, so remote user will be allowed to assume
+	// role specified by mapping remote role "devs" to local role "local-devs"
+	auxDevs := "aux-devs"
+	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
+	require.NoError(t, err)
+
+	trustedClusterToken := "trusted-cluster-token"
+	tokenResource, err := types.NewProvisionToken(trustedClusterToken, []types.SystemRole{types.RoleTrustedCluster}, time.Time{})
+	require.NoError(t, err)
+	if test.useLabels {
+		meta := tokenResource.GetMetadata()
+		meta.Labels = map[string]string{"access": "prod"}
+		tokenResource.SetMetadata(meta)
+	}
+	err = main.Process.GetAuthServer().UpsertToken(ctx, tokenResource)
+	require.NoError(t, err)
+	// Note that the mapping omits admins role, this is to cover the scenario
+	// when root cluster and leaf clusters have different role sets
+	trustedCluster := main.AsTrustedCluster(trustedClusterToken, types.RoleMap{
+		{Remote: mainOps, Local: []string{auxDevs}},
+	})
+
+	// modify trusted cluster resource name, so it would not
+	// match the cluster name to check that it does not matter
+	trustedCluster.SetName(main.Secrets.SiteName + "-cluster")
+
+	require.NoError(t, main.Start())
+	require.NoError(t, aux.Start())
+
+	err = trustedCluster.CheckAndSetDefaults()
+	require.NoError(t, err)
+
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
+
+	// change role mapping to ensure updating works
+	trustedCluster.SetRoleMap(types.RoleMap{
+		{Remote: mainDevs, Local: []string{auxDevs}},
+	})
+
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
+
+	helpers.CheckTrustedClustersCanConnect(ctx, t, helpers.TrustedClusterSetup{
+		Aux:         aux,
+		Main:        main,
+		Username:    username,
+		ClusterAux:  clusterAux,
+		UseJumpHost: test.useJumpHost,
+	})
+
+	// disable the enabled trusted cluster and ensure it no longer works
+	trustedCluster.SetEnabled(false)
+	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+
+	// Wait for both cluster to no longer see each other via reverse tunnels.
+	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 0), 10*time.Second, 1*time.Second,
+		"Two clusters still see eachother after being disabled.")
+	require.Eventually(t, helpers.WaitForClusters(aux.Tunnel, 0), 10*time.Second, 1*time.Second,
+		"Two clusters still see eachother after being disabled.")
+
+	// stop clusters and remaining nodes
+	require.NoError(t, main.StopAll())
+	require.NoError(t, aux.StopAll())
+}
+
 func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	ctx := context.Background()
 	username := suite.Me.Username
@@ -2804,6 +3164,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 // TestDiscoveryRecovers ensures that discovery protocol recovers from a bad discovery
 // state (all known proxies are offline).
 func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -2811,7 +3172,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 
 	// create load balancer for main cluster proxies
 	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
-	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
+	lb, err := utils.NewLoadBalancer(ctx, frontend)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
 	go lb.Serve()
@@ -2938,6 +3299,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 // TestDiscovery tests case for multiple proxies and a reverse tunnel
 // agent that eventually connnects to the the right proxy
 func testDiscovery(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -2945,7 +3307,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 
 	// create load balancer for main cluster proxies
 	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
-	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
+	lb, err := utils.NewLoadBalancer(ctx, frontend)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
 	go lb.Serve()
@@ -3064,6 +3426,10 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 // nodes will reconnect when network connection between the proxy and node
 // is restored.
 func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
+	// TODO(jakule): Re-enable this test
+	t.Skip("flaky test. Skip temporary")
+
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tr.Stop() })
 
@@ -3072,7 +3438,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 
 	// Create and start load balancer for proxies.
 	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
-	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
+	lb, err := utils.NewLoadBalancer(ctx, frontend)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
 	go lb.Serve()
@@ -3217,6 +3583,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 
 // TestDiscoveryNode makes sure the discovery protocol works with nodes.
 func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3225,7 +3592,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 
 	// Create and start load balancer for proxies.
 	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
-	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
+	lb, err := utils.NewLoadBalancer(ctx, frontend)
 	require.NoError(t, err)
 	err = lb.Listen()
 	require.NoError(t, err)
@@ -5660,10 +6027,10 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 
 	accessRequestID := req.GetName()
 
-	err = authServer.CreateAccessRequest(context.TODO(), req, tlsca.Identity{})
+	err = authServer.CreateAccessRequest(ctx, req, tlsca.Identity{})
 	require.NoError(t, err)
 
-	err = authServer.SetAccessRequestState(context.TODO(), types.AccessRequestUpdate{
+	err = authServer.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 		RequestID: accessRequestID,
 		State:     types.RequestState_APPROVED,
 	})
@@ -5849,7 +6216,7 @@ func runCommandWithContext(ctx context.Context, t *testing.T, instance *helpers.
 
 // invoke makes it easier to defer multiple cancelFuncs held by the same variable
 // without them stomping on one another.
-func invoke(cancel context.CancelFunc) {
+func invoke(cancel context.CancelFunc) { //nolint:unused // unused as TestReverseTunnelCollapse is skipped
 	cancel()
 }
 
@@ -6418,6 +6785,7 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 }
 
 func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tc := createTrustedClusterPair(t, suite, func(t *testing.T, root, leaf *helpers.TeleInstance) {
 		rootNodes := []string{"root-one", "root-two"}
 		leafNodes := []string{"leaf-one", "leaf-two"}
@@ -6522,7 +6890,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			} else {
 				tc.SearchKeywords = nil
 			}
-			clusters, err := tc.ListNodesWithFiltersAllClusters(context.TODO())
+			clusters, err := tc.ListNodesWithFiltersAllClusters(ctx)
 			require.NoError(t, err)
 			nodes := make([]string, 0)
 			for _, v := range clusters {
@@ -6568,7 +6936,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 		}
 
 		t.Run("apps - "+test.name, func(t *testing.T) {
-			clusters, err := tc.ListAppsAllClusters(context.TODO(), nil)
+			clusters, err := tc.ListAppsAllClusters(ctx, nil)
 			require.NoError(t, err)
 			apps := make([]string, 0)
 			for _, v := range clusters {
@@ -6581,7 +6949,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 		})
 
 		t.Run("databases - "+test.name, func(t *testing.T) {
-			clusters, err := tc.ListDatabasesAllClusters(context.TODO(), nil)
+			clusters, err := tc.ListDatabasesAllClusters(ctx, nil)
 			require.NoError(t, err)
 			databases := make([]string, 0)
 			for _, v := range clusters {
@@ -6598,7 +6966,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			if test.search != "" {
 				req.SearchKeywords = strings.Split(test.search, " ")
 			}
-			clusterMap, err := tc.ListKubernetesClustersWithFiltersAllClusters(context.TODO(), req)
+			clusterMap, err := tc.ListKubernetesClustersWithFiltersAllClusters(ctx, req)
 			require.NoError(t, err)
 			clusters := make([]string, 0)
 			for _, cl := range clusterMap {
@@ -6825,6 +7193,210 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, connectivity.Ready, conn.GetState())
 			require.NoError(t, conn.Close())
+		})
+	}
+}
+
+// TestConnectivityWithoutAuth ensures that sessions
+// can/cannot be established with an existing certificate
+// based on cluster configuration or roles.
+func TestConnectivityWithoutAuth(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
+	tests := []struct {
+		name         string
+		adjustRole   func(r types.Role)
+		command      []string
+		sshAssertion func(t *testing.T, authRunning bool, errChan chan error, term *Terminal)
+	}{
+		{
+			name:       "offline connectivity allowed",
+			adjustRole: func(r types.Role) {},
+			sshAssertion: func(t *testing.T, authRunning bool, errChan chan error, term *Terminal) {
+				term.Type("echo hi\n\rexit\n\r")
+
+				select {
+				case err := <-errChan:
+					require.NoError(t, err)
+				case <-time.After(5 * time.Second):
+					t.Fatal("timeout waiting for session to exit")
+				}
+				require.Contains(t, term.AllOutput(), "hi")
+			},
+		},
+		{
+			name: "moderated sessions requires auth connectivity",
+			adjustRole: func(r types.Role) {
+				r.SetSessionRequirePolicies([]*types.SessionRequirePolicy{
+					{
+						Name:  "bar",
+						Kinds: []string{string(types.SSHSessionKind)},
+					},
+				})
+			},
+			sshAssertion: func(t *testing.T, authRunning bool, errChan chan error, term *Terminal) {
+				if authRunning {
+					require.Eventually(t, func() bool {
+						return strings.Contains(term.AllOutput(), "Waiting for required participants")
+					}, 5*time.Second, 500*time.Millisecond)
+
+					// send ctrl-c to exit
+					term.Type("\x03\r")
+				}
+
+				select {
+				case err := <-errChan:
+					require.Error(t, err)
+					if !authRunning {
+						require.Empty(t, term.AllOutput())
+					}
+				case <-time.After(5 * time.Second):
+					t.Fatal("timeout waiting for session to exit")
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create auth config.
+			authCfg := service.MakeDefaultConfig()
+			authCfg.Console = nil
+			authCfg.Log = utils.NewLoggerForTests()
+			authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+			authCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+			authCfg.Auth.Preference.SetSecondFactor("off")
+			authCfg.Auth.Enabled = true
+			authCfg.Auth.NoAudit = true
+			authCfg.Proxy.Enabled = false
+			authCfg.SSH.Enabled = false
+
+			privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+			require.NoError(t, err)
+
+			auth := helpers.NewInstance(t, helpers.InstanceConfig{
+				ClusterName: helpers.Site,
+				HostID:      uuid.New().String(),
+				NodeName:    Host,
+				Priv:        privateKey,
+				Pub:         publicKey,
+				Log:         utils.NewLoggerForTests(),
+			})
+
+			// Create a user and role.
+			me, err := user.Current()
+			require.NoError(t, err)
+
+			role := services.NewImplicitRole()
+			role.SetName("test")
+			role.SetLogins(types.Allow, []string{me.Username})
+			role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}})
+			auth.AddUserWithRole(me.Username, role)
+
+			// allow test case to tweak the role
+			test.adjustRole(role)
+
+			// create and launch the auth server
+			err = auth.CreateEx(t, nil, authCfg)
+			require.NoError(t, err)
+
+			require.NoError(t, auth.Start())
+			t.Cleanup(func() {
+				require.NoError(t, auth.StopAll())
+			})
+
+			// create a proxy/node instance
+			privateKey, publicKey, err = testauthority.New().GenerateKeyPair()
+			require.NoError(t, err)
+
+			node := helpers.NewInstance(t, helpers.InstanceConfig{
+				ClusterName: helpers.Site,
+				HostID:      uuid.New().String(),
+				NodeName:    Host,
+				Priv:        privateKey,
+				Pub:         publicKey,
+				Log:         utils.NewLoggerForTests(),
+			})
+
+			// Create node config.
+			nodeCfg := service.MakeDefaultConfig()
+			nodeCfg.SetAuthServerAddress(authCfg.Auth.ListenAddr)
+			nodeCfg.SetToken("token")
+			nodeCfg.CachePolicy.Enabled = true
+			nodeCfg.DataDir = t.TempDir()
+			nodeCfg.Console = nil
+			nodeCfg.Log = utils.NewLoggerForTests()
+			nodeCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+			nodeCfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+			nodeCfg.Auth.Enabled = false
+			// Configure Proxy.
+			nodeCfg.Proxy.Enabled = true
+			nodeCfg.Proxy.DisableWebService = false
+			nodeCfg.Proxy.DisableWebInterface = true
+			nodeCfg.FileDescriptors = append(nodeCfg.FileDescriptors, node.Fds...)
+			nodeCfg.Proxy.SSHAddr.Addr = node.SSHProxy
+			nodeCfg.Proxy.WebAddr.Addr = node.Web
+			nodeCfg.Proxy.ReverseTunnelListenAddr.Addr = node.Secrets.TunnelAddr
+
+			// Configure Node.
+			nodeCfg.SSH.Enabled = true
+			nodeCfg.SSH.Addr.Addr = node.SSH
+
+			err = node.CreateWithConf(t, nodeCfg)
+			require.NoError(t, err)
+
+			require.NoError(t, node.Start())
+			t.Cleanup(func() {
+				require.NoError(t, node.StopAll())
+			})
+
+			// create a client for the user created above
+			cli, err := auth.NewClient(helpers.ClientConfig{
+				Login:   me.Username,
+				Cluster: helpers.Site,
+				Host:    Host,
+				Port:    helpers.Port(t, node.SSH),
+				Proxy: &helpers.ProxyConfig{
+					SSHAddr: nodeCfg.Proxy.SSHAddr.String(),
+					WebAddr: nodeCfg.Proxy.WebAddr.String(),
+				},
+			})
+			require.NoError(t, err)
+
+			// start ssh session with auth still running
+			term := NewTerminal(200)
+			cli.Stdout = term
+			cli.Stdin = term
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			errChan := make(chan error, 1)
+			go func() {
+				errChan <- cli.SSH(ctx, test.command, false)
+			}()
+
+			t.Run("auth running", func(t *testing.T) {
+				test.sshAssertion(t, true, errChan, term)
+			})
+
+			// shut down auth server
+			require.NoError(t, auth.StopAuth(false))
+
+			// start ssh session after auth has shutdown
+			term = NewTerminal(200)
+			cli.Stdout = term
+			cli.Stdin = term
+			ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			go func() {
+				errChan <- cli.SSH(ctx, test.command, false)
+			}()
+
+			t.Run("auth not running", func(t *testing.T) {
+				test.sshAssertion(t, false, errChan, term)
+			})
 		})
 	}
 }

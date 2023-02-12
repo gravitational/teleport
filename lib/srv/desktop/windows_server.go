@@ -399,6 +399,13 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 }
 
 func (s *WindowsService) newStreamWriter(record bool, sessionID string) (libevents.StreamWriter, error) {
+	// AuditWriter doesn't always respect the RecordOuptut field,
+	// so ensure the session isn't recorded by using a discard stream.
+	// See https://github.com/gravitational/teleport/issues/16773
+	if !record {
+		return &libevents.DiscardStream{}, nil
+	}
+
 	return libevents.NewAuditWriter(libevents.AuditWriterConfig{
 		Component:    teleport.ComponentWindowsDesktop,
 		Namespace:    apidefaults.Namespace,
@@ -408,7 +415,7 @@ func (s *WindowsService) newStreamWriter(record bool, sessionID string) (libeven
 		SessionID:    session.ID(sessionID),
 		Streamer:     s.streamer,
 		ServerID:     s.cfg.Heartbeat.HostUUID,
-		RecordOutput: record,
+		RecordOutput: true,
 	})
 }
 
@@ -483,6 +490,8 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 // place before the certificate expires. If we are unable to obtain a certificate
 // and authenticate with the LDAP server, then the operation will be automatically
 // retried.
+//
+// This method is safe for concurrent calls.
 func (s *WindowsService) initializeLDAP() error {
 	tc, err := s.tlsConfigForLDAP()
 	if trace.IsAccessDenied(err) && modules.GetModules().BuildType() == modules.BuildEnterprise {
@@ -540,6 +549,7 @@ func (s *WindowsService) initializeLDAP() error {
 //
 // The lock on s.mu MUST be held.
 func (s *WindowsService) scheduleNextLDAPCertRenewalLocked(after time.Duration) {
+	s.cfg.Log.Infof("next LDAP cert renewal scheduled in %v", after)
 	if s.ldapCertRenew != nil {
 		s.ldapCertRenew.Reset(after)
 	} else {
@@ -605,7 +615,7 @@ func (s *WindowsService) startStaticHostHeartbeat(host utils.NetAddr, nonAD bool
 		GetServerInfo:   s.staticHostHeartbeatInfo(host, s.cfg.HostLabelsFn, nonAD),
 		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
-		CheckPeriod:     defaults.HeartbeatCheckPeriod,
+		CheckPeriod:     5 * time.Minute,
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
 		OnHeartbeat:     s.cfg.Heartbeat.OnHeartbeat,
 	})
@@ -799,10 +809,10 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	var windowsUser string
 	authorize := func(login string) error {
 		windowsUser = login // capture attempted login user
-		mfaParams := authCtx.MFAParams(authPref.GetRequireMFAType())
+		state := authCtx.GetAccessState(authPref)
 		return authCtx.Checker.CheckAccess(
 			desktop,
-			mfaParams,
+			state,
 			services.NewWindowsLoginMatcher(login))
 	}
 
@@ -873,6 +883,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		Tracker:               rdpc,
 		TeleportUser:          identity.Username,
 		ServerID:              s.cfg.Heartbeat.HostUUID,
+		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
 		MessageWriter: &monitorErrorSender{
 			log:     log,
 			tdpConn: tdpConn,
@@ -1078,20 +1089,27 @@ func timer() func() int64 {
 	}
 }
 
-// generateUserCert queries LDAP for the passed username's SID and generates
-// a private key / public certificate pair for the given Windows username.
+// generateUserCert generates a keypair for the given Windows username,
+// optionally querying LDAP for the user's Security Identifier.
 func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop) (certDER, keyDER []byte, err error) {
-	// Find the user's SID
-	s.cfg.Log.Debugf("querying LDAP for objectSid of Windows username: %v", username)
-	filters := []string{
-		fmt.Sprintf("(%s=%s)", windows.AttrObjectCategory, windows.CategoryPerson),
-		fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, windows.ClassUser),
-		fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountName, username),
-	}
-
 	var activeDirectorySID string
 	if !desktop.NonAD() {
+		// Find the user's SID
+		s.cfg.Log.Debugf("querying LDAP for objectSid of Windows username: %v", username)
+		filters := []string{
+			fmt.Sprintf("(%s=%s)", windows.AttrObjectCategory, windows.CategoryPerson),
+			fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, windows.ClassUser),
+			fmt.Sprintf("(%s=%s)", windows.AttrSAMAccountName, username),
+		}
+
 		entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
+		// if LDAP-based desktop discovery is not enabled, there may not be enough
+		// traffic to keep the connection open. Attempt to open a new LDAP connection
+		// in this case.
+		if trace.IsConnectionProblem(err) {
+			s.initializeLDAP() // ignore error, this is a best effort attempt
+			entries, err = s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
+		}
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -1105,8 +1123,6 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 			return nil, nil, trace.Wrap(err)
 		}
 		s.cfg.Log.Debugf("Found objectSid %v for Windows username %v", activeDirectorySID, username)
-		// Generate credentials with the user's SID
-
 	}
 	return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl, activeDirectorySID)
 }

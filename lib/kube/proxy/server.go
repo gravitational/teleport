@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	logrus "github.com/sirupsen/logrus"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -85,6 +87,8 @@ type TLSServerConfig struct {
 	// If StaticLabels and CloudLabels define labels with the same key,
 	// StaticLabels take precedence over CloudLabels.
 	CloudLabels labels.Importer
+	// IngressReporter reports new and active connections.
+	IngressReporter *ingress.Reporter
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -189,6 +193,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout * 2,
 			TLSConfig:         cfg.TLS,
+			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
 		},
 		heartbeats: make(map[string]*srv.Heartbeat),
 		monitoredKubeClusters: monitoredKubeClusters{
@@ -212,6 +217,11 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 		Clock:                       t.Clock,
 		EnableExternalProxyProtocol: true,
 		ID:                          t.Component,
+		// Increases deadline until the agent receives the first byte to 10s.
+		// It's required to accommodate setups with high latency and where the time
+		// between the TCP being accepted and the time for the first byte is longer
+		// than the default value -  1s.
+		ReadDeadline: 10 * time.Second,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -251,9 +261,23 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 
 // Close closes the server and cleans up all resources.
 func (t *TLSServer) Close() error {
+	return trace.Wrap(t.close(t.closeContext))
+}
+
+// Close closes the server and cleans up all resources.
+func (t *TLSServer) Shutdown(ctx context.Context) error {
+	// TODO(tigrato): handle connections gracefully and wait for them to finish.
+	// This might be problematic because exec and port forwarding connections
+	// are long lived connections and if we wait for them to finish, we might
+	// end up waiting forever.
+	return trace.Wrap(t.close(ctx))
+}
+
+// close closes the server and cleans up all resources.
+func (t *TLSServer) close(ctx context.Context) error {
 	var errs []error
 	for _, kubeCluster := range t.fwd.kubeClusters() {
-		errs = append(errs, t.unregisterKubeCluster(t.closeContext, kubeCluster.GetName()))
+		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster.GetName()))
 	}
 	errs = append(errs, t.fwd.Close(), t.Server.Close())
 
@@ -263,8 +287,10 @@ func (t *TLSServer) Close() error {
 	if t.watcher != nil {
 		t.watcher.Close()
 	}
-
-	return trace.NewAggregate(errs...)
+	t.mu.Lock()
+	listClose := t.listener.Close()
+	t.mu.Unlock()
+	return trace.NewAggregate(append(errs, listClose)...)
 }
 
 // GetConfigForClient is getting called on every connection

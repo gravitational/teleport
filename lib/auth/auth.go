@@ -36,6 +36,7 @@ import (
 	insecurerand "math/rand"
 	"net"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -50,6 +51,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -75,6 +77,7 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/loginrule"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -177,6 +180,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
+	if cfg.SAMLIdPServiceProviders == nil {
+		cfg.SAMLIdPServiceProviders = local.NewSAMLIdPServiceProviderService(cfg.Backend)
+	}
 	if cfg.ConnectionsDiagnostic == nil {
 		cfg.ConnectionsDiagnostic = local.NewConnectionsDiagnosticService(cfg.Backend)
 	}
@@ -227,26 +233,27 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	services := &Services{
-		Trust:                 cfg.Trust,
-		PresenceInternal:      cfg.Presence,
-		Provisioner:           cfg.Provisioner,
-		Identity:              cfg.Identity,
-		Access:                cfg.Access,
-		DynamicAccessExt:      cfg.DynamicAccessExt,
-		ClusterConfiguration:  cfg.ClusterConfiguration,
-		Restrictions:          cfg.Restrictions,
-		Apps:                  cfg.Apps,
-		Kubernetes:            cfg.Kubernetes,
-		Databases:             cfg.Databases,
-		DatabaseServices:      cfg.DatabaseServices,
-		IAuditLog:             cfg.AuditLog,
-		Events:                cfg.Events,
-		WindowsDesktops:       cfg.WindowsDesktops,
-		SessionTrackerService: cfg.SessionTrackerService,
-		Enforcer:              cfg.Enforcer,
-		ConnectionsDiagnostic: cfg.ConnectionsDiagnostic,
-		StatusInternal:        cfg.Status,
-		UsageReporter:         cfg.UsageReporter,
+		Trust:                   cfg.Trust,
+		PresenceInternal:        cfg.Presence,
+		Provisioner:             cfg.Provisioner,
+		Identity:                cfg.Identity,
+		Access:                  cfg.Access,
+		DynamicAccessExt:        cfg.DynamicAccessExt,
+		ClusterConfiguration:    cfg.ClusterConfiguration,
+		Restrictions:            cfg.Restrictions,
+		Apps:                    cfg.Apps,
+		Kubernetes:              cfg.Kubernetes,
+		Databases:               cfg.Databases,
+		DatabaseServices:        cfg.DatabaseServices,
+		IAuditLog:               cfg.AuditLog,
+		Events:                  cfg.Events,
+		WindowsDesktops:         cfg.WindowsDesktops,
+		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
+		SessionTrackerService:   cfg.SessionTrackerService,
+		Enforcer:                cfg.Enforcer,
+		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
+		StatusInternal:          cfg.Status,
+		UsageReporter:           cfg.UsageReporter,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -284,6 +291,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	as.ttlCache, err = utils.NewFnCache(utils.FnCacheConfig{
+		TTL: time.Second * 3,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if as.ghaIDTokenValidator == nil {
 		as.ghaIDTokenValidator = githubactions.NewIDTokenValidator(
 			githubactions.IDTokenValidatorConfig{
@@ -321,6 +336,7 @@ type Services struct {
 	services.Databases
 	services.DatabaseServices
 	services.WindowsDesktops
+	services.SAMLIdPServiceProviders
 	services.SessionTrackerService
 	services.Enforcer
 	services.ConnectionsDiagnostic
@@ -431,6 +447,8 @@ type Server struct {
 
 	releaseService release.Client
 
+	loginRuleEvaluator loginrule.Evaluator
+
 	sshca.Authority
 
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
@@ -486,6 +504,9 @@ type Server struct {
 	// external SSO or not.
 	githubOrgSSOCache *utils.FnCache
 
+	// ttlCache is a generic ttl cache. typed keys must be used.
+	ttlCache *utils.FnCache
+
 	// traceClient is used to forward spans to the upstream collector for components
 	// within the cluster that don't have a direct connection to said collector
 	traceClient otlptrace.Client
@@ -534,6 +555,21 @@ func (a *Server) SetLicense(license *liblicense.License) {
 // SetReleaseService sets the release service
 func (a *Server) SetReleaseService(svc release.Client) {
 	a.releaseService = svc
+}
+
+// SetLoginRuleEvaluator sets the login rule evaluator.
+func (a *Server) SetLoginRuleEvaluator(l loginrule.Evaluator) {
+	a.loginRuleEvaluator = l
+}
+
+// GetLoginRuleEvaluator returns the login rule evaluator. It is guaranteed not
+// to return nil, if no evaluator has been installed it will return
+// [loginrule.NullEvaluator].
+func (a *Server) GetLoginRuleEvaluator() loginrule.Evaluator {
+	if a.loginRuleEvaluator == nil {
+		return loginrule.NullEvaluator{}
+	}
+	return a.loginRuleEvaluator
 }
 
 // CloseContext returns the close context
@@ -967,7 +1003,7 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	}
 
 	// get the certificate authority that will be signing the public key of the host
-	ca, err := a.Services.GetCertAuthority(context.TODO(), types.CertAuthID{
+	ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: domainName,
 	}, true)
@@ -981,7 +1017,7 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	}
 
 	// create and sign!
-	return a.generateHostCert(services.HostCertParams{
+	return a.generateHostCert(ctx, services.HostCertParams{
 		CASigner:      caSigner,
 		PublicHostKey: hostPublicKey,
 		HostID:        hostID,
@@ -993,8 +1029,10 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	})
 }
 
-func (a *Server) generateHostCert(p services.HostCertParams) ([]byte, error) {
-	authPref, err := a.GetAuthPreference(context.TODO())
+func (a *Server) generateHostCert(
+	ctx context.Context, p services.HostCertParams,
+) ([]byte, error) {
+	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1328,7 +1366,8 @@ type AugmentUserCertificateOpts struct {
 // Used by Device Trust to add device extensions to the user certificate.
 func (a *Server) AugmentContextUserCertificates(
 	ctx context.Context,
-	authCtx *Context, opts *AugmentUserCertificateOpts) (*proto.Certs, error) {
+	authCtx *Context, opts *AugmentUserCertificateOpts,
+) (*proto.Certs, error) {
 	switch {
 	case authCtx == nil:
 		return nil, trace.BadParameter("authCtx required")
@@ -1384,6 +1423,21 @@ func (a *Server) AugmentContextUserCertificates(
 			return nil, trace.Wrap(err)
 		}
 
+		// filter and sort TLS and SSH principals for comparison.
+		// Order does not matter and "-teleport-*" principals are filtered out.
+		filterAndSortPrincipals := func(s []string) []string {
+			res := make([]string, 0, len(s))
+			for _, principal := range s {
+				// Ignore -teleport- internal principals.
+				if strings.HasPrefix(principal, "-teleport-") {
+					continue
+				}
+				res = append(res, principal)
+			}
+			sort.Strings(res)
+			return res
+		}
+
 		// Verify SSH certificate against identity.
 		// The SSH certificate isn't used to establish the connection that
 		// eventually reaches this method, so we check it more thoroughly.
@@ -1394,7 +1448,7 @@ func (a *Server) AugmentContextUserCertificates(
 			return nil, trace.BadParameter("ssh cert type mismatch")
 		case sshCert.KeyId != identity.Username:
 			return nil, trace.BadParameter("identity and SSH user mismatch")
-		case !slices.Equal(sshCert.ValidPrincipals, identity.Principals):
+		case !slices.Equal(filterAndSortPrincipals(sshCert.ValidPrincipals), filterAndSortPrincipals(identity.Principals)):
 			return nil, trace.BadParameter("identity and SSH principals mismatch")
 		case !apisshutils.KeysEqual(sshCert.Key, xPubKey):
 			return nil, trace.BadParameter("x509 and SSH public key mismatch")
@@ -1521,6 +1575,59 @@ func (a *Server) AugmentContextUserCertificates(
 	}, nil
 }
 
+// submitCertificateIssuedEvent submits a certificate issued usage event to the
+// usage reporting service.
+func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
+	var database, app, kubernetes, desktop bool
+
+	if req.dbService != "" {
+		database = true
+	}
+
+	if req.appName != "" {
+		app = true
+	}
+
+	if req.kubernetesCluster != "" {
+		kubernetes = true
+	}
+
+	// Bot users are regular Teleport users, but have a special internal label.
+	bot := false
+	if _, ok := req.user.GetMetadata().Labels[types.BotLabel]; ok {
+		bot = true
+	}
+
+	// Unfortunately the only clue we have about Windows certs is the usage
+	// restriction: `RouteToWindowsDesktop` isn't actually passed along to the
+	// certRequest.
+	for _, usage := range req.usage {
+		switch usage {
+		case teleport.UsageWindowsDesktopOnly:
+			desktop = true
+		}
+	}
+
+	// For usage reporting, we care about the impersonator rather than the user
+	// being impersonated (if any).
+	user := req.user.GetName()
+	if req.impersonator != "" {
+		user = req.impersonator
+	}
+
+	if err := a.AnonymizeAndSubmit(&services.UsageCertificateIssued{
+		UserName:        user,
+		Ttl:             durationpb.New(req.ttl),
+		IsBot:           bot,
+		UsageDatabase:   database,
+		UsageApp:        app,
+		UsageKubernetes: kubernetes,
+		UsageDesktop:    desktop,
+	}); err != nil {
+		log.Debugf("Unable to submit certificate issued usage event: %v", err)
+	}
+}
+
 // generateUserCert generates user certificates
 func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	ctx := context.TODO()
@@ -1594,10 +1701,10 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	attestedKeyPolicy := keys.PrivateKeyPolicyNone
-	if !req.skipAttestation {
+	requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	if !req.skipAttestation && requiredKeyPolicy != keys.PrivateKeyPolicyNone {
 		// verify that the required private key policy for the requesting identity
 		// is met by the provided attestation statement.
-		requiredKeyPolicy := req.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 		attestedKeyPolicy, err = modules.GetModules().AttestHardwareKey(ctx, a, requiredKeyPolicy, req.attestationStatement, cryptoPubKey, sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1832,6 +1939,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		certs.TLSCACerts = append(certs.TLSCACerts, services.GetTLSCerts(ca)...)
 		certs.SSHCACerts = append(certs.SSHCACerts, services.GetSSHCheckingKeys(ca)...)
 	}
+
+	a.submitCertificateIssuedEvent(&req)
 
 	return certs, nil
 }
@@ -2842,7 +2951,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		return nil, trace.Wrap(err)
 	}
 	// generate host SSH certificate
-	hostSSHCert, err := a.generateHostCert(services.HostCertParams{
+	hostSSHCert, err := a.generateHostCert(ctx, services.HostCertParams{
 		CASigner:      caSigner,
 		PublicHostKey: req.PublicSSHKey,
 		HostID:        req.HostID,
@@ -3099,15 +3208,23 @@ func (a *Server) ValidateToken(ctx context.Context, token string) (types.Provisi
 // checkTokenTTL checks if the token is still valid. If it is not, the token
 // is removed from the backend and returns false. Otherwise returns true.
 func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
-	ctx := context.TODO()
+	// Always accept tokens without an expiry configured.
+	if tok.Expiry().IsZero() {
+		return true
+	}
+
 	now := a.clock.Now().UTC()
 	if tok.Expiry().Before(now) {
-		err := a.DeleteToken(ctx, tok.GetName())
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				log.Warnf("Unable to delete token from backend: %v.", err)
+		// Tidy up the expired token in background if it has expired.
+		go func() {
+			ctx, cancel := context.WithTimeout(a.CloseContext(), time.Second*30)
+			defer cancel()
+			if err := a.DeleteToken(ctx, tok.GetName()); err != nil {
+				if !trace.IsNotFound(err) {
+					log.Warnf("Unable to delete token from backend: %v.", err)
+				}
 			}
-		}
+		}()
 		return false
 	}
 	return true
@@ -3860,12 +3977,12 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
-	pref, err := a.GetAuthPreference(ctx)
+	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch params := checker.MFAParams(pref.GetRequireMFAType()); params.Required {
+	switch state := checker.GetAccessState(authPref); state.MFARequired {
 	case services.MFARequiredAlways:
 		return &proto.IsMFARequiredResponse{Required: true}, nil
 	case services.MFARequiredNever:
@@ -3915,7 +4032,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		for _, n := range matches {
 			err := checker.CheckAccess(
 				n,
-				services.AccessMFAParams{},
+				services.AccessState{},
 				services.NewLoginMatcher(t.Node.Login),
 			)
 
@@ -3948,7 +4065,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.Wrap(notFoundErr)
 		}
 
-		noMFAAccessErr = checker.CheckAccess(cluster, services.AccessMFAParams{})
+		noMFAAccessErr = checker.CheckAccess(cluster, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_Database:
 		notFoundErr = trace.NotFound("database service %q not found", t.Database.ServiceName)
@@ -3971,13 +4088,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 
 		dbRoleMatchers := role.DatabaseRoleMatchers(
-			db.GetProtocol(),
+			db,
 			t.Database.Username,
 			t.Database.GetDatabase(),
 		)
 		noMFAAccessErr = checker.CheckAccess(
 			db,
-			services.AccessMFAParams{},
+			services.AccessState{},
 			dbRoleMatchers...,
 		)
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
@@ -3990,7 +4107,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 
 		noMFAAccessErr = checker.CheckAccess(desktops[0],
-			services.AccessMFAParams{},
+			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
 	default:
@@ -4282,12 +4399,26 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 			return keySet, trace.Wrap(err)
 		}
 		keySet.TLS = append(keySet.TLS, tlsKeyPair)
+	case types.OpenSSHCA:
+		// OpenSSH CA only contains a SSH key pair.
+		sshKeyPair, err := keyStore.NewSSHKeyPair(ctx)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.SSH = append(keySet.SSH, sshKeyPair)
 	case types.JWTSigner:
 		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
 		if err != nil {
 			return keySet, trace.Wrap(err)
 		}
 		keySet.JWT = append(keySet.JWT, jwtKeyPair)
+	case types.SAMLIDPCA:
+		// SAML IDP CA only contains TLS certs.
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.TLS = append(keySet.TLS, tlsKeyPair)
 	default:
 		return keySet, trace.BadParameter("unknown ca type: %s", caID.Type)
 	}

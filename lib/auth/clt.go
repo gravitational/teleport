@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -404,6 +405,11 @@ func (c *Client) DeactivateCertAuthority(id types.CertAuthID) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpdateUserCARoleMap not implemented: can only be called locally.
+func (c *Client) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
 // which was previously issued via GenerateToken.
 func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
@@ -696,7 +702,7 @@ func (c *Client) DeleteAuthServer(name string) error {
 }
 
 // UpsertProxy is used by proxies to report their presence
-// to other auth servers in form of hearbeat expiring after ttl period.
+// to other auth servers in form of heartbeat expiring after ttl period.
 func (c *Client) UpsertProxy(s types.Server) error {
 	data, err := services.MarshalServer(s)
 	if err != nil {
@@ -1451,7 +1457,6 @@ type IdentityService interface {
 	// and get signed certificate and private key from the auth server.
 	//
 	// If token is not supplied, it will be auto generated and returned.
-	// If TTL is not supplied, token will be valid until removed.
 	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
@@ -1582,6 +1587,7 @@ type ClientI interface {
 	services.DatabaseServices
 	services.Kubernetes
 	services.WindowsDesktops
+	services.SAMLIdPServiceProviders
 	WebService
 	services.Status
 	services.ClusterConfiguration
@@ -1597,6 +1603,12 @@ type ClientI interface {
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	DevicesClient() devicepb.DeviceTrustServiceClient
+
+	// LoginRuleClient returns a client to the Login Rule gRPC service.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	LoginRuleClient() loginrulepb.LoginRuleServiceClient
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)

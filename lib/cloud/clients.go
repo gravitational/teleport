@@ -467,7 +467,7 @@ func (c *cloudClients) GetAzureRedisEnterpriseClient(subscription string) (azure
 	return c.azureRedisEnterpriseClients.Get(subscription, c.GetAzureCredential)
 }
 
-// GetAzureSubscriptionClient returns an Azure client for listing AKS clusters.
+// GetAzureKubernetesClient returns an Azure client for listing AKS clusters.
 func (c *cloudClients) GetAzureKubernetesClient(subscription string) (azure.AKSClient, error) {
 	c.mtx.RLock()
 	if client, ok := c.azureKubernetesClient[subscription]; ok {

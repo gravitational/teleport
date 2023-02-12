@@ -219,7 +219,7 @@ func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string,
 	key.TrustedCerts = auth.AuthoritiesToTrustedCerts(hostCAs)
 
 	idPath := filepath.Join(t.TempDir(), "user_identity")
-	_, err = identityfile.Write(identityfile.WriteConfig{
+	_, err = identityfile.Write(context.Background(), identityfile.WriteConfig{
 		OutputPath: idPath,
 		Key:        key,
 		Format:     identityfile.FormatFile,
@@ -281,7 +281,7 @@ func MustGetCurrentUser(t *testing.T) *user.User {
 func WaitForDatabaseServers(t *testing.T, authServer *auth.Server, dbs []service.Database) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	for {

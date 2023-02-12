@@ -1350,7 +1350,7 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 	require.NoError(t, err)
 
 	localUser := LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
-	authContext, err := contextForLocalUser(localUser, srv.AuthServer, srv.ClusterName)
+	authContext, err := contextForLocalUser(localUser, srv.AuthServer, srv.ClusterName, true /* disableDeviceAuthz */)
 	require.NoError(t, err)
 
 	return &ServerWithRoles{
@@ -2461,6 +2461,7 @@ func TestListDatabaseServices(t *testing.T) {
 	// Change the user's role to allow them to list DatabaseServices
 	currentAllowRules := role.GetRules(types.Allow)
 	role.SetRules(types.Allow, append(currentAllowRules, types.NewRule(types.KindDatabaseService, services.RO())))
+	role.SetDatabaseServiceLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 	require.NoError(t, srv.Auth().UpsertRole(ctx, role))
 
 	listServicesResp, err = clt.ListResources(ctx,

@@ -229,13 +229,13 @@ tests:
             secret:
               secretName: teleport-tls
       - contains:
-          path: spec.template.spec.initContainers[0].volumeMounts
+          path: spec.template.spec.initContainers[1].volumeMounts
           content:
             mountPath: /etc/teleport-tls
             name: "teleport-tls"
             readOnly: true
       - contains:
-          path: spec.template.spec.initContainers[1].volumeMounts
+          path: spec.template.spec.initContainers[2].volumeMounts
           content:
             mountPath: /etc/teleport-tls
             name: "teleport-tls"
@@ -271,12 +271,12 @@ tests:
             mountPath: /path/to/mount
             name: my-mount
       - contains:
-          path: spec.template.spec.initContainers[0].volumeMounts
+          path: spec.template.spec.initContainers[1].volumeMounts
           content:
             mountPath: /path/to/mount
             name: my-mount
       - contains:
-          path: spec.template.spec.initContainers[1].volumeMounts
+          path: spec.template.spec.initContainers[2].volumeMounts
           content:
             mountPath: /path/to/mount
             name: my-mount
@@ -316,32 +316,11 @@ tests:
       - ../.lint/extra-env.yaml
     asserts:
       - contains:
-          path: spec.template.spec.initContainers[0].args
+          path: spec.template.spec.initContainers[1].args
           content: "echo test"
       - equal:
-          path: spec.template.spec.initContainers[0].name
-          value: "teleport-init"
-      - equal:
-          path: spec.template.spec.initContainers[0].image
-          value: "alpine"
-      - equal:
-          path: spec.template.spec.initContainers[0].resources.limits.cpu
-          value: 2
-      - equal:
-          path: spec.template.spec.initContainers[0].resources.limits.memory
-          value: 4Gi
-      - equal:
-          path: spec.template.spec.initContainers[0].resources.requests.cpu
-          value: 1
-      - equal:
-          path: spec.template.spec.initContainers[0].resources.requests.memory
-          value: 2Gi
-      - contains:
-          path: spec.template.spec.initContainers[1].args
-          content: "echo test2"
-      - equal:
           path: spec.template.spec.initContainers[1].name
-          value: "teleport-init2"
+          value: "teleport-init"
       - equal:
           path: spec.template.spec.initContainers[1].image
           value: "alpine"
@@ -356,6 +335,27 @@ tests:
           value: 1
       - equal:
           path: spec.template.spec.initContainers[1].resources.requests.memory
+          value: 2Gi
+      - contains:
+          path: spec.template.spec.initContainers[2].args
+          content: "echo test2"
+      - equal:
+          path: spec.template.spec.initContainers[2].name
+          value: "teleport-init2"
+      - equal:
+          path: spec.template.spec.initContainers[2].image
+          value: "alpine"
+      - equal:
+          path: spec.template.spec.initContainers[2].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.initContainers[2].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.initContainers[2].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.initContainers[2].resources.requests.memory
           value: 2Gi
       - matchSnapshot:
           path: spec.template.spec.initContainers
@@ -380,6 +380,210 @@ tests:
           content:
             name: diag
             containerPort: 3000
+            protocol: TCP
+
+  - it: should expose tls port
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: tls
+            containerPort: 3080
+            protocol: TCP
+
+  - it: should expose tls port when proxyListenerMode is multiplex
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: tls
+            containerPort: 3080
+            protocol: TCP
+
+  - it: should not expose proxy peering port by default
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: proxypeering
+            containerPort: 3021
+            protocol: TCP
+
+  - it: should expose proxy peering port when enterprise is true
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      enterprise: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: proxypeering
+            containerPort: 3021
+            protocol: TCP
+
+  - it: should expose sshproxy port by default
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: sshproxy
+            containerPort: 3023
+            protocol: TCP
+
+  - it: should not expose sshproxy port when proxyListenerMode is multiplex
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: sshproxy
+            containerPort: 3023
+            protocol: TCP
+
+  - it: should expose sshtun port by default
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: sshtun
+            containerPort: 3024
+            protocol: TCP
+
+  - it: should not expose sshtun port when proxyListenerMode is multiplex
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: sshtun
+            containerPort: 3024
+            protocol: TCP
+
+  - it: should expose k8s port by default
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: kube
+            containerPort: 3026
+            protocol: TCP
+
+  - it: should not expose k8s port when proxyListenerMode is multiplex
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: kube
+            containerPort: 3026
+            protocol: TCP
+
+  - it: should expose mysql port by default
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: mysql
+            containerPort: 3036
+            protocol: TCP
+
+  - it: should not expose mysql port when proxyListenerMode is multiplex
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: mysql
+            containerPort: 3036
+            protocol: TCP
+
+  - it: should expose postgres port when separate postgres listener is enabled
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      separatePostgresListener: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: postgres
+            containerPort: 5432
+            protocol: TCP
+
+  - it: should not expose postgres port when proxyListenerMode is multiplex and separate postgres listener is enabled
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+      separatePostgresListener: true
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: postgres
+            containerPort: 5432
+            protocol: TCP
+
+  - it: should expose mongo port when separate mongo listener is enabled
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      separateMongoListener: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: mongo
+            containerPort: 27017
+            protocol: TCP
+
+  - it: should not expose mongo port when when proxyListenerMode is multiplex and separate mongo listener is enabled
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      proxyListenerMode: multiplex
+      separateMongoListener: true
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: mongo
+            containerPort: 27017
             protocol: TCP
 
   - it: should set postStart command if set in values
@@ -561,3 +765,17 @@ tests:
       - equal:
           path: spec.minReadySeconds
           value: null
+
+  - it: should set nodeSelector when set in values
+    template: proxy/deployment.yaml
+    set:
+      chartMode: scratch
+      clusterName: helm-lint.example.com
+      nodeSelector:
+        role: bastion
+        environment: security
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.nodeSelector
+      - matchSnapshot:
+          path: spec.template.spec

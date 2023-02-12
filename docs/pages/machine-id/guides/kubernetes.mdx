@@ -49,11 +49,15 @@ First, create a file named `role.yaml` with the following content:
 kind: role
 metadata:
   name: machine-id-kube-role
-version: v5
+version: v6
 spec:
   allow:
     kubernetes_labels:
       '*': '*'
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
     kubernetes_groups:
     - example
     kubernetes_users:
@@ -63,6 +67,11 @@ spec:
 Be sure to configure the `allow` fields to match your environment:
  - `kubernetes_labels` must be specified to allow access to a matching
    Kubernetes cluster in your Teleport environment.
+
+ - Each item in `kubernetes_resources` must match the namespace and name of a
+   Kubernetes resource that you would like users with `machine-id-kube-role` to
+   access. Currently, Teleport only supports the `pod` kind. In the
+   configuration above, this role can access all pods in all namespaces.
 
  - One (or both) of `kubernetes_groups` and `kubernetes_users` must be specified
    to so that the bot user may be mapped to a Kubernetes user and/or group.

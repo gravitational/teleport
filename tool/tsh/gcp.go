@@ -36,6 +36,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/gcp"
 )
 
 const (
@@ -175,35 +176,6 @@ func (a *gcpApp) getGcloudConfigPath() string {
 	return path.Join(profile.FullProfilePath(a.cf.HomePath), "gcp", a.app.ClusterName, a.app.Name, "gcloud")
 }
 
-func projectIDFromServiceAccountName(serviceAccount string) (string, error) {
-	if serviceAccount == "" {
-		return "", trace.BadParameter("invalid service account format: empty string received")
-	}
-
-	user, domain, found := strings.Cut(serviceAccount, "@")
-	if !found {
-		return "", trace.BadParameter("invalid service account format: missing @")
-	}
-	if user == "" {
-		return "", trace.BadParameter("invalid service account format: empty user")
-	}
-
-	projectID, iamDomain, found := strings.Cut(domain, ".")
-	if !found {
-		return "", trace.BadParameter("invalid service account format: missing <project-id>.iam.gserviceaccount.com after @")
-	}
-
-	if projectID == "" {
-		return "", trace.BadParameter("invalid service account format: missing project ID")
-	}
-
-	if iamDomain != "iam.gserviceaccount.com" {
-		return "", trace.BadParameter("invalid service account format: expected suffix %q, got %q", "iam.gserviceaccount.com", iamDomain)
-	}
-
-	return projectID, nil
-}
-
 // removeBotoConfig removes config files written by WriteBotoConfig.
 func (a *gcpApp) removeBotoConfig() []error {
 	// try to remove both files
@@ -263,7 +235,7 @@ func (a *gcpApp) writeBotoConfig() error {
 // GetEnvVars returns required environment variables to configure the
 // clients.
 func (a *gcpApp) GetEnvVars() (map[string]string, error) {
-	projectID, err := projectIDFromServiceAccountName(a.app.GCPServiceAccount)
+	projectID, err := gcp.ProjectIDFromServiceAccountName(a.app.GCPServiceAccount)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -437,38 +409,6 @@ func printGCPServiceAccounts(accounts []string) {
 	fmt.Println(formatGCPServiceAccounts(accounts))
 }
 
-// SortedGCPServiceAccounts sorts service accounts by project and service account name.
-type SortedGCPServiceAccounts []string
-
-// Len returns the length of a list.
-func (s SortedGCPServiceAccounts) Len() int {
-	return len(s)
-}
-
-// Less compares items. Given two accounts, it first compares the project (i.e. what goes after @)
-// and if they are equal proceeds to compare the service account name (what goes before @).
-// Example of sorted list:
-// - test-0@example-100200.iam.gserviceaccount.com
-// - test-1@example-123456.iam.gserviceaccount.com
-// - test-2@example-123456.iam.gserviceaccount.com
-// - test-3@example-123456.iam.gserviceaccount.com
-// - test-0@other-999999.iam.gserviceaccount.com
-func (s SortedGCPServiceAccounts) Less(i, j int) bool {
-	beforeI, afterI, _ := strings.Cut(s[i], "@")
-	beforeJ, afterJ, _ := strings.Cut(s[j], "@")
-
-	if afterI != afterJ {
-		return afterI < afterJ
-	}
-
-	return beforeI < beforeJ
-}
-
-// Swap swaps two items in a list.
-func (s SortedGCPServiceAccounts) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 func formatGCPServiceAccounts(accounts []string) string {
 	if len(accounts) == 0 {
 		return ""
@@ -476,7 +416,7 @@ func formatGCPServiceAccounts(accounts []string) string {
 
 	t := asciitable.MakeTable([]string{"Available GCP service accounts"})
 
-	acc := SortedGCPServiceAccounts(accounts)
+	acc := gcp.SortedGCPServiceAccounts(accounts)
 	sort.Sort(acc)
 
 	for _, account := range acc {
@@ -487,6 +427,15 @@ func formatGCPServiceAccounts(accounts []string) string {
 }
 
 func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (string, error) {
+	// helper function to validate correctness of matched service account
+	validate := func(account string) (string, error) {
+		err := gcp.ValidateGCPServiceAccountName(account)
+		if err != nil {
+			return "", trace.Wrap(err, "chosen GCP service account %q is invalid", account)
+		}
+		return account, nil
+	}
+
 	accounts := profile.GCPServiceAccounts
 	if len(accounts) == 0 {
 		return "", trace.BadParameter("no GCP service accounts available, check your permissions")
@@ -498,7 +447,7 @@ func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (
 	if reqAccount == "" {
 		if len(accounts) == 1 {
 			log.Infof("GCP service account %v is selected by default as it is the only one available for this GCP app.", accounts[0])
-			return accounts[0], nil
+			return validate(accounts[0])
 		}
 
 		// we will never have zero identities here: this is a pre-condition checked above.
@@ -507,9 +456,9 @@ func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (
 	}
 
 	// exact match?
-	for _, identity := range accounts {
-		if identity == reqAccount {
-			return identity, nil
+	for _, account := range accounts {
+		if account == reqAccount {
+			return validate(account)
 		}
 	}
 
@@ -524,7 +473,7 @@ func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (
 
 	switch len(matches) {
 	case 1:
-		return matches[0], nil
+		return validate(matches[0])
 	case 0:
 		printGCPServiceAccounts(accounts)
 		return "", trace.NotFound("failed to find the service account matching %q", cf.GCPServiceAccount)
@@ -540,14 +489,14 @@ func pickActiveGCPApp(cf *CLIConf) (*gcpApp, error) {
 		return nil, trace.Wrap(err)
 	}
 	if len(profile.Apps) == 0 {
-		return nil, trace.NotFound("Please login to a GCP App using 'tsh app login' first")
+		return nil, trace.NotFound("Please login to a GCP App using 'tsh apps login' first")
 	}
 	name := cf.AppName
 	if name != "" {
 		app, err := findApp(profile.Apps, name)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return nil, trace.NotFound("Please login to a GCP App using 'tsh app login' first")
+				return nil, trace.NotFound("Please login to a GCP App using 'tsh apps login' first")
 			}
 			return nil, trace.Wrap(err)
 		}
@@ -560,7 +509,7 @@ func pickActiveGCPApp(cf *CLIConf) (*gcpApp, error) {
 	}
 	gcpApps := getGCPApps(profile.Apps)
 	if len(gcpApps) == 0 {
-		return nil, trace.NotFound("Please login to a GCP App using 'tsh app login' first")
+		return nil, trace.NotFound("Please login to a GCP App using 'tsh apps login' first")
 	}
 	if len(gcpApps) > 1 {
 		var names []string
