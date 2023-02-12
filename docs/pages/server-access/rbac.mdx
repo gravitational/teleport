@@ -57,13 +57,7 @@ spec:
   deny:
     logins:
     - root
-
-  options:
-   # Automatically create the user if does not exist
-   # The user is deleted after the session ends if Teleport created the user. 
-    create_host_user: true
 ```
-
 
 <Admonition
   type="note"
@@ -78,17 +72,20 @@ spec:
 Similar to other role fields, the Server related fields support templating variables.
 
 The `{{external.xyz}}` variables are replaced with values from external [SSO](../access-controls/sso.mdx)
-providers. For OIDC, they will be expanded with a value of an "xyz" claim; for
-SAML — with an "xyz" assertion value.
+providers. For OIDC logins, `{{external.xyz}}` refers to the "xyz" claim; for
+SAML logins, `{{external.xyz}}` refers to the "xyz" assertion.
 
 For example, here is what a role may look like if you want to assign allowed
-server environment types from the user's Okta `environments` assertion:
+server environment types and allowed logins from the user's Okta `environments` and 
+`allowedlogins` assertions:
 
 ```yaml
 spec:
   allow:
     node_labels:
     - env:  '{{external.environments}}'
+    logins:
+    - '{{external.allowedlogins}}'
 ```
 
 The `{{internal.logins}}` variable permits sharing
@@ -114,7 +111,9 @@ spec:
 
 ## Server role options
 
-The following options in a Teleport role apply to Server Access.
+The `allow` and `deny` sections described above are used for controlling
+the servers and logins allowed. Role options provide the Teleport features
+available for users with the specified role. These options apply to Server access.
 
 ```yaml
 spec:
