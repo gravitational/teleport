@@ -24,6 +24,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/ghodss/yaml"
@@ -220,6 +221,12 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 
 	// Print signup message.
 	switch {
+	case roles.Include(types.RoleDiscovery):
+		return discoveryMessageTemplate.Execute(c.stdout,
+			map[string]interface{}{
+				"token":   token,
+				"minutes": c.ttl.Minutes(),
+			})
 	case roles.Include(types.RoleKube):
 		proxies, err := client.GetProxies()
 		if err != nil {
@@ -375,3 +382,13 @@ func (c *TokensCommand) List(ctx context.Context, client auth.ClientI) error {
 	}
 	return nil
 }
+
+// template for message when discovery token is being added
+var discoveryMessageTemplate = template.Must(template.New("discovery").Parse(`The invite token: {{.token}}
+This token will expire in {{.minutes}} minutes.
+
+This token enables the Discovery service.  See https://goteleport.com/docs/
+within the Discovery service Guide for the relevant service (Server, Kubernetes,...)
+for detailed information on enabling discovery and enrollment.
+
+`))
