@@ -23,8 +23,8 @@ import (
 
 	"github.com/gravitational/trace"
 
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 )
 
 type FileTransferProgressSender = func(progress *api.FileTransferProgress) error
@@ -35,7 +35,7 @@ func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferReq
 		return trace.Wrap(err)
 	}
 
-	config.ProgressWriter = func(fileInfo os.FileInfo) io.Writer {
+	config.ProgressStream = func(fileInfo os.FileInfo) io.ReadWriter {
 		return newFileTransferProgress(fileInfo.Size(), sendProgress)
 	}
 
@@ -57,7 +57,7 @@ func getSftpConfig(request *api.FileTransferRequest) (*sftp.Config, error) {
 	}
 }
 
-func newFileTransferProgress(fileSize int64, sendProgress FileTransferProgressSender) io.Writer {
+func newFileTransferProgress(fileSize int64, sendProgress FileTransferProgressSender) io.ReadWriter {
 	return &fileTransferProgress{
 		sendProgress: sendProgress,
 		sentSize:     0,
@@ -74,7 +74,15 @@ type fileTransferProgress struct {
 	lock               sync.Mutex
 }
 
+func (p *fileTransferProgress) Read(bytes []byte) (int, error) {
+	return p.maybeUpdateProgress(bytes)
+}
+
 func (p *fileTransferProgress) Write(bytes []byte) (int, error) {
+	return p.maybeUpdateProgress(bytes)
+}
+
+func (p *fileTransferProgress) maybeUpdateProgress(bytes []byte) (int, error) {
 	bytesLength := len(bytes)
 
 	p.lock.Lock()

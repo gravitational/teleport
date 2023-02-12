@@ -27,12 +27,14 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
 type ResourceCollection interface {
@@ -977,6 +979,48 @@ func (c *databaseServiceCollection) writeText(w io.Writer) error {
 		})
 	}
 
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type loginRuleCollection struct {
+	rules []*loginrulepb.LoginRule
+}
+
+func (l *loginRuleCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Priority"})
+	for _, rule := range l.rules {
+		t.AddRow([]string{rule.Metadata.Name, strconv.FormatInt(int64(rule.Priority), 10)})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func (l *loginRuleCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(l.rules))
+	for i, rule := range l.rules {
+		resources[i] = loginrule.ProtoToResource(rule)
+	}
+	return resources
+}
+
+type samlIDPServiceProviderCollection struct {
+	serviceProviders []types.SAMLIdPServiceProvider
+}
+
+func (c *samlIDPServiceProviderCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.serviceProviders))
+	for _, resource := range c.serviceProviders {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *samlIDPServiceProviderCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name"})
+	for _, serviceProvider := range c.serviceProviders {
+		t.AddRow([]string{serviceProvider.GetName()})
+	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

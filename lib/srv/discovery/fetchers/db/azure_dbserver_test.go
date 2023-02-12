@@ -104,6 +104,12 @@ func TestAzureDBServerFetchers(t *testing.T) {
 						DBServers: []*armpostgresql.Server{azPostgresServer4},
 					}),
 				},
+				AzureMySQLFlex: azure.NewMySQLFlexServersClientByAPI(&azure.ARMMySQLFlexServerMock{
+					NoAuth: true,
+				}),
+				AzurePostgresFlex: azure.NewPostgresFlexServersClientByAPI(&azure.ARMPostgresFlexServerMock{
+					NoAuth: true,
+				}),
 			},
 			// server2 tags don't match, server3 is in eastus2, server4 is in subscription2, server5 is in group2
 			wantDatabases: types.Databases{azMySQLDB1, azPostgresDB1},
@@ -139,6 +145,12 @@ func TestAzureDBServerFetchers(t *testing.T) {
 				AzureSubscriptionClient: azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
 					Subscriptions: []*armsubscription.Subscription{azureSub1, azureSub2},
 				}),
+				AzureMySQLFlex: azure.NewMySQLFlexServersClientByAPI(&azure.ARMMySQLFlexServerMock{
+					NoAuth: true,
+				}),
+				AzurePostgresFlex: azure.NewPostgresFlexServersClientByAPI(&azure.ARMPostgresFlexServerMock{
+					NoAuth: true,
+				}),
 			},
 			wantDatabases: types.Databases{azMySQLDB1, azMySQLDB4, azPostgresDB1, azPostgresDB4},
 		},
@@ -166,6 +178,12 @@ func TestAzureDBServerFetchers(t *testing.T) {
 						azPostgresServer1,
 						azPostgresServerUnknownVersion,
 					},
+				}),
+				AzureMySQLFlex: azure.NewMySQLFlexServersClientByAPI(&azure.ARMMySQLFlexServerMock{
+					NoAuth: true,
+				}),
+				AzurePostgresFlex: azure.NewPostgresFlexServersClientByAPI(&azure.ARMPostgresFlexServerMock{
+					NoAuth: true,
 				}),
 			},
 			wantDatabases: types.Databases{azMySQLDB1, azMySQLDBUnknownVersion, azPostgresDB1, azPostgresDBUnknownVersion},
@@ -195,6 +213,12 @@ func TestAzureDBServerFetchers(t *testing.T) {
 						azPostgresServerDisabledState,
 						azPostgresServerUnknownState,
 					},
+				}),
+				AzureMySQLFlex: azure.NewMySQLFlexServersClientByAPI(&azure.ARMMySQLFlexServerMock{
+					NoAuth: true,
+				}),
+				AzurePostgresFlex: azure.NewPostgresFlexServersClientByAPI(&azure.ARMPostgresFlexServerMock{
+					NoAuth: true,
 				}),
 			},
 			wantDatabases: types.Databases{azMySQLDB1, azMySQLDBUnknownState, azPostgresDB1, azPostgresDBUnknownState},
@@ -229,6 +253,12 @@ func TestAzureDBServerFetchers(t *testing.T) {
 						DBServers: []*armpostgresql.Server{azPostgresServer4},
 					}),
 				},
+				AzureMySQLFlex: azure.NewMySQLFlexServersClientByAPI(&azure.ARMMySQLFlexServerMock{
+					NoAuth: true,
+				}),
+				AzurePostgresFlex: azure.NewPostgresFlexServersClientByAPI(&azure.ARMPostgresFlexServerMock{
+					NoAuth: true,
+				}),
 			},
 			wantDatabases: types.Databases{azMySQLDB4, azPostgresDB4},
 		},
@@ -253,6 +283,12 @@ func TestAzureDBServerFetchers(t *testing.T) {
 					DBServers: []*armpostgresql.Server{
 						azPostgresServer1,
 					},
+				}),
+				AzureMySQLFlex: azure.NewMySQLFlexServersClientByAPI(&azure.ARMMySQLFlexServerMock{
+					NoAuth: true,
+				}),
+				AzurePostgresFlex: azure.NewPostgresFlexServersClientByAPI(&azure.ARMPostgresFlexServerMock{
+					NoAuth: true,
 				}),
 			},
 			wantDatabases: types.Databases{azMySQLDB1, azPostgresDB1},

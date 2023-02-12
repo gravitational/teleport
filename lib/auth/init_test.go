@@ -494,14 +494,14 @@ func TestPresets(t *testing.T) {
 		require.Equal(t, access.GetLogins(types.Allow), out.GetLogins(types.Allow))
 	})
 
-	// If a default allow rule is not present, ensure it gets added.
-	t.Run("AddDefaultAllowRules", func(t *testing.T) {
+	// If a default allow condition is not present, ensure it gets added.
+	t.Run("AddDefaultAllowConditions", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		access := services.NewPresetEditorRole()
-		rules := access.GetRules(types.Allow)
+		editorRole := services.NewPresetEditorRole()
+		rules := editorRole.GetRules(types.Allow)
 
 		// Create a new set of rules based on the Editor Role, excluding the ConnectioDiagnostic.
 		// ConnectionDiagnostic is part of the default allow rules
@@ -512,18 +512,24 @@ func TestPresets(t *testing.T) {
 			}
 			outdatedRules = append(outdatedRules, r)
 		}
-		access.SetRules(types.Allow, outdatedRules)
+		editorRole.SetRules(types.Allow, outdatedRules)
+		err := as.CreateRole(ctx, editorRole)
+		require.NoError(t, err)
 
-		err := as.CreateRole(ctx, access)
+		// Set up an old Access Role.
+		// Remove the new DatabaseServiceLabels default
+		accessRole := services.NewPresetAccessRole()
+		accessRole.SetDatabaseServiceLabels(types.Allow, types.Labels{})
+		err = as.CreateRole(ctx, accessRole)
 		require.NoError(t, err)
 
 		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetRole(ctx, access.GetName())
+		outEditor, err := as.GetRole(ctx, editorRole.GetName())
 		require.NoError(t, err)
 
-		allowRules := out.GetRules(types.Allow)
+		allowRules := outEditor.GetRules(types.Allow)
 		require.Condition(t, func() (success bool) {
 			for _, r := range allowRules {
 				if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
@@ -532,6 +538,11 @@ func TestPresets(t *testing.T) {
 			}
 			return false
 		}, "missing default rule")
+
+		outAccess, err := as.GetRole(ctx, accessRole.GetName())
+		require.NoError(t, err)
+		allowedDatabaseServiceLabels := outAccess.GetDatabaseServiceLabels(types.Allow)
+		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, allowedDatabaseServiceLabels, "missing default DatabaseServiceLabels")
 	})
 
 	// Don't set a default allow rule if the resource is present in the role.
@@ -541,8 +552,9 @@ func TestPresets(t *testing.T) {
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		access := services.NewPresetEditorRole()
-		allowRules := access.GetRules(types.Allow)
+		// Set up a changed Editor Role
+		editorRole := services.NewPresetEditorRole()
+		allowRules := editorRole.GetRules(types.Allow)
 
 		// Create a new set of rules based on the Editor Role,
 		// setting a deny rule for a default allow rule
@@ -553,24 +565,35 @@ func TestPresets(t *testing.T) {
 			}
 			outdateAllowRules = append(outdateAllowRules, r)
 		}
-		access.SetRules(types.Allow, outdateAllowRules)
+		editorRole.SetRules(types.Allow, outdateAllowRules)
 
 		// Explicitly deny Create to ConnectionDiagnostic
-		denyRules := access.GetRules(types.Deny)
+		denyRules := editorRole.GetRules(types.Deny)
 		denyConnectionDiagnosticRule := types.NewRule(types.KindConnectionDiagnostic, []string{types.VerbCreate})
 		denyRules = append(denyRules, denyConnectionDiagnosticRule)
-		access.SetRules(types.Deny, denyRules)
+		editorRole.SetRules(types.Deny, denyRules)
 
-		err := as.CreateRole(ctx, access)
+		err := as.CreateRole(ctx, editorRole)
 		require.NoError(t, err)
 
+		// Set up a changed Access Role
+		accessRole := services.NewPresetAccessRole()
+		// Remove a default allow label as well.
+		accessRole.SetDatabaseServiceLabels(types.Allow, types.Labels{})
+		// Explicitly deny DatabaseServiceLabels
+		accessRole.SetDatabaseServiceLabels(types.Deny, types.Labels{types.Wildcard: []string{types.Wildcard}})
+
+		err = as.CreateRole(ctx, accessRole)
+		require.NoError(t, err)
+
+		// Apply defaults.
 		err = createPresets(ctx, as)
 		require.NoError(t, err)
 
-		out, err := as.GetRole(ctx, access.GetName())
+		outEditor, err := as.GetRole(ctx, editorRole.GetName())
 		require.NoError(t, err)
 
-		allowRules = out.GetRules(types.Allow)
+		allowRules = outEditor.GetRules(types.Allow)
 		require.Condition(t, func() (success bool) {
 			for _, r := range allowRules {
 				if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
@@ -579,7 +602,107 @@ func TestPresets(t *testing.T) {
 			}
 			return true
 		}, "missing default rule")
+
+		outAccess, err := as.GetRole(ctx, accessRole.GetName())
+		require.NoError(t, err)
+		allowedDatabaseServiceLabels := outAccess.GetDatabaseServiceLabels(types.Allow)
+		require.Nil(t, allowedDatabaseServiceLabels, "does not set Allowed DatabaseService Labels")
+		deniedDatabaseServiceLabels := outAccess.GetDatabaseServiceLabels(types.Deny)
+		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, deniedDatabaseServiceLabels, "keeps the deny label for DatabaseService")
 	})
+
+	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
+		presetRoleCount := 3
+
+		roleManager := &mockRoleManager{
+			roles: make(map[string]types.Role, presetRoleCount),
+		}
+
+		err := createPresets(ctx, roleManager)
+		require.NoError(t, err)
+
+		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpectd call to UpsertRole")
+		require.Equal(t, 0, roleManager.getRoleCallsCount, "unexpectd call to GetRole")
+		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+
+		// Running a second time should return Already Exists, so it fetches the role.
+		// The role was not changed, so it can't call the UpsertRole method.
+		roleManager.ResetCallCounters()
+
+		err = createPresets(ctx, roleManager)
+		require.NoError(t, err)
+
+		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpectd call to UpsertRole")
+		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
+		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+
+		// Removing a specific resource which is part of the Default Allow Rules should trigger an UpsertRole call
+		editorRole := roleManager.roles[teleport.PresetEditorRoleName]
+		allowRulesWithoutConnectionDiag := []types.Rule{}
+
+		for _, r := range editorRole.GetRules(types.Allow) {
+			if slices.Contains(r.Resources, types.KindConnectionDiagnostic) {
+				continue
+			}
+			allowRulesWithoutConnectionDiag = append(allowRulesWithoutConnectionDiag, r)
+		}
+		editorRole.SetRules(types.Allow, allowRulesWithoutConnectionDiag)
+		roleManager.UpsertRole(ctx, editorRole)
+
+		roleManager.ResetCallCounters()
+		err = createPresets(ctx, roleManager)
+		require.NoError(t, err)
+
+		require.Equal(t, 1, roleManager.upsertRoleCallsCount, "unexpectd call to UpsertRole")
+		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
+		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+	})
+}
+
+type mockRoleManager struct {
+	roles                map[string]types.Role
+	getRoleCallsCount    int
+	createRoleCallsCount int
+	upsertRoleCallsCount int
+}
+
+// ResetCallCounters resets the method call counters.
+func (m *mockRoleManager) ResetCallCounters() {
+	m.getRoleCallsCount = 0
+	m.createRoleCallsCount = 0
+	m.upsertRoleCallsCount = 0
+}
+
+// GetRole returns role by name.
+func (m *mockRoleManager) GetRole(ctx context.Context, name string) (types.Role, error) {
+	m.getRoleCallsCount = m.getRoleCallsCount + 1
+
+	role, ok := m.roles[name]
+	if !ok {
+		return nil, trace.NotFound("role not found")
+	}
+	return role, nil
+}
+
+// CreateRole creates a role.
+func (m *mockRoleManager) CreateRole(ctx context.Context, role types.Role) error {
+	m.createRoleCallsCount = m.createRoleCallsCount + 1
+
+	_, ok := m.roles[role.GetName()]
+	if ok {
+		return trace.AlreadyExists("role not found")
+	}
+
+	m.roles[role.GetName()] = role
+	return nil
+}
+
+// UpsertRole creates or updates a role and emits a related audit event.
+func (m *mockRoleManager) UpsertRole(ctx context.Context, role types.Role) error {
+	m.upsertRoleCallsCount = m.upsertRoleCallsCount + 1
+	m.roles[role.GetName()] = role
+
+	return nil
 }
 
 func setupConfig(t *testing.T) InitConfig {
@@ -710,6 +833,25 @@ spec:
   type: jwt
 sub_kind: jwt
 version: v2`
+	openSSHCAYAML = `kind: cert_authority
+metadata:
+  id: 1630513579536527000
+  name: me.localhost
+spec:
+  active_keys:
+    ssh:
+    - private_key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb3dJQkFBS0NBUUVBeHpRdWtjUlhCR09nRDUrS3B1MGRrdVpXVjVsc294Wlp1cFRhRHdFcmYvQ1prOWFqCjRaZzJoeTBoUHl5SXRBRytIN08xRVYwZ0taWVRDWWs4REtiaFQ4ZWl3QldDNUhKaGtpYW9ZRStSUXpQTHd3STcKcElmb0t4ejR2WG5MRnNvWHVVY2hLTmhYdk1RZU9pVVJ3OVQ3L0RSREE0dDdsazlPY01jWE9ySHV3L2JxTTA0VApmTmhVeXhHVmhyTC90aFpQNDE4b04xZjZKQzZMU3grZThIM01iSEQralVGMjBVbU8wVUFLUHUwRXVQS3hkS2loCm1tbVZDZ3FaRWhBWjhrcklVYlV5R0tUemZjQyt4VFNrUEN3UE1qejg1aTJQVVBYS3hmVE00cW54QVh5VzRCSzYKeXo1Znk5UTgyalVESi9VS0JvSU92N1hUU2JhNUpDUHdiUUx4cHdJREFRQUJBb0lCQUJydU53MkYyYTNDT2pWaQpnRUFvOWtLUjJVSm1mNFZjMUN5aFN3bVVRdWs5QWNZMjBsa0JWdjNYWUJOR1ZnVGY1M0FwdjJUbGpoK1JKbW0zCm4rS2wvUGZvS1Z5R2kvZU9ieHB2RjN4TnhYbXNXdk8yTFpJRXZhSjJmRHBCYU85Znl1MUZiSG8xSlVkanpDSlkKT0pxZEJLUUgvTGRSK0JkT0NYQzl1YW81dStuS0RxZTZvaE1FZm5VUUpmeGd4QzNwMHhzRGkvNGovYWhCV3cvaApoZk02TUloaUlmZEhWNlN1MWlPQWlNbXNtcDBWSkd4OVR5SG9UZFdKWHkxYjRTNDh5L21rNjdNeThzUDJ0SXRHCksvdGxaaDFteDYwbCtscnZkTDZFVW9CVDVScXdCZDBCN0g3c1V0UkZjVVVkMVZBNXpMYVowYnhkbHVpL1dEMlcKaHVtOHJpRUNnWUVBN0hPZlN3OVRKQzIxSHFwb2kvUHRKOGZ5QjVMRXJaQTBmY21vd2VtMG55dTRyMVkxN2FSTwp6bU5qYmZtYWRrOU95RnJNaS9Ydm5pbW1wcnNmK3Z1dEVkeEJEK3JYMGJPZk52ZEl5NHNMNEFaN2JZSkdUVEk0ClVFREdPRVF2UkpUQmxhQ3hvMGVEcGVSbTZqamhjYjdmcHV6K3ZCaVB2ZFBHbExxU0JuaTczSDBDZ1lFQTE2dzYKazhzUDlCK251MFFkSVdRano0MU9wTzJlb2FKenhndFVRTnkyV0VuRi9ydk51K21ra1BtL0lWbWZvdzFOYXAwNApGL29FeHpUSWw2WkFCcUdjWUtHVDRNSjRlVS9QT2RsbWZtSE5DcThHTGs4TlRBaC9UdVFuZ0VKTDB2UE9Ta0wzCjMrWHg2N010MDhVUXNmRjlDQU8yS3BuQzhOOEw5NmhjOXp6ZTgvTUNnWUEwakptNVQ4V1ZnOGI5OHJkYmF6R28KcHFvbWZyclJLL3hPZkZQU0RNT0VvRzNpSWRISVo3elA1NHpBY3ptZDA1Qlp2THc2MnNTUExRaUpnNHJlOTdJRwpCeUk2akdHOGpDUDFUazNTVnF1ajlTelhNSjI1S0ZFVm5OK3d2NDZWdWsydm1GQUNUckYyVytWM1puN01EYlNjCjM0elpkc2Z6VXk2Ti9Vell2VnBhN1FLQmdRQ3NOZC9JSnpxajZhcmJBdlpudFRoTEFFQXR2WGNQQlZLQWJvZG0KQzFhbWhMSE9SMU50bXBCSEdzU2M4cDFmYXIzSVJhV0dyNktsRmVhZUFLZmJJNnhrRkdDcDlWNlJMMEwrcERNTQo4emJ3TXZVeWdQalRIMjNZSnFITDdpUHhXNi82NkNKWTY1a1NaVTVRYkdoNlRhTlNoUFF1YS95V3JPTTNhMzVnCkJJRGFOUUtCZ0dBSE5EOWVjcGpySElxUFgzekZUYm1uZjZORWl1SmN0aHpPN0hLZzI0Slh3V0FoRWJBaXpUYjQKRnY1VmY0d2dKc2xGSjFmNDdhVjJxSU5ncWJ5ajBMSlNjYksyOGlXVmIwZmxSbnJEZnd0amxaS2lneWRDTlZubApteUNBS2IyOTlZL1d0Y3NobjUxa29DdWtzSVA1VzJwZjk5M2pLbEw0OWNPN0l6N3VKbTEzCi0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg==
+      public_key: c3NoLXJzYSBBQUFBQjNOemFDMXljMkVBQUFBREFRQUJBQUFCQVFESE5DNlJ4RmNFWTZBUG40cW03UjJTNWxaWG1XeWpGbG02bE5vUEFTdC84Sm1UMXFQaG1EYUhMU0UvTElpMEFiNGZzN1VSWFNBcGxoTUppVHdNcHVGUHg2TEFGWUxrY21HU0pxaGdUNUZETTh2REFqdWtoK2dySFBpOWVjc1d5aGU1UnlFbzJGZTh4QjQ2SlJIRDFQdjhORU1EaTN1V1QwNXd4eGM2c2U3RDl1b3pUaE44MkZUTEVaV0dzdisyRmsvalh5ZzNWL29rTG90TEg1N3dmY3hzY1A2TlFYYlJTWTdSUUFvKzdRUzQ4ckYwcUtHYWFaVUtDcGtTRUJueVNzaFJ0VElZcFBOOXdMN0ZOS1E4TEE4eVBQem1MWTlROWNyRjlNemlxZkVCZkpiZ0VyckxQbC9MMUR6YU5RTW45UW9HZ2c2L3RkTkp0cmtrSS9CdEF2R24K
+  additional_trusted_keys: {}
+  checking_keys:
+  - c3NoLXJzYSBBQUFBQjNOemFDMXljMkVBQUFBREFRQUJBQUFCQVFESE5DNlJ4RmNFWTZBUG40cW03UjJTNWxaWG1XeWpGbG02bE5vUEFTdC84Sm1UMXFQaG1EYUhMU0UvTElpMEFiNGZzN1VSWFNBcGxoTUppVHdNcHVGUHg2TEFGWUxrY21HU0pxaGdUNUZETTh2REFqdWtoK2dySFBpOWVjc1d5aGU1UnlFbzJGZTh4QjQ2SlJIRDFQdjhORU1EaTN1V1QwNXd4eGM2c2U3RDl1b3pUaE44MkZUTEVaV0dzdisyRmsvalh5ZzNWL29rTG90TEg1N3dmY3hzY1A2TlFYYlJTWTdSUUFvKzdRUzQ4ckYwcUtHYWFaVUtDcGtTRUJueVNzaFJ0VElZcFBOOXdMN0ZOS1E4TEE4eVBQem1MWTlROWNyRjlNemlxZkVCZkpiZ0VyckxQbC9MMUR6YU5RTW45UW9HZ2c2L3RkTkp0cmtrSS9CdEF2R24K
+  cluster_name: me.localhost
+  signing_alg: 3
+  signing_keys:
+  - LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb3dJQkFBS0NBUUVBeHpRdWtjUlhCR09nRDUrS3B1MGRrdVpXVjVsc294Wlp1cFRhRHdFcmYvQ1prOWFqCjRaZzJoeTBoUHl5SXRBRytIN08xRVYwZ0taWVRDWWs4REtiaFQ4ZWl3QldDNUhKaGtpYW9ZRStSUXpQTHd3STcKcElmb0t4ejR2WG5MRnNvWHVVY2hLTmhYdk1RZU9pVVJ3OVQ3L0RSREE0dDdsazlPY01jWE9ySHV3L2JxTTA0VApmTmhVeXhHVmhyTC90aFpQNDE4b04xZjZKQzZMU3grZThIM01iSEQralVGMjBVbU8wVUFLUHUwRXVQS3hkS2loCm1tbVZDZ3FaRWhBWjhrcklVYlV5R0tUemZjQyt4VFNrUEN3UE1qejg1aTJQVVBYS3hmVE00cW54QVh5VzRCSzYKeXo1Znk5UTgyalVESi9VS0JvSU92N1hUU2JhNUpDUHdiUUx4cHdJREFRQUJBb0lCQUJydU53MkYyYTNDT2pWaQpnRUFvOWtLUjJVSm1mNFZjMUN5aFN3bVVRdWs5QWNZMjBsa0JWdjNYWUJOR1ZnVGY1M0FwdjJUbGpoK1JKbW0zCm4rS2wvUGZvS1Z5R2kvZU9ieHB2RjN4TnhYbXNXdk8yTFpJRXZhSjJmRHBCYU85Znl1MUZiSG8xSlVkanpDSlkKT0pxZEJLUUgvTGRSK0JkT0NYQzl1YW81dStuS0RxZTZvaE1FZm5VUUpmeGd4QzNwMHhzRGkvNGovYWhCV3cvaApoZk02TUloaUlmZEhWNlN1MWlPQWlNbXNtcDBWSkd4OVR5SG9UZFdKWHkxYjRTNDh5L21rNjdNeThzUDJ0SXRHCksvdGxaaDFteDYwbCtscnZkTDZFVW9CVDVScXdCZDBCN0g3c1V0UkZjVVVkMVZBNXpMYVowYnhkbHVpL1dEMlcKaHVtOHJpRUNnWUVBN0hPZlN3OVRKQzIxSHFwb2kvUHRKOGZ5QjVMRXJaQTBmY21vd2VtMG55dTRyMVkxN2FSTwp6bU5qYmZtYWRrOU95RnJNaS9Ydm5pbW1wcnNmK3Z1dEVkeEJEK3JYMGJPZk52ZEl5NHNMNEFaN2JZSkdUVEk0ClVFREdPRVF2UkpUQmxhQ3hvMGVEcGVSbTZqamhjYjdmcHV6K3ZCaVB2ZFBHbExxU0JuaTczSDBDZ1lFQTE2dzYKazhzUDlCK251MFFkSVdRano0MU9wTzJlb2FKenhndFVRTnkyV0VuRi9ydk51K21ra1BtL0lWbWZvdzFOYXAwNApGL29FeHpUSWw2WkFCcUdjWUtHVDRNSjRlVS9QT2RsbWZtSE5DcThHTGs4TlRBaC9UdVFuZ0VKTDB2UE9Ta0wzCjMrWHg2N010MDhVUXNmRjlDQU8yS3BuQzhOOEw5NmhjOXp6ZTgvTUNnWUEwakptNVQ4V1ZnOGI5OHJkYmF6R28KcHFvbWZyclJLL3hPZkZQU0RNT0VvRzNpSWRISVo3elA1NHpBY3ptZDA1Qlp2THc2MnNTUExRaUpnNHJlOTdJRwpCeUk2akdHOGpDUDFUazNTVnF1ajlTelhNSjI1S0ZFVm5OK3d2NDZWdWsydm1GQUNUckYyVytWM1puN01EYlNjCjM0elpkc2Z6VXk2Ti9Vell2VnBhN1FLQmdRQ3NOZC9JSnpxajZhcmJBdlpudFRoTEFFQXR2WGNQQlZLQWJvZG0KQzFhbWhMSE9SMU50bXBCSEdzU2M4cDFmYXIzSVJhV0dyNktsRmVhZUFLZmJJNnhrRkdDcDlWNlJMMEwrcERNTQo4emJ3TXZVeWdQalRIMjNZSnFITDdpUHhXNi82NkNKWTY1a1NaVTVRYkdoNlRhTlNoUFF1YS95V3JPTTNhMzVnCkJJRGFOUUtCZ0dBSE5EOWVjcGpySElxUFgzekZUYm1uZjZORWl1SmN0aHpPN0hLZzI0Slh3V0FoRWJBaXpUYjQKRnY1VmY0d2dKc2xGSjFmNDdhVjJxSU5ncWJ5ajBMSlNjYksyOGlXVmIwZmxSbnJEZnd0amxaS2lneWRDTlZubApteUNBS2IyOTlZL1d0Y3NobjUxa29DdWtzSVA1VzJwZjk5M2pLbEw0OWNPN0l6N3VKbTEzCi0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg==
+  type: openssh
+sub_kind: openssh
+version: v2`
 )
 
 func TestInit_bootstrap(t *testing.T) {
@@ -719,6 +861,7 @@ func TestInit_bootstrap(t *testing.T) {
 	userCA := resourceFromYAML(t, userCAYAML).(types.CertAuthority)
 	jwtCA := resourceFromYAML(t, jwtCAYAML).(types.CertAuthority)
 	dbCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
+	osshCA := resourceFromYAML(t, openSSHCAYAML).(types.CertAuthority)
 
 	invalidHostCA := resourceFromYAML(t, hostCAYAML).(types.CertAuthority)
 	invalidHostCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
@@ -728,6 +871,8 @@ func TestInit_bootstrap(t *testing.T) {
 	invalidJWTCA.(*types.CertAuthorityV2).Spec.ActiveKeys.JWT = nil
 	invalidDBCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
 	invalidDBCA.(*types.CertAuthorityV2).Spec.ActiveKeys.TLS = nil
+	invalidOSSHCA := resourceFromYAML(t, openSSHCAYAML).(types.CertAuthority)
+	invalidOSSHCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
 
 	tests := []struct {
 		name         string
@@ -738,35 +883,84 @@ func TestInit_bootstrap(t *testing.T) {
 			// Issue https://github.com/gravitational/teleport/issues/7853.
 			name: "OK bootstrap CAs",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), userCA.Clone(), jwtCA.Clone(), dbCA.Clone())
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					hostCA.Clone(),
+					userCA.Clone(),
+					jwtCA.Clone(),
+					dbCA.Clone(),
+					osshCA.Clone(),
+				)
 			},
 			assertError: require.NoError,
 		},
 		{
 			name: "NOK bootstrap Host CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.BootstrapResources = append(cfg.BootstrapResources, invalidHostCA.Clone(), userCA.Clone(), jwtCA.Clone(), dbCA.Clone())
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					invalidHostCA.Clone(),
+					userCA.Clone(),
+					jwtCA.Clone(),
+					dbCA.Clone(),
+					osshCA.Clone(),
+				)
 			},
 			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap User CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), invalidUserCA.Clone(), jwtCA.Clone(), dbCA.Clone())
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					hostCA.Clone(),
+					invalidUserCA.Clone(),
+					jwtCA.Clone(),
+					dbCA.Clone(),
+					osshCA.Clone(),
+				)
 			},
 			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap JWT CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), userCA.Clone(), invalidJWTCA.Clone(), dbCA.Clone())
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					hostCA.Clone(),
+					userCA.Clone(),
+					invalidJWTCA.Clone(),
+					dbCA.Clone(),
+					osshCA.Clone(),
+				)
 			},
 			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap Database CA missing keys",
 			modifyConfig: func(cfg *InitConfig) {
-				cfg.BootstrapResources = append(cfg.BootstrapResources, hostCA.Clone(), userCA.Clone(), jwtCA.Clone(), invalidDBCA.Clone())
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					hostCA.Clone(),
+					userCA.Clone(),
+					jwtCA.Clone(),
+					invalidDBCA.Clone(),
+					osshCA.Clone(),
+				)
+			},
+			assertError: require.Error,
+		},
+		{
+			name: "NOK bootstrap OpenSSH CA missing keys",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					hostCA.Clone(),
+					userCA.Clone(),
+					jwtCA.Clone(),
+					dbCA.Clone(),
+					invalidOSSHCA.Clone(),
+				)
 			},
 			assertError: require.Error,
 		},
@@ -996,10 +1190,11 @@ func TestMigrateDatabaseCA(t *testing.T) {
 }
 
 func TestRotateDuplicatedCerts(t *testing.T) {
+	ctx := context.Background()
 	conf := setupConfig(t)
 
 	// suite.NewTestCA() uses the same SSH key for all created keys, which in this scenario triggers extra CA rotation.
-	keygen := keygen.New(context.TODO())
+	keygen := keygen.New(ctx)
 	privHost, _, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	privUser, _, err := keygen.GenerateKeyPair()
@@ -1025,7 +1220,6 @@ func TestRotateDuplicatedCerts(t *testing.T) {
 		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
 	}
 
-	ctx := context.Background()
 	// Rotate CAs.
 	for _, phase := range rotationPhases {
 		err = auth.RotateCertAuthority(ctx, RotateRequest{

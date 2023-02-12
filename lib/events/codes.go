@@ -399,6 +399,11 @@ const (
 	// DeviceAuthenticateCode is the device authentication code.
 	DeviceAuthenticateCode = "TV006I"
 
+	// LoginRuleCreateCode is the login rule create code.
+	LoginRuleCreateCode = "TLR00I"
+	// LoginRuleDeleteCode is the login rule delete code.
+	LoginRuleDeleteCode = "TLR01I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

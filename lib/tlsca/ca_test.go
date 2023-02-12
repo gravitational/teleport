@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -34,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
 
@@ -300,6 +302,107 @@ func TestIdentity_ToFromSubject(t *testing.T) {
 			require.NoError(t, err, "FromSubject failed")
 			if diff := cmp.Diff(identity, got, cmpopts.EquateEmpty()); diff != "" {
 				t.Errorf("FromSubject mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestGCPExtensions(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	require.NoError(t, err)
+
+	expires := clock.Now().Add(time.Hour)
+	identity := Identity{
+		Username:           "alice@example.com",
+		Groups:             []string{"admin"},
+		Impersonator:       "bob@example.com",
+		Usage:              []string{teleport.UsageAppsOnly},
+		GCPServiceAccounts: []string{"acct-1@example-123456.iam.gserviceaccount.com", "acct-2@example-123456.iam.gserviceaccount.com"},
+		RouteToApp: RouteToApp{
+			SessionID:         "43de4ffa8509aff3e3990e941400a403a12a6024d59897167b780ec0d03a1f15",
+			ClusterName:       "teleport.example.com",
+			Name:              "GCP-app",
+			GCPServiceAccount: "acct-3@example-123456.iam.gserviceaccount.com",
+		},
+		TeleportCluster: "tele-cluster",
+		Expires:         expires,
+	}
+
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	certBytes, err := ca.GenerateCertificate(CertificateRequest{
+		Clock:     clock,
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  expires,
+	})
+	require.NoError(t, err)
+
+	cert, err := ParseCertificatePEM(certBytes)
+	require.NoError(t, err)
+	out, err := FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(out, &identity))
+}
+
+func TestIdentity_GetUserMetadata(t *testing.T) {
+	tests := []struct {
+		name     string
+		identity Identity
+		want     apievents.UserMetadata
+	}{
+		{
+			name: "user metadata",
+			identity: Identity{
+				Username:     "alpaca",
+				Impersonator: "llama",
+				RouteToApp: RouteToApp{
+					AWSRoleARN:        "awsrolearn",
+					AzureIdentity:     "azureidentity",
+					GCPServiceAccount: "gcpaccount",
+				},
+				ActiveRequests: []string{"accessreq1", "accessreq2"},
+			},
+			want: apievents.UserMetadata{
+				User:              "alpaca",
+				Impersonator:      "llama",
+				AWSRoleARN:        "awsrolearn",
+				AccessRequests:    []string{"accessreq1", "accessreq2"},
+				AzureIdentity:     "azureidentity",
+				GCPServiceAccount: "gcpaccount",
+			},
+		},
+		{
+			name: "device metadata",
+			identity: Identity{
+				Username: "llama",
+				DeviceExtensions: DeviceExtensions{
+					DeviceID:     "deviceid1",
+					AssetTag:     "assettag1",
+					CredentialID: "credentialid1",
+				},
+			},
+			want: apievents.UserMetadata{
+				User: "llama",
+				TrustedDevice: &apievents.DeviceMetadata{
+					DeviceId:     "deviceid1",
+					AssetTag:     "assettag1",
+					CredentialId: "credentialid1",
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := test.identity.GetUserMetadata()
+			want := test.want
+			if !proto.Equal(&got, &want) {
+				t.Errorf("GetUserMetadata mismatch (-want +got)\n%s", cmp.Diff(want, got))
 			}
 		})
 	}

@@ -175,27 +175,20 @@ func New(config *Config, restrictedSession *RestrictedSessionConfig) (BPF, error
 		return nil, trace.Wrap(err)
 	}
 
-	if restrictedSession.Enabled {
-		// Load network BPF modules only when required.
-		s.conn, err = startConn(*config.NetworkBufferSize)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
-			"disk=%v, network=%v), restricted session (bufferSize=%v) "+
-			"and cgroup mount path: %v. Took %v.",
-			*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize,
-			restrictedSession.EventsBufferSize,
-			s.CgroupPath, time.Since(start))
-
-		go s.processNetworkEvents()
-	} else {
-		log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
-			"disk=%v) and cgroup mount path: %v. Took %v.",
-			*s.CommandBufferSize, *s.DiskBufferSize, s.CgroupPath,
-			time.Since(start))
+	// Load network BPF modules only when required.
+	s.conn, err = startConn(*config.NetworkBufferSize)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	log.Debugf("Started enhanced session recording with buffer sizes (command=%v, "+
+		"disk=%v, network=%v), restricted session (bufferSize=%v) "+
+		"and cgroup mount path: %v. Took %v.",
+		*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize,
+		restrictedSession.EventsBufferSize,
+		s.CgroupPath, time.Since(start))
+
+	go s.processNetworkEvents()
 
 	// Start pulling events off the perf buffers and emitting them to the
 	// Audit Log.
@@ -239,6 +232,11 @@ func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
 		return 0, trace.Wrap(err)
 	}
 
+	// Register cgroup in the BPF module.
+	if err := s.open.startSession(cgroupID); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
 	// Start watching for any events that come from this cgroup.
 	s.watch.Add(cgroupID, ctx)
 
@@ -262,14 +260,19 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 	// Stop watching for events from this PID.
 	s.watch.Remove(cgroupID)
 
+	var errs []error
 	// Move all PIDs to the root cgroup and remove the cgroup created for this
 	// session.
-	err = s.cgroup.Remove(ctx.SessionID)
-	if err != nil {
-		return trace.Wrap(err)
+	if err := s.cgroup.Remove(ctx.SessionID); err != nil {
+		errs = append(errs, trace.Wrap(err))
 	}
 
-	return nil
+	// Remove the cgroup from BPF module.
+	if err := s.open.endSession(cgroupID); err != nil {
+		errs = append(errs, trace.Wrap(err))
+	}
+
+	return trace.NewAggregate(errs...)
 }
 
 // processAccessEvents pulls events off the perf ring buffer, parses them, and emits them to

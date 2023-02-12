@@ -30,10 +30,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v2"
 
@@ -470,20 +472,48 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// awsRegions returns the list of all regions available on every aws partition.
+// It is used to validate the AWSMatcher.Regions values.
+func awsRegions() []string {
+	var regions []string
+	partitions := endpoints.DefaultPartitions()
+	for _, partition := range partitions {
+		regions = append(regions, maps.Keys(partition.Regions())...)
+	}
+	return regions
+}
+
 // checkAndSetDefaultsForAWSMatchers sets the default values for discovery AWS matchers
 // and validates the provided types.
 func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
+	regions := awsRegions()
 	for i := range matcherInput {
 		matcher := &matcherInput[i]
-		for _, serviceType := range matcher.Types {
-			if !slices.Contains(constants.SupportedAWSDiscoveryServices, serviceType) {
+		for _, matcherType := range matcher.Types {
+			if !slices.Contains(services.SupportedAWSMatchers, matcherType) {
 				return trace.BadParameter("discovery service type does not support %q, supported resource types are: %v",
-					serviceType, constants.SupportedAWSDiscoveryServices)
+					matcherType, services.SupportedAWSMatchers)
 			}
 		}
+
+		if len(matcher.Regions) == 0 {
+			return trace.BadParameter("discovery service requires at least one region; supported regions are: %v",
+				regions)
+		}
+
+		for _, region := range matcher.Regions {
+			if !slices.Contains(regions, region) {
+				return trace.BadParameter("discovery service does not support region %q; supported regions are: %v",
+					region, regions)
+			}
+		}
+
 		if matcher.Tags == nil || len(matcher.Tags) == 0 {
 			matcher.Tags = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
 		}
+
+		var installParams services.InstallerParams
+		var err error
 
 		if matcher.InstallParams == nil {
 			matcher.InstallParams = &InstallParams{
@@ -491,7 +521,13 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 					TokenName: defaults.IAMInviteTokenName,
 					Method:    types.JoinMethodIAM,
 				},
-				ScriptName: installers.InstallerScriptName,
+				ScriptName:      installers.InstallerScriptName,
+				InstallTeleport: "",
+				SSHDConfig:      defaults.SSHDConfigPath,
+			}
+			installParams, err = matcher.InstallParams.Parse()
+			if err != nil {
+				return trace.Wrap(err)
 			}
 		} else {
 			if method := matcher.InstallParams.JoinParams.Method; method == "" {
@@ -499,17 +535,35 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 			} else if method != types.JoinMethodIAM {
 				return trace.BadParameter("only IAM joining is supported for EC2 auto-discovery")
 			}
-			if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
+
+			if matcher.InstallParams.JoinParams.TokenName == "" {
 				matcher.InstallParams.JoinParams.TokenName = defaults.IAMInviteTokenName
 			}
 
+			if matcher.InstallParams.SSHDConfig == "" {
+				matcher.InstallParams.SSHDConfig = defaults.SSHDConfigPath
+			}
+
+			installParams, err = matcher.InstallParams.Parse()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			if installer := matcher.InstallParams.ScriptName; installer == "" {
-				matcher.InstallParams.ScriptName = installers.InstallerScriptName
+				if installParams.InstallTeleport {
+					matcher.InstallParams.ScriptName = installers.InstallerScriptName
+				} else {
+					matcher.InstallParams.ScriptName = installers.InstallerScriptNameAgentless
+				}
 			}
 		}
 
 		if matcher.SSM.DocumentName == "" {
-			matcher.SSM.DocumentName = defaults.AWSInstallerDocument
+			if installParams.InstallTeleport {
+				matcher.SSM.DocumentName = defaults.AWSInstallerDocument
+			} else {
+				matcher.SSM.DocumentName = defaults.AWSAgentlessInstallerDocument
+			}
 		}
 	}
 	return nil
@@ -523,13 +577,13 @@ func checkAndSetDefaultsForAzureMatchers(matcherInput []AzureMatcher) error {
 
 		if len(matcher.Types) == 0 {
 			return trace.BadParameter("At least one Azure discovery service type must be specified, the supported resource types are: %v",
-				constants.SupportedAzureDiscoveryServices)
+				services.SupportedAzureMatchers)
 		}
 
-		for _, serviceType := range matcher.Types {
-			if !slices.Contains(constants.SupportedAzureDiscoveryServices, serviceType) {
+		for _, matcherType := range matcher.Types {
+			if !slices.Contains(services.SupportedAzureMatchers, matcherType) {
 				return trace.BadParameter("Azure discovery service type does not support %q resource type; supported resource types are: %v",
-					serviceType, constants.SupportedAzureDiscoveryServices)
+					matcherType, services.SupportedAzureMatchers)
 			}
 		}
 
@@ -563,13 +617,13 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 
 		if len(matcher.Types) == 0 {
 			return trace.BadParameter("At least one GCP discovery service type must be specified, the supported resource types are: %v",
-				constants.SupportedGCPDiscoveryServices)
+				services.SupportedGCPMatchers)
 		}
 
-		for _, serviceType := range matcher.Types {
-			if !slices.Contains(constants.SupportedGCPDiscoveryServices, serviceType) {
+		for _, matcherType := range matcher.Types {
+			if !slices.Contains(services.SupportedGCPMatchers, matcherType) {
 				return trace.BadParameter("GCP discovery service type does not support %q resource type; supported resource types are: %v",
-					serviceType, constants.SupportedGCPDiscoveryServices)
+					matcherType, services.SupportedGCPMatchers)
 			}
 		}
 
@@ -598,6 +652,12 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 type JoinParams struct {
 	TokenName string           `yaml:"token_name"`
 	Method    types.JoinMethod `yaml:"method"`
+	Azure     AzureJoinParams  `yaml:"azure"`
+}
+
+// AzureJoinParams configures the parameters specific to the Azure join method.
+type AzureJoinParams struct {
+	ClientID string `yaml:"client_id"`
 }
 
 // ConnectionRate configures rate limiter
@@ -1478,6 +1538,32 @@ type InstallParams struct {
 	// ScriptName is the name of the teleport installer script
 	// resource for the EC2 instance to execute
 	ScriptName string `yaml:"script_name,omitempty"`
+	// InstallTeleport disables agentless discovery
+	InstallTeleport string `yaml:"install_teleport,omitempty"`
+	// SSHDConfig provides the path to write sshd configuration changes
+	SSHDConfig string `yaml:"sshd_config,omitempty"`
+}
+
+func (ip *InstallParams) Parse() (services.InstallerParams, error) {
+	install := services.InstallerParams{
+		JoinMethod:      ip.JoinParams.Method,
+		JoinToken:       ip.JoinParams.TokenName,
+		ScriptName:      ip.ScriptName,
+		InstallTeleport: true,
+		SSHDConfig:      ip.SSHDConfig,
+	}
+
+	if ip.InstallTeleport == "" {
+		return install, nil
+	}
+
+	var err error
+	install.InstallTeleport, err = apiutils.ParseBool(ip.InstallTeleport)
+	if err != nil {
+		return services.InstallerParams{}, trace.Wrap(err)
+	}
+
+	return install, nil
 }
 
 // AWSSSM provides options to use when executing SSM documents
@@ -1638,6 +1724,8 @@ type DatabaseGCP struct {
 type DatabaseAzure struct {
 	// ResourceID is the Azure fully qualified ID for the resource.
 	ResourceID string `yaml:"resource_id,omitempty"`
+	// IsFlexiServer is true if the database is an Azure Flexible server.
+	IsFlexiServer bool `yaml:"is_flexi_server,omitempty"`
 }
 
 // Apps represents the configuration for the collection of applications this
@@ -1756,6 +1844,10 @@ type Proxy struct {
 	// KeyPairs is a list of x509 key pairs the proxy will load.
 	KeyPairs []KeyPair `yaml:"https_keypairs"`
 
+	// KeyPairsReloadInterval is the interval between attempts to reload
+	// x509 key pairs. If set to 0, then periodic reloading is disabled.
+	KeyPairsReloadInterval time.Duration `yaml:"https_keypairs_reload_interval"`
+
 	// ACME configures ACME protocol support
 	ACME ACME `yaml:"acme"`
 
@@ -1776,6 +1868,11 @@ type Proxy struct {
 	// MongoPublicAddr is the hostport the proxy advertises for Mongo
 	// client connections.
 	MongoPublicAddr apiutils.Strings `yaml:"mongo_public_addr,omitempty"`
+
+	// IdP is configuration for identity providers.
+	//
+	//nolint:revive // Because we want this to be IdP.
+	IdP IdP `yaml:"idp,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
@@ -1811,6 +1908,36 @@ func (a ACME) Parse() (*service.ACME, error) {
 	out.URI = a.URI
 
 	return &out, nil
+}
+
+// IdP represents the configuration for identity providers running within the
+// proxy.
+//
+//nolint:revive // Because we want this to be IdP.
+type IdP struct {
+	// SAMLIdP represents configuratino options for the SAML identity provider.
+	SAMLIdP SAMLIdP `yaml:"saml,omitempty"`
+}
+
+// SAMLIdP represents the configuration for the SAML identity provider.
+type SAMLIdP struct {
+	// Enabled turns the SAML IdP on or off for this process.
+	EnabledFlag string `yaml:"enabled,omitempty"`
+
+	// BaseURL is the base URL to provide to the SAML IdP.
+	BaseURL string `yaml:"base_url,omitempty"`
+}
+
+// Enabled returns true if the SAML IdP is enabled or if the enabled flag is unset.
+func (s *SAMLIdP) Enabled() bool {
+	if s.EnabledFlag == "" {
+		return true
+	}
+	v, err := apiutils.ParseBool(s.EnabledFlag)
+	if err != nil {
+		return false
+	}
+	return v
 }
 
 // KeyPair represents a path on disk to a private key and certificate.
@@ -1935,13 +2062,32 @@ type WindowsDesktopService struct {
 	LDAP LDAPConfig `yaml:"ldap"`
 	// Discovery configures desktop discovery via LDAP.
 	Discovery LDAPDiscoveryConfig `yaml:"discovery,omitempty"`
-	// Hosts is a list of static Windows hosts connected to this service in
-	// gateway mode.
+	// Hosts is a list of static, AD-connected Windows hosts. This gives users
+	// a way to specify AD-connected hosts that won't be found by the filters
+	// specified in `discovery` (or if `discovery` is omitted).
 	Hosts []string `yaml:"hosts,omitempty"`
+	// NonADHosts is a list of standalone Windows hosts that are not
+	// jointed to an Active Directory domain.
+	NonADHosts []string `yaml:"non_ad_hosts,omitempty"`
 	// HostLabels optionally applies labels to Windows hosts for RBAC.
 	// A host can match multiple rules and will get a union of all
 	// the matched labels.
 	HostLabels []WindowsHostLabelRule `yaml:"host_labels,omitempty"`
+}
+
+// Check checks whether the WindowsDesktopService is valid or not
+func (wds *WindowsDesktopService) Check() error {
+	if len(wds.Hosts) > 0 && wds.LDAP.Addr == "" {
+		return trace.BadParameter("if hosts are specified in the windows_desktop_service, " +
+			"the ldap configuration for their corresponding Active Directory domain controller must also be specified")
+	}
+
+	if wds.Discovery.BaseDN != "" && wds.LDAP.Addr == "" {
+		return trace.BadParameter("if discovery is specified in the windows_desktop_service, " +
+			"ldap configuration must also be specified")
+	}
+
+	return nil
 }
 
 // WindowsHostLabelRule describes how a set of labels should be a applied to

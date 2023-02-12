@@ -37,18 +37,28 @@ import (
 )
 
 type mockJoinServiceClient struct {
-	sendChallenge        string
-	returnCerts          *proto.Certs
-	returnError          error
-	gotChallengeResponse *proto.RegisterUsingIAMMethodRequest
+	sendChallenge             string
+	returnCerts               *proto.Certs
+	returnError               error
+	gotIAMChallengeResponse   *proto.RegisterUsingIAMMethodRequest
+	gotAzureChallengeResponse *proto.RegisterUsingAzureMethodRequest
 }
 
-func (c *mockJoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error) {
+func (c *mockJoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error) {
 	resp, err := challengeResponse(c.sendChallenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	c.gotChallengeResponse = resp
+	c.gotIAMChallengeResponse = resp
+	return c.returnCerts, c.returnError
+}
+
+func (c *mockJoinServiceClient) RegisterUsingAzureMethod(ctx context.Context, challengeResponse client.RegisterAzureChallengeResponseFunc) (*proto.Certs, error) {
+	resp, err := challengeResponse(c.sendChallenge)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.gotAzureChallengeResponse = resp
 	return c.returnCerts, c.returnError
 }
 
@@ -212,7 +222,70 @@ func TestJoinServiceGRPCServer_RegisterUsingIAMMethod(t *testing.T) {
 					// client should get the certs from auth
 					require.Equal(t, tc.certs, certs)
 					// auth should get the challenge response from client
-					require.Equal(t, tc.challengeResponse, testPack.mockAuthServer.gotChallengeResponse)
+					require.Equal(t, tc.challengeResponse, testPack.mockAuthServer.gotIAMChallengeResponse)
+				})
+			}
+		})
+	}
+}
+
+func TestJoinServiceGRPCServer_RegisterUsingAzureMethod(t *testing.T) {
+	t.Parallel()
+	testPack := newTestPack(t)
+
+	testCases := []struct {
+		desc                 string
+		challenge            string
+		challengeResponse    *proto.RegisterUsingAzureMethodRequest
+		challengeResponseErr error
+		authErr              error
+		certs                *proto.Certs
+	}{
+		{
+			desc:              "pass case",
+			challenge:         "foo",
+			challengeResponse: &proto.RegisterUsingAzureMethodRequest{AttestedData: []byte("bar"), AccessToken: "baz"},
+			certs:             &proto.Certs{SSH: []byte("qux")},
+		},
+		{
+			desc:              "auth error",
+			challenge:         "foo",
+			challengeResponse: &proto.RegisterUsingAzureMethodRequest{AttestedData: []byte("bar"), AccessToken: "baz"},
+			authErr:           trace.AccessDenied("test auth error"),
+		},
+		{
+			desc:                 "challenge response error",
+			challenge:            "foo",
+			challengeResponseErr: trace.BadParameter("test challenge error"),
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			testPack.mockAuthServer.sendChallenge = tc.challenge
+			testPack.mockAuthServer.returnCerts = tc.certs
+			testPack.mockAuthServer.returnError = tc.authErr
+			challengeResponder := func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
+				require.Equal(t, tc.challenge, challenge)
+				return tc.challengeResponse, tc.challengeResponseErr
+			}
+
+			for suffix, clt := range map[string]*client.JoinServiceClient{
+				"_auth":  testPack.authClient,
+				"_proxy": testPack.proxyClient,
+			} {
+				t.Run(tc.desc+suffix, func(t *testing.T) {
+					certs, err := clt.RegisterUsingAzureMethod(context.Background(), challengeResponder)
+					if tc.challengeResponseErr != nil {
+						require.Equal(t, tc.challengeResponseErr, err)
+						return
+					}
+					if tc.authErr != nil {
+						require.Contains(t, err.Error(), tc.authErr.Error())
+						return
+					}
+					require.NoError(t, err)
+					require.Equal(t, tc.certs, certs)
+					require.Equal(t, tc.challengeResponse, testPack.mockAuthServer.gotAzureChallengeResponse)
 				})
 			}
 		})

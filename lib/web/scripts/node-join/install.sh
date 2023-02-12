@@ -61,7 +61,7 @@ DB_INSTALL_MODE='{{.databaseInstallMode}}'
 
 # usage message
 # shellcheck disable=SC2086
-usage() { echo "Usage: $(basename $0) [-v teleport_version] [-h target_hostname] [-p target_port> [-j join_token ] [-c ca_pin_hash]... [-q] [-l log_filename] [-a app_name] [-u app_uri] " 1>&2; exit 1; }
+usage() { echo "Usage: $(basename $0) [-v teleport_version] [-h target_hostname] [-p target_port] [-j join_token] [-c ca_pin_hash]... [-q] [-l log_filename] [-a app_name] [-u app_uri] " 1>&2; exit 1; }
 while getopts ":v:h:p:j:c:f:ql:ika:u:" o; do
     case "${o}" in
         v)  TELEPORT_VERSION=${OPTARG};;
@@ -69,7 +69,7 @@ while getopts ":v:h:p:j:c:f:ql:ika:u:" o; do
         p)  TARGET_PORT=${OPTARG};;
         j)  JOIN_TOKEN=${OPTARG};;
         c)  ARG_CA_PIN_HASHES="${ARG_CA_PIN_HASHES} ${OPTARG}";;
-        f)  f=${OPTARG}; if [[ ${f} != "tarball" && ${f} != "deb" && ${f} != "rpm" && ${f} != "rpm-centos6" ]]; then usage; fi;;
+        f)  f=${OPTARG}; if [[ ${f} != "tarball" && ${f} != "deb" && ${f} != "rpm" ]]; then usage; fi;;
         q)  QUIET=true;;
         l)  l=${OPTARG};;
         i)  IGNORE_CHECKS=true; COPY_COMMAND="cp -f";;
@@ -633,8 +633,9 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
         if [ ! -f /etc/os-release ]; then
             if [ -f /etc/centos-release ]; then
                 if grep -q 'CentOS release 6' /etc/centos-release; then
-                    DISTRO_TYPE="centos6"
-                    TELEPORT_FORMAT="rpm-centos6"
+                    log_important "Detected host type: CentOS 6 [$(cat /etc/centos-release)]"
+                    log_important "Teleport will not work on CentOS 6 -based servers due to the glibc version being too low."
+                    exit 1
                 fi
             elif [ -f /etc/redhat-release ]; then
                 if grep -q 'Red Hat Enterprise Linux Server release 5' /etc/redhat-release; then
@@ -642,9 +643,9 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
                     log_important "Teleport will not work on RHEL5-based servers due to the glibc version being too low."
                     exit 1
                 elif grep -q 'Red Hat Enterprise Linux Server release 6' /etc/redhat-release; then
-                    DISTRO_TYPE="redhat"
-                    TELEPORT_FORMAT="rpm-centos6"
-                    log "Detected host type: RHEL6 [$(cat /etc/redhat-release)]"
+                    log_important "Detected host type: RHEL6 [$(cat /etc/redhat-release)]"
+                    log_important "Teleport will not work on RHEL6-based servers due to the glibc version being too low."
+                    exit 1
                 fi
             fi
         # use ID_LIKE value from /etc/os-release (if set)
@@ -757,30 +758,10 @@ if teleport_binaries_exist; then
     fi
 fi
 
-# handle centos6 installations
-if [[ ${TELEPORT_FORMAT} == "rpm-centos6" ]]; then
-    # Error if arch != amd64, as we don't have CentOS 6 packages for any other arch
-    if [[ ${TELEPORT_ARCH} != "amd64" ]]; then
-        log_important "Your distro appears to be CentOS/RHEL 6 and your arch is ${ARCH}."
-        log_important "Teleport only produces amd64 binaries for CentOS 6, so this script cannot install Teleport on this host."
-        log_important "Contact Teleport support for further assistance."
-        exit 1
-    fi
-    # override the format to 'tarball' (as that's how centos6 binaries are packaged)
-    # also override DISTRO_TYPE to centos6 as that's used for the URL check below
-    log "Overriding format for centos6 installation to use tarball"
-    TELEPORT_FORMAT="tarball"
-    DISTRO_TYPE="centos6"
-fi
-
 # select correct URL/installation method based on distro
 if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
-    # handle centos6 URL override
-    if [[ ${DISTRO_TYPE} == "centos6" ]]; then
-        URL="https://get.gravitational.com/teleport-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-centos6-bin.tar.gz"
-    else
-        URL="https://get.gravitational.com/teleport-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
-    fi
+    URL="https://get.gravitational.com/{{.packageName}}-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
+
     # check that needed tools are installed
     check_exists_fatal curl tar
     # download tarball
@@ -804,7 +785,7 @@ elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
     elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
         DEB_ARCH="arm64"
     fi
-    URL="https://get.gravitational.com/teleport_${TELEPORT_VERSION}_${DEB_ARCH}.deb"
+    URL="https://get.gravitational.com/{{.packageName}}_${TELEPORT_VERSION}_${DEB_ARCH}.deb"
     check_deb_not_already_installed
     # check that needed tools are installed
     check_exists_fatal curl dpkg
@@ -826,7 +807,7 @@ elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
     elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
         RPM_ARCH="arm64"
     fi
-    URL="https://get.gravitational.com/teleport-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
+    URL="https://get.gravitational.com/{{.packageName}}-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
     check_rpm_not_already_installed
     # check for package managers
     if check_exists dnf; then

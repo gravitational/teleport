@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -208,6 +209,8 @@ type Config struct {
 	// LocalAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	LocalAuthAddresses []string
+	// IngressReporter reports new and active connections.
+	IngressReporter *ingress.Reporter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -318,7 +321,7 @@ func NewServer(cfg Config) (Server, error) {
 		offlineThreshold: offlineThreshold,
 	}
 
-	localSite, err := newlocalSite(srv, cfg.ClusterName, cfg.LocalAuthAddresses)
+	localSite, err := newLocalSite(srv, cfg.ClusterName, cfg.LocalAuthAddresses)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -342,6 +345,7 @@ func NewServer(cfg Config) (Server, error) {
 		sshutils.SetMACAlgorithms(cfg.MACAlgorithms),
 		sshutils.SetFIPS(cfg.FIPS),
 		sshutils.SetClock(cfg.Clock),
+		sshutils.SetIngressReporter(ingress.Tunnel, cfg.IngressReporter),
 	)
 	if err != nil {
 		return nil, err
@@ -371,7 +375,6 @@ func (s *server) disconnectClusters(connectedRemoteClusters []*remoteSite, remot
 			}
 			remoteClustersStats.DeleteLabelValues(cluster.GetName())
 		}
-
 	}
 	return nil
 }
@@ -398,7 +401,7 @@ func (s *server) periodicFunctions() {
 
 			connectedRemoteClusters := s.getRemoteClusters()
 
-			remoteClusters, err := s.localAuthClient.GetRemoteClusters()
+			remoteClusters, err := s.localAccessPoint.GetRemoteClusters()
 			if err != nil {
 				s.log.WithError(err).Warn("Failed to get remote clusters")
 			}
@@ -581,8 +584,8 @@ func (s *server) diffConns(newConns, existingConns map[string]types.TunnelConnec
 	return connsToAdd, connsToUpdate, connsToRemove
 }
 
-func (s *server) Wait() {
-	s.srv.Wait(context.TODO())
+func (s *server) Wait(ctx context.Context) {
+	s.srv.Wait(ctx)
 }
 
 func (s *server) Start() error {
@@ -1193,15 +1196,15 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 }
 
 // createRemoteAccessPoint creates a new access point for the remote cluster.
-// Checks if the cluster that is connecting is a pre-v11 cluster. If it is,
-// we disable the watcher for types.KindKubeServer and types.KindKubeCluster resources
-// since both resources are not supported in a v10 leaf cluster.
+// Checks if the cluster that is connecting is a pre-v13 cluster. If it is,
+// we disable the watcher for resources not supported in a v12 leaf cluster:
+// - (to fill when we add new resources)
 //
 // **WARNING**: Ensure that the version below matches the version in which backward incompatible
 // changes were introduced so that the cache is created successfully. Otherwise, the remote cache may
 // never become healthy due to unknown resources.
 func createRemoteAccessPoint(srv *server, clt auth.ClientI, version, domainName string) (auth.RemoteProxyAccessPoint, error) {
-	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("11.0.0"))
+	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("13.0.0"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

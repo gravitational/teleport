@@ -261,15 +261,6 @@ const (
 	// ComponentUsageReporting is the component responsible for reporting usage metrics.
 	ComponentUsageReporting = "usage-reporting"
 
-	// DebugEnvVar tells tests to use verbose debug output
-	DebugEnvVar = "DEBUG"
-
-	// DebugAssetsPath allows users to set the path of the webassets if debug
-	// mode is enabled.
-	// For example,
-	// `DEBUG=1 DEBUG_ASSETS_PATH=/path/to/webassets/ teleport start`.
-	DebugAssetsPath = "DEBUG_ASSETS_PATH"
-
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
@@ -575,6 +566,10 @@ const (
 	// Azure identities for local accounts.
 	TraitInternalAzureIdentities = "{{internal.azure_identities}}"
 
+	// TraitInternalGCPServiceAccounts is the variable used to store allowed
+	// GCP service accounts for local accounts.
+	TraitInternalGCPServiceAccounts = "{{internal.gcp_service_accounts}}"
+
 	// TraitInternalJWTVariable is the variable used to store JWT token for
 	// app sessions.
 	TraitInternalJWTVariable = "{{internal.jwt}}"
@@ -600,6 +595,8 @@ const (
 	// reading cluster events and playing back session records.
 	PresetAuditorRoleName = "auditor"
 )
+
+var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
 
 // MinClientVersion is the minimum client version required by the server.
 var MinClientVersion string
@@ -746,6 +743,11 @@ const (
 	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
 	// handle SFTP connections.
 	SFTPSubCommand = "sftp"
+
+	// WaitSubCommand is the sub-command Teleport uses to wait
+	// until a domain name stops resolving. Its main use is to ensure no
+	// auth instances are still running the previous major version.
+	WaitSubCommand = "wait"
 )
 
 const (

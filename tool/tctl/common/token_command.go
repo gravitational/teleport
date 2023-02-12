@@ -220,6 +220,20 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 
 	// Print signup message.
 	switch {
+	case roles.Include(types.RoleKube):
+		proxies, err := client.GetProxies()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(proxies) == 0 {
+			return trace.NotFound("cluster has no proxies")
+		}
+		return kubeMessageTemplate.Execute(c.stdout,
+			map[string]interface{}{
+				"auth_server": proxies[0].GetPublicAddr(),
+				"token":       token,
+				"minutes":     c.ttl.Minutes(),
+			})
 	case roles.Include(types.RoleApp):
 		proxies, err := client.GetProxies()
 		if err != nil {
@@ -262,6 +276,12 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 		fmt.Fprintf(c.stdout, trustedClusterMessage,
 			token,
 			int(c.ttl.Minutes()))
+	case roles.Include(types.RoleWindowsDesktop):
+		return desktopMessageTemplate.Execute(c.stdout,
+			map[string]interface{}{
+				"token":   token,
+				"minutes": c.ttl.Minutes(),
+			})
 	default:
 		authServer := authServers[0].GetAddr()
 
@@ -342,7 +362,7 @@ func (c *TokensCommand) List(ctx context.Context, client auth.ClientI) error {
 			now := time.Now()
 			for _, t := range tokens {
 				expiry := "never"
-				if t.Expiry().Unix() > 0 {
+				if !t.Expiry().IsZero() {
 					exptime := t.Expiry().Format(time.RFC822)
 					expdur := t.Expiry().Sub(now).Round(time.Second)
 					expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())

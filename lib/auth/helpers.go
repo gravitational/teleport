@@ -357,6 +357,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		ClusterName: srv.ClusterName,
 		AccessPoint: srv.AuthServer,
 		LockWatcher: srv.LockWatcher,
+		// AuthServer does explicit device authorization checks.
+		DisableDeviceAuthorization: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -366,6 +368,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 }
 
 func (a *TestAuthServer) Close() error {
+	defer a.LockWatcher.Close()
+
 	return trace.NewAggregate(
 		a.AuthServer.Close(),
 		a.Backend.Close(),
@@ -528,6 +532,17 @@ func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, role
 	}
 	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseCA,
+		DomainName: remote.ClusterName,
+	}, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = a.AuthServer.UpsertCertAuthority(remoteCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	remoteCA, err = remote.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.OpenSSHCA,
 		DomainName: remote.ClusterName,
 	}, false)
 	if err != nil {
@@ -714,6 +729,20 @@ func TestUser(username string) TestIdentity {
 		I: LocalUser{
 			Username: username,
 			Identity: tlsca.Identity{Username: username},
+		},
+	}
+}
+
+// TestUserWithDeviceExtensions returns a TestIdentity for a local user,
+// including the supplied device extensions in the tlsca.Identity.
+func TestUserWithDeviceExtensions(username string, exts tlsca.DeviceExtensions) TestIdentity {
+	return TestIdentity{
+		I: LocalUser{
+			Username: username,
+			Identity: tlsca.Identity{
+				Username:         username,
+				DeviceExtensions: exts,
+			},
 		},
 	}
 }

@@ -29,7 +29,6 @@ import (
 	"time"
 
 	cqlclient "github.com/datastax/go-cassandra-native-protocol/client"
-	mssql "github.com/denisenkom/go-mssqldb"
 	elastic "github.com/elastic/go-elasticsearch/v8"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	mysqllib "github.com/go-mysql-org/go-mysql/mysql"
@@ -38,6 +37,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
+	mssql "github.com/microsoft/go-mssqldb"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -2087,12 +2087,13 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 				Emitter: c.emitter,
 			})
 		},
-		CADownloader:  p.CADownloader,
-		OnReconcile:   p.OnReconcile,
-		LockWatcher:   lockWatcher,
-		CloudClients:  p.CloudClients,
-		AWSMatchers:   p.AWSMatchers,
-		AzureMatchers: p.AzureMatchers,
+		CADownloader:             p.CADownloader,
+		OnReconcile:              p.OnReconcile,
+		LockWatcher:              lockWatcher,
+		CloudClients:             p.CloudClients,
+		AWSMatchers:              p.AWSMatchers,
+		AzureMatchers:            p.AzureMatchers,
+		discoveryResourceChecker: &fakeDiscoveryResourceChecker{},
 	})
 	require.NoError(t, err)
 
@@ -2542,6 +2543,12 @@ func withAzureRedis(name string, token string) withDatabaseOption {
 		}
 		return database
 	}
+}
+
+type fakeDiscoveryResourceChecker struct {
+}
+
+func (f fakeDiscoveryResourceChecker) check(_ context.Context, _ types.Database) {
 }
 
 var dynamicLabels = types.LabelsToV2(map[string]types.CommandLabel{

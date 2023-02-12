@@ -11,6 +11,7 @@ on:
       - '/go.sum'
       - 'operator/**'
       - 'api/types/**'
+      - 'gen/**'
       - 'lib/tbot/**'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
@@ -20,6 +21,7 @@ on:
       - '/go.sum'
       - 'operator/**'
       - 'api/types/**'
+      - 'gen/**'
       - 'lib/tbot/**'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
@@ -34,7 +36,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport12
+      image: ghcr.io/gravitational/teleport-buildbox:teleport13
       options: --cap-add=SYS_ADMIN --privileged
 
     steps:

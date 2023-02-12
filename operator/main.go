@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//nolint:goimports,gci // goimports disagree with gci on blank imports. Remove when GCI is fixed upstream https://github.com/daixiang0/gci/issues/135
 package main
 
-//nolint:goimports // goimports disagree with gci on blank imports
 import (
 	"flag"
 	"os"

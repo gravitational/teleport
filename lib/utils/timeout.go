@@ -50,6 +50,11 @@ func ObeyIdleTimeout(conn net.Conn, timeout time.Duration, ownerName string) net
 	}
 }
 
+// NetConn returns the underlying net.Conn.
+func (tc *TimeoutConn) NetConn() net.Conn {
+	return tc.Conn
+}
+
 func (tc *TimeoutConn) Read(p []byte) (n int, err error) {
 	// note: checking for errors here does not buy anything: some net.Conn interface
 	// 	     implementations (sshConn, pipe) simply return "not supported" error

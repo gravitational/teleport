@@ -100,6 +100,7 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 				Database:    c.dbRoute.Database,
 			},
 			AccessRequests: accessRequests,
+			RequesterName:  proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
 		}, func(opts *PromptMFAChallengeOpts) {
 			opts.HintBeforePrompt = hint
 		})

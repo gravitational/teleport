@@ -21,7 +21,9 @@ import (
 	"crypto"
 	"crypto/tls"
 	"encoding/base32"
+	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -1375,6 +1377,12 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	err = clt.CreateAccessRequest(ctx, roleReq)
 	require.NoError(t, err)
 
+	// Create remote cluster so create access request doesn't err due to non existent cluster
+	rc, err := types.NewRemoteCluster("foobar")
+	require.NoError(t, err)
+	err = tt.server.AuthServer.AuthServer.CreateRemoteCluster(rc)
+	require.NoError(t, err)
+
 	// Create approved resource request
 	resourceReq, err := services.NewAccessRequestWithResources(username, []string{resourceRequestRoleName}, resourceIDs)
 	require.NoError(t, err)
@@ -1786,7 +1794,7 @@ func TestPluginData(t *testing.T) {
 	require.NoError(t, err)
 
 	plugin := "my-plugin"
-	_, err = CreateAccessPluginUser(context.TODO(), tt.server.Auth(), plugin)
+	_, err = CreateAccessPluginUser(ctx, tt.server.Auth(), plugin)
 	require.NoError(t, err)
 
 	pluginUser := TestUser(plugin)
@@ -1797,9 +1805,9 @@ func TestPluginData(t *testing.T) {
 	req, err := services.NewAccessRequest(user, role)
 	require.NoError(t, err)
 
-	require.NoError(t, userClient.CreateAccessRequest(context.TODO(), req))
+	require.NoError(t, userClient.CreateAccessRequest(ctx, req))
 
-	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
+	err = pluginClient.UpdatePluginData(ctx, types.PluginDataUpdateParams{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
@@ -1809,7 +1817,7 @@ func TestPluginData(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	data, err := pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
+	data, err := pluginClient.GetPluginData(ctx, types.PluginDataFilter{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 	})
@@ -1820,7 +1828,7 @@ func TestPluginData(t *testing.T) {
 	require.Equal(t, ok, true)
 	require.Empty(t, cmp.Diff(entry.Data, map[string]string{"foo": "bar"}))
 
-	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
+	err = pluginClient.UpdatePluginData(ctx, types.PluginDataUpdateParams{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
@@ -1834,7 +1842,7 @@ func TestPluginData(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	data, err = pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
+	data, err = pluginClient.GetPluginData(ctx, types.PluginDataFilter{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 	})
@@ -1980,7 +1988,7 @@ func TestGenerateCerts(t *testing.T) {
 	t.Run("ImpersonateAllow", func(t *testing.T) {
 		// Super impersonator impersonate anyone and login as root
 		maxSessionTTL := 300 * time.Hour
-		superImpersonatorRole, err := types.NewRoleV3("superimpersonator", types.RoleSpecV6{
+		superImpersonatorRole, err := types.NewRole("superimpersonator", types.RoleSpecV6{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.Duration(maxSessionTTL),
 			},
@@ -1998,7 +2006,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		// Impersonator can generate certificates for super impersonator
-		role, err := types.NewRoleV3("impersonate", types.RoleSpecV6{
+		role, err := types.NewRole("impersonate", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Logins: []string{superImpersonator.GetName()},
 				Impersonate: &types.ImpersonateConditions{
@@ -2955,6 +2963,108 @@ func TestRegisterCAPath(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestClusterAlertAck(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tt := setupAuthContext(ctx, t)
+
+	alert1, err := types.NewClusterAlert("alert-1", "some msg")
+	require.NoError(t, err)
+
+	adminClt, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+	defer adminClt.Close()
+
+	err = adminClt.UpsertClusterAlert(ctx, alert1)
+	require.NoError(t, err)
+
+	expiry := time.Now().Add(time.Hour)
+
+	ack := types.AlertAcknowledgement{AlertID: "alert-1", Reason: "testing", Expires: expiry}
+
+	err = adminClt.CreateAlertAck(ctx, ack)
+	require.NoError(t, err)
+
+	acks, err := adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 1)
+
+	require.Equal(t, acks[0].AlertID, "alert-1")
+
+	clear := proto.ClearAlertAcksRequest{
+		AlertID: "alert-1",
+	}
+
+	err = adminClt.ClearAlertAcks(ctx, clear)
+	require.NoError(t, err)
+
+	acks, err = adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 0)
+}
+
+func TestClusterAlertClearAckWildcard(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tt := setupAuthContext(ctx, t)
+
+	alert1, err := types.NewClusterAlert("alert-1", "some msg")
+	require.NoError(t, err)
+
+	alert2, err := types.NewClusterAlert("alert-2", "some msg")
+	require.NoError(t, err)
+
+	adminClt, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+	defer adminClt.Close()
+
+	err = adminClt.UpsertClusterAlert(ctx, alert1)
+	require.NoError(t, err)
+
+	err = adminClt.UpsertClusterAlert(ctx, alert2)
+	require.NoError(t, err)
+
+	expiry := time.Now().Add(time.Hour)
+
+	ack := types.AlertAcknowledgement{AlertID: "alert-1", Reason: "testing", Expires: expiry}
+
+	err = adminClt.CreateAlertAck(ctx, ack)
+	require.NoError(t, err)
+
+	ack = types.AlertAcknowledgement{AlertID: "alert-2", Reason: "testing", Expires: expiry}
+
+	err = adminClt.CreateAlertAck(ctx, ack)
+	require.NoError(t, err)
+
+	acks, err := adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 2)
+
+	require.Equal(t, acks[0].AlertID, "alert-1")
+	require.Equal(t, acks[1].AlertID, "alert-2")
+
+	clear := proto.ClearAlertAcksRequest{
+		AlertID: "*",
+	}
+
+	err = adminClt.ClearAlertAcks(ctx, clear)
+	require.NoError(t, err)
+
+	acks, err = adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 0)
+}
+
 // TestClusterAlertAccessControls verifies expected behaviors of cluster alert
 // access controls.
 func TestClusterAlertAccessControls(t *testing.T) {
@@ -3462,6 +3572,12 @@ func newTestTLSServer(t *testing.T) *TestTLSServer {
 	srv, err := as.NewTestTLSServer()
 	require.NoError(t, err)
 
-	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+	t.Cleanup(func() {
+		err := srv.Close()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		require.NoError(t, err)
+	})
 	return srv
 }

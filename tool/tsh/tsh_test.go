@@ -313,7 +313,7 @@ func TestOIDCLogin(t *testing.T) {
 
 	// set up an initial role with `request_access: always` in order to
 	// trigger automatic post-login escalation.
-	populist, err := types.NewRoleV3("populist", types.RoleSpecV6{
+	populist, err := types.NewRole("populist", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"dictator"},
@@ -326,7 +326,7 @@ func TestOIDCLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// empty role which serves as our escalation target
-	dictator, err := types.NewRoleV3("dictator", types.RoleSpecV6{})
+	dictator, err := types.NewRole("dictator", types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	alice, err := types.NewUser("alice@example.com")
@@ -750,9 +750,23 @@ func TestMakeClient(t *testing.T) {
 	// minimal configuration (with defaults)
 	conf.Proxy = "proxy:3080"
 	conf.UserHost = "localhost"
+	conf.HomePath = t.TempDir()
+
+	// Create a empty profile so we don't ping proxy.
+	clientStore, err := initClientStore(&conf, conf.Proxy)
+	require.NoError(t, err)
+	profile := &profile.Profile{
+		SSHProxyAddr: "proxy:3023",
+		WebProxyAddr: "proxy:3080",
+	}
+	err = clientStore.SaveProfile(profile, true)
+	require.NoError(t, err)
+
 	tc, err = makeClient(&conf, true)
 	require.NoError(t, err)
 	require.NotNil(t, tc)
+
+	// profile info should be loaded into client
 	require.Equal(t, "proxy:3023", tc.Config.SSHProxyAddr)
 	require.Equal(t, "proxy:3080", tc.Config.WebProxyAddr)
 
@@ -829,10 +843,22 @@ func TestMakeClient(t *testing.T) {
 	proxySSHAddr, err := proxy.ProxySSHAddr()
 	require.NoError(t, err)
 
+	// If profile is missing, makeClient should call Ping on the proxy to fetch SSHProxyAddr
+	conf = CLIConf{
+		Proxy:              proxyWebAddr.String(),
+		Context:            context.Background(),
+		InsecureSkipVerify: true,
+	}
+	tc, err = makeClient(&conf, true)
+	require.NoError(t, err)
+	require.NotNil(t, tc)
+	require.Equal(t, proxyWebAddr.String(), tc.Config.WebProxyAddr)
+	require.Equal(t, proxySSHAddr.Addr, tc.Config.SSHProxyAddr)
+	require.NotNil(t, tc.LocalAgent().ExtendedAgent)
+
 	// With provided identity file.
 	//
-	// makeClient should call Ping on the proxy to fetch SSHProxyAddr, which is
-	// different from the default.
+	// makeClient should call Ping on the proxy to fetch SSHProxyAddr
 	conf = CLIConf{
 		Proxy:              proxyWebAddr.String(),
 		IdentityFileIn:     "../../fixtures/certs/identities/tls.pem",
@@ -851,6 +877,8 @@ func TestMakeClient(t *testing.T) {
 	agentKeys, err := tc.LocalAgent().ExtendedAgent.List()
 	require.NoError(t, err)
 	require.Greater(t, len(agentKeys), 0)
+	require.Equal(t, keys.PrivateKeyPolicyNone, tc.PrivateKeyPolicy,
+		"private key policy should be configured from the identity file temp profile")
 }
 
 // accessApprover allows watching and updating access requests
@@ -916,16 +944,18 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	user, err := user.Current()
 	require.NoError(t, err)
 
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV6{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{user.Username},
+			Logins:     []string{user.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 	})
 	require.NoError(t, err)
 
-	perSessionMFARole, err := types.NewRoleV3("mfa-login", types.RoleSpecV6{
+	perSessionMFARole, err := types.NewRole("mfa-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{user.Username},
+			Logins:     []string{user.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
 		Options: types.RoleOptions{RequireSessionMFA: true},
 	})
@@ -1525,7 +1555,7 @@ func TestAccessRequestOnLeaf(t *testing.T) {
 		lib.SetInsecureDevMode(isInsecure)
 	})
 
-	requester, err := types.NewRoleV3("requester", types.RoleSpecV6{
+	requester, err := types.NewRole("requester", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Request: &types.AccessRequestConditions{
 				Roles: []string{"access"},
@@ -2532,17 +2562,19 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSOLoginFunc {
 	return func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
 		// generate certificates for our user
+		clusterName, err := authServer.GetClusterName()
+		require.NoError(t, err)
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
 			priv.MarshalSSHPublicKey(), user.GetName(), time.Hour,
 			constants.CertificateFormatStandard,
-			"localhost", "",
+			clusterName.GetClusterName(), "",
 		)
 		require.NoError(t, err)
 
 		// load CA cert
 		authority, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
-			DomainName: "localhost",
+			DomainName: clusterName.GetClusterName(),
 		}, false)
 		require.NoError(t, err)
 

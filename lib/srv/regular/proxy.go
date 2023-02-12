@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
@@ -34,40 +33,11 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-var ( // failedConnectingToNode counts failed attempts to connect to a node
-	proxiedSessions = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: teleport.MetricProxySSHSessions,
-			Help: "Number of active sessions through this proxy",
-		},
-	)
-
-	failedConnectingToNode = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricFailedConnectToNodeAttempts,
-			Help: "Number of failed SSH connection attempts to a node. Use with `teleport_connect_to_node_attempts_total` to get the failure rate.",
-		},
-	)
-
-	connectingToNode = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Namespace: teleport.MetricNamespace,
-			Name:      teleport.MetricConnectToNodeAttempts,
-			Help:      "Number of SSH connection attempts to a node. Use with `failed_connect_to_node_attempts_total` to get the failure rate.",
-		},
-	)
-)
-
-func init() {
-	metrics.RegisterPrometheusCollectors(proxiedSessions, failedConnectingToNode, connectingToNode)
-}
 
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
 // remote hosts to a proxy client (AKA port mapping)
@@ -260,8 +230,6 @@ func (t *proxySubsys) proxyToSite(ctx context.Context, ch ssh.Channel, clusterNa
 	}
 	t.log.Infof("Connected to cluster %v at %v", clusterName, conn.RemoteAddr())
 
-	proxiedSessions.Inc()
-
 	go func() {
 		t.close(utils.ProxyConn(ctx, ch, conn))
 	}()
@@ -275,15 +243,12 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, remoteAdd
 
 	conn, err := t.router.DialHost(ctx, remoteAddr, t.host, t.port, t.clusterName, t.ctx.Identity.AccessChecker, t.ctx.StartAgentChannel)
 	if err != nil {
-		failedConnectingToNode.Inc()
 		return trace.Wrap(err)
 	}
 
 	// this custom SSH handshake allows SSH proxy to relay the client's IP
 	// address to the SSH server
 	t.doHandshake(ctx, remoteAddr, ch, conn)
-
-	proxiedSessions.Inc()
 
 	go func() {
 		t.close(utils.ProxyConn(ctx, ch, conn))
@@ -292,7 +257,6 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, remoteAdd
 }
 
 func (t *proxySubsys) close(err error) {
-	proxiedSessions.Dec()
 	t.closeC <- err
 }
 

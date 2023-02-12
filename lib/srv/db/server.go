@@ -129,6 +129,9 @@ type Config struct {
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	// CloudUsers manage users for cloud hosted databases.
 	CloudUsers *users.Users
+	// discoveryResourceChecker performs some pre-checks when creating databases
+	// discovered by the discovery service.
+	discoveryResourceChecker discoveryResourceChecker
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -229,6 +232,13 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 			return trace.Wrap(err)
 		}
 	}
+
+	if c.discoveryResourceChecker == nil {
+		c.discoveryResourceChecker, err = newCloudCrednentialsChecker(ctx, c.CloudClients, c.ResourceMatchers)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
@@ -271,12 +281,12 @@ type Server struct {
 type monitoredDatabases struct {
 	// static are databases from the agent's YAML configuration.
 	static types.Databases
-	// resources are databases created via CLI or API.
+	// resources are databases created via CLI, API, or discovery service.
 	resources types.Databases
 	// cloud are databases detected by cloud watchers.
 	cloud types.Databases
 	// mu protects access to the fields.
-	mu sync.Mutex
+	mu sync.RWMutex
 }
 
 func (m *monitoredDatabases) setResources(databases types.Databases) {
@@ -291,9 +301,35 @@ func (m *monitoredDatabases) setCloud(databases types.Databases) {
 	m.cloud = databases
 }
 
+func (m *monitoredDatabases) isCloud(database types.Database) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for i := range m.cloud {
+		if m.cloud[i] == database {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *monitoredDatabases) isDiscoveryResource(database types.Database) bool {
+	return database.Origin() == types.OriginCloud && m.isResource(database)
+}
+
+func (m *monitoredDatabases) isResource(database types.Database) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for i := range m.resources {
+		if m.resources[i] == database {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *monitoredDatabases) get() types.ResourcesWithLabelsMap {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	return append(append(m.static, m.resources...), m.cloud...).AsResources().ToMap()
 }
 
@@ -485,16 +521,30 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 		s.log.Warnf("Failed to teardown IAM for %v: %v.", database, err)
 	}
 	// Stop heartbeat, labels, etc.
-	if err := s.stopProxyingDatabase(ctx, database); err != nil {
+	if err := s.stopProxyingAndDeleteDatabase(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+
 }
 
 // stopProxyingDatabase winds down the proxied database instance by stopping
 // its heartbeat and dynamic labels and unregistering it from the list of
 // proxied databases.
 func (s *Server) stopProxyingDatabase(ctx context.Context, database types.Database) error {
+	// Stop heartbeat and dynamic labels updates.
+	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
+		return trace.Wrap(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.proxiedDatabases, database.GetName())
+	return nil
+}
+
+// stopProxyingAndDeleteDatabase stops and deletes the database, then
+// unregisters it from the list of proxied databases.
+func (s *Server) stopProxyingAndDeleteDatabase(ctx context.Context, database types.Database) error {
 	// Stop heartbeat and dynamic labels updates.
 	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
 		return trace.Wrap(err)
@@ -626,7 +676,7 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	// Start cloud users that will be monitoring cloud users.
 	go s.cfg.CloudUsers.Start(ctx, s.getProxiedDatabases)
 
-	// Start hearbeating the Database Service itself.
+	// Start heartbeating the Database Service itself.
 	if err := s.startServiceHeartbeat(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -706,12 +756,23 @@ func (s *Server) startServiceHeartbeat() error {
 
 // Close stops proxying all server's databases and frees up other resources.
 func (s *Server) Close() error {
+	return trace.Wrap(s.close(s.closeContext))
+}
+
+// Shutdown performs a graceful shutdown.
+func (s *Server) Shutdown(ctx context.Context) error {
+	// TODO wait active connections.
+	return trace.Wrap(s.close(ctx))
+}
+
+func (s *Server) close(ctx context.Context) error {
 	var errors []error
 	// Stop proxying all databases.
 	for _, database := range s.getProxiedDatabases() {
-		if err := s.stopProxyingDatabase(s.closeContext, database); err != nil {
-			errors = append(errors, trace.WrapWithMessage(
-				err, "stopping database %v", database.GetName()))
+		if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
+			errors = append(errors, trace.Wrap(s.stopProxyingAndDeleteDatabase(ctx, database)))
+		} else {
+			errors = append(errors, trace.Wrap(s.stopProxyingDatabase(ctx, database)))
 		}
 	}
 	// Signal to all goroutines to stop.

@@ -19,7 +19,9 @@ package proxy
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -182,12 +184,14 @@ func buildProxyAddr(addr, user, pass string) (string, error) {
 func TestProxyAwareRoundTripper(t *testing.T) {
 	t.Setenv("HTTP_PROXY", "http://localhost:8888")
 	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{},
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
 		Proxy: func(req *http.Request) (*url.URL, error) {
 			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
 		},
 	}
-	rt := NewHTTPFallbackRoundTripper(transport, true)
+	rt := NewHTTPRoundTripper(transport, nil)
 	req, err := http.NewRequest(http.MethodGet, "https://localhost:9999", nil)
 	require.NoError(t, err)
 	// Don't care about response, only if the scheme changed.
@@ -195,6 +199,190 @@ func TestProxyAwareRoundTripper(t *testing.T) {
 	_, err = rt.RoundTrip(req)
 	require.Error(t, err)
 	require.Equal(t, "http", req.URL.Scheme)
+}
+
+// TestHttpRoundTripperDowngrade tests that the round tripper downgrades https requests to http
+// when HTTP_PROXY is set to "http://localhost:*" (i.e. there's an http proxy running on localhost).
+func TestHttpRoundTripperDowngrade(t *testing.T) {
+	testCases := []struct {
+		desc           string
+		setHTTPProxy   bool
+		shouldHitProxy bool
+	}{
+		{
+			desc:           "hits http proxy if insecure and localhost http proxy is set",
+			setHTTPProxy:   true,
+			shouldHitProxy: true,
+		},
+		{
+			desc:           "does not hit http proxy if insecure and localhost http proxy is not set",
+			setHTTPProxy:   false,
+			shouldHitProxy: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			newHandler := func(runningAtProxy bool, wasHit *bool) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					*wasHit = true
+					if tc.shouldHitProxy {
+						// If the request should hit the proxy, then:
+						// - this handler is running at the proxy, and
+						// - the scheme should be http.
+						require.True(t, runningAtProxy)
+						require.Equal(t, "http", r.URL.Scheme)
+					}
+					w.WriteHeader(http.StatusOK)
+				}
+			}
+
+			// Start localhost http proxy.
+			runningAtProxy := true
+			loopback := true
+			https := false
+			httpProxyWasHit := false
+			httpProxy, err := newServer(newHandler(runningAtProxy, &httpProxyWasHit), loopback, https)
+			require.NoError(t, err)
+			defer httpProxy.Close()
+
+			// Start non-localhost https server.
+			runningAtProxy = false
+			loopback = false
+			https = true
+			httpsSrvWasHit := false
+			httpsSrv, err := newServer(newHandler(runningAtProxy, &httpsSrvWasHit), loopback, https)
+			require.NoError(t, err)
+			defer httpsSrv.Close()
+
+			if tc.setHTTPProxy {
+				// url.Parse won't correctly parse an absolute URL without a scheme.
+				u, err := url.Parse("http://" + httpProxy.Listener.Addr().String())
+				require.NoError(t, err)
+				_, port, err := net.SplitHostPort(u.Host)
+				require.NoError(t, err)
+
+				// Set HTTP_PROXY to "http://localhost:*".
+				t.Setenv("HTTP_PROXY", fmt.Sprintf("http://localhost:%s", port))
+			}
+
+			clt := newClient(t, nil)
+
+			// Perform any request.
+			// Set addr to the https server. If HTTP_PROXY was set above,
+			// the http proxy should be hit regardless.
+			addr := httpsSrv.Listener.Addr().String()
+			request(t, clt, addr)
+
+			// Validate that the correct server was hit.
+			require.Equal(t, tc.shouldHitProxy, httpProxyWasHit)
+			require.Equal(t, !tc.shouldHitProxy, httpsSrvWasHit)
+		})
+	}
+}
+
+// TestHttpRoundTripperExtraHeaders tests that the round tripper adds the extra headers set.
+func TestHttpRoundTripperExtraHeaders(t *testing.T) {
+	testCases := []struct {
+		desc          string
+		extraHeaders  map[string]string
+		expectHeaders func(*testing.T, http.Header)
+	}{
+		{
+			desc: "extra headers are added",
+			extraHeaders: map[string]string{
+				"header1": "value1",
+				"header2": "value2",
+			},
+			expectHeaders: func(t *testing.T, headers http.Header) {
+				require.Equal(t, []string{"value1"}, headers.Values("header1"))
+				require.Equal(t, []string{"value2"}, headers.Values("header2"))
+			},
+		},
+		{
+			desc: "extra headers do not overwrite existing headers",
+			extraHeaders: map[string]string{
+				"header1":      "value1",
+				"Content-Type": "value2",
+			},
+			expectHeaders: func(t *testing.T, headers http.Header) {
+				require.Equal(t, []string{"value1"}, headers.Values("header1"))
+				require.Equal(t, []string{"application/json", "value2"}, headers.Values("Content-Type"))
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			var handler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
+				tc.expectHeaders(t, r.Header)
+				w.WriteHeader(http.StatusOK)
+			}
+
+			// Start localhost https server.
+			loopback := true
+			tls := true
+			httpsSrv, err := newServer(handler, loopback, tls)
+			require.NoError(t, err)
+			defer httpsSrv.Close()
+
+			clt := newClient(t, tc.extraHeaders)
+
+			// Perform any request.
+			// Set the address to the localhost https server.
+			addr := httpsSrv.Listener.Addr().String()
+			request(t, clt, addr)
+		})
+	}
+}
+
+// newServer starts a new server that:
+// - runs TLS if `https`
+// - uses a loopback listener if `loopback`
+func newServer(handler http.HandlerFunc, loopback bool, https bool) (*httptest.Server, error) {
+	srv := httptest.NewUnstartedServer(handler)
+
+	if !loopback {
+		// Replace the test-supplied loopback listener with the first available
+		// non-loopback address.
+		srv.Listener.Close()
+		l, err := net.Listen("tcp", "0.0.0.0:0")
+		if err != nil {
+			return nil, err
+		}
+		srv.Listener = l
+	}
+
+	if https {
+		srv.StartTLS()
+	} else {
+		srv.Start()
+	}
+	return srv, nil
+}
+
+// newClient creates a new https roundtrip client.
+func newClient(t *testing.T, extraHeaders map[string]string) *http.Client {
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			// Setting insecure ensures that https requests succeed.
+			InsecureSkipVerify: true,
+		},
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+		},
+	}
+	return &http.Client{
+		Transport: NewHTTPRoundTripper(transport, extraHeaders),
+	}
+}
+
+// request perform a POST request.
+func request(t *testing.T, clt *http.Client, addr string) {
+	url := "https://" + addr + "/v1/content"
+	resp, err := clt.Post(url, "application/json", nil)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
 }
 
 func TestParse(t *testing.T) {

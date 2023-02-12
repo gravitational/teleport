@@ -27,9 +27,9 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
@@ -51,16 +51,19 @@ type Cluster struct {
 	clusterClient *client.TeleportClient
 	// clock is a clock for time-related operations
 	clock clockwork.Clock
+}
+
+type ClusterWithDetails struct {
+	*Cluster
 	// Auth server features
-	// only present where the auth client can be queried
-	// and set with EnrichWithDetails
-	Features     *proto.Features
-	LoggedInUser LoggedInUser
+	Features *proto.Features
 	// AuthClusterID is the unique cluster ID that is set once
 	// during the first auth server startup.
-	// Only present where the auth client can be queried
-	// and set with EnrichWithDetails
 	AuthClusterID string
+	// SuggestedReviewers for the given user.
+	SuggestedReviewers []string
+	// RequestableRoles for the given user.
+	RequestableRoles []string
 }
 
 // Connected indicates if connection to the cluster can be established
@@ -68,10 +71,10 @@ func (c *Cluster) Connected() bool {
 	return c.status.Name != "" && !c.status.IsExpired(c.clock)
 }
 
-// EnrichWithDetails will make a network request to the auth server and add details to the
-// current Cluster that cannot be found on the disk only, including details about the LoggedInUser
+// GetWithDetails makes requests to the auth server to return details of the current
+// Cluster that cannot be found on the disk only, including details about the user
 // and enabled enterprise features. This method requires a valid cert.
-func (c *Cluster) EnrichWithDetails(ctx context.Context) (*Cluster, error) {
+func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, error) {
 	var (
 		pingResponse  proto.PingResponse
 		caps          *types.AccessCapabilities
@@ -116,15 +119,15 @@ func (c *Cluster) EnrichWithDetails(ctx context.Context) (*Cluster, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	user := c.GetLoggedInUser()
-	user.SuggestedReviewers = caps.SuggestedReviewers
-	user.RequestableRoles = caps.RequestableRoles
-	c.LoggedInUser = user
+	withDetails := &ClusterWithDetails{
+		Cluster:            c,
+		SuggestedReviewers: caps.SuggestedReviewers,
+		RequestableRoles:   caps.RequestableRoles,
+		Features:           pingResponse.ServerFeatures,
+		AuthClusterID:      authClusterID,
+	}
 
-	c.Features = pingResponse.ServerFeatures
-	c.AuthClusterID = authClusterID
-
-	return c, nil
+	return withDetails, nil
 }
 
 // GetRoles returns currently logged-in user roles
@@ -166,9 +169,10 @@ func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 	resourceIds := make([]types.ResourceID, 0, len(req.GetResourceIds()))
 	for _, r := range req.GetResourceIds() {
 		resourceIds = append(resourceIds, types.ResourceID{
-			ClusterName: r.ClusterName,
-			Kind:        r.Kind,
-			Name:        r.Name,
+			ClusterName:     r.ClusterName,
+			Kind:            r.Kind,
+			Name:            r.Name,
+			SubResourceName: r.SubResourceName,
 		})
 	}
 
@@ -227,9 +231,6 @@ type LoggedInUser struct {
 	Roles []string
 	// ActiveRequests is the user active requests
 	ActiveRequests []string
-
-	SuggestedReviewers []string
-	RequestableRoles   []string
 }
 
 // addMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the

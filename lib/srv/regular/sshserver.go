@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -220,6 +221,11 @@ type Server struct {
 	// sessionController is used to restrict new sessions
 	// based on locks and cluster preferences
 	sessionController *srv.SessionController
+
+	// ingressReporter reports new and active connections.
+	ingressReporter *ingress.Reporter
+	// ingressService the service name passed to the ingress reporter.
+	ingressService string
 }
 
 // TargetMetadata returns metadata about the server.
@@ -322,6 +328,14 @@ func (s *Server) Close() error {
 
 // Shutdown performs graceful shutdown
 func (s *Server) Shutdown(ctx context.Context) error {
+	// Stop heart beating immediately to prevent active connections
+	// from making the server appear alive and well.
+	if s.heartbeat != nil {
+		if err := s.heartbeat.Close(); err != nil {
+			s.Warningf("Failed to close heartbeat: %v", err)
+		}
+	}
+
 	// wait until connections drain off
 	err := s.srv.Shutdown(ctx)
 	s.close()
@@ -428,6 +442,15 @@ func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyA
 		s.proxyAccessPoint = ap
 		s.peerAddr = peerAddr
 		s.router = router
+		return nil
+	}
+}
+
+// SetIngressReporter sets the reporter for reporting new and active connections.
+func SetIngressReporter(service string, r *ingress.Reporter) ServerOption {
+	return func(s *Server) error {
+		s.ingressReporter = r
+		s.ingressService = service
 		return nil
 	}
 }
@@ -791,6 +814,7 @@ func New(
 		sshutils.SetMACAlgorithms(s.macAlgorithms),
 		sshutils.SetFIPS(s.fips),
 		sshutils.SetClock(s.clock),
+		sshutils.SetIngressReporter(s.ingressService, s.ingressReporter),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1686,11 +1710,7 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 			Type: events.X11ForwardEvent,
 			Code: events.X11ForwardCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			Login:        ctx.Identity.Login,
-			User:         ctx.Identity.TeleportUser,
-			Impersonator: ctx.Identity.Impersonator,
-		},
+		UserMetadata: ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  ctx.ServerConn.LocalAddr().String(),
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
