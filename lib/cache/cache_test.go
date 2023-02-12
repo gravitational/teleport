@@ -68,20 +68,21 @@ type testPack struct {
 	provisionerS   services.Provisioner
 	clusterConfigS services.ClusterConfiguration
 
-	usersS            services.UsersService
-	accessS           services.Access
-	dynamicAccessS    services.DynamicAccessCore
-	presenceS         services.Presence
-	appSessionS       services.AppSession
-	snowflakeSessionS services.SnowflakeSession
-	restrictions      services.Restrictions
-	apps              services.Apps
-	kubernetes        services.Kubernetes
-	databases         services.Databases
-	databaseServices  services.DatabaseServices
-	webSessionS       types.WebSessionInterface
-	webTokenS         types.WebTokenInterface
-	windowsDesktops   services.WindowsDesktops
+	usersS                  services.UsersService
+	accessS                 services.Access
+	dynamicAccessS          services.DynamicAccessCore
+	presenceS               services.Presence
+	appSessionS             services.AppSession
+	snowflakeSessionS       services.SnowflakeSession
+	restrictions            services.Restrictions
+	apps                    services.Apps
+	kubernetes              services.Kubernetes
+	databases               services.Databases
+	databaseServices        services.DatabaseServices
+	webSessionS             types.WebSessionInterface
+	webTokenS               types.WebTokenInterface
+	windowsDesktops         services.WindowsDesktops
+	samlIDPServiceProviders services.SAMLIdPServiceProviders
 }
 
 func (t *testPack) Close() {
@@ -196,6 +197,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
+	p.samlIDPServiceProviders = local.NewSAMLIdPServiceProviderService(p.backend)
 
 	return p, nil
 }
@@ -209,28 +211,29 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 	}
 
 	p.cache, err = New(setupConfig(Config{
-		Context:          ctx,
-		Backend:          p.cacheBackend,
-		Events:           p.eventsS,
-		ClusterConfig:    p.clusterConfigS,
-		Provisioner:      p.provisionerS,
-		Trust:            p.trustS,
-		Users:            p.usersS,
-		Access:           p.accessS,
-		DynamicAccess:    p.dynamicAccessS,
-		Presence:         p.presenceS,
-		AppSession:       p.appSessionS,
-		WebSession:       p.webSessionS,
-		WebToken:         p.webTokenS,
-		SnowflakeSession: p.snowflakeSessionS,
-		Restrictions:     p.restrictions,
-		Apps:             p.apps,
-		Kubernetes:       p.kubernetes,
-		DatabaseServices: p.databaseServices,
-		Databases:        p.databases,
-		WindowsDesktops:  p.windowsDesktops,
-		MaxRetryPeriod:   200 * time.Millisecond,
-		EventsC:          p.eventsC,
+		Context:                 ctx,
+		Backend:                 p.cacheBackend,
+		Events:                  p.eventsS,
+		ClusterConfig:           p.clusterConfigS,
+		Provisioner:             p.provisionerS,
+		Trust:                   p.trustS,
+		Users:                   p.usersS,
+		Access:                  p.accessS,
+		DynamicAccess:           p.dynamicAccessS,
+		Presence:                p.presenceS,
+		AppSession:              p.appSessionS,
+		WebSession:              p.webSessionS,
+		WebToken:                p.webTokenS,
+		SnowflakeSession:        p.snowflakeSessionS,
+		Restrictions:            p.restrictions,
+		Apps:                    p.apps,
+		Kubernetes:              p.kubernetes,
+		DatabaseServices:        p.databaseServices,
+		Databases:               p.databases,
+		WindowsDesktops:         p.windowsDesktops,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		MaxRetryPeriod:          200 * time.Millisecond,
+		EventsC:                 p.eventsC,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -421,24 +424,25 @@ func TestNodeCAFiltering(t *testing.T) {
 
 	// this mimics a cache for a node pulling events from the auth server via WatchEvents
 	nodeCache, err := New(ForNode(Config{
-		Events:           p.cache,
-		Trust:            p.cache.trustCache,
-		ClusterConfig:    p.cache.clusterConfigCache,
-		Provisioner:      p.cache.provisionerCache,
-		Users:            p.cache.usersCache,
-		Access:           p.cache.accessCache,
-		DynamicAccess:    p.cache.dynamicAccessCache,
-		Presence:         p.cache.presenceCache,
-		Restrictions:     p.cache.restrictionsCache,
-		Apps:             p.cache.appsCache,
-		Kubernetes:       p.cache.kubernetesCache,
-		Databases:        p.cache.databasesCache,
-		DatabaseServices: p.cache.databaseServicesCache,
-		AppSession:       p.cache.appSessionCache,
-		WebSession:       p.cache.webSessionCache,
-		WebToken:         p.cache.webTokenCache,
-		WindowsDesktops:  p.cache.windowsDesktopsCache,
-		Backend:          nodeCacheBackend,
+		Events:                  p.cache,
+		Trust:                   p.cache.trustCache,
+		ClusterConfig:           p.cache.clusterConfigCache,
+		Provisioner:             p.cache.provisionerCache,
+		Users:                   p.cache.usersCache,
+		Access:                  p.cache.accessCache,
+		DynamicAccess:           p.cache.dynamicAccessCache,
+		Presence:                p.cache.presenceCache,
+		Restrictions:            p.cache.restrictionsCache,
+		Apps:                    p.cache.appsCache,
+		Kubernetes:              p.cache.kubernetesCache,
+		Databases:               p.cache.databasesCache,
+		DatabaseServices:        p.cache.databaseServicesCache,
+		AppSession:              p.cache.appSessionCache,
+		WebSession:              p.cache.webSessionCache,
+		WebToken:                p.cache.webTokenCache,
+		WindowsDesktops:         p.cache.windowsDesktopsCache,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		Backend:                 nodeCacheBackend,
 	}))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
@@ -590,28 +594,29 @@ func TestCompletenessInit(t *testing.T) {
 		p.eventsS.closeWatchers()
 
 		p.cache, err = New(ForAuth(Config{
-			Context:          ctx,
-			Backend:          p.cacheBackend,
-			Events:           p.eventsS,
-			ClusterConfig:    p.clusterConfigS,
-			Provisioner:      p.provisionerS,
-			Trust:            p.trustS,
-			Users:            p.usersS,
-			Access:           p.accessS,
-			DynamicAccess:    p.dynamicAccessS,
-			Presence:         p.presenceS,
-			AppSession:       p.appSessionS,
-			WebSession:       p.webSessionS,
-			SnowflakeSession: p.snowflakeSessionS,
-			WebToken:         p.webTokenS,
-			Restrictions:     p.restrictions,
-			Apps:             p.apps,
-			Kubernetes:       p.kubernetes,
-			DatabaseServices: p.databaseServices,
-			Databases:        p.databases,
-			WindowsDesktops:  p.windowsDesktops,
-			MaxRetryPeriod:   200 * time.Millisecond,
-			EventsC:          p.eventsC,
+			Context:                 ctx,
+			Backend:                 p.cacheBackend,
+			Events:                  p.eventsS,
+			ClusterConfig:           p.clusterConfigS,
+			Provisioner:             p.provisionerS,
+			Trust:                   p.trustS,
+			Users:                   p.usersS,
+			Access:                  p.accessS,
+			DynamicAccess:           p.dynamicAccessS,
+			Presence:                p.presenceS,
+			AppSession:              p.appSessionS,
+			WebSession:              p.webSessionS,
+			SnowflakeSession:        p.snowflakeSessionS,
+			WebToken:                p.webTokenS,
+			Restrictions:            p.restrictions,
+			Apps:                    p.apps,
+			Kubernetes:              p.kubernetes,
+			DatabaseServices:        p.databaseServices,
+			Databases:               p.databases,
+			WindowsDesktops:         p.windowsDesktops,
+			SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+			MaxRetryPeriod:          200 * time.Millisecond,
+			EventsC:                 p.eventsC,
 		}))
 		require.NoError(t, err)
 
@@ -653,28 +658,29 @@ func TestCompletenessReset(t *testing.T) {
 
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:          ctx,
-		Backend:          p.cacheBackend,
-		Events:           p.eventsS,
-		ClusterConfig:    p.clusterConfigS,
-		Provisioner:      p.provisionerS,
-		Trust:            p.trustS,
-		Users:            p.usersS,
-		Access:           p.accessS,
-		DynamicAccess:    p.dynamicAccessS,
-		Presence:         p.presenceS,
-		AppSession:       p.appSessionS,
-		WebSession:       p.webSessionS,
-		SnowflakeSession: p.snowflakeSessionS,
-		WebToken:         p.webTokenS,
-		Restrictions:     p.restrictions,
-		Apps:             p.apps,
-		Kubernetes:       p.kubernetes,
-		DatabaseServices: p.databaseServices,
-		Databases:        p.databases,
-		WindowsDesktops:  p.windowsDesktops,
-		MaxRetryPeriod:   200 * time.Millisecond,
-		EventsC:          p.eventsC,
+		Context:                 ctx,
+		Backend:                 p.cacheBackend,
+		Events:                  p.eventsS,
+		ClusterConfig:           p.clusterConfigS,
+		Provisioner:             p.provisionerS,
+		Trust:                   p.trustS,
+		Users:                   p.usersS,
+		Access:                  p.accessS,
+		DynamicAccess:           p.dynamicAccessS,
+		Presence:                p.presenceS,
+		AppSession:              p.appSessionS,
+		WebSession:              p.webSessionS,
+		SnowflakeSession:        p.snowflakeSessionS,
+		WebToken:                p.webTokenS,
+		Restrictions:            p.restrictions,
+		Apps:                    p.apps,
+		Kubernetes:              p.kubernetes,
+		DatabaseServices:        p.databaseServices,
+		Databases:               p.databases,
+		WindowsDesktops:         p.windowsDesktops,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		MaxRetryPeriod:          200 * time.Millisecond,
+		EventsC:                 p.eventsC,
 	}))
 	require.NoError(t, err)
 
@@ -828,29 +834,30 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	p.cache, err = New(ForAuth(Config{
-		Context:          ctx,
-		Backend:          p.cacheBackend,
-		Events:           p.eventsS,
-		ClusterConfig:    p.clusterConfigS,
-		Provisioner:      p.provisionerS,
-		Trust:            p.trustS,
-		Users:            p.usersS,
-		Access:           p.accessS,
-		DynamicAccess:    p.dynamicAccessS,
-		Presence:         p.presenceS,
-		AppSession:       p.appSessionS,
-		WebSession:       p.webSessionS,
-		WebToken:         p.webTokenS,
-		SnowflakeSession: p.snowflakeSessionS,
-		Restrictions:     p.restrictions,
-		Apps:             p.apps,
-		Kubernetes:       p.kubernetes,
-		DatabaseServices: p.databaseServices,
-		Databases:        p.databases,
-		WindowsDesktops:  p.windowsDesktops,
-		MaxRetryPeriod:   200 * time.Millisecond,
-		EventsC:          p.eventsC,
-		neverOK:          true, // ensure reads are never healthy
+		Context:                 ctx,
+		Backend:                 p.cacheBackend,
+		Events:                  p.eventsS,
+		ClusterConfig:           p.clusterConfigS,
+		Provisioner:             p.provisionerS,
+		Trust:                   p.trustS,
+		Users:                   p.usersS,
+		Access:                  p.accessS,
+		DynamicAccess:           p.dynamicAccessS,
+		Presence:                p.presenceS,
+		AppSession:              p.appSessionS,
+		WebSession:              p.webSessionS,
+		WebToken:                p.webTokenS,
+		SnowflakeSession:        p.snowflakeSessionS,
+		Restrictions:            p.restrictions,
+		Apps:                    p.apps,
+		Kubernetes:              p.kubernetes,
+		DatabaseServices:        p.databaseServices,
+		Databases:               p.databases,
+		WindowsDesktops:         p.windowsDesktops,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		MaxRetryPeriod:          200 * time.Millisecond,
+		EventsC:                 p.eventsC,
+		neverOK:                 true, // ensure reads are never healthy
 	}))
 	require.NoError(t, err)
 
@@ -901,28 +908,29 @@ func initStrategy(t *testing.T) {
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is out"))
 	var err error
 	p.cache, err = New(ForAuth(Config{
-		Context:          ctx,
-		Backend:          p.cacheBackend,
-		Events:           p.eventsS,
-		ClusterConfig:    p.clusterConfigS,
-		Provisioner:      p.provisionerS,
-		Trust:            p.trustS,
-		Users:            p.usersS,
-		Access:           p.accessS,
-		DynamicAccess:    p.dynamicAccessS,
-		Presence:         p.presenceS,
-		AppSession:       p.appSessionS,
-		SnowflakeSession: p.snowflakeSessionS,
-		WebSession:       p.webSessionS,
-		WebToken:         p.webTokenS,
-		Restrictions:     p.restrictions,
-		Apps:             p.apps,
-		Kubernetes:       p.kubernetes,
-		DatabaseServices: p.databaseServices,
-		Databases:        p.databases,
-		WindowsDesktops:  p.windowsDesktops,
-		MaxRetryPeriod:   200 * time.Millisecond,
-		EventsC:          p.eventsC,
+		Context:                 ctx,
+		Backend:                 p.cacheBackend,
+		Events:                  p.eventsS,
+		ClusterConfig:           p.clusterConfigS,
+		Provisioner:             p.provisionerS,
+		Trust:                   p.trustS,
+		Users:                   p.usersS,
+		Access:                  p.accessS,
+		DynamicAccess:           p.dynamicAccessS,
+		Presence:                p.presenceS,
+		AppSession:              p.appSessionS,
+		SnowflakeSession:        p.snowflakeSessionS,
+		WebSession:              p.webSessionS,
+		WebToken:                p.webTokenS,
+		Restrictions:            p.restrictions,
+		Apps:                    p.apps,
+		Kubernetes:              p.kubernetes,
+		DatabaseServices:        p.databaseServices,
+		Databases:               p.databases,
+		WindowsDesktops:         p.windowsDesktops,
+		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		MaxRetryPeriod:          200 * time.Millisecond,
+		EventsC:                 p.eventsC,
 	}))
 	require.NoError(t, err)
 
@@ -2248,7 +2256,7 @@ func TestDatabaseServices(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = p.presenceS.UpsertDatabaseService(ctx, service)
+	_, err = p.databaseServices.UpsertDatabaseService(ctx, service)
 	require.NoError(t, err)
 
 	// Check that the DatabaseService is now in the backend.
@@ -2284,7 +2292,7 @@ func TestDatabaseServices(t *testing.T) {
 
 	// Update the DatabaseService and upsert it into the backend again.
 	service.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	_, err = p.presenceS.UpsertDatabaseService(context.Background(), service)
+	_, err = p.databaseServices.UpsertDatabaseService(context.Background(), service)
 	require.NoError(t, err)
 
 	// Check that the DatabaseService is in the backend and only one exists (so an
@@ -2379,7 +2387,7 @@ func TestDatabases(t *testing.T) {
 	}
 
 	// Make sure the cache has a single database in it.
-	out, err = p.databases.GetDatabases(ctx)
+	out, err = p.cache.GetDatabases(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Database{database}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
@@ -2423,8 +2431,102 @@ func TestDatabases(t *testing.T) {
 	}
 
 	// Check that the cache is now empty.
-	out, err = p.databases.GetDatabases(ctx)
+	out, err = p.cache.GetDatabases(ctx)
 	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
+}
+
+// TestSAMLIdPServiceProviders tests that CRUD operations on SAML IdP service provider resources are
+// replicated from the backend to the cache.
+func TestSAMLIdPServiceProviders(t *testing.T) {
+	t.Parallel()
+
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	ctx := context.Background()
+
+	// Create a service provider resource.
+	sp, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "test-sp",
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: testEntityDescriptor,
+			EntityID:         "IAMShowcase",
+		})
+	require.NoError(t, err)
+
+	err = p.samlIDPServiceProviders.CreateSAMLIdPServiceProvider(ctx, sp)
+	require.NoError(t, err)
+
+	// Check that the service provider is now in the backend.
+	out, nextKey, err := p.samlIDPServiceProviders.ListSAMLIdPServiceProviders(ctx, 200, "")
+	require.NoError(t, err)
+	require.Empty(t, nextKey)
+	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Wait until the information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single service provider in it.
+	out, nextKey, err = p.cache.ListSAMLIdPServiceProviders(ctx, 200, "")
+	require.NoError(t, err)
+	require.Empty(t, nextKey)
+	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Update the service provider and upsert it into the backend again.
+	sp.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
+	err = p.samlIDPServiceProviders.UpdateSAMLIdPServiceProvider(ctx, sp)
+	require.NoError(t, err)
+
+	// Check that the service provider is in the backend and only one exists (so an
+	// update occurred).
+	out, nextKey, err = p.samlIDPServiceProviders.ListSAMLIdPServiceProviders(ctx, 200, "")
+	require.NoError(t, err)
+	require.Empty(t, nextKey)
+	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single service provider in it.
+	out, nextKey, err = p.cache.ListSAMLIdPServiceProviders(ctx, 200, "")
+	require.NoError(t, err)
+	require.Empty(t, nextKey)
+	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Remove all service providers from the backend.
+	err = p.samlIDPServiceProviders.DeleteAllSAMLIdPServiceProviders(ctx)
+	require.NoError(t, err)
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Check that the cache is now empty.
+	out, nextKey, err = p.cache.ListSAMLIdPServiceProviders(ctx, 200, "")
+	require.NoError(t, err)
+	require.Empty(t, nextKey)
 	require.Equal(t, 0, len(out))
 }
 
@@ -2736,6 +2838,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWindowsDesktop:          &types.WindowsDesktopV3{},
 		types.KindInstaller:               &types.InstallerV1{},
 		types.KindKubernetesCluster:       &types.KubernetesClusterV3{},
+		types.KindSAMLIdPServiceProvider:  &types.SAMLIdPServiceProviderV1{},
 	}
 
 	for name, cfg := range cases {
@@ -2758,3 +2861,14 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		})
 	}
 }
+
+// A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.
+const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+      <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+   </md:SPSSODescriptor>
+</md:EntityDescriptor>
+`

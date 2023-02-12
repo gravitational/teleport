@@ -118,6 +118,10 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	clientConnReader := bufio.NewReader(e.clientConn)
 
+	if sessionCtx.Identity.RouteToDatabase.Username == "" {
+		return trace.BadParameter("database username required for Elasticsearch")
+	}
+
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -381,7 +385,7 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 
 	state := e.sessionCtx.GetAccessState(authPref)
 	dbRoleMatchers := role.DatabaseRoleMatchers(
-		e.sessionCtx.Database.GetProtocol(),
+		e.sessionCtx.Database,
 		e.sessionCtx.DatabaseUser,
 		e.sessionCtx.DatabaseName,
 	)

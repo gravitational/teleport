@@ -70,6 +70,16 @@ type Rate struct {
 	Time   time.Duration
 }
 
+// JoinParams is a set of extra parameters for joining the auth server.
+type JoinParams struct {
+	Azure AzureJoinParams
+}
+
+// AzureJoinParams is the parameters specific to the azure join method.
+type AzureJoinParams struct {
+	ClientID string
+}
+
 // Config structure is used to initialize _all_ services Teleport can run.
 // Some settings are global (like DataDir) while others are grouped into
 // sections, like AuthConfig
@@ -85,6 +95,9 @@ type Config struct {
 
 	// JoinMethod is the method the instance will use to join the auth server
 	JoinMethod types.JoinMethod
+
+	// JoinParams is a set of extra parameters for joining the auth server.
+	JoinParams JoinParams
 
 	// ProxyServer is the address of the proxy
 	ProxyServer utils.NetAddr
@@ -152,7 +165,7 @@ type Config struct {
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
 
-	// Presence service is a discovery and hearbeat tracker
+	// Presence service is a discovery and heartbeat tracker
 	Presence services.PresenceInternal
 
 	// Events is events service
@@ -504,6 +517,11 @@ type ProxyConfig struct {
 	// ACME is ACME protocol support config
 	ACME ACME
 
+	// IdP is the identity provider config
+	//
+	//nolint:revive // Because we want this to be IdP.
+	IdP IdP
+
 	// DisableALPNSNIListener allows turning off the ALPN Proxy listener. Used in tests.
 	DisableALPNSNIListener bool
 }
@@ -518,12 +536,48 @@ type ACME struct {
 	URI string
 }
 
+// IdP configures identity providers.
+//
+//nolint:revive // Because we want this to be IdP.
+type IdP struct {
+	// SAMLIdP is configuration options for the SAML identity provider.
+	SAMLIdP SAMLIdP
+}
+
+// SAMLIdP configures SAML identity providers
+type SAMLIdP struct {
+	// Enabled enables or disables the identity provider.
+	Enabled bool
+	// BaseURL is the base URL for the identity provider.
+	BaseURL string
+}
+
 // KeyPairPath are paths to a key and certificate file.
 type KeyPairPath struct {
 	// PrivateKey is the path to a PEM encoded private key.
 	PrivateKey string
 	// Certificate is the path to a PEM encoded certificate.
 	Certificate string
+}
+
+// WebPublicAddr returns the address for the web endpoint on this proxy that
+// can be reached by clients.
+func (c ProxyConfig) WebPublicAddr() (string, error) {
+	return c.getDefaultAddr(c.WebAddr.Port(defaults.HTTPListenPort)), nil
+}
+
+func (c ProxyConfig) getDefaultAddr(port int) string {
+	host := "<proxyhost>"
+	// Try to guess the hostname from the HTTP public_addr.
+	if len(c.PublicAddrs) > 0 {
+		host = c.PublicAddrs[0].Host()
+	}
+
+	u := url.URL{
+		Scheme: "https",
+		Host:   net.JoinHostPort(host, strconv.Itoa(port)),
+	}
+	return u.String()
 }
 
 // KubeAddr returns the address for the Kubernetes endpoint on this proxy that
@@ -535,16 +589,8 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 	if len(c.Kube.PublicAddrs) > 0 {
 		return fmt.Sprintf("https://%s", c.Kube.PublicAddrs[0].Addr), nil
 	}
-	host := "<proxyhost>"
-	// Try to guess the hostname from the HTTP public_addr.
-	if len(c.PublicAddrs) > 0 {
-		host = c.PublicAddrs[0].Host()
-	}
-	u := url.URL{
-		Scheme: "https",
-		Host:   net.JoinHostPort(host, strconv.Itoa(c.Kube.ListenAddr.Port(defaults.KubeListenPort))),
-	}
-	return u.String(), nil
+
+	return c.getDefaultAddr(c.Kube.ListenAddr.Port(defaults.KubeListenPort)), nil
 }
 
 // publicPeerAddr attempts to returns the public address the proxy advertises
@@ -1530,6 +1576,7 @@ func ApplyDefaults(cfg *Config) {
 	// Proxy service defaults.
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.Kube.Enabled = false
+	cfg.Proxy.IdP.SAMLIdP.Enabled = true
 
 	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
 

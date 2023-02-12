@@ -702,7 +702,7 @@ func (c *Client) DeleteAuthServer(name string) error {
 }
 
 // UpsertProxy is used by proxies to report their presence
-// to other auth servers in form of hearbeat expiring after ttl period.
+// to other auth servers in form of heartbeat expiring after ttl period.
 func (c *Client) UpsertProxy(s types.Server) error {
 	data, err := services.MarshalServer(s)
 	if err != nil {
@@ -1457,7 +1457,6 @@ type IdentityService interface {
 	// and get signed certificate and private key from the auth server.
 	//
 	// If token is not supplied, it will be auto generated and returned.
-	// If TTL is not supplied, token will be valid until removed.
 	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
@@ -1588,6 +1587,7 @@ type ClientI interface {
 	services.DatabaseServices
 	services.Kubernetes
 	services.WindowsDesktops
+	services.SAMLIdPServiceProviders
 	WebService
 	services.Status
 	services.ClusterConfiguration

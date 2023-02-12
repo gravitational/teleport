@@ -512,13 +512,22 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 			matcher.Tags = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
 		}
 
+		var installParams services.InstallerParams
+		var err error
+
 		if matcher.InstallParams == nil {
 			matcher.InstallParams = &InstallParams{
 				JoinParams: JoinParams{
 					TokenName: defaults.IAMInviteTokenName,
 					Method:    types.JoinMethodIAM,
 				},
-				ScriptName: installers.InstallerScriptName,
+				ScriptName:      installers.InstallerScriptName,
+				InstallTeleport: "",
+				SSHDConfig:      defaults.SSHDConfigPath,
+			}
+			installParams, err = matcher.InstallParams.Parse()
+			if err != nil {
+				return trace.Wrap(err)
 			}
 		} else {
 			if method := matcher.InstallParams.JoinParams.Method; method == "" {
@@ -526,17 +535,35 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 			} else if method != types.JoinMethodIAM {
 				return trace.BadParameter("only IAM joining is supported for EC2 auto-discovery")
 			}
-			if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
+
+			if matcher.InstallParams.JoinParams.TokenName == "" {
 				matcher.InstallParams.JoinParams.TokenName = defaults.IAMInviteTokenName
 			}
 
+			if matcher.InstallParams.SSHDConfig == "" {
+				matcher.InstallParams.SSHDConfig = defaults.SSHDConfigPath
+			}
+
+			installParams, err = matcher.InstallParams.Parse()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
 			if installer := matcher.InstallParams.ScriptName; installer == "" {
-				matcher.InstallParams.ScriptName = installers.InstallerScriptName
+				if installParams.InstallTeleport {
+					matcher.InstallParams.ScriptName = installers.InstallerScriptName
+				} else {
+					matcher.InstallParams.ScriptName = installers.InstallerScriptNameAgentless
+				}
 			}
 		}
 
 		if matcher.SSM.DocumentName == "" {
-			matcher.SSM.DocumentName = defaults.AWSInstallerDocument
+			if installParams.InstallTeleport {
+				matcher.SSM.DocumentName = defaults.AWSInstallerDocument
+			} else {
+				matcher.SSM.DocumentName = defaults.AWSAgentlessInstallerDocument
+			}
 		}
 	}
 	return nil
@@ -625,6 +652,12 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 type JoinParams struct {
 	TokenName string           `yaml:"token_name"`
 	Method    types.JoinMethod `yaml:"method"`
+	Azure     AzureJoinParams  `yaml:"azure"`
+}
+
+// AzureJoinParams configures the parameters specific to the Azure join method.
+type AzureJoinParams struct {
+	ClientID string `yaml:"client_id"`
 }
 
 // ConnectionRate configures rate limiter
@@ -1505,6 +1538,32 @@ type InstallParams struct {
 	// ScriptName is the name of the teleport installer script
 	// resource for the EC2 instance to execute
 	ScriptName string `yaml:"script_name,omitempty"`
+	// InstallTeleport disables agentless discovery
+	InstallTeleport string `yaml:"install_teleport,omitempty"`
+	// SSHDConfig provides the path to write sshd configuration changes
+	SSHDConfig string `yaml:"sshd_config,omitempty"`
+}
+
+func (ip *InstallParams) Parse() (services.InstallerParams, error) {
+	install := services.InstallerParams{
+		JoinMethod:      ip.JoinParams.Method,
+		JoinToken:       ip.JoinParams.TokenName,
+		ScriptName:      ip.ScriptName,
+		InstallTeleport: true,
+		SSHDConfig:      ip.SSHDConfig,
+	}
+
+	if ip.InstallTeleport == "" {
+		return install, nil
+	}
+
+	var err error
+	install.InstallTeleport, err = apiutils.ParseBool(ip.InstallTeleport)
+	if err != nil {
+		return services.InstallerParams{}, trace.Wrap(err)
+	}
+
+	return install, nil
 }
 
 // AWSSSM provides options to use when executing SSM documents
@@ -1809,6 +1868,11 @@ type Proxy struct {
 	// MongoPublicAddr is the hostport the proxy advertises for Mongo
 	// client connections.
 	MongoPublicAddr apiutils.Strings `yaml:"mongo_public_addr,omitempty"`
+
+	// IdP is configuration for identity providers.
+	//
+	//nolint:revive // Because we want this to be IdP.
+	IdP IdP `yaml:"idp,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
@@ -1844,6 +1908,36 @@ func (a ACME) Parse() (*service.ACME, error) {
 	out.URI = a.URI
 
 	return &out, nil
+}
+
+// IdP represents the configuration for identity providers running within the
+// proxy.
+//
+//nolint:revive // Because we want this to be IdP.
+type IdP struct {
+	// SAMLIdP represents configuratino options for the SAML identity provider.
+	SAMLIdP SAMLIdP `yaml:"saml,omitempty"`
+}
+
+// SAMLIdP represents the configuration for the SAML identity provider.
+type SAMLIdP struct {
+	// Enabled turns the SAML IdP on or off for this process.
+	EnabledFlag string `yaml:"enabled,omitempty"`
+
+	// BaseURL is the base URL to provide to the SAML IdP.
+	BaseURL string `yaml:"base_url,omitempty"`
+}
+
+// Enabled returns true if the SAML IdP is enabled or if the enabled flag is unset.
+func (s *SAMLIdP) Enabled() bool {
+	if s.EnabledFlag == "" {
+		return true
+	}
+	v, err := apiutils.ParseBool(s.EnabledFlag)
+	if err != nil {
+		return false
+	}
+	return v
 }
 
 // KeyPair represents a path on disk to a private key and certificate.

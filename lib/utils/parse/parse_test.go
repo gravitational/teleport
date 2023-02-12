@@ -115,6 +115,13 @@ func TestVariable(t *testing.T) {
 			},
 		},
 		{
+			title: "invalid namespaces are allowed",
+			in:    "{{foo.bar}}",
+			out: Expression{
+				expr: variable("foo", "bar"),
+			},
+		},
+		{
 			title: "internal with no brackets",
 			in:    "{{internal.bar}}",
 			out: Expression{
@@ -211,9 +218,16 @@ func TestVariable(t *testing.T) {
 // TestInterpolate tests variable interpolation
 func TestInterpolate(t *testing.T) {
 	t.Parallel()
+
+	errCheckIsNotFound := func(tt require.TestingT, err error, i ...interface{}) {
+		require.True(tt, trace.IsNotFound(err), "expected not found error, got %v", err)
+	}
+	errCheckIsBadParameter := func(tt require.TestingT, err error, i ...interface{}) {
+		require.True(tt, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
+	}
 	type result struct {
-		values []string
-		err    error
+		values   []string
+		errCheck require.ErrorAssertionFunc
 	}
 	var tests = []struct {
 		title  string
@@ -237,7 +251,7 @@ func TestInterpolate(t *testing.T) {
 			title:  "missed traits",
 			in:     "{{external.baz}}",
 			traits: map[string][]string{"foo": {"a", "b"}, "bar": {"c"}},
-			res:    result{err: trace.NotFound("not found"), values: []string{}},
+			res:    result{errCheck: errCheckIsNotFound, values: []string{}},
 		},
 		{
 			title:  "traits with prefix and suffix",
@@ -249,7 +263,7 @@ func TestInterpolate(t *testing.T) {
 			title:  "error in mapping traits",
 			in:     "{{email.local(external.foo)}}",
 			traits: map[string][]string{"foo": {"Alice <alice"}},
-			res:    result{err: trace.BadParameter("")},
+			res:    result{errCheck: errCheckIsBadParameter},
 		},
 		{
 			title:  "literal expression",
@@ -291,8 +305,8 @@ func TestInterpolate(t *testing.T) {
 				return nil
 			}
 			values, err := expr.Interpolate(noVarValidation, tt.traits)
-			if tt.res.err != nil {
-				require.IsType(t, tt.res.err, err)
+			if tt.res.errCheck != nil {
+				tt.res.errCheck(t, err)
 				require.Empty(t, values)
 				return
 			}

@@ -29,22 +29,20 @@ This guide will help you to:
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - AWS account with RDS and Aurora databases and permissions to create and attach
   IAM policies.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
-## Step 1/7. Install Teleport
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-## Step 2/7. Create a Teleport user
+## Step 1/6. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/7. Create a Database Service configuration
+## Step 2/6. Create a Database Service configuration
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -81,7 +79,7 @@ The command will generate a Database Service configuration with RDS/Aurora
 database auto-discovery enabled on the `us-west-1` region and place it at the
 `/etc/teleport.yaml` location.
 
-## Step 4/7. Create an IAM policy for Teleport
+## Step 3/6. Create an IAM policy for Teleport
 
 Teleport needs AWS IAM permissions to be able to:
 
@@ -90,7 +88,7 @@ Teleport needs AWS IAM permissions to be able to:
 
 (!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
-## Step 5/7. Start the Database Service
+## Step 4/6. Start the Database Service
 
 Start the Database Service:
 
@@ -112,7 +110,7 @@ not propagate immediately and can take a few minutes to come into effect.
   credential provider chain to find AWS credentials. See [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials) for more information.
 </Admonition>
 
-## Step 6/7. Create a database IAM user
+## Step 5/6. Create a database IAM user
 
 Database users must allow IAM authentication in order to be used with Database
 Access for RDS. See below how to enable it for your database engine.
@@ -145,7 +143,7 @@ Access for RDS. See below how to enable it for your database engine.
 See [Creating a database account using IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html)
 for more information.
 
-## Step 7/7. Connect
+## Step 6/6. Connect
 
 Once the Database Service has started and joined the cluster, log in to see the
 registered databases:

@@ -40,25 +40,29 @@ func TestWatcher(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 
-	ctx := context.Background()
-
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	reconcileCh := make(chan types.KubeClusters)
 	// Setup kubernetes server that proxies one static kube cluster and
 	// watches for kube_clusters with label group=a.
-	testCtx := setupTestContext(ctx, t, testConfig{
-		clusters: []kubeClusterConfig{{"kube0", kubeMock.URL}},
-		resourceMatchers: []services.ResourceMatcher{
+	testCtx := SetupTestContext(ctx, t, TestConfig{
+		Clusters: []KubeClusterConfig{{"kube0", kubeMock.URL}},
+		ResourceMatchers: []services.ResourceMatcher{
 			{Labels: types.Labels{
 				"group": []string{"a"},
 			}},
 		},
-		onReconcile: func(kcs types.KubeClusters) {
-			reconcileCh <- kcs
+		OnReconcile: func(kcs types.KubeClusters) {
+			select {
+			case reconcileCh <- kcs:
+			case <-ctx.Done():
+				return
+			}
 		},
 	})
 
-	require.Len(t, testCtx.kubeServer.fwd.kubeClusters(), 1)
-	kube0 := testCtx.kubeServer.fwd.kubeClusters()[0]
+	require.Len(t, testCtx.KubeServer.fwd.kubeClusters(), 1)
+	kube0 := testCtx.KubeServer.fwd.kubeClusters()[0]
 
 	// Only kube0 should be registered initially.
 	select {
@@ -74,7 +78,7 @@ func TestWatcher(t *testing.T) {
 	// Create kube_cluster with label group=a.
 	kube1, err := makeDynamicKubeCluster(t, "kube1", kubeMock.URL, map[string]string{"group": "a"})
 	require.NoError(t, err)
-	err = testCtx.authServer.CreateKubernetesCluster(ctx, kube1)
+	err = testCtx.AuthServer.CreateKubernetesCluster(ctx, kube1)
 	require.NoError(t, err)
 
 	// It should be registered.
@@ -91,7 +95,7 @@ func TestWatcher(t *testing.T) {
 	// Try to update kube0 which is registered statically.
 	kube0Updated, err := makeDynamicKubeCluster(t, "kube0", kubeMock.URL, map[string]string{"group": "a", types.OriginLabel: types.OriginDynamic})
 	require.NoError(t, err)
-	err = testCtx.authServer.CreateKubernetesCluster(ctx, kube0Updated)
+	err = testCtx.AuthServer.CreateKubernetesCluster(ctx, kube0Updated)
 	require.NoError(t, err)
 
 	// It should not be registered, old kube0 should remain.
@@ -108,7 +112,7 @@ func TestWatcher(t *testing.T) {
 	// Create kube_cluster with label group=b.
 	kube2, err := makeDynamicKubeCluster(t, "kube2", kubeMock.URL, map[string]string{"group": "b"})
 	require.NoError(t, err)
-	err = testCtx.authServer.CreateKubernetesCluster(ctx, kube2)
+	err = testCtx.AuthServer.CreateKubernetesCluster(ctx, kube2)
 	require.NoError(t, err)
 
 	// It shouldn't be registered.
@@ -124,7 +128,7 @@ func TestWatcher(t *testing.T) {
 
 	// Update kube2 labels so it matches.
 	kube2.SetStaticLabels(map[string]string{"group": "a", types.OriginLabel: types.OriginDynamic})
-	err = testCtx.authServer.UpdateKubernetesCluster(ctx, kube2)
+	err = testCtx.AuthServer.UpdateKubernetesCluster(ctx, kube2)
 	require.NoError(t, err)
 
 	// Both should be registered now.
@@ -141,7 +145,7 @@ func TestWatcher(t *testing.T) {
 	// Update kube2 expiry so it gets re-registered.
 	kube2.SetExpiry(time.Now().Add(1 * time.Hour))
 	kube2.SetKubeconfig(newKubeConfig(t, "random", "https://api.cluster.com"))
-	err = testCtx.authServer.UpdateKubernetesCluster(ctx, kube2)
+	err = testCtx.AuthServer.UpdateKubernetesCluster(ctx, kube2)
 	require.NoError(t, err)
 
 	// kube2 should get updated.
@@ -152,14 +156,14 @@ func TestWatcher(t *testing.T) {
 			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		))
 		// make sure credentials were updated as well.
-		require.Equal(t, "api.cluster.com:443", testCtx.kubeServer.fwd.clusterDetails["kube2"].kubeCreds.getTargetAddr())
+		require.Equal(t, "api.cluster.com:443", testCtx.KubeServer.fwd.clusterDetails["kube2"].kubeCreds.getTargetAddr())
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
 	}
 
 	// Update kube1 labels so it doesn't match.
 	kube1.SetStaticLabels(map[string]string{"group": "c", types.OriginLabel: types.OriginDynamic})
-	err = testCtx.authServer.UpdateKubernetesCluster(ctx, kube1)
+	err = testCtx.AuthServer.UpdateKubernetesCluster(ctx, kube1)
 	require.NoError(t, err)
 
 	// Only kube0 and kube2 should remain registered.
@@ -174,7 +178,7 @@ func TestWatcher(t *testing.T) {
 	}
 
 	// Remove kube2.
-	err = testCtx.authServer.DeleteKubernetesCluster(ctx, kube2.GetName())
+	err = testCtx.AuthServer.DeleteKubernetesCluster(ctx, kube2.GetName())
 	require.NoError(t, err)
 
 	// Only static kube_cluster should remain.
