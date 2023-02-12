@@ -388,7 +388,7 @@ var discoveryMessageTemplate = template.Must(template.New("discovery").Parse(`Th
 This token will expire in {{.minutes}} minutes.
 
 This token enables the Discovery service.  See https://goteleport.com/docs/
-within the Discovery service Guide for the relevant service (Server, Kubernetes,...)
+within the Discovery service guide for the relevant service (Server, Kubernetes,...)
 for detailed information on enabling discovery and enrollment.
 
 `))
