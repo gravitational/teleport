@@ -1497,16 +1497,18 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 					semconv.RPCSystemKey.String("ssh"),
 				),
 			)
-			// dispatch returns an additional bool which indicates whether the reply has already been handled inside
-			// the dispatch function itself. if this is set to true, we avoid sending a second response in violation
-			// of the SSH protocol specification.
-			replyAlreadyHandled, err := s.dispatch(ctx, ch, req, scx)
-			if err != nil {
+			// some functions called inside dispatch() may handle replies to SSH channel requests internally,
+			// rather than leaving the reply to be handled inside this loop. in that case, those functions are
+			// expected to return a ReplyAlreadyHandled error to halt the default behaviour.
+			err := s.dispatch(ctx, ch, req, scx)
+			if trace.IsReplyAlreadyHandled(err) {
+				req.WantReply = false
+			} else if err != nil {
 				s.replyError(ch, req, err)
 				span.End()
 				return
 			}
-			if !replyAlreadyHandled && req.WantReply {
+			if req.WantReply {
 				if err := req.Reply(true, nil); err != nil {
 					s.Logger.Warnf("Failed to reply to %q request: %v", req.Type, err)
 				}
@@ -1532,7 +1534,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 
 // dispatch receives an SSH request for a subsystem and dispatches the request to the
 // appropriate subsystem implementation
-func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) (replyHandled bool, err error) {
+func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
 	serverContext.Debugf("Handling request %v, want reply %v.", req.Type, req.WantReply)
 
 	// If this SSH server is configured to only proxy, we do not support anything
@@ -1540,12 +1542,12 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	if s.proxyMode {
 		switch req.Type {
 		case tracessh.TracingRequest:
-			return false, nil
+			return nil
 		case sshutils.SubsystemRequest:
-			return false, s.handleSubsystem(ctx, ch, req, serverContext)
+			return s.handleSubsystem(ctx, ch, req, serverContext)
 		case sshutils.EnvRequest:
 			// we currently ignore setting any environment variables via SSH for security purposes
-			return false, s.handleEnv(ch, req, serverContext)
+			return s.handleEnv(ch, req, serverContext)
 		case sshutils.AgentForwardRequest:
 			// process agent forwarding, but we will only forward agent to proxy in
 			// recording proxy mode.
@@ -1553,16 +1555,16 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			if err != nil {
 				s.Logger.Warn(err)
 			}
-			return false, nil
+			return nil
 		case sshutils.PuTTYSimpleRequest:
 			// PuTTY automatically requests a named 'simple@putty.projects.tartarus.org' channel any time it connects to a server
 			// as a proxy to indicate that it's in "simple" node and won't be requesting any other channels.
 			// As we don't support this request, we ignore it.
 			// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
 			s.Logger.Debugf("%v: deliberately ignoring request for '%v' channel", s.Component(), sshutils.PuTTYSimpleRequest)
-			return false, nil
+			return nil
 		default:
-			return false, trace.BadParameter(
+			return trace.BadParameter(
 				"(%v) proxy doesn't support request type '%v'", s.Component(), req.Type)
 		}
 	}
@@ -1572,20 +1574,20 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	if serverContext.JoinOnly {
 		switch req.Type {
 		case tracessh.TracingRequest:
-			return false, nil
+			return nil
 		case sshutils.PTYRequest:
-			return false, s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
+			return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 		case sshutils.ShellRequest:
-			return false, s.termHandlers.HandleShell(ctx, ch, req, serverContext)
+			return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
 		case sshutils.WindowChangeRequest:
-			return false, s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
+			return s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
 		case teleport.ForceTerminateRequest:
-			return false, s.termHandlers.HandleForceTerminate(ch, req, serverContext)
+			return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 		case sshutils.EnvRequest:
 			// We ignore all SSH setenv requests for join-only principals.
 			// SSH will send them anyway but it seems fine to silently drop them.
 		case sshutils.SubsystemRequest:
-			return false, s.handleSubsystem(ctx, ch, req, serverContext)
+			return s.handleSubsystem(ctx, ch, req, serverContext)
 		case sshutils.AgentForwardRequest:
 			// This happens when SSH client has agent forwarding enabled, in this case
 			// client sends a special request, in return SSH server opens new channel
@@ -1601,44 +1603,48 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			if err != nil {
 				s.Logger.Warn(err)
 			}
-			return false, nil
+			return nil
 		case sshutils.PuTTYWinadjRequest:
 			// PuTTY sends this request along with some SSH_MSG_CHANNEL_WINDOW_ADJUST messages as part of its window-size
 			// tuning. It can be sent on any type of channel. There is no message-specific data. Servers MUST treat it
 			// as an unrecognized request and respond with SSH_MSG_CHANNEL_FAILURE.
 			// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
-			return true, s.handlePuTTYWinadj(ch, req)
+			err := s.handlePuTTYWinadj(ch, req)
+			if err != nil {
+				return err
+			}
+			return nil
 		default:
-			return false, trace.AccessDenied("attempted %v request in join-only mode", req.Type)
+			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}
 	}
 	switch req.Type {
 	case tracessh.TracingRequest:
-		return false, nil
+		return nil
 	case sshutils.ExecRequest:
 		if _, err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
-			return false, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
-		return false, s.termHandlers.HandleExec(ctx, ch, req, serverContext)
+		return s.termHandlers.HandleExec(ctx, ch, req, serverContext)
 	case sshutils.PTYRequest:
-		return false, s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
+		return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 	case sshutils.ShellRequest:
 		if _, err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
-			return false, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
-		return false, s.termHandlers.HandleShell(ctx, ch, req, serverContext)
+		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
 	case sshutils.WindowChangeRequest:
-		return false, s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
+		return s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
 	case teleport.ForceTerminateRequest:
-		return false, s.termHandlers.HandleForceTerminate(ch, req, serverContext)
+		return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 	case sshutils.EnvRequest:
-		return false, s.handleEnv(ch, req, serverContext)
+		return s.handleEnv(ch, req, serverContext)
 	case sshutils.SubsystemRequest:
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
-		return false, s.handleSubsystem(ctx, ch, req, serverContext)
+		return s.handleSubsystem(ctx, ch, req, serverContext)
 	case sshutils.X11ForwardRequest:
-		return false, s.handleX11Forward(ch, req, serverContext)
+		return s.handleX11Forward(ch, req, serverContext)
 	case sshutils.AgentForwardRequest:
 		// This happens when SSH client has agent forwarding enabled, in this case
 		// client sends a special request, in return SSH server opens new channel
@@ -1648,7 +1654,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent
 		if _, err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
 			s.Logger.Warn(err)
-			return false, nil
+			return nil
 		}
 
 		// to maintain interoperability with OpenSSH, agent forwarding requests
@@ -1658,15 +1664,15 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		if err != nil {
 			s.Logger.Warn(err)
 		}
-		return false, nil
+		return nil
 	case sshutils.PuTTYWinadjRequest:
 		// PuTTY sends this request along with some SSH_MSG_CHANNEL_WINDOW_ADJUST messages as part of its window-size
 		// tuning. It can be sent on any type of channel. There is no message-specific data. Servers MUST treat it
 		// as an unrecognized request and respond with SSH_MSG_CHANNEL_FAILURE.
 		// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
-		return true, s.handlePuTTYWinadj(ch, req)
+		return s.handlePuTTYWinadj(ch, req)
 	default:
-		return false, trace.BadParameter(
+		return trace.BadParameter(
 			"%v doesn't support request type '%v'", s.Component(), req.Type)
 	}
 }
@@ -2040,5 +2046,5 @@ func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
 		s.Logger.Warnf("Failed to reply to %q request: %v", req.Type, err)
 		return err
 	}
-	return nil
+	return trace.ReplyAlreadyHandled("reply handled by handlePuTTYWinadj")
 }
