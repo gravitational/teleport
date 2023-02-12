@@ -22,11 +22,12 @@ module.exports = {
     // mock all imports to asset files
     '\\.(css|scss|stylesheet)$': path.join(__dirname, 'mockStyles.js'),
     '\\.(png|svg|yaml|yaml\\?raw)$': path.join(__dirname, 'mockFiles.js'),
-    '^shared/(.*)$': '<rootDir>/packages/shared/$1',
-    '^design($|/.*)': '<rootDir>/packages/design/src/$1',
-    '^teleport($|/.*)': '<rootDir>/packages/teleport/src/$1',
-    '^teleterm($|/.*)': '<rootDir>/packages/teleterm/src/$1',
-    '^e-teleport/(.*)$': '<rootDir>/packages/webapps.e/teleport/src/$1',
-    '^e-teleterm/(.*)$': '<rootDir>/packages/webapps.e/teleterm/src/$1',
+    '^shared/(.*)$': '<rootDir>/web/packages/shared/$1',
+    '^design($|/.*)': '<rootDir>/web/packages/design/src/$1',
+    '^teleport($|/.*)': '<rootDir>/web/packages/teleport/src/$1',
+    '^teleterm($|/.*)': '<rootDir>/web/packages/teleterm/src/$1',
+    '^e-teleport/(.*)$': '<rootDir>/e/web/teleport/src/$1',
+    '^e-teleterm/(.*)$': '<rootDir>/e/web/teleterm/src/$1',
+    '^gen-proto-js/(.*)$': '<rootDir>/gen/proto/js/$1',
   },
 };

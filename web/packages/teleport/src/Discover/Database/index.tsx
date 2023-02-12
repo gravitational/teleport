@@ -32,6 +32,7 @@ import { DownloadScript } from 'teleport/Discover/Database/DownloadScript';
 import { MutualTls } from 'teleport/Discover/Database/MutualTls';
 import { TestConnection } from 'teleport/Discover/Database/TestConnection';
 import { IamPolicy } from 'teleport/Discover/Database/IamPolicy';
+import { DiscoverEvent } from 'teleport/services/userEvent';
 
 export const DatabaseResource: Resource<Database> = {
   kind: ResourceKind.Database,
@@ -52,14 +53,17 @@ export const DatabaseResource: Resource<Database> = {
             {
               title: 'Register a Database',
               component: CreateDatabase,
+              eventName: DiscoverEvent.DatabaseRegister,
             },
             {
               title: 'Deploy Database Service',
               component: DownloadScript,
+              eventName: DiscoverEvent.DeployService,
             },
             {
               title: 'Configure IAM Policy',
               component: IamPolicy,
+              eventName: DiscoverEvent.DatabaseConfigureIAMPolicy,
             },
           ];
 
@@ -70,14 +74,17 @@ export const DatabaseResource: Resource<Database> = {
             {
               title: 'Register a Database',
               component: CreateDatabase,
+              eventName: DiscoverEvent.DatabaseRegister,
             },
             {
               title: 'Deploy Database Service',
               component: DownloadScript,
+              eventName: DiscoverEvent.DeployService,
             },
             {
               title: 'Configure mTLS',
               component: MutualTls,
+              eventName: DiscoverEvent.DatabaseConfigureMTLS,
             },
           ];
 
@@ -87,23 +94,28 @@ export const DatabaseResource: Resource<Database> = {
 
     return [
       {
-        title: 'Select Resource',
+        title: 'Select Resource Type',
+        eventName: DiscoverEvent.ResourceSelection,
       },
       {
         title: 'Configure Resource',
         views: configureResourceViews,
       },
       {
-        title: 'Setup Access',
+        title: 'Set Up Access',
         component: SetupAccess,
+        eventName: DiscoverEvent.PrincipalsConfigure,
       },
       {
         title: 'Test Connection',
         component: TestConnection,
+        eventName: DiscoverEvent.TestConnection,
+        manuallyEmitSuccessEvent: true,
       },
       {
         title: 'Finished',
         component: Finished,
+        eventName: DiscoverEvent.Completed,
         hide: true,
       },
     ];

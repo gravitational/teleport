@@ -118,6 +118,8 @@ message Event {
     types.InstallerV1 Installer = 34 [(gogoproto.jsontag) = "installer,omitempty"];
     // DatabaseService is a DatabaseService resource
     types.DatabaseServiceV1 DatabaseService = 35 [(gogoproto.jsontag) = "database_service,omitempty"];
+    // SAMLIdPServiceProvider is a SAMLIdPServiceProvider resource
+    types.SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 36 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
   }
 }
 
@@ -288,6 +290,16 @@ message UserCertsRequest {
   // ConnectionDiagnosticID is the ID of the ConnectionDiagnostic resource we should use to add
   // traces as we pass certain checkpoints.
   string ConnectionDiagnosticID = 16 [(gogoproto.jsontag) = "connection_diagnostic_id,omitempty"];
+
+  // Requester is the name of the service that sent the request.
+  enum Requester {
+    // UNSPECIFIED is set when the requester in unknown.
+    UNSPECIFIED = 0;
+    // TSH_DB_LOCAL_PROXY_TUNNEL is set when the request was sent by a tsh local proxy tunnel.
+    TSH_DB_LOCAL_PROXY_TUNNEL = 1;
+  }
+  // RequesterName identifies who sent the request.
+  Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -1404,6 +1416,36 @@ message WindowsDesktopCertResponse {
   bytes Cert = 1;
 }
 
+// ListSAMLIdPServiceProvidersRequest is a request for a paginated list of SAML IdP service providers.
+message ListSAMLIdPServiceProvidersRequest {
+  // Limit is the maximum amount of resources to retrieve.
+  int32 Limit = 1 [(gogoproto.jsontag) = "limit,omitempty"];
+  // NextKey is the key for the next page of SAML IdP service providers.
+  string NextKey = 2 [(gogoproto.jsontag) = "next_key,omitempty"];
+}
+
+// ListSAMLIdPServiceProvidersResponse a paginated list of SAML IdP service providers.
+message ListSAMLIdPServiceProvidersResponse {
+  // Servers is a list of SAML IdP service providers.
+  repeated types.SAMLIdPServiceProviderV1 ServiceProviders = 1 [(gogoproto.jsontag) = "service_providers"];
+  // NextKey is the key for the next page of SAML IdP service providers.
+  string NextKey = 2 [(gogoproto.jsontag) = "next_key,omitempty"];
+  // TotalCount is the total number of resources available after filter, if any.
+  int32 TotalCount = 3 [(gogoproto.jsontag) = "total_count,omitempty"];
+}
+
+// GetSAMLIdPServiceProviderRequest is a request for a specific SAML IdP service provider resource.
+message GetSAMLIdPServiceProviderRequest {
+  // Name is the name of the SAML IdP sercice provider to be requested.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+}
+
+// DeleteSAMLIdPServiceProviderRequest is a request for deleting a specific SAML IdP service provider resource.
+message DeleteSAMLIdPServiceProviderRequest {
+  // Name is the name of the SAML IdP sercice provider to be deleted.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+}
+
 // CertAuthorityRequest is a request that identifies a Teleport CA.
 message CertAuthorityRequest {
   // Type is either user or host certificate authority.
@@ -1975,6 +2017,27 @@ message GetClusterAlertsResponse {
   repeated types.ClusterAlert Alerts = 1 [(gogoproto.nullable) = false];
 }
 
+// GetAlertAcksRequest returns the currently acknowledged alerts
+message GetAlertAcksRequest {
+  // GetAlertAcksRequest currently takes no params
+}
+
+// GetAlertAcksResponse contains the set of active cluster alert
+// acknowledgements for this cluster.
+message GetAlertAcksResponse {
+  repeated types.AlertAcknowledgement Acks = 1 [
+    (gogoproto.jsontag) = "acks",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// ClearAlertAcksRequest specifies alerts acknowledgements to clear.
+message ClearAlertAcksRequest {
+  // AlertID deletes an acknowledgement by ID. Deletes all acknowledgements if
+  // the id is '*'.
+  string AlertID = 1 [(gogoproto.jsontag) = "alert_id"];
+}
+
 // UpsertClusterAlertRequest is used to create a cluster alert.
 message UpsertClusterAlertRequest {
   // Alert is the alert being created.
@@ -2010,6 +2073,22 @@ message ListReleasesRequest {
   // ListReleases currently takes no params
 }
 
+// CreateTokenV2Request is used with CreateTokenV2 to create tokens in the
+// backend.
+message CreateTokenV2Request {
+  oneof Token {
+    types.ProvisionTokenV2 V2 = 1 [(gogoproto.jsontag) = "v2,omitempty"];
+  }
+}
+
+// UpsertTokenV2Request is used with UpsertTokenV2 to upsert tokens in the
+// backend.
+message UpsertTokenV2Request {
+  oneof Token {
+    types.ProvisionTokenV2 V2 = 1 [(gogoproto.jsontag) = "v2,omitempty"];
+  }
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2030,6 +2109,15 @@ service AuthService {
 
   // UpsertClusterAlert creates a cluster alert.
   rpc UpsertClusterAlert(UpsertClusterAlertRequest) returns (google.protobuf.Empty);
+
+  // CreateAlertAck marks a cluster alert as acknowledged.
+  rpc CreateAlertAck(types.AlertAcknowledgement) returns (google.protobuf.Empty);
+
+  // GetAlertAcks gets active alert ackowledgements.
+  rpc GetAlertAcks(GetAlertAcksRequest) returns (GetAlertAcksResponse);
+
+  // ClearAlertAcks clears alert acknowledgments.
+  rpc ClearAlertAcks(ClearAlertAcksRequest) returns (google.protobuf.Empty);
 
   // MaintainSessionPresence establishes a channel used to continously verify the presence for a
   // session.
@@ -2364,9 +2452,15 @@ service AuthService {
   // GetToken retrieves all tokens.
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
   // UpsertToken upserts a token in a backend.
+  // Deprecated: switch to UpsertTokenV2. DELETE IN 14.0.0.
   rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
   // CreateToken creates a token in a backend.
+  // Deprecated: switch to CreateTokenV2. DELETE IN 14.0.0.
   rpc CreateToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
+  // CreateTokenV2 creates a token in a backend.
+  rpc CreateTokenV2(CreateTokenV2Request) returns (google.protobuf.Empty);
+  // UpsertTokenV2 upserts a token in a backend.
+  rpc UpsertTokenV2(UpsertTokenV2Request) returns (google.protobuf.Empty);
   // GenerateToken generates a new auth token.
   rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
   // DeleteToken deletes an existing token in a backend described by the given request.
@@ -2603,4 +2697,22 @@ service AuthService {
 
   // ListReleases returns a list of Teleport Enterprise releases.
   rpc ListReleases(ListReleasesRequest) returns (ListReleasesResponse);
+
+  // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
+  rpc ListSAMLIdPServiceProviders(ListSAMLIdPServiceProvidersRequest) returns (ListSAMLIdPServiceProvidersResponse);
+
+  // GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
+  rpc GetSAMLIdPServiceProvider(GetSAMLIdPServiceProviderRequest) returns (types.SAMLIdPServiceProviderV1);
+
+  // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
+  rpc CreateSAMLIdPServiceProvider(types.SAMLIdPServiceProviderV1) returns (google.protobuf.Empty);
+
+  // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
+  rpc UpdateSAMLIdPServiceProvider(types.SAMLIdPServiceProviderV1) returns (google.protobuf.Empty);
+
+  // DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
+  rpc DeleteSAMLIdPServiceProvider(DeleteSAMLIdPServiceProviderRequest) returns (google.protobuf.Empty);
+
+  // DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
+  rpc DeleteAllSAMLIdPServiceProviders(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

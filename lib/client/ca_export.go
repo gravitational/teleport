@@ -117,6 +117,13 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 			ExportPrivateKeys: exportSecrets,
 		}
 		return exportTLSAuthority(ctx, client, req)
+	case "saml-idp":
+		req := exportTLSAuthorityRequest{
+			AuthType:          types.SAMLIDPCA,
+			UnpackPEM:         true,
+			ExportPrivateKeys: exportSecrets,
+		}
+		return exportTLSAuthority(ctx, client, req)
 	}
 
 	// If none of the above auth-types was requested, means we are dealing with SSH HostCA or SSH UserCA.

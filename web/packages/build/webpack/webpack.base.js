@@ -24,7 +24,7 @@ const ReactRefreshPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 
 const resolvePath = require('./resolvepath');
 
-const tsconfigPath = path.join(__dirname, '/../../../tsconfig.json');
+const tsconfigPath = path.join(__dirname, '/../../../../tsconfig.json');
 
 const configFactory = {
   createDefaultConfig,
@@ -154,6 +154,7 @@ function createDefaultConfig() {
         'e-teleterm': path.join(__dirname, '/../../../../e/web/teleterm/src'),
         design: path.join(__dirname, '/../../design/src'),
         shared: path.join(__dirname, '/../../shared'),
+        'gen-proto-js': path.join(__dirname, '/../../../../gen/proto/js'),
       },
 
       /*

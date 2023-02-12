@@ -358,6 +358,7 @@ func TestConfigReading(t *testing.T) {
 							TokenName: "aws-discovery-iam-token",
 							Method:    "iam",
 						},
+						SSHDConfig: "/etc/ssh/sshd_config",
 						ScriptName: "default-installer",
 					},
 					SSM: AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
@@ -401,6 +402,12 @@ func TestConfigReading(t *testing.T) {
 			},
 			WebAddr: "tcp://web_addr",
 			TunAddr: "reverse_tunnel_address:3311",
+			IdP: IdP{
+				SAMLIdP: SAMLIdP{
+					EnabledFlag: "true",
+					BaseURL:     "https://test-url.com",
+				},
+			},
 		},
 		Kube: Kube{
 			Service: Service{
@@ -735,6 +742,8 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "tcp://mongo.example:27017", cfg.Proxy.MongoPublicAddrs[0].FullAddress())
 	require.Equal(t, "tcp://peerhost:1234", cfg.Proxy.PeerAddr.FullAddress())
 	require.Equal(t, "tcp://peer.example:1234", cfg.Proxy.PeerPublicAddr.FullAddress())
+	require.Equal(t, true, cfg.Proxy.IdP.SAMLIdP.Enabled)
+	require.Equal(t, "", cfg.Proxy.IdP.SAMLIdP.BaseURL)
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 
@@ -781,6 +790,11 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			DisconnectExpiredCert: types.NewBoolOption(false),
 			LockingMode:           constants.LockingModeBestEffort,
 			AllowPasswordless:     types.NewBoolOption(true),
+			IDP: &types.IdPOptions{
+				SAML: &types.IdPSAMLOptions{
+					Enabled: types.NewBoolOption(true),
+				},
+			},
 		},
 	}, protocmp.Transform()))
 
@@ -829,6 +843,17 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			"testKey": "testValue",
 		},
 	))
+
+	require.True(t, cfg.Discovery.Enabled)
+	require.Equal(t, cfg.Discovery.AWSMatchers[0].Regions, []string{"eu-central-1"})
+	require.Equal(t, cfg.Discovery.AWSMatchers[0].Types, []string{"ec2"})
+	require.Equal(t, cfg.Discovery.AWSMatchers[0].Params, services.InstallerParams{
+		InstallTeleport: true,
+		JoinMethod:      "iam",
+		JoinToken:       defaults.IAMInviteTokenName,
+		ScriptName:      "default-installer",
+		SSHDConfig:      defaults.SSHDConfigPath,
+	})
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -1437,6 +1462,8 @@ func makeConfigFixture() string {
 	conf.Proxy.ListenAddress = "tcp://proxy_ssh_addr"
 	conf.Proxy.WebAddr = "tcp://web_addr"
 	conf.Proxy.TunAddr = "reverse_tunnel_address:3311"
+	conf.Proxy.IdP.SAMLIdP.EnabledFlag = "true"
+	conf.Proxy.IdP.SAMLIdP.BaseURL = "https://test-url.com"
 
 	// kubernetes service:
 	conf.Kube = Kube{
@@ -1638,6 +1665,11 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
 				},
+				IdP: service.IdP{
+					SAMLIdP: service.SAMLIdP{
+						Enabled: true,
+					},
+				},
 			},
 		},
 		{
@@ -1661,6 +1693,11 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 				Limiter: limiter.Config{
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
+				},
+				IdP: service.IdP{
+					SAMLIdP: service.SAMLIdP{
+						Enabled: true,
+					},
 				},
 			},
 		},
@@ -1960,6 +1997,11 @@ func TestProxyConfigurationVersion(t *testing.T) {
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
 				},
+				IdP: service.IdP{
+					SAMLIdP: service.SAMLIdP{
+						Enabled: true,
+					},
+				},
 			},
 			checkErr: require.NoError,
 		},
@@ -1984,6 +2026,11 @@ func TestProxyConfigurationVersion(t *testing.T) {
 				Limiter: limiter.Config{
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
+				},
+				IdP: service.IdP{
+					SAMLIdP: service.SAMLIdP{
+						Enabled: true,
+					},
 				},
 			},
 			checkErr: require.NoError,

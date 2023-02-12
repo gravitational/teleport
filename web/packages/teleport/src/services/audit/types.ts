@@ -216,6 +216,8 @@ export const eventCodes = {
   UPGRADE_WINDOW_UPDATED: 'TUW01I',
   BOT_JOIN: 'TJ001I',
   INSTANCE_JOIN: 'TJ002I',
+  LOGIN_RULE_CREATE: 'TLR00I',
+  LOGIN_RULE_DELETE: 'TLR01I',
 } as const;
 
 /**
@@ -1112,6 +1114,14 @@ export type RawEvents = {
       method: string;
       role: string;
     }
+  >;
+  [eventCodes.LOGIN_RULE_CREATE]: RawEvent<
+    typeof eventCodes.LOGIN_RULE_CREATE,
+    HasName
+  >;
+  [eventCodes.LOGIN_RULE_DELETE]: RawEvent<
+    typeof eventCodes.LOGIN_RULE_DELETE,
+    HasName
   >;
 };
 

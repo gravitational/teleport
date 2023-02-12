@@ -17,6 +17,7 @@ limitations under the License.
 package proxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/tls"
@@ -941,9 +942,13 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			continue
 		}
 
-		if err := actx.Checker.CheckAccess(ks, state, roleMatchers...); err != nil {
+		switch err := actx.Checker.CheckAccess(ks, state, roleMatchers...); {
+		case errors.Is(err, services.ErrTrustedDeviceRequired):
+			return trace.Wrap(err)
+		case err != nil:
 			return trace.AccessDenied(notFoundMessage)
 		}
+
 		// If the user has active Access requests we need to validate that they allow
 		// the kubeResource.
 		// This is required because CheckAccess does not validate the subresource type.
@@ -1049,7 +1054,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	if sess.noAuditEvents {
+	if !f.isLocalKubeCluster(sess) {
 		return f.remoteJoin(ctx, w, req, p, sess)
 	}
 
@@ -1652,8 +1657,7 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 
 	// We only have a direct host to provide when using local creds.
 	// Otherwise, use kube-teleport-proxy-alpn.teleport.cluster.local to pass TLS handshake and leverage TLS Routing.
-	// TODO(smallinsky) UPDATE IN 11.0. use KubeTeleportProxyALPNPrefix instead.
-	req.URL.Host = fmt.Sprintf("%s%s", constants.KubeSNIPrefix, constants.APIDomain)
+	req.URL.Host = fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, constants.APIDomain)
 	if sess.creds != nil {
 		req.URL.Host = sess.creds.getTargetAddr()
 	}
@@ -1689,6 +1693,21 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 	}
 
 	return nil
+}
+
+// copyImpersonationHeaders copies the impersonation headers from the source
+// request to the destination request.
+func copyImpersonationHeaders(dst, src http.Header) {
+	dst[ImpersonateUserHeader] = nil
+	dst[ImpersonateGroupHeader] = nil
+
+	for _, v := range src.Values(ImpersonateUserHeader) {
+		dst.Add(ImpersonateUserHeader, v)
+	}
+
+	for _, v := range src.Values(ImpersonateGroupHeader) {
+		dst.Add(ImpersonateGroupHeader, v)
+	}
 }
 
 // computeImpersonatedPrincipals computes the intersection between the information
@@ -1817,11 +1836,12 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 
 func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
-		ctx:        req.Context(),
-		authCtx:    ctx,
-		dial:       sess.DialWithContext,
-		tlsConfig:  sess.tlsConfig,
-		pingPeriod: f.cfg.ConnPingPeriod,
+		ctx:             req.Context(),
+		authCtx:         ctx,
+		dial:            sess.DialWithContext,
+		tlsConfig:       sess.tlsConfig,
+		pingPeriod:      f.cfg.ConnPingPeriod,
+		originalHeaders: req.Header,
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.creds != nil {
@@ -1836,11 +1856,12 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 
 func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
-		ctx:        req.Context(),
-		authCtx:    ctx,
-		dial:       sess.DialWithContext,
-		tlsConfig:  sess.tlsConfig,
-		pingPeriod: f.cfg.ConnPingPeriod,
+		ctx:             req.Context(),
+		authCtx:         ctx,
+		dial:            sess.DialWithContext,
+		tlsConfig:       sess.tlsConfig,
+		pingPeriod:      f.cfg.ConnPingPeriod,
+		originalHeaders: req.Header,
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
 	if sess.creds != nil {
@@ -2501,6 +2522,10 @@ func (f *Forwarder) deletePodsCollection(ctx *authContext, w http.ResponseWriter
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		// decompress the response body to be able to parse it.
+		if err := decompressInplace(memoryRW); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		status, err = f.handleDeleteCollectionReq(req, &sess.authContext, memoryRW, w)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2709,5 +2734,28 @@ func errorToKubeStatusReason(err error) metav1.StatusReason {
 		return metav1.StatusReasonTimeout
 	default:
 		return metav1.StatusReasonUnknown
+	}
+}
+
+// decompressInplace decompresses the response into the same buffer it was
+// written to.
+// If the response is not compressed, it does nothing.
+func decompressInplace(memoryRW *responsewriters.MemoryResponseWriter) error {
+	switch memoryRW.Header().Get(contentEncodingHeader) {
+	case contentEncodingGZIP:
+		_, decompressor, err := getResponseCompressorDecompressor(memoryRW.Header())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		newBuf := bytes.NewBuffer(nil)
+		_, err = io.Copy(newBuf, memoryRW.Buffer())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		memoryRW.Buffer().Reset()
+		err = decompressor(memoryRW.Buffer(), newBuf)
+		return trace.Wrap(err)
+	default:
+		return nil
 	}
 }

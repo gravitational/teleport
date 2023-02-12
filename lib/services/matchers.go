@@ -60,6 +60,10 @@ type InstallerParams struct {
 	// ScriptName is the name of the teleport script for the EC2
 	// instance to execute
 	ScriptName string
+	// InstallTeleport disables agentless discovery
+	InstallTeleport bool
+	// SSHDConfig provides the path to write sshd configuration changes
+	SSHDConfig string
 }
 
 // AWSMatcher matches AWS databases.

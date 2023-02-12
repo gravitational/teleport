@@ -2275,6 +2275,8 @@ message AWSRequestMetadata {
   string AWSService = 2 [(gogoproto.jsontag) = "aws_service,omitempty"];
   // AWSHost is the requested host of the AWS service.
   string AWSHost = 3 [(gogoproto.jsontag) = "aws_host,omitempty"];
+  // AWSAssumedRole is the assumed role that signed this request.
+  string AWSAssumedRole = 4 [(gogoproto.jsontag) = "aws_assumed_role,omitempty"];
 }
 
 // DatabaseMetadata contains common database information.
@@ -3223,6 +3225,8 @@ message OneOf {
     events.BotJoin BotJoin = 110;
     events.InstanceJoin InstanceJoin = 111;
     events.DeviceEvent DeviceEvent = 112;
+    events.LoginRuleCreate LoginRuleCreate = 113;
+    events.LoginRuleDelete LoginRuleDelete = 114;
   }
 }
 
@@ -4376,4 +4380,52 @@ message CassandraRegister {
   ];
   // EventTypes is the list of event types to register for.
   repeated string EventTypes = 5 [(gogoproto.jsontag) = "event_types,omitempty"];
+}
+
+// LoginRuleCreate is emitted when a login rule is created or updated.
+message LoginRuleCreate {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// LoginRuleDelete is emitted when a login rule is deleted
+message LoginRuleDelete {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }

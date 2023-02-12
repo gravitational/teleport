@@ -115,6 +115,13 @@ func TestVariable(t *testing.T) {
 			},
 		},
 		{
+			title: "invalid namespaces are allowed",
+			in:    "{{foo.bar}}",
+			out: Expression{
+				expr: variable("foo", "bar"),
+			},
+		},
+		{
 			title: "internal with no brackets",
 			in:    "{{internal.bar}}",
 			out: Expression{
@@ -213,10 +220,10 @@ func TestInterpolate(t *testing.T) {
 	t.Parallel()
 
 	errCheckIsNotFound := func(tt require.TestingT, err error, i ...interface{}) {
-		require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
+		require.True(tt, trace.IsNotFound(err), "expected not found error, got %v", err)
 	}
 	errCheckIsBadParameter := func(tt require.TestingT, err error, i ...interface{}) {
-		require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
+		require.True(tt, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
 	}
 	type result struct {
 		values   []string

@@ -15,9 +15,8 @@ can use the [IAM join method](./joining-nodes-aws-iam.mdx) or
 
 </ScopedBlock>
 
-The EC2 join method is available in self-hosted versions of Teleport 7.3+. It is
-available to any Teleport Node or Proxy running on an EC2 instance. Only one
-Teleport Node or Proxy per EC2 instance may use the EC2 join method.
+The EC2 join method is available to any Teleport service running on an EC2 instance.
+Only one Teleport service per EC2 instance may use the EC2 join method.
 
 IAM credentials with `ec2:DescribeInstances` permissions are required on
 your Teleport Auth Service. No IAM credentials are required on the Nodes or
@@ -32,8 +31,8 @@ scopeOnly
 
 There are two other AWS join methods available depending on your use case.
 
-The **IAM join method** is available in self-hosted editions of Teleport 8.3+.
-It is available to any Teleport Node or Proxy running anywhere with access to
+The **IAM join method** is available in self-hosted editions of Teleport.
+It is available to any Teleport service running anywhere with access to
 IAM credentials, such as an EC2 instance with an attached IAM role. No specific
 permissions or IAM policy is required: an IAM role with no attached policies is
 sufficient. No IAM credentials are required on the Teleport Auth Service.
@@ -153,8 +152,6 @@ metadata:
   # the token name is not a secret because instances must prove that they are
   # running in your AWS account to use this token
   name: ec2-token
-  # set a long expiry time, the default for tokens is only 30 minutes
-  expires: "3000-01-01T00:00:00Z"
 spec:
   # use the minimal set of roles required
   roles: [Node]
@@ -281,7 +278,6 @@ kind: token
 version: v2
 metadata:
   name: ec2-multiaccount-token
-  expires: "3000-01-01T00:00:00Z"
 spec:
   roles: [Node]
   aws_iid_ttl: 5m

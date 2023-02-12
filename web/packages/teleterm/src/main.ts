@@ -1,3 +1,19 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { spawn } from 'child_process';
 
 import path from 'path';
@@ -24,6 +40,7 @@ if (app.requestSingleInstanceLock()) {
 }
 
 function initializeApp(): void {
+  let devRelaunchScheduled = false;
   const settings = getRuntimeSettings();
   const logger = initMainLogger(settings);
   const appStateFileStorage = createFileStorage({
@@ -72,10 +89,30 @@ function initializeApp(): void {
     }
   );
 
-  app.on('will-quit', () => {
+  app.on('will-quit', async event => {
+    event.preventDefault();
+
     appStateFileStorage.putAllSync();
     globalShortcut.unregisterAll();
-    mainProcess.dispose();
+    try {
+      await mainProcess.dispose();
+    } catch (e) {
+      logger.error('Failed to gracefully dispose of main process', e);
+    } finally {
+      app.exit();
+    }
+  });
+
+  app.on('quit', () => {
+    if (devRelaunchScheduled) {
+      const [bin, ...args] = process.argv;
+      const child = spawn(bin, args, {
+        env: process.env,
+        detached: true,
+        stdio: 'inherit',
+      });
+      child.unref();
+    }
   });
 
   app.on('second-instance', () => {
@@ -86,14 +123,7 @@ function initializeApp(): void {
     if (mainProcess.settings.dev) {
       // allow restarts on F6
       globalShortcut.register('F6', () => {
-        mainProcess.dispose();
-        const [bin, ...args] = process.argv;
-        const child = spawn(bin, args, {
-          env: process.env,
-          detached: true,
-          stdio: 'inherit',
-        });
-        child.unref();
+        devRelaunchScheduled = true;
         app.quit();
       });
     }
