@@ -1,5 +1,7 @@
+TLS routing is when the Teleport proxy multiplexes on a single port for multiple protocols (web, database, Kubernetes,...)
+instead of utilizing multiple ports for each protocol type. If enabled that can require using a TLS proxy.
 To get details of the Teleport Cluster you can invoke `/webapi/ping` path
-on the Teleport Poxy Service. The `proxy.tls_routing_enabled` value indicates if TLS routing is enabled:
+on the Teleport Proxy Service. The `proxy.tls_routing_enabled` value indicates if TLS routing is enabled:
 
 ```code
 $ curl https://teleport.example.com/webapi/ping |  jq '.proxy.tls_routing_enabled'
