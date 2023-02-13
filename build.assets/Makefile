@@ -68,13 +68,6 @@ endif
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
 endif
 
-ifeq ("$(RUNTIME_ARCH)","arm64")
-	GRPC_NODE_PLUGIN_BINARY_TYPE := compiled
-else
-	GRPC_NODE_PLUGIN_BINARY_TYPE := prebuilt
-endif
-export
-
 
 #
 # Build 'teleport' release inside a docker container
@@ -127,7 +120,6 @@ buildbox:
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg NODE_VERSION=$(NODE_VERSION) \
-			--build-arg GRPC_NODE_PLUGIN_BINARY_TYPE=$(GRPC_NODE_PLUGIN_BINARY_TYPE) \
 			--build-arg PROTOC_VER=$(PROTOC_VER) \
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
