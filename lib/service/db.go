@@ -245,12 +245,17 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	// Execute this when the process running database proxy service exits.
 	process.OnExit("db.stop", func(payload interface{}) {
-		log.Info("Shutting down.")
 		if dbService != nil {
-			warnOnErr(dbService.Close(), process.log)
+			if payload == nil {
+				log.Info("Shutting down immediately.")
+				warnOnErr(dbService.Close(), log)
+			} else {
+				log.Info("Shutting down gracefully.")
+				warnOnErr(dbService.Shutdown(payloadContext(payload, log)), log)
+			}
 		}
 		if asyncEmitter != nil {
-			warnOnErr(asyncEmitter.Close(), process.log)
+			warnOnErr(asyncEmitter.Close(), log)
 		}
 		if agentPool != nil {
 			agentPool.Stop()
