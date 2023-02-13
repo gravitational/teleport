@@ -567,13 +567,20 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		}
 	}
 
+	// Make sure the IdP section is populated.
 	if c.Spec.IDP == nil {
+		c.Spec.IDP = &IdPOptions{}
+	}
+
+	// Make sure the SAML section is populated.
+	if c.Spec.IDP.SAML == nil {
+		c.Spec.IDP.SAML = &IdPSAMLOptions{}
+	}
+
+	// Make sure the SAML enabled field is populated.
+	if c.Spec.IDP.SAML.Enabled == nil {
 		// Enable the IdP by default.
-		c.Spec.IDP = &IdPOptions{
-			SAML: &IdPSAMLOptions{
-				Enabled: NewBoolOption(true),
-			},
-		}
+		c.Spec.IDP.SAML.Enabled = NewBoolOption(true)
 	}
 
 	return nil
