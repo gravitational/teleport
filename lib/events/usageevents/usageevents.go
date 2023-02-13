@@ -18,7 +18,6 @@ package usageevents
 
 import (
 	"context"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -92,7 +91,7 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 		}))
 	case *apievents.AppSessionStart:
 		sessionType := string(types.AppSessionKind)
-		if strings.HasPrefix(e.AppURI, "tcp:") {
+		if types.IsAppTCP(e.AppURI) {
 			sessionType = tcpSessionType
 		}
 		return trace.Wrap(u.report(&services.UsageSessionStart{
