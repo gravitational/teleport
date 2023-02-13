@@ -23,6 +23,9 @@ MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 # libbpf version required by the build.
 LIBBPF_VER := 1.0.1
 
+# If set to 1, webassets are not built.
+WEBASSETS_SKIP_BUILD ?= 0
+
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
@@ -370,8 +373,10 @@ endif
 # only tsh is built.
 #
 .PHONY:full
+full: WEBASSETS_SKIP_BUILD = 0
 full: ensure-webassets
 ifneq ("$(OS)", "windows")
+	export WEBASSETS_SKIP_BUILD=0
 	$(MAKE) all
 endif
 
@@ -1170,11 +1175,13 @@ test-compat:
 
 .PHONY: ensure-webassets
 ensure-webassets:
-	@MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" OSS webassets/oss-sha build-ui web
+	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
+	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" OSS webassets/oss-sha build-ui web; fi
 
 .PHONY: ensure-webassets-e
 ensure-webassets-e:
-	@MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web
+	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
+	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web; fi
 
 .PHONY: init-submodules-e
 init-submodules-e:
@@ -1201,15 +1208,16 @@ backport:
 
 .PHONY: ensure-js-deps
 ensure-js-deps:
-	yarn install --ignore-scripts
+	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
+	else yarn install --ignore-scripts; fi
 
 .PHONY: build-ui
 build-ui: ensure-js-deps
-	yarn build-ui-oss
+	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || yarn build-ui-oss
 
 .PHONY: build-ui-e
 build-ui-e: ensure-js-deps
-	yarn build-ui-e
+	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || yarn build-ui-e
 
 .PHONY: docker-ui
 docker-ui:
