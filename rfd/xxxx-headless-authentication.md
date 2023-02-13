@@ -39,47 +39,68 @@ Headless authentication will provide a secure way to support these types of remo
 
 Headless authentication should fulfill the following design principles to ensure that the system can not be easily exploited by attackers, including attackers with root access to the remote machine.
 
-1. **The Client does not write any keys, certificates, or session data to disk on the remote machine.**
+1. **The Client does not write any keys, certificates, or session data to disk on the remote machine**
 
 When using headless authentication, Teleport clients will generate a new private key in memory for the lifetime of the client. This private key will not be exported anywhere. Only its public key counterpart will be shared externally to get user certificates. Likewise, the user certificates will be held in memory for the lifetime of the client.
 
 This solves two problems: 1) multiple users with on the same remote machine will not have overlapping credentials on disk in `~/.tsh` and 2) attackers will not be able to steal a user's credentials from disk.
 
-2. **Issued certificates through headless authentication are short lived (1 minute TTL).**
+2. **Issued certificates through headless authentication are short lived (1 minute TTL)**
 
 Since the user certificates are only meant to last for a single client lifetime, the Auth server should issue the certificates with a 1 minute TTL. This limits the damage potential if an attacker manages to compromise the user's certificate, whether through a faulty client or a clever attack.
 
-3. **User must complete WebAuthn authentication for each individual headless `tsh` request (`tsh ls`, `tsh ssh`, etc.).**
+3. **User must complete WebAuthn authentication for each individual headless `tsh` request (`tsh ls`, `tsh ssh`, etc.)**
 
 Headless authentication, like any login mechanism, can be started by any unauthenticated user. To prevent phishing attacks, we must prompt the user to acknowledge and approve each headless authentication request with WebAuthn, since WebAuthn provides strong protection against phishing attacks. Legacy OTP MFA methods will not be supported.
 
-4. **The Server must verify that the client requesting certificates is the only client that can use the certificates.**
+4. **The Server must verify that the client requesting certificates is the only client that can use the certificates**
 
 Like other login procedures, this be accomplished with a PKCE-like flow, where the client provides their public key in the login request, and the server issues certificates for the client's public key. If the client does not have access to the corresponding client private key, they cannot use the certificates.
 
-Note: Ideally, we would ensure that the only client that can *receive* certificates is the requesting client, but ensuring the PKCE flow above is enough to defend against attacks since the certificates are useless without the client's private key. In the current design this is accomplished by encapsulating the headless login flow between the remote machine and Teleport into a single endpoint - `/webapi/login/headless`
+Note: Ideally, we would ensure that the only client that can *receive* certificates is the requesting client, but ensuring the PKCE flow above is enough to defend against attacks since the certificates are useless without the client's private key. In the current design this is accomplished by encapsulating the headless login flow between the remote machine and Teleport into a single endpoint - `/webapi/login/headless`. Additionally, the certificates returned will be encrypted by the client's public key so it can only be read with the client's private key.
 
-5. **(optional) limit the scope of headless certificates**
+5. **Limit the scope of headless certificates**
 
-When a user requests headless login certificates, we know exactly what command they are trying to complete. In theory, this means that we can scope their certificate to provide the most limited possible privileges necessary to complete said action. This would help to reduce the blast radius if an attacker manages to steal the user's headless certificates.
+When a user requests headless login certificates, we know exactly what command they are trying to complete. This means that we can scope their certificate to provide the most limited possible privileges necessary to complete said action. This would help to reduce the blast radius if an attacker manages to steal the user's headless certificates.
 
-However, unlike Per-session MFA which scopes certificates to a specific node connection, we would need to scope the certificates to the entire API flow for a `tsh` command. For example, `tsh ssh` needs to:
+However, unlike Per-session MFA, which scopes certificates to a specific node connection, we will need to scope the certificates to the entire API flow for a `tsh` command. For example, `tsh ssh` needs to:
 
-1. Connect to Proxy
-2. List nodes
-3. View cluster details (Auth preference, etc.)
-4. Connect to Node
+* Connect to Proxy
+* List nodes
+* View cluster details (Auth preference, etc.)
+* Connect to Node
 
-Given the implementation complexity, this is likely overkill as we've already reduced this attack vector significantly:
+This means that for any given `tsh` command, the Teleport Auth server will provide different privileges to the certificates. Since each possible command will need custom logic to determine the lowest privileges necessary, we will only support a select few commands necessary for basic `tsh` workflows:
 
-* client key and certificates are not saved to disk
-* certificates have a 1 minute TTL
+* `tsh ls`
+* `tsh ssh`
+* `tsh scp`
+
+The awarded certificates should not provide access to roles usually awarded to the user, as these roles may provide more privileges than required for the requested command. However, some role provided fields should be included, such as `role.options.forward_agent` and `role.logins`. Additionally, the user should be notified of what command was requested and what permissions will be awarded to the headless session once approved.
+
+Example:
+
+```
+Incoming headless request for command "tsh ssh server01", to connect to node <server01_uuid>. Upon approval, the request will be awarded the following permissions:
+
+allow:
+  options:
+    max_session_ttl: 8h0m0s
+    forward_agent: true
+    port_forwarding: true
+    require_session_mfa: true
+  logins: ["ubuntu-user"]
+  resource_ids: ["<server01_uuid>"]
+  rules:
+    resources: ["nodes"]
+    verbs: ["read", "list"]
+```
+
+**Important note**: The server cannot guarantee that the client will actually use the resulting certificates for the `tsh` command advertised by the client. This means that a modified client could claim to need certificates for `tsh ls`, but then actually use the certificates for `tsh ssh`. In order to prevent potential permission workarounds, we will need to carefully consider how each supported command's awarded certificates may interact with other Teleport clients. For this reason, we may add more commands as they are requested, but each command may have significant security implications to consider. Each PR adding one or more new commands should include a security description and get a security review from the Teleport security team. This includes the commands listed above, as the most limited necessary permissions necessary to perform each command is not yet clear.
 
 #### Conclusion
 
-With the design principles above, the only possible attack would be for the attacker to issue the headless request themselves and trick the user into verifying the request with MFA. To limit the possibility of this phishing attack, the user will always be notified of request details (`tsh` command, request id, ip address) before they can approve it with MFA.
-
-Note: Since the `tsh` command is client provided and has no logical repercussions, we cannot guarantee that the client will actually run this command with the headless certificates received.
+With the design principles above, the only possible attack would be for the attacker to issue the headless request themselves and trick the user into verifying the request with MFA, with a direct phishing attack. This phishing attack should also be mitigated by notifying the user of the command requested and the permissions that will be awarded upon approval.
 
 ### Headless authentication overview
 
