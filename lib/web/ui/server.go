@@ -124,6 +124,41 @@ func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) 
 	return uiKubeClusters
 }
 
+// KubeResource describes a Kubernetes resource.
+type KubeResource struct {
+	// Kind is the kind of the Kubernetes resource.
+	// Curently supported kinds are: pod.
+	Kind string `json:"kind"`
+	// Name is the name of the Kubernetes resource.
+	Name string `json:"name"`
+	// Labels is a map of static associated with a Kubernetes resource.
+	Labels []Label `json:"labels"`
+	// Namespace is the Kubernetes namespace where the resource is located.
+	Namespace string `json:"namespace"`
+	// KubeCluster is the Kubernetes cluster the resource blongs to.
+	KubeCluster string `json:"cluster"`
+}
+
+// MakeKubeResources creates ui kube resource objects and returns a list.
+func MakeKubeResources(resources []*types.KubernetesResourceV1, cluster string) []KubeResource {
+	uiKubeResources := make([]KubeResource, 0, len(resources))
+	for _, resource := range resources {
+		staticLabels := resource.GetStaticLabels()
+		uiLabels := makeLabels(staticLabels)
+
+		uiKubeResources = append(uiKubeResources,
+			KubeResource{
+				Kind:        resource.Kind,
+				Name:        resource.GetName(),
+				Labels:      uiLabels,
+				Namespace:   resource.Spec.Namespace,
+				KubeCluster: cluster,
+			},
+		)
+	}
+	return uiKubeResources
+}
+
 // getAllowedKubeUsersAndGroupsForCluster works on a given set of roles to return
 // a list of allowed `kubernetes_users` and `kubernetes_groups` that can be used
 // to access a given kubernetes cluster.
