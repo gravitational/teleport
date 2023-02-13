@@ -5551,6 +5551,11 @@ func (a *ServerWithRoles) DeleteAllPlugins(ctx context.Context) error {
 
 // SetPluginCredentials sets the credentials for the given plugin.
 func (a *ServerWithRoles) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
+	// Check whether user can read (with secrets) first.
+	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbRead); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}

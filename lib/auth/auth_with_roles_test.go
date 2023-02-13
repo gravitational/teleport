@@ -3951,6 +3951,88 @@ func TestGetPluginWithSecrets(t *testing.T) {
 	}
 }
 
+func TestSetPluginCredentials(t *testing.T) {
+	const pluginName = "slack-default"
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	createPlugin(t, srv, pluginName)
+
+	tt := []struct {
+		Name         string
+		Role         types.RoleSpecV6
+		ErrAssertion require.BoolAssertionFunc
+	}{
+		{
+			Name: "deny if user has no rules regarding plugins",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{}},
+			},
+			ErrAssertion: require.True,
+		},
+		{
+			Name: "deny secrets if user can update, but can not read secrets",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{
+					{
+						Resources: []string{types.KindPlugin},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbUpdate},
+					},
+				}},
+			},
+			ErrAssertion: require.True,
+		},
+		{
+			Name: "deny if user can read secrets, but not update",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{
+					{
+						Resources: []string{types.KindPlugin},
+						Verbs:     []string{types.VerbRead},
+					},
+				}},
+			},
+			ErrAssertion: require.True,
+		},
+		{
+			Name: "allow if user can read secrets, and update",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{
+					{
+						Resources: []string{types.KindPlugin},
+						Verbs:     []string{types.VerbRead, types.VerbUpdate},
+					},
+				}},
+			},
+			ErrAssertion: require.False,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.Name, func(t *testing.T) {
+			role, err := CreateRole(ctx, srv.Auth(), "test-role", tc.Role)
+			require.Nil(t, err)
+
+			user, err := CreateUser(srv.Auth(), "test-user", role)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			err = client.SetPluginCredentials(ctx, pluginName, &types.PluginCredentialsV1{
+				Credentials: &types.PluginCredentialsV1_Oauth2AccessToken{
+					Oauth2AccessToken: &types.PluginOAuth2AccessTokenCredentials{
+						AccessToken:  "foo",
+						RefreshToken: "bar",
+						Expires:      srv.Clock().Now().Add(1 * time.Minute),
+					},
+				},
+			})
+			tc.ErrAssertion(t, err != nil, err)
+			tc.ErrAssertion(t, trace.IsAccessDenied(err), err)
+		})
+	}
+}
+
 func createPlugin(t *testing.T, srv *TestTLSServer, name string) {
 	plugin := &types.PluginV1{
 		Metadata: types.Metadata{
