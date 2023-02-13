@@ -17,7 +17,7 @@ A brief description of this task can be found in [Cloud's RFD 53](https://github
 
 #### Goals
 
-- Track more information about each Teleport agent.
+- Track more information about each Teleport agent (such as OS, OS version, architecture, installation methods, container runtime and others)
 
 #### Non-goals
 
@@ -129,7 +129,7 @@ This will give us either `linux` or `darwin`.
 
 ##### 4. OS version
 
-- `linux`: Inspect `/etc/os-release` and combine the values associated with `"NAME="` and `"VERSION_ID="` (e.g. "Ubuntu 22.04"). If this file does not exist (unlikely, as it seems widely supported), we can fallback to `/etc/lsb-release` and combine the values associated with `"DISTRIB_ID="` and `"DISTRIB_RELEASE="` (which is what `gopsutil` is doing ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/host/host_linux.go#L128-L314))). Following this approach is more reliable than using `/usr/bin/lsb_release` directly as it is not always available (e.g. `docker run -ti ubuntu:22.04 lsb_release` fails).
+- `linux`: We'll inspect `/etc/os-release` and combine the values associated with `"NAME="` and `"VERSION_ID="` (e.g. "Ubuntu 22.04"). If this file does not exist (unlikely, as it seems widely supported), we can fallback to `/etc/lsb-release` and combine the values associated with `"DISTRIB_ID="` and `"DISTRIB_RELEASE="` (which is what `gopsutil` is doing ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/host/host_linux.go#L128-L314))). Following this approach is more reliable than using `/usr/bin/lsb_release` directly as it is not always available (e.g. `docker run -ti ubuntu:22.04 lsb_release` fails).
 - `darwin`: `$(sw_vers -productName) $(sw_vers -productVersion)` (e.g. "macOS 13.2"). This is what `gopsutil` is doing ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/host/host_darwin.go#L94-L120)).
 
 ##### 5. Host architecture
