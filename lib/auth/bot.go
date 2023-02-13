@@ -302,7 +302,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 		JoinMethod: types.JoinMethodToken,
 		BotName:    botName,
 	}
-	token, err := types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(ttl), tokenSpec)
+	token, err := types.NewProvisionTokenFromSpec(tokenName, s.clock.Now().Add(ttl), tokenSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

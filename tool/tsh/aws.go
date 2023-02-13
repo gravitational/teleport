@@ -412,14 +412,14 @@ func pickActiveAWSApp(cf *CLIConf) (*awsApp, error) {
 		return nil, trace.Wrap(err)
 	}
 	if len(profile.Apps) == 0 {
-		return nil, trace.NotFound("Please login to AWS app using 'tsh app login' first")
+		return nil, trace.NotFound("Please login to AWS app using 'tsh apps login' first")
 	}
 	name := cf.AppName
 	if name != "" {
 		app, err := findApp(profile.Apps, name)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return nil, trace.NotFound("Please login to AWS app using 'tsh app login' first")
+				return nil, trace.NotFound("Please login to AWS app using 'tsh apps login' first")
 			}
 			return nil, trace.Wrap(err)
 		}
@@ -433,7 +433,7 @@ func pickActiveAWSApp(cf *CLIConf) (*awsApp, error) {
 
 	awsApps := getAWSAppsName(profile.Apps)
 	if len(awsApps) == 0 {
-		return nil, trace.NotFound("Please login to AWS App using 'tsh app login' first")
+		return nil, trace.NotFound("Please login to AWS App using 'tsh apps login' first")
 	}
 	if len(awsApps) > 1 {
 		names := strings.Join(awsApps, ", ")

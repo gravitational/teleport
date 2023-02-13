@@ -20,6 +20,9 @@ GOPATH ?= $(shell go env GOPATH)
 # This directory will be the real path of the directory of the first Makefile in the list.
 MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
+# libbpf version required by the build.
+LIBBPF_VER := 0.7.0-teleport
+
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
@@ -77,7 +80,7 @@ BPF_MESSAGE := without-BPF-support
 with_bpf := no
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","amd64")
-ifneq ("$(wildcard /usr/include/bpf/libbpf.h)","")
+ifneq ("$(wildcard /usr/include/bpf/libbpf.h /usr/libbpf-${LIBBPF_VER}/include/bpf/bpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
 BPF_MESSAGE := with-BPF-support
@@ -99,7 +102,7 @@ RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
 CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
 	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
 
-STATIC_LIBS += -lbpf -lelf -lz
+STATIC_LIBS += -L/usr/libbpf-${LIBBPF_VER}/lib64/ -lbpf -lelf -lz
 endif
 endif
 endif
@@ -237,7 +240,7 @@ IS_NATIVE_BUILD ?= $(if $(filter $(ARCH), $(shell go env GOARCH)),"yes","no")
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","amd64")
 # Link static version of libraries required by Teleport (bpf, pcsc) to reduce system dependencies. Avoid dependencies on dynamic libraries if we already link the static version using --as-needed.
-CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
+CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS="-I/usr/libbpf-${LIBBPF_VER}/include" CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
 CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"
 else ifeq ("$(ARCH)","arm")
 # ARM builds need to specify the correct C compiler
@@ -270,12 +273,9 @@ endif
 CGOFLAG_TSH ?= $(CGOFLAG)
 
 #
-# 'make all' builds all 3 executables and places them in the current directory.
+# 'make all' builds all 4 executables and places them in the current directory.
 #
-# IMPORTANT:
-# Unless called with the `WEBASSETS_TAG` env variable set to "webassets_embed"
-# the binaries will not contain the web UI assets and `teleport` won't start
-# without setting the environment variable DEBUG=1.
+# NOTE: Works the same as `make`. Left for legacy reasons.
 .PHONY: all
 all: version
 	@echo "---> Building OSS binaries."
@@ -299,7 +299,7 @@ $(BUILDDIR)/tctl:
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 # NOTE: Any changes to the `tsh` build here must be copied to `windows.go` in Dronegen until
 # 		we can use this Makefile for native Windows builds.
@@ -324,12 +324,12 @@ $(RS_BPF_BUILDDIR):
 
 # Build BPF code
 $(ER_BPF_BUILDDIR)/%.bpf.o: bpf/enhancedrecording/%.bpf.c $(wildcard bpf/*.h) | $(ER_BPF_BUILDDIR)
-	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) -I/usr/libbpf-${LIBBPF_VER}/include $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@ # strip useless DWARF info
 
 # Build BPF code
 $(RS_BPF_BUILDDIR)/%.bpf.o: bpf/restrictedsession/%.bpf.c $(wildcard bpf/*.h) | $(RS_BPF_BUILDDIR)
-	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) -I/usr/libbpf-${LIBBPF_VER}/include $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@ # strip useless DWARF info
 
 .PHONY: bpf-rs-bytecode
@@ -372,7 +372,7 @@ endif
 .PHONY:full
 full: ensure-webassets
 ifneq ("$(OS)", "windows")
-	$(MAKE) all WEBASSETS_TAG="webassets_embed"
+	$(MAKE) all
 endif
 
 #
@@ -1185,7 +1185,7 @@ init-submodules-e:
 #
 #    Usage:
 #    - tsh login --proxy=platform.teleport.sh
-#    - tsh app login drone
+#    - tsh apps login drone
 #    - set $DRONE_TOKEN and $DRONE_SERVER (http://localhost:8080)
 #    - tsh proxy app --port=8080 drone
 #    - make dronegen

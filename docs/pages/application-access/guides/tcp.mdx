@@ -109,7 +109,7 @@ Log into your Teleport cluster and view available applications:
 
 ```code
 $ tsh login --proxy=teleport.example.com
-$ tsh app ls
+$ tsh apps ls
 Application Description   Type Public Address                   Labels
 ----------- ------------- ---- -------------------------------- -----------
 tcp-app                   TCP  tcp-app.root.gravitational.io
@@ -120,7 +120,7 @@ Your TCP application should show up and be denoted with a `TCP` type.
 Now log into the application:
 
 ```code
-$ tsh app login tcp-app
+$ tsh apps login tcp-app
 Logged into TCP app tcp-app. Start the local TCP proxy for it:
 
   tsh proxy app tcp-app

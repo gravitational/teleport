@@ -28,6 +28,12 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+const (
+	// tcpSessionType is the session_type in tp.session.start for TCP
+	// Application Access
+	tcpSessionType = "app_tcp"
+)
+
 // UsageLogger is a trivial audit log sink that forwards an anonymized subset of
 // audit log events to Teleport.
 type UsageLogger struct {
@@ -66,6 +72,7 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 			UserName:      e.User,
 			ConnectorType: e.Method,
 		}))
+
 	case *apievents.SessionStart:
 		// Note: session.start is only SSH and Kubernetes.
 		sessionType := types.SSHSessionKind
@@ -83,15 +90,20 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 			SessionType: string(types.DatabaseSessionKind),
 		}))
 	case *apievents.AppSessionStart:
+		sessionType := string(types.AppSessionKind)
+		if types.IsAppTCP(e.AppURI) {
+			sessionType = tcpSessionType
+		}
 		return trace.Wrap(u.report(&services.UsageSessionStart{
 			UserName:    e.User,
-			SessionType: string(types.AppSessionKind),
+			SessionType: sessionType,
 		}))
 	case *apievents.WindowsDesktopSessionStart:
 		return trace.Wrap(u.report(&services.UsageSessionStart{
 			UserName:    e.User,
 			SessionType: string(types.WindowsDesktopSessionKind),
 		}))
+
 	case *apievents.GithubConnectorCreate:
 		return trace.Wrap(u.report(&services.UsageSSOCreate{
 			ConnectorType: types.KindGithubConnector,
@@ -103,6 +115,12 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 	case *apievents.SAMLConnectorCreate:
 		return trace.Wrap(u.report(&services.UsageSSOCreate{
 			ConnectorType: types.KindSAMLConnector,
+		}))
+
+	case *apievents.RoleCreate:
+		return trace.Wrap(u.report(&services.UsageRoleCreate{
+			UserName: e.User,
+			RoleName: e.ResourceMetadata.Name,
 		}))
 	}
 

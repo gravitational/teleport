@@ -489,14 +489,14 @@ func pickActiveGCPApp(cf *CLIConf) (*gcpApp, error) {
 		return nil, trace.Wrap(err)
 	}
 	if len(profile.Apps) == 0 {
-		return nil, trace.NotFound("Please login to a GCP App using 'tsh app login' first")
+		return nil, trace.NotFound("Please login to a GCP App using 'tsh apps login' first")
 	}
 	name := cf.AppName
 	if name != "" {
 		app, err := findApp(profile.Apps, name)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return nil, trace.NotFound("Please login to a GCP App using 'tsh app login' first")
+				return nil, trace.NotFound("Please login to a GCP App using 'tsh apps login' first")
 			}
 			return nil, trace.Wrap(err)
 		}
@@ -509,7 +509,7 @@ func pickActiveGCPApp(cf *CLIConf) (*gcpApp, error) {
 	}
 	gcpApps := getGCPApps(profile.Apps)
 	if len(gcpApps) == 0 {
-		return nil, trace.NotFound("Please login to a GCP App using 'tsh app login' first")
+		return nil, trace.NotFound("Please login to a GCP App using 'tsh apps login' first")
 	}
 	if len(gcpApps) > 1 {
 		var names []string

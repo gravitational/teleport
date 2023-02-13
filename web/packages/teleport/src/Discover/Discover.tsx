@@ -68,7 +68,6 @@ function DiscoverContent() {
           selectedResource={selectedResource}
           views={views}
         />
-
         {content}
       </FeatureBox>
 

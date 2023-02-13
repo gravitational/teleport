@@ -48,6 +48,9 @@ func LockTargetsFromTLSIdentity(id tlsca.Identity) []types.LockTarget {
 	if id.MFAVerified != "" {
 		lockTargets = append(lockTargets, types.LockTarget{MFADevice: id.MFAVerified})
 	}
+	if id.DeviceExtensions.DeviceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{Device: id.DeviceExtensions.DeviceID})
+	}
 	lockTargets = append(lockTargets, AccessRequestsToLockTargets(id.ActiveRequests)...)
 	return lockTargets
 }

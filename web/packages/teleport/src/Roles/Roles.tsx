@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 
-import { Indicator, Flex, Box, ButtonPrimary, Text, Alert, Link } from 'design';
+import { Alert, Box, ButtonPrimary, Flex, Indicator, Link, Text } from 'design';
 
 import {
   FeatureBox,
@@ -26,10 +26,12 @@ import {
 import ResourceEditor from 'teleport/components/ResourceEditor';
 import useResources from 'teleport/components/useResources';
 import useTeleport from 'teleport/useTeleport';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import RoleList from './RoleList';
 import DeleteRole from './DeleteRole';
 import useRoles, { State } from './useRoles';
+
 import templates from './templates';
 
 export default function Container() {
@@ -50,15 +52,19 @@ export function Roles(props: State) {
     return save(name, content, isNew);
   }
 
+  const handleCreate = () => {
+    resources.create('role');
+
+    userEventService.captureUserEvent({
+      event: CaptureEvent.CreateNewRoleClickEvent,
+    });
+  };
+
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle>Roles</FeatureHeaderTitle>
-        <ButtonPrimary
-          ml="auto"
-          width="240px"
-          onClick={() => resources.create('role')}
-        >
+        <ButtonPrimary ml="auto" width="240px" onClick={handleCreate}>
           CREATE NEW ROLE
         </ButtonPrimary>
       </FeatureHeader>
@@ -115,6 +121,7 @@ export function Roles(props: State) {
           onSave={handleSave}
           onClose={resources.disregard}
           directions={<Directions />}
+          kind={resources.item.kind}
         />
       )}
       {resources.status === 'removing' && (

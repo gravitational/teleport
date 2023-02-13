@@ -578,94 +578,126 @@ func TestUserLock(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTokensCRUD(t *testing.T) {
-	t.Parallel()
-	s := newAuthSuite(t)
-
-	ctx := context.Background()
-
-	// before we do anything, we should have 0 tokens
-	btokens, err := s.a.GetTokens(ctx)
-	require.NoError(t, err)
-	require.Empty(t, btokens, 0)
-
-	// generate persistent token
-	tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{types.RoleNode},
-	})
-	require.NoError(t, err)
-	require.Len(t, tokenName, 2*TokenLenBytes)
-	tokens, err := s.a.GetTokens(ctx)
-	require.NoError(t, err)
-	require.Len(t, tokens, 1)
-	require.Equal(t, tokens[0].GetName(), tokenName)
-
-	tokenResource, err := s.a.ValidateToken(ctx, tokenName)
-	require.NoError(t, err)
-	roles := tokenResource.GetRoles()
-	require.True(t, roles.Include(types.RoleNode))
-	require.False(t, roles.Include(types.RoleProxy))
-
-	// generate persistent token with defined TTL
-	desiredTTL := 6 * time.Hour
-	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{types.RoleNode},
-		TTL:   proto.Duration(desiredTTL),
-	})
-	require.NoError(t, err)
-	token, err := s.a.GetToken(ctx, tokenName)
-	require.NoError(t, err)
+func requireTokenExpiry(t *testing.T, token types.ProvisionToken, expectExpiry time.Duration) {
+	t.Helper()
 	actualTTL := time.Until(token.Expiry())
-	diff := actualTTL - desiredTTL
+	diff := actualTTL - expectExpiry
 	require.True(
 		t,
 		diff <= time.Minute && diff >= (-1*time.Minute),
 		"Token TTL should be within one minute of the desired TTL",
 	)
+}
 
-	require.NoError(t, s.a.DeleteToken(ctx, tokenName))
+func TestTokensCRUD(t *testing.T) {
+	// TODO(noah): completely refactor this test suite when deprecating
+	// GenerateToken - break this down into separate tests per method rather
+	// than grouping all CRUD methods.
+	t.Parallel()
+	s := newAuthSuite(t)
+	ctx := context.Background()
 
-	// generate predefined token
-	customToken := "custom-token"
-	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{types.RoleNode},
-		Token: customToken,
+	t.Run("GetTokens: start", func(t *testing.T) {
+		// before we do anything, we should have 0 tokens
+		tokens, err := s.a.GetTokens(ctx)
+		require.NoError(t, err)
+		require.Empty(t, tokens, 0)
 	})
-	require.NoError(t, err)
-	require.Equal(t, tokenName, customToken)
 
-	tokenResource, err = s.a.ValidateToken(ctx, tokenName)
-	require.NoError(t, err)
-	roles = tokenResource.GetRoles()
-	require.True(t, roles.Include(types.RoleNode))
-	require.False(t, roles.Include(types.RoleProxy))
+	t.Run("GenerateToken: default TTL", func(t *testing.T) {
+		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+			Roles: types.SystemRoles{types.RoleNode},
+		})
+		require.NoError(t, err)
+		require.Len(t, tokenName, 2*TokenLenBytes)
 
-	err = s.a.DeleteToken(ctx, customToken)
-	require.NoError(t, err)
+		// Ensure GetTokens returns token
+		tokens, err := s.a.GetTokens(ctx)
+		require.NoError(t, err)
+		require.Len(t, tokens, 1)
+		require.Equal(t, tokens[0].GetName(), tokenName)
 
-	// lets use static tokens now
-	roles = types.SystemRoles{types.RoleProxy}
-	st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: []types.ProvisionTokenV1{{
-			Token:   "static-token-value",
-			Roles:   roles,
-			Expires: time.Unix(0, 0).UTC(),
-		}},
+		tokenResource, err := s.a.ValidateToken(ctx, tokenName)
+		require.NoError(t, err)
+		roles := tokenResource.GetRoles()
+		require.True(t, roles.Include(types.RoleNode))
+		require.False(t, roles.Include(types.RoleProxy))
+		// Check that GenerateToken applies a default TTL
+		requireTokenExpiry(t, tokenResource, defaults.ProvisioningTokenTTL)
 	})
-	require.NoError(t, err)
 
-	err = s.a.SetStaticTokens(st)
-	require.NoError(t, err)
+	t.Run("GenerateToken: defined TTL", func(t *testing.T) {
+		// generate persistent token with defined TTL
+		desiredTTL := 6 * time.Hour
+		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+			Roles: types.SystemRoles{types.RoleNode},
+			TTL:   proto.Duration(desiredTTL),
+		})
+		require.NoError(t, err)
+		token, err := s.a.GetToken(ctx, tokenName)
+		require.NoError(t, err)
+		requireTokenExpiry(t, token, desiredTTL)
+		require.NoError(t, s.a.DeleteToken(ctx, tokenName))
+	})
 
-	tokenResource, err = s.a.ValidateToken(ctx, "static-token-value")
-	require.NoError(t, err)
-	fetchesRoles := tokenResource.GetRoles()
-	require.Equal(t, fetchesRoles, roles)
+	t.Run("GenerateToken: defined token name", func(t *testing.T) {
+		customToken := "custom-token"
+		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+			Roles: types.SystemRoles{types.RoleNode},
+			Token: customToken,
+		})
+		require.NoError(t, err)
+		require.Equal(t, tokenName, customToken)
+		token, err := s.a.ValidateToken(ctx, tokenName)
+		require.NoError(t, err)
+		roles := token.GetRoles()
+		require.True(t, roles.Include(types.RoleNode))
+		require.False(t, roles.Include(types.RoleProxy))
+		err = s.a.DeleteToken(ctx, customToken)
+		require.NoError(t, err)
+	})
 
-	// List tokens (should see 2: one static, one regular)
-	tokens, err = s.a.GetTokens(ctx)
-	require.NoError(t, err)
-	require.Len(t, tokens, 2)
+	t.Run("CreateToken: expiryless", func(t *testing.T) {
+		tokenName := "expiryless-token"
+		token, err := types.NewProvisionToken(
+			tokenName,
+			types.SystemRoles{types.RoleNode},
+			time.Time{},
+		)
+		require.NoError(t, err)
+		require.NoError(t, s.a.CreateToken(ctx, token))
+		token, err = s.a.GetToken(ctx, tokenName)
+		require.NoError(t, err)
+		require.True(t, token.GetRoles().Include(types.RoleNode))
+		require.True(t, token.Expiry().IsZero())
+		require.NoError(t, s.a.DeleteToken(ctx, tokenName))
+	})
+
+	t.Run("SetStaticTokens", func(t *testing.T) {
+		// lets use static tokens now
+		roles := types.SystemRoles{types.RoleProxy}
+		st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+			StaticTokens: []types.ProvisionTokenV1{{
+				Token:   "static-token-value",
+				Roles:   roles,
+				Expires: time.Unix(0, 0).UTC(),
+			}},
+		})
+		require.NoError(t, err)
+		err = s.a.SetStaticTokens(st)
+		require.NoError(t, err)
+		token, err := s.a.ValidateToken(ctx, "static-token-value")
+		require.NoError(t, err)
+		fetchesRoles := token.GetRoles()
+		require.Equal(t, fetchesRoles, roles)
+	})
+
+	t.Run("GetTokens: start", func(t *testing.T) {
+		// List tokens not deleted in tests (should see 2: one static, one regular)
+		tokens, err := s.a.GetTokens(ctx)
+		require.NoError(t, err)
+		require.Len(t, tokens, 2)
+	})
 }
 
 func TestBadTokens(t *testing.T) {
@@ -1105,8 +1137,13 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	const username = "llama"
 	const pass = "secret!!1!"
 
+	// Use a >1 list of principals.
+	// This is enough to cause ordering issues between the TLS and SSH principal
+	// lists, which caused a bug in the device trust preview.
+	principals := []string{"login0", username, "-teleport-internal-join"}
+
 	// Prepare the user to test with.
-	_, _, err := CreateUserAndRole(authServer, username, []string{username})
+	_, _, err := CreateUserAndRole(authServer, username, principals)
 	require.NoError(t, err, "CreateUserAndRole failed")
 	require.NoError(t,
 		authServer.UpsertPassword(username, []byte(pass)),
@@ -1296,7 +1333,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	// Authenticate.
 	// user1 covers most of the tests.
 	// user2 is mainly used to test mismatched certificates against user1.
-	// user3 is used to test locking.
+	// user3 is used to test user locks.
 	_, sshRaw1, xCert1, sshCert1, identity1 := authenticate(t, user1.GetName(), pass1)
 	_, sshRaw2, xCert2, _, _ := authenticate(t, user2.GetName(), pass2)
 	_, _, xCert3, _, identity3 := authenticate(t, user3.GetName(), pass3)
@@ -1582,7 +1619,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 		{
 			name:     "locked user",
 			x509Cert: xCert3,
-			identity: identity3, // user3 is locked!
+			identity: identity3, // user3 locked below.
 			createAuthCtx: func(ctx context.Context) (*Context, error) {
 				// Authorize user3...
 				authCtx, err := ctxFromAuthorize(ctx)
@@ -1602,7 +1639,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 				// ...and lock them right after.
 				user3Lock, err := types.NewLock("user3-lock", types.LockSpecV2{
 					Target:  lockTarget,
-					Message: "locked for testing",
+					Message: "user locked",
 				})
 				if err != nil {
 					return nil, err
@@ -1611,10 +1648,48 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 					return nil, err
 				}
 
-				<-watcher.Events() // Wait for the lock to go through.
+				// Wait for the lock to propagate.
+				<-watcher.Events()
 				return authCtx, nil
 			},
-			wantErr: "locked for testing",
+			wantErr: "user locked",
+		},
+		{
+			name:     "locked device",
+			x509Cert: xCert1,
+			identity: identity1, // device locked below.
+			createOpts: func(t *testing.T) *AugmentUserCertificateOpts {
+				opts := &AugmentUserCertificateOpts{
+					DeviceExtensions: &DeviceExtensions{
+						DeviceID:     "bad-device-1",
+						AssetTag:     "bad-device-tag",
+						CredentialID: "bad-device-credential",
+					},
+				}
+
+				// Create a target matching the device device.
+				lockTarget := types.LockTarget{
+					Device: opts.DeviceExtensions.DeviceID,
+				}
+				watcher, err := authServer.lockWatcher.Subscribe(ctx, lockTarget)
+				require.NoError(t, err, "Subscribe failed")
+				defer watcher.Close()
+
+				// Lock the device before returning opts.
+				lock, err := types.NewLock("bad-device-lock", types.LockSpecV2{
+					Target:  lockTarget,
+					Message: "device locked",
+				})
+				require.NoError(t, err, "NewLock failed")
+				require.NoError(t,
+					authServer.UpsertLock(ctx, lock),
+					"NewLock failed")
+
+				// Wait for the lock to propagate.
+				<-watcher.Events()
+				return opts
+			},
+			wantErr: "device locked",
 		},
 	}
 	for _, test := range tests {
@@ -1822,8 +1897,9 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	accessInfo := services.AccessInfoFromUser(user)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
-	mfaID := "test-mfa-id"
-	requestID := "test-access-request"
+	const mfaID = "test-mfa-id"
+	const requestID = "test-access-request"
+	const deviceID = "deviceid1"
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
@@ -1833,12 +1909,22 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 		mfaVerified:    mfaID,
 		publicKey:      pub,
 		activeRequests: services.RequestIDs{AccessRequests: []string{requestID}},
+		deviceExtensions: DeviceExtensions{
+			DeviceID:     deviceID,
+			AssetTag:     "assettag1",
+			CredentialID: "credentialid1",
+		},
 	}
 	_, err = p.a.generateUserCert(certReq)
 	require.NoError(t, err)
 
 	testTargets := append(
-		[]types.LockTarget{{User: user.GetName()}, {MFADevice: mfaID}, {AccessRequest: requestID}},
+		[]types.LockTarget{
+			{User: user.GetName()},
+			{MFADevice: mfaID},
+			{AccessRequest: requestID},
+			{Device: deviceID},
+		},
 		services.RolesToLockTargets(user.GetRoles())...,
 	)
 	for _, target := range testTargets {

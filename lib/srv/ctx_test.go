@@ -23,6 +23,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -218,4 +219,66 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestComputeLockTargets(t *testing.T) {
+	t.Run("all locks", func(t *testing.T) {
+		const clusterName = "mycluster"
+		const serverID = "myserver"
+		const mfaDevice = "my-mfa-device-1"
+		const trustedDevice = "my-trusted-device-1"
+		mappedRoles := []string{"access", "editor"}
+		unmappedRoles := []string{"unmapped-role-1", "unmapped-role-2", "access"}
+		accessRequests := []string{"access-request-1", "access-request-2"}
+
+		identityCtx := IdentityContext{
+			TeleportUser: "llama",
+			Impersonator: "alpaca",
+			Login:        "camel",
+			Certificate: &ssh.Certificate{
+				Permissions: ssh.Permissions{
+					Extensions: map[string]string{
+						teleport.CertExtensionMFAVerified: mfaDevice,
+						teleport.CertExtensionDeviceID:    trustedDevice,
+					},
+				},
+			},
+			AccessChecker: &fixedRolesChecker{
+				roleNames: mappedRoles,
+			},
+			UnmappedRoles:  unmappedRoles,
+			ActiveRequests: accessRequests,
+		}
+
+		got := ComputeLockTargets(clusterName, serverID, identityCtx)
+		want := []types.LockTarget{
+			{User: identityCtx.TeleportUser},
+			{Login: identityCtx.Login},
+			{Node: serverID},
+			{Node: serverID + "." + clusterName},
+			{MFADevice: mfaDevice},
+			{Device: trustedDevice},
+		}
+		for _, role := range mappedRoles {
+			want = append(want, types.LockTarget{Role: role})
+		}
+		for _, role := range unmappedRoles[:len(unmappedRoles)-1] /* skip duplicate role */ {
+			want = append(want, types.LockTarget{Role: role})
+		}
+		for _, request := range accessRequests {
+			want = append(want, types.LockTarget{AccessRequest: request})
+		}
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("ComputeLockTargets mismatch (-want +got)\n%s", diff)
+		}
+	})
+}
+
+type fixedRolesChecker struct {
+	services.AccessChecker
+	roleNames []string
+}
+
+func (c *fixedRolesChecker) RoleNames() []string {
+	return c.roleNames
 }
