@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Constants for each ingress service.
@@ -105,7 +105,7 @@ func HTTPConnStateReporter(service string, r *Reporter) func(net.Conn, http.Conn
 
 // NewReporter constructs a new ingress reporter.
 func NewReporter(alpnAddr string) (*Reporter, error) {
-	err := metrics.RegisterPrometheusCollectors(
+	err := utils.RegisterPrometheusCollectors(
 		acceptedConnections,
 		activeConnections,
 		authenticatedConnectionsAccepted,
