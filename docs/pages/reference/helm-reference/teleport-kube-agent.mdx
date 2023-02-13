@@ -22,7 +22,7 @@ The `teleport-kube-agent` chart can run any or all of three Teleport services:
 
 | Teleport service                                             | Name for `roles` and `tctl tokens add` | Purpose                                                                                |
 |--------------------------------------------------------------|----------------------------------------|----------------------------------------------------------------------------------------|
-| [`kubernetes_service`](../../kubernetes-access/guides.mdx)   | `kube`                                 | Uses Teleport to handle authentication<br/> with and proxy access to a Kubernetes cluster   |
+| [`kubernetes_service`](../../kubernetes-access/introduction.mdx)   | `kube`                                 | Uses Teleport to handle authentication<br/> with and proxy access to a Kubernetes cluster   |
 | [`application_service`](../../application-access/guides.mdx) | `app`                                  | Uses Teleport to handle authentication<br/> with and proxy access to web-based applications |
 | [`database_service`](../../database-access/guides.mdx)       | `db`                                   | Uses Teleport to handle authentication<br/> with and proxy access to databases              |
 
@@ -472,7 +472,7 @@ You can specify multiple database filters by adding additional list elements.
 </Admonition>
 
 <Admonition type="note" title="Azure IAM">
-  For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../database-access/guides/azure-postgres-mysql.mdx#step-35-configure-iam-permissions-for-teleport).
+  For Azure database auto-discovery to work, your Database Service pods will need to have appropriate IAM permissions as per the [database documentation](../../database-access/guides/azure-postgres-mysql.mdx#step-46-configure-iam-permissions-for-teleport).
 
   After configuring a service principal with appropriate IAM permissions, you must pass credentials to the pods.
   The easiest way is to use an Azure client secret.
