@@ -36,6 +36,8 @@ INTERACTIVE=false
 # the default value of each variable is a templatable Go value so that it can
 # optionally be replaced by the server before the script is served up
 TELEPORT_VERSION='{{.version}}'
+TELEPORT_PACKAGE_NAME='{{.packageName}}'
+REPO_CHANNEL='{{.repoChannel}}'
 TARGET_HOSTNAME='{{.hostname}}'
 TARGET_PORT='{{.port}}'
 JOIN_TOKEN='{{.token}}'
@@ -758,87 +760,174 @@ if teleport_binaries_exist; then
     fi
 fi
 
-# select correct URL/installation method based on distro
-if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
-    URL="https://get.gravitational.com/{{.packageName}}-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
+install_from_file(){
+    # select correct URL/installation method based on distro
+    if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
+        URL="https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
 
-    # check that needed tools are installed
-    check_exists_fatal curl tar
-    # download tarball
-    log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
-    DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
-    download "${URL}" "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
-    # extract tarball
-    tar -xzf "${TEMP_DIR}/${DOWNLOAD_FILENAME}" -C "${TEMP_DIR}"
-    # install binaries to /usr/local/bin
-    for BINARY in ${TELEPORT_BINARY_LIST}; do
-        ${COPY_COMMAND} "${TELEPORT_ARCHIVE_PATH}/${BINARY}" "${TELEPORT_BINARY_DIR}/"
-    done
-elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
-    # convert teleport arch to deb arch
-    if [[ ${TELEPORT_ARCH} == "amd64" ]]; then
-        DEB_ARCH="amd64"
-    elif [[ ${TELEPORT_ARCH} == "386" ]]; then
-        DEB_ARCH="i386"
-    elif [[ ${TELEPORT_ARCH} == "arm" ]]; then
-        DEB_ARCH="arm"
-    elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
-        DEB_ARCH="arm64"
-    fi
-    URL="https://get.gravitational.com/{{.packageName}}_${TELEPORT_VERSION}_${DEB_ARCH}.deb"
-    check_deb_not_already_installed
-    # check that needed tools are installed
-    check_exists_fatal curl dpkg
-    # download deb and register cleanup operation
-    log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
-    DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
-    download "${URL}" "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
-    # install deb
-    log "Using dpkg to install ${TEMP_DIR}/${DOWNLOAD_FILENAME}"
-    dpkg -i "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
-elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
-    # convert teleport arch to rpm arch
-    if [[ ${TELEPORT_ARCH} == "amd64" ]]; then
-        RPM_ARCH="x86_64"
-    elif [[ ${TELEPORT_ARCH} == "386" ]]; then
-        RPM_ARCH="i386"
-    elif [[ ${TELEPORT_ARCH} == "arm" ]]; then
-        RPM_ARCH="arm"
-    elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
-        RPM_ARCH="arm64"
-    fi
-    URL="https://get.gravitational.com/{{.packageName}}-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
-    check_rpm_not_already_installed
-    # check for package managers
-    if check_exists dnf; then
-        log "Found 'dnf' package manager, using it"
-        PACKAGE_MANAGER_COMMAND="dnf -y install"
-    elif check_exists yum; then
-        log "Found 'yum' package manager, using it"
-        PACKAGE_MANAGER_COMMAND="yum -y localinstall"
+        # check that needed tools are installed
+        check_exists_fatal curl tar
+        # download tarball
+        log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
+        DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
+        download "${URL}" "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+        # extract tarball
+        tar -xzf "${TEMP_DIR}/${DOWNLOAD_FILENAME}" -C "${TEMP_DIR}"
+        # install binaries to /usr/local/bin
+        for BINARY in ${TELEPORT_BINARY_LIST}; do
+            ${COPY_COMMAND} "${TELEPORT_ARCHIVE_PATH}/${BINARY}" "${TELEPORT_BINARY_DIR}/"
+        done
+    elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
+        # convert teleport arch to deb arch
+        if [[ ${TELEPORT_ARCH} == "amd64" ]]; then
+            DEB_ARCH="amd64"
+        elif [[ ${TELEPORT_ARCH} == "386" ]]; then
+            DEB_ARCH="i386"
+        elif [[ ${TELEPORT_ARCH} == "arm" ]]; then
+            DEB_ARCH="arm"
+        elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
+            DEB_ARCH="arm64"
+        fi
+        URL="https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}_${DEB_ARCH}.deb"
+        check_deb_not_already_installed
+        # check that needed tools are installed
+        check_exists_fatal curl dpkg
+        # download deb and register cleanup operation
+        log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
+        DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
+        download "${URL}" "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+        # install deb
+        log "Using dpkg to install ${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+        dpkg -i "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+    elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
+        # convert teleport arch to rpm arch
+        if [[ ${TELEPORT_ARCH} == "amd64" ]]; then
+            RPM_ARCH="x86_64"
+        elif [[ ${TELEPORT_ARCH} == "386" ]]; then
+            RPM_ARCH="i386"
+        elif [[ ${TELEPORT_ARCH} == "arm" ]]; then
+            RPM_ARCH="arm"
+        elif [[ ${TELEPORT_ARCH} == "arm64" ]]; then
+            RPM_ARCH="arm64"
+        fi
+        URL="https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
+        check_rpm_not_already_installed
+        # check for package managers
+        if check_exists dnf; then
+            log "Found 'dnf' package manager, using it"
+            PACKAGE_MANAGER_COMMAND="dnf -y install"
+        elif check_exists yum; then
+            log "Found 'yum' package manager, using it"
+            PACKAGE_MANAGER_COMMAND="yum -y localinstall"
+        else
+            PACKAGE_MANAGER_COMMAND=""
+            log "Cannot find 'yum' or 'dnf' package manager commands, will try installing the rpm manually instead"
+        fi
+        # check that needed tools are installed
+        check_exists_fatal curl
+        log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
+        DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
+        download "${URL}" "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+        # install with package manager if available
+        if [[ ${PACKAGE_MANAGER_COMMAND} != "" ]]; then
+            log "Installing Teleport release from ${TEMP_DIR}/${DOWNLOAD_FILENAME} using ${PACKAGE_MANAGER_COMMAND}"
+            # install rpm with package manager
+            ${PACKAGE_MANAGER_COMMAND} "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+        # use rpm if we couldn't find a package manager
+        else
+            # install RPM (in upgrade mode)
+            log "Using rpm to install ${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+            rpm -Uvh "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+        fi
     else
-        PACKAGE_MANAGER_COMMAND=""
-        log "Cannot find 'yum' or 'dnf' package manager commands, will try installing the rpm manually instead"
+        log_important "Can't figure out what Teleport format to use"
+        exit 1
     fi
-    # check that needed tools are installed
-    check_exists_fatal curl
-    log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
-    DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
-    download "${URL}" "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
-    # install with package manager if available
-    if [[ ${PACKAGE_MANAGER_COMMAND} != "" ]]; then
-        log "Installing Teleport release from ${TEMP_DIR}/${DOWNLOAD_FILENAME} using ${PACKAGE_MANAGER_COMMAND}"
-        # install rpm with package manager
-        ${PACKAGE_MANAGER_COMMAND} "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
-    # use rpm if we couldn't find a package manager
+}
+
+install_from_repo(){
+    if [[ "${REPO_CHANNEL}" == "" ]]; then
+        # By default, use the current version's channel.
+        REPO_CHANNEL=v"${TELEPORT_VERSION//.*/}"
+    fi
+    # shellcheck disable=SC1091
+    . /etc/os-release
+
+    if [ "$ID" == "debian" ] || [ "$ID" == "ubuntu" ]; then
+        # old versions of ubuntu require that keys get added by `apt-key add`, without
+        # adding the key apt shows a key signing error when installing teleport.
+        if [[
+            ($ID == "ubuntu" && $VERSION_ID == "16.04") || \
+            ($ID == "debian" && $VERSION_ID == "9" )
+        ]]; then
+            sudo apt install apt-transport-https gnupg -y
+            curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
+            echo "deb https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} stable/${REPO_CHANNEL}" | sudo tee /etc/apt/sources.list.d/teleport.list
+        else
+            sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
+                -o /usr/share/keyrings/teleport-archive-keyring.asc
+            echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+            https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} stable/${REPO_CHANNEL}" | \
+            sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
+        fi
+        sudo apt-get update
+        sudo apt-get install -y ${TELEPORT_PACKAGE_NAME}
+    elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ] || [ "$ID" = "centos" ] ; then
+        if [ "$ID" = "rhel" ]; then
+            VERSION_ID="${VERSION_ID//.*/}" # convert version numbers like '7.2' to only include the major version
+        fi
+        sudo yum install -y yum-utils
+        sudo yum-config-manager --add-repo \
+        "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/${REPO_CHANNEL}/teleport.repo")"
+        sudo yum install -y ${TELEPORT_PACKAGE_NAME}
     else
-        # install RPM (in upgrade mode)
-        log "Using rpm to install ${TEMP_DIR}/${DOWNLOAD_FILENAME}"
-        rpm -Uvh "${TEMP_DIR}/${DOWNLOAD_FILENAME}"
+        echo "Unsupported distro: $ID"
+        exit 1
     fi
+}
+
+is_repo_available(){
+    if [[ "${OSTYPE}" != "linux-gnu" ]]; then
+        return 1
+    fi
+
+    # shellcheck disable=SC1091
+    . /etc/os-release
+
+    # Only the following distros are supported:
+    if [[ ! "$ID" =~ ^(ubuntu|debian|amzn|rhel|centos)$ ]]; then
+        return 1
+    fi
+
+    # Teleport's deb repo has the following Ubuntu Versions:
+    if [[ "$ID" == "ubuntu" && ! "$VERSION_ID" =~ ^(16\.04|18\.04|20\.04|22\.04) ]]; then
+        return 1
+    fi
+
+    # Teleport's deb repo has the following Debian Versions:
+    if [[ "$ID" == "debian" && ! "$VERSION_ID" =~ ^(9|10|11) ]]; then
+        return 1
+    fi
+
+    # Teleport's yum repo has the following RHEL/CentOS Versions:
+    if [[ ("$ID" == "rhel" || "$ID" == "centos") && ! "$VERSION_ID" =~ ^(7|8|9) ]]; then
+        return 1
+    fi
+
+    # Teleport's yum repo has the following Amazon Linux version:
+    if [[ "$ID" == "amzn" && "$VERSION_ID" != "2" ]]; then
+        return 1
+    fi
+
+    return 0
+}
+
+if is_repo_available; then
+    log "Installing repo for distro $ID."
+    install_from_repo
 else
-    log_important "Can't figure out what Teleport format to use"
-    exit 1
+    log "Installing from binary file."
+    install_from_file
 fi
 
 # check that teleport binary can be found and runs
