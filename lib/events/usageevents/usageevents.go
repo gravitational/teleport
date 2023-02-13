@@ -30,9 +30,6 @@ import (
 )
 
 const (
-	// awsConsoleSessionType is the session_type in tp.session.start for the AWS
-	// console access redirect
-	awsConsoleSessionType = "app_aws"
 	// tcpSessionType is the session_type in tp.session.start for TCP
 	// Application Access
 	tcpSessionType = "app_tcp"
@@ -95,9 +92,7 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 		}))
 	case *apievents.AppSessionStart:
 		sessionType := string(types.AppSessionKind)
-		if e.AWSRoleARN != "" {
-			sessionType = awsConsoleSessionType
-		} else if strings.HasPrefix(e.AppURI, "tcp:") {
+		if strings.HasPrefix(e.AppURI, "tcp:") {
 			sessionType = tcpSessionType
 		}
 		return trace.Wrap(u.report(&services.UsageSessionStart{
