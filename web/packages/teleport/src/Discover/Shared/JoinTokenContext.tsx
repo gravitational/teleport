@@ -74,17 +74,17 @@ export function JoinTokenProvider(props: {
   );
 }
 
-interface PromiseResult {
+interface SuspendResult {
   promise?: Promise<any>;
   response?: JoinToken;
   error?: Error;
 }
 
 let abortController: AbortController;
-let cachedJoinTokenResult: PromiseResult;
+let joinTokenCache = new Map<ResourceKind, SuspendResult>();
 
-export function clearCachedJoinTokenResult() {
-  cachedJoinTokenResult = null;
+export function clearCachedJoinTokenResult(resourceKind: ResourceKind) {
+  joinTokenCache.delete(resourceKind);
 }
 
 export function useJoinTokenValue() {
@@ -106,10 +106,14 @@ export function useJoinToken(
   const ctx = useTeleport();
   const tokenContext = useContext(joinTokenContext);
 
+  const [, rerender] = useState(0);
+
   function run() {
     abortController = new AbortController();
 
-    cachedJoinTokenResult = {
+    const result: SuspendResult = {
+      response: null,
+      error: null,
       promise: ctx.joinTokenService
         .fetchJoinToken(
           [resourceKindToJoinRole(resourceKind)],
@@ -125,27 +129,27 @@ export function useJoinToken(
               'internal resource ID is required to discover the newly added resource, but none was provided'
             );
           }
-          cachedJoinTokenResult.response = token;
+          result.response = token;
           tokenContext.setJoinToken(token);
           tokenContext.startTimer();
         })
         .catch(error => {
-          cachedJoinTokenResult.error = error;
+          result.error = error;
         }),
     };
 
-    return cachedJoinTokenResult;
+    joinTokenCache.set(resourceKind, result);
+
+    return result;
   }
 
   useEffect(() => {
     return () => {
       abortController?.abort();
-
-      // result will be stored in memory which can refer to
-      // previously used or expired join tokens.
-      clearCachedJoinTokenResult();
     };
   }, []);
+
+  const existing = joinTokenCache.get(resourceKind);
 
   if (!runNow)
     return {
@@ -155,21 +159,28 @@ export function useJoinToken(
       timeout: 0,
     };
 
-  if (cachedJoinTokenResult) {
-    if (cachedJoinTokenResult.error) {
-      throw cachedJoinTokenResult.error;
+  if (existing) {
+    if (existing.error) {
+      throw existing.error;
     }
 
-    if (cachedJoinTokenResult.response) {
+    if (existing.response) {
       return {
-        joinToken: cachedJoinTokenResult.response,
-        reloadJoinToken: run,
+        joinToken: existing.response,
+        reloadJoinToken() {
+          // Delete the cached token and force a rerender
+          // so that this hook runs again and creates a new one.
+
+          joinTokenCache.delete(resourceKind);
+
+          rerender(c => c + 1);
+        },
         timedOut: tokenContext.timedOut,
         timeout: tokenContext.timeout,
       };
     }
 
-    throw cachedJoinTokenResult.promise;
+    throw existing.promise;
   }
 
   throw run().promise;
