@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestMatchAll(t *testing.T) {
@@ -54,12 +53,11 @@ func TestMatchHealthy(t *testing.T) {
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
-			identity := &tlsca.Identity{RouteToApp: tlsca.RouteToApp{ClusterName: ""}}
 			match := MatchHealthy(&mockProxyClient{
 				remoteSite: &mockRemoteSite{
 					dialErr: test.dialErr,
 				},
-			}, identity)
+			}, "")
 
 			app, err := types.NewAppV3(
 				types.Metadata{
