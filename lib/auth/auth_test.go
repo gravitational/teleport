@@ -1301,7 +1301,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	// Authenticate.
 	// user1 covers most of the tests.
 	// user2 is mainly used to test mismatched certificates against user1.
-	// user3 is used to test locking.
+	// user3 is used to test user locks.
 	_, sshRaw1, xCert1, sshCert1, identity1 := authenticate(t, user1.GetName(), pass1)
 	_, sshRaw2, xCert2, _, _ := authenticate(t, user2.GetName(), pass2)
 	_, _, xCert3, _, identity3 := authenticate(t, user3.GetName(), pass3)
@@ -1587,7 +1587,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 		{
 			name:     "locked user",
 			x509Cert: xCert3,
-			identity: identity3, // user3 is locked!
+			identity: identity3, // user3 locked below.
 			createAuthCtx: func(ctx context.Context) (*Context, error) {
 				// Authorize user3...
 				authCtx, err := ctxFromAuthorize(ctx)
@@ -1607,7 +1607,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 				// ...and lock them right after.
 				user3Lock, err := types.NewLock("user3-lock", types.LockSpecV2{
 					Target:  lockTarget,
-					Message: "locked for testing",
+					Message: "user locked",
 				})
 				if err != nil {
 					return nil, err
@@ -1616,10 +1616,48 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 					return nil, err
 				}
 
-				<-watcher.Events() // Wait for the lock to go through.
+				// Wait for the lock to propagate.
+				<-watcher.Events()
 				return authCtx, nil
 			},
-			wantErr: "locked for testing",
+			wantErr: "user locked",
+		},
+		{
+			name:     "locked device",
+			x509Cert: xCert1,
+			identity: identity1, // device locked below.
+			createOpts: func(t *testing.T) *AugmentUserCertificateOpts {
+				opts := &AugmentUserCertificateOpts{
+					DeviceExtensions: &DeviceExtensions{
+						DeviceID:     "bad-device-1",
+						AssetTag:     "bad-device-tag",
+						CredentialID: "bad-device-credential",
+					},
+				}
+
+				// Create a target matching the device device.
+				lockTarget := types.LockTarget{
+					Device: opts.DeviceExtensions.DeviceID,
+				}
+				watcher, err := authServer.lockWatcher.Subscribe(ctx, lockTarget)
+				require.NoError(t, err, "Subscribe failed")
+				defer watcher.Close()
+
+				// Lock the device before returning opts.
+				lock, err := types.NewLock("bad-device-lock", types.LockSpecV2{
+					Target:  lockTarget,
+					Message: "device locked",
+				})
+				require.NoError(t, err, "NewLock failed")
+				require.NoError(t,
+					authServer.UpsertLock(ctx, lock),
+					"NewLock failed")
+
+				// Wait for the lock to propagate.
+				<-watcher.Events()
+				return opts
+			},
+			wantErr: "device locked",
 		},
 	}
 	for _, test := range tests {
@@ -1827,8 +1865,9 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	accessInfo := services.AccessInfoFromUser(user)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
-	mfaID := "test-mfa-id"
-	requestID := "test-access-request"
+	const mfaID = "test-mfa-id"
+	const requestID = "test-access-request"
+	const deviceID = "deviceid1"
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
@@ -1838,12 +1877,22 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 		mfaVerified:    mfaID,
 		publicKey:      pub,
 		activeRequests: services.RequestIDs{AccessRequests: []string{requestID}},
+		deviceExtensions: DeviceExtensions{
+			DeviceID:     deviceID,
+			AssetTag:     "assettag1",
+			CredentialID: "credentialid1",
+		},
 	}
 	_, err = p.a.generateUserCert(certReq)
 	require.NoError(t, err)
 
 	testTargets := append(
-		[]types.LockTarget{{User: user.GetName()}, {MFADevice: mfaID}, {AccessRequest: requestID}},
+		[]types.LockTarget{
+			{User: user.GetName()},
+			{MFADevice: mfaID},
+			{AccessRequest: requestID},
+			{Device: deviceID},
+		},
 		services.RolesToLockTargets(user.GetRoles())...,
 	)
 	for _, target := range testTargets {
