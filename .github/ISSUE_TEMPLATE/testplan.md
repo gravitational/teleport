@@ -297,6 +297,7 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
     * [ ] Azure AD
     * [ ] Azure RBAC
   * [ ] Verify that AWS EKS clusters are discovered and enrolled
+  * [ ] Verify that GCP GKE clusters are discovered and enrolled
 * [ ] Verify dynamic registration.
   * [ ] Can register a new Kubernetes cluster using `tctl create`.
   * [ ] Can update registered Kubernetes cluster using `tctl create -f`.
@@ -310,6 +311,22 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
       * [ ] Restart the agent after token TTL expires to see if it reuses the same identity.
     * [ ] Force cluster CA rotation
 
+### Kubernetes Pod RBAC
+
+* [ ] Verify the following scenarios for `kubernetes_resources`:
+    * [ ] `{"kind":"pod","name":"*","namespace":"*"}` - must allow access to every pod.
+    * [ ] `{"kind":"pod","name":"<somename>","namespace":"*"}` - must allow access to pod `<somename>` in every namespace.
+    * [ ] `{"kind":"pod","name":"*","namespace":"<somenamespace>"}` - must allow access to any pod in `<somenamespace>` namespace.
+    * [ ] Verify support for  `*` wildcards - `<some-name>-*` and regex for `name` and `namespace` fields.
+    * [ ] Verify support for delete pods collection - must use `go-client`.
+* [ ] Verify scenarios with multiple roles defining `kubernetes_resources`:
+    * [ ] Validate that the returned list of pods is the union of every role.
+    * [ ] Validate that access to other pods is denied by RBAC.
+    * [ ] Validate that the Kubernetes Groups/Users are correctly selected depending on the role that applies to the pod.
+        * [ ] Test with a `kubernetes_groups` that denies exec into a pod
+* [ ] Verify the following scenarios for Resource Access Requests to Pods:
+    * [ ] Create a valid resource access request and validate if access to other pods is denied.
+    * [ ] Validate if creating a resource access request with Kubernetes resources denied by `search_as_roles` is not allowed.
 
 ### Teleport with FIPS mode
 
@@ -571,6 +588,9 @@ tsh ssh node-that-requires-device-trust
     (mode="off"), then changing the cluster configuration to mode="required" and
     attempting to access a process directly, without a login attempt.
 
+  - [ ] Role-based authz enforces enrolled devices
+        (device_trust.mode="off" or "optional",
+        role.spec.options.device_trust_mode="required")
   - [ ] Device authorization works correctly for both require_session_mfa=false
         and require_session_mfa=true
 
@@ -580,12 +600,21 @@ tsh ssh node-that-requires-device-trust
   - [ ] Device authorization applies to Database access (all items above)
   - [ ] Device authorization applies to Kubernetes access (all items above)
 
+  - [ ] Device authorization __does not__ apply to App access
+        (both cluster-wide and role)
+  - [ ] Device authorization __does not__ apply to Windows Desktop access
+        (both cluster-wide and role)
+
 - [ ] Device audit (see [lib/events/codes.go][device_event_codes])
   - [ ] Inventory management actions issue events (success only)
   - [ ] Device enrollment issues device event (any outcomes)
   - [ ] Device authorization issues device event (any outcomes)
   - [ ] Events with [UserMetadata][event_trusted_device] contain TrustedDevice
         data (for certificates with device extensions)
+
+- [ ] Binary support
+  - [ ] Non-signed and/or non-notarized `tsh` for macOS gives a sane error
+        message for `tsh device enroll` attempts.
 
 [device_event_codes]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/lib/events/codes.go#L389-L400
 [event_trusted_device]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/api/proto/teleport/legacy/types/events/events.proto#L88-L90
@@ -635,12 +664,12 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
 
 ## Moderated session
 
-Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator). 
- - [ ] `Ctrl+C` in the #1 terminal should disconnect the moderator. 
+Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
+ - [ ] `Ctrl+C` in the #1 terminal should disconnect the moderator.
  - [ ] `Ctrl+C` in the #2 terminal should disconnect the moderator and terminate the session as session has no moderator.
 
 Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
-- [ ] `t` in any terminal should terminate the session for all participants. 
+- [ ] `t` in any terminal should terminate the session for all participants.
 
 ## Performance
 
@@ -740,14 +769,16 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] `tsh play <chunk-id>` can fetch and print a session chunk archive.
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
-- [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh app login`.
+- [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh apps login`.
 - [ ] Verify [AWS console access](https://goteleport.com/docs/application-access/cloud-apis/aws-console/).
   - [ ] Can log into AWS web console through the web UI.
-  - [ ] Can interact with AWS using `tsh aws` commands.
-- [ ] Verify [Azure CLI access](https://goteleport.com/docs/application-access/cloud-apis/azure/) with `tsh app login`.
+  - [ ] Can interact with AWS using `tsh` commands.
+    - [ ] `tsh aws`
+    - [ ] `tsh aws --endpoint-url` (this is a hidden flag)
+- [ ] Verify [Azure CLI access](https://goteleport.com/docs/application-access/cloud-apis/azure/) with `tsh apps login`.
   - [ ] Can interact with Azure using `tsh az` commands.
   - [ ] Can interact with Azure using a combination of `tsh proxy az` and `az` commands.
-- [ ] Verify [GCP CLI access](https://goteleport.com/docs/application-access/cloud-apis/google-cloud/) with `tsh app login`.
+- [ ] Verify [GCP CLI access](https://goteleport.com/docs/application-access/cloud-apis/google-cloud/) with `tsh apps login`.
   - [ ] Can interact with GCP using `tsh gcloud` commands.
   - [ ] Can interact with Google Cloud Storage using `tsh gsutil` commands.
   - [ ] Can interact with GCP/GCS using a combination of `tsh proxy gcloud` and `gcloud`/`gsutil` commands.
@@ -859,14 +890,30 @@ tsh bench sessions --max=5000 --web user ls
 
 ## TLS Routing
 
-- [ ] Verify that teleport proxy `v2` configuration starts only a single listener.
+- [ ] Verify that teleport proxy `v2` configuration starts only a single listener for proxy service, in contrast with `v1` configuration.
+  Given configuration:
   ```
   version: v2
-  teleport:
-    proxy_service:
-      enabled: "yes"
-      public_addr: ['root.example.com']
-      web_listen_addr: 0.0.0.0:3080
+  proxy_service:
+    enabled: "yes"
+    public_addr: ['root.example.com']
+    web_listen_addr: 0.0.0.0:3080
+  ```
+  There should be total of three listeners, with only `*:3080` for proxy service. Given the configuration above, 3022 and 3025 will be opened for other services.
+  ```
+  lsof -i -P | grep teleport | grep LISTEN
+    teleport  ...  TCP *:3022 (LISTEN)
+    teleport  ...  TCP *:3025 (LISTEN)
+    teleport  ...  TCP *:3080 (LISTEN) # <-- proxy service
+  ```
+  In contrast for the same configuration with version `v1`, there should be additional ports 3023 and 3024.
+  ```
+  lsof -i -P | grep teleport | grep LISTEN
+    teleport  ...  TCP *:3022 (LISTEN)
+    teleport  ...  TCP *:3025 (LISTEN)
+    teleport  ...  TCP *:3023 (LISTEN) # <-- extra proxy service port
+    teleport  ...  TCP *:3024 (LISTEN) # <-- extra proxy service port
+    teleport  ...  TCP *:3080 (LISTEN) # <-- proxy service
   ```
 - [ ] Run Teleport Proxy in `multiplex` mode `auth_service.proxy_listener_mode: "multiplex"`
   - [ ] Trusted cluster
@@ -1106,7 +1153,7 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] New SSH session in a child cluster on the previous major version
   - [ ] New SSH session from a parent cluster
   - [ ] Application access through a browser
-  - [ ] Application access through curl with `tsh app login`
+  - [ ] Application access through curl with `tsh apps login`
   - [ ] `kubectl get po` after `tsh kube login`
   - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)
 

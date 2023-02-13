@@ -1,6 +1,24 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { useState } from 'react';
 
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
+
+import { staticConfig } from 'teleterm/staticConfig';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -12,10 +30,6 @@ export function useShareFeedback() {
   const ctx = useAppContext();
   ctx.workspacesService.useState();
   ctx.clustersService.useState();
-
-  const feedbackUrl = ctx.mainProcessClient.getRuntimeSettings().dev
-    ? 'https://kcwm2is93l.execute-api.us-west-2.amazonaws.com/prod'
-    : 'https://usage.teleport.dev';
 
   const [isShareFeedbackOpened, setIsShareFeedbackOpened] = useState(false);
 
@@ -40,7 +54,7 @@ export function useShareFeedback() {
     formData.set('newsletter-opt-in', formValues.newsletterEnabled ? 'y' : 'n');
     formData.set('sales-opt-in', formValues.salesContactEnabled ? 'y' : 'n');
 
-    const response = await fetch(feedbackUrl, {
+    const response = await fetch(staticConfig.feedbackAddress, {
       method: 'POST',
       body: formData,
     });

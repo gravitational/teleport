@@ -17,6 +17,9 @@ DOCKER_IMAGE ?= teleport
 
 GOPATH ?= $(shell go env GOPATH)
 
+# This directory will be the real path of the directory of the first Makefile in the list.
+MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
+
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
@@ -26,6 +29,7 @@ BINDIR ?= /usr/local/bin
 DATADIR ?= /usr/local/share/teleport
 ADDFLAGS ?=
 PWD ?= `pwd`
+GIT ?= git
 TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 CGOFLAG ?= CGO_ENABLED=1
@@ -266,12 +270,9 @@ endif
 CGOFLAG_TSH ?= $(CGOFLAG)
 
 #
-# 'make all' builds all 3 executables and places them in the current directory.
+# 'make all' builds all 4 executables and places them in the current directory.
 #
-# IMPORTANT:
-# Unless called with the `WEBASSETS_TAG` env variable set to "webassets_embed"
-# the binaries will not contain the web UI assets and `teleport` won't start
-# without setting the environment variable DEBUG=1.
+# NOTE: Works the same as `make`. Left for legacy reasons.
 .PHONY: all
 all: version
 	@echo "---> Building OSS binaries."
@@ -295,7 +296,7 @@ $(BUILDDIR)/tctl:
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 # NOTE: Any changes to the `tsh` build here must be copied to `windows.go` in Dronegen until
 # 		we can use this Makefile for native Windows builds.
@@ -368,7 +369,7 @@ endif
 .PHONY:full
 full: ensure-webassets
 ifneq ("$(OS)", "windows")
-	$(MAKE) all WEBASSETS_TAG="webassets_embed"
+	$(MAKE) all
 endif
 
 #
@@ -887,15 +888,14 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'api/version.go' \
 		-ignore 'docs/pages/includes/**/*.go' \
 		-ignore 'e/**' \
+		-ignore 'gen/**' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
-		-ignore 'lib/teleterm/api/protogen/**' \
-		-ignore 'lib/prehog/gen/**' \
-		-ignore 'lib/prehog/gen-js/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
-		-ignore 'web/**' \
+		-ignore '**/node_modules/**' \
+		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
 		-ignore 'ignoreme'
 
 .PHONY: lint-license
@@ -1041,6 +1041,28 @@ grpc:
 grpc/host: protos/all
 	@build.assets/genproto.sh
 
+# protos-up-to-date checks if the generated GRPC stubs are up to date.
+# This target runs in the buildbox container.
+.PHONY: protos-up-to-date
+protos-up-to-date:
+	$(MAKE) -C build.assets protos-up-to-date
+
+# protos-up-to-date/host checks if the generated GRPC stubs are up to date.
+# Unlike protos-up-to-date, this target runs locally.
+.PHONY: protos-up-to-date/host
+protos-up-to-date/host: must-start-clean/host grpc/host
+	@if ! $(GIT) diff --quiet; then \
+		echo 'Please run make grpc.'; \
+		exit 1; \
+	fi
+
+.PHONY: must-start-clean/host
+must-start-clean/host:
+	@if ! $(GIT) diff --quiet; then \
+		echo 'This must be run from a repo with no unstaged commits.'; \
+		exit 1; \
+	fi
+
 print/env:
 	env
 
@@ -1049,7 +1071,8 @@ goinstall:
 	go install $(BUILDFLAGS) \
 		github.com/gravitational/teleport/tool/tsh \
 		github.com/gravitational/teleport/tool/teleport \
-		github.com/gravitational/teleport/tool/tctl
+		github.com/gravitational/teleport/tool/tctl \
+		github.com/gravitational/teleport/tool/tbot
 
 # make install will installs system-wide teleport
 .PHONY: install
@@ -1057,6 +1080,7 @@ install: build
 	@echo "\n** Make sure to run 'make install' as root! **\n"
 	cp -f $(BUILDDIR)/tctl      $(BINDIR)/
 	cp -f $(BUILDDIR)/tsh       $(BINDIR)/
+	cp -f $(BUILDDIR)/tbot      $(BINDIR)/
 	cp -f $(BUILDDIR)/teleport  $(BINDIR)/
 	mkdir -p $(DATADIR)
 
@@ -1143,15 +1167,11 @@ test-compat:
 
 .PHONY: ensure-webassets
 ensure-webassets:
-	@if [ ! -d $(shell pwd)/webassets/teleport/ ]; then \
-		$(MAKE) build-ui; \
-	fi;
+	@MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" OSS webassets/oss-sha build-ui web
 
 .PHONY: ensure-webassets-e
 ensure-webassets-e:
-	@if [ ! -d $(shell pwd)/webassets/e/teleport ]; then \
-		$(MAKE) build-ui-e; \
-	fi;
+	@MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web
 
 .PHONY: init-submodules-e
 init-submodules-e:
@@ -1162,7 +1182,7 @@ init-submodules-e:
 #
 #    Usage:
 #    - tsh login --proxy=platform.teleport.sh
-#    - tsh app login drone
+#    - tsh apps login drone
 #    - set $DRONE_TOKEN and $DRONE_SERVER (http://localhost:8080)
 #    - tsh proxy app --port=8080 drone
 #    - make dronegen

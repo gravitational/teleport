@@ -236,6 +236,11 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateHostUser:          types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
+						IDP: &types.IdPOptions{
+							SAML: &types.IdPSAMLOptions{
+								Enabled: types.NewBoolOption(true),
+							},
+						},
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{},
@@ -282,6 +287,11 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateHostUser:          types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
+						IDP: &types.IdPOptions{
+							SAML: &types.IdPSAMLOptions{
+								Enabled: types.NewBoolOption(true),
+							},
+						},
 					},
 					Allow: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
@@ -367,6 +377,11 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateHostUser:          types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(false),
+						IDP: &types.IdPOptions{
+							SAML: &types.IdPSAMLOptions{
+								Enabled: types.NewBoolOption(true),
+							},
+						},
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -467,6 +482,11 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateHostUser:          types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
+						IDP: &types.IdPOptions{
+							SAML: &types.IdPSAMLOptions{
+								Enabled: types.NewBoolOption(true),
+							},
+						},
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}},
@@ -554,6 +574,11 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateHostUser:          types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
+						IDP: &types.IdPOptions{
+							SAML: &types.IdPSAMLOptions{
+								Enabled: types.NewBoolOption(true),
+							},
+						},
 					},
 					Allow: types.RoleConditions{
 						KubernetesResources: []types.KubernetesResource{
@@ -3142,7 +3167,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
 				err := tc.roles.checkAccess(access.server, tc.state,
-					&DatabaseUserMatcher{User: access.dbUser},
+					NewDatabaseUserMatcher(access.server, access.dbUser),
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
 					require.NoError(t, err)
@@ -3196,6 +3221,32 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 			},
 		},
 	}
+
+	dbRequireAWSRoles, err := types.NewDatabaseV3(types.Metadata{
+		Name: "dynamodb",
+	}, types.DatabaseSpecV3{
+		Protocol: "dynamodb",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			Region:    "us-east-1",
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, dbRequireAWSRoles.RequireAWSIAMRolesAsUsers())
+	roleWithAWSRoles := &types.RoleV6{
+		Metadata: types.Metadata{Name: "aws-roles", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseUsers: []string{
+					"allow-role-with-short-name",
+					"arn:aws:iam::123456789012:role/allow-role-with-full-arn",
+				},
+			},
+		},
+	}
+
 	type access struct {
 		server types.Database
 		dbUser string
@@ -3223,11 +3274,25 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 				{server: dbProd, dbUser: "dev", access: true},
 			},
 		},
+		{
+			name:  "database types require AWS roles as database users",
+			roles: RoleSet{roleWithAWSRoles},
+			access: []access{
+				{server: dbRequireAWSRoles, dbUser: "allow-role-with-short-name", access: true},
+				{server: dbRequireAWSRoles, dbUser: "allow-role-with-full-arn", access: true},
+				{server: dbRequireAWSRoles, dbUser: "arn:aws:iam::123456789012:role/allow-role-with-full-arn", access: true},
+				{server: dbRequireAWSRoles, dbUser: "arn:aws:iam::123456789012:role/allow-role-with-short-name", access: true},
+				{server: dbRequireAWSRoles, dbUser: "unknown-role-name", access: false},
+				{server: dbRequireAWSRoles, dbUser: "arn:aws:iam::123456789012:role/unknown-role-name", access: false},
+				{server: dbRequireAWSRoles, dbUser: "arn:aws:iam::123456789012:user/username", access: false},
+				{server: dbRequireAWSRoles, dbUser: "arn:aws-cn:iam::123456789012:role/allow-role-with-short-name", access: false},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.checkAccess(access.server, AccessState{}, &DatabaseUserMatcher{User: access.dbUser})
+				err := tc.roles.checkAccess(access.server, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
 				if access.access {
 					require.NoError(t, err)
 				} else {

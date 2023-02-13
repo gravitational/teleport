@@ -186,7 +186,7 @@ func ValidateDatabase(db types.Database) error {
 			return trace.BadParameter("missing keytab file path for database %q", db.GetName())
 		}
 		if db.GetAD().Krb5File == "" {
-			return trace.BadParameter("missing keytab file path for database %q", db.GetName())
+			return trace.BadParameter("missing Kerberos config file path for database %q", db.GetName())
 		}
 		if db.GetAD().Domain == "" {
 			return trace.BadParameter("missing Active Directory domain for database %q", db.GetName())

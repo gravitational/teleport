@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -30,27 +29,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 )
-
-func TestCreateNodeJoinToken(t *testing.T) {
-	t.Parallel()
-	m := &mockedNodeAPIGetter{}
-	m.mockGenerateToken = func(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-		return "some-token-id", nil
-	}
-
-	token, err := createJoinToken(context.Background(), m, types.SystemRoles{
-		types.RoleNode,
-		types.RoleApp,
-	})
-	require.NoError(t, err)
-
-	require.Equal(t, defaults.NodeJoinTokenTTL, token.Expiry.Sub(time.Now().UTC()).Round(time.Second))
-	require.Equal(t, "some-token-id", token.ID)
-}
 
 func TestGenerateIAMTokenName(t *testing.T) {
 	t.Parallel()
@@ -88,6 +69,40 @@ func TestGenerateIAMTokenName(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotEqual(t, hash1, hash2)
+}
+
+func TestGenerateAzureTokenName(t *testing.T) {
+	t.Parallel()
+	rule1 := types.ProvisionTokenSpecV2Azure_Rule{
+		Subscription: "abcd1234",
+	}
+	rule2 := types.ProvisionTokenSpecV2Azure_Rule{
+		Subscription: "efgh5678",
+	}
+
+	t.Run("hash algorithm hasn't changed", func(t *testing.T) {
+		rule1Name := "teleport-ui-azure-2091772181"
+		hash1, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule1})
+		require.NoError(t, err)
+		require.Equal(t, rule1Name, hash1)
+	})
+
+	t.Run("order doesn't matter", func(t *testing.T) {
+		hash1, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule1, &rule2})
+		require.NoError(t, err)
+		hash2, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule2, &rule1})
+		require.NoError(t, err)
+		require.Equal(t, hash1, hash2)
+	})
+
+	t.Run("different hashes for different rules", func(t *testing.T) {
+		hash1, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule1})
+		require.NoError(t, err)
+		hash2, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule2})
+		require.NoError(t, err)
+		require.NotEqual(t, hash1, hash2)
+	})
+
 }
 
 func TestSortRules(t *testing.T) {
@@ -280,6 +295,49 @@ func TestSortRules(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			sortRules(tc.rules)
+			require.Equal(t, tc.expected, tc.rules)
+		})
+	}
+}
+
+func TestSortAzureRules(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		rules    []*types.ProvisionTokenSpecV2Azure_Rule
+		expected []*types.ProvisionTokenSpecV2Azure_Rule
+	}{
+		{
+			name: "unordered",
+			rules: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "200000000000"},
+				{Subscription: "300000000000"},
+				{Subscription: "100000000000"},
+			},
+			expected: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "100000000000"},
+				{Subscription: "200000000000"},
+				{Subscription: "300000000000"},
+			},
+		},
+		{
+			name: "already ordered",
+			rules: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "100000000000"},
+				{Subscription: "200000000000"},
+				{Subscription: "300000000000"},
+			},
+			expected: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "100000000000"},
+				{Subscription: "200000000000"},
+				{Subscription: "300000000000"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sortAzureRules(tc.rules)
 			require.Equal(t, tc.expected, tc.rules)
 		})
 	}
@@ -842,7 +900,6 @@ func TestJoinScriptEnterprise(t *testing.T) {
 	matches := isTeleportOSSLinkRegex.FindAllString(script, -1)
 	require.ElementsMatch(t, matches, []string{
 		"https://get.gravitational.com/teleport-v${TELEPORT_VERSION}",
-		"https://get.gravitational.com/teleport-v${TELEPORT_VERSION}",
 		"https://get.gravitational.com/teleport_${TELEPORT_VERSION}",
 		"https://get.gravitational.com/teleport-${TELEPORT_VERSION}",
 	})
@@ -855,25 +912,83 @@ func TestJoinScriptEnterprise(t *testing.T) {
 	matches = isTeleportEntLinkRegex.FindAllString(script, -1)
 	require.ElementsMatch(t, matches, []string{
 		"https://get.gravitational.com/teleport-ent-v${TELEPORT_VERSION}",
-		"https://get.gravitational.com/teleport-ent-v${TELEPORT_VERSION}",
 		"https://get.gravitational.com/teleport-ent_${TELEPORT_VERSION}",
 		"https://get.gravitational.com/teleport-ent-${TELEPORT_VERSION}",
 	})
 }
 
+func TestIsSameAzureRuleSet(t *testing.T) {
+	tests := []struct {
+		name     string
+		r1       []*types.ProvisionTokenSpecV2Azure_Rule
+		r2       []*types.ProvisionTokenSpecV2Azure_Rule
+		expected bool
+	}{
+		{
+			name:     "empty slice",
+			expected: true,
+		},
+		{
+			name: "simple identical rules",
+			r1: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "123123123123",
+				},
+			},
+			r2: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "123123123123",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "different rules",
+			r1: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "123123123123",
+				},
+			},
+			r2: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "456456456456",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "same rules in different order",
+			r1: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "456456456456",
+				},
+				{
+					Subscription: "123123123123",
+				},
+			},
+			r2: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "123123123123",
+				},
+				{
+					Subscription: "456456456456",
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, isSameAzureRuleSet(tc.r1, tc.r2))
+		})
+	}
+}
+
 type mockedNodeAPIGetter struct {
-	mockGenerateToken    func(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 	mockGetProxyServers  func() ([]types.Server, error)
 	mockGetClusterCACert func(ctx context.Context) (*proto.GetClusterCACertResponse, error)
 	mockGetToken         func(ctx context.Context, token string) (types.ProvisionToken, error)
-}
-
-func (m *mockedNodeAPIGetter) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-	if m.mockGenerateToken != nil {
-		return m.mockGenerateToken(ctx, req)
-	}
-
-	return "", trace.NotImplemented("mockGenerateToken not implemented")
 }
 
 func (m *mockedNodeAPIGetter) GetProxies() ([]types.Server, error) {

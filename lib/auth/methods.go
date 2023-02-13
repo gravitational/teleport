@@ -329,7 +329,7 @@ func (s *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 	}
 
 	if req.Session != nil {
-		session, err := s.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+		session, err := s.GetWebSession(ctx, types.GetWebSessionRequest{
 			User:      username,
 			SessionID: req.Session.ID,
 		})
@@ -350,7 +350,7 @@ func (s *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.createUserWebSession(context.TODO(), user)
+	sess, err := s.createUserWebSession(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

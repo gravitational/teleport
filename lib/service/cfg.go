@@ -70,6 +70,16 @@ type Rate struct {
 	Time   time.Duration
 }
 
+// JoinParams is a set of extra parameters for joining the auth server.
+type JoinParams struct {
+	Azure AzureJoinParams
+}
+
+// AzureJoinParams is the parameters specific to the azure join method.
+type AzureJoinParams struct {
+	ClientID string
+}
+
 // Config structure is used to initialize _all_ services Teleport can run.
 // Some settings are global (like DataDir) while others are grouped into
 // sections, like AuthConfig
@@ -85,6 +95,9 @@ type Config struct {
 
 	// JoinMethod is the method the instance will use to join the auth server
 	JoinMethod types.JoinMethod
+
+	// JoinParams is a set of extra parameters for joining the auth server.
+	JoinParams JoinParams
 
 	// ProxyServer is the address of the proxy
 	ProxyServer utils.NetAddr
@@ -152,7 +165,7 @@ type Config struct {
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
 
-	// Presence service is a discovery and hearbeat tracker
+	// Presence service is a discovery and heartbeat tracker
 	Presence services.PresenceInternal
 
 	// Events is events service
@@ -504,6 +517,11 @@ type ProxyConfig struct {
 	// ACME is ACME protocol support config
 	ACME ACME
 
+	// IdP is the identity provider config
+	//
+	//nolint:revive // Because we want this to be IdP.
+	IdP IdP
+
 	// DisableALPNSNIListener allows turning off the ALPN Proxy listener. Used in tests.
 	DisableALPNSNIListener bool
 }
@@ -516,6 +534,22 @@ type ACME struct {
 	Email string
 	// URI is ACME server URI
 	URI string
+}
+
+// IdP configures identity providers.
+//
+//nolint:revive // Because we want this to be IdP.
+type IdP struct {
+	// SAMLIdP is configuration options for the SAML identity provider.
+	SAMLIdP SAMLIdP
+}
+
+// SAMLIdP configures SAML identity providers
+type SAMLIdP struct {
+	// Enabled enables or disables the identity provider.
+	Enabled bool
+	// BaseURL is the base URL for the identity provider.
+	BaseURL string
 }
 
 // KeyPairPath are paths to a key and certificate file.
@@ -1542,6 +1576,7 @@ func ApplyDefaults(cfg *Config) {
 	// Proxy service defaults.
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.Kube.Enabled = false
+	cfg.Proxy.IdP.SAMLIdP.Enabled = true
 
 	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
 
