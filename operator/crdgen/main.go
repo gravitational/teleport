@@ -69,30 +69,66 @@ func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
 	return nil
 }
 
+/*
+Fields that we are ignoring when creating a CRD
+Each entry represents the ignore fields using the resource name as the version
+
+One of the reasons to ignore fields those fields is because they are readonly in Teleport
+CRD do not support readonly logic
+This should be removed when the following feature is implemented
+https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#transition-rules
+*/
+var ignoredFields = map[string][]string{
+	"UserSpecV2": {
+		"LocalAuth",
+		"Expires",
+		"CreatedBy",
+		"Status",
+	},
+	"GithubConnectorSpecV3": {
+		"TeamsToLogins", // Deprecated field, removed since v11
+	},
+}
+
 func generateSchema(file *schemagen.File, groupName string, resp *gogoplugin.CodeGeneratorResponse) error {
 	generator := schemagen.NewSchemaGenerator(groupName)
 
-	if err := generator.ParseResource(file, "UserV2"); err != nil {
+	if err := generator.ParseResource(
+		file,
+		"UserV2",
+		schemagen.ParseResourceOptions{
+			IgnoredFields: ignoredFields["UserSpecV2"],
+		}); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Use RoleV6 spec but override the version to V5.
 	// This will generate crd based on RoleV6 but with resource version for v5.
-	if err := generator.ParseResource(file, "RoleV6", types.V5); err != nil {
+	if err := generator.ParseResource(
+		file,
+		"RoleV6",
+		schemagen.ParseResourceOptions{
+			VersionOverride: types.V5,
+		}); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := generator.ParseResource(file, "RoleV6"); err != nil {
+	if err := generator.ParseResource(file, "RoleV6", schemagen.ParseResourceOptions{}); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := generator.ParseResource(file, "SAMLConnectorV2"); err != nil {
+	if err := generator.ParseResource(file, "SAMLConnectorV2", schemagen.ParseResourceOptions{}); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := generator.ParseResource(file, "OIDCConnectorV3"); err != nil {
+	if err := generator.ParseResource(file, "OIDCConnectorV3", schemagen.ParseResourceOptions{}); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := generator.ParseResource(file, "GithubConnectorV3"); err != nil {
+	if err := generator.ParseResource(
+		file,
+		"GithubConnectorV3",
+		schemagen.ParseResourceOptions{
+			IgnoredFields: ignoredFields["GithubConnectorSpecV3"],
+		}); err != nil {
 		return trace.Wrap(err)
 	}
 

@@ -15,27 +15,6 @@ import (
 
 type stringSet map[string]struct{}
 
-/*
-Fields that we are ignoring when creating a CRD
-Each entry represents the ignore fields using the resource name as the version
-
-One of the reasons to ignore fields those fields is because they are readonly in Teleport
-CRD do not support readonly logic
-This should be removed when the following feature is implemented
-https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#transition-rules
-*/
-var ignoredFields = map[string]stringSet{
-	"UserSpecV2": stringSet{
-		"LocalAuth": struct{}{}, // struct{}{} is used to signify "no value".
-		"Expires":   struct{}{},
-		"CreatedBy": struct{}{},
-		"Status":    struct{}{},
-	},
-	"GithubConnectorSpecV3": {
-		"TeamsToLogins": struct{}{}, // Deprecated field, removed since v11
-	},
-}
-
 var regexpResourceName = regexp.MustCompile(`^([A-Za-z]+)(V[0-9]+)$`)
 
 func NewGenerator(req *gogoplugin.CodeGeneratorRequest) (*Forest, error) {
@@ -99,7 +78,19 @@ func NewSchema() *Schema {
 	}}
 }
 
-func (generator *SchemaGenerator) ParseResource(file *File, name string, overrideVersion ...string) error {
+// ParseResourceOptions configures the way a SchemaGenerator parses a specific
+// resource.
+type ParseResourceOptions struct {
+	// A version to assign to a resource instead of the version extracted from
+	// the resource's corresponding message
+	VersionOverride string
+
+	// Names of fields to ignore when parsing the resource's corresponding
+	// message
+	IgnoredFields []string
+}
+
+func (generator *SchemaGenerator) ParseResource(file *File, name string, opts ParseResourceOptions) error {
 	rootMsg, ok := file.messageByName[name]
 	if !ok {
 		return trace.NotFound("resource %q is not found", name)
@@ -115,7 +106,12 @@ func (generator *SchemaGenerator) ParseResource(file *File, name string, overrid
 		return trace.NotFound("message %q Spec type is not a message", name)
 	}
 
-	schema, err := generator.traverseInner(specMsg)
+	i := make(stringSet)
+	for _, f := range opts.IgnoredFields {
+		i[f] = struct{}{}
+	}
+
+	schema, err := generator.traverseInner(specMsg, i)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -124,8 +120,8 @@ func (generator *SchemaGenerator) ParseResource(file *File, name string, overrid
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(overrideVersion) > 0 {
-		resourceVersion = overrideVersion[0]
+	if opts.VersionOverride != "" {
+		resourceVersion = opts.VersionOverride
 	}
 	schema.Description = fmt.Sprintf("%s resource definition %s from Teleport", resourceKind, resourceVersion)
 
@@ -155,7 +151,7 @@ func parseKindAndVersion(message *Message) (string, string, error) {
 	return res[1], strings.ToLower(res[2]), nil
 }
 
-func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, error) {
+func (generator *SchemaGenerator) traverseInner(message *Message, ignoredFields stringSet) (*Schema, error) {
 	name := message.Name()
 	if schema, ok := generator.memo[name]; ok {
 		if !schema.built {
@@ -167,7 +163,7 @@ func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, erro
 	generator.memo[name] = schema
 
 	for _, field := range message.Fields {
-		if _, ok := ignoredFields[message.Name()][field.Name()]; ok {
+		if _, ok := ignoredFields[field.Name()]; ok {
 			continue
 		}
 
@@ -186,9 +182,9 @@ func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, erro
 			prop.Items = &apiextv1.JSONSchemaPropsOrArray{
 				Schema: &apiextv1.JSONSchemaProps{},
 			}
-			generator.singularProp(field, prop.Items.Schema)
+			generator.singularProp(field, prop.Items.Schema, ignoredFields)
 		} else {
-			generator.singularProp(field, &prop)
+			generator.singularProp(field, &prop, ignoredFields)
 		}
 
 		if field.IsNullable() && (prop.Type == "array" || prop.Type == "object") {
@@ -215,7 +211,7 @@ func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, erro
 	return schema, nil
 }
 
-func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSONSchemaProps) error {
+func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSONSchemaProps, ignoredFields stringSet) error {
 	switch {
 	case field.IsBool():
 		prop.Type = "boolean"
@@ -254,7 +250,7 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 		if inner == nil {
 			return trace.Errorf("failed to get type for %s.%s", field.Message().Name(), field.Name())
 		}
-		schema, err := generator.traverseInner(inner)
+		schema, err := generator.traverseInner(inner, ignoredFields)
 		if err != nil {
 			return trace.Wrap(err)
 		}
