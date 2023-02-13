@@ -1013,7 +1013,10 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 
 	ty, bytes, err := t.ws.ReadMessage()
 	if err != nil {
-		if err == io.EOF || websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
+		// if the connection has closed, we must return io.EOF in order to abort
+		// the websocket copy loop
+		if err == io.EOF || errors.Is(err, net.ErrClosed) ||
+			websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
 			return 0, io.EOF
 		}
 

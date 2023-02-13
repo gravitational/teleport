@@ -474,16 +474,30 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 		s.log.Warnf("Failed to teardown IAM for %v: %v.", database, err)
 	}
 	// Stop heartbeat, labels, etc.
-	if err := s.stopProxyingDatabase(ctx, database); err != nil {
+	if err := s.stopProxyingAndDeleteDatabase(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+
 }
 
 // stopProxyingDatabase winds down the proxied database instance by stopping
 // its heartbeat and dynamic labels and unregistering it from the list of
 // proxied databases.
 func (s *Server) stopProxyingDatabase(ctx context.Context, database types.Database) error {
+	// Stop heartbeat and dynamic labels updates.
+	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
+		return trace.Wrap(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.proxiedDatabases, database.GetName())
+	return nil
+}
+
+// stopProxyingAndDeleteDatabase stops and deletes the database, then
+// unregisters it from the list of proxied databases.
+func (s *Server) stopProxyingAndDeleteDatabase(ctx context.Context, database types.Database) error {
 	// Stop heartbeat and dynamic labels updates.
 	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
 		return trace.Wrap(err)
@@ -615,6 +629,11 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	// Start cloud users that will be monitoring cloud users.
 	go s.cfg.CloudUsers.Start(ctx, s.getProxiedDatabases)
 
+	// Start heartbeating the Database Service itself.
+	if err := s.startServiceHeartbeat(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Register all databases from static configuration.
 	for _, database := range s.cfg.Databases {
 		if err := s.registerDatabase(ctx, database); err != nil {
@@ -642,6 +661,7 @@ func (s *Server) Start(ctx context.Context) (err error) {
 
 	// If the agent doesn’t have any static databases configured, send a
 	// heartbeat without error to make the component “ready”.
+	// DELETE IN 13.0: This is not necessary on next versions (v12+) because they have a Heartbeat for the Service itself.
 	if len(s.cfg.Databases) == 0 && s.cfg.OnHeartbeat != nil {
 		s.cfg.OnHeartbeat(nil)
 	}
@@ -649,14 +669,67 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	return nil
 }
 
+// startServiceHeartbeat sends the current DatabaseService server info.
+func (s *Server) startServiceHeartbeat() error {
+	getDatabaseServiceServerInfo := func() (types.Resource, error) {
+		expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
+		resource, err := types.NewDatabaseServiceV1(types.Metadata{
+			Name:      s.cfg.HostID,
+			Namespace: apidefaults.Namespace,
+			Expires:   &expires,
+		}, types.DatabaseServiceSpecV1{
+			ResourceMatchers: services.ResourceMatchersToTypes(s.cfg.ResourceMatchers),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return resource, nil
+	}
+
+	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+		Context:         s.closeContext,
+		Component:       teleport.ComponentDatabase,
+		Mode:            srv.HeartbeatModeDatabaseService,
+		Announcer:       s.cfg.AccessPoint,
+		GetServerInfo:   getDatabaseServiceServerInfo,
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
+		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+		CheckPeriod:     defaults.HeartbeatCheckPeriod,
+		ServerTTL:       apidefaults.ServerAnnounceTTL,
+		OnHeartbeat:     s.cfg.OnHeartbeat,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	go func() {
+		if err := heartbeat.Run(); err != nil {
+			s.log.WithError(err).Error("Heartbeat ended with error")
+		}
+	}()
+	return nil
+}
+
 // Close stops proxying all server's databases and frees up other resources.
 func (s *Server) Close() error {
+	return trace.Wrap(s.close(s.closeContext))
+}
+
+// Shutdown performs a graceful shutdown.
+func (s *Server) Shutdown(ctx context.Context) error {
+	// TODO wait active connections.
+	return trace.Wrap(s.close(ctx))
+}
+
+func (s *Server) close(ctx context.Context) error {
 	var errors []error
 	// Stop proxying all databases.
 	for _, database := range s.getProxiedDatabases() {
-		if err := s.stopProxyingDatabase(s.closeContext, database); err != nil {
-			errors = append(errors, trace.WrapWithMessage(
-				err, "stopping database %v", database.GetName()))
+		if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
+			errors = append(errors, trace.Wrap(s.stopProxyingAndDeleteDatabase(ctx, database)))
+		} else {
+			errors = append(errors, trace.Wrap(s.stopProxyingDatabase(ctx, database)))
 		}
 	}
 	// Signal to all goroutines to stop.

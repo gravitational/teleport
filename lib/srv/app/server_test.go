@@ -436,6 +436,66 @@ func TestWaitStop(t *testing.T) {
 	require.Equal(t, err, context.Canceled)
 }
 
+func TestShutdown(t *testing.T) {
+	tests := []struct {
+		name                        string
+		hasForkedChild              bool
+		wantAppServersAfterShutdown bool
+	}{
+		{
+			name:                        "regular shutdown",
+			hasForkedChild:              false,
+			wantAppServersAfterShutdown: false,
+		},
+		{
+			name:                        "has forked child",
+			hasForkedChild:              true,
+			wantAppServersAfterShutdown: true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Make a static configuration app.
+			app0, err := makeStaticApp("app0", nil)
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			s := SetUpSuiteWithConfig(t, suiteConfig{
+				Apps: types.Apps{app0},
+			})
+
+			// Validate heartbeat is present after start.
+			s.appServer.ForceHeartbeat()
+			appServers, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
+			require.NoError(t, err)
+			require.Len(t, appServers, 1)
+			require.Equal(t, appServers[0].GetApp(), app0)
+
+			// Shutdown should not return error.
+			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+			t.Cleanup(cancel)
+			if test.hasForkedChild {
+				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
+			}
+
+			require.NoError(t, s.appServer.Shutdown(shutdownCtx))
+
+			// Validate app servers based on the test.
+			appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
+			require.NoError(t, err)
+			if test.wantAppServersAfterShutdown {
+				require.Equal(t, appServers, appServersAfterShutdown)
+			} else {
+				require.Empty(t, appServersAfterShutdown)
+			}
+		})
+	}
+}
+
 func TestAppWithUpdatedLabels(t *testing.T) {
 	tests := []struct {
 		name          string

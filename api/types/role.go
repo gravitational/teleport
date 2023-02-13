@@ -193,6 +193,11 @@ type Role interface {
 
 	// GetPrivateKeyPolicy returns the private key policy enforced for this role.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
+
+	// GetDatabaseServiceLabels gets the map of db service labels this role is allowed or denied access to.
+	GetDatabaseServiceLabels(RoleConditionType) Labels
+	// SetDatabaseLabels sets the map of db service labels this role is allowed or denied access to.
+	SetDatabaseServiceLabels(RoleConditionType, Labels)
 }
 
 // NewRole constructs new standard V5 role.
@@ -490,6 +495,23 @@ func (r *RoleV5) SetKubernetesLabels(rct RoleConditionType, labels Labels) {
 		r.Spec.Allow.KubernetesLabels = labels.Clone()
 	} else {
 		r.Spec.Deny.KubernetesLabels = labels.Clone()
+	}
+}
+
+// GetDatabaseServiceLabels gets the map of db service labels this role is allowed or denied access to.
+func (r *RoleV5) GetDatabaseServiceLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.DatabaseServiceLabels
+	}
+	return r.Spec.Deny.DatabaseServiceLabels
+}
+
+// SetDatabaseServiceLabels sets the map of db service labels this role is allowed or denied access to.
+func (r *RoleV5) SetDatabaseServiceLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.DatabaseServiceLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.DatabaseServiceLabels = labels.Clone()
 	}
 }
 

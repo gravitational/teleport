@@ -57,11 +57,26 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access"})
 
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice),
+		withAuthConfig(func(cfg *service.AuthConfig) {
+			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}))
 	makeTestDatabaseServer(t, authProcess, proxyProcess, service.Database{
 		Name:     "postgres",
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "localhost:5432",
+	}, service.Database{
+		Name:     "mysql",
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:3306",
+	}, service.Database{
+		Name:     "cassandra",
+		Protocol: defaults.ProtocolCassandra,
+		URI:      "localhost:9042",
+	}, service.Database{
+		Name:     "snowflake",
+		Protocol: defaults.ProtocolSnowflake,
+		URI:      "localhost.snowflakecomputing.com",
 	}, service.Database{
 		Name:     "mongo",
 		Protocol: defaults.ProtocolMongoDB,
@@ -110,6 +125,24 @@ func TestDatabaseLogin(t *testing.T) {
 			expectErrForConfigCmd: true, // "tsh db config" not supported for MSSQL.
 			expectErrForEnvCmd:    true, // "tsh db env" not supported for MSSQL.
 		},
+		{
+			databaseName:          "mysql",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for MySQL with TLS routing.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for MySQL with TLS routing.
+		},
+		{
+			databaseName:          "cassandra",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for Cassandra.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for Cassandra.
+		},
+		{
+			databaseName:          "snowflake",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for Snowflake.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for Snowflake.
+		},
 	}
 
 	// Note: keystore currently races when multiple tsh clients work in the
@@ -130,8 +163,8 @@ func TestDatabaseLogin(t *testing.T) {
 			// Verify certificates.
 			certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", test.databaseName))
 			require.NoError(t, err)
-			require.Len(t, certs, test.expectCertsLen)
-			require.Len(t, keys, test.expectKeysLen)
+			require.Equal(t, test.expectCertsLen, len(certs)) // don't use require.Len, because it spams PEM bytes on fail.
+			require.Equal(t, test.expectKeysLen, len(keys))   // don't use require.Len, because it spams PEM bytes on fail.
 		})
 	}
 

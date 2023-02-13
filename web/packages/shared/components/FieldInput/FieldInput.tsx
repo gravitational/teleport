@@ -39,6 +39,7 @@ const FieldInput = forwardRef<HTMLInputElement, Props>(
       inputMode = 'text',
       readonly = false,
       toolTipContent = null,
+      disabled = false,
       ...styles
     },
     ref
@@ -64,6 +65,7 @@ const FieldInput = forwardRef<HTMLInputElement, Props>(
         readOnly={readonly}
         inputMode={inputMode}
         defaultValue={defaultValue}
+        disabled={disabled}
       />
     );
 
@@ -125,6 +127,7 @@ type Props = {
   min?: number;
   max?: number;
   toolTipContent?: React.ReactNode;
+  disabled?: boolean;
   // TS: temporary handles ...styles
   [key: string]: any;
 };

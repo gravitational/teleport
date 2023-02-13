@@ -155,6 +155,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Databases == nil {
 		cfg.Databases = local.NewDatabasesService(cfg.Backend)
 	}
+	if cfg.DatabaseServices == nil {
+		cfg.DatabaseServices = local.NewDatabaseServicesService(cfg.Backend)
+	}
 	if cfg.Kubernetes == nil {
 		cfg.Kubernetes = local.NewKubernetesService(cfg.Backend)
 	}
@@ -237,6 +240,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Apps:                  cfg.Apps,
 		Kubernetes:            cfg.Kubernetes,
 		Databases:             cfg.Databases,
+		DatabaseServices:      cfg.DatabaseServices,
 		IAuditLog:             cfg.AuditLog,
 		Events:                cfg.Events,
 		WindowsDesktops:       cfg.WindowsDesktops,
@@ -285,6 +289,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	as.ttlCache, err = utils.NewFnCache(utils.FnCacheConfig{
+		TTL: time.Second * 3,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if as.ghaIDTokenValidator == nil {
 		as.ghaIDTokenValidator = githubactions.NewIDTokenValidator(
 			githubactions.IDTokenValidatorConfig{
@@ -317,6 +329,7 @@ type Services struct {
 	services.Apps
 	services.Kubernetes
 	services.Databases
+	services.DatabaseServices
 	services.WindowsDesktops
 	services.SessionTrackerService
 	services.Enforcer
@@ -485,6 +498,9 @@ type Server struct {
 	// githubOrgSSOCache is used to cache whether Github organizations use
 	// external SSO or not.
 	githubOrgSSOCache *utils.FnCache
+
+	// ttlCache is a generic ttl cache. typed keys must be used.
+	ttlCache *utils.FnCache
 
 	// traceClient is used to forward spans to the upstream collector for components
 	// within the cluster that don't have a direct connection to said collector
