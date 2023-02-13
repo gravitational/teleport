@@ -69,9 +69,8 @@ type Engine struct {
 	// RoundTrippers is a cache of RoundTrippers, mapped by service endpoint.
 	// It is not guarded by a mutex, since requests are processed serially.
 	RoundTrippers map[string]http.RoundTripper
-	// GetSigningCredsFn allows to set the function responsible for obtaining STS credentials.
-	// Used in tests to set static AWS credentials and skip API call.
-	GetSigningCredsFn libaws.GetSigningCredentialsFunc
+	// CredentialsGetter is used to obtain STS credentials.
+	CredentialsGetter libaws.CredentialsGetter
 }
 
 var _ common.Engine = (*Engine)(nil)
@@ -84,9 +83,9 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 		return trace.Wrap(err)
 	}
 	svc, err := libaws.NewSigningService(libaws.SigningServiceConfig{
-		Clock:                 e.Clock,
-		Session:               awsSession,
-		GetSigningCredentials: e.GetSigningCredsFn,
+		Clock:             e.Clock,
+		Session:           awsSession,
+		CredentialsGetter: e.CredentialsGetter,
 	})
 	if err != nil {
 		return trace.Wrap(err)

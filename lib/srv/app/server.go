@@ -265,12 +265,19 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		}
 	}()
 
-	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{})
+	awsCredentialsGetter, err := awsutils.NewCachedCredentialsGetter(awsutils.CachedCredentialsGetterConfig{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	awsSigner, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
+		CredentialsGetter: awsCredentialsGetter,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	awsHandler, err := appaws.NewAWSSignerHandler(closeContext, appaws.SignerHandlerConfig{
-		SigningService: awsSigner,
+		SigningService:    awsSigner,
+		CredentialsGetter: awsCredentialsGetter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

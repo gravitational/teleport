@@ -60,6 +60,8 @@ type SignerHandlerConfig struct {
 	*awsutils.SigningService
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
+	// CredentialsGetter is used to obtain STS credentials.
+	CredentialsGetter awsutils.CredentialsGetter
 }
 
 // CheckAndSetDefaults validates the AwsSignerHandlerConfig.
