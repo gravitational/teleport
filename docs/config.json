@@ -318,8 +318,7 @@
           "entries": [
             {
               "title": "Role Requests",
-              "slug": "/access-controls/access-requests/role-requests/",
-              "forScopes": ["enterprise", "cloud"]
+              "slug": "/access-controls/access-requests/role-requests/"
             },
             {
               "title": "Resource Requests",
