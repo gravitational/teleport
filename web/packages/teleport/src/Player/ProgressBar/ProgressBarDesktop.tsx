@@ -16,7 +16,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 
-import { debounce } from 'shared/utils/highbar';
+import { throttle } from 'shared/utils/highbar';
 import { dateToUtc } from 'shared/services/loc';
 import { format } from 'date-fns';
 
@@ -94,7 +94,7 @@ export const ProgressBarDesktop = (props: {
         clearInterval(intervalRef.current);
       };
 
-      const throttledUpdateCurrentTime = debounce(
+      const throttledUpdateCurrentTime = throttle(
         currentTimeMs => {
           setState(prevState => {
             return updateCurrentTime(prevState, currentTimeMs);

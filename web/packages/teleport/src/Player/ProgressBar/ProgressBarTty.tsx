@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { debounce } from 'shared/utils/highbar';
+import { throttle } from 'shared/utils/highbar';
 
 import TtyPlayer from 'teleport/lib/term/ttyPlayer';
 
@@ -32,7 +32,7 @@ export function useTtyProgress(tty: TtyPlayer) {
   });
 
   React.useEffect(() => {
-    const throttledOnChange = debounce(
+    const throttledOnChange = throttle(
       onChange,
       // some magic numbers to reduce number of re-renders when
       // session is too long and "eventful"
