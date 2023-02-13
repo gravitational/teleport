@@ -81,7 +81,7 @@ require (
 	github.com/hashicorp/golang-lru v0.6.0
 	github.com/jackc/pgconn v1.13.0
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
-	github.com/jackc/pgproto3/v2 v2.3.1
+	github.com/jackc/pgproto3/v2 v2.3.2
 	github.com/jackc/pgx/v4 v4.17.2
 	github.com/jcmturner/gokrb5/v8 v8.4.3
 	github.com/johannesboyne/gofakes3 v0.0.0-20210217223559-02ffa763be97
