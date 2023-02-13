@@ -13,7 +13,7 @@ state: draft
 ## What
 
 This RFD details how we'll track more information about agents (aka Agent Census).
-A brief description of this task can be found in [Cloud's RFD 53](https://github.com/gravitational/cloud/tree/54559795b45b2e8515ea7e159d26cadfbb52482f/rfd/0053-prehog.md).
+A brief description of this task can be found in [Cloud's RFD 53](https://github.com/gravitational/cloud/tree/54559795b45b2e8515ea7e159d26cadfbb52482f/rfd/0053-prehog.md#agent-census).
 
 #### Goals
 
