@@ -91,6 +91,12 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 			unsetFields: unsetFields(License.GetSupportsDesktopAccess),
 		},
 		{
+			name:        "Set SAML IdP support",
+			setter:      License.SetSupportsSAMLIdP,
+			getter:      License.GetSupportsSAMLIdP,
+			unsetFields: unsetFields(License.GetSupportsSAMLIdP),
+		},
+		{
 			name:        "Set Trial Support",
 			setter:      License.SetTrial,
 			getter:      License.GetTrial,

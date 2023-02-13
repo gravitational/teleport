@@ -71,6 +71,11 @@ type License interface {
 	// SetSupportsDesktopAccess sets desktop access support flag
 	SetSupportsDesktopAccess(Bool)
 
+	// GetSupportsSAMLIdP returns the SAML IdP support flag.
+	GetSupportsSAMLIdP() Bool
+	// SetSupportsSAMLIdP sets the SAML IdP support flag.
+	SetSupportsSAMLIdP(Bool)
+
 	// GetTrial returns the trial flag.
 	//  Note: This is not applicable to Cloud licenses
 	GetTrial() Bool
@@ -292,6 +297,16 @@ func (c *LicenseV3) SetSupportsDesktopAccess(value Bool) {
 	c.Spec.SupportsDesktopAccess = value
 }
 
+// GetSupportsSAMLIdP returns the SAML IdP support flag.
+func (c *LicenseV3) GetSupportsSAMLIdP() Bool {
+	return c.Spec.SupportsSAMLIdP
+}
+
+// SetSupportsSAMLIdP sets the SAML IdP support flag.
+func (c *LicenseV3) SetSupportsSAMLIdP(value Bool) {
+	c.Spec.SupportsSAMLIdP = value
+}
+
 // GetTrial returns the trial flag
 func (c *LicenseV3) GetTrial() Bool {
 	return c.Spec.Trial
@@ -326,6 +341,9 @@ func (c *LicenseV3) String() string {
 	if c.GetSupportsDesktopAccess() {
 		features = append(features, "supports desktop access")
 	}
+	if c.GetSupportsSAMLIdP() {
+		features = append(features, "supports SAML identity provider")
+	}
 	if c.GetCloud() {
 		features = append(features, "is hosted by Gravitational")
 	}
@@ -358,6 +376,8 @@ type LicenseSpecV3 struct {
 	SupportsDatabaseAccess Bool `json:"db,omitempty"`
 	// SupportsDesktopAccess turns desktop access on or off
 	SupportsDesktopAccess Bool `json:"desktop,omitempty"`
+	// SupportsSAMLIdP turns SAMLIdP access on or off
+	SupportsSAMLIdP Bool `json:"saml_idp,omitempty"` //nolint:revive // Because we want this to be IdP.
 	// ReportsUsage turns usage reporting on or off
 	ReportsUsage Bool `json:"usage,omitempty"`
 	// Cloud is turned on when teleport is hosted by Gravitational

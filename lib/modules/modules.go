@@ -61,6 +61,8 @@ type Features struct {
 	Desktop bool
 	// RecoveryCodes enables account recovery codes
 	RecoveryCodes bool
+	// SAMLIdP enables the the SAML IdP.
+	SAMLIdP bool //nolint:revive // Because we want this to be IdP.
 }
 
 // ToProto converts Features into proto.Features
@@ -77,6 +79,7 @@ func (f Features) ToProto() *proto.Features {
 		HSM:                     f.HSM,
 		Desktop:                 f.Desktop,
 		RecoveryCodes:           f.RecoveryCodes,
+		SAMLIdP:                 f.SAMLIdP,
 	}
 }
 
