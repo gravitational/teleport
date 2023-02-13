@@ -250,9 +250,7 @@ func TestComputeLockTargets(t *testing.T) {
 			ActiveRequests: accessRequests,
 		}
 
-		// Test.
 		got := ComputeLockTargets(clusterName, serverID, identityCtx)
-
 		want := []types.LockTarget{
 			{User: identityCtx.TeleportUser},
 			{Login: identityCtx.Login},
