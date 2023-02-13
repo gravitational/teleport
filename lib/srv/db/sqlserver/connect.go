@@ -22,9 +22,9 @@ import (
 	"net"
 	"strconv"
 
-	mssql "github.com/denisenkom/go-mssqldb"
-	"github.com/denisenkom/go-mssqldb/msdsn"
 	"github.com/gravitational/trace"
+	mssql "github.com/microsoft/go-mssqldb"
+	"github.com/microsoft/go-mssqldb/msdsn"
 
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
@@ -77,6 +77,7 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 		Encryption:   msdsn.EncryptionRequired,
 		TLSConfig:    tlsConfig,
 		PacketSize:   loginPacket.PacketSize(),
+		Protocols:    []string{"tcp"},
 	}, auth)
 
 	conn, err := connector.Connect(ctx)
