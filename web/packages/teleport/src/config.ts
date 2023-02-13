@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { generatePath } from 'react-router';
+import { mergeDeep } from 'shared/utils/highbar';
 
 import generateResourcePath from './generateResourcePath';
 
@@ -553,7 +554,7 @@ const cfg = {
   },
 
   init(backendConfig = {}) {
-    Object.assign(this, backendConfig);
+    mergeDeep(this, backendConfig);
   },
 };
 
