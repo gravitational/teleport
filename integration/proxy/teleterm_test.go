@@ -119,7 +119,7 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, creds *h
 		TargetURI:  databaseURI.String(),
 		TargetUser: "root",
 	})
-	require.NoError(t, err)
+	require.NoError(t, err, trace.DebugReport(err))
 
 	// Open a new connection.
 	client, err := mysql.MakeTestClientWithoutTLS(
