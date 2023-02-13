@@ -25,10 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
 // TestOrdering verifies that the queue yields items in the order of
 // insertion, rather than the order of completion.
 func TestOrdering(t *testing.T) {
