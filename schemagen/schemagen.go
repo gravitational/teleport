@@ -55,14 +55,12 @@ func NewGenerator(req *gogoplugin.CodeGeneratorRequest) (*Forest, error) {
 
 // SchemaGenerator generates the OpenAPI v3 schema from a proto file.
 type SchemaGenerator struct {
-	groupName string
-	memo      map[string]*Schema
-	Roots     map[string]*RootSchema
+	memo  map[string]*Schema
+	Roots map[string]*RootSchema
 }
 
 // RootSchema is a wrapper for a message we are generating a schema for.
 type RootSchema struct {
-	GroupName  string
 	Versions   []SchemaVersion
 	Name       string
 	PluralName string
@@ -89,9 +87,8 @@ func (s *Schema) DeepCopy() *Schema {
 
 func NewSchemaGenerator(groupName string) *SchemaGenerator {
 	return &SchemaGenerator{
-		groupName: groupName,
-		memo:      make(map[string]*Schema),
-		Roots:     make(map[string]*RootSchema),
+		memo:  make(map[string]*Schema),
+		Roots: make(map[string]*RootSchema),
 	}
 }
 
@@ -135,7 +132,6 @@ func (generator *SchemaGenerator) ParseResource(file *File, name string, overrid
 	root, ok := generator.Roots[resourceKind]
 	if !ok {
 		root = &RootSchema{
-			GroupName:  generator.groupName,
 			Kind:       resourceKind,
 			Name:       strings.ToLower(resourceKind),
 			PluralName: strings.ToLower(english.PluralWord(2, resourceKind, "")),

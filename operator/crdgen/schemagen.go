@@ -35,17 +35,17 @@ const k8sKindPrefix = "Teleport"
 // Add names to this array when adding support to new Teleport resources that could conflict with Kubernetes
 var kubernetesReservedNames = []string{"role"}
 
-func CustomResourceDefinition(root *schemagen.RootSchema) apiextv1.CustomResourceDefinition {
+func CustomResourceDefinition(root *schemagen.RootSchema, groupName string) apiextv1.CustomResourceDefinition {
 	crd := apiextv1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: apiextv1.SchemeGroupVersion.String(),
 			Kind:       "CustomResourceDefinition",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("%s.%s", strings.ToLower(k8sKindPrefix+root.PluralName), root.GroupName),
+			Name: fmt.Sprintf("%s.%s", strings.ToLower(k8sKindPrefix+root.PluralName), groupName),
 		},
 		Spec: apiextv1.CustomResourceDefinitionSpec{
-			Group: root.GroupName,
+			Group: groupName,
 			Names: apiextv1.CustomResourceDefinitionNames{
 				Kind:       k8sKindPrefix + root.Kind,
 				ListKind:   k8sKindPrefix + root.Kind + "List",

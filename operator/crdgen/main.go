@@ -97,7 +97,7 @@ func generateSchema(file *schemagen.File, groupName string, resp *gogoplugin.Cod
 	}
 
 	for _, root := range generator.Roots {
-		crd := CustomResourceDefinition(root)
+		crd := CustomResourceDefinition(root, groupName)
 		data, err := yaml.Marshal(crd)
 		if err != nil {
 			return trace.Wrap(err)
