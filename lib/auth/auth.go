@@ -447,6 +447,8 @@ type Server struct {
 
 	releaseService release.Client
 
+	pluginExchangeService PluginExchangeService
+
 	loginRuleEvaluator loginrule.Evaluator
 
 	sshca.Authority
@@ -582,6 +584,13 @@ func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.lockWatcher = lockWatcher
+}
+
+// SetPluginExchangeService sets the plugin exchange service.
+func (a *Server) SetPluginExchangeService(svc PluginExchangeService) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.pluginExchangeService = svc
 }
 
 func (a *Server) checkLockInForce(mode constants.LockingMode, targets []types.LockTarget) error {
