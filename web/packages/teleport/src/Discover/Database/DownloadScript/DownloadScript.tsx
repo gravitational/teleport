@@ -183,7 +183,7 @@ export function DownloadScript(
         <Text mb={3}>
           - The Teleport Database Service could not join this Teleport cluster.
           Check the logs for errors by running{' '}
-          <Mark>journalctl status teleport</Mark>.
+          <Mark>journalctl -fu teleport</Mark>.
         </Text>
 
         <Text>
