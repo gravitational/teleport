@@ -51,6 +51,7 @@ func (c *LockCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.mainCmd.Flag("mfa-device", "UUID of a user MFA device to disable.").StringVar(&c.spec.Target.MFADevice)
 	c.mainCmd.Flag("windows-desktop", "Name of a Windows desktop to disable.").StringVar(&c.spec.Target.WindowsDesktop)
 	c.mainCmd.Flag("access-request", "UUID of an access request to disable.").StringVar(&c.spec.Target.AccessRequest)
+	c.mainCmd.Flag("device", "UUID of a trusted device to disable.").StringVar(&c.spec.Target.Device)
 	c.mainCmd.Flag("message", "Message to display to locked-out users.").StringVar(&c.spec.Message)
 	c.mainCmd.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.expires)
 	c.mainCmd.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.ttl)

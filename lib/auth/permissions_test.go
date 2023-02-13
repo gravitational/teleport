@@ -43,6 +43,9 @@ func TestContextLockTargets(t *testing.T) {
 			Identity: tlsca.Identity{
 				Username: "node.cluster",
 				Groups:   []string{"role1", "role2"},
+				DeviceExtensions: tlsca.DeviceExtensions{
+					DeviceID: "device1",
+				},
 			},
 		},
 		UnmappedIdentity: WrapIdentity(tlsca.Identity{
@@ -57,6 +60,7 @@ func TestContextLockTargets(t *testing.T) {
 		{Role: "role1"},
 		{Role: "role2"},
 		{Role: "mapped-role"},
+		{Device: "device1"},
 	}
 	require.ElementsMatch(t, authContext.LockTargets(), expected)
 }
