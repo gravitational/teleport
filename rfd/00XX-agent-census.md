@@ -149,11 +149,12 @@ However, `gopsutil` is using [`golang.org/x/sys/unix.Uname`](https://pkg.go.dev/
 ##### 7. Installation methods
 
 Different installation methods will be tracked by setting new `TELEPORT_INSTALL_METHOD_$NAME` environment variables to `true` (where `$NAME` is the installation method).
-We have one environment variable for each installation method as some of the installation methods below may occur at the same time (e.g. `Dockerfile` and `teleport-kube-agent`, or `install-node.sh` and `APT`).
+We have one environment variable for each installation method as some of the installation methods below may occur at the same time (e.g. `Dockerfile` and `teleport-kube-agent`, or `install-node.sh` and `APT` and `systemctl`).
 
 - [Dockerfile](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/charts/Dockerfile): `ENV TELEPORT_INSTALL_METHOD_DOCKERFILE=true` will be added to the Dockerfile.
 - [`teleport-kube-agent`](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent) Helm chart: `TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT` will be set to `true` in the [deployment spec](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/chart/teleport-kube-agent/templates/deployment.yaml#L129).
 - [`install-node.sh`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/node-join/install.sh): `export TELEPORT_INSTALL_METHOD_NODE_SCRIPT="true"` will be added to this script. It is the recommended way to install SSH nodes, apps and many databases. Even though `export` doesn't persist across restarts, we can have the agent persist such value (and maybe all of the values sent in `UpstreamInventoryHello`) when it first starts.
+- `systemctl`: Tracking whether the agent is running using `systemctl` does not require a new environment variable. For this, we'll simply check if `systemctl status teleport.service` succeeds and, if so, if it contains the string `"active (running)"`.
 
 The installation methods that follow won't be tracked for now.
 Later on, we may try to track these if, once we start tracking the above installation methods, we notice that we're not yet covering most methods.
@@ -162,11 +163,11 @@ Later on, we may try to track these if, once we start tracking the above install
 - built from source: While it's technically possible for customers to build Teleport from source, we won't try to track this installation method as it seems an unlikely use-case.
 - `homebrew`: It's also possible to install Teleport on macOS using `homebrew`. The Teleport package in `homebrew` is not maintained by us, so we will also not track this installation method.
 
-In summary, for now we'll have the following new environment variables and respective value in `UpstreamInventoryHello.InstallMethods`:
-- `TELEPORT_INSTALL_METHOD_DOCKERFILE`: `dockerfile`
-- `TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT`: `helm-kube-agent`
-- `TELEPORT_INSTALL_METHOD_WINDOWS_SCRIPT`: `windows-script`
-- `TELEPORT_INSTALL_METHOD_NODE_SCRIPT`: `node-script`
+In summary, for now we'll have the following values in `UpstreamInventoryHello.InstallMethods`:
+- `dockerfile`
+- `helm-kube-agent`
+- `node-script`
+- `systemctl`
 
 ##### 8. Container runtime
 
