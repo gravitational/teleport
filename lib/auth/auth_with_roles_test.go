@@ -3883,8 +3883,10 @@ func TestGetLicensePermissions(t *testing.T) {
 }
 
 func TestGetPluginWithSecrets(t *testing.T) {
+	const pluginName = "slack-default"
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
+	createPlugin(t, srv, pluginName)
 
 	tt := []struct {
 		Name                        string
@@ -3939,10 +3941,31 @@ func TestGetPluginWithSecrets(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			_, err = client.GetPlugin(ctx, "foo", false)
-			_, errWithSecrets := client.GetPlugin(ctx, "foo", true)
-			tc.ErrAssertionRead(t, err != nil && trace.IsAccessDenied(err))
-			tc.ErrAssertionReadWithSecrets(t, err != nil && trace.IsAccessDenied(errWithSecrets))
+			_, err = client.GetPlugin(ctx, pluginName, false)
+			_, errWithSecrets := client.GetPlugin(ctx, pluginName, true)
+			tc.ErrAssertionRead(t, err != nil, err)
+			tc.ErrAssertionRead(t, trace.IsAccessDenied(err), err)
+			tc.ErrAssertionReadWithSecrets(t, errWithSecrets != nil, err)
+			tc.ErrAssertionReadWithSecrets(t, trace.IsAccessDenied(errWithSecrets), err)
 		})
 	}
+}
+
+func createPlugin(t *testing.T, srv *TestTLSServer, name string) {
+	plugin := &types.PluginV1{
+		Metadata: types.Metadata{
+			Name: name,
+		},
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_SlackAccessPlugin{
+				SlackAccessPlugin: &types.PluginSlackAccessSettings{
+					FallbackChannel: "access-requests",
+				},
+			},
+		},
+	}
+
+	// Create in Plugins service directly, bypass credential exchanger
+	err := srv.Auth().Services.Plugins.CreatePlugin(context.Background(), plugin)
+	require.NoError(t, err)
 }
