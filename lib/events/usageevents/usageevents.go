@@ -30,8 +30,11 @@ import (
 
 const (
 	// tcpSessionType is the session_type in tp.session.start for TCP
-	// Application Access
+	// Application Access.
 	tcpSessionType = "app_tcp"
+	// portSessionType is the session_type in tp.session.start for SSH port
+	// forwarding.
+	portSessionType = "ssh_port"
 )
 
 // UsageLogger is a trivial audit log sink that forwards an anonymized subset of
@@ -83,6 +86,11 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 		return trace.Wrap(u.report(&services.UsageSessionStart{
 			UserName:    e.User,
 			SessionType: string(sessionType),
+		}))
+	case *apievents.PortForward:
+		return trace.Wrap(u.report(&services.UsageSessionStart{
+			UserName:    e.User,
+			SessionType: portSessionType,
 		}))
 	case *apievents.DatabaseSessionStart:
 		return trace.Wrap(u.report(&services.UsageSessionStart{
