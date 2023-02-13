@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -51,7 +52,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -2420,18 +2421,6 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 		return trace.Wrap(err)
 	}
 
-	authPref, err := actx.authServer.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	identity := actx.Identity.GetIdentity()
-
-	// Device trust: authorize device before issuing certificates, if applicable.
-	// This gives a better UX by failing earlier in the access attempt.
-	if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), identity); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// The RPC is streaming both ways and the message sequence is:
 	// (-> means client-to-server, <- means server-to-client)
 	//
@@ -2451,6 +2440,17 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 	}
 	if err := validateUserSingleUseCertRequest(ctx, actx, initReq); err != nil {
 		g.Entry.Debugf("Validation of single-use cert request failed: %v", err)
+		return trace.Wrap(err)
+	}
+
+	// Device trust: authorize device before issuing certificates.
+	// We do this here, in addition to the check at generateUserCerts, so users
+	// won't be asked to tap the security key if using an untrusted device.
+	authPref, err := actx.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := actx.verifyUserDeviceForCertIssuance(initReq.Usage, authPref.GetDeviceTrust()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2500,6 +2500,8 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 		}
 	case proto.UserCertsRequest_All:
 		return trace.BadParameter("must specify a concrete Usage in UserCertsRequest, one of SSH, Kubernetes or Database")
+	case proto.UserCertsRequest_App:
+		return trace.BadParameter("app access certificates cannot be issued by GenerateUserSingleUseCerts")
 	case proto.UserCertsRequest_WindowsDesktop:
 		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
 			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
@@ -2508,11 +2510,26 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
 
+	if isDBLocalProxyTunnelCertReq(req) {
+		// don't limit the cert expiry to 1 minute for db local proxy tunnel,
+		// because the certs will be kept in-memory by the client to protect
+		// against cert/key exfiltration. When MFA is required, cert expiration
+		// time is bounded by the lifetime of the local proxy tunnel process.
+		return nil
+	}
+
 	maxExpiry := actx.authServer.GetClock().Now().Add(teleport.UserSingleUseCertTTL)
 	if req.Expires.After(maxExpiry) {
 		req.Expires = maxExpiry
 	}
 	return nil
+}
+
+// isDBLocalProxyTunnelCertReq returns whether a cert request is for
+// a database cert and the requester is a local proxy tunnel.
+func isDBLocalProxyTunnelCertReq(req *proto.UserCertsRequest) bool {
+	return req.Usage == proto.UserCertsRequest_Database &&
+		req.RequesterName == proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL
 }
 
 func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService_GenerateUserSingleUseCertsServer) (*types.MFADevice, error) {
@@ -2990,12 +3007,24 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.Pr
 	}, nil
 }
 
+// setDefaultTokenTTL replicates the old server-side behavior of universally
+// applying a 30 minute TTL default to newly created tokens.
+// This can be removed when CreateToken and UpsertToken are removed.
+func setDefaultTokenTTL(clock clockwork.Clock, token *types.ProvisionTokenV2) {
+	if token.Expiry().IsZero() || token.Expiry().Sub(clock.Now().UTC()) < time.Second {
+		token.SetExpiry(clock.Now().Add(defaults.ProvisioningTokenTTL))
+	}
+}
+
 // UpsertToken upserts a token.
+// Deprecated: use CreateTokenV2 instead. Delete in 14.0.0.
 func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionTokenV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	g.Warn("Deprecated RPC UpsertToken invoked. Upgrade your client or if manually invoking our gRPC RPCs switch to calling UpsertTokenV2. This will stop functioning in Teleport 14.0.0.")
+	setDefaultTokenTTL(g.AuthServer.GetClock(), token)
 	if err = auth.ServerWithRoles.UpsertToken(ctx, token); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3003,10 +3032,55 @@ func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionToke
 }
 
 // CreateToken creates a token.
+// Deprecated: use CreateTokenV2 instead. Delete in 14.0.0.
 func (g *GRPCServer) CreateToken(ctx context.Context, token *types.ProvisionTokenV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	g.Warn("Deprecated RPC CreateToken invoked. Upgrade your client or if manually invoking our gRPC RPCs switch to calling CreateTokenV2. This will stop functioning in Teleport 14.0.0.")
+	setDefaultTokenTTL(g.AuthServer.GetClock(), token)
+	if err = auth.ServerWithRoles.CreateToken(ctx, token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// UpsertTokenV2 upserts a token.
+func (g *GRPCServer) UpsertTokenV2(ctx context.Context, req *proto.UpsertTokenV2Request) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// When new token versions are introduced, this can be exchanged for a
+	// switch statement.
+	token := req.GetV2()
+	if token == nil {
+		return nil, trail.ToGRPC(
+			trace.BadParameter("token not provided in request"),
+		)
+	}
+	if err = auth.ServerWithRoles.UpsertToken(ctx, token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// CreateTokenV2 creates a token.
+func (g *GRPCServer) CreateTokenV2(ctx context.Context, req *proto.CreateTokenV2Request) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// When new token versions are introduced, this can be exchanged for a
+	// switch statement.
+	token := req.GetV2()
+	if token == nil {
+		return nil, trail.ToGRPC(
+			trace.BadParameter("token not provided in request"),
+		)
 	}
 	if err = auth.ServerWithRoles.CreateToken(ctx, token); err != nil {
 		return nil, trace.Wrap(err)

@@ -1862,8 +1862,21 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 	if !ok {
 		return trace.BadParameter("invalid type %T", token)
 	}
-	_, err := c.grpc.UpsertToken(ctx, tokenV2, c.callOpts...)
-	return trail.FromGRPC(err)
+
+	_, err := c.grpc.UpsertTokenV2(ctx, &proto.UpsertTokenV2Request{
+		Token: &proto.UpsertTokenV2Request_V2{
+			V2: tokenV2,
+		},
+	})
+	if err != nil {
+		err := trail.FromGRPC(err)
+		if trace.IsNotImplemented(err) {
+			_, err := c.grpc.UpsertToken(ctx, tokenV2, c.callOpts...)
+			return trail.FromGRPC(err)
+		}
+		return err
+	}
+	return nil
 }
 
 // CreateToken creates a provision token.
@@ -1872,8 +1885,21 @@ func (c *Client) CreateToken(ctx context.Context, token types.ProvisionToken) er
 	if !ok {
 		return trace.BadParameter("invalid type %T", token)
 	}
-	_, err := c.grpc.CreateToken(ctx, tokenV2, c.callOpts...)
-	return trail.FromGRPC(err)
+
+	_, err := c.grpc.CreateTokenV2(ctx, &proto.CreateTokenV2Request{
+		Token: &proto.CreateTokenV2Request_V2{
+			V2: tokenV2,
+		},
+	})
+	if err != nil {
+		err := trail.FromGRPC(err)
+		if trace.IsNotImplemented(err) {
+			_, err := c.grpc.CreateToken(ctx, tokenV2, c.callOpts...)
+			return trail.FromGRPC(err)
+		}
+		return err
+	}
+	return nil
 }
 
 // GenerateToken generates a new auth token for the given service roles.

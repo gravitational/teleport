@@ -710,7 +710,7 @@ proxy_service:
 #### AWS CLI
 
 Teleport application access extends AWS console support to CLI . Users are able
-to log into their AWS console using `tsh app login` and use `tsh aws` commands
+to log into their AWS console using `tsh apps login` and use `tsh aws` commands
 to interact with AWS APIs.
 
 See more info in the

@@ -43,7 +43,7 @@ Log into your Teleport cluster and view available applications:
 
 ```code
 $ tsh login --proxy=teleport.example.com
-$ tsh app ls
+$ tsh apps ls
 
 # Application Description         Public Address               Labels
 # ----------- ------------------- ---------------------------- -------
@@ -53,7 +53,7 @@ $ tsh app ls
 Retrieve short-lived X.509 certificate for the application:
 
 ```code
-$ tsh app login grafana
+$ tsh apps login grafana
 # Logged into app grafana. Example curl command:
 
 $ curl \
@@ -93,14 +93,14 @@ The app's X.509 certificate will expire on its own after the TTL allowed by
 your user's role. You can also remove it explicitly:
 
 ```code
-$ tsh app logout
+$ tsh apps logout
 # Logged out of app "grafana"
 ```
 
 ## Application information
 
 ```code
-$ tsh app config
+$ tsh apps config
 ```
 
 shows current app URI and paths to the secrets.
@@ -110,7 +110,7 @@ This is useful when configuring CLI tools (such as `curl`) or GUI tools (such as
 Let's print the app information in a table format:
 
 ```code
-$ tsh app config
+$ tsh apps config
 
 # Name:      grafana
 # URI:       https://grafana.teleport.example.com:3080
@@ -123,16 +123,16 @@ We can also provide different `--format` values to print specific parts
 of the app configuration:
 
 ```code
-$ tsh app config --format=uri
+$ tsh apps config --format=uri
 # https://grafana-root.gravitational.io:3080
 
-$ tsh app config --format=ca
+$ tsh apps config --format=ca
 # /Users/alice/.tsh/keys/teleport.example.com/certs.pem
 
-$ tsh app config --format=cert
+$ tsh apps config --format=cert
 # /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem
 
-$ tsh app config --format=key
+$ tsh apps config --format=key
 # /Users/alice/.tsh/keys/teleport.example.com/alice
 ```
 
@@ -141,7 +141,7 @@ appropriate `curl` command. Using our Grafana `/api/users` example above:
 
 ```code
 $ curl --user admin:admin \
-  --cert $(tsh app config --format=cert) \
-  --key $(tsh app config --format=key) \
-    $(tsh app config --format=uri)/api/users
+  --cert $(tsh apps config --format=cert) \
+  --key $(tsh apps config --format=key) \
+    $(tsh apps config --format=uri)/api/users
 ```
