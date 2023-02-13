@@ -17,7 +17,11 @@ teleport:
         # highly-available storage methods (like DynamoDB or Firestore) are
         # specified first, as this is what the Teleport Web UI uses as its
         # source of events to display.
-        audit_events_uri: ['dynamodb://events_table_name', 'firestore://events_table_name', 'file:///var/lib/teleport/log', 'stdout://']
+        audit_events_uri:
+          - 'dynamodb://events_table_name'
+          - 'firestore://events_table_name'
+          - 'file:///var/lib/teleport/log'
+          - 'stdout://'
 
         # Use this setting to configure teleport to store the recorded sessions
         # in an AWS S3 bucket or use GCP Storage with 'gs://'.
@@ -113,8 +117,9 @@ auth_service:
     # certificates and keys (may need to wipe out /var/lib/teleport directory)
     cluster_name: "main"
 
-    # ProxyProtocol enables support for HAProxy proxy protocol version 1 when it is turned 'on'.
-    # Verify whether the service is in front of a trusted load balancer.
+    # ProxyProtocol enables support for HAProxy proxy protocol version 1 when it
+    # is turned 'on'. Verify whether the service is in front of a trusted load
+    # balancer.  
     # The default value is 'on'.
     proxy_protocol: on
 
