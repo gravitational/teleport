@@ -19,6 +19,10 @@ export enum CaptureEvent {
   BannerClickEvent = 'tp.ui.banner.click',
   OnboardAddFirstResourceClickEvent = 'tp.ui.onboard.addFirstResource.click',
   OnboardAddFirstResourceLaterClickEvent = 'tp.ui.onboard.addFirstResourceLater.click',
+  CreateNewRoleClickEvent = 'tp.ui.createNewRole.click',
+  CreateNewRoleSaveClickEvent = 'tp.ui.createNewRoleSave.click',
+  CreateNewRoleCancelClickEvent = 'tp.ui.createNewRoleCancel.click',
+  CreateNewRoleViewDocumentationClickEvent = 'tp.ui.createNewRoleViewDocumentation.click',
 
   // PreUserEvent types
   //   these events are unauthenticated,
