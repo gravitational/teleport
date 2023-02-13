@@ -29,15 +29,20 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/net/http2"
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -46,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -64,6 +70,11 @@ type SessionContext struct {
 	// remoteClientGroup prevents duplicate requests to create remote clients
 	// for a given site
 	remoteClientGroup singleflight.Group
+
+	// mu guards kubeGRPCServiceConn.
+	mu sync.Mutex
+	// kubeGRPCServiceConn is a connection to the kubernetes service.
+	kubeGRPCServiceConn *grpc.ClientConn
 }
 
 type SessionContextConfig struct {
@@ -285,6 +296,43 @@ func clusterDialer(remoteCluster reversetunnel.RemoteSite) apiclient.ContextDial
 	})
 }
 
+// NewKubernetesServiceClient returns a new KubernetesServiceClient.
+func (c *SessionContext) NewKubernetesServiceClient(ctx context.Context, addr string) (kubeproto.KubeServiceClient, error) {
+	c.mu.Lock()
+	conn := c.kubeGRPCServiceConn
+	c.mu.Unlock()
+	if conn != nil {
+		return kubeproto.NewKubeServiceClient(conn), nil
+	}
+
+	tlsConfig, err := c.ClientTLSConfig(ctx, c.cfg.RootClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Set the ALPN protocols to use when dialing the proxy gRPC mTLS endpoint.
+	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxyGRPCSecure), http2.NextProtoTLS}
+	conn, err = grpc.DialContext(
+		ctx,
+		addr,
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithChainUnaryInterceptor(
+			otelgrpc.UnaryClientInterceptor(),
+			metadata.UnaryClientInterceptor,
+		),
+		grpc.WithChainStreamInterceptor(
+			otelgrpc.StreamClientInterceptor(),
+			metadata.StreamClientInterceptor,
+		),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.mu.Lock()
+	c.kubeGRPCServiceConn = conn
+	c.mu.Unlock()
+	return kubeproto.NewKubeServiceClient(conn), nil
+}
+
 // ClientTLSConfig returns client TLS authentication associated
 // with the web session context
 func (c *SessionContext) ClientTLSConfig(ctx context.Context, clusterName ...string) (*tls.Config, error) {
@@ -469,7 +517,13 @@ func (c *SessionContext) GetSessionID() string {
 // Close cleans up resources associated with this context and removes it
 // from the user context
 func (c *SessionContext) Close() error {
-	return trace.NewAggregate(c.remoteClientCache.Close(), c.cfg.RootClient.Close())
+	var err error
+	c.mu.Lock()
+	if c.kubeGRPCServiceConn != nil {
+		err = c.kubeGRPCServiceConn.Close()
+	}
+	c.mu.Unlock()
+	return trace.NewAggregate(c.remoteClientCache.Close(), c.cfg.RootClient.Close(), err)
 }
 
 // getToken returns the bearer token associated with the underlying
