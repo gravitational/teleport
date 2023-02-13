@@ -395,7 +395,7 @@ For more information, see the [AWS Documentation](https://docs.aws.amazon.com/Am
   title="Tip"
 >
   Before continuing, please make sure to take a look at the [Cluster State section](../architecture/nodes.mdx#cluster-state)
-  in Teleport Architecture documentation.
+  in the Teleport Architecture documentation.
 </Admonition>
 
 If you are running Teleport on AWS, you can use
@@ -497,6 +497,13 @@ The optional `GET` parameters shown below control how Teleport interacts with a 
 - `region=us-east-1` - set the Amazon region to use.
 - `endpoint=dynamo.example.com` - connect to a custom S3 endpoint.
 - `use_fips_endpoint=true` -  [Configure DynamoDB FIPS endpoints](#configuring-aws-fips-endpoints).
+
+### Assigning permissions to the Teleport Auth Service
+
+Make sure that the IAM role assigned to Teleport is configured with sufficient
+access to DynamoDB. Below is an example of the IAM policy we recommend.
+
+(!docs/pages/includes/dynamodb-iam-policy.mdx!)
 
 ### DynamoDB autoscaling
 
