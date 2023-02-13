@@ -59,6 +59,7 @@ import (
 
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -164,12 +165,24 @@ func (s *signerHandler) resolveTimestreamEndpoint(sessCtx *common.SessionContext
 		return nil, trace.Wrap(err)
 	}
 
-	if isTimestreamWriteRequest(r) {
-		re, err := resolveTimestreamWriteEndpoint(s.closeContext, credentials, awsAuthHeader.Region)
-		return re, trace.Wrap(err)
+	key := resolveTimestreamEndpointCacheKey{
+		credentials:  credentials,
+		region:       awsAuthHeader.Region,
+		writeRequest: isTimestreamWriteRequest(r),
 	}
-	re, err := resolveTimestreamQueryEndpoint(s.closeContext, credentials, awsAuthHeader.Region)
+	re, err := utils.FnCacheGet(s.closeContext, s.cache, key, func(ctx context.Context) (*endpoints.ResolvedEndpoint, error) {
+		if key.writeRequest {
+			return resolveTimestreamWriteEndpoint(ctx, key.credentials, key.region)
+		}
+		return resolveTimestreamQueryEndpoint(ctx, key.credentials, key.region)
+	})
 	return re, trace.Wrap(err)
+}
+
+type resolveTimestreamEndpointCacheKey struct {
+	credentials  *credentials.Credentials
+	region       string
+	writeRequest bool
 }
 
 func isTimestreamWriteRequest(r *http.Request) bool {
@@ -204,7 +217,7 @@ func resolveTimestreamWriteEndpoint(ctx context.Context, credentials *credential
 		return nil, trace.NotFound("no timestream-write endpoints found")
 	}
 	return &endpoints.ResolvedEndpoint{
-		URL:           aws.StringValue(output.Endpoints[0].Address),
+		URL:           "https://" + aws.StringValue(output.Endpoints[0].Address),
 		SigningRegion: region,
 		SigningName:   "timestream",
 	}, nil
@@ -222,7 +235,7 @@ func resolveTimestreamQueryEndpoint(ctx context.Context, credentials *credential
 		return nil, trace.NotFound("no timestream-query endpoints found")
 	}
 	return &endpoints.ResolvedEndpoint{
-		URL:           aws.StringValue(output.Endpoints[0].Address),
+		URL:           "https://" + aws.StringValue(output.Endpoints[0].Address),
 		SigningRegion: region,
 		SigningName:   "timestream",
 	}, nil

@@ -23,13 +23,11 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
-<<<<<<< HEAD
-	"github.com/aws/aws-sdk-go/service/sts"
-=======
 	awssession "github.com/aws/aws-sdk-go/aws/session"
->>>>>>> 76c7d9dfdf (resolve timestream endpoint)
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/oxy/forward"
 	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
@@ -52,6 +50,8 @@ type signerHandler struct {
 	SignerHandlerConfig
 	// closeContext is the app server close context.
 	closeContext context.Context
+	// cache is a generic utils.FnCache.
+	cache *utils.FnCache
 }
 
 // SignerHandlerConfig is the awsSignerHandler configuration.
@@ -82,10 +82,9 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 	if cfg.Log == nil {
 		cfg.Log = logrus.WithField(trace.Component, "aws:signer")
 	}
-<<<<<<< HEAD
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
-=======
+	}
 	if cfg.CredentialsGetter == nil {
 		cfg.CredentialsGetter, err = awsutils.NewCachedCredentialsGetter(awsutils.CachedCredentialsGetterConfig{})
 		if err != nil {
@@ -109,7 +108,6 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
->>>>>>> 76c7d9dfdf (resolve timestream endpoint)
 	}
 	return nil
 }
@@ -120,9 +118,17 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 		return nil, trace.Wrap(err)
 	}
 
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL: time.Minute,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	handler := &signerHandler{
 		SignerHandlerConfig: config,
 		closeContext:        ctx,
+		cache:               cache,
 	}
 	fwd, err := forward.New(
 		forward.RoundTripper(config.RoundTripper),
