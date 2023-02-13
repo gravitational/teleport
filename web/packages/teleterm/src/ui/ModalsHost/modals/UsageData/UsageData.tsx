@@ -69,12 +69,12 @@ export function UsageData(props: UsageDataProps) {
             This will help us improve the product.
           </Text>
           <Text typography="body1" color="text.secondary">
-            To learn more, see our{' '}
+            To learn more, see{' '}
             <Link
               href="https://goteleport.com/docs/faq/#teleport-connect"
               target="_blank"
             >
-              documentation
+              our documentation
             </Link>
             .
           </Text>
