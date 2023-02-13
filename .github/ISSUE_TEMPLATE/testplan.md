@@ -631,8 +631,7 @@ These tests should be carried out sequentially. `tsh` tests should be carried ou
 
 Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings.
 
-- [ ] Database Acces: `tsh proxy db`
-- [ ] Application Access: `tsh login app && tsh proxy app`
+- [ ] Database Access: `tsh proxy db --tunnel`
 
 ## Moderated session
 
