@@ -194,7 +194,7 @@ connect with is not attached to the Teleport Database Service virtual machine.
 You can navigate to the [Virtual Machines](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Compute%2FVirtualMachines) page within Azure Portal,
 open the **Teleport instance**, **Identity** section, and choose **User
 assigned** to see all identities you can connect with. If you don’t see your
-identity check [Step 4](#step-47-configure-azure-managed-identities) to see how
+identity check [Step 4](#step-36-configure-azure-managed-identities) to see how
 to add it.
 
 ### Login failed for the user
@@ -202,7 +202,7 @@ to add it.
 When connecting to your database, and you see the error `mssql: login error: Login
 failed for user '<token-identified principal>'`, it means your managed identity
 login is not present on the SQL database. You’ll need to create their users as
-described in [Step 5](#step-57-enable-managed-identities-login-on-sql-server).
+described in [Step 5](#step-46-enable-managed-identities-login-on-sql-server).
 Remember: you must create the users on all databases you want to connect.
 
 ## Next steps
