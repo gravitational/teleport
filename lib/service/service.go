@@ -1904,30 +1904,31 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	}
 
 	return cache.New(cfg.setup(cache.Config{
-		Context:          process.ExitContext(),
-		Backend:          reporter,
-		Events:           cfg.services,
-		ClusterConfig:    cfg.services,
-		Provisioner:      cfg.services,
-		Trust:            cfg.services,
-		Users:            cfg.services,
-		Access:           cfg.services,
-		DynamicAccess:    cfg.services,
-		Presence:         cfg.services,
-		Restrictions:     cfg.services,
-		Apps:             cfg.services,
-		Kubernetes:       cfg.services,
-		DatabaseServices: cfg.services,
-		Databases:        cfg.services,
-		AppSession:       cfg.services,
-		SnowflakeSession: cfg.services,
-		WindowsDesktops:  cfg.services,
-		WebSession:       cfg.services.WebSessions(),
-		WebToken:         cfg.services.WebTokens(),
-		Component:        teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
-		MetricComponent:  teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
-		Tracer:           process.TracingProvider.Tracer(teleport.ComponentCache),
-		Unstarted:        cfg.unstarted,
+		Context:                 process.ExitContext(),
+		Backend:                 reporter,
+		Events:                  cfg.services,
+		ClusterConfig:           cfg.services,
+		Provisioner:             cfg.services,
+		Trust:                   cfg.services,
+		Users:                   cfg.services,
+		Access:                  cfg.services,
+		DynamicAccess:           cfg.services,
+		Presence:                cfg.services,
+		Restrictions:            cfg.services,
+		Apps:                    cfg.services,
+		Kubernetes:              cfg.services,
+		DatabaseServices:        cfg.services,
+		Databases:               cfg.services,
+		AppSession:              cfg.services,
+		SnowflakeSession:        cfg.services,
+		WindowsDesktops:         cfg.services,
+		SAMLIdPServiceProviders: cfg.services,
+		WebSession:              cfg.services.WebSessions(),
+		WebToken:                cfg.services.WebTokens(),
+		Component:               teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
+		MetricComponent:         teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
+		Tracer:                  process.TracingProvider.Tracer(teleport.ComponentCache),
+		Unstarted:               cfg.unstarted,
 	}))
 }
 
@@ -4694,8 +4695,13 @@ func (process *TeleportProcess) initApps() {
 
 		// Execute this when process is asked to exit.
 		process.OnExit("apps.stop", func(payload interface{}) {
-			log.Infof("Shutting down.")
-			warnOnErr(appServer.Close(), log)
+			if payload == nil {
+				log.Infof("Shutting down immediately.")
+				warnOnErr(appServer.Close(), log)
+			} else {
+				log.Infof("Shutting down gracefully.")
+				warnOnErr(appServer.Shutdown(payloadContext(payload, log)), log)
+			}
 			if asyncEmitter != nil {
 				warnOnErr(asyncEmitter.Close(), log)
 			}
@@ -4789,6 +4795,11 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	// imported listeners that haven't been used so far
 	warnOnErr(process.closeImportedDescriptors(""), process.log)
 	warnOnErr(process.stopListeners(), process.log)
+
+	// populate context values
+	if len(process.getForkedPIDs()) > 0 {
+		ctx = services.ProcessForkedContext(ctx)
+	}
 
 	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
 	localCtx, cancel := context.WithCancel(ctx)
