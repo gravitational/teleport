@@ -45,9 +45,11 @@ When using headless authentication, Teleport clients will generate a new private
 
 This solves two problems: 1) multiple users with on the same remote machine will not have overlapping credentials on disk in `~/.tsh` and 2) attackers will not be able to steal a user's credentials from disk.
 
-2. **Issued certificates through headless authentication are short lived (1 minute TTL)**
+We will also lock the process memory using [`unix.Mlockall`](https://pkg.go.dev/golang.org/x/sys/unix#Mlockall) to ensure that an attacker can not swap out process memory to disk, in order to extract the client's certificates.
 
-Since the user certificates are only meant to last for a single client lifetime, the Auth server should issue the certificates with a 1 minute TTL. This limits the damage potential if an attacker manages to compromise the user's certificate, whether through a faulty client or a clever attack.
+2. **Issued certificates through headless authentication are short lived (1 minute TTL) and 30 minute session deadline**
+
+Since the user certificates are only meant to last for a single client lifetime, the Auth server should issue the certificates with a 1 minute TTL. This limits the damage potential if an attacker manages to compromise the user's certificate, whether through a faulty client or a clever attack. The certs will also have a 30 minute session deadline, so that a compromised connection cannot be held open indefinitely.
 
 3. **User must complete WebAuthn authentication for each individual headless `tsh` request (`tsh ls`, `tsh ssh`, etc.)**
 
@@ -259,7 +261,7 @@ type SSHLoginResponse struct {
 
 This endpoint is used by Teleport clients to retrieve headless login request details before prompting the user for approval/denial.
 
-The endpoint is only authorized for the user who requested Headless authentication (and for server roles).
+The endpoint is only authorized for certificates from the user who requested Headless authentication (and for server roles).
 
 ```proto
 service AuthService {
@@ -296,7 +298,7 @@ enum State {
 
 This endpoint is used by Teleport clients to update headless login request state to approved or denied. If the client requests to approve, the client will receive an MFA challenge and will need to reply with a valid MFA challenge response. To support this multi-step request, the rpc provides an rpc stream to both sides of the connection.
 
-The endpoint is only authorized for the user who requested Headless authentication (and for server roles).
+The endpoint is only authorized for certificates from the user who requested Headless authentication (and for server roles).
 
 ```proto
 service AuthService {
