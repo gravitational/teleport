@@ -19,10 +19,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import (
-	"os"
-)
-
 // On Windows we use auxiliary .lock.tmp files to acquire locks, so we can still read/write target
 // files themselves.
 //
