@@ -20,12 +20,13 @@ Their removal has two main consequences:
 To prepare for the 1.25 upgrade:
 
 - Make sure you are running at least Kubernetes 1.23 (run `kubectl version`)
+
 - Label the namespace you are deploying the chart in with the PSA enforcement level:
 
   ```code
   $ kubectl label namespace my-teleport-namespace 'pod-security.kubernetes.io/enforce=baseline'
   
-  namespace/my-teleport-nsamespace labeled
+  namespace/my-teleport-namespace labeled
   ```
 
 - Explicitly disable PSP deployment from the chart by setting

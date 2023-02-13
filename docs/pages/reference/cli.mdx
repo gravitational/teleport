@@ -645,7 +645,7 @@ To run the local proxy server, one of the user's roles must include the
 `spec.allow.azure_identities` field with one of the identities used by the
 Application Service. To learn how to set up secure access to Azure via
 Teleport, read [Protect the Azure CLI with Teleport Application
-Access](../application-access/guides/azure.mdx).
+Access](../application-access/cloud-apis/azure.mdx).
 
 #### Arguments
 
@@ -768,7 +768,7 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 #### Examples
 
 ```code
-$ tsh --proxy=proxy.example.com scp -P example.txt user@host:/destination/dir
+$ tsh --proxy=proxy.example.com scp example.txt user@host:/destination/dir
 ```
 
 ### tsh ls

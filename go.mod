@@ -39,7 +39,6 @@ require (
 	github.com/creack/pty v1.1.18
 	github.com/crewjam/saml v0.4.12
 	github.com/datastax/go-cassandra-native-protocol v0.0.0-20220706104457-5e8aad05cf90
-	github.com/denisenkom/go-mssqldb v0.11.0 // replaced
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-elasticsearch/v8 v8.6.0
 	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
@@ -92,6 +91,7 @@ require (
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/mdlayher/netlink v1.7.1
+	github.com/microsoft/go-mssqldb v0.0.0-00010101000000-000000000000 // replaced
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/term v0.0.0-20221128092401-c43b287e0e0f
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.4.1
@@ -113,14 +113,14 @@ require (
 	go.etcd.io/etcd/client/v3 v3.5.6
 	go.mongodb.org/mongo-driver v1.10.4
 	go.mozilla.org/pkcs7 v0.0.0-20210826202110-33d05740a352
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.37.0
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.37.0
-	go.opentelemetry.io/otel v1.11.2
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.2
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.11.2
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.11.2
-	go.opentelemetry.io/otel/sdk v1.11.2
-	go.opentelemetry.io/otel/trace v1.11.2
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.38.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.39.0
+	go.opentelemetry.io/otel v1.13.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.12.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.12.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.12.0
+	go.opentelemetry.io/otel/sdk v1.12.0
+	go.opentelemetry.io/otel/trace v1.13.0
 	go.opentelemetry.io/proto/otlp v0.19.0
 	golang.org/x/crypto v0.2.0 // replaced
 	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9
@@ -132,7 +132,7 @@ require (
 	golang.org/x/term v0.4.0
 	golang.org/x/text v0.6.0
 	golang.org/x/tools v0.5.0 // indirect
-	google.golang.org/grpc v1.51.0
+	google.golang.org/grpc v1.52.0
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
@@ -244,7 +244,7 @@ require (
 	github.com/go-webauthn/revoke v0.1.6 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
-	github.com/golang-sql/sqlexp v0.0.0-20170517235910-f1bb20e5a188 // indirect
+	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
@@ -339,8 +339,8 @@ require (
 	github.com/zenazn/goji v1.0.1 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.6 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.11.2 // indirect
-	go.opentelemetry.io/otel/metric v0.34.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.12.0 // indirect
+	go.opentelemetry.io/otel/metric v0.36.0 // indirect
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
@@ -365,13 +365,13 @@ require (
 replace (
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.6
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90
-	github.com/denisenkom/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20221006130402-25bef12c7ee1
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.5.0-teleport.1
 	github.com/go-redis/redis/v9 => github.com/gravitational/redis/v9 v9.0.0-teleport.3
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/gravitational/teleport/api => ./api
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
-	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-0.20220630200200-45a8c53e4500
+	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-0.20230202181331-c71192ef1c8a
+	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20230209180904-0f00ae61fb60
 	github.com/pkg/sftp => github.com/gravitational/sftp v1.13.6-0.20220927202521-0e74d42f8055
 	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.0

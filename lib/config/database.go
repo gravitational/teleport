@@ -53,16 +53,52 @@ teleport:
   - {{ . }}
   {{- end }}
   {{- end }}
+
 db_service:
   enabled: "yes"
-  # Matchers for database resources created with "tctl create" command.
-  # For more information: https://goteleport.com/docs/database-access/guides/dynamic-registration/
+
+  # Matchers for database resources created with "tctl create" command or by the discovery service.
+  # For more information about dynamic registration: https://goteleport.com/docs/database-access/guides/dynamic-registration/
+  {{- if .DynamicResourcesLabels }}
   resources:
+  {{- range $index, $resourceLabel := .DynamicResourcesLabels }}
   - labels:
-      "*": "*"
-  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .MemoryDBDiscoveryRegions}}
+	{{- range $name, $value := $resourceLabel }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
+  {{- end }}
+  {{- else }}
+  #
+  # resources:
+  # - labels:
+  #     "env": "dev"
+  {{- end }}
+
   # Matchers for registering AWS-hosted databases.
+  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .MemoryDBDiscoveryRegions}}
   aws:
+  {{- else }}
+  # For more information about AWS auto-discovery:
+  # RDS/Aurora: https://goteleport.com/docs/database-access/guides/rds/
+  # RDS Proxy: https://goteleport.com/docs/database-access/guides/rdsproxy/
+  # Redshift: https://goteleport.com/docs/database-access/guides/postgres-redshift/
+  # Redshift Serverless: https://goteleport.com/docs/database-access/guides/postgres-redshift-serverless/
+  # ElastiCache/MemoryDB: https://goteleport.com/docs/database-access/guides/redis-aws/
+  #
+  # aws:
+  #   # Database types. Valid options are:
+  #   # 'rds' - discovers and registers AWS RDS and Aurora databases
+  #   # 'rdsproxy' - discovers and registers AWS RDS Proxy databases.
+  #   # 'redshift' - discovers and registers AWS Redshift databases.
+  #   # 'redshift-serverless' - discovers and registers AWS Redshift Serverless databases.
+  #   # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
+  #   # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
+  # - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb"]
+  #   # AWS regions to register databases from.
+  #   regions: ["us-west-1", "us-east-2"]
+  #   # AWS resource tags to match when registering databases.
+  #   tags:
+  #     "*": "*"
   {{- end }}
   {{- if .RDSDiscoveryRegions }}
   # RDS/Aurora databases auto-discovery.
@@ -154,9 +190,36 @@ db_service:
       "{{ $name }}": "{{ $value }}"
     {{- end }}
   {{- end }}
-  {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions .AzureRedisDiscoveryRegions .AzureSQLServerDiscoveryRegions }}
+
   # Matchers for registering Azure-hosted databases.
+  {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions .AzureRedisDiscoveryRegions .AzureSQLServerDiscoveryRegions }}
   azure:
+  {{- else }}
+  # For more information about Azure auto-discovery:
+  # MySQL/PostgreSQL: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
+  # Redis: https://goteleport.com/docs/database-access/guides/azure-redis/
+  # SQL Server: https://goteleport.com/docs/database-access/guides/azure-sql-server-ad/
+  #
+  # azure:
+  #   # Database types. Valid options are:
+  #   # 'mysql' - discovers and registers Azure MySQL databases.
+  #   # 'postgres' - discovers and registers Azure PostgreSQL databases.
+  #   # 'redis' - discovers and registers Azure Cache for Redis databases.
+  #   # 'sqlserver' - discovers and registers Azure SQL Server databases.
+  # - types: ["mysql", "postgres", "redis", "sqlserver"]
+  #   # Azure regions to register databases from. Valid options are:
+  #   # '*' - discovers databases in all regions (default).
+  #   regions: ["eastus", "westus"]
+  #   # Azure subscription IDs to register databases from. Valid options are:
+  #   # '*' - discovers databases in all subscriptions (default).
+  #   subscriptions: ["11111111-2222-3333-4444-555555555555"]
+  #   # Azure resource groups to register databases from. Valid options are:
+  #   # '*' - discovers databases in all resource groups within configured subscription(s) (default).
+  #   resource_groups: ["group1", "group2"]
+  #   # Azure resource tags to match when registering databases.
+  #   tags:
+  #     "*": "*"
+  {{- end }}
   {{- if or .AzureMySQLDiscoveryRegions }}
   # Azure MySQL databases auto-discovery.
   # For more information about Azure MySQL auto-discovery: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
@@ -257,7 +320,7 @@ db_service:
       "{{ $name }}": "{{ $value }}"
     {{- end }}
   {{- end }}
-  {{- end }}
+
   # Lists statically registered databases proxied by this agent.
   {{- if .StaticDatabaseName }}
   databases:
@@ -322,6 +385,7 @@ db_service:
     {{- end }}
     {{- end }}
   {{- else }}
+  #
   # databases:
   # # RDS database static configuration.
   # # RDS/Aurora databases Auto-discovery reference: https://goteleport.com/docs/database-access/guides/rds/
@@ -407,6 +471,7 @@ db_service:
   #   # Database connection endpoint. Must be reachable from Database service.
   #   uri: database.example.com:5432
   {{- end }}
+
 auth_service:
   enabled: "no"
 ssh_service:
@@ -416,6 +481,10 @@ proxy_service:
 
 // DatabaseSampleFlags specifies configuration parameters for a database agent.
 type DatabaseSampleFlags struct {
+	// DynamicResourcesRawLabels is the "raw" list of labels for dynamic "resources".
+	DynamicResourcesRawLabels []string
+	// DynamicResourcesLabels is the list of labels for dynamic "resources".
+	DynamicResourcesLabels []map[string]string
 	// StaticDatabaseName static database name provided by the user.
 	StaticDatabaseName string
 	// StaticDatabaseProtocol static databse protocol provided by the user.
@@ -549,6 +618,15 @@ func (f *DatabaseSampleFlags) CheckAndSetDefaults() error {
 				return trace.Wrap(err)
 			}
 		}
+	}
+
+	// Labels for "resources" section.
+	for i := range f.DynamicResourcesRawLabels {
+		labels, err := client.ParseLabelSpec(f.DynamicResourcesRawLabels[i])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		f.DynamicResourcesLabels = append(f.DynamicResourcesLabels, labels)
 	}
 
 	return nil
