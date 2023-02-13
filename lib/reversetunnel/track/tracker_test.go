@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	pr "math/rand"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -140,11 +139,6 @@ func jitter(t time.Duration) time.Duration {
 	baseJitter := time.Duration(pr.Uint64())
 	j := baseJitter % maxJitter
 	return t + j
-}
-
-func TestMain(m *testing.M) {
-	pr.Seed(time.Now().UnixNano())
-	os.Exit(m.Run())
 }
 
 func TestBasic(t *testing.T) {
