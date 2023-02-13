@@ -3156,6 +3156,7 @@ message WebSessionFilter {
 }
 
 // SAMLSessionData contains data for a SAML session.
+// Based on crewjam/saml's session object: https://github.com/crewjam/saml/blob/main/identity_provider.go
 message SAMLSessionData {
   // ID is the identifier for the SAML session.
   string ID = 1 [(gogoproto.jsontag) = "id"];

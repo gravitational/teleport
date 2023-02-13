@@ -8049,6 +8049,7 @@ func (m *WebSessionFilter) XXX_DiscardUnknown() {
 var xxx_messageInfo_WebSessionFilter proto.InternalMessageInfo
 
 // SAMLSessionData contains data for a SAML session.
+// Based on crewjam/saml's session object: https://github.com/crewjam/saml/blob/main/identity_provider.go
 type SAMLSessionData struct {
 	// ID is the identifier for the SAML session.
 	ID string `protobuf:"bytes,1,opt,name=ID,proto3" json:"id"`
