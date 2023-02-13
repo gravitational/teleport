@@ -135,7 +135,7 @@ func (h *Handler) getAppFQDN(w http.ResponseWriter, r *http.Request, p httproute
 //
 // POST /v1/webapi/sessions/app
 func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req CreateAppSessionRequest
+	var req resolveAppParams
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -154,12 +154,22 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 
 	// Use the information the caller provided to attempt to resolve to an
 	// application running within either the root or leaf cluster.
-	result, err := h.resolveApp(r.Context(), authClient, proxy, resolveAppParams(req))
+	result, err := h.resolveApp(r.Context(), authClient, proxy, req)
 	if err != nil {
 		return nil, trace.Wrap(err, "unable to resolve FQDN: %v", req.FQDNHint)
 	}
 
 	h.log.Debugf("Creating application web session for %v in %v.", result.App.GetPublicAddr(), result.ClusterName)
+
+	// Ensuring proxy can handle the connection is only done when the request is
+	// coming from the WebUI.
+	if h.healthCheckAppServer != nil && !app.HasClientCert(r) {
+		h.log.Debugf("Ensuring proxy can handle requests requests for application %q.", result.App.GetName())
+		err := h.healthCheckAppServer(r.Context(), result.App.GetPublicAddr(), result.ClusterName)
+		if err != nil {
+			return nil, trace.ConnectionProblem(err, "Unable to serve application requests. Please try again. If the issue persists, verify if the Application Services are connected to Teleport.")
+		}
+	}
 
 	// Create an application web session.
 	//

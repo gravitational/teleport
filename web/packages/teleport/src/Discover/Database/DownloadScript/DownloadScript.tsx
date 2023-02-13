@@ -21,14 +21,23 @@ import Validation, { Validator, useRule } from 'shared/components/Validation';
 
 import { CatchError } from 'teleport/components/CatchError';
 import {
-  useJoinToken,
   clearCachedJoinTokenResult,
-} from 'teleport/Discover/Shared/JoinTokenContext';
+  useJoinTokenSuspender,
+} from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
-import { CommandWithTimer } from 'teleport/Discover/Shared/CommandWithTimer';
 import { AgentLabel } from 'teleport/services/agents';
 import cfg from 'teleport/config';
 import { Database } from 'teleport/services/databases';
+
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+
+import {
+  HintBox,
+  SuccessBox,
+  WaitingInfo,
+} from 'teleport/Discover/Shared/HintBox';
+
+import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
 import {
   ActionButtons,
@@ -39,16 +48,12 @@ import {
   LabelsCreater,
   DiscoverLabel,
   Mark,
+  useShowHint,
 } from '../../Shared';
 
 import type { AgentStepProps } from '../../types';
-import type { Poll } from 'teleport/Discover/Shared/CommandWithTimer';
 
-export default function Container(
-  props: AgentStepProps & { runJoinTokenPromise?: boolean }
-) {
-  const [showScript, setShowScript] = useState(props.runJoinTokenPromise);
-
+export default function Container(props: AgentStepProps) {
   const hasDbLabels = props.agentMeta?.agentMatcherLabels?.length;
   const dbLabels = hasDbLabels ? props.agentMeta.agentMatcherLabels : [];
   const [labels, setLabels] = useState<DiscoverLabel[]>(
@@ -60,12 +65,7 @@ export default function Container(
         [{ name: '*', value: '*', isFixed: true }]
   );
 
-  function handleGenerateCommand(validator: Validator) {
-    if (!validator.validate()) {
-      return;
-    }
-    setShowScript(true);
-  }
+  const [showScript, setShowScript] = useState(false);
 
   const labelProps = { labels, setLabels, dbLabels };
 
@@ -73,23 +73,11 @@ export default function Container(
     <Validation>
       {({ validator }) => (
         <CatchError
-          onRetry={clearCachedJoinTokenResult}
+          onRetry={() => clearCachedJoinTokenResult(ResourceKind.Database)}
           fallbackFn={fbProps => (
             <Box>
               <Heading />
-              <Labels
-                {...labelProps}
-                generateBtn={
-                  <ButtonGenerateCmd
-                    onClick={() => {
-                      if (!validator.validate()) {
-                        return;
-                      }
-                      fbProps.retry();
-                    }}
-                  />
-                }
-              />
+              <Labels {...labelProps} />
               <Box>
                 <TextIcon mt={3}>
                   <Icons.Warning ml={1} color="danger" />
@@ -108,11 +96,7 @@ export default function Container(
             fallback={
               <Box>
                 <Heading />
-                <Labels
-                  {...labelProps}
-                  disableBtns={true}
-                  generateBtn={<ButtonGenerateCmd disabled={true} />}
-                />
+                <Labels {...labelProps} disableBtns={true} />
                 <ActionButtons
                   onProceed={() => null}
                   disableProceed={true}
@@ -124,14 +108,13 @@ export default function Container(
             {!showScript && (
               <Box>
                 <Heading />
-                <Labels
-                  {...labelProps}
-                  generateBtn={
-                    <ButtonGenerateCmd
-                      onClick={() => handleGenerateCommand(validator)}
-                    />
-                  }
-                />
+                <Labels {...labelProps} />
+                <ButtonSecondary
+                  width="200px"
+                  onClick={() => setShowScript(true)}
+                >
+                  Generate Command
+                </ButtonSecondary>
                 <ActionButtons
                   onProceed={() => null}
                   disableProceed={true}
@@ -162,26 +145,18 @@ export function DownloadScript(
   }
 ) {
   // Fetches join token.
-  const { joinToken, reloadJoinToken, timeout } = useJoinToken(
+  const { joinToken } = useJoinTokenSuspender(
     ResourceKind.Database,
     props.labels
   );
 
   // Starts resource querying interval.
-  const {
-    timedOut: pollingTimedOut,
-    start,
-    result,
-  } = usePingTeleport<Database>(props.agentMeta.resourceName);
+  const { active, result } = usePingTeleport<Database>(
+    joinToken,
+    props.agentMeta.resourceName
+  );
 
-  function regenerateScriptAndRepoll() {
-    if (!props.validator.validate()) {
-      return;
-    }
-
-    reloadJoinToken();
-    start();
-  }
+  const showHint = useShowHint(active);
 
   function handleNextStep() {
     props.updateAgentMeta({
@@ -192,26 +167,51 @@ export function DownloadScript(
     props.nextStep();
   }
 
-  let poll: Poll = { state: 'polling' };
-  if (pollingTimedOut) {
-    poll = {
-      state: 'error',
-      error: {
-        reasonContents: [
-          <>
-            The command was not run on the server you were trying to add,
-            regenerate command and try again.
-          </>,
-          <>
-            The Teleport Database Service could not join this Teleport cluster.
-            Check the logs for errors by running <br />
-            <Mark>journalctl status teleport</Mark>
-          </>,
-        ],
-      },
-    };
+  let hint;
+  if (showHint && !result) {
+    hint = (
+      <HintBox header="We're still looking for your database service">
+        <Text mb={3}>
+          There are a couple of possible reasons for why we haven't been able to
+          detect your database service.
+        </Text>
+
+        <Text mb={1}>
+          - The command was not run on the server you were trying to add.
+        </Text>
+
+        <Text mb={3}>
+          - The Teleport Database Service could not join this Teleport cluster.
+          Check the logs for errors by running{' '}
+          <Mark>journalctl -fu teleport</Mark>.
+        </Text>
+
+        <Text>
+          We'll continue to look for the database service whilst you diagnose
+          the issue.
+        </Text>
+      </HintBox>
+    );
   } else if (result) {
-    poll = { state: 'success' };
+    hint = (
+      <SuccessBox>
+        Successfully detected your new Teleport database service.
+      </SuccessBox>
+    );
+  } else {
+    hint = (
+      <WaitingInfo>
+        <TextIcon
+          css={`
+            white-space: pre;
+          `}
+        >
+          <Icons.Restore fontSize={4} />
+        </TextIcon>
+        After running the command above, we'll automatically detect your new
+        Teleport database service.
+      </WaitingInfo>
+    );
   }
 
   return (
@@ -220,27 +220,21 @@ export function DownloadScript(
       <Labels
         labels={props.labels}
         setLabels={props.setLabels}
-        disableBtns={poll.state === 'polling'}
+        disableBtns={true}
         dbLabels={props.dbLabels}
-        generateBtn={
-          <ButtonGenerateCmd
-            disabled={poll.state === 'polling'}
-            onClick={regenerateScriptAndRepoll}
-            title="Regenerate Command"
-          />
-        }
       />
       <Box mt={6}>
-        <CommandWithTimer
-          command={createBashCommand(joinToken.id)}
-          poll={poll}
-          pollingTimeout={timeout}
-        />
+        <CommandBox>
+          <TextSelectCopyMulti
+            lines={[{ text: createBashCommand(joinToken.id) }]}
+          />
+        </CommandBox>
+        {hint}
       </Box>
       <ActionButtons
         onProceed={handleNextStep}
-        disableProceed={poll.state !== 'success' || props.labels.length === 0}
-        onSkip={props.nextStep}
+        disableProceed={!result || props.labels.length === 0}
+        onSkip={() => props.nextStep()}
       />
     </Box>
   );
@@ -267,13 +261,11 @@ export const Labels = ({
   setLabels,
   disableBtns = false,
   dbLabels,
-  generateBtn,
 }: {
   labels: AgentLabel[];
   setLabels(l: AgentLabel[]): void;
   disableBtns?: boolean;
   dbLabels: AgentLabel[];
-  generateBtn: React.ReactNode;
 }) => {
   const { valid, message } = useRule(requireMatchingLabels(dbLabels, labels));
   const hasError = !valid;
@@ -291,7 +283,6 @@ export const Labels = ({
         disableBtns={disableBtns}
       />
       <Box mt={3}>
-        {generateBtn}
         {hasError && (
           <TextIcon mt={3}>
             <Icons.Warning ml={1} color="danger" />
@@ -364,17 +355,3 @@ export function matchLabels(dbLabels: AgentLabel[], agentLabels: AgentLabel[]) {
 
   return false;
 }
-
-const ButtonGenerateCmd = ({
-  onClick,
-  title = 'Generate Command',
-  disabled = false,
-}: {
-  onClick?(): void;
-  title?: string;
-  disabled?: boolean;
-}) => (
-  <ButtonSecondary width="200px" onClick={onClick} disabled={disabled}>
-    {title}
-  </ButtonSecondary>
-);

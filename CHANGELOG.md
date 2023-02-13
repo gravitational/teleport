@@ -1,5 +1,22 @@
 # Changelog
 
+## 11.3.3
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed panic when terminating moderated session with Ctrl-D. [#21350](https://github.com/gravitational/teleport/pull/21350)
+* Fixed issue with Teleport installer script failing with 404. [#21242](https://github.com/gravitational/teleport/pull/21242)
+* Fixed issue with Teleport Connect installation on some Debian systems. [#21221](https://github.com/gravitational/teleport/pull/21221)
+* Fixed issue with Kubernetes Access impersonation via `--as` flag. [#21148](https://github.com/gravitational/teleport/pull/21148)
+* Fixed issue with Teleport generating audit events for preset roles after each restart. [#21142](https://github.com/gravitational/teleport/pull/21142)
+* Fixed issue with Desktop Access losing connections to desktops when LDAP discovery is disabled. [#21083](https://github.com/gravitational/teleport/pull/21083)
+* Fixed `tsh db connect` when using hardware-backed private keys. [#21042](https://github.com/gravitational/teleport/pull/21042)
+* Fixed issue with Desktop Access sessions being recorded on disk with disabled recording. [#21011](https://github.com/gravitational/teleport/pull/21011)
+* Fixed issue with web UI sessions not being accounted for during graceful shutdown. [#20914](https://github.com/gravitational/teleport/pull/20914)
+* Reduced CPU usage when using enhanced session recording. [#21438](https://github.com/gravitational/teleport/pull/21438)
+* Updated OpenSSL to the latest security patch `1.1.1t`. [#21426](https://github.com/gravitational/teleport/pull/21426)
+* Multiple performance and scalability improvements for large clusters. [#21493](https://github.com/gravitational/teleport/pull/21493), [#21494](https://github.com/gravitational/teleport/pull/21494)
+
 ## 11.3.2
 
 This release of Teleport contains multiple improvements and bug fixes.

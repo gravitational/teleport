@@ -19,7 +19,7 @@ import styled from 'styled-components';
 
 import logoSrc from 'design/assets/images/teleport-medallion.svg';
 
-import { Text } from 'design';
+import { Box, Text } from 'design';
 
 import { ButtonPrimary } from 'design/Button';
 
@@ -31,6 +31,9 @@ import {
 } from 'teleport/Discover/Desktop/ConnectTeleport/Step';
 
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
+import { HintBox } from 'teleport/Discover/Shared/HintBox';
+import { Mark, ResourceKind, useShowHint } from 'teleport/Discover/Shared';
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 
 interface StartTeleportProps {
   onNext: () => void;
@@ -58,23 +61,10 @@ function StepWrapper(props: StepWrapperProps) {
 export function StartTeleport(
   props: React.PropsWithChildren<StartTeleportProps>
 ) {
-  const { active, result, start, timedOut } = usePingTeleport();
+  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
+  const { active, result } = usePingTeleport(joinToken);
 
-  if (timedOut) {
-    return (
-      <StepWrapper>
-        <StepInstructions>
-          <Text mb={4}>
-            We looked everywhere but we couldn't find your Teleport node.
-          </Text>
-
-          <ButtonPrimary disabled={active} onClick={() => start()}>
-            Retry
-          </ButtonPrimary>
-        </StepInstructions>
-      </StepWrapper>
-    );
-  }
+  const showHint = useShowHint(active);
 
   if (result) {
     return (
@@ -90,10 +80,41 @@ export function StartTeleport(
     );
   }
 
+  let hint;
+  if (showHint) {
+    hint = (
+      <Box mb={3}>
+        <HintBox header="We're still looking for your Windows Desktop service">
+          <Text mb={3}>
+            There are a couple of possible reasons for why we haven't been able
+            to detect your server.
+          </Text>
+
+          <Text mb={1}>
+            - The command was not run on the server you were trying to add.
+          </Text>
+
+          <Text mb={3}>
+            - The Teleport Desktop Service could not join this Teleport cluster.
+            Check the logs for errors by running{' '}
+            <Mark>journalctl -fu teleport</Mark>.
+          </Text>
+
+          <Text>
+            We'll continue to look for the Windows Desktop service whilst you
+            diagnose the issue.
+          </Text>
+        </HintBox>
+      </Box>
+    );
+  }
+
   return (
     <StepWrapper>
       <StepInstructions>
         <Text mb={4}>Once you've started Teleport, we'll detect it here.</Text>
+
+        {hint}
 
         <ButtonPrimary disabled={!result} onClick={() => props.onNext()}>
           Next
