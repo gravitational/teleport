@@ -1,5 +1,30 @@
 # Changelog
 
+## 12.0.2
+
+This release of Teleport contains a security fix as well as multiple improvements and bug fixes.
+
+### OpenSSL update
+
+* Updated OpenSSL to `1.1.1t`. [#21425](https://github.com/gravitational/teleport/pull/21425)
+
+### Other fixes and improvements
+
+* Fixed issue with Access Manager interface not accepting valid port numbers. [#21651](https://github.com/gravitational/teleport/pull/21651)
+* Fixed issue with some application access requests failing after proxy restart. [#21615](https://github.com/gravitational/teleport/pull/21615)
+* Fixed issue with invalid role template namespaces leading to cluster lockouts. [#21573](https://github.com/gravitational/teleport/pull/21573)
+* Fixed issue with Teleport Connect failing to recognize logged in user sometimes. [#21467](https://github.com/gravitational/teleport/pull/21467)
+* Fixed issue with the back button not working in Web UI navigation. [#21236](https://github.com/gravitational/teleport/pull/21236)
+* Fixed issue with Web UI SSH player having scrollbars. [#20868](https://github.com/gravitational/teleport/pull/20868)
+* Added support for `tsh request search --kind=pod` command. [#21456](https://github.com/gravitational/teleport/pull/21456)
+* Updated `tsh db configure create` to require flag for dynamic resources matching. [#21395](https://github.com/gravitational/teleport/pull/21395)
+* Improved reconnect stability after database service restart. [#21635](https://github.com/gravitational/teleport/pull/21635)
+* Improved reconnect stability after Kubernetes service restart.[#21617](https://github.com/gravitational/teleport/pull/21617)
+* Improved `tsh ls -R` performance. [#21577](https://github.com/gravitational/teleport/pull/21577)
+* Improved `tsh scp` error message when no remote path is specified. [#21373](https://github.com/gravitational/teleport/pull/21373)
+* Improved error message when trying to rename resource. [#21179](https://github.com/gravitational/teleport/pull/21179)
+* Reduced CPU usage when using enhanced session recording. [#21437](https://github.com/gravitational/teleport/pull/21437)
+
 ## 12.0.1
 
 Teleport 12 brings the following marquee features and improvements:
@@ -1326,7 +1351,7 @@ to log into their AWS console using `tsh app login` and use `tsh aws` commands
 to interact with AWS APIs.
 
 See more info in the
-[documentation](docs/pages/application-access/guides/aws-console.mdx).
+[documentation](docs/pages/application-access/cloud-apis/aws-console.mdx).
 
 #### Application and Database Dynamic Registration
 
@@ -1461,7 +1486,7 @@ View the Cloud SQL MySQL [guide](docs/pages/database-access/guides/mysql-cloudsq
 
 Added support for [AWS Console](https://aws.amazon.com/console) to Teleport Application Access. [#7590](https://github.com/gravitational/teleport/pull/7590)
 
-Teleport Application Access can now automatically sign users into the AWS Management Console using [Identity federation](https://aws.amazon.com/identity/federation). View AWS Management Console [guide](docs/pages/application-access/guides/aws-console.mdx) for more details.
+Teleport Application Access can now automatically sign users into the AWS Management Console using [Identity federation](https://aws.amazon.com/identity/federation). View AWS Management Console [guide](docs/pages/application-access/cloud-apis/aws-console.mdx) for more details.
 
 #### Restricted Sessions
 

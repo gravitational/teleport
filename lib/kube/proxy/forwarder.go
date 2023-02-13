@@ -1054,7 +1054,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	if sess.noAuditEvents {
+	if !f.isLocalKubeCluster(sess) {
 		return f.remoteJoin(ctx, w, req, p, sess)
 	}
 

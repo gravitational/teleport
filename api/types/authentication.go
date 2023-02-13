@@ -114,6 +114,8 @@ type AuthPreference interface {
 	// GetDeviceTrust returns the cluster device trust settings, or nil if no
 	// explicit configurations are present.
 	GetDeviceTrust() *DeviceTrust
+	// SetDeviceTrust sets the cluster device trust settings.
+	SetDeviceTrust(*DeviceTrust)
 
 	// String represents a human readable version of authentication settings.
 	String() string
@@ -398,6 +400,11 @@ func (c *AuthPreferenceV2) GetDeviceTrust() *DeviceTrust {
 		return nil
 	}
 	return c.Spec.DeviceTrust
+}
+
+// SetDeviceTrust sets the cluster device trust settings.
+func (c *AuthPreferenceV2) SetDeviceTrust(dt *DeviceTrust) {
+	c.Spec.DeviceTrust = dt
 }
 
 // setStaticFields sets static resource header and metadata fields.
