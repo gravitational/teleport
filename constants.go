@@ -261,15 +261,6 @@ const (
 	// ComponentUsageReporting is the component responsible for reporting usage metrics.
 	ComponentUsageReporting = "usage-reporting"
 
-	// DebugEnvVar tells tests to use verbose debug output
-	DebugEnvVar = "DEBUG"
-
-	// DebugAssetsPath allows users to set the path of the webassets if debug
-	// mode is enabled.
-	// For example,
-	// `DEBUG=1 DEBUG_ASSETS_PATH=/path/to/webassets/ teleport start`.
-	DebugAssetsPath = "DEBUG_ASSETS_PATH"
-
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
