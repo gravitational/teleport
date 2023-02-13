@@ -46,7 +46,6 @@ import (
 	_ "github.com/beevik/etree"
 	_ "github.com/coreos/go-oidc/oidc"
 	_ "github.com/crewjam/saml/samlidp"
-	_ "github.com/crewjam/saml/samlsp"
 	_ "github.com/go-piv/piv-go/piv"
 	_ "github.com/gravitational/form"
 	_ "google.golang.org/api/admin/directory/v1"
