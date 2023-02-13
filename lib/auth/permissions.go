@@ -159,7 +159,8 @@ Loop:
 	if r, ok := c.Identity.(BuiltinRole); ok && r.Role == types.RoleNode {
 		lockTargets = append(lockTargets,
 			types.LockTarget{Node: r.GetServerID()},
-			types.LockTarget{Node: r.Identity.Username})
+			types.LockTarget{Node: r.Identity.Username},
+		)
 	}
 	return lockTargets
 }
