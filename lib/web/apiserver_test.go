@@ -169,6 +169,10 @@ type webSuiteConfig struct {
 	authPreferenceSpec *types.AuthPreferenceSpecV2
 
 	disableDiskBasedRecording bool
+
+	// Custom "HealthCheckAppServer" function. Can be used to avoid dialing app
+	// services.
+	HealthCheckAppServer healthCheckAppServerFunc
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -421,7 +425,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	require.NoError(t, err)
 
-	handler, err := NewHandler(Config{
+	handlerConfig := Config{
 		ClusterFeatures:                 *modules.GetModules().Features().ToProto(), // safe to dereference because ToProto creates a struct and return a pointer to it
 		Proxy:                           revTunServer,
 		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
@@ -437,7 +441,14 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		ProxySettings:                   &mockProxySettings{},
 		SessionControl:                  proxySessionController,
 		Router:                          router,
-	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
+		HealthCheckAppServer:            cfg.HealthCheckAppServer,
+	}
+
+	if handlerConfig.HealthCheckAppServer == nil {
+		handlerConfig.HealthCheckAppServer = func(context.Context, string, string) error { return nil }
+	}
+
+	handler, err := NewHandler(handlerConfig, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	require.NoError(t, err)
 
 	s.webServer = httptest.NewUnstartedServer(handler)
@@ -4552,6 +4563,77 @@ func TestCreateAppSession(t *testing.T) {
 	}
 }
 
+func TestCreateAppSessionHealthCheckAppServer(t *testing.T) {
+	t.Parallel()
+
+	validApp, err := types.NewAppV3(types.Metadata{
+		Name: "valid",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "valid.example.com",
+	})
+	require.NoError(t, err)
+
+	invalidApp, err := types.NewAppV3(types.Metadata{
+		Name: "invalid",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "invalid.example.com",
+	})
+	require.NoError(t, err)
+
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		HealthCheckAppServer: func(_ context.Context, publicAddr string, _ string) error {
+			// Can only serve "validApp".
+			if publicAddr == validApp.GetPublicAddr() {
+				return nil
+			}
+
+			return trace.ConnectionProblem(nil, "offline AppServer")
+		},
+	})
+
+	for _, app := range []*types.AppV3{validApp, invalidApp} {
+		server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+		require.NoError(t, err)
+		_, err = s.server.Auth().UpsertApplicationServer(s.ctx, server)
+		require.NoError(t, err)
+	}
+
+	pack := s.authPack(t, "foo@example.com")
+	rawCookie := *pack.cookies[0]
+	cookieBytes, err := hex.DecodeString(rawCookie.Value)
+	require.NoError(t, err)
+	var sessionCookie SessionCookie
+	err = json.Unmarshal(cookieBytes, &sessionCookie)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc       string
+		publicAddr string
+		expectErr  require.ErrorAssertionFunc
+	}{
+		{
+			desc:       "request to application that can be served",
+			publicAddr: validApp.GetPublicAddr(),
+			expectErr:  require.NoError,
+		},
+		{
+			desc:       "request to application that cannot be served",
+			publicAddr: invalidApp.GetPublicAddr(),
+			expectErr:  require.Error,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+			_, err := pack.clt.PostJSON(s.ctx, endpoint, &CreateAppSessionRequest{
+				FQDNHint: tc.publicAddr,
+			})
+			tc.expectErr(t, err)
+		})
+	}
+}
+
 func TestNewSessionResponseWithRenewSession(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
@@ -6876,20 +6958,21 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	fs, err := NewDebugFileSystem("../../webassets/teleport")
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
-		Proxy:            revTunServer,
-		AuthServers:      utils.FromAddr(authServer.Addr()),
-		DomainName:       authServer.ClusterName(),
-		ProxyClient:      client,
-		ProxyPublicAddrs: utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
-		CipherSuites:     utils.DefaultCipherSuites(),
-		AccessPoint:      client,
-		Context:          ctx,
-		HostUUID:         proxyID,
-		Emitter:          client,
-		StaticFS:         fs,
-		ProxySettings:    &mockProxySettings{},
-		SessionControl:   sessionController,
-		Router:           router,
+		Proxy:                revTunServer,
+		AuthServers:          utils.FromAddr(authServer.Addr()),
+		DomainName:           authServer.ClusterName(),
+		ProxyClient:          client,
+		ProxyPublicAddrs:     utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
+		CipherSuites:         utils.DefaultCipherSuites(),
+		AccessPoint:          client,
+		Context:              ctx,
+		HostUUID:             proxyID,
+		Emitter:              client,
+		StaticFS:             fs,
+		ProxySettings:        &mockProxySettings{},
+		SessionControl:       sessionController,
+		Router:               router,
+		HealthCheckAppServer: func(context.Context, string, string) error { return nil },
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
