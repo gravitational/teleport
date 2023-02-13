@@ -21,10 +21,9 @@ import (
 
 	gogoplugin "github.com/gogo/protobuf/protoc-gen-gogo/plugin"
 	"github.com/gogo/protobuf/vanity/command"
+	"github.com/gravitational/teleport/schemagen"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/schemagen"
 )
 
 // resourceConfigs maps the name of a resource type/version to its corresponding
@@ -45,23 +44,27 @@ func main() {
 	log.SetLevel(log.DebugLevel)
 	log.SetOutput(os.Stderr)
 	req := command.Read()
-	if err := handleRequest(req); err != nil {
+	resp, err := handleRequest(req)
+
+	if err != nil {
 		log.WithError(err).Error("Failed to generate schema")
 		os.Exit(-1)
 	}
+
+	command.Write(resp)
 }
 
-func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
+func handleRequest(req *gogoplugin.CodeGeneratorRequest) (*gogoplugin.CodeGeneratorResponse, error) {
 	if len(req.FileToGenerate) == 0 {
-		return trace.Errorf("no input file provided")
+		return nil, trace.Errorf("no input file provided")
 	}
 	if len(req.FileToGenerate) > 1 {
-		return trace.Errorf("too many input files")
+		return nil, trace.Errorf("too many input files")
 	}
 
 	gen, err := schemagen.NewGenerator(req)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	rootFileName := req.FileToGenerate[0]
@@ -70,14 +73,12 @@ func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
 		file := gen.AddFile(fileDesc)
 		if fileDesc.GetName() == rootFileName {
 			if err := generateSchema(file, gen.Response); err != nil {
-				return trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 		}
 	}
 
-	command.Write(gen.Response)
-
-	return nil
+	return gen.Response, nil
 }
 
 func generateSchema(file *schemagen.File, resp *gogoplugin.CodeGeneratorResponse) error {
