@@ -25,7 +25,11 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
+<<<<<<< HEAD
 	"github.com/aws/aws-sdk-go/service/sts"
+=======
+	awssession "github.com/aws/aws-sdk-go/aws/session"
+>>>>>>> 76c7d9dfdf (resolve timestream endpoint)
 	"github.com/gravitational/oxy/forward"
 	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
@@ -62,25 +66,50 @@ type SignerHandlerConfig struct {
 	Clock clockwork.Clock
 	// CredentialsGetter is used to obtain STS credentials.
 	CredentialsGetter awsutils.CredentialsGetter
+	// Session is AWS session.
+	Session *awssession.Session
 }
 
 // CheckAndSetDefaults validates the AwsSignerHandlerConfig.
 func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
-	if cfg.SigningService == nil {
-		return trace.BadParameter("missing SigningService")
-	}
+	var err error
 	if cfg.RoundTripper == nil {
-		tr, err := defaults.Transport()
+		cfg.RoundTripper, err = defaults.Transport()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.RoundTripper = tr
 	}
 	if cfg.Log == nil {
 		cfg.Log = logrus.WithField(trace.Component, "aws:signer")
 	}
+<<<<<<< HEAD
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
+=======
+	if cfg.CredentialsGetter == nil {
+		cfg.CredentialsGetter, err = awsutils.NewCachedCredentialsGetter(awsutils.CachedCredentialsGetterConfig{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if cfg.Session == nil {
+		cfg.Session, err = awssession.NewSessionWithOptions(awssession.Options{
+			SharedConfigState: awssession.SharedConfigEnable,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if cfg.SigningService == nil {
+		cfg.SigningService, err = awsutils.NewSigningService(awsutils.SigningServiceConfig{
+			CredentialsGetter: cfg.CredentialsGetter,
+			Session:           cfg.Session,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+>>>>>>> 76c7d9dfdf (resolve timestream endpoint)
 	}
 	return nil
 }
@@ -150,7 +179,7 @@ func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) erro
 func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w http.ResponseWriter, req *http.Request) error {
 	// It's important that we resolve the endpoint before modifying the request headers,
 	// as they may be needed to resolve the endpoint correctly.
-	re, err := resolveEndpoint(req)
+	re, err := s.resolveEndpoint(sessCtx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}

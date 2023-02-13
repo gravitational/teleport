@@ -24,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/trace"
@@ -55,7 +56,7 @@ func NewCredentialsGetter() CredentialsGetter {
 
 // Get obtains STS credentials.
 func (g *credentialsGettter) Get(_ context.Context, request GetCredentialsRequest) (*credentials.Credentials, error) {
-	logrus.Debugf("Creating STS session %q.", request.SessionName)
+	logrus.Debugf("Creating STS session %q for %q.", request.SessionName, request.RoleARN)
 	return stscreds.NewCredentials(request.Provider, request.RoleARN,
 		func(cred *stscreds.AssumeRoleProvider) {
 			cred.RoleSessionName = request.SessionName
@@ -71,6 +72,7 @@ func (g *credentialsGettter) Get(_ context.Context, request GetCredentialsReques
 type CachedCredentialsGetterConfig struct {
 	Getter   CredentialsGetter
 	CacheTTL time.Duration
+	Clock    clockwork.Clock
 }
 
 // SetDefaults sets default values for CachedCredentialsGetterConfig.
@@ -80,6 +82,9 @@ func (c *CachedCredentialsGetterConfig) SetDefaults() {
 	}
 	if c.CacheTTL <= 0 {
 		c.CacheTTL = time.Minute
+	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
 	}
 }
 
@@ -92,7 +97,8 @@ func NewCachedCredentialsGetter(config CachedCredentialsGetterConfig) (Credentia
 	config.SetDefaults()
 
 	cache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL: config.CacheTTL,
+		TTL:   config.CacheTTL,
+		Clock: config.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

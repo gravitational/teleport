@@ -17,10 +17,14 @@ limitations under the License.
 package aws
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/appstream"
 	"github.com/aws/aws-sdk-go/service/detective"
 	"github.com/aws/aws-sdk-go/service/ecr"
@@ -50,22 +54,38 @@ import (
 	"github.com/aws/aws-sdk-go/service/sso"
 	"github.com/aws/aws-sdk-go/service/ssooidc"
 	"github.com/aws/aws-sdk-go/service/timestreamquery"
+	"github.com/aws/aws-sdk-go/service/timestreamwrite"
 	"github.com/gravitational/trace"
 
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // resolveEndpoint extracts the aws-service and aws-region from the request
 // authorization header and resolves the aws-service and aws-region to AWS
 // endpoint.
-func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
+func (s *signerHandler) resolveEndpoint(sessCtx *common.SessionContext, r *http.Request) (*endpoints.ResolvedEndpoint, error) {
+	switch {
 	// Use X-Forwarded-Host header if it is a valid AWS endpoint.
-	if awsapiutils.IsAWSEndpoint(r.Header.Get("X-Forwarded-Host")) {
+	case awsapiutils.IsAWSEndpoint(r.Header.Get("X-Forwarded-Host")):
 		re, err := resolveEndpointByXForwardedHost(r, awsutils.AuthorizationHeader)
 		return re, trace.Wrap(err)
-	}
 
+	// Special handling for timestream in legacy Endpoint mode.
+	case strings.HasPrefix(r.Header.Get("X-Amz-Target"), "Timestream_20181101."):
+		re, err := s.resolveTimestreamEndpoint(sessCtx, r)
+		return re, trace.Wrap(err)
+
+	// Legacy Endpoint mode.
+	default:
+		re, err := resolveEndpointBySDKResolver(r)
+		return re, trace.Wrap(err)
+	}
+}
+
+// resolveEndpointBySDKResolver resolves the endpoint by using AWS SDK GO's resolver.
+func resolveEndpointBySDKResolver(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(awsutils.AuthorizationHeader))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -125,6 +145,86 @@ func resolveEndpointByXForwardedHost(r *http.Request, headerKey string) (*endpoi
 		URL:           "https://" + forwardedHost,
 		SigningRegion: awsAuthHeader.Region,
 		SigningName:   awsAuthHeader.Service,
+	}, nil
+}
+
+func (s *signerHandler) resolveTimestreamEndpoint(sessCtx *common.SessionContext, r *http.Request) (*endpoints.ResolvedEndpoint, error) {
+	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(awsutils.AuthorizationHeader))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	credentials, err := s.CredentialsGetter.Get(s.closeContext, awsutils.GetCredentialsRequest{
+		Provider:    s.Session,
+		Expiry:      sessCtx.Identity.Expires,
+		SessionName: sessCtx.Identity.Username,
+		RoleARN:     sessCtx.Identity.RouteToApp.AWSRoleARN,
+		ExternalID:  sessCtx.App.GetAWSExternalID(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if isTimestreamWriteRequest(r) {
+		re, err := resolveTimestreamWriteEndpoint(s.closeContext, credentials, awsAuthHeader.Region)
+		return re, trace.Wrap(err)
+	}
+	re, err := resolveTimestreamQueryEndpoint(s.closeContext, credentials, awsAuthHeader.Region)
+	return re, trace.Wrap(err)
+}
+
+func isTimestreamWriteRequest(r *http.Request) bool {
+	switch strings.TrimPrefix(r.Header.Get("X-Amz-Target"), "Timestream_20181101.") {
+	case "CreateDatabase", "CreateTable",
+		"DeleteDatabase", "DeleteTable",
+		"DescribeDatabase", "DescribeEndpoints", "DescribeTable",
+		"ListDatabases", "ListTables",
+		"UpdateDatabase", "UpdateTable",
+		"WriteRecords":
+		return true
+
+	// Note that both timestream-query and timestream-write support these tag operations.
+	// For now, we just assume they are used for timestream-query.
+	case "ListTagsForResource", "TagResource", "UntagResource":
+		return false
+	default:
+		return false
+	}
+}
+
+func resolveTimestreamWriteEndpoint(ctx context.Context, credentials *credentials.Credentials, region string) (*endpoints.ResolvedEndpoint, error) {
+	session, err := session.NewSession(aws.NewConfig().WithCredentials(credentials).WithRegion(region))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	output, err := timestreamwrite.New(session).DescribeEndpointsWithContext(ctx, &timestreamwrite.DescribeEndpointsInput{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if output == nil || len(output.Endpoints) == 0 {
+		return nil, trace.NotFound("no timestream-write endpoints found")
+	}
+	return &endpoints.ResolvedEndpoint{
+		URL:           aws.StringValue(output.Endpoints[0].Address),
+		SigningRegion: region,
+		SigningName:   "timestream",
+	}, nil
+}
+func resolveTimestreamQueryEndpoint(ctx context.Context, credentials *credentials.Credentials, region string) (*endpoints.ResolvedEndpoint, error) {
+	session, err := session.NewSession(aws.NewConfig().WithCredentials(credentials).WithRegion(region))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	output, err := timestreamquery.New(session).DescribeEndpointsWithContext(ctx, &timestreamquery.DescribeEndpointsInput{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if output == nil || len(output.Endpoints) == 0 {
+		return nil, trace.NotFound("no timestream-query endpoints found")
+	}
+	return &endpoints.ResolvedEndpoint{
+		URL:           aws.StringValue(output.Endpoints[0].Address),
+		SigningRegion: region,
+		SigningName:   "timestream",
 	}, nil
 }
 
@@ -202,5 +302,4 @@ var signingNameToEndpointsID = map[string]string{
 	"sagemaker":                             sagemaker.EndpointsID,
 	"ses":                                   ses.EndpointsID,
 	"sms-voice":                             pinpointsmsvoice.EndpointsID,
-	"timestream":                            timestreamquery.EndpointsID,
 }
