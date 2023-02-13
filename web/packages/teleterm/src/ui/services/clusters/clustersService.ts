@@ -43,15 +43,15 @@ import { ImmutableStore } from '../immutableStore';
 import {
   AuthSettings,
   ClustersServiceState,
-  Database,
   CreateGatewayParams,
+  Database,
+  Kube,
   LoginLocalParams,
-  LoginSsoParams,
   LoginPasswordlessParams,
+  LoginSsoParams,
   Server,
   SyncStatus,
   tsh,
-  Kube,
 } from './types';
 
 const { routing } = uri;
@@ -585,7 +585,9 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
       return null;
     }
 
-    const clusterUri = routing.getClusterUri(parsed.params);
+    const clusterUri = routing.getClusterUri({
+      rootClusterId: parsed.params.rootClusterId,
+    });
     return this.findCluster(clusterUri);
   }
 

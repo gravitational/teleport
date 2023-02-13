@@ -94,6 +94,6 @@ test('correct launch url is generated for a selected role', () => {
     .getAttribute('href');
 
   expect(launchUrl).toBe(
-    '/web/launch/awsconsole-1.com/one/awsconsole-1.teleport-proxy.com/arn:aws:iam::joe123:role%2FEC2ReadOnly'
+    '/web/launch/awsconsole-1.com/one/awsconsole-1.teleport-proxy.com/arn%3Aaws%3Aiam%3A%3Ajoe123%3Arole%2FEC2ReadOnly'
   );
 });

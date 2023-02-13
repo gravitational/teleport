@@ -19,6 +19,8 @@ import styled, { keyframes } from 'styled-components';
 
 import { Box, ButtonPrimary, Text } from 'design';
 
+import { NavLink } from 'react-router-dom';
+
 import { DesktopItem } from 'teleport/Discover/Desktop/DiscoverDesktops/DesktopItem';
 import { useDiscover } from 'teleport/Discover/useDiscover';
 import {
@@ -33,7 +35,6 @@ import { useTeleport } from 'teleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import cfg from 'teleport/config';
-import { NavLink } from 'teleport/components/Router';
 import { DiscoverEventStatus } from 'teleport/services/userEvent';
 
 import { HintBox } from 'teleport/Discover/Shared/HintBox';

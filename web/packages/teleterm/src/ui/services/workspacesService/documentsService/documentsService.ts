@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { matchPath } from 'react-router';
+
 import { unique } from 'teleterm/ui/utils/uid';
 import { DocumentUri, paths, routing, ServerUri } from 'teleterm/ui/uri';
 
@@ -224,7 +226,7 @@ export class DocumentsService {
 
   isActive(uri: string) {
     const location = this.getLocation();
-    return !!routing.parseUri(location, { exact: true, path: uri });
+    return !!matchPath({ end: true, path: uri }, location);
   }
 
   add(doc: Document, position?: number) {

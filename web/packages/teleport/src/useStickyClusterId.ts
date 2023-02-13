@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useRouteMatch } from 'react-router';
+import { useMatch } from 'react-router';
 import { useRef } from 'react';
 
 import { StickyCluster } from 'teleport/types';
@@ -28,7 +28,7 @@ export default function useStickyClusterId(): StickyCluster {
     isLeafCluster: false,
   });
 
-  const match = useRouteMatch<{ clusterId: string }>(cfg.routes.cluster);
+  const match = useMatch<'clusterId', string>(cfg.routes.cluster);
   const clusterId = match?.params?.clusterId;
   if (clusterId) {
     stickyCluster.current.clusterId = clusterId;

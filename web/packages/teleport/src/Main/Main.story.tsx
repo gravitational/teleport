@@ -15,8 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
+import { RouterProvider, createMemoryRouter } from 'react-router';
 import { Flex } from 'design';
 
 import { ContextProvider, Context } from 'teleport';
@@ -57,17 +56,23 @@ function createTeleportContext() {
 }
 
 export function OSS() {
-  const history = createMemoryHistory({
+  const ctx = createTeleportContext();
+
+  const routes = [
+    {
+      path: '*',
+      element: <Main features={getOSSFeatures()} />,
+    },
+  ];
+
+  const router = createMemoryRouter(routes, {
     initialEntries: ['/web/cluster/one/nodes'],
   });
-  const ctx = createTeleportContext();
 
   return (
     <Flex my={-3} mx={-4}>
       <ContextProvider ctx={ctx}>
-        <Router history={history}>
-          <Main features={getOSSFeatures()} />
-        </Router>
+        <RouterProvider router={router} />
       </ContextProvider>
     </Flex>
   );

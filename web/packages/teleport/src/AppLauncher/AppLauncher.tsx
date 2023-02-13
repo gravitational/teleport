@@ -30,7 +30,7 @@ import service from 'teleport/services/apps';
 export function AppLauncher() {
   const { attempt, setAttempt } = useAttempt('processing');
 
-  const params = useParams<UrlLauncherParams>();
+  const params = useParams<keyof UrlLauncherParams>();
   const { search } = useLocation();
   const queryParams = new URLSearchParams(search);
 

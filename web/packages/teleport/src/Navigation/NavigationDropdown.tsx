@@ -21,7 +21,7 @@ import { ChevronRightIcon } from 'design/SVGIcon';
 
 import { NavLink } from 'react-router-dom';
 
-import { matchPath, useHistory } from 'react-router';
+import { matchPath, useLocation } from 'react-router';
 
 import {
   commonNavigationItemStyles,
@@ -33,9 +33,8 @@ import { getIcon } from 'teleport/Navigation/utils';
 
 import { useTeleport } from 'teleport';
 
-import type { Location } from 'history';
-
 import type { TeleportFeature } from 'teleport/types';
+import type * as history from 'history';
 
 interface NavigationDropdownProps {
   feature: TeleportFeature;
@@ -115,15 +114,22 @@ const DropdownLink = styled(NavLink)`
   }
 `;
 
-function hasActiveChild(features: TeleportFeature[], route: Location<unknown>) {
+function hasActiveChild(features: TeleportFeature[], route: history.Location) {
   const feature = features
     .filter(feature => Boolean(feature.route))
-    .find(feature =>
-      matchPath(route.pathname, {
-        path: feature.route.path,
-        exact: false,
-      })
-    );
+    .find(feature => {
+      console.log('matchingPath', feature.route.path, route.pathname, matchPath(
+        feature.route.path,
+        route.pathname
+      ));
+      return matchPath(
+        {
+          path: feature.route.path,
+          end: false,
+        },
+        route.pathname
+      );
+    });
 
   return Boolean(feature);
 }
@@ -131,7 +137,7 @@ function hasActiveChild(features: TeleportFeature[], route: Location<unknown>) {
 export function NavigationDropdown(props: NavigationDropdownProps) {
   const features = useFeatures();
   const ctx = useTeleport();
-  const history = useHistory();
+  const location = useLocation();
 
   const ref = useRef<HTMLDivElement>();
   const firstLinkRef = useRef<HTMLDivElement>();
@@ -142,15 +148,13 @@ export function NavigationDropdown(props: NavigationDropdownProps) {
     .filter(feature => Boolean(feature.parent))
     .filter(feature => props.feature instanceof feature.parent);
 
-  const [open, setOpen] = useState(
-    hasActiveChild(childFeatures, history.location)
-  );
+  console.log(hasActiveChild(childFeatures, location), location);
+
+  const [open, setOpen] = useState(hasActiveChild(childFeatures, location));
 
   useEffect(() => {
-    return history.listen(next => {
-      setOpen(hasActiveChild(childFeatures, next));
-    });
-  }, []);
+    setOpen(hasActiveChild(childFeatures, location));
+  }, [location]);
 
   useEffect(() => {
     if (!props.visible) {

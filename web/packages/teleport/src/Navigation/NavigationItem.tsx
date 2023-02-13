@@ -185,7 +185,7 @@ export function NavigationItem(props: NavigationItemProps) {
           onKeyDown={handleKeyDown}
           tabIndex={props.visible ? 0 : -1}
           to={navigationItem.getLink(clusterId)}
-          exact={navigationItem.exact}
+          end={navigationItem.exact}
         >
           <LinkContent size={props.size}>
             {getIcon(props.feature, props.size)}

@@ -73,8 +73,8 @@ const cfg = {
     support: '/web/support',
     settings: '/web/settings',
     account: '/web/account',
-    accountPassword: '/web/account/password',
-    accountMfaDevices: '/web/account/twofactor',
+    accountPassword: 'password',
+    accountMfaDevices: 'twofactor',
     roles: '/web/roles',
     sso: '/web/sso',
     cluster: '/web/cluster/:clusterId/',
@@ -260,7 +260,12 @@ const cfg = {
   },
 
   getSsoUrl(providerUrl, providerName, redirect) {
-    return cfg.baseUrl + generatePath(providerUrl, { redirect, providerName });
+    const params = new URLSearchParams();
+
+    params.set('connector_id', providerName);
+    params.set('redirect_url', redirect);
+
+    return cfg.baseUrl + providerUrl + `?${params.toString()}`;
   },
 
   getAuditRoute(clusterId: string) {
@@ -373,7 +378,15 @@ const cfg = {
   },
 
   getAppLauncherRoute(params: UrlLauncherParams) {
-    return generatePath(cfg.routes.appLauncher, { ...params });
+    const newParams = { ...params };
+    if (params.arn) {
+      newParams.arn = encodeURIComponent(params.arn);
+    }
+
+    console.log(newParams);
+    console.log(generatePath(cfg.routes.appLauncher, newParams));
+
+    return generatePath(cfg.routes.appLauncher, newParams);
   },
 
   getPlayerRoute(params: UrlPlayerParams, search: UrlPlayerSearch) {
@@ -584,7 +597,7 @@ export interface UrlSshParams {
   login?: string;
   serverId?: string;
   sid?: string;
-  mode?: ParticipantMode;
+  mode?: string;
   clusterId: string;
 }
 

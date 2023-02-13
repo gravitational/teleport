@@ -15,23 +15,33 @@ limitations under the License.
 */
 
 import React from 'react';
-import { MemoryRouter, Route, Router } from 'react-router';
-import { createMemoryHistory } from 'history';
+import { createMemoryRouter, RouterProvider } from 'react-router';
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 import { Logger } from 'shared/libs/logger';
 
 import cfg from 'teleport/config';
-import history from 'teleport/services/history';
 import auth from 'teleport/services/auth';
 
 import { userEventService } from 'teleport/services/userEvent';
 
-import Welcome from './Welcome';
+import Invite from './Invite';
+import Reset from './Reset';
 
 const invitePath = '/web/invite/5182';
 const inviteContinuePath = '/web/invite/5182/continue';
 const resetPath = '/web/reset/5182';
 const resetContinuePath = '/web/reset/5182/continue';
+
+const routes = [
+  {
+    path: `${cfg.routes.userInvite}/*`,
+    element: <Invite />,
+  },
+  {
+    path: `${cfg.routes.userReset}/*`,
+    element: <Reset />,
+  },
+];
 
 describe('teleport/components/Welcome', () => {
   beforeEach(() => {
@@ -51,19 +61,11 @@ describe('teleport/components/Welcome', () => {
   });
 
   it('should have correct welcome prompt flow for invite', async () => {
-    jest.spyOn(history, 'push').mockImplementation();
-
-    const mockHistory = createMemoryHistory({
+    const router = createMemoryRouter(routes, {
       initialEntries: [invitePath],
     });
 
-    render(
-      <Router history={mockHistory}>
-        <Route path={cfg.routes.userInvite}>
-          <Welcome />
-        </Route>
-      </Router>
-    );
+    render(<RouterProvider router={router} />);
 
     expect(
       screen.getByText(/Please click the button below to create an account/i)
@@ -72,9 +74,9 @@ describe('teleport/components/Welcome', () => {
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText(/get started/i));
-    mockHistory.push(inviteContinuePath);
 
-    expect(history.push).toHaveBeenCalledWith(inviteContinuePath);
+    expect(router.state.location.pathname).toBe(inviteContinuePath);
+
     await waitFor(() => {
       expect(auth.fetchPasswordToken).toHaveBeenCalled();
     });
@@ -83,19 +85,11 @@ describe('teleport/components/Welcome', () => {
   });
 
   it('should have correct welcome prompt flow for reset', async () => {
-    jest.spyOn(history, 'push').mockImplementation();
-
-    const mockHistory = createMemoryHistory({
+    const router = createMemoryRouter(routes, {
       initialEntries: [resetPath],
     });
 
-    render(
-      <Router history={mockHistory}>
-        <Route path={cfg.routes.userReset}>
-          <Welcome />
-        </Route>
-      </Router>
-    );
+    render(<RouterProvider router={router} />);
 
     expect(
       screen.getByText(
@@ -106,12 +100,12 @@ describe('teleport/components/Welcome', () => {
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText(/Continue/i));
-    mockHistory.push(resetContinuePath);
+
+    expect(router.state.location.pathname).toBe(resetContinuePath);
 
     await waitFor(() => {
-      expect(history.push).toHaveBeenCalledWith(resetContinuePath);
+      expect(auth.fetchPasswordToken).toHaveBeenCalled();
     });
-    expect(auth.fetchPasswordToken).toHaveBeenCalled();
 
     expect(screen.getByText(/submit/i)).toBeInTheDocument();
   });
@@ -279,11 +273,9 @@ describe('teleport/components/Welcome', () => {
 });
 
 function renderInvite(url = inviteContinuePath) {
-  render(
-    <MemoryRouter initialEntries={[url]}>
-      <Route path={cfg.routes.userInviteContinue}>
-        <Welcome />
-      </Route>
-    </MemoryRouter>
-  );
+  const router = createMemoryRouter(routes, {
+    initialEntries: [url],
+  });
+
+  render(<RouterProvider router={router} />);
 }

@@ -15,12 +15,11 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { AppsResponse } from 'teleport/services/apps';
-import history from 'teleport/services/history';
 import Ctx from 'teleport/teleportContext';
 import getResourceUrlQueryParams, {
   ResourceUrlQueryParams,
@@ -30,6 +29,8 @@ import labelClick from 'teleport/labelClick';
 import { AgentLabel } from 'teleport/services/agents';
 
 export default function useApps(ctx: Ctx) {
+  const navigate = useNavigate();
+
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const { search, pathname } = useLocation();
   const [startKeys, setStartKeys] = useState<string[]>([]);
@@ -61,7 +62,7 @@ export default function useApps(ctx: Ctx) {
   }, [clusterId, search]);
 
   function replaceHistory(path: string) {
-    history.replace(path);
+    navigate(path, { replace: true });
   }
 
   function setSort(sort: SortType) {

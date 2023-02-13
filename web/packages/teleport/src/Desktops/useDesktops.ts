@@ -15,14 +15,13 @@ limitations under the License.
 */
 
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import history from 'teleport/services/history';
 import { DesktopsResponse } from 'teleport/services/desktops';
 import getResourceUrlQueryParams, {
   ResourceUrlQueryParams,
@@ -32,6 +31,8 @@ import labelClick from 'teleport/labelClick';
 import { AgentLabel } from 'teleport/services/agents';
 
 export default function useDesktops(ctx: Ctx) {
+  const navigate = useNavigate();
+
   const { attempt, setAttempt } = useAttempt('processing');
   const { search, pathname } = useLocation();
   const [startKeys, setStartKeys] = useState<string[]>([]);
@@ -77,7 +78,7 @@ export default function useDesktops(ctx: Ctx) {
   };
 
   function replaceHistory(path: string) {
-    history.replace(path);
+    navigate(path, { replace: true });
   }
 
   function setSort(sort: SortType) {

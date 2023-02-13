@@ -15,8 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Router } from 'react-router';
-import { createMemoryHistory } from 'history';
+import { RouterProvider, createMemoryRouter } from 'react-router';
 
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { getOSSFeatures } from 'teleport/features';
@@ -40,14 +39,21 @@ export function Story() {
     },
   });
 
+  const routes = [
+    {
+      path: '*',
+      element: <TopBar />,
+    },
+  ];
+
+  const router = createMemoryRouter(routes, {});
+
   return (
-    <Router history={createMemoryHistory()}>
-      <TeleportContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={getOSSFeatures()}>
-          <TopBar />
-        </FeaturesContextProvider>
-      </TeleportContextProvider>
-    </Router>
+    <TeleportContextProvider ctx={ctx}>
+      <FeaturesContextProvider value={getOSSFeatures()}>
+        <RouterProvider router={router} />
+      </FeaturesContextProvider>
+    </TeleportContextProvider>
   );
 }
 

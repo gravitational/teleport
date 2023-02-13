@@ -19,15 +19,21 @@ import { render, fireEvent, screen, waitFor } from 'design/utils/testing';
 import { privateKeyEnablingPolicies } from 'shared/services/consts';
 
 import auth from 'teleport/services/auth/auth';
-import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 
 import Login from './Login';
 
+const assignMock = jest.fn();
+
+delete window.location;
+(window.location as any) = { assign: assignMock };
+
+afterEach(() => {
+  assignMock.mockClear();
+});
+
 beforeEach(() => {
   jest.restoreAllMocks();
-  jest.spyOn(history, 'push').mockImplementation();
-  jest.spyOn(history, 'getRedirectParam').mockImplementation(() => '/');
 });
 
 test('basic rendering', () => {
@@ -54,10 +60,11 @@ test('login with redirect', async () => {
   await waitFor(() => {
     expect(auth.login).toHaveBeenCalledWith('username', '123', '');
   });
-  expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
+
+  expect(assignMock).toHaveBeenCalledWith('http://localhost/web');
 });
 
-test('login with SSO', () => {
+test('login with SSO', async () => {
   jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'otp');
   jest.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'sso');
   jest.spyOn(cfg, 'getAuthProviders').mockImplementation(() => [
@@ -65,17 +72,19 @@ test('login with SSO', () => {
       displayName: 'With Github',
       type: 'github',
       name: 'github',
-      url: '/github/login/web?redirect_url=:redirect?connector_id=:providerName',
+      url: '/github/login/web',
     },
   ]);
 
   render(<Login />);
 
+  console.log(screen.getByText('With Github'));
+
   // test login pathways
   fireEvent.click(screen.getByText('With Github'));
-  expect(history.push).toHaveBeenCalledWith(
-    'http://localhost/github/login/web?redirect_url=http:%2F%2Flocalhost%2Fwebconnector_id=github',
-    true
+
+  expect(assignMock).toHaveBeenCalledWith(
+    'http://localhost/github/login/web?connector_id=github&redirect_url=http%3A%2F%2Flocalhost%2Fweb'
   );
 });
 

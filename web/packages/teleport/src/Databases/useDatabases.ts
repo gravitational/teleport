@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
@@ -24,12 +24,13 @@ import getResourceUrlQueryParams, {
   ResourceUrlQueryParams,
 } from 'teleport/getUrlQueryParams';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import history from 'teleport/services/history';
 import { DatabasesResponse } from 'teleport/services/databases';
 import labelClick from 'teleport/labelClick';
 import { AgentLabel } from 'teleport/services/agents';
 
 export default function useDatabases(ctx: Ctx) {
+  const navigate = useNavigate();
+
   const { search, pathname } = useLocation();
   const [startKeys, setStartKeys] = useState<string[]>([]);
   const { attempt, setAttempt } = useAttempt('processing');
@@ -67,7 +68,7 @@ export default function useDatabases(ctx: Ctx) {
   }
 
   function replaceHistory(path: string) {
-    history.replace(path);
+    navigate(path, { replace: true });
   }
 
   function fetchDatabases() {

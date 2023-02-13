@@ -18,13 +18,13 @@ import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
-import history from 'teleport/services/history';
 import auth, {
   ChangedUserAuthn,
   RecoveryCodes,
   ResetToken,
 } from 'teleport/services/auth';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import { loadPageWithRefresh } from 'teleport/services/history';
 
 export default function useToken(tokenId: string) {
   const [resetToken, setResetToken] = useState<ResetToken>();
@@ -77,7 +77,7 @@ export default function useToken(tokenId: string) {
   }
 
   function redirect() {
-    history.push(cfg.routes.root, true);
+    loadPageWithRefresh(cfg.routes.root);
   }
 
   function clearSubmitAttempt() {

@@ -15,11 +15,10 @@ limitations under the License.
 */
 
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import history from 'teleport/services/history';
 import Ctx from 'teleport/teleportContext';
 import { StickyCluster } from 'teleport/types';
 import cfg from 'teleport/config';
@@ -34,6 +33,8 @@ import { AgentLabel } from 'teleport/services/agents';
 import type { Node, NodesResponse } from 'teleport/services/nodes';
 
 export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
+  const navigate = useNavigate();
+
   const { isLeafCluster, clusterId } = stickyCluster;
   const { search, pathname } = useLocation();
   const [startKeys, setStartKeys] = useState<string[]>([]);
@@ -64,7 +65,7 @@ export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
   }, [clusterId, search]);
 
   function replaceHistory(path: string) {
-    history.replace(path);
+    navigate(path, { replace: true });
   }
 
   function getNodeLoginOptions(serverId: string) {

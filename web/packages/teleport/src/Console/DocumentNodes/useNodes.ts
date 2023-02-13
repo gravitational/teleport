@@ -15,11 +15,9 @@ limitations under the License.
 */
 
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
-
-import history from 'teleport/services/history';
 
 import getResourceUrlQueryParams, {
   ResourceUrlQueryParams,
@@ -35,6 +33,8 @@ import { useConsoleContext } from './../consoleContextProvider';
 import type { Node, NodesResponse } from 'teleport/services/nodes';
 
 export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
+  const navigate = useNavigate();
+
   const consoleCtx = useConsoleContext();
   const { search, pathname } = useLocation();
   const [startKeys, setStartKeys] = useState<string[]>([]);
@@ -62,7 +62,7 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   }, [clusterId, search]);
 
   function replaceHistory(path: string) {
-    history.replace(path);
+    navigate(path, { replace: true });
   }
 
   function setSort(sort: SortType) {

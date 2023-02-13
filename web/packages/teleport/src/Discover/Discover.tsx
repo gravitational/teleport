@@ -16,13 +16,12 @@
 
 import React from 'react';
 
-import { Prompt } from 'react-router-dom';
+import { unstable_usePrompt as usePrompt } from 'react-router-dom';
 
 import { FeatureBox } from 'teleport/components/Layout';
 
 import { Navigation } from 'teleport/Discover/Navigation/Navigation';
 import { SelectResource } from 'teleport/Discover/SelectResource';
-import cfg from 'teleport/config';
 
 import { findViewAtIndex } from './flow';
 
@@ -36,6 +35,12 @@ function DiscoverContent() {
     views,
     ...agentProps
   } = useDiscover();
+
+  usePrompt({
+    message:
+      'Are you sure you want to exit the "Enroll New Resource” workflow? You’ll have to start from the beginning next time.',
+    when: selectedResource.shouldPrompt(currentStep),
+  });
 
   let content;
   // we reserve step 0 for "Select Resource Type", that is present in all resource configs
@@ -61,24 +66,14 @@ function DiscoverContent() {
   }
 
   return (
-    <>
-      <FeatureBox>
-        <Navigation
-          currentStep={currentStep}
-          selectedResource={selectedResource}
-          views={views}
-        />
-        {content}
-      </FeatureBox>
-
-      <Prompt
-        message={nextLocation => {
-          if (nextLocation.pathname === cfg.routes.discover) return true;
-          return 'Are you sure you want to exit the "Enroll New Resource” workflow? You’ll have to start from the beginning next time.';
-        }}
-        when={selectedResource.shouldPrompt(currentStep)}
+    <FeatureBox>
+      <Navigation
+        currentStep={currentStep}
+        selectedResource={selectedResource}
+        views={views}
       />
-    </>
+      {content}
+    </FeatureBox>
   );
 }
 

@@ -17,7 +17,7 @@ limitations under the License.
 import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
-import { matchPath, useHistory, useLocation } from 'react-router';
+import { matchPath, useNavigate, useLocation } from 'react-router';
 
 import { NavigationSwitcher } from 'teleport/Navigation/NavigationSwitcher';
 import cfg from 'teleport/config';
@@ -77,15 +77,18 @@ export function getFirstRouteForCategory(
 
 function getCategoryForRoute(
   features: TeleportFeature[],
-  route: history.Location<unknown> | Location
+  route: history.Location | Location
 ) {
   const feature = features
     .filter(feature => Boolean(feature.route))
     .find(feature =>
-      matchPath(route.pathname, {
-        path: feature.route.path,
-        exact: false,
-      })
+      matchPath(
+        {
+          path: feature.route.path,
+          end: false,
+        },
+        route.pathname
+      )
     );
 
   if (!feature) {
@@ -97,12 +100,11 @@ function getCategoryForRoute(
 
 export function Navigation() {
   const features = useFeatures();
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
 
   const [view, setView] = useState(
-    getCategoryForRoute(features, history.location) ||
-      NavigationCategory.Resources
+    getCategoryForRoute(features, location) || NavigationCategory.Resources
   );
 
   const [previousRoute, setPreviousRoute] = useState<{
@@ -110,7 +112,7 @@ export function Navigation() {
   }>({});
 
   const handleLocationChange = useCallback(
-    (next: history.Location<unknown> | Location) => {
+    (next: history.Location | Location) => {
       const previousPathName = location.pathname;
 
       const category = getCategoryForRoute(features, next);
@@ -127,8 +129,8 @@ export function Navigation() {
   );
 
   useEffect(() => {
-    return history.listen(handleLocationChange);
-  }, [history, location.pathname, features, view]);
+    handleLocationChange(location);
+  }, [location, features, view]);
 
   const handlePopState = useCallback(
     (event: PopStateEvent) => {
@@ -149,7 +151,7 @@ export function Navigation() {
         return;
       }
 
-      history.push(
+      navigate(
         previousRoute[category] || getFirstRouteForCategory(features, category)
       );
     },

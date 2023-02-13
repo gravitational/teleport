@@ -17,10 +17,8 @@
 import React from 'react';
 import { render } from 'design/utils/testing';
 
-import { createMemoryHistory } from 'history';
-import { Router } from 'react-router';
-
-import { Route } from 'teleport/components/Router';
+import { createMemoryRouter } from 'react-router';
+import { RouterProvider } from 'react-router-dom';
 
 import cfg from 'teleport/config';
 
@@ -33,17 +31,19 @@ test('arn is url decoded', () => {
 
   const launcherPath =
     '/web/launch/test-app.test.teleport/test.teleport/test-app.test.teleport/arn:aws:iam::joe123:role%2FEC2FullAccess';
-  const mockHistory = createMemoryHistory({
+
+  const routes = [
+    {
+      path: cfg.routes.appLauncher,
+      element: <AppLauncher />,
+    },
+  ];
+
+  const router = createMemoryRouter(routes, {
     initialEntries: [launcherPath],
   });
 
-  render(
-    <Router history={mockHistory}>
-      <Route path={cfg.routes.appLauncher}>
-        <AppLauncher />
-      </Route>
-    </Router>
-  );
+  render(<RouterProvider router={router} />);
 
   expect(service.createAppSession).toHaveBeenCalledWith({
     fqdn: 'test-app.test.teleport',

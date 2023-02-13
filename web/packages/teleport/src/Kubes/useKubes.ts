@@ -15,11 +15,10 @@ limitations under the License.
 */
 
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import history from 'teleport/services/history';
 import { KubesResponse } from 'teleport/services/kube';
 import TeleportContext from 'teleport/teleportContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -30,6 +29,8 @@ import labelClick from 'teleport/labelClick';
 import { AgentLabel } from 'teleport/services/agents';
 
 export default function useKubes(ctx: TeleportContext) {
+  const navigate = useNavigate();
+
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const { username, authType } = ctx.storeUser.state;
   const { search, pathname } = useLocation();
@@ -62,7 +63,7 @@ export default function useKubes(ctx: TeleportContext) {
   }, [clusterId, search]);
 
   function replaceHistory(path: string) {
-    history.replace(path);
+    navigate(path, { replace: true });
   }
 
   function setSort(sort: SortType) {

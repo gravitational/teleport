@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { Text, Flex, TopNav } from 'design';
 
-import { matchPath, useHistory } from 'react-router';
+import { matchPath, useLocation, useNavigate } from 'react-router';
 
 import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -31,8 +31,9 @@ import ClusterSelector from './ClusterSelector';
 
 export function TopBar() {
   const ctx = useTeleport();
-  const history = useHistory();
+  const navigate = useNavigate();
   const features = useFeatures();
+  const location = useLocation();
 
   const { clusterId, hasClusterUrl } = useStickyClusterId();
 
@@ -45,18 +46,21 @@ export function TopBar() {
 
     const oldPrefix = cfg.getClusterRoute(clusterId);
 
-    const newPath = history.location.pathname.replace(oldPrefix, newPrefix);
-    history.push(newPath);
+    const newPath = location.pathname.replace(oldPrefix, newPrefix);
+    navigate(newPath);
   }
 
   // find active feature
   const feature = features
     .filter(feature => Boolean(feature.route))
     .find(f =>
-      matchPath(history.location.pathname, {
-        path: f.route.path,
-        exact: false,
-      })
+      matchPath(
+        {
+          path: f.route.path,
+          end: false,
+        },
+        location.pathname
+      )
     );
 
   const title = feature?.route?.title || '';

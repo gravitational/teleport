@@ -19,11 +19,11 @@ import styled from 'styled-components';
 import { Indicator } from 'design';
 import { Failed } from 'design/CardError';
 
+import { matchPath, useLocation, useNavigate } from 'react-router';
+import { Navigate, Route, Routes } from 'react-router-dom';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { matchPath, useHistory } from 'react-router';
-
-import { Redirect, Route, Switch } from 'teleport/components/Router';
 import { CatchError } from 'teleport/components/CatchError';
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
@@ -57,7 +57,9 @@ interface MainProps {
 
 export function Main(props: MainProps) {
   const ctx = useTeleport();
-  const history = useHistory();
+
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const { attempt, setAttempt, run } = useAttempt('processing');
 
@@ -95,7 +97,7 @@ export function Main(props: MainProps) {
 
   function handleOnboard() {
     updateOnboardDiscover();
-    history.push(cfg.routes.discover);
+    navigate(cfg.routes.discover);
   }
 
   function handleOnClose() {
@@ -109,15 +111,13 @@ export function Main(props: MainProps) {
   }
 
   // redirect to the default feature when hitting the root /web URL
-  if (
-    matchPath(history.location.pathname, { path: cfg.routes.root, exact: true })
-  ) {
+  if (matchPath({ path: cfg.routes.root, end: true }, location.pathname)) {
     const indexRoute = getFirstRouteForCategory(
       features,
       NavigationCategory.Resources
     );
 
-    return <Redirect to={indexRoute} />;
+    return <Navigate replace to={indexRoute} />;
   }
 
   // The backend defines the severity as an integer value with the current
@@ -174,16 +174,20 @@ function renderRoutes(features: TeleportFeature[]) {
 
   for (const [index, feature] of features.entries()) {
     if (feature.route) {
-      const { path, title, exact, component: Component } = feature.route;
+      const { path, component: Component } = feature.route;
 
       routes.push(
-        <Route title={title} key={index} path={path} exact={exact}>
-          <CatchError>
-            <Suspense fallback={null}>
-              <Component />
-            </Suspense>
-          </CatchError>
-        </Route>
+        <Route
+          key={index}
+          path={path}
+          element={
+            <CatchError>
+              <Suspense fallback={null}>
+                <Component />
+              </Suspense>
+            </CatchError>
+          }
+        />
       );
     }
   }
@@ -195,7 +199,7 @@ function FeatureRoutes() {
   const features = useFeatures();
   const routes = renderRoutes(features);
 
-  return <Switch>{routes}</Switch>;
+  return <Routes>{routes}</Routes>;
 }
 
 export const ContentMinWidth = styled.div`

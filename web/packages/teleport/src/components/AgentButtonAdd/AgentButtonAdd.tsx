@@ -40,10 +40,8 @@ export default function AgentButtonAdd(props: Props) {
 
   return (
     <Link
-      to={{
-        pathname: `${cfg.routes.root}/discover`,
-        state: { entity: agent },
-      }}
+      to={`${cfg.routes.root}/discover`}
+      state={{ entity: agent }}
       style={{ textDecoration: 'none' }}
     >
       <ButtonPrimary

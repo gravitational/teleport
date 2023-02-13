@@ -50,9 +50,9 @@ export class TrackedConnectionOperationsFactory {
   private getConnectionServerOperations(
     connection: TrackedServerConnection
   ): TrackedConnectionOperations {
-    const { rootClusterId, leafClusterId } = routing.parseServerUri(
-      connection.serverUri
-    ).params;
+    const {
+      params: { rootClusterId, leafClusterId },
+    } = routing.parseServerUri(connection.serverUri);
     const { rootClusterUri, leafClusterUri } = this.getClusterUris({
       rootClusterId,
       leafClusterId,

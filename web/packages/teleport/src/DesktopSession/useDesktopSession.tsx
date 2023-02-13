@@ -51,7 +51,8 @@ export default function useDesktopSession() {
     isSharing: false,
   });
 
-  const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
+  const { username, desktopName, clusterId } =
+    useParams<keyof UrlDesktopParams>();
 
   const [hostname, setHostname] = useState<string>('');
 

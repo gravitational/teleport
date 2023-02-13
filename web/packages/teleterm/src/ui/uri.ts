@@ -16,15 +16,18 @@ limitations under the License.
 
 import { matchPath, generatePath } from 'react-router';
 
-import type { RouteProps } from 'react-router';
+import type { PathPattern } from 'react-router';
 
 export const paths = {
-  rootCluster: '/clusters/:rootClusterId',
-  leafCluster: '/clusters/:rootClusterId/leaves/:leafClusterId',
-  server:
-    '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/servers/:serverId',
-  kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
-  db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
+  rootCluster: '/clusters/:rootClusterId/*',
+  leafCluster: '/clusters/:rootClusterId/leaves/:leafClusterId/*',
+  server: '/clusters/:rootClusterId/servers/:serverId',
+  serverLeaf:
+    '/clusters/:rootClusterId/leaves/:leafClusterId/servers/:serverId',
+  kube: '/clusters/:rootClusterId/kubes/:kubeId',
+  kubeLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/kubes/:kubeId',
+  db: '/clusters/:rootClusterId/dbs/:dbId',
+  dbLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/dbs/:dbId',
   gateway: '/gateways/:gatewayId',
   docHome: '/docs/home',
   doc: '/docs/:docId',
@@ -76,6 +79,7 @@ export const routing = {
   parseClusterUri(uri: string) {
     const leafMatch = routing.parseUri(uri, paths.leafCluster);
     const rootMatch = routing.parseUri(uri, paths.rootCluster);
+
     return leafMatch || rootMatch;
   },
 
@@ -92,19 +96,28 @@ export const routing = {
   },
 
   parseKubeUri(uri: string) {
-    return routing.parseUri(uri, paths.kube);
+    const rootMatch = routing.parseUri(uri, paths.kube);
+    const leafMatch = routing.parseUri(uri, paths.kubeLeaf);
+
+    return leafMatch || rootMatch;
   },
 
   parseServerUri(uri: string) {
-    return routing.parseUri(uri, paths.server);
+    const rootMatch = routing.parseUri(uri, paths.server);
+    const leafMatch = routing.parseUri(uri, paths.serverLeaf);
+
+    return leafMatch || rootMatch;
   },
 
   parseDbUri(uri: string) {
-    return routing.parseUri(uri, paths.db);
+    const rootMatch = routing.parseUri(uri, paths.db);
+    const leafMatch = routing.parseUri(uri, paths.dbLeaf);
+
+    return leafMatch || rootMatch;
   },
 
-  parseUri(path: string, route: string | RouteProps) {
-    return matchPath<Params>(path, route);
+  parseUri(path: string, route: PathPattern<string> | string) {
+    return matchPath<keyof Params, string>(route, path);
   },
 
   parseClusterName(clusterUri: string) {

@@ -17,21 +17,26 @@ limitations under the License.
 import React from 'react';
 import { LoginFailed as CardFailed } from 'design/CardError';
 
-import { Route, Switch } from 'teleport/components/Router';
+import { Route, Routes } from 'react-router-dom';
+
 import LogoHero from 'teleport/components/LogoHero';
 import cfg from 'teleport/config';
 
 export default function Container() {
   return (
-    <Switch>
-      <Route path={cfg.routes.loginErrorCallback}>
-        <LoginFailed message="unable to process callback" />
-      </Route>
-      <Route path={cfg.routes.loginErrorUnauthorized}>
-        <LoginFailed message="You are not authorized, please contact your SSO administrator." />
-      </Route>
-      <Route component={LoginFailed} />
-    </Switch>
+    <Routes>
+      <Route
+        path={cfg.routes.loginErrorCallback}
+        element={<LoginFailed message="unable to process callback" />}
+      />
+      <Route
+        path={cfg.routes.loginErrorUnauthorized}
+        element={
+          <LoginFailed message="You are not authorized, please contact your SSO administrator." />
+        }
+      />
+      <Route element={<LoginFailed />} />
+    </Routes>
   );
 }
 

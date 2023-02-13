@@ -17,7 +17,7 @@ limitations under the License.
 import ReactDOM from 'react-dom';
 import React from 'react';
 
-import history from 'teleport/services/history';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
 import Teleport from './Teleport';
 import TeleportContext from './teleportContext';
@@ -25,9 +25,6 @@ import cfg from './config';
 
 // apply configuration received from the server
 cfg.init(window['GRV_CONFIG']);
-
-// use browser history
-history.init();
 
 if (localStorage.getItem('enable-telemetry') === 'true') {
   import(/* webpackChunkName: "telemetry" */ './telemetry-boot').then(m =>
@@ -37,7 +34,14 @@ if (localStorage.getItem('enable-telemetry') === 'true') {
 
 const teleportContext = new TeleportContext();
 
+const router = createBrowserRouter([
+  {
+    path: '*',
+    element: <Teleport ctx={teleportContext} />,
+  },
+]);
+
 ReactDOM.render(
-  <Teleport history={history.original()} ctx={teleportContext} />,
+  <RouterProvider router={router} />,
   document.getElementById('app')
 );

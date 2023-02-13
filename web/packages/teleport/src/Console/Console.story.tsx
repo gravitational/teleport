@@ -17,8 +17,7 @@ limitations under the License.
 import React from 'react';
 import { storiesOf } from '@storybook/react';
 import { Flex } from 'design';
-import { createMemoryHistory } from 'history';
-import { Router, Route } from 'react-router';
+import { RouterProvider, createMemoryRouter } from 'react-router';
 
 import Console from './Console';
 import { colors } from './colors';
@@ -39,20 +38,10 @@ export function TestLayout(props: PropType) {
     return props.ctx || new ConsoleContext();
   });
 
-  const [history] = React.useState((): any => {
-    const history =
-      props.history ||
-      createMemoryHistory({
-        initialEntries: ['/clusterX'],
-        initialIndex: 0,
-      });
-
-    return history;
-  });
-
-  return (
-    <Router history={history}>
-      <Route path="/:clusterId">
+  const routes = [
+    {
+      path: '/:clusterId',
+      element: (
         <ConsoleContextProvider value={context}>
           <Flex
             m={-3}
@@ -64,9 +53,16 @@ export function TestLayout(props: PropType) {
             {props.children}
           </Flex>
         </ConsoleContextProvider>
-      </Route>
-    </Router>
-  );
+      ),
+    },
+  ];
+
+  const router = createMemoryRouter(routes, {
+    initialEntries: ['/clusterX'],
+    initialIndex: 0,
+  });
+
+  return <RouterProvider router={router} />;
 }
 
 type PropType = {

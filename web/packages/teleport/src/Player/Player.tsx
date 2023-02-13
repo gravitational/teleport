@@ -21,11 +21,10 @@ import { Flex, Box } from 'design';
 
 import { Danger } from 'design/Alert';
 
-import { useParams, useLocation } from 'teleport/components/Router';
+import { useParams, useLocation } from 'react-router-dom';
 
 import session from 'teleport/services/websession';
 import { colors } from 'teleport/Console/colors';
-import { UrlPlayerParams } from 'teleport/config';
 import { getUrlParameter } from 'teleport/services/history';
 
 import { RecordingType } from 'teleport/services/recordings';
@@ -36,7 +35,7 @@ import SshPlayer from './SshPlayer';
 import Tabs, { TabItem } from './PlayerTabs';
 
 export default function Player() {
-  const { sid, clusterId } = useParams<UrlPlayerParams>();
+  const { sid, clusterId } = useParams<'clusterId' | 'sid'>();
   const { search } = useLocation();
 
   const recordingType = getUrlParameter(

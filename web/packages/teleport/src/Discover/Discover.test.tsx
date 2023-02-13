@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import { MemoryRouter } from 'react-router';
+import { createMemoryRouter, RouterProvider } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
 
@@ -65,18 +65,25 @@ describe('discover', () => {
       userAcl,
     });
 
+    const routes = [
+      {
+        path: cfg.routes.discover,
+        element: <Discover />,
+      },
+    ];
+
+    const router = createMemoryRouter(routes, {
+      initialEntries: [
+        { pathname: cfg.routes.discover, state: { entity: initialEntry } },
+      ],
+    });
+
     return render(
-      <MemoryRouter
-        initialEntries={[
-          { pathname: cfg.routes.discover, state: { entity: initialEntry } },
-        ]}
-      >
-        <TeleportContextProvider ctx={ctx}>
-          <FeaturesContextProvider value={getOSSFeatures()}>
-            <Discover />
-          </FeaturesContextProvider>
-        </TeleportContextProvider>
-      </MemoryRouter>
+      <TeleportContextProvider ctx={ctx}>
+        <FeaturesContextProvider value={getOSSFeatures()}>
+          <RouterProvider router={router} />
+        </FeaturesContextProvider>
+      </TeleportContextProvider>
     );
   }
 

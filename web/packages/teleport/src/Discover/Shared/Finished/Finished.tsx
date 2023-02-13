@@ -15,10 +15,12 @@
  */
 
 import React from 'react';
+
 import { ButtonPrimary, Text, Flex, ButtonSecondary, Image } from 'design';
 
 import cfg from 'teleport/config';
-import history from 'teleport/services/history';
+
+import { loadPageWithRefresh } from 'teleport/services/history';
 
 import celebratePamPng from './celebrate-pam.png';
 
@@ -53,7 +55,7 @@ export function Finished(props: AgentStepProps) {
         <ButtonPrimary
           width="270px"
           size="large"
-          onClick={() => history.push(cfg.routes.root, true)}
+          onClick={() => loadPageWithRefresh(cfg.routes.root)}
           mr={3}
         >
           Browse Existing Resources
@@ -61,7 +63,7 @@ export function Finished(props: AgentStepProps) {
         <ButtonSecondary
           width="270px"
           size="large"
-          onClick={() => history.reload()}
+          onClick={() => window.location.reload()}
         >
           Add Another Resource
         </ButtonSecondary>

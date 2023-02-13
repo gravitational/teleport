@@ -22,7 +22,7 @@ import React, {
   useCallback,
 } from 'react';
 
-import { useLocation, useHistory } from 'react-router';
+import { useLocation } from 'react-router';
 
 import { ResourceKind } from 'teleport/Discover/Shared';
 import {
@@ -94,8 +94,7 @@ const discoverContext = React.createContext<DiscoverContextState>(null);
 export function DiscoverProvider<T = any>(
   props: React.PropsWithChildren<unknown>
 ) {
-  const location = useLocation<{ entity: string }>();
-  const history = useHistory();
+  const location = useLocation();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedResourceKind, setSelectedResourceKind] =
@@ -166,13 +165,13 @@ export function DiscoverProvider<T = any>(
       // Emit abort event upon unmounting from going back or
       // forward to a non-discover route or upon exiting from
       // the exit prompt.
-      if (history.location.pathname !== cfg.routes.discover) {
+      if (location.pathname !== cfg.routes.discover) {
         emitAbortOrSuccessEvent();
       }
 
       window.removeEventListener('beforeunload', emitAbortOrSuccessEvent);
     };
-  }, [eventState, history.location.pathname, emitEvent]);
+  }, [eventState, location.pathname, emitEvent]);
 
   useEffect(() => {
     if (selectedResourceKind === ResourceKind.Database && !resourceState) {

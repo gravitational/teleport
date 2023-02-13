@@ -103,10 +103,8 @@ export default function Empty(props: Props) {
         </Box>
         <Box textAlign="center">
           <Link
-            to={{
-              pathname: `${cfg.routes.root}/discover`,
-              state: { entity: resourceType },
-            }}
+            to={`${cfg.routes.root}/discover`}
+            state={{ entity: resourceType }}
             style={{ textDecoration: 'none' }}
           >
             <ButtonPrimary width="224px">Add {resourceType}</ButtonPrimary>

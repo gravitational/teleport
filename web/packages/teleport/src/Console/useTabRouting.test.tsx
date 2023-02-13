@@ -85,6 +85,6 @@ function makeWrapper(route: string) {
       initialEntries: [route],
     });
 
-    return <Router history={history} {...props} />;
+    return <Router navigate={history} location={route} {...props} />;
   };
 }

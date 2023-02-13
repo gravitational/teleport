@@ -17,9 +17,10 @@ limitations under the License.
 import Logger from 'shared/libs/logger';
 
 import cfg from 'teleport/config';
-import history from 'teleport/services/history';
 import api from 'teleport/services/api';
 import localStorage, { KeysEnum } from 'teleport/services/localStorage';
+
+import { redirectToLogin } from 'teleport/services/history/history';
 
 import makeBearerToken from './makeBearerToken';
 import { RenewSessionRequest } from './types';
@@ -35,7 +36,7 @@ let sesstionCheckerTimerId = null;
 const session = {
   logout() {
     api.delete(cfg.api.webSessionPath).finally(() => {
-      history.goToLogin();
+      redirectToLogin();
     });
 
     this.clear();

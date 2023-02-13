@@ -15,13 +15,19 @@
  */
 
 import { useState } from 'react';
+
 import { useAttempt } from 'shared/hooks';
 import { AuthProvider } from 'shared/services';
 import { isPrivateKeyRequiredError } from 'shared/utils/errorType';
 
-import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 import auth, { UserCredentials } from 'teleport/services/auth';
+import {
+  ensureBaseUrl,
+  getRedirectParam,
+  loadPageWithRefresh,
+  pathExists,
+} from 'teleport/services/history';
 
 export default function useLogin() {
   const [attempt, attemptActions] = useAttempt({ isProcessing: false });
@@ -38,6 +44,21 @@ export default function useLogin() {
   const authProviders = cfg.getAuthProviders();
   const auth2faType = cfg.getAuth2faType();
   const isLocalAuthEnabled = cfg.getLocalAuthFlag();
+
+  function onSuccess() {
+    const redirect = getEntryRoute();
+
+    loadPageWithRefresh(redirect);
+  }
+
+  function getEntryRoute() {
+    let entryUrl = getRedirectParam();
+    if (!pathExists(entryUrl)) {
+      entryUrl = cfg.routes.root;
+    }
+
+    return ensureBaseUrl(entryUrl);
+  }
 
   function onLogin(email, password, token) {
     attemptActions.start();
@@ -71,7 +92,7 @@ export default function useLogin() {
     attemptActions.start();
     const appStartRoute = getEntryRoute();
     const ssoUri = cfg.getSsoUrl(provider.url, provider.name, appStartRoute);
-    history.push(ssoUri, true);
+    loadPageWithRefresh(ssoUri);
   }
 
   return {
@@ -88,23 +109,6 @@ export default function useLogin() {
     primaryAuthType: cfg.getPrimaryAuthType(),
     privateKeyPolicyEnabled,
   };
-}
-
-function onSuccess() {
-  const redirect = getEntryRoute();
-  const withPageRefresh = true;
-  history.push(redirect, withPageRefresh);
-}
-
-function getEntryRoute() {
-  let entryUrl = history.getRedirectParam();
-  if (entryUrl) {
-    entryUrl = history.ensureKnownRoute(entryUrl);
-  } else {
-    entryUrl = cfg.routes.root;
-  }
-
-  return history.ensureBaseUrl(entryUrl);
 }
 
 export type State = ReturnType<typeof useLogin> & {

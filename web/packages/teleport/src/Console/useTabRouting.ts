@@ -15,19 +15,20 @@ limitations under the License.
 */
 
 import React from 'react';
-import { useRouteMatch, useParams, useLocation } from 'react-router';
+import { useMatch, useParams, useLocation } from 'react-router';
 
 import cfg, { UrlSshParams } from 'teleport/config';
-import { ParticipantMode } from 'teleport/services/session';
 
 import ConsoleContext from './consoleContext';
 
 export default function useRouting(ctx: ConsoleContext) {
   const { pathname, search } = useLocation();
   const { clusterId } = useParams<{ clusterId: string }>();
-  const sshRouteMatch = useRouteMatch<UrlSshParams>(cfg.routes.consoleConnect);
-  const nodesRouteMatch = useRouteMatch(cfg.routes.consoleNodes);
-  const joinSshRouteMatch = useRouteMatch<UrlSshParams>(
+  const sshRouteMatch = useMatch<keyof UrlSshParams, string>(
+    cfg.routes.consoleConnect
+  );
+  const nodesRouteMatch = useMatch(cfg.routes.consoleNodes);
+  const joinSshRouteMatch = useMatch<keyof UrlSshParams, string>(
     cfg.routes.consoleSession
   );
 
@@ -45,10 +46,8 @@ export default function useRouting(ctx: ConsoleContext) {
       // Extract the mode param from the URL if it is present.
       const searchParams = new URLSearchParams(search);
       const mode = searchParams.get('mode');
-      if (mode) {
-        joinSshRouteMatch.params.mode = mode as ParticipantMode;
-      }
-      ctx.addSshDocument(joinSshRouteMatch.params);
+
+      ctx.addSshDocument({ ...joinSshRouteMatch.params, mode });
     } else if (nodesRouteMatch) {
       ctx.addNodeDocument(clusterId);
     }

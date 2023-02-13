@@ -17,9 +17,10 @@ limitations under the License.
 import React from 'react';
 import { Box } from 'design';
 
+import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
+
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
-import { Route, Switch, NavLink, Redirect } from 'teleport/components/Router';
 import {
   FeatureBox,
   FeatureHeader,
@@ -51,23 +52,30 @@ export function Account({ isSso }: Props) {
         </FeatureHeaderTitle>
       </FeatureHeader>
       <Box>
-        <Switch>
+        <Routes>
           {!isSso && (
             <Route
               path={cfg.routes.accountPassword}
-              component={ChangePassword}
+              element={<ChangePassword />}
             />
           )}
           <Route
             path={cfg.routes.accountMfaDevices}
-            component={ManageDevices}
+            element={<ManageDevices />}
           />
-          <Redirect
-            to={
-              isSso ? cfg.routes.accountMfaDevices : cfg.routes.accountPassword
+          <Route
+            path="*"
+            element={
+              <Navigate
+                to={
+                  isSso
+                    ? cfg.routes.accountMfaDevices
+                    : cfg.routes.accountPassword
+                }
+              />
             }
           />
-        </Switch>
+        </Routes>
       </Box>
     </FeatureBox>
   );

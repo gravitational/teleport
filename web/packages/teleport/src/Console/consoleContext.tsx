@@ -20,7 +20,6 @@ import { context, defaultTextMapSetter, trace } from '@opentelemetry/api';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 
 import webSession from 'teleport/services/websession';
-import history from 'teleport/services/history';
 import cfg, { UrlResourcesParams, UrlSshParams } from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import Tty from 'teleport/lib/term/tty';
@@ -103,7 +102,7 @@ export default class ConsoleContext {
       login,
       sid,
       url,
-      mode,
+      mode: mode as ParticipantMode,
       created: new Date(),
     });
   }
@@ -209,9 +208,9 @@ export default class ConsoleContext {
 
   gotoTab({ url }: { url: string }, replace = true) {
     if (replace) {
-      history.replace(url);
+      window.history.replaceState({}, '', url);
     } else {
-      history.push(url);
+      window.history.pushState({}, '', url);
     }
   }
 

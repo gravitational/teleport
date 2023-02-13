@@ -15,8 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Router } from 'react-router';
-import { createMemoryHistory } from 'history';
+import { createMemoryRouter, RouterProvider } from 'react-router';
 
 import { ContextProvider, Context } from 'teleport';
 
@@ -68,16 +67,21 @@ export const AllPossibleEvents = () => (
 );
 
 function render(ctx) {
-  const history = createMemoryHistory({
+  const routes = [
+    {
+      path: '*',
+      element: <Audit />,
+    },
+  ];
+
+  const router = createMemoryRouter(routes, {
     initialEntries: ['/web/cluster/localhost/audit/events'],
     initialIndex: 0,
   });
 
   return (
     <ContextProvider ctx={ctx}>
-      <Router history={history}>
-        <Audit />
-      </Router>
+      <RouterProvider router={router} />
     </ContextProvider>
   );
 }

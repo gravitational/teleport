@@ -454,7 +454,7 @@ export class FeatureTrust implements TeleportFeature {
 export class FeatureAccount implements TeleportFeature {
   route = {
     title: 'Account Settings',
-    path: cfg.routes.account,
+    path: `${cfg.routes.account}/*`,
     component: Account,
   };
 

@@ -132,12 +132,15 @@ class ClusterContext extends Store<State> {
     this.appCtx.clustersService.unsubscribe(this.refresh);
   }
 
-  isLocationActive(location: NavLocation, exact = false) {
+  isLocationActive(location: NavLocation, end = false) {
     return Boolean(
-      matchPath(this.state.navLocation, {
-        path: location,
-        exact,
-      })
+      matchPath(
+        {
+          path: location,
+          end,
+        },
+        this.state.navLocation
+      )
     );
   }
 
