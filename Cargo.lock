@@ -1195,6 +1195,7 @@ dependencies = [
 [[package]]
 name = "rdp-rs"
 version = "0.1.0"
+source = "git+https://github.com/gravitational/rdp-rs?rev=84aec7b1d0917ea64482dfb1159acbcb9780e06b#84aec7b1d0917ea64482dfb1159acbcb9780e06b"
 dependencies = [
  "bit_field",
  "bitflags",
