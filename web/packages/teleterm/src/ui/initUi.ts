@@ -30,13 +30,17 @@ import { NotificationsService } from 'teleterm/ui/services/notifications';
 export async function initUi(ctx: IAppContext): Promise<void> {
   const { configService } = ctx.mainProcessClient;
 
-  await setUpUsageReporting(configService, ctx.modalsService);
   await askAboutUserJobRoleIfNeeded(
     ctx.statePersistenceService,
     configService,
     ctx.modalsService,
     ctx.usageService
   );
+  // Setting up usage reporting after asking for a job role prevents a situation
+  // where these dialogs are shown one after another.
+  // Instead, on the first launch only "usage reporting" dialog shows up.
+  // "User job role" dialog is shown on the second launch (only if user agreed to reporting earlier).
+  await setUpUsageReporting(configService, ctx.modalsService);
   ctx.workspacesService.restorePersistedState();
   notifyAboutStoredConfigErrors(configService, ctx.notificationsService);
 }
