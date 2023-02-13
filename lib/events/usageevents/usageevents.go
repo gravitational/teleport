@@ -130,6 +130,11 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 			UserName: e.User,
 			RoleName: e.ResourceMetadata.Name,
 		}))
+
+	case *apievents.KubeRequest:
+		return trace.Wrap(u.report(&services.UsageKubeRequest{
+			UserName: e.User,
+		}))
 	}
 
 	return nil

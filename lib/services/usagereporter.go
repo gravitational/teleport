@@ -355,6 +355,20 @@ func (u *UsageCertificateIssued) Anonymize(a utils.Anonymizer) prehogv1.SubmitEv
 	}
 }
 
+// UsageKubeRequest is an event emitted when a Kubernetes API request is
+// handled.
+type UsageKubeRequest prehogv1.KubeRequestEvent
+
+func (u *UsageKubeRequest) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_KubeRequest{
+			KubeRequest: &prehogv1.KubeRequestEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
