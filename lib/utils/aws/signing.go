@@ -63,13 +63,7 @@ func (s *SigningServiceConfig) CheckAndSetDefaults() error {
 		s.Clock = clockwork.NewRealClock()
 	}
 	if s.Session == nil {
-		ses, err := awssession.NewSessionWithOptions(awssession.Options{
-			SharedConfigState: awssession.SharedConfigEnable,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.Session = ses
+		return trace.BadParameter("missing session")
 	}
 	if s.CredentialsGetter == nil {
 		s.CredentialsGetter = NewCredentialsGetter()

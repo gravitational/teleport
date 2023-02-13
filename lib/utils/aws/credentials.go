@@ -24,20 +24,25 @@ import (
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// GetCredentialsRequest is the request for obtains STS credentials.
 type GetCredentialsRequest struct {
-	Provider    client.ConfigProvider
-	Expiry      time.Time
+	// Provider is the user session used to create the STS client.
+	Provider client.ConfigProvider
+	// Expiry is session expiry to be requested.
+	Expiry time.Time
+	// SessionName is the session name to be requested.
 	SessionName string
-	RoleARN     string
-	ExternalID  string
+	// RoleARN is the role ARN to be requested.
+	RoleARN string
+	// ExternalID is the external ID to be requested, if not empty.
+	ExternalID string
 }
 
 // CredentialsGetter defines an interface for obtaining STS credentials.
@@ -69,10 +74,14 @@ func (g *credentialsGettter) Get(_ context.Context, request GetCredentialsReques
 	), nil
 }
 
+// CachedCredentialsGetterConfig is the config for creating a CredentialsGetter that caches credentials.
 type CachedCredentialsGetterConfig struct {
-	Getter   CredentialsGetter
+	// Getter is the CredentialsGetter for obtaining the STS credentials.
+	Getter CredentialsGetter
+	// CacheTTL is the cache TTL.
 	CacheTTL time.Duration
-	Clock    clockwork.Clock
+	// Clock is used to control time.
+	Clock clockwork.Clock
 }
 
 // SetDefaults sets default values for CachedCredentialsGetterConfig.
@@ -93,6 +102,7 @@ type cachedCredentialsGetter struct {
 	cache  *utils.FnCache
 }
 
+// NewCachedCredentialsGetter returns a CredentialsGetter that caches credentials.
 func NewCachedCredentialsGetter(config CachedCredentialsGetterConfig) (CredentialsGetter, error) {
 	config.SetDefaults()
 

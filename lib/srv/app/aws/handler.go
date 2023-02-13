@@ -119,7 +119,8 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 	}
 
 	cache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL: time.Minute,
+		Context: ctx,
+		TTL:     time.Minute,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -185,7 +186,7 @@ func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) erro
 func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w http.ResponseWriter, req *http.Request) error {
 	// It's important that we resolve the endpoint before modifying the request headers,
 	// as they may be needed to resolve the endpoint correctly.
-	re, err := s.resolveEndpoint(sessCtx, req)
+	re, err := s.resolveEndpoint(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}

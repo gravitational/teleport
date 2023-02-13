@@ -66,7 +66,7 @@ import (
 // resolveEndpoint extracts the aws-service and aws-region from the request
 // authorization header and resolves the aws-service and aws-region to AWS
 // endpoint.
-func (s *signerHandler) resolveEndpoint(sessCtx *common.SessionContext, r *http.Request) (*endpoints.ResolvedEndpoint, error) {
+func (s *signerHandler) resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	switch {
 	// Use X-Forwarded-Host header if it is a valid AWS endpoint.
 	case awsapiutils.IsAWSEndpoint(r.Header.Get("X-Forwarded-Host")):
@@ -74,8 +74,8 @@ func (s *signerHandler) resolveEndpoint(sessCtx *common.SessionContext, r *http.
 		return re, trace.Wrap(err)
 
 	// Special handling for timestream in legacy Endpoint mode.
-	case strings.HasPrefix(r.Header.Get("X-Amz-Target"), "Timestream_20181101."):
-		re, err := s.resolveTimestreamEndpoint(sessCtx, r)
+	case shouldDiscoverTimestreamEndpoint(r):
+		re, err := s.resolveTimestreamEndpoint(r)
 		return re, trace.Wrap(err)
 
 	// Legacy Endpoint mode.
@@ -85,7 +85,8 @@ func (s *signerHandler) resolveEndpoint(sessCtx *common.SessionContext, r *http.
 	}
 }
 
-// resolveEndpointBySDKResolver resolves the endpoint by using AWS SDK GO's resolver.
+// resolveEndpointBySDKResolver resolves the endpoint by using AWS SDK's
+// default resolver.
 func resolveEndpointBySDKResolver(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(awsutils.AuthorizationHeader))
 	if err != nil {
@@ -149,7 +150,32 @@ func resolveEndpointByXForwardedHost(r *http.Request, headerKey string) (*endpoi
 	}, nil
 }
 
-func (s *signerHandler) resolveTimestreamEndpoint(sessCtx *common.SessionContext, r *http.Request) (*endpoints.ResolvedEndpoint, error) {
+// shouldDiscoverTimestreamEndpoint returns true if Timestream endpoint
+// discovery is required.
+//
+// Common Timestream operations require an "endpoint discovery" prior to the
+// actual API call. The "endpoint discovery" is done by making a
+// "DescribeEndpoints" call using the user credentials. However, in Endpoint
+// mode (e.g. `--endpoint-url` for AWS CLI or `Endpoint=` for JDBC), the
+// "endpoint discovery" is skipped, and the endpoint passed to the client is
+// expected to be an URL equivalent to what "DescribeEndpoints" returns. Thus
+// the app agent has to do the "endpoint discovery" first (using the user
+// credentials) to figure out where to send the actual APIs.
+//
+// Sample AWS SDK reference for the discovery flow:
+// https://github.com/aws/aws-sdk-go/blob/41717ba2c04d3fd03f94d09ea984a10899574935/service/timestreamquery/api.go#L1295-L1319
+func shouldDiscoverTimestreamEndpoint(r *http.Request) bool {
+	target := r.Header.Get("X-Amz-Target")
+	return strings.HasPrefix(target, "Timestream_20181101.") && "Timestream_20181101.DescribeEndpoints" != target
+}
+
+// resolveTimestreamEndpoint resolves Timestream endpoint by making
+// corresponding DescribeEndpoints calls.
+func (s *signerHandler) resolveTimestreamEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
+	sessCtx, err := common.GetSessionContext(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(awsutils.AuthorizationHeader))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -189,14 +215,13 @@ func isTimestreamWriteRequest(r *http.Request) bool {
 	switch strings.TrimPrefix(r.Header.Get("X-Amz-Target"), "Timestream_20181101.") {
 	case "CreateDatabase", "CreateTable",
 		"DeleteDatabase", "DeleteTable",
-		"DescribeDatabase", "DescribeEndpoints", "DescribeTable",
+		"DescribeDatabase", "DescribeTable",
 		"ListDatabases", "ListTables",
 		"UpdateDatabase", "UpdateTable",
 		"WriteRecords":
 		return true
-
 	// Note that both timestream-query and timestream-write support these tag operations.
-	// For now, we just assume they are used for timestream-query.
+	// For now, we assume they are used for timestream-query.
 	case "ListTagsForResource", "TagResource", "UntagResource":
 		return false
 	default:
@@ -315,4 +340,5 @@ var signingNameToEndpointsID = map[string]string{
 	"sagemaker":                             sagemaker.EndpointsID,
 	"ses":                                   ses.EndpointsID,
 	"sms-voice":                             pinpointsmsvoice.EndpointsID,
+	"timestream":                            timestreamquery.EndpointsID,
 }

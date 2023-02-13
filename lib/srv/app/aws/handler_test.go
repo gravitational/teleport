@@ -135,17 +135,8 @@ func hasStatusCode(wantStatusCode int) require.ErrorAssertionFunc {
 
 // TestAWSSignerHandler test the AWS SigningService APP handler logic with mocked STS signing credentials.
 func TestAWSSignerHandler(t *testing.T) {
-	consoleApp, err := types.NewAppV3(types.Metadata{
-		Name: "awsconsole",
-	}, types.AppSpecV3{
-		URI:        constants.AWSConsoleURL,
-		PublicAddr: "test.local",
-	})
-	require.NoError(t, err)
-
 	tests := []struct {
 		name                string
-		app                 types.Application
 		awsClientSession    *session.Session
 		request             makeRequest
 		advanceClock        time.Duration
@@ -161,7 +152,6 @@ func TestAWSSignerHandler(t *testing.T) {
 	}{
 		{
 			name: "s3 access",
-			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: staticAWSCredentialsForClient,
 				Region:      aws.String("us-west-2"),
@@ -178,7 +168,6 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 		{
 			name: "s3 access with different region",
-			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: staticAWSCredentialsForClient,
 				Region:      aws.String("us-west-1"),
@@ -195,7 +184,6 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 		{
 			name: "s3 access missing credentials",
-			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: credentials.AnonymousCredentials,
 				Region:      aws.String("us-west-1"),
@@ -207,7 +195,6 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 		{
 			name: "s3 access by assumed role",
-			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: staticAWSCredentialsForAssumedRole,
 				Region:      aws.String("us-west-2"),
@@ -226,7 +213,6 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 		{
 			name: "DynamoDB access",
-			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: staticAWSCredentialsForClient,
 				Region:      aws.String("us-east-1"),
@@ -243,7 +229,6 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 		{
 			name: "DynamoDB access with different region",
-			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: staticAWSCredentialsForClient,
 				Region:      aws.String("us-west-1"),
@@ -260,7 +245,6 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 		{
 			name: "DynamoDB access missing credentials",
-			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: credentials.AnonymousCredentials,
 				Region:      aws.String("us-west-1"),
@@ -272,7 +256,6 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 		{
 			name: "DynamoDB access by assumed role",
-			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: staticAWSCredentialsForAssumedRole,
 				Region:      aws.String("us-east-1"),
@@ -291,7 +274,6 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 		{
 			name: "AssumeRole success (shorter identity duration)",
-			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: staticAWSCredentialsForClient,
 				Region:      aws.String("us-east-1"),
@@ -310,7 +292,6 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 		{
 			name: "AssumeRole success (shorter requested duration)",
-			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: staticAWSCredentialsForClient,
 				Region:      aws.String("us-east-1"),
@@ -328,7 +309,6 @@ func TestAWSSignerHandler(t *testing.T) {
 		},
 		{
 			name: "AssumeRole denied",
-			app:  consoleApp,
 			awsClientSession: session.Must(session.NewSession(&aws.Config{
 				Credentials: staticAWSCredentialsForClient,
 				Region:      aws.String("us-east-1"),
@@ -375,7 +355,7 @@ func TestAWSSignerHandler(t *testing.T) {
 
 				w.WriteHeader(http.StatusOK)
 			}
-			suite := createSuite(t, mockAwsHandler, tc.app, fakeClock)
+			suite := createSuite(t, mockAwsHandler, fakeClock)
 			fakeClock.Advance(tc.advanceClock)
 
 			err := tc.request(suite.URL, tc.awsClientSession, tc.wantHost)
@@ -483,9 +463,11 @@ type suite struct {
 	identity *tlsca.Identity
 	app      types.Application
 	emitter  *eventstest.ChannelEmitter
+	audit    common.Audit
+	handler  *signerHandler
 }
 
-func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Application, clock clockwork.Clock) *suite {
+func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, clock clockwork.Clock) *suite {
 	emitter := eventstest.NewChannelEmitter(1)
 	identity := tlsca.Identity{
 		Username: "user",
@@ -495,6 +477,19 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 		},
 	}
 
+	app, err := types.NewAppV3(types.Metadata{
+		Name: "awsconsole",
+	}, types.AppSpecV3{
+		URI:        constants.AWSConsoleURL,
+		PublicAddr: "test.local",
+	})
+	require.NoError(t, err)
+
+	hostSession := session.Must(session.NewSession(&aws.Config{
+		Credentials: credentials.AnonymousCredentials,
+		Region:      aws.String("us-west-1"),
+	}))
+
 	awsAPIMock := httptest.NewUnstartedServer(mockAWSHandler)
 	awsAPIMock.StartTLS()
 	t.Cleanup(func() {
@@ -502,6 +497,7 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 	})
 
 	svc, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
+		Session:           hostSession,
 		CredentialsGetter: &fakeCredentialsGetter{},
 		Clock:             clock,
 	})
@@ -511,9 +507,11 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 		Emitter: emitter,
 	})
 	require.NoError(t, err)
-	signerHandler, err := NewAWSSignerHandler(context.Background(),
+	handler, err := NewAWSSignerHandler(context.Background(),
 		SignerHandlerConfig{
-			SigningService: svc,
+			Session:           hostSession,
+			SigningService:    svc,
+			CredentialsGetter: &fakeCredentialsGetter{},
 			RoundTripper: &http.Transport{
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: true,
@@ -534,7 +532,7 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 			ChunkID:  "123abc",
 		})
 
-		signerHandler.ServeHTTP(writer, request)
+		handler.ServeHTTP(writer, request)
 	})
 
 	server := httptest.NewServer(mux)
@@ -547,6 +545,8 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 		identity: &identity,
 		app:      app,
 		emitter:  emitter,
+		audit:    audit,
+		handler:  handler.(*signerHandler),
 	}
 }
 
@@ -557,6 +557,15 @@ func verifyAssumeRoleDuration(wantDuration time.Duration) func(*testing.T, *http
 		require.NoError(t, clone.ParseForm())
 		require.Equal(t, wantDuration, getAssumeRoleQueryDuration(clone.PostForm))
 	}
+}
+
+func (s *suite) withSessionContext(request *http.Request) *http.Request {
+	return common.WithSessionContext(request, &common.SessionContext{
+		Identity: s.identity,
+		App:      s.app,
+		Audit:    s.audit,
+		ChunkID:  "123abc",
+	})
 }
 
 const fakeAssumedRoleARN = "arn:aws:sts::123456789012:assumed-role/role-name/role-session-name"
