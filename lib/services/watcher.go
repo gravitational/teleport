@@ -573,7 +573,7 @@ func (p *lockCollector) Subscribe(ctx context.Context, targets ...types.LockTarg
 }
 
 // CheckLockInForce returns an AccessDenied error if there is a lock in force
-// matching at at least one of the targets.
+// matching at least one of the targets.
 func (p *lockCollector) CheckLockInForce(mode constants.LockingMode, targets ...types.LockTarget) error {
 	p.currentRW.RLock()
 	defer p.currentRW.RUnlock()

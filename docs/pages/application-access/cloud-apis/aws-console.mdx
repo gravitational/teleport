@@ -290,7 +290,7 @@ Before beginning this step, make sure that the `aws` command line interface (CLI
 First, log into the previously configured AWS console app on your desktop:
 
 ```code
-$ tsh app login --aws-role ExamplePowerUser awsconsole-test
+$ tsh apps login --aws-role ExamplePowerUser awsconsole-test
 Logged into AWS app awsconsole-test. Example AWS CLI command:
 
 $ tsh aws s3 ls
@@ -308,7 +308,7 @@ $ tsh aws s3 ls
 To log out of the aws application and remove credentials:
 
 ```code
-$ tsh app logout awsconsole-test
+$ tsh apps logout awsconsole-test
 ```
 
 ## Step 9/9. Access applications using AWS SDKs
@@ -317,7 +317,7 @@ First, log into the previously configured console app if you haven't already
 done so:
 
 ```code
-$ tsh app login --aws-role ExamplePowerUser awsconsole-test
+$ tsh apps login --aws-role ExamplePowerUser awsconsole-test
 ```
 
 Now, use the following command to start a local HTTPS proxy server your
@@ -358,7 +358,7 @@ SDK for JavaScript).
 To log out of the AWS application and remove credentials:
 
 ```code
-$ tsh app logout awsconsole-test
+$ tsh apps logout awsconsole-test
 ```
 
 ## Next steps

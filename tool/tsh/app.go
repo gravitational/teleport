@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// onAppLogin implements "tsh app login" command.
+// onAppLogin implements "tsh apps login" command.
 func onAppLogin(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
 	if err != nil {
@@ -249,12 +249,12 @@ func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Applica
 		return nil, trace.Wrap(err)
 	}
 	if len(apps) == 0 {
-		return nil, trace.NotFound("app %q not found, use `tsh app ls` to see registered apps", cf.AppName)
+		return nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", cf.AppName)
 	}
 	return apps[0], nil
 }
 
-// onAppLogout implements "tsh app logout" command.
+// onAppLogout implements "tsh apps logout" command.
 func onAppLogout(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
 	if err != nil {
@@ -299,7 +299,7 @@ func onAppLogout(cf *CLIConf) error {
 	return nil
 }
 
-// onAppConfig implements "tsh app config" command.
+// onAppConfig implements "tsh apps config" command.
 func onAppConfig(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
 	if err != nil {
@@ -441,7 +441,7 @@ func pickActiveApp(cf *CLIConf) (*tlsca.RouteToApp, error) {
 		return nil, trace.Wrap(err)
 	}
 	if len(profile.Apps) == 0 {
-		return nil, trace.NotFound("please login using 'tsh app login' first")
+		return nil, trace.NotFound("please login using 'tsh apps login' first")
 	}
 	name := cf.AppName
 	if name == "" {
