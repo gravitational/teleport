@@ -91,7 +91,7 @@ var ignoredFields = map[string][]string{
 }
 
 func generateSchema(file *schemagen.File, groupName string, resp *gogoplugin.CodeGeneratorResponse) error {
-	generator := schemagen.NewSchemaGenerator(groupName)
+	generator := schemagen.NewSchemaGenerator()
 
 	if err := generator.ParseResource(
 		file,

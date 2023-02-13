@@ -64,7 +64,7 @@ func (s *Schema) DeepCopy() *Schema {
 	}
 }
 
-func NewSchemaGenerator(groupName string) *SchemaGenerator {
+func NewSchemaGenerator() *SchemaGenerator {
 	return &SchemaGenerator{
 		memo:  make(map[string]*Schema),
 		Roots: make(map[string]*RootSchema),
