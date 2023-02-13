@@ -21,12 +21,15 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
+
+var log = logrus.WithField(trace.Component, "cluster_auth_test")
 
 func TestPwdlessLoginPrompt_PromptPIN(t *testing.T) {
 	stream := &mockLoginPwdlessStream{}
@@ -43,7 +46,7 @@ func TestPwdlessLoginPrompt_PromptPIN(t *testing.T) {
 		}}, nil
 	}
 
-	prompt := newPwdlessLoginPrompt(context.Background(), stream)
+	prompt := newPwdlessLoginPrompt(context.Background(), log, stream)
 	pin, err := prompt.PromptPIN()
 	require.NoError(t, err)
 	require.Equal(t, "1234", pin)
@@ -68,9 +71,10 @@ func TestPwdlessLoginPrompt_PromptTouch(t *testing.T) {
 		return nil
 	}
 
-	prompt := newPwdlessLoginPrompt(context.Background(), stream)
-	err := prompt.PromptTouch()
+	prompt := newPwdlessLoginPrompt(context.Background(), log, stream)
+	ackTouch, err := prompt.PromptTouch()
 	require.NoError(t, err)
+	require.NoError(t, ackTouch())
 }
 
 func TestPwdlessLoginPrompt_PromptCredential(t *testing.T) {
@@ -103,7 +107,7 @@ func TestPwdlessLoginPrompt_PromptCredential(t *testing.T) {
 		}}, nil
 	}
 
-	prompt := newPwdlessLoginPrompt(context.Background(), stream)
+	prompt := newPwdlessLoginPrompt(context.Background(), log, stream)
 	cred, err := prompt.PromptCredential(unsortedCreds)
 	require.NoError(t, err)
 	require.Equal(t, "foo", cred.User.Name)
