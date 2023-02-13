@@ -19,12 +19,21 @@ This guide will help you to:
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+<Notice type="warning">
+
+Teleport Database Access for Cloud SQL PostgreSQL is available starting from
+the `6.2` Teleport release.
+
+</Notice>
+
 - Google Cloud account
 - Command-line client `psql` installed and added to your system's `PATH` environment variable.
 - A host, e.g., a Compute Engine instance, where you will run the Teleport Database
   Service
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/7. Enable Cloud SQL IAM authentication
 
@@ -178,12 +187,7 @@ file from the Connections tab under Security section:
 
 ![Instance Root Certificate](../../../img/database-access/guides/cloudsql/instance-root-ca@2x.png)
 
-## Step 5/7. Set up the Teleport Auth and Proxy services
-
-Teleport Database Access for Cloud SQL PostgreSQL is available starting from
-the `6.2` Teleport release.
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
+## Step 5/7. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
