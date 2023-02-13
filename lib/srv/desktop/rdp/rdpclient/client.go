@@ -673,6 +673,7 @@ func tdp_bitmap_cache_load(handle C.uintptr_t, req *C.CGOBitmapCacheLoad) C.CGOE
 }
 
 func (c *Client) bitmapCacheLoad(req tdp.BitmapCacheLoad) C.CGOErrCode {
+	atomic.StoreUint32(&c.readyForInput, 1)
 	if err := c.cfg.Conn.WriteMessage(req); err != nil {
 		c.cfg.Log.Errorf("failed to send BitmapCacheLoad: %v", err)
 		return C.ErrCodeFailure
