@@ -265,7 +265,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		}
 	}()
 
-	awsCredentialsGetter, err := awsutils.NewCachedCredentialsGetter(closeContext, awsutils.CachedCredentialsGetterConfig{})
+	awsCredentialsGetter, err := awsutils.NewCachedCredentialsGetter(awsutils.CachedCredentialsGetterConfig{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -67,14 +67,14 @@ func TestResolveEndpoints(t *testing.T) {
 	})
 
 	t.Run("resolve Timestream endpoint", func(t *testing.T) {
-		// Pre-cache resolved endpoints for timestream to avoid making real API calls.
+		// Pre-cache resolved endpoints for Timestream to avoid making real API calls.
 		_, err := utils.FnCacheGet(
 			context.Background(),
 			suite.handler.cache,
 			resolveTimestreamEndpointCacheKey{
-				credentials:  staticAWSCredentials,
-				region:       region,
-				writeRequest: true,
+				credentials:               staticAWSCredentials,
+				region:                    region,
+				isTimemstreamWriteRequest: true,
 			},
 			func(context.Context) (*endpoints.ResolvedEndpoint, error) {
 				return &endpoints.ResolvedEndpoint{
@@ -89,9 +89,9 @@ func TestResolveEndpoints(t *testing.T) {
 			context.Background(),
 			suite.handler.cache,
 			resolveTimestreamEndpointCacheKey{
-				credentials:  staticAWSCredentials,
-				region:       region,
-				writeRequest: false,
+				credentials:               staticAWSCredentials,
+				region:                    region,
+				isTimemstreamWriteRequest: false,
 			},
 			func(context.Context) (*endpoints.ResolvedEndpoint, error) {
 				return &endpoints.ResolvedEndpoint{
@@ -117,7 +117,7 @@ func TestResolveEndpoints(t *testing.T) {
 			require.Equal(t, "https://query.timestream.us-east-1.amazonaws.com", endpoint.URL)
 		})
 
-		t.Run("timestream-write", func(t *testing.T) {
+		t.Run("timestream-write operation", func(t *testing.T) {
 			req, err := http.NewRequest("GET", "http://localhost", nil)
 			require.NoError(t, err)
 			req.Header.Add("X-Amz-Target", "Timestream_20181101.CreateDatabase")
@@ -131,7 +131,7 @@ func TestResolveEndpoints(t *testing.T) {
 			require.Equal(t, "https://resolved.timestream-write.endpoint", endpoint.URL)
 		})
 
-		t.Run("timestream-query", func(t *testing.T) {
+		t.Run("timestream-query operation", func(t *testing.T) {
 			req, err := http.NewRequest("GET", "http://localhost", nil)
 			require.NoError(t, err)
 			req.Header.Add("X-Amz-Target", "Timestream_20181101.Query")

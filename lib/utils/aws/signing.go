@@ -120,7 +120,7 @@ func (sc *SigningCtx) Check(clock clockwork.Clock) error {
 //	 4. Build AWS API endpoint based on extracted aws-region and aws-service fields.
 //	    Not that for endpoint resolving the https://github.com/aws/aws-sdk-go/aws/endpoints/endpoints.go
 //	    package is used and when Amazon releases a new API the dependency update is needed.
-//	 v. Sign HTTP request.
+//	 5. Sign HTTP request.
 func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, signCtx *SigningCtx) (*http.Request, error) {
 	if signCtx == nil {
 		return nil, trace.BadParameter("missing signing context")

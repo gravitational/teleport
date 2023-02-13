@@ -166,11 +166,11 @@ func resolveEndpointByXForwardedHost(r *http.Request, headerKey string) (*endpoi
 // https://github.com/aws/aws-sdk-go/blob/41717ba2c04d3fd03f94d09ea984a10899574935/service/timestreamquery/api.go#L1295-L1319
 func shouldDiscoverTimestreamEndpoint(r *http.Request) bool {
 	target := r.Header.Get("X-Amz-Target")
-	return strings.HasPrefix(target, "Timestream_20181101.") && "Timestream_20181101.DescribeEndpoints" != target
+	return strings.HasPrefix(target, timestreamOpPrefix) && !strings.HasSuffix(target, "DescribeEndpoints")
 }
 
-// resolveTimestreamEndpoint resolves Timestream endpoint by making
-// corresponding DescribeEndpoints calls.
+// resolveTimestreamEndpoint performs a Timestream endpoint discover to resolve
+// the endpoint.
 func (s *signerHandler) resolveTimestreamEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	sessCtx, err := common.GetSessionContext(r)
 	if err != nil {
@@ -192,12 +192,12 @@ func (s *signerHandler) resolveTimestreamEndpoint(r *http.Request) (*endpoints.R
 	}
 
 	key := resolveTimestreamEndpointCacheKey{
-		credentials:  credentials,
-		region:       awsAuthHeader.Region,
-		writeRequest: isTimestreamWriteRequest(r),
+		credentials:               credentials,
+		region:                    awsAuthHeader.Region,
+		isTimemstreamWriteRequest: isTimestreamWriteRequest(r),
 	}
 	re, err := utils.FnCacheGet(s.closeContext, s.cache, key, func(ctx context.Context) (*endpoints.ResolvedEndpoint, error) {
-		if key.writeRequest {
+		if key.isTimemstreamWriteRequest {
 			return resolveTimestreamWriteEndpoint(ctx, key.credentials, key.region)
 		}
 		return resolveTimestreamQueryEndpoint(ctx, key.credentials, key.region)
@@ -206,13 +206,13 @@ func (s *signerHandler) resolveTimestreamEndpoint(r *http.Request) (*endpoints.R
 }
 
 type resolveTimestreamEndpointCacheKey struct {
-	credentials  *credentials.Credentials
-	region       string
-	writeRequest bool
+	credentials               *credentials.Credentials
+	region                    string
+	isTimemstreamWriteRequest bool
 }
 
 func isTimestreamWriteRequest(r *http.Request) bool {
-	switch strings.TrimPrefix(r.Header.Get("X-Amz-Target"), "Timestream_20181101.") {
+	switch strings.TrimPrefix(r.Header.Get("X-Amz-Target"), timestreamOpPrefix) {
 	case "CreateDatabase", "CreateTable",
 		"DeleteDatabase", "DeleteTable",
 		"DescribeDatabase", "DescribeTable",
@@ -342,3 +342,5 @@ var signingNameToEndpointsID = map[string]string{
 	"sms-voice":                             pinpointsmsvoice.EndpointsID,
 	"timestream":                            timestreamquery.EndpointsID,
 }
+
+const timestreamOpPrefix = "Timestream_20181101."
