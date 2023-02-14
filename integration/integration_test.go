@@ -4889,6 +4889,9 @@ func waitForReload(serviceC chan *service.TeleportProcess, old *service.Teleport
 
 	// if old service is present, wait for it to complete shut down procedure
 	if old != nil {
+		if err := waitForProcessReloadEvent(old); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ctx, cancel := context.WithCancel(context.TODO())
 		go func() {
 			defer cancel()
@@ -4902,6 +4905,23 @@ func waitForReload(serviceC chan *service.TeleportProcess, old *service.Teleport
 		}
 	}
 	return svc, nil
+}
+
+// waitForProcessReloadEvent waits for the old process to receive a TeleportExitEvent
+// and verifies the event payload indicates the process is reloading.
+func waitForProcessReloadEvent(old *service.TeleportProcess) error {
+	event, err := old.WaitForEventTimeout(20*time.Second, service.TeleportExitEvent)
+	if err != nil {
+		return trace.WrapWithMessage(err, "timeout waiting for old service to broadcast exit event")
+	}
+	ctx, ok := event.Payload.(context.Context)
+	if !ok {
+		return trace.BadParameter("payload of the exit event is not a context.Context")
+	}
+	if !services.IsProcessReloading(ctx) {
+		return trace.BadParameter("payload of the exit event is not a ProcessReloadContext")
+	}
+	return nil
 }
 
 // runAndMatch runs command and makes sure it matches the pattern
