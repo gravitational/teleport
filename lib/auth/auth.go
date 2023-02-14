@@ -2776,7 +2776,7 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 }
 
 // GenerateToken generates multi-purpose authentication token.
-// Deprecated: REMOVE IN 13.0.0 - Clients should now use CreateToken or
+// Deprecated: REMOVE IN 14.0.0 - Clients should now use CreateToken or
 // UpdateToken.
 func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	ttl := defaults.ProvisioningTokenTTL

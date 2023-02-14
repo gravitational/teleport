@@ -2462,6 +2462,7 @@ service AuthService {
   // UpsertTokenV2 upserts a token in a backend.
   rpc UpsertTokenV2(UpsertTokenV2Request) returns (google.protobuf.Empty);
   // GenerateToken generates a new auth token.
+  // Deprecated: switch to CreateTokenV2. DELETE IN 14.0.0.
   rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
   // DeleteToken deletes an existing token in a backend described by the given request.
   rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);

@@ -3089,7 +3089,7 @@ func (g *GRPCServer) CreateTokenV2(ctx context.Context, req *proto.CreateTokenV2
 }
 
 // GenerateToken generates a new auth token.
-// Deprecated: REMOVE IN 13.0.0 - Clients should now use CreateToken or
+// Deprecated: REMOVE IN 14.0.0 - Clients should now use CreateToken or
 // UpdateToken.
 func (g *GRPCServer) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (*proto.GenerateTokenResponse, error) {
 	auth, err := g.authenticate(ctx)
