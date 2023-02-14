@@ -53,6 +53,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -288,6 +289,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	as.ttlCache, err = utils.NewFnCache(utils.FnCacheConfig{
+		TTL: time.Second * 3,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if as.ghaIDTokenValidator == nil {
 		as.ghaIDTokenValidator = githubactions.NewIDTokenValidator(
 			githubactions.IDTokenValidatorConfig{
@@ -489,6 +498,9 @@ type Server struct {
 	// githubOrgSSOCache is used to cache whether Github organizations use
 	// external SSO or not.
 	githubOrgSSOCache *utils.FnCache
+
+	// ttlCache is a generic ttl cache. typed keys must be used.
+	ttlCache *utils.FnCache
 
 	// traceClient is used to forward spans to the upstream collector for components
 	// within the cluster that don't have a direct connection to said collector
@@ -1266,6 +1278,59 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	return certs.TLS, nil
 }
 
+// submitCertificateIssuedEvent submits a certificate issued usage event to the
+// usage reporting service.
+func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
+	var database, app, kubernetes, desktop bool
+
+	if req.dbService != "" {
+		database = true
+	}
+
+	if req.appName != "" {
+		app = true
+	}
+
+	if req.kubernetesCluster != "" {
+		kubernetes = true
+	}
+
+	// Bot users are regular Teleport users, but have a special internal label.
+	bot := false
+	if _, ok := req.user.GetMetadata().Labels[types.BotLabel]; ok {
+		bot = true
+	}
+
+	// Unfortunately the only clue we have about Windows certs is the usage
+	// restriction: `RouteToWindowsDesktop` isn't actually passed along to the
+	// certRequest.
+	for _, usage := range req.usage {
+		switch usage {
+		case teleport.UsageWindowsDesktopOnly:
+			desktop = true
+		}
+	}
+
+	// For usage reporting, we care about the impersonator rather than the user
+	// being impersonated (if any).
+	user := req.user.GetName()
+	if req.impersonator != "" {
+		user = req.impersonator
+	}
+
+	if err := a.SubmitAnonymizedUsageEvents(&services.UsageCertificateIssued{
+		UserName:        user,
+		Ttl:             durationpb.New(req.ttl),
+		IsBot:           bot,
+		UsageDatabase:   database,
+		UsageApp:        app,
+		UsageKubernetes: kubernetes,
+		UsageDesktop:    desktop,
+	}); err != nil {
+		log.Debugf("Unable to submit certificate issued usage event: %v", err)
+	}
+}
+
 // generateUserCert generates user certificates
 func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	ctx := context.TODO()
@@ -1573,6 +1638,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		certs.TLSCACerts = append(certs.TLSCACerts, services.GetTLSCerts(ca)...)
 		certs.SSHCACerts = append(certs.SSHCACerts, services.GetSSHCheckingKeys(ca)...)
 	}
+
+	a.submitCertificateIssuedEvent(&req)
 
 	return certs, nil
 }
