@@ -3509,7 +3509,7 @@ func TestNetworkRestrictions(t *testing.T) {
 	suite.NetworkRestrictions(t)
 }
 
-// TestCreateToken tests the CreateToken RPC end-to-end
+// TestCreateToken tests the CreateTokenV2 RPC end-to-end
 func TestCreateToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -3609,18 +3609,127 @@ func TestCreateToken(t *testing.T) {
 			if tt.requireTokenCreated {
 				token, err := ac.server.Auth().GetToken(ctx, tt.token.GetName())
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(tt.token, token))
+				require.Empty(t, cmp.Diff(
+					tt.token,
+					token,
+					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+				))
 			}
 		})
 	}
 }
 
-/*func TestUpsertToken(t *testing.T) {
+// TestUpsertToken tests the UpsertTokenV2 RPC end-to-end
+func TestUpsertToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ac := setupAuthContext(ctx, t)
+
+	client, err := ac.server.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	// Create a user with the least privilege access to call this RPC.
+	privilegedUser, _, err := CreateUserAndRole(
+		client, "token-upserter", nil, []types.Rule{
+			{
+				Resources: []string{types.KindToken},
+				Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	mustNewToken := func(token string, roles types.SystemRoles, expires time.Time) types.ProvisionToken {
+		tok, err := types.NewProvisionToken(token, roles, expires)
+		require.NoError(t, err)
+		return tok
+	}
+
+	// create a token to ensure UpsertToken overwrites an existing token.
+	alreadyExistsToken := mustNewToken(
+		"already-exists", types.SystemRoles{types.RoleNode}, time.Time{},
+	)
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, alreadyExistsToken))
+
+	tests := []struct {
+		name     string
+		identity TestIdentity
+		token    types.ProvisionToken
+
+		requireTokenCreated bool
+		requireError        require.ErrorAssertionFunc
+	}{
+		{
+			name:     "success",
+			identity: TestUser(privilegedUser.GetName()),
+			token: mustNewToken(
+				"success", types.SystemRoles{types.RoleNode}, time.Time{},
+			),
+			requireError:        require.NoError,
+			requireTokenCreated: true,
+		},
+		{
+			name:     "already exists",
+			identity: TestUser(privilegedUser.GetName()),
+			token: mustNewToken(
+				alreadyExistsToken.GetName(),
+				// These roles differ from the roles on the already existing
+				// token.
+				types.SystemRoles{types.RoleProxy},
+				time.Time{},
+			),
+			requireError: require.NoError,
+		},
+		{
+			name:     "access denied",
+			identity: TestNop(),
+			token: mustNewToken(
+				"access denied", types.SystemRoles{types.RoleNode}, time.Time{},
+			),
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(
+					t,
+					trace.IsAccessDenied(err),
+					"err should be access denied, was: %s", err,
+				)
+			},
+		},
+		{
+			name:     "invalid token",
+			identity: TestUser(privilegedUser.GetName()),
+			token:    &types.ProvisionTokenV2{},
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(
+					t,
+					trace.IsBadParameter(err),
+					"err should be bad parameter, was: %s", err,
+				)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := ac.server.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			err = client.UpsertToken(ctx, tt.token)
+			tt.requireError(t, err)
+
+			if tt.requireTokenCreated {
+				token, err := ac.server.Auth().GetToken(ctx, tt.token.GetName())
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(
+					tt.token,
+					token,
+					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+				))
+			}
+		})
+	}
 }
 
+/*
 func TestGetTokens(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
