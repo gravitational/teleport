@@ -2,7 +2,7 @@ ARG RUST_VERSION
 
 ## GIT2 ###################################################################
 
-# git2 packages are not available on ARM64, so we need to buld it from source.
+# git2 packages are not available on ARM64, so we need to build it from source.
 FROM centos:7 AS git2
 
 ARG DEVTOOLSET

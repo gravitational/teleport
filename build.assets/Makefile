@@ -74,7 +74,7 @@ DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
 endif
 
 ifeq ("$(RUNTIME_ARCH)","arm64")
-	# devtootset-11 is not available on CentOS 7 aarch64
+	# devtoolset-11 is not available on CentOS 7 aarch64
 	DEVTOOLSET ?= devtoolset-10
 else
 	DEVTOOLSET ?= devtoolset-11
