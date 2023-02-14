@@ -36,6 +36,7 @@ import (
 	insecurerand "math/rand"
 	"net"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -1409,6 +1410,21 @@ func (a *Server) AugmentContextUserCertificates(
 			return nil, trace.Wrap(err)
 		}
 
+		// filter and sort TLS and SSH principals for comparison.
+		// Order does not matter and "-teleport-*" principals are filtered out.
+		filterAndSortPrincipals := func(s []string) []string {
+			res := make([]string, 0, len(s))
+			for _, principal := range s {
+				// Ignore -teleport- internal principals.
+				if strings.HasPrefix(principal, "-teleport-") {
+					continue
+				}
+				res = append(res, principal)
+			}
+			sort.Strings(res)
+			return res
+		}
+
 		// Verify SSH certificate against identity.
 		// The SSH certificate isn't used to establish the connection that
 		// eventually reaches this method, so we check it more thoroughly.
@@ -1419,7 +1435,7 @@ func (a *Server) AugmentContextUserCertificates(
 			return nil, trace.BadParameter("ssh cert type mismatch")
 		case sshCert.KeyId != identity.Username:
 			return nil, trace.BadParameter("identity and SSH user mismatch")
-		case !slices.Equal(sshCert.ValidPrincipals, identity.Principals):
+		case !slices.Equal(filterAndSortPrincipals(sshCert.ValidPrincipals), filterAndSortPrincipals(identity.Principals)):
 			return nil, trace.BadParameter("identity and SSH principals mismatch")
 		case !apisshutils.KeysEqual(sshCert.Key, xPubKey):
 			return nil, trace.BadParameter("x509 and SSH public key mismatch")
@@ -1492,6 +1508,7 @@ func (a *Server) AugmentContextUserCertificates(
 		username:             identity.Username,
 		mfaVerified:          identity.MFAVerified,
 		activeAccessRequests: identity.ActiveRequests,
+		deviceID:             opts.DeviceExtensions.DeviceID, // Check lock against requested device.
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1622,6 +1639,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		username:             req.user.GetName(),
 		mfaVerified:          req.mfaVerified,
 		activeAccessRequests: req.activeRequests.AccessRequests,
+		deviceID:             req.deviceExtensions.DeviceID,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1931,6 +1949,9 @@ type verifyLocksForUserCertsReq struct {
 	// activeAccessRequests are the UUIDs of active access requests for the user.
 	// Eg: tlsca.Identity.ActiveRequests.
 	activeAccessRequests []string
+	// deviceID is the trusted device ID.
+	// Eg: tlsca.Identity.DeviceExtensions.DeviceID
+	deviceID string
 }
 
 // verifyLocksForUserCerts verifies if any locks are in place before issuing new
@@ -1942,7 +1963,7 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	lockTargets := []types.LockTarget{
 		{User: req.username},
 		{MFADevice: req.mfaVerified},
-		// TODO(codingllama): Verify device locks.
+		{Device: req.deviceID},
 	}
 	lockTargets = append(lockTargets,
 		services.RolesToLockTargets(checker.RoleNames())...,

@@ -21,6 +21,7 @@ package bpf
 
 import (
 	_ "embed"
+	"unsafe"
 
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/trace"
@@ -41,6 +42,7 @@ var (
 
 const (
 	diskEventsBuffer = "open_events"
+	monitoredCGroups = "monitored_cgroups"
 )
 
 // rawOpenEvent is sent by the eBPF program that Teleport pulls off the perf
@@ -63,6 +65,11 @@ type rawOpenEvent struct {
 
 	// Flags are the flags passed to open.
 	Flags int32
+}
+
+type cgroupRegister interface {
+	startSession(cgroupID uint64) error
+	endSession(cgroupID uint64) error
 }
 
 type open struct {
@@ -135,4 +142,35 @@ func (o *open) close() {
 // events contains raw events off the perf buffer.
 func (o *open) events() <-chan []byte {
 	return o.eventBuf.EventCh
+}
+
+// startSession registers the given cgroup in the BPF module. Only registered
+// cgroups will return events to the userspace.
+func (o *open) startSession(cgroupID uint64) error {
+	cgroupMap, err := o.module.GetMap(monitoredCGroups)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	dummyVal := 0
+	err = cgroupMap.Update(unsafe.Pointer(&cgroupID), unsafe.Pointer(&dummyVal))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// endSession removes the previously registered cgroup from the BPF module.
+func (o *open) endSession(cgroupID uint64) error {
+	cgroupMap, err := o.module.GetMap(monitoredCGroups)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := cgroupMap.DeleteKey(unsafe.Pointer(&cgroupID)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

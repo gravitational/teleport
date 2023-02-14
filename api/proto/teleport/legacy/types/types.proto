@@ -2456,6 +2456,13 @@ message RoleConditions {
 
   // GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.
   repeated string GCPServiceAccounts = 25 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
+
+  // DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.
+  wrappers.LabelValues DatabaseServiceLabels = 26 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "db_service_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
@@ -4115,6 +4122,10 @@ message LockTarget {
 
   // AccessRequest specifies the UUID of an access request.
   string AccessRequest = 7 [(gogoproto.jsontag) = "access_request,omitempty"];
+
+  // Device is the device ID of a trusted device.
+  // Requires Teleport Enterprise.
+  string Device = 8 [(gogoproto.jsontag) = "device,omitempty"];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specfied
@@ -4774,6 +4785,10 @@ message SAMLIdPServiceProviderV1 {
 message SAMLIdPServiceProviderSpecV1 {
   // EntityDescriptor is the entity descriptor for the service provider
   string EntityDescriptor = 1 [(gogoproto.jsontag) = "entity_descriptor"];
+  // EntityID is the entity ID for the entity descriptor. This ID is checked that it matches
+  // the entity ID in the entity descriptor at upsert time to avoid having to parse the
+  // XML blob in the entity descriptor every time we need to use this resource.
+  string EntityID = 2 [(gogoproto.jsontag) = "entity_id"];
 }
 
 // IdPOptions specify options related to access Teleport IdPs.
@@ -4789,4 +4804,30 @@ message IdPSAMLOptions {
     (gogoproto.jsontag) = "enabled",
     (gogoproto.customtype) = "BoolOption"
   ];
+}
+
+// KubernetesResourceV1 represents a Kubernetes resource.
+message KubernetesResourceV1 {
+  // Kind is a resource kind
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource sub kind, used in some resources
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is version
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is KubernetesResourceV1 metadata
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec contains the Kubernetes resource data.
+  KubernetesResourceSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// KubernetesResourceSpecV1 is the Kubernetes resource spec.
+message KubernetesResourceSpecV1 {
+  // Namespace is the resource namespace.
+  string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
 }

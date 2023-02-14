@@ -942,9 +942,13 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			continue
 		}
 
-		if err := actx.Checker.CheckAccess(ks, state, roleMatchers...); err != nil {
+		switch err := actx.Checker.CheckAccess(ks, state, roleMatchers...); {
+		case errors.Is(err, services.ErrTrustedDeviceRequired):
+			return trace.Wrap(err)
+		case err != nil:
 			return trace.AccessDenied(notFoundMessage)
 		}
+
 		// If the user has active Access requests we need to validate that they allow
 		// the kubeResource.
 		// This is required because CheckAccess does not validate the subresource type.
@@ -1050,7 +1054,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	if sess.noAuditEvents {
+	if !f.isLocalKubeCluster(sess) {
 		return f.remoteJoin(ctx, w, req, p, sess)
 	}
 

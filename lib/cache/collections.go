@@ -230,6 +230,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter WindowsDesktops")
 			}
 			collections[resourceKind] = &windowsDesktops{watch: watch, Cache: c}
+		case types.KindSAMLIdPServiceProvider:
+			if c.SAMLIdPServiceProviders == nil {
+				return nil, trace.BadParameter("missing parameter SAMLIdPServiceProviders")
+			}
+			collections[resourceKind] = &samlIDPServiceProviders{watch: watch, Cache: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -862,7 +867,19 @@ func (c *certAuthority) fetch(ctx context.Context) (apply func(ctx context.Conte
 	}
 
 	applySAMLIDPCAs, err := c.fetchCertAuthorities(ctx, types.SAMLIDPCA)
-	if err != nil {
+	if trace.IsBadParameter(err) {
+		// The saml_idp CA was added in v12 but the upstream might be a v11 leaf
+		// that doesn't know about its existence
+		applySAMLIDPCAs = func(ctx context.Context) error {
+			// if the leaf was _downgraded_ we need to clear the cached entries
+			if err := c.trustCache.DeleteAllCertAuthorities(types.SAMLIDPCA); err != nil {
+				if !trace.IsNotFound(err) {
+					return trace.Wrap(err)
+				}
+			}
+			return nil
+		}
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1414,7 +1431,7 @@ func (s *databaseService) fetch(ctx context.Context) (apply func(ctx context.Con
 			}
 
 			for _, resource := range databaseServices {
-				if _, err := s.presenceCache.UpsertDatabaseService(ctx, resource); err != nil {
+				if _, err := s.databaseServicesCache.UpsertDatabaseService(ctx, resource); err != nil {
 					return trace.Wrap(err)
 				}
 			}
@@ -1445,7 +1462,7 @@ func (s *databaseService) processEvent(ctx context.Context, event types.Event) e
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		if _, err := s.presenceCache.UpsertDatabaseService(ctx, resource); err != nil {
+		if _, err := s.databaseServicesCache.UpsertDatabaseService(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -2694,5 +2711,83 @@ func (s *kubeCluster) processEvent(ctx context.Context, event types.Event) error
 }
 
 func (s *kubeCluster) watchKind() types.WatchKind {
+	return s.watch
+}
+
+type samlIDPServiceProviders struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (s *samlIDPServiceProviders) erase(ctx context.Context) error {
+	if err := s.samlIdpServiceProvidersCache.DeleteAllSAMLIdPServiceProviders(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (s *samlIDPServiceProviders) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	var resources []types.SAMLIdPServiceProvider
+
+	nextKey := ""
+	for {
+		var samlProviders []types.SAMLIdPServiceProvider
+		var err error
+		samlProviders, nextKey, err = s.SAMLIdPServiceProviders.ListSAMLIdPServiceProviders(ctx, 0, nextKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, samlProviders...)
+		if nextKey == "" {
+			break
+		}
+	}
+
+	return func(ctx context.Context) error {
+		if err := s.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			err = s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
+			if trace.IsAlreadyExists(err) {
+				err = s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource)
+			}
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (s *samlIDPServiceProviders) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := s.samlIdpServiceProvidersCache.DeleteSAMLIdPServiceProvider(ctx, event.Resource.GetName())
+		if err != nil && !trace.IsNotFound(err) {
+			s.Logger.WithError(err).Warn("Failed to delete resource.")
+			return trace.Wrap(err)
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.SAMLIdPServiceProvider)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		err := s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
+		if trace.IsAlreadyExists(err) {
+			err = s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource)
+		}
+		return trace.Wrap(err)
+	default:
+		s.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (s *samlIDPServiceProviders) watchKind() types.WatchKind {
 	return s.watch
 }

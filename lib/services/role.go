@@ -81,6 +81,10 @@ var DefaultCertAuthorityRules = []types.Rule{
 	types.NewRule(types.KindCertAuthority, ReadNoSecrets()),
 }
 
+// ErrTrustedDeviceRequired is returned by AccessChecker when access to a
+// resource requires a trusted device.
+var ErrTrustedDeviceRequired = trace.AccessDenied("access to resource requires a trusted device")
+
 // ErrSessionMFARequired is returned by AccessChecker when access to a resource
 // requires an MFA check.
 var ErrSessionMFARequired = trace.AccessDenied("access to resource requires MFA")
@@ -137,11 +141,12 @@ func RoleForUser(u types.User) types.Role {
 			BPF:               defaults.EnhancedEvents(),
 		},
 		Allow: types.RoleConditions{
-			Namespaces:       []string{defaults.Namespace},
-			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Namespaces:            []string{defaults.Namespace},
+			NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, RW()),
 				types.NewRule(types.KindAuthConnector, RW()),
@@ -1170,23 +1175,31 @@ func (set RoleSet) PinSourceIP() bool {
 	return false
 }
 
-// GetAccessState returns the AccessState for the user given their roles, the
-// cluster auth preference, and whether MFA and the user's device were verified.
+// GetAccessState returns the AccessState, setting [AccessState.MFARequired]
+// according to the user's roles and cluster auth preference.
 func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
+	return AccessState{
+		MFARequired: set.getMFARequired(authPref.GetRequireMFAType()),
+		// We don't set EnableDeviceVerification here, as both it and DeviceVerified
+		// should be set in tandem.
+	}
+}
+
+func (set RoleSet) getMFARequired(clusterRequireMFAType types.RequireMFAType) MFARequired {
 	// per-session MFA is overridden by hardware key PIV touch requirement.
 	// check if the auth pref or any roles have this option.
-	if authPref.GetRequireMFAType() == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-		return AccessState{MFARequired: MFARequiredNever}
+	if clusterRequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
+		return MFARequiredNever
 	}
 	for _, role := range set {
 		if role.GetOptions().RequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-			return AccessState{MFARequired: MFARequiredNever}
+			return MFARequiredNever
 		}
 	}
 
 	// MFA is always required according to the cluster auth pref.
-	if authPref.GetRequireMFAType().IsSessionMFARequired() {
-		return AccessState{MFARequired: MFARequiredAlways}
+	if clusterRequireMFAType.IsSessionMFARequired() {
+		return MFARequiredAlways
 	}
 
 	// If MFA requirement is the same across all roles, we can skip the per-role check.
@@ -1196,17 +1209,17 @@ func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
 		for _, role := range set[1:] {
 			if role.GetOptions().RequireMFAType.IsSessionMFARequired() != rolesMFARequired {
 				// This role differs from the MFA requirement of the other roles, return per-role.
-				return AccessState{MFARequired: MFARequiredPerRole}
+				return MFARequiredPerRole
 			}
 		}
 
 		if rolesMFARequired {
-			return AccessState{MFARequired: MFARequiredAlways}
+			return MFARequiredAlways
 		}
 	}
 
 	// No roles to check or no roles require MFA.
-	return AccessState{MFARequired: MFARequiredNever}
+	return MFARequiredNever
 }
 
 // PrivateKeyPolicy returns the enforced private key policy for this role set.
@@ -2298,7 +2311,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 	// by the backend) can slow down this function by 50x for large clusters!
 	isDebugEnabled, debugf := rbacDebugLogger()
 
-	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
+	if !state.MFAVerified && state.MFARequired == MFARequiredAlways {
 		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
 		return ErrSessionMFARequired
 	}
@@ -2311,16 +2324,13 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 	additionalDeniedMessage := ""
 
 	var getRoleLabels func(types.Role, types.RoleConditionType) types.Labels
-	resourceHasLabels := true
-	getEmptyLabels := func(r types.Role, rct types.RoleConditionType) types.Labels { return types.Labels{} }
 
 	switch r.GetKind() {
 	case types.KindDatabase:
 		getRoleLabels = types.Role.GetDatabaseLabels
 		additionalDeniedMessage = "Confirm database user and name."
 	case types.KindDatabaseService:
-		resourceHasLabels = false
-		getRoleLabels = getEmptyLabels
+		getRoleLabels = types.Role.GetDatabaseServiceLabels
 	case types.KindApp:
 		getRoleLabels = types.Role.GetAppLabels
 	case types.KindNode:
@@ -2370,6 +2380,12 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 		}
 	}
 
+	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
+
+	// TODO(codingllama): Consider making EnableDeviceVerification opt-out instead
+	//  of opt-in.
+	deviceAllowed := !state.EnableDeviceVerification || state.DeviceVerified
+
 	var errs []error
 	allowed := false
 	// Check allow rules.
@@ -2388,8 +2404,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 			return trace.Wrap(err)
 		}
 
-		// Deny only if the resourceHasLabels but there was no match.
-		if resourceHasLabels && !matchLabels {
+		if !matchLabels {
 			if isDebugEnabled {
 				errs = append(errs, trace.AccessDenied("role=%v, match(label=%v)",
 					role.GetName(), labelsMessage))
@@ -2411,21 +2426,38 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 			continue
 		}
 
-		// if we've reached this point, namespace, labels, and matchers all match.
-		// if MFA is verified or never required, we're done.
-		if state.MFAVerified || state.MFARequired == MFARequiredNever {
+		// If we've reached this point, namespace, labels, and matchers all match.
+		//
+		// The following checks remain:
+		// 1. MFA verification (aka require_session_mfa)
+		// 2. Device verification (aka device_trust_mode)
+		//
+		// The more restrictive setting applies, so either the caller passes all
+		// (and gets an early exit) or we need to check every applicable role to
+		// ensure the access is permitted.
+
+		if mfaAllowed && deviceAllowed {
+			debugf("Access to %v %q granted, allow rule in role %q matched.",
+				r.GetKind(), r.GetName(), role.GetName())
 			return nil
 		}
-		// if MFA is not verified and we require session MFA, deny access
-		if role.GetOptions().RequireMFAType.IsSessionMFARequired() {
+
+		// MFA verification.
+		if !mfaAllowed && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
 			debugf("Access to %v %q denied, role %q requires per-session MFA",
 				r.GetKind(), r.GetName(), role.GetName())
 			return ErrSessionMFARequired
 		}
 
-		// Check all remaining roles, even if we found a match.
-		// RequireSessionMFA should be enforced when at least one role has
-		// it.
+		// Device verification.
+		if !deviceAllowed && role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
+			debugf("Access to %v %q denied, role %q requires a trusted device",
+				r.GetKind(), r.GetName(), role.GetName())
+			return ErrTrustedDeviceRequired
+		}
+
+		// Current role allows access, but keep looking for a more restrictive
+		// setting.
 		allowed = true
 		debugf("Access to %v %q granted, allow rule in role %q matched.",
 			r.GetKind(), r.GetName(), role.GetName())
@@ -2959,6 +2991,17 @@ type AccessState struct {
 	MFARequired MFARequired
 	// MFAVerified is set when MFA has been verified by the caller.
 	MFAVerified bool
+	// EnableDeviceVerification enables device verification in access checks.
+	// It's recommended to set this in tandem with DeviceVerified, so device
+	// checks are easier to reason about and have a proper chance of succeeding.
+	// Defaults to false for backwards compatibility.
+	EnableDeviceVerification bool
+	// DeviceVerified is true if the user certificate contains all required
+	// device extensions.
+	// A value of true enables the caller to clear device trust checks.
+	// It's recommended to set this in tandem with EnableDeviceVerification.
+	// See [dtauthz.IsTLSDeviceVerified] and [dtauthz.IsSSHDeviceVerified].
+	DeviceVerified bool
 }
 
 // MFARequired determines when MFA is required for a user to access a resource.

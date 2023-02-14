@@ -156,7 +156,7 @@ To enforce MFA checks for a specific role, update the role to contain:
 
 ```yaml
 kind: role
-version: v3
+version: v6
 metadata:
   name: example-role-with-mfa
 spec:
@@ -186,7 +186,7 @@ Olga defines two Teleport roles: `access-dev` and `access-prod`:
 ```yaml
 # access-dev.yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: access-dev
 spec:
@@ -195,6 +195,10 @@ spec:
       env: dev
     kubernetes_labels:
       env: dev
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
     db_labels:
       'env': dev
     db_users:
@@ -205,7 +209,7 @@ spec:
 ---
 # access-prod.yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: access-prod
 spec:
@@ -217,6 +221,10 @@ spec:
       env: prod
     kubernetes_labels:
       env: prod
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
     db_labels:
       'env': prod
     db_users:
