@@ -1264,11 +1264,6 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	// Sanity check the local proxy config, so that users don't forget to
-	// enable the k8s endpoint there.
-	if fc.Proxy.Enabled() && fc.Proxy.Kube.Disabled() && fc.Proxy.KubeAddr == "" {
-		log.Warning("both kubernetes_service and proxy_service are enabled, but proxy_service doesn't set kube_listen_addr; consider setting kube_listen_addr on proxy_service, to handle incoming Kubernetes requests")
-	}
 	return nil
 }
 
