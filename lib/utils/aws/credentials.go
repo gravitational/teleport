@@ -121,7 +121,8 @@ func NewCachedCredentialsGetter(config CachedCredentialsGetterConfig) (Credentia
 	}, nil
 }
 
-// Get returns cached credentials if found, or fetch it from configured getter.
+// Get returns cached credentials if found, or fetch it from the configured
+// getter.
 func (g *cachedCredentialsGetter) Get(ctx context.Context, request GetCredentialsRequest) (*credentials.Credentials, error) {
 	credentials, err := utils.FnCacheGet(ctx, g.cache, request, func(ctx context.Context) (*credentials.Credentials, error) {
 		credentials, err := g.config.Getter.Get(ctx, request)

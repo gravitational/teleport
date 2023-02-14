@@ -73,7 +73,7 @@ func (s *signerHandler) resolveEndpoint(r *http.Request) (*endpoints.ResolvedEnd
 		re, err := resolveEndpointByXForwardedHost(r, awsutils.AuthorizationHeader)
 		return re, trace.Wrap(err)
 
-	// Special handling for timestream in legacy Endpoint mode.
+	// Special handling for Timestream in legacy Endpoint mode.
 	case shouldDiscoverTimestreamEndpoint(r):
 		re, err := s.resolveTimestreamEndpoint(r)
 		return re, trace.Wrap(err)
