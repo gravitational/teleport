@@ -234,7 +234,7 @@ Besides this, there doesn't seem to be any further concern.
 
 ### UX
 
-Data analysis and visualization is not a goal for this RFD, so no UX concerns for now.
+Data analysis and visualization are not a goal for this RFD, so no UX concerns for now.
 
 ### Open questions
 
