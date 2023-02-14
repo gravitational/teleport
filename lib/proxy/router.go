@@ -27,12 +27,14 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -187,13 +189,21 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 		tracer:         cfg.TracerProvider.Tracer("Router"),
 		serverResolver: cfg.serverResolver,
 	}, nil
+}
 
+// IdentityInfo is the information needed about a Teleport user's
+// identity to make an RBAC check.
+type IdentityInfo struct {
+	TeleportUser  string
+	Login         string
+	Certificate   *ssh.Certificate
+	AccessChecker services.AccessChecker
 }
 
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
 // is found an error is returned. If more than one matching node is found and the cluster networking
 // configuration is not set to route to the most recent an error is returned.
-func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter) (_ net.Conn, err error) {
+func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, clusterName string, idInfo IdentityInfo, agentGetter teleagent.Getter) (_ net.Conn, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",
@@ -212,7 +222,7 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 
 	site := r.localSite
 	if clusterName != r.clusterName {
-		remoteSite, err := r.getRemoteCluster(ctx, clusterName, accessChecker)
+		remoteSite, err := r.getRemoteCluster(ctx, clusterName, idInfo.AccessChecker)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -234,6 +244,33 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 		proxyIDs   []string
 	)
 	if target != nil {
+		// if the target node is a registered OpenSSH node, preform a
+		// RBAC check
+		if target.GetSubKind() == types.KindOpenSSHNode {
+			client, err := site.GetClient()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			authPref, err := client.GetAuthPreference(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			state := idInfo.AccessChecker.GetAccessState(authPref)
+			_, state.MFAVerified = idInfo.Certificate.Extensions[teleport.CertExtensionMFAVerified]
+			state.EnableDeviceVerification = true
+			state.DeviceVerified = authz.IsSSHDeviceVerified(idInfo.Certificate)
+
+			// check if roles allow access to server
+			if err := idInfo.AccessChecker.CheckAccess(
+				target,
+				state,
+				services.NewLoginMatcher(idInfo.Login),
+			); err != nil {
+				return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
+					idInfo.TeleportUser, r.clusterName, idInfo.Login, clusterName, err)
+			}
+		}
+
 		proxyIDs = target.GetProxyIDs()
 		serverID = fmt.Sprintf("%v.%v", target.GetName(), clusterName)
 
@@ -419,7 +456,6 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 	}
 
 	return server, nil
-
 }
 
 // DialSite establishes a connection to the auth server in the provided

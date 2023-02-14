@@ -405,11 +405,10 @@ func TestRouter_DialHost(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			conn, err := tt.router.DialHost(ctx, &utils.NetAddr{}, "host", "0", "test", nil, nil)
+			conn, err := tt.router.DialHost(ctx, &utils.NetAddr{}, "host", "0", "test", IdentityInfo{}, nil)
 			tt.assertion(t, conn, err)
 		})
 	}
-
 }
 
 func TestRouter_DialSite(t *testing.T) {

@@ -616,12 +616,24 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		t.writeError(err)
 		return
 	}
+	cert, err := t.ctx.GetSSHCertificate()
+	if err != nil {
+		t.log.WithError(err).Warn("Unable to stream terminal - failed to get SSH certificate")
+		t.writeError(err)
+		return
+	}
 
 	agentGetter := func() (teleagent.Agent, error) {
 		return teleagent.NopCloser(tc.LocalAgent()), nil
 	}
+	idInfo := proxy.IdentityInfo{
+		TeleportUser:  t.ctx.GetUser(),
+		Login:         tc.HostLogin,
+		Certificate:   cert,
+		AccessChecker: accessChecker,
+	}
 
-	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, agentGetter)
+	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, idInfo, agentGetter)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
 
@@ -691,7 +703,9 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		sshConfig.Auth = tc.AuthMethods
 
 		// connect to the node again with the new certs
-		conn, err = t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, agentGetter)
+		// idInfo.Certificate does not need to be changed as only the
+		// extensions are read in t.router.DialHost
+		conn, err = t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, idInfo, agentGetter)
 		if err != nil {
 			t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host")
 			t.writeError(err)

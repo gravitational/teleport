@@ -127,6 +127,12 @@ const (
 	// KindNode is node resource
 	KindNode = "node"
 
+	// KindOpenSSHNode is a registered OpenSSH node.
+	KindOpenSSHNode = "openssh"
+
+	// KindTeleportNode is a Teleport agent node.
+	KindTeleportNode = "teleport"
+
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
 
