@@ -831,11 +831,6 @@ func (c *Client) DeleteProxy(name string) error {
 
 // UpsertUser user updates user entry.
 func (c *Client) UpsertUser(user types.User) error {
-	for _, roleName := range user.GetRoles() {
-		if _, err := c.GetRole(context.TODO(), roleName); err != nil {
-			log.Warnf("Error checking role %q when upserting user  %q", roleName, user.GetName())
-		}
-	}
 	data, err := services.MarshalUser(user)
 	if err != nil {
 		return trace.Wrap(err)

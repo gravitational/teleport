@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -346,6 +347,11 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 		return trace.BadParameter("Nothing to update. Please provide at least one --set flag.")
 	}
 
+	for _, roleName := range user.GetRoles() {
+		if _, err := client.GetRole(ctx, roleName); err != nil {
+			log.Warnf("Error checking role %q when upserting user  %q", roleName, user.GetName())
+		}
+	}
 	if err := client.UpsertUser(user); err != nil {
 		return trace.Wrap(err)
 	}
