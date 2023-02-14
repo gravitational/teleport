@@ -24,12 +24,13 @@ import (
 )
 
 func TestShouldDeleteServerHeartbeatsOnShutdown(t *testing.T) {
+	type contextKey string
 	ctx := context.Background()
 
 	require.True(t, ShouldDeleteServerHeartbeatsOnShutdown(ctx))
-	require.True(t, ShouldDeleteServerHeartbeatsOnShutdown(context.WithValue(ctx, "key", "value")))
+	require.True(t, ShouldDeleteServerHeartbeatsOnShutdown(context.WithValue(ctx, contextKey("key"), "value")))
 	require.False(t, ShouldDeleteServerHeartbeatsOnShutdown(ProcessReloadContext(ctx)))
 	require.False(t, ShouldDeleteServerHeartbeatsOnShutdown(ProcessForkedContext(ctx)))
 	require.False(t, ShouldDeleteServerHeartbeatsOnShutdown(ProcessReloadContext(ProcessForkedContext(ctx))))
-	require.False(t, ShouldDeleteServerHeartbeatsOnShutdown(context.WithValue(ProcessReloadContext(ctx), "key", "value")))
+	require.False(t, ShouldDeleteServerHeartbeatsOnShutdown(context.WithValue(ProcessReloadContext(ctx), contextKey("key"), "value")))
 }
