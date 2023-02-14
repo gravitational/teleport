@@ -13,10 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-// @ts-ignore
-import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
-
 import { PendingAccessRequest } from '../workspacesService';
 
 export class AccessRequestsService {
@@ -64,7 +60,7 @@ export class AccessRequestsService {
     );
   }
 
-  addOrRemoveResource(kind: ResourceKind, name: string, resourceName: string) {
+  addOrRemoveResource(kind: any, name: string, resourceName: string) {
     this.setState(draftState => {
       const kindIds = draftState.pending[kind];
       if (kindIds[name]) {
