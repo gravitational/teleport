@@ -41,7 +41,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -663,39 +662,6 @@ func ByteCount(b int64) string {
 	}
 	return fmt.Sprintf("%.1f %cB",
 		float64(b)/float64(div), "kMGTPE"[exp])
-}
-
-// IteratePages will iterate through pages of a paging function and apply the given function to each element of the results. It will use 0
-// as the page size to use the default max size of the paging function.
-func IteratePages[T types.Resource](ctx context.Context, pageFn func(context.Context, int, string) ([]T, string, error), applyFn func(T) error) error {
-	return IteratePagesWithPageSize(ctx, 0, pageFn, applyFn)
-}
-
-// IteratePages will iterate through pages of a paging function and apply the given function to each element of the results. It will use the
-// given page size to iterate through the results.
-func IteratePagesWithPageSize[T types.Resource](ctx context.Context, pageSize int, pageFn func(context.Context, int, string) ([]T, string, error), applyFn func(T) error) error {
-	nextToken := ""
-
-	for {
-		var resources []T
-		var err error
-		resources, nextToken, err = pageFn(ctx, pageSize, nextToken)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		for _, resource := range resources {
-			if err := applyFn(resource); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
-		if nextToken == "" {
-			break
-		}
-	}
-
-	return nil
 }
 
 // ErrLimitReached means that the read limit is reached.
