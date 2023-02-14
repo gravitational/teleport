@@ -3509,6 +3509,85 @@ func TestNetworkRestrictions(t *testing.T) {
 	suite.NetworkRestrictions(t)
 }
 
+func adminClient(t *testing.T, ac *authContext) *Client {
+	client, err := ac.server.NewClient(TestAdmin())
+	require.NoError(t, err)
+	return client
+}
+
+func identityWithRoles(
+	t *testing.T,
+	ctx context.Context,
+	c *Client,
+	username string,
+	rules ...types.Rule,
+) TestIdentity {
+
+	CreateUser(c, username, username)
+}
+
+// TestCreateToken tests the client, and auth server elements of the CreateToken
+// RPC.
+func TestCreateToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+
+	client := adminClient(t, ac)
+
+	tokenCreator := identityWithRoles(
+		t, ctx, client, "token-creator",
+	)
+
+	tests := []struct {
+		name     string
+		identity TestIdentity
+
+		requireTokenCreated bool
+		requireError        require.ErrorAssertionFunc
+	}{
+		{
+			name:     "success",
+			identity: TestNop(),
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name:     "unauthorised",
+			identity: TestNop(),
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+	}
+}
+
+/*func TestUpsertToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+}
+
+func TestGetTokens(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+
+}
+
+func TestGetToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+}
+
+func TestDeleteToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+}*/
+
 // verifyJWT verifies that the token was signed by one the passed in key pair.
 func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token string) (*jwt.Claims, error) {
 	errs := []error{}
