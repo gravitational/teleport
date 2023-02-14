@@ -207,9 +207,9 @@ ifeq ("$(ARCH)","arm64")
 		CGOFLAG += CC=aarch64-linux-gnu-gcc
 	endif
 else ifeq ("$(ARCH)","arm")
-# ARM builds need to specify the correct C compiler
 CGOFLAG = CGO_ENABLED=1 
 
+# ARM builds need to specify the correct C compiler
 ifeq ($(IS_NATIVE_BUILD),"no")
 CC=arm-linux-gnueabihf-gcc
 endif

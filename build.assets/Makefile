@@ -562,3 +562,73 @@ build-centos7-assets:
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--tag $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
 		-f Dockerfile-centos7-assets .
+
+#################################################################################
+# Multiarch build steps
+#################################################################################
+
+GCC_VERSION ?= 10.4.0
+CLANG_BPF_VERSION ?= 10.0.1
+CLANG_FIPS_VERSION ?= 7.0.1
+BUILDBOX_PREFIX ?= ghcr.io/gravitational
+
+#
+# Build Dockerfile-multiarch-base on GHA
+#
+.PHONY:build-multiarch-base
+build-multiarch-base: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-base:$(BUILDBOX_VERSION)-$(ARCH)
+build-multiarch-base:
+	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
+		--cache-from type=gha \
+		--build-arg GCC_VERSION=$(GCC_VERSION) \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
+		--tag $(BUILDBOX) \
+		--file Dockerfile-multiarch-base .
+
+#
+# Build Dockerfile-multiarch-clang on GHA with clang-10, based on -base
+#
+.PHONY:build-multiarch-clang10
+build-multiarch-clang10: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-clang10:$(BUILDBOX_VERSION)-$(ARCH)
+build-multiarch-clang10:
+	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
+		--cache-from type=gha \
+		--build-arg CLANG_VERSION=$(CLANG_BPF_VERSION) \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
+		--tag $(BUILDBOX) \
+		--file Dockerfile-multiarch-clang .
+
+#
+# Build Dockerfile-multiarch-clang on GHA with clang-7, based on -base
+#
+.PHONY:build-multiarch-clang7
+build-multiarch-clang7: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-clang7:$(BUILDBOX_VERSION)-$(ARCH)
+build-multiarch-clang7:
+	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
+		--cache-from type=gha \
+		--build-arg CLANG_VERSION=$(CLANG_FIPS_VERSION) \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
+		--tag $(BUILDBOX) \
+		--file Dockerfile-multiarch-clang .
+
+#
+# Build Dockerfile-multiarch on GHA, based on -base
+#
+.PHONY:build-multiarch
+build-multiarch: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch:$(BUILDBOX_VERSION)-$(ARCH)
+build-multiarch:
+	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
+		--cache-from type=gha \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
+		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
+		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg UID=$(shell id -u) \
+		--build-arg GID=$(shell id -g) \
+		--tag $(BUILDBOX) \
+		--file Dockerfile-multiarch .
