@@ -3,6 +3,9 @@ run-name: Build CentOS 7 Buildbox Assets Images
 on:
   # Only allow manual triggers
   workflow_dispatch:
+  push:
+    branches:
+      - jakule/v10/move-centos7-assets
 
 env:
   REGISTRY: ghcr.io
