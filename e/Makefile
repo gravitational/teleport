@@ -12,6 +12,9 @@ RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
 BINARIES ?= $(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
 CLOUD_DOCKERFILE ?= ../build.assets/charts/Dockerfile
 
+# libbpf version required by the build.
+LIBBPF_VER := 1.0.1
+
 # When TELEPORT_DEBUG is true, set flags so produce
 # debugger-friendly builds.
 ifeq ("$(TELEPORT_DEBUG)","true")
@@ -49,13 +52,13 @@ BPF_ENT_MESSAGE := "without-BPF-support"
 with_bpf := no
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","amd64")
-ifneq ("$(wildcard /usr/include/bpf/libbpf.h)","")
+ifneq ("$(wildcard /usr/libbpf-${LIBBPF_VER}/include/bpf/bpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
 BPF_ENT_MESSAGE := "with-BPF-support"
 INCLUDES :=
 
-STATIC_LIBS += -lbpf -lelf -lz
+STATIC_LIBS += -L/usr/libbpf-${LIBBPF_VER}/lib64/ -lbpf -lelf -lz
 endif
 endif
 endif
@@ -163,8 +166,8 @@ IS_CROSS_BUILD = $(if $(filter-out $(ARCH), $(shell go env GOARCH)),yes)
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","amd64")
 # Link static version of libraries (bpf, pcsc) to reduce system dependencies.
-CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic"
-CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic"
+CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS="-I/usr/libbpf-${LIBBPF_VER}/include" CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
+CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"
 else ifeq ("$(ARCH)","arm")
 # ARM builds need to specify the correct C compiler
 CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
