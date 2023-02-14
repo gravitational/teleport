@@ -10,17 +10,11 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum update -y && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
-    # required by libbpf
-    centos-release-scl \
-    # required by libbpf
-    devtoolset-11-gcc* \
-    # required by libbpf
-    devtoolset-11-make \
-    # required by libbpf
-    elfutils-libelf-devel-static \
-    git \
-    # required by libbpf
-    scl-utils \
+        centos-release-scl \
+        devtoolset-11-gcc* \
+        devtoolset-11-make \
+        elfutils-libelf-devel-static \
+        scl-utils && \
     yum clean all
 
 # Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
@@ -155,9 +149,6 @@ RUN make -C /opt/pam_teleport install
 
 RUN chmod a-w /
 
-# Copy libbpf into the final image.
-COPY --from=libbpf /opt/libbpf/usr /usr
-
 ARG RUST_VERSION
 ENV RUSTUP_HOME=/usr/local/rustup \
      CARGO_HOME=/usr/local/cargo \
@@ -185,6 +176,9 @@ COPY --from=boringssl /opt/boringssl /opt/boringssl
 # https://github.com/cloudflare/boring#support-for-pre-built-binaries
 ENV BORING_BSSL_PATH=/opt/boringssl
 ENV BORING_BSSL_INCLUDE_PATH=/opt/boringssl/include
+
+ARG LIBBPF_VERSION
+COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Download pre-built CentOS 7 assets with clang needed to build BPF tools.
 ARG BUILDARCH
