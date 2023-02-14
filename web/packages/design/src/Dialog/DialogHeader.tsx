@@ -16,8 +16,23 @@ limitations under the License.
 
 import React from 'react';
 
-import Text from './../Text';
+import styled from 'styled-components';
 
-export default function DialogTitle(props) {
-  return <Text typography="h3" color="text.primary" caps {...props} />;
+import { typography } from 'design/system';
+
+import Flex from './../Flex';
+
+export function DialogHeader(props) {
+  return (
+    <StyledDialogHeader
+      minHeight="32px"
+      mb="3"
+      alignItems="center"
+      {...props}
+    />
+  );
 }
+
+const StyledDialogHeader = styled(Flex)`
+  ${typography}
+`;

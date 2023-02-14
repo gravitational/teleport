@@ -14,11 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import Dialog from './Dialog';
-import DialogTitle from './DialogTitle';
-import DialogHeader from './DialogHeader';
-import DialogContent from './DialogContent';
-import DialogFooter from './DialogFooter';
+import styled from 'styled-components';
 
-export default Dialog;
-export { DialogTitle, DialogContent, DialogFooter, DialogHeader };
+import { Flex } from 'design';
+
+export const DialogContent = styled(Flex)``;
+DialogContent.defaultProps = {
+  ...Flex.defaultProps,
+  mb: '5',
+  flex: '1',
+  flexDirection: 'column',
+};

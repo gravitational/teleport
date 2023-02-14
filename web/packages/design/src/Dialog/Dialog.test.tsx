@@ -19,7 +19,7 @@ import { screen } from '@testing-library/react';
 
 import { render } from 'design/utils/testing';
 
-import Dialog from './Dialog';
+import { Dialog } from './Dialog';
 
 const testCss = {
   'background-color': '#fff',

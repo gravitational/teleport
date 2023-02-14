@@ -14,14 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import styled from 'styled-components';
-
-import { Box } from 'design';
-
-const DialogFooter = styled(Box)``;
-
-DialogFooter.defaultProps = {
-  ...Box.defaultProps,
-};
-
-export default DialogFooter;
+export { Dialog as default } from './Dialog';
+export { DialogTitle } from './DialogTitle';
+export { DialogHeader } from './DialogHeader';
+export { DialogContent } from './DialogContent';
+export { DialogFooter } from './DialogFooter';

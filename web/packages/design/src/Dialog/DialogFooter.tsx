@@ -16,14 +16,10 @@ limitations under the License.
 
 import styled from 'styled-components';
 
-import { Flex } from 'design';
+import { Box } from 'design';
 
-const DialogContent = styled(Flex)``;
-DialogContent.defaultProps = {
-  ...Flex.defaultProps,
-  mb: '5',
-  flex: '1',
-  flexDirection: 'column',
+export const DialogFooter = styled(Box)``;
+
+DialogFooter.defaultProps = {
+  ...Box.defaultProps,
 };
-
-export default DialogContent;
