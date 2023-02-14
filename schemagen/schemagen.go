@@ -1,6 +1,7 @@
 package schemagen
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	gogodesc "github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
 	"github.com/gogo/protobuf/protoc-gen-gogo/generator"
 	gogoplugin "github.com/gogo/protobuf/protoc-gen-gogo/plugin"
+	"github.com/gogo/protobuf/vanity/command"
 	"github.com/gravitational/trace"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
@@ -17,7 +19,7 @@ type stringSet map[string]struct{}
 
 var regexpResourceName = regexp.MustCompile(`^([A-Za-z]+)(V[0-9]+)$`)
 
-func NewGenerator(req *gogoplugin.CodeGeneratorRequest) (*Forest, error) {
+func newGenerator(req *gogoplugin.CodeGeneratorRequest) (*Forest, error) {
 	gen := generator.New()
 
 	gen.Request = req
@@ -32,10 +34,87 @@ func NewGenerator(req *gogoplugin.CodeGeneratorRequest) (*Forest, error) {
 	}, nil
 }
 
-// SchemaGenerator generates the OpenAPI v3 schema from a proto file.
-type SchemaGenerator struct {
+// SchemaCollection includes the  OpenAPI v3 schemas parsed from a single proto
+// file.
+type SchemaCollection struct {
 	memo  map[string]*Schema
 	Roots map[string]*RootSchema
+}
+
+// TransformedFile includes the name and content of a protobuf file transformed
+// by your custom plugin.
+type TransformedFile struct {
+	Name    string
+	Content string
+}
+
+func generateSchema(
+	file *File,
+	config []ParseResourceOptions,
+	transformer TransformerFunc,
+	resp *gogoplugin.CodeGeneratorResponse,
+) error {
+	generator := newSchemaCollection()
+
+	for _, c := range config {
+		if err := generator.parseResource(file, c); err != nil {
+			return err
+		}
+	}
+
+	tf, err := transformer(generator)
+
+	if err != nil {
+		return err
+	}
+
+	for _, f := range tf {
+		resp.File = append(resp.File, &gogoplugin.CodeGeneratorResponse_File{Name: &f.Name, Content: &f.Content})
+	}
+
+	return nil
+}
+
+// TransformerFunc uses the provided *SchemaCollection generate the content for
+// zero or more files to write out, including their names and contents. It
+// returns an error if it fails to generate output.
+type TransformerFunc func(c *SchemaCollection) ([]*TransformedFile, error)
+
+// RunPlugin loads proto files from standard input, then uses the provided
+// config to parse resource definitions from the proto files in OpenAPI v3
+// format. The provided transformer
+func RunPlugin(
+	config []ParseResourceOptions,
+	transformer TransformerFunc) error {
+
+	req := command.Read()
+
+	if len(req.FileToGenerate) == 0 {
+		return errors.New("no input file provided")
+	}
+	if len(req.FileToGenerate) > 1 {
+		return errors.New("too many input files")
+	}
+
+	gen, err := newGenerator(req)
+	if err != nil {
+		return err
+	}
+
+	rootFileName := req.FileToGenerate[0]
+	gen.SetFile(rootFileName)
+	for _, fileDesc := range gen.AllFiles().File {
+		file := gen.AddFile(fileDesc)
+		if fileDesc.GetName() == rootFileName {
+			if err := generateSchema(file, config, transformer, gen.Response); err != nil {
+				return err
+			}
+		}
+	}
+
+	command.Write(gen.Response)
+
+	return nil
 }
 
 // RootSchema is a wrapper for a message we are generating a schema for.
@@ -57,21 +136,21 @@ type Schema struct {
 	built bool
 }
 
-func (s *Schema) DeepCopy() *Schema {
+func (s *Schema) deepCopy() *Schema {
 	return &Schema{
 		JSONSchemaProps: *s.JSONSchemaProps.DeepCopy(),
 		built:           s.built,
 	}
 }
 
-func NewSchemaGenerator() *SchemaGenerator {
-	return &SchemaGenerator{
+func newSchemaCollection() *SchemaCollection {
+	return &SchemaCollection{
 		memo:  make(map[string]*Schema),
 		Roots: make(map[string]*RootSchema),
 	}
 }
 
-func NewSchema() *Schema {
+func newSchema() *Schema {
 	return &Schema{JSONSchemaProps: apiextv1.JSONSchemaProps{
 		Type:       "object",
 		Properties: make(map[string]apiextv1.JSONSchemaProps),
@@ -81,6 +160,8 @@ func NewSchema() *Schema {
 // ParseResourceOptions configures the way a SchemaGenerator parses a specific
 // resource.
 type ParseResourceOptions struct {
+	// The name of a resource to extract from a proto file
+	Name string
 	// A version to assign to a resource instead of the version extracted from
 	// the resource's corresponding message
 	VersionOverride string
@@ -90,20 +171,20 @@ type ParseResourceOptions struct {
 	IgnoredFields []string
 }
 
-func (generator *SchemaGenerator) ParseResource(file *File, name string, opts ParseResourceOptions) error {
-	rootMsg, ok := file.messageByName[name]
+func (generator *SchemaCollection) parseResource(file *File, opts ParseResourceOptions) error {
+	rootMsg, ok := file.messageByName[opts.Name]
 	if !ok {
-		return trace.NotFound("resource %q is not found", name)
+		return trace.NotFound("resource %q is not found", opts.Name)
 	}
 
 	specField, ok := rootMsg.GetField("Spec")
 	if !ok {
-		return trace.NotFound("message %q does not have Spec field", name)
+		return trace.NotFound("message %q does not have Spec field", opts.Name)
 	}
 
 	specMsg := specField.TypeMessage()
 	if specMsg == nil {
-		return trace.NotFound("message %q Spec type is not a message", name)
+		return trace.NotFound("message %q Spec type is not a message", opts.Name)
 	}
 
 	i := make(stringSet)
@@ -115,7 +196,7 @@ func (generator *SchemaGenerator) ParseResource(file *File, name string, opts Pa
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	schema = schema.DeepCopy()
+	schema = schema.deepCopy()
 	resourceKind, resourceVersion, err := parseKindAndVersion(rootMsg)
 	if err != nil {
 		return trace.Wrap(err)
@@ -151,7 +232,7 @@ func parseKindAndVersion(message *Message) (string, string, error) {
 	return res[1], strings.ToLower(res[2]), nil
 }
 
-func (generator *SchemaGenerator) traverseInner(message *Message, ignoredFields stringSet) (*Schema, error) {
+func (generator *SchemaCollection) traverseInner(message *Message, ignoredFields stringSet) (*Schema, error) {
 	name := message.Name()
 	if schema, ok := generator.memo[name]; ok {
 		if !schema.built {
@@ -159,7 +240,7 @@ func (generator *SchemaGenerator) traverseInner(message *Message, ignoredFields 
 		}
 		return schema, nil
 	}
-	schema := NewSchema()
+	schema := newSchema()
 	generator.memo[name] = schema
 
 	for _, field := range message.Fields {
@@ -211,7 +292,7 @@ func (generator *SchemaGenerator) traverseInner(message *Message, ignoredFields 
 	return schema, nil
 }
 
-func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSONSchemaProps, ignoredFields stringSet) error {
+func (generator *SchemaCollection) singularProp(field *Field, prop *apiextv1.JSONSchemaProps, ignoredFields stringSet) error {
 	switch {
 	case field.IsBool():
 		prop.Type = "boolean"
