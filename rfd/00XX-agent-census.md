@@ -136,17 +136,21 @@ We detail below how the remaining data will be computed.
 
 ##### 3. OS
 
-The OS will be the value on the `GOOS` environment variable.
-This will give us either `linux` or `darwin`.
+`UpstreamInventoryAgentMetadata.OS` will be set to the value on the `GOOS` environment variable.
+This will give us either `darwin` or `linux` as they are the only two supported OS for now.
 
 ##### 4. OS version
 
-- `linux`: We'll inspect `/etc/os-release` and combine the values associated with `"NAME="` and `"VERSION_ID="` (e.g. "Ubuntu 22.04"). If this file does not exist (unlikely, as it seems widely supported), we can fallback to `/etc/lsb-release` and combine the values associated with `"DISTRIB_ID="` and `"DISTRIB_RELEASE="` (which is what `gopsutil` is doing ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/host/host_linux.go#L128-L314))). Following this approach is more reliable than using `/usr/bin/lsb_release` directly as it is not always available (e.g. `docker run -ti ubuntu:22.04 lsb_release` fails).
-- `darwin`: `$(sw_vers -productName) $(sw_vers -productVersion)` (e.g. "macOS 13.2"). This is what `gopsutil` is doing ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/host/host_darwin.go#L94-L120)).
+On `darwin`, `UpstreamInventoryAgentMetadata.OSVersion` will be set to the outcome of (something equivalent) to `$(sw_vers -productName) $(sw_vers -productVersion)` (e.g. "macOS 13.2").
+This is what `gopsutil` is doing ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/host/host_darwin.go#L94-L120)).
+
+On `linux`, we'll inspect `/etc/os-release` and combine the values associated with `"NAME="` and `"VERSION_ID="` (e.g. "Ubuntu 22.04").
+If this file does not exist (unlikely, as it seems widely supported), we can fallback to `/etc/lsb-release` and combine the values associated with `"DISTRIB_ID="` and `"DISTRIB_RELEASE="` (which is what `gopsutil` is doing ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/host/host_linux.go#L128-L314))).
+Following this approach is more reliable than using `/usr/bin/lsb_release` directly as it is not always available (e.g. `docker run -ti ubuntu:22.04 lsb_release` fails).
 
 ##### 5. Host architecture
 
-- `linux` and `darwin`: `arch` (e.g. "x86_64" or "arm64")
+On `linux` and `darwin`, `UpstreamInventoryAgentMetadata.HostArchitecture` will be set to the outcome of `arch` (e.g. "x86_64" or "arm64").
 
 The architecture can be different from the `GOARCH` environment variable (e.g. if running the amd64 build of Teleport on an ARM Mac).
 For this reason, we'll use the [`arch`](https://man7.org/linux/man-pages/man1/arch.1.html) command-line utility.
@@ -156,7 +160,7 @@ However, `gopsutil` is using [`golang.org/x/sys/unix.Uname`](https://pkg.go.dev/
 
 ##### 6. `glibc` version
 
-- `linux`: `ldd --version | head -n1 | awk '{ print $NF }'` (e.g. "2.35")
+If on `linux`, `UpstreamInventoryAgentMetadata.GLibCVersion` will be set to the outcome of `ldd --version | head -n1 | awk '{ print $NF }'` (e.g. "2.35").
 
 ##### 7. Installation methods
 
@@ -175,7 +179,7 @@ Later on, we may try to track these if, once we start tracking the above install
 - built from source: While it's technically possible for customers to build Teleport from source, we won't try to track this installation method as it seems an unlikely use-case.
 - `homebrew`: It's also possible to install Teleport on macOS using `homebrew`. The Teleport package in `homebrew` is not maintained by us, so we will also not track this installation method.
 
-In summary, for now we'll have the following values in `UpstreamInventoryAgentMetadata.InstallMethods`:
+In summary, we'll have the following values in `UpstreamInventoryAgentMetadata.InstallMethods` for now:
 - `dockerfile`
 - `helm-kube-agent`
 - `node-script`
@@ -184,7 +188,8 @@ In summary, for now we'll have the following values in `UpstreamInventoryAgentMe
 ##### 8. Container runtime
 
 To determine if the agent is running on Docker, we'll check if the file `/.dockerenv` exists.
-Docker itself [does this](https://github.com/moby/libnetwork/blob/1f3b98be6833a93f254aa0f765ff55d407dfdd69/drivers/bridge/setup_bridgenetfiltering.go#L161).
+(Docker itself [does this](https://github.com/moby/libnetwork/blob/1f3b98be6833a93f254aa0f765ff55d407dfdd69/drivers/bridge/setup_bridgenetfiltering.go#L161)).
+If so, `UpstreamInventoryAgentMetadata.ContainerRuntime` will be set to `docker`.
 
 If we're interested in tracking other container runtimes, we could follow the approach by `gopsutil` ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/internal/common/common_linux.go#L130-L278)).
 
@@ -213,6 +218,11 @@ The only way to determine this seems to be by hitting certain HTTP endpoints spe
 - GCP ([docs](https://cloud.google.com/compute/docs/metadata/overview#parts-of-a-request)): http://metadata.google.internal/computeMetadata/v1/
 - Azure ([docs](https://learn.microsoft.com/en-us/azure/virtual-machines/linux/instance-metadata-service?tabs=linux#access-azure-instance-metadata-service)): http://169.254.169.254/metadata/instance?api-version=2021-02-01
 
+`UpstreamInventoryAgentMetadata.CloudEnvironment` will be set to:
+- `aws` if on AWS
+- `gcp` if on GCP
+- `azure` if on Azure
+
 #### Development plan
 
 The above work will be divided in the following tasks:
@@ -222,7 +232,7 @@ The above work will be divided in the following tasks:
 3. Extend auth server to convert `UpstreamInventoryAgentMetadata` messages to `AgentMetadataEvent` messages and push them to PreHog.
 4. Gradually instrument & add new code that fills each new `UpstreamInventoryAgentMetadata` message field.
 
-We could decide to do step 4 together with step 2 if we don't want to risk adding fields to `UpstreamInventoryAgentMetadata` that possibly won't be used in the end (if for some reason we figure out they can't/shouldn't be tracked).
+We could decide to do step 4 together with step 2 if we don't want to risk adding fields to `UpstreamInventoryAgentMetadata` that possibly won't be used in the end (if for some reason we figure out they can/should not be tracked).
 However, step 4 requires several changes (Go code & files used by the multiple installation methods) which we may want to review separately.
 A similar reasoning also applies to step 1 since each field in `AgentMetadataEvent` should only exist if it also exists in `UpstreamInventoryAgentMetadata`.
 
