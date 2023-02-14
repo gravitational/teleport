@@ -1179,7 +1179,12 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 		{Login: id.Login},
 		{Node: serverID},
 		{Node: auth.HostFQDN(serverID, clusterName)},
-		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
+	}
+	if mfaDevice := id.Certificate.Extensions[teleport.CertExtensionMFAVerified]; mfaDevice != "" {
+		lockTargets = append(lockTargets, types.LockTarget{MFADevice: mfaDevice})
+	}
+	if trustedDevice := id.Certificate.Extensions[teleport.CertExtensionDeviceID]; trustedDevice != "" {
+		lockTargets = append(lockTargets, types.LockTarget{Device: trustedDevice})
 	}
 	roles := apiutils.Deduplicate(append(id.AccessChecker.RoleNames(), id.UnmappedRoles...))
 	lockTargets = append(lockTargets, services.RolesToLockTargets(roles)...)
@@ -1187,7 +1192,7 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 	return lockTargets
 }
 
-// SetRequest sets the ssh request that was issued by the client.
+// SetSSHRequest sets the ssh request that was issued by the client.
 // Will return an error if called more than once for a single server context.
 func (c *ServerContext) SetSSHRequest(e *ssh.Request) error {
 	c.mu.Lock()
@@ -1200,7 +1205,7 @@ func (c *ServerContext) SetSSHRequest(e *ssh.Request) error {
 	return nil
 }
 
-// GetRequest returns the ssh request that was issued by the client and saved on
+// GetSSHRequest returns the ssh request that was issued by the client and saved on
 // this ServerContext by SetExecRequest, or an error if it has not been set.
 func (c *ServerContext) GetSSHRequest() (*ssh.Request, error) {
 	c.mu.RLock()

@@ -25,7 +25,7 @@ NODE_VERSION ?= 16.18.1
 
 # run lint-rust check locally before merging code after you bump this
 RUST_VERSION ?= 1.67.0
-LIBBPF_VERSION ?= 0.7.0-teleport
+LIBBPF_VERSION ?= 1.0.1
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
 UID := $$(id -u)
@@ -51,7 +51,7 @@ include images.mk
 BUILDBOX_NAME=$(BUILDBOX)
 BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
 
-DOCSBOX=public.ecr.aws/gravitational/docs
+DOCSBOX=ghcr.io/gravitational/docs
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
@@ -178,6 +178,7 @@ buildbox-centos7-fips:
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
+		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
@@ -530,9 +531,10 @@ print-buildbox-version:
 	@echo $(BUILDBOX_VERSION)
 
 #
-# Build CentOS 7 assets such as clang.
+# Build CentOS 7 assets - clang.
 #
 .PHONY:build-centos7-assets
 build-centos7-assets:
-	docker build --build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) -t buildbox-centos7-assets -f Dockerfile-centos7-assets .
-	docker run -v $$(pwd):/centos7.assets -it buildbox-centos7-assets cp /centos7-assets.tar.gz /centos7.assets
+	docker build \
+		--tag $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
+		-f Dockerfile-centos7-assets .

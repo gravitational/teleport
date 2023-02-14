@@ -1,4 +1,4 @@
-{{- $proxy := mustMergeOverwrite .Values .Values.proxy -}}
+{{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- if $proxy.highAvailability.podDisruptionBudget.enabled }}
 {{- if .Capabilities.APIVersions.Has "policy/v1" }}
 apiVersion: policy/v1

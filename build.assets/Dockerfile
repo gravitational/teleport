@@ -56,17 +56,18 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
 
 FROM buildpack-deps:18.04 AS libbpf
 
-# Install libbpf
+# Install required dependencies
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
         libelf-dev
 
 ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt &&  \
+    curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    make && \
-    make install
+    make &&  \
+    BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install
 
 ## BUILDBOX ###################################################################
 #
@@ -292,9 +293,8 @@ RUN BIN="/usr/local/bin" && \
       chmod +x "${BIN}/buf"
 
 # Copy BPF libraries.
-COPY --from=libbpf /usr/include/bpf /usr/include/bpf
-COPY --from=libbpf /usr/lib64/ /usr/lib64/
-RUN cd /usr/local/lib && ldconfig
+ARG LIBBPF_VERSION
+COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Copy libfido2 libraries.
 # Do this near the end to take better advantage of the multi-stage build.

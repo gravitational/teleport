@@ -2175,6 +2175,7 @@ func TestLogin(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &rawSess))
 	cookies := re.Cookies()
 	require.Len(t, cookies, 1)
+	require.NotEmpty(t, rawSess.SessionExpires)
 
 	// now make sure we are logged in by calling authenticated method
 	// we need to supply both session cookie and bearer token for

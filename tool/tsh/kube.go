@@ -895,7 +895,7 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 		CmdClause: parent.Command("login", "Login to a Kubernetes cluster"),
 	}
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
-	c.Arg("kube-cluster", "Name of the Kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
+	c.Arg("kube-cluster", "Name of the Kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").StringVar(&c.kubeCluster)
 	c.Flag("as", "Configure custom Kubernetes user impersonation.").StringVar(&c.impersonateUser)
 	c.Flag("as-groups", "Configure custom Kubernetes group impersonation.").StringsVar(&c.impersonateGroups)
 	// TODO (tigrato): move this back to namespace once teleport drops the namespace flag.
@@ -905,6 +905,9 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 }
 
 func (c *kubeLoginCommand) run(cf *CLIConf) error {
+	if c.kubeCluster == "" && !c.all {
+		return trace.BadParameter("kube-cluster name is required. Check 'tsh kube ls' for a list of available clusters.")
+	}
 	// Set CLIConf.KubernetesCluster so that the kube cluster's context is automatically selected.
 	cf.KubernetesCluster = c.kubeCluster
 	cf.SiteName = c.siteName
@@ -925,7 +928,8 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	clusterNames := kubeClustersToStrings(kubeClusters)
-	if !slices.Contains(clusterNames, c.kubeCluster) {
+	// If the user is trying to login to a specific cluster, check that it exists.
+	if c.kubeCluster != "" && !slices.Contains(clusterNames, c.kubeCluster) {
 		return trace.NotFound("kubernetes cluster %q not found, check 'tsh kube ls' for a list of known clusters", c.kubeCluster)
 	}
 
@@ -943,8 +947,11 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	if err := updateKubeConfig(cf, tc, profileKubeconfigPath); err != nil {
 		return trace.Wrap(err)
 	}
-
-	fmt.Printf("Logged into Kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
+	if c.kubeCluster != "" {
+		fmt.Printf("Logged into Kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
+	} else {
+		fmt.Printf("Created kubeconfig with every Kubernetes cluster available. Select a context and try 'kubectl version' to test the connection.\n")
+	}
 	return nil
 }
 

@@ -1521,6 +1521,7 @@ func (a *Server) AugmentContextUserCertificates(
 		username:             identity.Username,
 		mfaVerified:          identity.MFAVerified,
 		activeAccessRequests: identity.ActiveRequests,
+		deviceID:             opts.DeviceExtensions.DeviceID, // Check lock against requested device.
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1651,6 +1652,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		username:             req.user.GetName(),
 		mfaVerified:          req.mfaVerified,
 		activeAccessRequests: req.activeRequests.AccessRequests,
+		deviceID:             req.deviceExtensions.DeviceID,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1960,6 +1962,9 @@ type verifyLocksForUserCertsReq struct {
 	// activeAccessRequests are the UUIDs of active access requests for the user.
 	// Eg: tlsca.Identity.ActiveRequests.
 	activeAccessRequests []string
+	// deviceID is the trusted device ID.
+	// Eg: tlsca.Identity.DeviceExtensions.DeviceID
+	deviceID string
 }
 
 // verifyLocksForUserCerts verifies if any locks are in place before issuing new
@@ -1971,7 +1976,7 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	lockTargets := []types.LockTarget{
 		{User: req.username},
 		{MFADevice: req.mfaVerified},
-		// TODO(codingllama): Verify device locks.
+		{Device: req.deviceID},
 	}
 	lockTargets = append(lockTargets,
 		services.RolesToLockTargets(checker.RoleNames())...,
@@ -3208,15 +3213,23 @@ func (a *Server) ValidateToken(ctx context.Context, token string) (types.Provisi
 // checkTokenTTL checks if the token is still valid. If it is not, the token
 // is removed from the backend and returns false. Otherwise returns true.
 func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
-	ctx := context.TODO()
+	// Always accept tokens without an expiry configured.
+	if tok.Expiry().IsZero() {
+		return true
+	}
+
 	now := a.clock.Now().UTC()
 	if tok.Expiry().Before(now) {
-		err := a.DeleteToken(ctx, tok.GetName())
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				log.Warnf("Unable to delete token from backend: %v.", err)
+		// Tidy up the expired token in background if it has expired.
+		go func() {
+			ctx, cancel := context.WithTimeout(a.CloseContext(), time.Second*30)
+			defer cancel()
+			if err := a.DeleteToken(ctx, tok.GetName()); err != nil {
+				if !trace.IsNotFound(err) {
+					log.Warnf("Unable to delete token from backend: %v.", err)
+				}
 			}
-		}
+		}()
 		return false
 	}
 	return true
