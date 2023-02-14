@@ -16,12 +16,10 @@ limitations under the License.
 package main
 
 import (
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
-	tcl "github.com/gravitational/teleport/tool/tctl/common"
 )
 
 func genDBCreateUserDBNameWarning() error {
@@ -33,9 +31,9 @@ func genDBCreateUserDBNameWarning() error {
 	}
 
 	return trace.Wrap(generateMDX(
-		"docs/pages/includes/generated/database-access/create-user-db-name-warning.mdx",
+		outputPath("database-access", "create-user-db-name-warning.mdx"),
 		`<Admonition type="warning">
-Database names are only enforced for {{ and . }} databases.
+Database names are only enforced for {{ andSlice . }} databases.
 </Admonition>
 `,
 		protcolsRequireDBName,
@@ -43,20 +41,14 @@ Database names are only enforced for {{ and . }} databases.
 }
 
 func genDBReferenceTCLAuthSign() error {
-	app := kingpin.New("", "")
-	var authCommand tcl.AuthCommand
-	authCommand.Initialize(app, nil)
-
-	model := app.GetCommand("auth").GetCommand("sign").Model()
-
 	return trace.Wrap(generateMDX(
-		"docs/pages/includes/generated/database-access/reference-tctl-auth-sign-flags.mdx",
-		`| Flag | Description |
-| - | - |
+		outputPath("database-access", "reference", "tctl-auth-sign-flags.mdx"),
+		`| Flag | Defaut | Description |
+| - | - | - |
 {{ range $index, $flag := . }}{{- if not $flag.Hidden -}}
-| {{ flagName $flag }} | {{ $flag.Help }} |
+| {{ flagName $flag }} | {{ flagDefault $flag }} | {{ $flag.Help }} |
 {{end}}{{end}}
 `,
-		model.Flags,
+		tctlApp.GetCommand("auth").GetCommand("sign").Model().Flags,
 	))
 }

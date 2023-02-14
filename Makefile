@@ -1213,3 +1213,15 @@ build-ui-e: ensure-js-deps
 .PHONY: docker-ui
 docker-ui:
 	$(MAKE) -C build.assets ui
+
+# docsgen updates docs pages.
+# This target runs in the buildbox container.
+.PHONY: docsgen
+docsgen:
+	$(MAKE) -C build.assets docsgen
+
+# docsgen/host updates docs pages.
+# Unlike docsgen, this target runs locally.
+.PHONY: docsgen/host
+docsgen/host:
+	@build.assets/docsgen.sh

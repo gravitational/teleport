@@ -16,20 +16,19 @@ limitations under the License.
 package main
 
 import (
-	"fmt"
-	"html/template"
 	"os"
-	"path"
-	"strings"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/utils"
+	tctl "github.com/gravitational/teleport/tool/tctl/common"
 )
 
 func main() {
+	if err := os.RemoveAll(outputPath()); err != nil {
+		utils.FatalError(err)
+	}
 	if err := generateAll(); err != nil {
 		utils.FatalError(err)
 	}
@@ -42,44 +41,11 @@ func generateAll() error {
 	)
 }
 
-func generateMDX(targetPath string, templateStr string, data any) error {
-	logrus.Infof("Genereating %s", targetPath)
-
-	if err := os.MkdirAll(path.Dir(targetPath), 0755); err != nil {
-		return trace.Wrap(err)
-	}
-
-	f, err := os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	tmpl, err := template.New("").Funcs(template.FuncMap{
-		"and":      andSlice,
-		"flagName": flagName,
-	}).Parse(templateStr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(tmpl.Execute(f, data))
-}
-
-func andSlice(s []string) string {
-	switch len(s) {
-	case 0:
-		return ""
-	case 1:
-		return s[0]
-	default:
-		// Example: aa, bb and cc
-		return fmt.Sprintf("%s and %s", strings.Join(s[:len(s)-1], ", "), s[len(s)-1])
+func init() {
+	tctlApp = kingpin.New("tctl", tctl.GlobalHelpString)
+	for _, command := range tctl.Commands() {
+		command.Initialize(tctlApp, nil)
 	}
 }
 
-func flagName(flag *kingpin.FlagModel) string {
-	if flag.Short != 0 {
-		return fmt.Sprintf("`-%s/--%s`", string(flag.Short), flag.Name)
-	}
-	return fmt.Sprintf("`--%s`", flag.Name)
-}
+var tctlApp *kingpin.Application

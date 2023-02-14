@@ -1,0 +1,20 @@
+| Flag | Defaut | Description |
+| - | - | - |
+| `--user` | none | Teleport user name |
+| `--host` | none | Teleport host name |
+| `-o/--out` | none | Identity output |
+| `--format` | `file` | Identity format: file, openssh, tls, kubernetes, db, windows, mongodb, cockroachdb, redis, snowflake, elasticsearch, cassandra, scylla. file is the default. |
+| `--ttl` | `12h0m0s` | TTL (time to live) for the generated certificate |
+| `--compat` | none | OpenSSH compatibility flag |
+| `--proxy` | none | Address of the teleport proxy. When --format is set to &#34;kubernetes&#34;, this address will be set as cluster address in the generated kubeconfig file |
+| `--overwrite` | none | Whether to overwrite existing destination files. When not set, user will be prompted before overwriting any existing file. |
+| `--leaf-cluster` | none | Leaf cluster to generate identity file for when --format is set to &#34;kubernetes&#34; |
+| `--kube-cluster-name` | none | Kubernetes cluster to generate identity file for when --format is set to &#34;kubernetes&#34; |
+| `--app-name` | none | Application to generate identity file for. Mutually exclusive with &#34;--db-service&#34;. |
+| `--db-service` | none | Database to generate identity file for. Mutually exclusive with &#34;--app-name&#34;. |
+| `--db-user` | none | Database user placed on the identity file. Only used when &#34;--db-service&#34; is set. |
+| `--db-name` | none | Database name placed on the identity file. Only used when &#34;--db-service&#34; is set. |
+| `--windows-user` | none | Window user placed on the identity file. Only used when --format is set to &#34;windows&#34; |
+| `--windows-domain` | none | Active Directory domain for which this cert is valid. Only used when --format is set to &#34;windows&#34; |
+| `--windows-sid` | none | Optional Security Identifier to embed in the certificate. Only used when --format is set to &#34;windows&#34; |
+
