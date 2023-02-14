@@ -39,7 +39,6 @@ interface ITerminalServiceService extends grpc.ServiceDefinition<grpc.UntypedSer
     listGateways: ITerminalServiceService_IListGateways;
     createGateway: ITerminalServiceService_ICreateGateway;
     removeGateway: ITerminalServiceService_IRemoveGateway;
-    restartGateway: ITerminalServiceService_IRestartGateway;
     setGatewayTargetSubresourceName: ITerminalServiceService_ISetGatewayTargetSubresourceName;
     setGatewayLocalPort: ITerminalServiceService_ISetGatewayLocalPort;
     getAuthSettings: ITerminalServiceService_IGetAuthSettings;
@@ -257,15 +256,6 @@ interface ITerminalServiceService_IRemoveGateway extends grpc.MethodDefinition<t
     responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
 }
-interface ITerminalServiceService_IRestartGateway extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.RestartGatewayRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse> {
-    path: "/teleport.lib.teleterm.v1.TerminalService/RestartGateway";
-    requestStream: false;
-    responseStream: false;
-    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.RestartGatewayRequest>;
-    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.RestartGatewayRequest>;
-    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
-    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
-}
 interface ITerminalServiceService_ISetGatewayTargetSubresourceName extends grpc.MethodDefinition<teleport_lib_teleterm_v1_service_pb.SetGatewayTargetSubresourceNameRequest, teleport_lib_teleterm_v1_gateway_pb.Gateway> {
     path: "/teleport.lib.teleterm.v1.TerminalService/SetGatewayTargetSubresourceName";
     requestStream: false;
@@ -365,7 +355,6 @@ export interface ITerminalServiceServer {
     listGateways: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.ListGatewaysRequest, teleport_lib_teleterm_v1_service_pb.ListGatewaysResponse>;
     createGateway: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.CreateGatewayRequest, teleport_lib_teleterm_v1_gateway_pb.Gateway>;
     removeGateway: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.RemoveGatewayRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
-    restartGateway: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.RestartGatewayRequest, teleport_lib_teleterm_v1_service_pb.EmptyResponse>;
     setGatewayTargetSubresourceName: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.SetGatewayTargetSubresourceNameRequest, teleport_lib_teleterm_v1_gateway_pb.Gateway>;
     setGatewayLocalPort: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.SetGatewayLocalPortRequest, teleport_lib_teleterm_v1_gateway_pb.Gateway>;
     getAuthSettings: grpc.handleUnaryCall<teleport_lib_teleterm_v1_service_pb.GetAuthSettingsRequest, teleport_lib_teleterm_v1_auth_settings_pb.AuthSettings>;
@@ -446,9 +435,6 @@ export interface ITerminalServiceClient {
     removeGateway(request: teleport_lib_teleterm_v1_service_pb.RemoveGatewayRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     removeGateway(request: teleport_lib_teleterm_v1_service_pb.RemoveGatewayRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     removeGateway(request: teleport_lib_teleterm_v1_service_pb.RemoveGatewayRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
-    restartGateway(request: teleport_lib_teleterm_v1_service_pb.RestartGatewayRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
-    restartGateway(request: teleport_lib_teleterm_v1_service_pb.RestartGatewayRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
-    restartGateway(request: teleport_lib_teleterm_v1_service_pb.RestartGatewayRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     setGatewayTargetSubresourceName(request: teleport_lib_teleterm_v1_service_pb.SetGatewayTargetSubresourceNameRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_gateway_pb.Gateway) => void): grpc.ClientUnaryCall;
     setGatewayTargetSubresourceName(request: teleport_lib_teleterm_v1_service_pb.SetGatewayTargetSubresourceNameRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_gateway_pb.Gateway) => void): grpc.ClientUnaryCall;
     setGatewayTargetSubresourceName(request: teleport_lib_teleterm_v1_service_pb.SetGatewayTargetSubresourceNameRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_gateway_pb.Gateway) => void): grpc.ClientUnaryCall;
@@ -545,9 +531,6 @@ export class TerminalServiceClient extends grpc.Client implements ITerminalServi
     public removeGateway(request: teleport_lib_teleterm_v1_service_pb.RemoveGatewayRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public removeGateway(request: teleport_lib_teleterm_v1_service_pb.RemoveGatewayRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public removeGateway(request: teleport_lib_teleterm_v1_service_pb.RemoveGatewayRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
-    public restartGateway(request: teleport_lib_teleterm_v1_service_pb.RestartGatewayRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
-    public restartGateway(request: teleport_lib_teleterm_v1_service_pb.RestartGatewayRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
-    public restartGateway(request: teleport_lib_teleterm_v1_service_pb.RestartGatewayRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_service_pb.EmptyResponse) => void): grpc.ClientUnaryCall;
     public setGatewayTargetSubresourceName(request: teleport_lib_teleterm_v1_service_pb.SetGatewayTargetSubresourceNameRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_gateway_pb.Gateway) => void): grpc.ClientUnaryCall;
     public setGatewayTargetSubresourceName(request: teleport_lib_teleterm_v1_service_pb.SetGatewayTargetSubresourceNameRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_gateway_pb.Gateway) => void): grpc.ClientUnaryCall;
     public setGatewayTargetSubresourceName(request: teleport_lib_teleterm_v1_service_pb.SetGatewayTargetSubresourceNameRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_gateway_pb.Gateway) => void): grpc.ClientUnaryCall;
