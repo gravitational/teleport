@@ -544,17 +544,6 @@ function deserialize_teleport_lib_teleterm_v1_RemoveGatewayRequest(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.RemoveGatewayRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
-function serialize_teleport_lib_teleterm_v1_RestartGatewayRequest(arg) {
-  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.RestartGatewayRequest)) {
-    throw new Error('Expected argument of type teleport.lib.teleterm.v1.RestartGatewayRequest');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_teleport_lib_teleterm_v1_RestartGatewayRequest(buffer_arg) {
-  return teleport_lib_teleterm_v1_service_pb.RestartGatewayRequest.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
 function serialize_teleport_lib_teleterm_v1_ReviewAccessRequestRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.ReviewAccessRequestRequest)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.ReviewAccessRequestRequest');
@@ -903,20 +892,6 @@ removeGateway: {
     responseType: teleport_lib_teleterm_v1_service_pb.EmptyResponse,
     requestSerialize: serialize_teleport_lib_teleterm_v1_RemoveGatewayRequest,
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_RemoveGatewayRequest,
-    responseSerialize: serialize_teleport_lib_teleterm_v1_EmptyResponse,
-    responseDeserialize: deserialize_teleport_lib_teleterm_v1_EmptyResponse,
-  },
-  // RestartGateway stops a gateway and starts a new with identical parameters, keeping the
-// original URI. A temporary workaround until it's possible to refresh certs in a running
-// database proxy.
-restartGateway: {
-    path: '/teleport.lib.teleterm.v1.TerminalService/RestartGateway',
-    requestStream: false,
-    responseStream: false,
-    requestType: teleport_lib_teleterm_v1_service_pb.RestartGatewayRequest,
-    responseType: teleport_lib_teleterm_v1_service_pb.EmptyResponse,
-    requestSerialize: serialize_teleport_lib_teleterm_v1_RestartGatewayRequest,
-    requestDeserialize: deserialize_teleport_lib_teleterm_v1_RestartGatewayRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_EmptyResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_EmptyResponse,
   },

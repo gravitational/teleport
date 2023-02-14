@@ -241,41 +241,6 @@ func (s *Service) removeGateway(gateway *gateway.Gateway) error {
 	return nil
 }
 
-// RestartGateway stops a gateway and starts a new one with identical parameters.
-// It also keeps the original URI so that from the perspective of Connect it's still the same
-// gateway but with fresh certs.
-func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	oldGateway, err := s.findGateway(gatewayURI)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := s.removeGateway(oldGateway); err != nil {
-		return trace.Wrap(err)
-	}
-
-	newGateway, err := s.createGateway(ctx, CreateGatewayParams{
-		TargetURI:             oldGateway.TargetURI(),
-		TargetUser:            oldGateway.TargetUser(),
-		TargetSubresourceName: oldGateway.TargetSubresourceName(),
-		LocalPort:             oldGateway.LocalPort(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// s.createGateway adds a gateway under a random URI, so we need to place the new gateway under
-	// the URI of the old gateway.
-	delete(s.gateways, newGateway.URI().String())
-	newGateway.SetURI(oldGateway.URI())
-	s.gateways[oldGateway.URI().String()] = newGateway
-
-	return nil
-}
-
 // findGateway assumes that mu is already held by a public method.
 func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
 	if gateway, ok := s.gateways[gatewayURI]; ok {
