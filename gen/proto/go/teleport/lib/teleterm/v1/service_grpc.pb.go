@@ -74,10 +74,6 @@ type TerminalServiceClient interface {
 	CreateGateway(ctx context.Context, in *CreateGatewayRequest, opts ...grpc.CallOption) (*Gateway, error)
 	// RemoveGateway removes a gateway
 	RemoveGateway(ctx context.Context, in *RemoveGatewayRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
-	// RestartGateway stops a gateway and starts a new with identical parameters, keeping the
-	// original URI. A temporary workaround until it's possible to refresh certs in a running
-	// database proxy.
-	RestartGateway(ctx context.Context, in *RestartGatewayRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
 	// SetGatewayTargetSubresourceName changes the TargetSubresourceName field of gateway.Gateway
 	// and returns the updated version of gateway.Gateway.
 	//
@@ -333,15 +329,6 @@ func (c *terminalServiceClient) RemoveGateway(ctx context.Context, in *RemoveGat
 	return out, nil
 }
 
-func (c *terminalServiceClient) RestartGateway(ctx context.Context, in *RestartGatewayRequest, opts ...grpc.CallOption) (*EmptyResponse, error) {
-	out := new(EmptyResponse)
-	err := c.cc.Invoke(ctx, "/teleport.lib.teleterm.v1.TerminalService/RestartGateway", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *terminalServiceClient) SetGatewayTargetSubresourceName(ctx context.Context, in *SetGatewayTargetSubresourceNameRequest, opts ...grpc.CallOption) (*Gateway, error) {
 	out := new(Gateway)
 	err := c.cc.Invoke(ctx, "/teleport.lib.teleterm.v1.TerminalService/SetGatewayTargetSubresourceName", in, out, opts...)
@@ -524,10 +511,6 @@ type TerminalServiceServer interface {
 	CreateGateway(context.Context, *CreateGatewayRequest) (*Gateway, error)
 	// RemoveGateway removes a gateway
 	RemoveGateway(context.Context, *RemoveGatewayRequest) (*EmptyResponse, error)
-	// RestartGateway stops a gateway and starts a new with identical parameters, keeping the
-	// original URI. A temporary workaround until it's possible to refresh certs in a running
-	// database proxy.
-	RestartGateway(context.Context, *RestartGatewayRequest) (*EmptyResponse, error)
 	// SetGatewayTargetSubresourceName changes the TargetSubresourceName field of gateway.Gateway
 	// and returns the updated version of gateway.Gateway.
 	//
@@ -641,9 +624,6 @@ func (UnimplementedTerminalServiceServer) CreateGateway(context.Context, *Create
 }
 func (UnimplementedTerminalServiceServer) RemoveGateway(context.Context, *RemoveGatewayRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveGateway not implemented")
-}
-func (UnimplementedTerminalServiceServer) RestartGateway(context.Context, *RestartGatewayRequest) (*EmptyResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RestartGateway not implemented")
 }
 func (UnimplementedTerminalServiceServer) SetGatewayTargetSubresourceName(context.Context, *SetGatewayTargetSubresourceNameRequest) (*Gateway, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetGatewayTargetSubresourceName not implemented")
@@ -1099,24 +1079,6 @@ func _TerminalService_RemoveGateway_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TerminalService_RestartGateway_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RestartGatewayRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).RestartGateway(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/teleport.lib.teleterm.v1.TerminalService/RestartGateway",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).RestartGateway(ctx, req.(*RestartGatewayRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _TerminalService_SetGatewayTargetSubresourceName_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SetGatewayTargetSubresourceNameRequest)
 	if err := dec(in); err != nil {
@@ -1388,10 +1350,6 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveGateway",
 			Handler:    _TerminalService_RemoveGateway_Handler,
-		},
-		{
-			MethodName: "RestartGateway",
-			Handler:    _TerminalService_RestartGateway_Handler,
 		},
 		{
 			MethodName: "SetGatewayTargetSubresourceName",
