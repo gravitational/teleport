@@ -18,6 +18,7 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -26,11 +27,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
@@ -668,4 +671,66 @@ func TestByteCount(t *testing.T) {
 			assert.Equal(t, ByteCount(tc.size), tc.expected)
 		})
 	}
+}
+
+func TestIteratePages(t *testing.T) {
+	u1, err := types.NewUser("user1")
+	require.NoError(t, err)
+	u2, err := types.NewUser("user2")
+	require.NoError(t, err)
+	u3, err := types.NewUser("user3")
+	require.NoError(t, err)
+
+	// Regular pager with a happy apply function.
+	numCalls := 0
+	testPager := func(ctx context.Context, pageSize int, nextToken string) ([]types.User, string, error) {
+		numCalls++
+		require.Equal(t, 0, pageSize)
+		switch nextToken {
+		case "":
+			return []types.User{u1}, "1", nil
+		case "1":
+			return []types.User{u2}, "2", nil
+		case "2":
+			return []types.User{u3}, "", nil
+		}
+
+		return nil, "", trace.BadParameter("unrecognized paging token")
+	}
+
+	ctx := context.Background()
+	accumulatedUsers := []types.User{}
+	require.NoError(t, IteratePages(ctx, testPager, func(u types.User) error {
+		accumulatedUsers = append(accumulatedUsers, u)
+		return nil
+	}))
+
+	require.Equal(t, 3, numCalls)
+	require.Empty(t, cmp.Diff([]types.User{u1, u2, u3}, accumulatedUsers))
+
+	// Create a pager that errors.
+	errorPager := func(ctx context.Context, pageSize int, nextToken string) ([]types.User, string, error) {
+		require.Equal(t, 5, pageSize)
+		switch nextToken {
+		case "":
+			return []types.User{u1}, "1", nil
+		case "1":
+			return []types.User{u2}, "2", nil
+		}
+
+		return nil, "", trace.BadParameter("unrecognized paging token")
+	}
+
+	accumulatedUsers = []types.User{}
+	// Use IteratePagesWithPageSize to verify the page is passed in properly.
+	require.ErrorIs(t, IteratePagesWithPageSize(ctx, 5, errorPager, func(u types.User) error {
+		accumulatedUsers = append(accumulatedUsers, u)
+		return nil
+	}), trace.BadParameter("unrecognized paging token"))
+	require.Empty(t, cmp.Diff([]types.User{u1, u2}, accumulatedUsers))
+
+	// Create an apply function that errors.
+	require.ErrorIs(t, IteratePages(ctx, testPager, func(u types.User) error {
+		return trace.BadParameter("expected error")
+	}), trace.BadParameter("expected error"))
 }
