@@ -17,6 +17,8 @@ ARG TARGETARCH
 ## ARM 32 #####################################################################
 FROM base AS platform-setup-arm
 ARG GOLANG_ARCH=armv6l
+ARG RUST_ARCH=armv7-unknown-linux-gnueabihf
+
 ARG YUM_UPDATE_FLAGS=""
 RUN echo "armhfp" > /etc/yum/vars/basearch && \
     echo "armv7hl" > /etc/yum/vars/arch && \
@@ -25,11 +27,22 @@ RUN echo "armhfp" > /etc/yum/vars/basearch && \
 ## ARM 64 #####################################################################
 FROM base AS platform-setup-arm64
 ARG GOLANG_ARCH=arm64
+ARG RUST_ARCH=aarch64-unknown-linux-gnu
 
 # Installing the kerenel packages causes the update to hang on aarch64, so we
 # skip upgrading them.
 ARG YUM_UPDATE_FLAGS="--exclude kernel-*"
 RUN echo "aarch64-redhat-linux-gnu" > /etc/rpm/platform
+
+## 386 ########################################################################
+FROM base AS platform-setup-386
+ARG GOLANG_ARCH=386
+ARG RUST_ARCH=i686-unknown-linux-gnu
+
+## AMD 64 #####################################################################
+FROM base AS platform-setup-amd64
+ARG GOLANG_ARCH=amd64
+ARG RUST_ARCH=x86_64-unknown-linux-gnu
 
 # #############################################################################
 # The minimal buildbox contains the resources required to build a minimal
@@ -44,6 +57,7 @@ ARG GOLANG_VERSION
 ARG RUST_VERSION
 ARG UID
 ARG GID
+ARG RUSTUP_VERSION=1.25.2
 
 RUN groupadd ci --gid=$GID -o && \
     useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh
@@ -81,19 +95,6 @@ ENV GOPATH="/go" \
     GOROOT="/opt/go" \
     PATH="$PATH:/opt/go/bin:/go/bin"
 
-## Install Node ###############################################################
-RUN yum install -y python3
-ARG NODE_VERSION
-ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
-ENV NODE_PATH="/usr/local/lib/nodejs-linux"
-ENV PATH="$PATH:${NODE_PATH}/bin"
-RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo "arm64"; fi) && \
-     export NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" && \
-     mkdir -p ${NODE_PATH} && \
-     curl -o /tmp/nodejs.tar.xz -L ${NODE_URL} && \
-     tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
-RUN corepack enable yarn
-
 ## Install Rust ###############################################################
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
@@ -107,8 +108,9 @@ RUN chmod a-w /
 
 USER ci
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION --default-host $RUST_ARCH && \
     rustup --version && \
     cargo --version && \
     rustc --version && \
-    rustup component add rustfmt clippy
+    rustup component add rustfmt clippy && \
+    rustup target add $RUST_ARCH

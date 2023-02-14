@@ -446,10 +446,18 @@ define RELEASE_RECIPE
 			-v "/tmp:/tmp" \
 			-v "$(WORKSPACE):/go/teleport" \
 			-w /go/teleport \
-			-u 1000:1000 \
 			$(BUILDBOX) \
 		make $(1) ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 endef
+
+# It's ok to ignore `go: command not found`. Makefile's $(shell go env)-line commands are producing it.
+.PHONY: release-oss-ensure-webassets
+release-oss-ensure-webassets:
+	$(call RELEASE_RECIPE,ensure-webassets)
+
+.PHONY: release-enterprise-ensure-webassets
+release-enterprise-ensure-webassets:
+	$(call RELEASE_RECIPE,ensure-webassets-e)
 
 .PHONY: release-oss
 release-oss:

@@ -208,7 +208,12 @@ ifeq ("$(ARCH)","arm64")
 	endif
 else ifeq ("$(ARCH)","arm")
 # ARM builds need to specify the correct C compiler
-CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
+CGOFLAG = CGO_ENABLED=1 
+
+ifeq ($(IS_NATIVE_BUILD),"no")
+CC=arm-linux-gnueabihf-gcc
+endif
+
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
 endif
