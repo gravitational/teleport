@@ -1184,20 +1184,6 @@ func TestPasswordCRUD(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTokens(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
-
-	out, err := clt.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
-	require.NoError(t, err)
-	require.NotEqual(t, out, 0)
-}
-
 func TestOTPCRUD(t *testing.T) {
 	t.Parallel()
 
@@ -2761,13 +2747,9 @@ func TestRegisterCAPin(t *testing.T) {
 	tt := setupAuthContext(ctx, t)
 
 	// Generate a token to use.
-	token, err := tt.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{
-			types.RoleProxy,
-		},
-		TTL: proto.Duration(time.Hour),
-	})
-	require.NoError(t, err)
+	token := generateTestToken(
+		t, ctx, types.SystemRoles{types.RoleProxy}, tt.server.Auth(),
+	)
 
 	// Generate public and private keys for node.
 	priv, pub, err := testauthority.New().GenerateKeyPair()
@@ -2900,13 +2882,12 @@ func TestRegisterCAPath(t *testing.T) {
 	tt := setupAuthContext(ctx, t)
 
 	// Generate a token to use.
-	token, err := tt.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{
-			types.RoleProxy,
-		},
-		TTL: proto.Duration(time.Hour),
-	})
-	require.NoError(t, err)
+	token := generateTestToken(
+		t,
+		ctx,
+		types.SystemRoles{types.RoleProxy},
+		tt.server.Auth(),
+	)
 
 	// Generate public and private keys for node.
 	priv, pub, err := testauthority.New().GenerateKeyPair()

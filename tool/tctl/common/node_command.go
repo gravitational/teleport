@@ -141,9 +141,21 @@ func (c *NodeCommand) Invite(ctx context.Context, client auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	token, err := client.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: roles, TTL: proto.Duration(c.ttl), Token: c.token})
+
+	token := c.token
+	if c.token == "" {
+		token, err = utils.CryptoRandomHex(auth.TokenLenBytes)
+		if err != nil {
+			return trace.WrapWithMessage(err, "generating token value")
+		}
+	}
+	expires := time.Now().Add(c.ttl)
+	pt, err := types.NewProvisionToken(token, roles, expires)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if err := client.CreateToken(ctx, pt); err != nil {
+		return trace.WrapWithMessage(err, "creating token")
 	}
 
 	// Calculate the CA pins for this cluster. The CA pins are used by the

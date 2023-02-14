@@ -589,6 +589,8 @@ func requireTokenExpiry(t *testing.T, token types.ProvisionToken, expectExpiry t
 	)
 }
 
+// Deprecated: REMOVE IN 14.0.0 along with GenerateToken. This test has been
+// superseded.
 func TestTokensCRUD(t *testing.T) {
 	// TODO(noah): completely refactor this test suite when deprecating
 	// GenerateToken - break this down into separate tests per method rather
@@ -700,6 +702,31 @@ func TestTokensCRUD(t *testing.T) {
 	})
 }
 
+type tokenCreatorAndDeleter interface {
+	CreateToken(ctx context.Context, token types.ProvisionToken) error
+	DeleteToken(ctx context.Context, token string) error
+}
+
+func generateTestToken(
+	t *testing.T,
+	ctx context.Context,
+	roles types.SystemRoles,
+	auth tokenCreatorAndDeleter,
+) string {
+	t.Helper()
+	token, err := utils.CryptoRandomHex(TokenLenBytes)
+	require.NoError(t, err)
+
+	pt, err := types.NewProvisionToken(token, roles, time.Time{})
+	require.NoError(t, err)
+	require.NoError(t, auth.CreateToken(ctx, pt))
+	t.Cleanup(func() {
+		require.NoError(t, auth.DeleteToken(ctx, token))
+	})
+
+	return token
+}
+
 func TestBadTokens(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
@@ -714,9 +741,11 @@ func TestBadTokens(t *testing.T) {
 	require.Error(t, err)
 
 	// tampered
-	tok, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleAuth}})
-	require.NoError(t, err)
-
+	tok := generateTestToken(
+		t, ctx,
+		types.SystemRoles{types.RoleNode},
+		s.a,
+	)
 	tampered := string(tok[0]+1) + tok[1:]
 	_, err = s.a.ValidateToken(ctx, tampered)
 	require.Error(t, err)
@@ -773,6 +802,8 @@ func TestLocalControlStream(t *testing.T) {
 	}
 }
 
+// Deprecated: REMOVE IN 14.0.0 along with GenerateToken. This test has been
+// superseded.
 func TestGenerateTokenEventsEmitted(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)

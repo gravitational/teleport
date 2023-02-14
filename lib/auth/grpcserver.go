@@ -3096,6 +3096,7 @@ func (g *GRPCServer) GenerateToken(ctx context.Context, req *proto.GenerateToken
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	g.Warn("Deprecated GenerateToken RPC called. This will stop functioning in Teleport 14.0.0. Upgrade your client.")
 
 	token, err := auth.ServerWithRoles.GenerateToken(ctx, req)
 	if err != nil {
