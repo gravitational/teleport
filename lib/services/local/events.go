@@ -105,6 +105,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			}
 		case types.KindWebSession:
 			switch kind.SubKind {
+			case types.KindSAMLIdPSession:
+				parser = newSAMLIdPSessionParser()
 			case types.KindSnowflakeSession:
 				parser = newSnowflakeSessionParser()
 			case types.KindAppSession:
@@ -875,6 +877,17 @@ func (p *appServerV2Parser) parse(event backend.Event) (types.Resource, error) {
 	return parseServer(event, types.KindAppServer)
 }
 
+func newSAMLIdPSessionParser() *webSessionParser {
+	return &webSessionParser{
+		baseParser: newBaseParser(backend.Key(samlIdPPrefix, sessionsPrefix)),
+		hdr: types.ResourceHeader{
+			Kind:    types.KindWebSession,
+			SubKind: types.KindSAMLIdPSession,
+			Version: types.V2,
+		},
+	}
+}
+
 func newSnowflakeSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: newBaseParser(backend.Key(snowflakePrefix, sessionsPrefix)),
@@ -896,7 +909,6 @@ func newAppSessionParser() *webSessionParser {
 		},
 	}
 }
-
 func newWebSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: newBaseParser(backend.Key(webPrefix, sessionsPrefix)),
