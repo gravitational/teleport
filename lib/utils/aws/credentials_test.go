@@ -78,33 +78,33 @@ func TestCachedCredentialsGetter(t *testing.T) {
 			name:         "cached",
 			sessionName:  "test-session",
 			roleARN:      "test-role",
-			compareCred1: require.Equal,
+			compareCred1: require.Same,
 		},
 		{
 			name:         "different session name",
 			sessionName:  "test-session-2",
 			roleARN:      "test-role",
-			compareCred1: require.NotEqual,
+			compareCred1: require.NotSame,
 		},
 		{
 			name:         "different role ARN",
 			sessionName:  "test-session",
 			roleARN:      "test-role-2",
-			compareCred1: require.NotEqual,
+			compareCred1: require.NotSame,
 		},
 		{
 			name:         "different external ID",
 			sessionName:  "test-session",
 			roleARN:      "test-role",
 			externalID:   "test-id",
-			compareCred1: require.NotEqual,
+			compareCred1: require.NotSame,
 		},
 		{
 			name:         "cache expired",
 			sessionName:  "test-session",
 			roleARN:      "test-role",
 			advanceClock: time.Hour,
-			compareCred1: require.NotEqual,
+			compareCred1: require.NotSame,
 		},
 	}
 
