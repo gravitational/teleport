@@ -251,7 +251,11 @@ func (a *AppV3) IsGCP() bool {
 
 // IsTCP returns true if this app represents a TCP endpoint.
 func (a *AppV3) IsTCP() bool {
-	return strings.HasPrefix(a.Spec.URI, "tcp://")
+	return IsAppTCP(a.Spec.URI)
+}
+
+func IsAppTCP(uri string) bool {
+	return strings.HasPrefix(uri, "tcp://")
 }
 
 // GetProtocol returns the application protocol.

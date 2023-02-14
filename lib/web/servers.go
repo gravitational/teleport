@@ -56,6 +56,26 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 	}, nil
 }
 
+// clusterKubePodsGet returns a list of Kubernetes Pods in a form the
+// UI can present.
+func (h *Handler) clusterKubePodsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := sctx.NewKubernetesServiceClient(r.Context(), h.cfg.ProxyWebAddr.Addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := listKubeResources(r.Context(), clt, r.URL.Query(), site.GetName(), types.KindKubePod)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return listResourcesGetResponse{
+		Items:      ui.MakeKubeResources(resp.Resources, r.URL.Query().Get("kubeCluster")),
+		StartKey:   resp.NextKey,
+		TotalCount: int(resp.TotalCount),
+	}, nil
+}
+
 // clusterDatabasesGet returns a list of db servers in a form the UI can present.
 func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)
@@ -239,7 +259,6 @@ func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p http
 		},
 		DesktopName: desktopName,
 	})
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
