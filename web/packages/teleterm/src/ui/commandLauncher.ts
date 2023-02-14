@@ -22,9 +22,10 @@ import {
   routing,
   ServerUri,
 } from 'teleterm/ui/uri';
-import { tsh } from 'teleterm/ui/services/clusters/types';
 import { TrackedKubeConnection } from 'teleterm/ui/services/connectionTracker';
 import { Platform } from 'teleterm/mainProcess/types';
+
+import type * as tsh from 'teleterm/services/tshd/types';
 
 const commands = {
   // For handling "tsh ssh" executed from the command bar.
