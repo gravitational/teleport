@@ -73,23 +73,35 @@ message UpstreamInventoryHello {
 
 The `Version` field contains the Teleport version, while the `Services` field contains the subset of the system roles that are currently active at the agent.
 
-We will extend this message to contain the remaining agent data that we want to track:
+While initially we considered extending this message to contain all the agent metadata we want track, we decided to instead add a new message type `UpstreamInventoryAgentMetadata` (see the message definition below).
+Some of the agent metadata may be slow to compute (due to HTTP requests), and thus blocking the sending of the `UpstreamInventoryHello` until such metadata is computed could potentially increase the agent start-up time.
+
+Instead, when the auth server handle is created at the agent ([here](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/inventory/inventory.go#L87-L97)), a new _agent metadata tracker_ goroutine will be spawned in order to calculate the agent metadata in the background.
+
+Then, once the agent has sent the `UpstreamInventoryHello` to the auth server and received the `UpstreamInventoryHello` reply ([here](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/inventory/inventory.go#L167-L191)), it will request the metadata from the agent metadata tracker and send it to the auth server once it is calculated.
+This step is non-blocking, and thus the proposed mechanism should not affect the normal operation of the inventory control system.
+
+An initial sketch of this flow can be found in [7737d46](https://github.com/gravitational/teleport/commit/7737d46912a990f37c10e2778c21a3dc1a52af02).
 
 ```protobuf
-message UpstreamInventoryHello {
-  // (...)
-  string OS = 5;
-  string OSVersion = 6;
-  string HostArchitecture = 7;
-  string GLibCVersion = 8;
-  repeated string InstallMethods = 9;
-  string ContainerRuntime = 10;
-  string ContainerOrchestrator = 11;
-  string CloudEnvironment = 12;
+message UpstreamInventoryAgentMetadata {
+  // Version advertises the teleport version of the instance.
+  string Version = 1;
+  // ServerID advertises the server ID of the instance.
+  string ServerID = 2;
+  repeated string Services = 3 [(gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"];
+  string OS = 4;
+  string OSVersion = 5;
+  string HostArchitecture = 6;
+  string GLibCVersion = 7;
+  repeated string InstallMethods = 8;
+  string ContainerRuntime = 9;
+  string ContainerOrchestrator = 10;
+  string CloudEnvironment = 11;
 }
 ```
 
-When the auth server receives an `UpstreamInventoryHello` message, it will take the information in the message and send it to PreHog.
+When the auth server receives an `UpstreamInventoryAgentMetadata` message, it will take the information in the message and send it to PreHog.
 For this, a new PreHog `AgentMetadataEvent` message will be added (note that only the `UpstreamInventoryHello.Hostname` won't be sent to PreHog as it can contain PII but also because it doesn't seem useful):
 
 ```protobuf
@@ -153,7 +165,7 @@ We have one environment variable for each installation method as some of the ins
 
 - [Dockerfile](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/charts/Dockerfile): `ENV TELEPORT_INSTALL_METHOD_DOCKERFILE=true` will be added to the Dockerfile.
 - [`teleport-kube-agent`](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent) Helm chart: `TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT` will be set to `true` in the [deployment spec](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/chart/teleport-kube-agent/templates/deployment.yaml#L129).
-- [`install-node.sh`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/node-join/install.sh): `export TELEPORT_INSTALL_METHOD_NODE_SCRIPT="true"` will be added to this script. It is the recommended way to install SSH nodes, apps and many databases. Even though `export` doesn't persist across restarts, we can have the agent persist such value (and maybe all of the values sent in `UpstreamInventoryHello`) when it first starts.
+- [`install-node.sh`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/web/scripts/node-join/install.sh): `export TELEPORT_INSTALL_METHOD_NODE_SCRIPT="true"` will be added to this script. It is the recommended way to install SSH nodes, apps and many databases. Even though `export` doesn't persist across restarts, we can have the agent persist such value (and maybe all of the values sent in `UpstreamInventoryAgentMetadata`) when it first starts.
 - `systemctl`: Tracking whether the agent is running using `systemctl` does not require a new environment variable. For this, we'll simply check if `systemctl status teleport.service` succeeds and, if so, if it contains the string `"active (running)"`.
 
 The installation methods that follow won't be tracked for now.
@@ -163,7 +175,7 @@ Later on, we may try to track these if, once we start tracking the above install
 - built from source: While it's technically possible for customers to build Teleport from source, we won't try to track this installation method as it seems an unlikely use-case.
 - `homebrew`: It's also possible to install Teleport on macOS using `homebrew`. The Teleport package in `homebrew` is not maintained by us, so we will also not track this installation method.
 
-In summary, for now we'll have the following values in `UpstreamInventoryHello.InstallMethods`:
+In summary, for now we'll have the following values in `UpstreamInventoryAgentMetadata.InstallMethods`:
 - `dockerfile`
 - `helm-kube-agent`
 - `node-script`
@@ -189,7 +201,7 @@ For this, we'll call `client.ServerVersion()` and check if the returned `gitVers
 
 In AKS, the git version looks like `"v1.25.2"`, so it's not possible to detect this environment using this method. (This is also a problem for Helm charts, as reported in [Azure/AKS#3375](https://github.com/Azure/AKS/issues/3375).)
 
-In the end, `UpstreamInventoryHello.ContainerOrchestrator` will be set to:
+In the end, `UpstreamInventoryAgentMetadata.ContainerOrchestrator` will be set to:
 - `kubernetes-eks` if on EKS
 - `kubernetes-gke` if on GKE
 - `kubernetes-unknown` otherwise (AKS, other cloud provider, or no cloud provider)
@@ -206,13 +218,13 @@ The only way to determine this seems to be by hitting certain HTTP endpoints spe
 The above work will be divided in the following tasks:
 
 1. Add new message type `AgentMetadataEvent` to PreHog.
-2. Extend `UpstreamInventoryHello` message with new fields. These will be empty initially. (This is okay since being empty means that the field could not be determined, which may happen anyways.)
-3. Extend auth server to convert `UpstreamInventoryHello` messages to `AgentMetadataEvent` messages and push them to PreHog.
-4. Gradually instrument & add new code that fills each new `UpstreamInventoryHello` message field.
+2. Add new message type `UpstreamInventoryAgentMetadata`. These will be empty initially, except for the fields common with `UpstreamInventoryHello`. This is okay since being empty means that the field could not be determined, which may happen anyways.
+3. Extend auth server to convert `UpstreamInventoryAgentMetadata` messages to `AgentMetadataEvent` messages and push them to PreHog.
+4. Gradually instrument & add new code that fills each new `UpstreamInventoryAgentMetadata` message field.
 
-We could decide to do step 4 together with step 2 if we don't want to risk adding fields to `UpstreamInventoryHello` that possibly won't be used in the end (if for some reason we figure out they can't/shouldn't be tracked).
+We could decide to do step 4 together with step 2 if we don't want to risk adding fields to `UpstreamInventoryAgentMetadata` that possibly won't be used in the end (if for some reason we figure out they can't/shouldn't be tracked).
 However, step 4 requires several changes (Go code & files used by the multiple installation methods) which we may want to review separately.
-A similar reasoning also applies to step 1 since each field in `AgentMetadataEvent` should only exist if it also exists in `UpstreamInventoryHello`.
+A similar reasoning also applies to step 1 since each field in `AgentMetadataEvent` should only exist if it also exists in `UpstreamInventoryAgentMetadata`.
 
 ### Security
 
@@ -230,3 +242,4 @@ Data analysis and visualization is not a goal for this RFD, so no UX concerns fo
 - Should we consider [Teleport AMIs](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/aws/terraform/AMIS.md) an installation method?
 - Is the [`install`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/install) script used for anything else?
 - Which container runtimes are we interested in tracking?
+- What happens if the agent is upgraded before the auth server, and the auth server does not know about `UpstreamInventoryAgentMetadata`?
