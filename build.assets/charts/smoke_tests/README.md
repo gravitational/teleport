@@ -1,6 +1,6 @@
 # Docker Image Smoke Tests
 
-This directory contains some smoke tests for our Docker images. Somke tests are 
+This directory contains some smoke tests for our Docker images. Smoke tests are 
 quick go-or-no-go tests to check and see if the images we're shipping meet some 
 basic functionality standard.
 
