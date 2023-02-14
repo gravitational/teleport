@@ -1,3 +1,7 @@
+# Create an alias to the assets image. Ref: https://github.com/docker/for-mac/issues/2155
+ARG BUILDARCH
+FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport12-${BUILDARCH} AS teleport-buildbox-centos7-assets
+
 FROM centos:7 AS libbpf
 
 # Install required dependencies.
@@ -151,9 +155,6 @@ RUN make -C /opt/pam_teleport install
 
 RUN chmod a-w /
 
-# Download pre-built CentOS 7 assets with clang needed to build BPF tools.
-RUN cd / && curl -L https://s3.amazonaws.com/clientbuilds.gravitational.io/go/centos7-assets.tar.gz | tar -xz
-
 # Copy libbpf into the final image.
 COPY --from=libbpf /opt/libbpf/usr /usr
 
@@ -184,6 +185,10 @@ COPY --from=boringssl /opt/boringssl /opt/boringssl
 # https://github.com/cloudflare/boring#support-for-pre-built-binaries
 ENV BORING_BSSL_PATH=/opt/boringssl
 ENV BORING_BSSL_INCLUDE_PATH=/opt/boringssl/include
+
+# Download pre-built CentOS 7 assets with clang needed to build BPF tools.
+ARG BUILDARCH
+COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
