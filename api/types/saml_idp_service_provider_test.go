@@ -27,11 +27,13 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 	tests := []struct {
 		name             string
 		entityDescriptor string
+		entityID         string
 		errAssertion     require.ErrorAssertionFunc
 	}{
 		{
 			name:             "valid entity descriptor",
 			entityDescriptor: testEntityDescriptor,
+			entityID:         "IAMShowcase",
 			errAssertion:     require.NoError,
 		},
 		{
@@ -40,18 +42,8 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			errAssertion:     require.Error,
 		},
 		{
-			name:             "entity descriptor only spaces",
-			entityDescriptor: "    ",
-			errAssertion:     require.Error,
-		},
-		{
-			name:             "no XML",
-			entityDescriptor: "this is not valid XML",
-			errAssertion:     require.Error,
-		},
-		{
-			name:             "invalid xml",
-			entityDescriptor: "<test1><test2 />",
+			name:             "empty entity ID",
+			entityDescriptor: testEntityDescriptor,
 			errAssertion:     require.Error,
 		},
 	}
@@ -62,6 +54,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 				Name: "test",
 			}, SAMLIdPServiceProviderSpecV1{
 				EntityDescriptor: test.entityDescriptor,
+				EntityID:         test.entityID,
 			})
 
 			test.errAssertion(t, err)
@@ -70,8 +63,7 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 }
 
 // A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.
-const testEntityDescriptor = `
-<?xml version="1.0" encoding="UTF-8"?>
+const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
    <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
       <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
