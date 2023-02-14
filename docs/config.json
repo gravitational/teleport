@@ -302,7 +302,7 @@
             }
           ]
         },
-		{
+        {
           "title": "Login Rules",
           "slug": "/access-controls/login-rules/",
           "forScopes": ["enterprise", "oss", "cloud"],
@@ -317,8 +317,8 @@
               "slug": "/access-controls/login-rules/reference/",
               "forScopes": ["enterprise", "cloud"]
             }
-		  ]
-		},
+          ]
+        },
         {
           "title": "Access Requests",
           "slug": "/access-controls/access-requests/",
