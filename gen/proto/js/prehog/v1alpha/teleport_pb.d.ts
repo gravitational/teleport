@@ -1003,6 +1003,31 @@ export namespace KubeRequestEvent {
     }
 }
 
+export class SFTPEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): SFTPEvent;
+
+    getAction(): number;
+    setAction(value: number): SFTPEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SFTPEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: SFTPEvent): SFTPEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SFTPEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SFTPEvent;
+    static deserializeBinaryFromReader(message: SFTPEvent, reader: jspb.BinaryReader): SFTPEvent;
+}
+
+export namespace SFTPEvent {
+    export type AsObject = {
+        userName: string,
+        action: number,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -1212,6 +1237,12 @@ export class SubmitEventRequest extends jspb.Message {
     setKubeRequest(value?: KubeRequestEvent): SubmitEventRequest;
 
 
+    hasSftp(): boolean;
+    clearSftp(): void;
+    getSftp(): SFTPEvent | undefined;
+    setSftp(value?: SFTPEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1261,6 +1292,7 @@ export namespace SubmitEventRequest {
         uiCreateNewRoleCancelClick?: UICreateNewRoleCancelClickEvent.AsObject,
         uiCreateNewRoleViewDocumentationClick?: UICreateNewRoleViewDocumentationClickEvent.AsObject,
         kubeRequest?: KubeRequestEvent.AsObject,
+        sftp?: SFTPEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1331,6 +1363,8 @@ export namespace SubmitEventRequest {
     UI_CREATE_NEW_ROLE_VIEW_DOCUMENTATION_CLICK = 35,
 
     KUBE_REQUEST = 36,
+
+    SFTP = 37,
 
     }
 
