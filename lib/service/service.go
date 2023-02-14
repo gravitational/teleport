@@ -732,7 +732,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 	// so not all connections can be kept forever.
 	timeoutCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 	defer cancel()
-	srv.Shutdown(timeoutCtx)
+	srv.Shutdown(services.ProcessReloadContext(timeoutCtx))
 	if timeoutCtx.Err() == context.DeadlineExceeded {
 		// The new service can start initiating connections to the old service
 		// keeping it from shutting down gracefully, or some external
