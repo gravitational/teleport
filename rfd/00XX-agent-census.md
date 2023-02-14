@@ -230,7 +230,6 @@ A similar reasoning also applies to step 1 since each field in `AgentMetadataEve
 
 Detecting the __9. Container orchestrator__ and __10. Cloud environment__ requires hitting certain HTTP endpoints.
 This may be considered too intrusive, so we have to make a decision on whether we really want to track it and argue why it's okay to do so.
-Besides this, there doesn't seem to be any further concern.
 
 ### UX
 
