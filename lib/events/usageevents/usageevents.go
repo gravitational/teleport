@@ -135,6 +135,12 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 		return trace.Wrap(u.report(&services.UsageKubeRequest{
 			UserName: e.User,
 		}))
+
+	case *apievents.SFTP:
+		return trace.Wrap(u.report(&services.UsageSFTP{
+			UserName: e.User,
+			Action:   int32(e.Action),
+		}))
 	}
 
 	return nil
