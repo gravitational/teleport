@@ -58,14 +58,14 @@ func generateSchema(
 
 	for _, c := range config {
 		if err := generator.parseResource(file, c); err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 	}
 
 	tf, err := transformer(generator)
 
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	for _, f := range tf {
@@ -90,15 +90,15 @@ func RunPlugin(
 	req := command.Read()
 
 	if len(req.FileToGenerate) == 0 {
-		return errors.New("no input file provided")
+		return trace.Wrap(errors.New("no input file provided"))
 	}
 	if len(req.FileToGenerate) > 1 {
-		return errors.New("too many input files")
+		return trace.Wrap(errors.New("too many input files"))
 	}
 
 	gen, err := newGenerator(req)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
 	rootFileName := req.FileToGenerate[0]
@@ -107,7 +107,7 @@ func RunPlugin(
 		file := gen.AddFile(fileDesc)
 		if fileDesc.GetName() == rootFileName {
 			if err := generateSchema(file, config, transformer, gen.Response); err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 		}
 	}
