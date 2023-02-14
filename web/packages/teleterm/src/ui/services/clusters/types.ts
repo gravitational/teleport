@@ -82,10 +82,4 @@ export { tsh };
 export type ClustersServiceState = {
   clusters: Map<uri.ClusterUri, tsh.Cluster>;
   gateways: Map<uri.GatewayUri, tsh.Gateway>;
-  servers: Map<uri.ServerUri, tsh.Server>;
-  kubes: Map<uri.KubeUri, tsh.Kube>;
-  dbs: Map<uri.DatabaseUri, tsh.Database>;
-  kubesSyncStatus: Map<uri.ClusterUri, SyncStatus>;
-  serversSyncStatus: Map<uri.ClusterUri, SyncStatus>;
-  dbsSyncStatus: Map<uri.ClusterUri, SyncStatus>;
 };
