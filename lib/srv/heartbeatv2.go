@@ -142,9 +142,9 @@ type HeartbeatV2 struct {
 	fallbackFailed error
 	icsUnavailable error
 
-	announce *interval.Interval
-	poll     *interval.Interval
-	dc       *interval.Interval
+	announce      *interval.Interval
+	poll          *interval.Interval
+	degradedCheck *interval.Interval
 
 	// fallbackBackoffTime approximately replicate the backoff used by heartbeat V1 when an announce
 	// fails. It can be removed once we remove the fallback announce operation, since control-stream
@@ -222,10 +222,10 @@ func (h *HeartbeatV2) run() {
 	// down.  Since we no longer perform keepalives, we instead simply emit an error on this
 	// interval when we don't have a healthy control stream.
 	// TODO(fspmarshall): find a more elegant solution to this problem.
-	h.dc = interval.New(interval.Config{
+	h.degradedCheck = interval.New(interval.Config{
 		Duration: apidefaults.ServerKeepAliveTTL(),
 	})
-	defer h.dc.Stop()
+	defer h.degradedCheck.Stop()
 
 	h.testEvent(hbv2Start)
 	defer h.testEvent(hbv2Close)
@@ -240,6 +240,7 @@ func (h *HeartbeatV2) run() {
 					h.testEvent(hbv2FallbackOk)
 					// reset announce interval and state on successful announce
 					h.announce.Reset()
+					h.degradedCheck.Reset()
 					h.shouldAnnounce = false
 					h.onHeartbeat(nil)
 
@@ -257,9 +258,6 @@ func (h *HeartbeatV2) run() {
 			} else {
 				h.testEvent(hbv2FallbackBackoff)
 			}
-		} else {
-			// we want to heartbeat, but cannot due to missing control stream
-			h.onHeartbeat(h.icsUnavailable)
 		}
 
 		// wait for a sender to become available. until one does, announce/poll
@@ -269,7 +267,7 @@ func (h *HeartbeatV2) run() {
 		case sender := <-h.handle.Sender():
 			// sender is available, hand off to the primary run loop
 			h.runWithSender(sender)
-			h.dc.Reset()
+			h.degradedCheck.Reset()
 		case <-h.announce.Next():
 			h.testEvent(hbv2AnnounceInterval)
 			h.shouldAnnounce = true
@@ -280,8 +278,11 @@ func (h *HeartbeatV2) run() {
 			} else {
 				h.testEvent(hbv2PollSame)
 			}
-		case <-h.dc.Next():
-			if !h.inner.Poll() && !h.shouldAnnounce {
+		case <-h.degradedCheck.Next():
+			if !h.inner.SupportsFallback() || (!h.inner.Poll() && !h.shouldAnnounce) {
+				// if we don't have fallback and/or aren't planning to hit the fallback
+				// soon, then we need to emit a heartbeat error in order to inform the
+				// rest of teleport that we are in a degraded state.
 				h.onHeartbeat(noSenderErr)
 			}
 		case ch := <-h.testAnnounce:
@@ -305,6 +306,7 @@ func (h *HeartbeatV2) runWithSender(sender inventory.DownstreamSender) {
 				h.testEvent(hbv2AnnounceOk)
 				// reset announce interval and state on successful announce
 				h.announce.Reset()
+				h.degradedCheck.Reset()
 				h.shouldAnnounce = false
 				h.onHeartbeat(nil)
 
@@ -333,6 +335,12 @@ func (h *HeartbeatV2) runWithSender(sender inventory.DownstreamSender) {
 				h.shouldAnnounce = true
 			} else {
 				h.testEvent(hbv2PollSame)
+			}
+		case <-h.degradedCheck.Next():
+			if !h.inner.Poll() && !h.shouldAnnounce {
+				// its been a while since we announced and we are not in a retry/announce
+				// state now, so clear up any degraded state.
+				h.onHeartbeat(nil)
 			}
 		case waiter := <-h.testAnnounce:
 			h.shouldAnnounce = true
