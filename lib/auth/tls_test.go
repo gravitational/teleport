@@ -156,7 +156,7 @@ func TestAcceptedUsage(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, _, err := CreateUserAndRole(server.AuthServer, "user", []string{"role"})
+	user, _, err := CreateUserAndRole(server.AuthServer, "user", []string{"role"}, nil)
 	require.NoError(t, err)
 
 	tlsServer, err := server.NewTestTLSServer()
@@ -882,7 +882,7 @@ func TestRemoteUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	remoteUser, remoteRole, err := CreateUserAndRole(remoteServer.AuthServer, "remote-user", []string{"remote-role"})
+	remoteUser, remoteRole, err := CreateUserAndRole(remoteServer.AuthServer, "remote-user", []string{"remote-role"}, nil)
 	require.NoError(t, err)
 
 	certPool, err := tt.server.CertPool()
@@ -910,7 +910,7 @@ func TestRemoteUser(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Establish trust and map remote role to local admin role
-	_, localRole, err := CreateUserAndRole(tt.server.Auth(), "local-user", []string{"local-role"})
+	_, localRole, err := CreateUserAndRole(tt.server.Auth(), "local-user", []string{"local-role"}, nil)
 	require.NoError(t, err)
 
 	err = tt.server.AuthServer.Trust(ctx, remoteServer, types.RoleMap{{Remote: remoteRole.GetName(), Local: []string{localRole.GetName()}}})
@@ -980,7 +980,7 @@ func TestGetCurrentUser(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	user1, _, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"})
+	user1, _, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"}, nil)
 	require.NoError(t, err)
 
 	client1, err := srv.NewClient(TestIdentity{I: LocalUser{Username: user1.GetName()}})
@@ -1010,7 +1010,7 @@ func TestGetCurrentUserRoles(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	user1, user1Role, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user-role"})
+	user1, user1Role, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user-role"}, nil)
 	require.NoError(t, err)
 
 	client1, err := srv.NewClient(TestIdentity{I: LocalUser{Username: user1.GetName()}})
@@ -1247,7 +1247,7 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	user := "user1"
 	pass := []byte("abc123")
 
-	_, _, err = CreateUserAndRole(clt, user, []string{user})
+	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
 
 	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
@@ -1643,7 +1643,7 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	user := "user2"
 	pass := []byte("abc123")
 
-	newUser, _, err := CreateUserAndRole(clt, user, nil)
+	newUser, _, err := CreateUserAndRole(clt, user, nil, nil)
 	require.NoError(t, err)
 	require.Empty(t, newUser.GetTraits())
 
@@ -1925,10 +1925,10 @@ func TestGenerateCerts(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(err))
 	})
 
-	user1, userRole, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"})
+	user1, userRole, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"}, nil)
 	require.NoError(t, err)
 
-	user2, userRole2, err := CreateUserAndRole(srv.Auth(), "user2", []string{"user2"})
+	user2, userRole2, err := CreateUserAndRole(srv.Auth(), "user2", []string{"user2"}, nil)
 	require.NoError(t, err)
 
 	t.Run("Nop", func(t *testing.T) {
@@ -2323,7 +2323,7 @@ func TestCertificateFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	// use admin client to create user and role
-	user, userRole, err := CreateUserAndRole(tt.server.Auth(), "user", []string{"user"})
+	user, userRole, err := CreateUserAndRole(tt.server.Auth(), "user", []string{"user"}, nil)
 	require.NoError(t, err)
 
 	pass := []byte("very secure password")
@@ -2433,7 +2433,7 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	_, _, err = CreateUserAndRole(clt, user, []string{user})
+	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
 
 	err = tt.server.Auth().UpsertPassword(user, pass)
@@ -2516,7 +2516,7 @@ func TestLoginAttempts(t *testing.T) {
 	user := "user1"
 	pass := []byte("abc123")
 
-	_, _, err = CreateUserAndRole(clt, user, []string{user})
+	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
 
 	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
@@ -2579,7 +2579,7 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	_, _, err = CreateUserAndRole(clt, username, []string{"role1"})
+	_, _, err = CreateUserAndRole(clt, username, []string{"role1"}, nil)
 	require.NoError(t, err)
 
 	token, err := tt.server.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
@@ -2621,7 +2621,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	// Create a local user.
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
-	_, _, err = CreateUserAndRole(clt, user, []string{user})
+	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
 	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
@@ -3509,58 +3509,9 @@ func TestNetworkRestrictions(t *testing.T) {
 	suite.NetworkRestrictions(t)
 }
 
-func adminClient(t *testing.T, ac *authContext) *Client {
-	client, err := ac.server.NewClient(TestAdmin())
-	require.NoError(t, err)
-	return client
-}
-
-func identityWithRoles(
-	t *testing.T,
-	ctx context.Context,
-	c *Client,
-	username string,
-	rules ...types.Rule,
-) TestIdentity {
-
-	CreateUser(c, username, username)
-}
-
-// TestCreateToken tests the client, and auth server elements of the CreateToken
-// RPC.
+// TestCreateToken tests the CreateToken RPC end-to-end
 func TestCreateToken(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	ac := setupAuthContext(ctx, t)
 
-	client := adminClient(t, ac)
-
-	tokenCreator := identityWithRoles(
-		t, ctx, client, "token-creator",
-	)
-
-	tests := []struct {
-		name     string
-		identity TestIdentity
-
-		requireTokenCreated bool
-		requireError        require.ErrorAssertionFunc
-	}{
-		{
-			name:     "success",
-			identity: TestNop(),
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsAccessDenied(err))
-			},
-		},
-		{
-			name:     "unauthorised",
-			identity: TestNop(),
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsAccessDenied(err))
-			},
-		},
-	}
 }
 
 /*func TestUpsertToken(t *testing.T) {

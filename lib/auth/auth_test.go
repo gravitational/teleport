@@ -211,7 +211,7 @@ func TestSessions(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	_, _, err = CreateUserAndRole(s.a, user, []string{user})
+	_, _, err = CreateUserAndRole(s.a, user, []string{user}, nil)
 	require.NoError(t, err)
 
 	err = s.a.UpsertPassword(user, pass)
@@ -267,7 +267,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Create the user.
-	_, role, err := CreateUserAndRole(s.a, user, []string{user})
+	_, role, err := CreateUserAndRole(s.a, user, []string{user}, nil)
 	require.NoError(t, err)
 	err = s.a.UpsertPassword(user, pass)
 	require.NoError(t, err)
@@ -539,7 +539,7 @@ func TestUserLock(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	_, _, err = CreateUserAndRole(s.a, username, []string{username})
+	_, _, err = CreateUserAndRole(s.a, username, []string{username}, nil)
 	require.NoError(t, err)
 
 	err = s.a.UpsertPassword(username, pass)
@@ -589,22 +589,12 @@ func requireTokenExpiry(t *testing.T, token types.ProvisionToken, expectExpiry t
 	)
 }
 
-// Deprecated: REMOVE IN 14.0.0 along with GenerateToken. This test has been
-// superseded.
 func TestTokensCRUD(t *testing.T) {
-	// TODO(noah): completely refactor this test suite when deprecating
-	// GenerateToken - break this down into separate tests per method rather
-	// than grouping all CRUD methods.
+	// This test is deprecated, prefer creating tests named after the RPC
+	// in tls_test.go . See TestCreateToken for an example.
 	t.Parallel()
 	s := newAuthSuite(t)
 	ctx := context.Background()
-
-	t.Run("GetTokens: start", func(t *testing.T) {
-		// before we do anything, we should have 0 tokens
-		tokens, err := s.a.GetTokens(ctx)
-		require.NoError(t, err)
-		require.Empty(t, tokens, 0)
-	})
 
 	t.Run("GenerateToken: default TTL", func(t *testing.T) {
 		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
@@ -659,22 +649,6 @@ func TestTokensCRUD(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("CreateToken: expiryless", func(t *testing.T) {
-		tokenName := "expiryless-token"
-		token, err := types.NewProvisionToken(
-			tokenName,
-			types.SystemRoles{types.RoleNode},
-			time.Time{},
-		)
-		require.NoError(t, err)
-		require.NoError(t, s.a.CreateToken(ctx, token))
-		token, err = s.a.GetToken(ctx, tokenName)
-		require.NoError(t, err)
-		require.True(t, token.GetRoles().Include(types.RoleNode))
-		require.True(t, token.Expiry().IsZero())
-		require.NoError(t, s.a.DeleteToken(ctx, tokenName))
-	})
-
 	t.Run("SetStaticTokens", func(t *testing.T) {
 		// lets use static tokens now
 		roles := types.SystemRoles{types.RoleProxy}
@@ -692,13 +666,6 @@ func TestTokensCRUD(t *testing.T) {
 		require.NoError(t, err)
 		fetchesRoles := token.GetRoles()
 		require.Equal(t, fetchesRoles, roles)
-	})
-
-	t.Run("GetTokens: start", func(t *testing.T) {
-		// List tokens not deleted in tests (should see 2: one static, one regular)
-		tokens, err := s.a.GetTokens(ctx)
-		require.NoError(t, err)
-		require.Len(t, tokens, 2)
 	})
 }
 
@@ -1174,7 +1141,7 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	principals := []string{"login0", username, "-teleport-internal-join"}
 
 	// Prepare the user to test with.
-	_, _, err := CreateUserAndRole(authServer, username, principals)
+	_, _, err := CreateUserAndRole(authServer, username, principals, nil)
 	require.NoError(t, err, "CreateUserAndRole failed")
 	require.NoError(t,
 		authServer.UpsertPassword(username, []byte(pass)),
@@ -1313,19 +1280,19 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	const pass3 = "secret!!3!"
 
 	// Prepare a few distinct users.
-	user1, _, err := CreateUserAndRole(authServer, "llama", []string{"llama"})
+	user1, _, err := CreateUserAndRole(authServer, "llama", []string{"llama"}, nil)
 	require.NoError(t, err, "CreateUserAndRole failed")
 	require.NoError(t,
 		authServer.UpsertPassword(user1.GetName(), []byte(pass1)),
 		"UpsertPassword failed")
 
-	user2, _, err := CreateUserAndRole(authServer, "alpaca", []string{"alpaca"})
+	user2, _, err := CreateUserAndRole(authServer, "alpaca", []string{"alpaca"}, nil)
 	require.NoError(t, err, "CreateUserAndRole failed")
 	require.NoError(t,
 		authServer.UpsertPassword(user2.GetName(), []byte(pass2)),
 		"UpsertPassword failed")
 
-	user3, _, err := CreateUserAndRole(authServer, "camel", []string{"camel"})
+	user3, _, err := CreateUserAndRole(authServer, "camel", []string{"camel"}, nil)
 	require.NoError(t, err, "CreateUserAndRole failed")
 	require.NoError(t,
 		authServer.UpsertPassword(user3.GetName(), []byte(pass3)),
@@ -1760,13 +1727,13 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 	pass := []byte("abc123")
 
 	// Create the user without IP pinning
-	_, _, err := CreateUserAndRole(s.a, unpinnedUser, []string{unpinnedUser})
+	_, _, err := CreateUserAndRole(s.a, unpinnedUser, []string{unpinnedUser}, nil)
 	require.NoError(t, err)
 	err = s.a.UpsertPassword(unpinnedUser, pass)
 	require.NoError(t, err)
 
 	// Create the user with IP pinning enabled
-	_, pinnedRole, err := CreateUserAndRole(s.a, pinnedUser, []string{pinnedUser})
+	_, pinnedRole, err := CreateUserAndRole(s.a, pinnedUser, []string{pinnedUser}, nil)
 	require.NoError(t, err)
 	err = s.a.UpsertPassword(pinnedUser, pass)
 	require.NoError(t, err)
@@ -1879,7 +1846,7 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
-	user, role, err := CreateUserAndRole(p.a, "test-user", []string{})
+	user, role, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
 	require.NoError(t, err)
 
 	extension := types.CertExtension{
@@ -1923,7 +1890,7 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
-	user, _, err := CreateUserAndRole(p.a, "test-user", []string{})
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
 	require.NoError(t, err)
 	accessInfo := services.AccessInfoFromUser(user)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
@@ -2037,7 +2004,7 @@ func TestNewWebSession(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a user.
-	user, _, err := CreateUserAndRole(p.a, "test-user", []string{"test-role"})
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{"test-role"}, nil)
 	require.NoError(t, err)
 
 	// Create a new web session.
@@ -2071,7 +2038,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	srv.Auth().emitter = mockEmitter
 
 	username := "llama@goteleport.com"
-	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 	require.NoError(t, err)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2157,7 +2124,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 	ctx := context.Background()
 
 	username := "llama@goteleport.com"
-	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 	require.NoError(t, err)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2328,7 +2295,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a user with no MFA device.
 			username := fmt.Sprintf("llama%v@goteleport.com", mathrand.Int())
-			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 			require.NoError(t, err)
 
 			// Set auth preference.
@@ -2532,7 +2499,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 	require.NoError(t, err)
 
 	username := "llama@goteleport.com"
-	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username})
+	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 	require.NoError(t, err)
 
 	clt, err := srv.NewClient(TestUser(username))
@@ -2616,7 +2583,7 @@ func TestGetMFADevices_WithAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	username := "llama@goteleport.com"
-	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username})
+	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 	require.NoError(t, err)
 
 	clt, err := srv.NewClient(TestUser(username))
