@@ -850,6 +850,8 @@ install_from_repo(){
         # By default, use the current version's channel.
         REPO_CHANNEL=v"${TELEPORT_VERSION//.*/}"
     fi
+
+    # Populate $ID, $VERSION_ID, $VERSION_CODENAME and other env vars identifying the OS.
     # shellcheck disable=SC1091
     . /etc/os-release
 
@@ -891,6 +893,7 @@ is_repo_available(){
         return 1
     fi
 
+    # Populate $ID, $VERSION_ID and other env vars identifying the OS.
     # shellcheck disable=SC1091
     . /etc/os-release
 
