@@ -59,7 +59,7 @@ We want to start tracking the following data in PreHog:
 
 #### Data collection
 
-Currently, when an agent first starts, the [inventory control system](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/inventory) sends an [`UpstreamInventoryHello`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/api/proto/teleport/legacy/client/proto/authservice.proto#L1936-L1953) message to the auth server.
+Currently, when an agent first starts, the [inventory control system](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/inventory) (ICS) sends an [`UpstreamInventoryHello`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/api/proto/teleport/legacy/client/proto/authservice.proto#L1936-L1953) message to the auth server.
 This message has the following fields:
 
 ```protobuf
@@ -79,7 +79,7 @@ Some of the agent metadata may be slow to compute (due to HTTP requests), and th
 Instead, when the auth server handle is created at the agent ([here](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/inventory/inventory.go#L87-L97)), a new _agent metadata tracker_ goroutine will be spawned in order to calculate the agent metadata in the background.
 
 Then, once the agent has sent the `UpstreamInventoryHello` to the auth server and received the `UpstreamInventoryHello` reply ([here](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/inventory/inventory.go#L167-L191)), it will request the metadata from the agent metadata tracker and send it to the auth server once it is calculated.
-This step is non-blocking, and thus the proposed mechanism should not affect the normal operation of the inventory control system.
+This step is non-blocking, and thus the proposed mechanism should not affect the normal operation of the ICS.
 
 An initial sketch of this flow can be found in [7737d46](https://github.com/gravitational/teleport/commit/7737d46912a990f37c10e2778c21a3dc1a52af02).
 
@@ -131,7 +131,7 @@ enum TeleportAccessProtocol {
 
 #### Data computation
 
-Both the Teleport version and active Teleport services (which can be used to determine the Teleport access protocols enabled) are already tracked in the inventory control system.
+Both the Teleport version and active Teleport services (which can be used to determine the Teleport access protocols enabled) are already tracked in the ICS.
 We detail below how the remaining data will be computed.
 
 ##### 3. OS
