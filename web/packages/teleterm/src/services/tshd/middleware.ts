@@ -15,7 +15,6 @@
  */
 
 import * as grpc from '@grpc/grpc-js';
-
 import { isObject, transform } from 'lodash';
 
 import Logger from 'teleterm/logger';

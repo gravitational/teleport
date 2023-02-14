@@ -25,8 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 )
 
 var log = logrus.WithField(trace.Component, "cluster_auth_test")
