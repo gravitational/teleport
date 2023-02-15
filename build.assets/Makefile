@@ -25,7 +25,7 @@ NODE_VERSION ?= 16.18.1
 
 # run lint-rust check locally before merging code after you bump this
 RUST_VERSION ?= 1.67.0
-LIBBPF_VERSION ?= 0.7.0-teleport
+LIBBPF_VERSION ?= 1.0.1
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
 UID := $$(id -u)
@@ -51,7 +51,7 @@ include images.mk
 BUILDBOX_NAME=$(BUILDBOX)
 BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
 
-DOCSBOX=public.ecr.aws/gravitational/docs
+DOCSBOX=ghcr.io/gravitational/docs
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)

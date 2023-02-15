@@ -710,11 +710,11 @@ proxy_service:
 #### AWS CLI
 
 Teleport application access extends AWS console support to CLI . Users are able
-to log into their AWS console using `tsh app login` and use `tsh aws` commands
+to log into their AWS console using `tsh apps login` and use `tsh aws` commands
 to interact with AWS APIs.
 
 See more info in the
-[documentation](docs/pages/application-access/guides/aws-console.mdx).
+[documentation](docs/pages/application-access/cloud-apis/aws-console.mdx).
 
 #### Application and Database Dynamic Registration
 
@@ -849,7 +849,7 @@ View the Cloud SQL MySQL [guide](docs/pages/database-access/guides/mysql-cloudsq
 
 Added support for [AWS Console](https://aws.amazon.com/console) to Teleport Application Access. [#7590](https://github.com/gravitational/teleport/pull/7590)
 
-Teleport Application Access can now automatically sign users into the AWS Management Console using [Identity federation](https://aws.amazon.com/identity/federation). View AWS Management Console [guide](docs/pages/application-access/guides/aws-console.mdx) for more details.
+Teleport Application Access can now automatically sign users into the AWS Management Console using [Identity federation](https://aws.amazon.com/identity/federation). View AWS Management Console [guide](docs/pages/application-access/cloud-apis/aws-console.mdx) for more details.
 
 #### Restricted Sessions
 

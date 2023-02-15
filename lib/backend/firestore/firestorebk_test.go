@@ -22,6 +22,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unsafe"
@@ -190,6 +191,7 @@ type mockFirestoreServer struct {
 	// in the future.
 	firestorepb.FirestoreServer
 
+	mu   sync.RWMutex
 	reqs []proto.Message
 
 	// If set, Commit returns this error.
@@ -202,13 +204,16 @@ func (s *mockFirestoreServer) BatchWrite(ctx context.Context, req *firestorepb.B
 		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
 	}
 
+	s.mu.Lock()
 	s.reqs = append(s.reqs, req)
+	s.mu.Unlock()
+
 	if s.commitErr != nil {
 		return nil, s.commitErr
 	}
 
 	resp := &firestorepb.BatchWriteResponse{}
-	for i := 0; i < len(req.Writes); i++ {
+	for range req.Writes {
 		resp.Status = append(resp.Status, &status.Status{
 			Code: int32(code.Code_OK),
 		})
@@ -312,12 +317,14 @@ func TestDeleteDocuments(t *testing.T) {
 			}
 
 			var committed int
+			mockFirestore.mu.RLock()
 			for _, req := range mockFirestore.reqs {
 				switch r := req.(type) {
 				case *firestorepb.BatchWriteRequest:
 					committed += len(r.Writes)
 				}
 			}
+			mockFirestore.mu.RUnlock()
 
 			require.Equal(t, tt.documents, committed)
 
