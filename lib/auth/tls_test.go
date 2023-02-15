@@ -3520,6 +3520,30 @@ func mustNewToken(
 	return tok
 }
 
+func requireAccessDenied(t require.TestingT, err error, i ...interface{}) {
+	require.True(
+		t,
+		trace.IsAccessDenied(err),
+		"err should be access denied, was: %s", err,
+	)
+}
+
+func requireBadParameter(t require.TestingT, err error, i ...interface{}) {
+	require.True(
+		t,
+		trace.IsBadParameter(err),
+		"err should be bad parameter, was: %s", err,
+	)
+}
+
+func requireNotFound(t require.TestingT, err error, i ...interface{}) {
+	require.True(
+		t,
+		trace.IsNotFound(err),
+		"err should be not found, was: %s", err,
+	)
+}
+
 // TestCreateToken tests the CreateTokenV2 RPC end-to-end
 func TestCreateToken(t *testing.T) {
 	t.Parallel()
@@ -3566,13 +3590,7 @@ func TestCreateToken(t *testing.T) {
 			token: mustNewToken(
 				t, "access denied", types.SystemRoles{types.RoleNode}, time.Time{},
 			),
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(
-					t,
-					trace.IsAccessDenied(err),
-					"err should be access denied, was: %s", err,
-				)
-			},
+			requireError: requireAccessDenied,
 		},
 		{
 			name:     "already exists",
@@ -3587,16 +3605,10 @@ func TestCreateToken(t *testing.T) {
 			},
 		},
 		{
-			name:     "invalid token",
-			identity: TestUser(privilegedUser.GetName()),
-			token:    &types.ProvisionTokenV2{},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(
-					t,
-					trace.IsBadParameter(err),
-					"err should be bad parameter, was: %s", err,
-				)
-			},
+			name:         "invalid token",
+			identity:     TestUser(privilegedUser.GetName()),
+			token:        &types.ProvisionTokenV2{},
+			requireError: requireBadParameter,
 		},
 	}
 
@@ -3680,25 +3692,13 @@ func TestUpsertToken(t *testing.T) {
 			token: mustNewToken(
 				t, "access denied", types.SystemRoles{types.RoleNode}, time.Time{},
 			),
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(
-					t,
-					trace.IsAccessDenied(err),
-					"err should be access denied, was: %s", err,
-				)
-			},
+			requireError: requireAccessDenied,
 		},
 		{
-			name:     "invalid token",
-			identity: TestUser(privilegedUser.GetName()),
-			token:    &types.ProvisionTokenV2{},
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(
-					t,
-					trace.IsBadParameter(err),
-					"err should be bad parameter, was: %s", err,
-				)
-			},
+			name:         "invalid token",
+			identity:     TestUser(privilegedUser.GetName()),
+			token:        &types.ProvisionTokenV2{},
+			requireError: requireBadParameter,
 		},
 	}
 
@@ -3771,15 +3771,9 @@ func TestGetTokens(t *testing.T) {
 			requireResponse: true,
 		},
 		{
-			name:     "access denied",
-			identity: TestNop(),
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(
-					t,
-					trace.IsAccessDenied(err),
-					"err should be access denied, was: %s", err,
-				)
-			},
+			name:         "access denied",
+			identity:     TestNop(),
+			requireError: requireAccessDenied,
 		},
 	}
 
@@ -3841,28 +3835,16 @@ func TestGetToken(t *testing.T) {
 			requireResponse: true,
 		},
 		{
-			name:      "access denied",
-			identity:  TestNop(),
-			tokenName: pt.GetName(),
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(
-					t,
-					trace.IsAccessDenied(err),
-					"err should be access denied, was: %s", err,
-				)
-			},
+			name:         "access denied",
+			identity:     TestNop(),
+			tokenName:    pt.GetName(),
+			requireError: requireAccessDenied,
 		},
 		{
-			name:      "not found",
-			tokenName: "does-not-exist",
-			identity:  TestUser(privilegedUser.GetName()),
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(
-					t,
-					trace.IsNotFound(err),
-					"err should be not found, was: %s", err,
-				)
-			},
+			name:         "not found",
+			tokenName:    "does-not-exist",
+			identity:     TestUser(privilegedUser.GetName()),
+			requireError: requireNotFound,
 		},
 	}
 
@@ -3924,28 +3906,16 @@ func TestDeleteToken(t *testing.T) {
 			requireTokenDeleted: true,
 		},
 		{
-			name:      "access denied",
-			identity:  TestNop(),
-			tokenName: pt.GetName(),
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(
-					t,
-					trace.IsAccessDenied(err),
-					"err should be access denied, was: %s", err,
-				)
-			},
+			name:         "access denied",
+			identity:     TestNop(),
+			tokenName:    pt.GetName(),
+			requireError: requireAccessDenied,
 		},
 		{
-			name:      "not found",
-			tokenName: "does-not-exist",
-			identity:  TestUser(privilegedUser.GetName()),
-			requireError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(
-					t,
-					trace.IsNotFound(err),
-					"err should be not found, was: %s", err,
-				)
-			},
+			name:         "not found",
+			tokenName:    "does-not-exist",
+			identity:     TestUser(privilegedUser.GetName()),
+			requireError: requireNotFound,
 		},
 	}
 
