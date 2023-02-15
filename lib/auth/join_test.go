@@ -59,7 +59,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 
 	// create a dynamic token
 	dynamicToken := generateTestToken(
-		t, ctx, types.SystemRoles{types.RoleNode}, a,
+		ctx, t, types.SystemRoles{types.RoleNode}, a,
 	)
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()

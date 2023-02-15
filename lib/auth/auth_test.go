@@ -675,8 +675,8 @@ type tokenCreatorAndDeleter interface {
 }
 
 func generateTestToken(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	roles types.SystemRoles,
 	auth tokenCreatorAndDeleter,
 ) string {
@@ -709,7 +709,7 @@ func TestBadTokens(t *testing.T) {
 
 	// tampered
 	tok := generateTestToken(
-		t, ctx,
+		ctx, t,
 		types.SystemRoles{types.RoleNode},
 		s.a,
 	)
