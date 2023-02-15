@@ -1,4 +1,4 @@
-# This buf-go.gen.yaml is based on how lib/teleterm's  buf.gen.yaml looked like, not on v12 equivalent.
+# This buf-go.gen.yaml is based on how lib/teleterm's buf.gen.yaml looked like, not on v12 equivalent.
 version: v1
 plugins:
   # Generated using an old version of protoc-gen-go - we can't use the latest
