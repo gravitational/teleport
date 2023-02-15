@@ -74,6 +74,7 @@ require (
 	github.com/gravitational/oxy v0.0.0-20221029012416-9fbf4c444680
 	github.com/gravitational/reporting v0.0.0-20210923183620-237377721140
 	github.com/gravitational/roundtrip v1.0.2
+	github.com/gravitational/teleport-plugins v0.0.0-20230210191358-1defd181af97
 	github.com/gravitational/teleport/api v0.0.0
 	github.com/gravitational/trace v1.2.1
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
@@ -166,8 +167,6 @@ require (
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
-
-require github.com/gravitational/teleport-plugins v0.0.0-20230210191358-1defd181af97
 
 require (
 	cloud.google.com/go v0.109.0 // indirect
