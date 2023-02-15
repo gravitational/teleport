@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// TODO(ravicious): Before introducing any changes, move this file to the /proto dir and
+// remove the generate-grpc-shared script.
+
 syntax = "proto3";
 
 import "google/protobuf/struct.proto";
