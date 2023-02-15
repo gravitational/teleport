@@ -3709,7 +3709,7 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 			requireEventEmitted: true,
 		},
 		{
-			name:     "already exists",
+			name:     "existing token replaced",
 			identity: TestUser(privilegedUser.GetName()),
 			token: mustNewToken(
 				t,
