@@ -3786,10 +3786,29 @@ func TestGRPCServer_GetTokens(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Create Provision token
-	pt := mustNewToken(t, "example-token", types.SystemRoles{types.RoleNode}, time.Time{})
+	t.Run("no tokens", func(t *testing.T) {
+		client, err := ac.server.NewClient(TestUser(privilegedUser.GetName()))
+		require.NoError(t, err)
+		toks, err := client.GetTokens(ctx)
+		require.NoError(t, err)
+		require.Empty(t, toks)
+	})
+
+	// Create tokens to then assert are returned
+	pt := mustNewToken(
+		t,
+		"example-token",
+		types.SystemRoles{types.RoleNode},
+		time.Time{},
+	)
 	require.NoError(t, ac.server.Auth().CreateToken(ctx, pt))
-	// Create static token
+	pt2 := mustNewToken(
+		t,
+		"example-token-2",
+		types.SystemRoles{types.RoleNode},
+		time.Time{},
+	)
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, pt2))
 	st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
 			{
@@ -3800,8 +3819,7 @@ func TestGRPCServer_GetTokens(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, ac.server.Auth().SetStaticTokens(st))
-
-	expectTokens := append([]types.ProvisionToken{pt}, st.GetStaticTokens()...)
+	expectTokens := append([]types.ProvisionToken{pt, pt2}, st.GetStaticTokens()...)
 
 	tests := []struct {
 		name     string
