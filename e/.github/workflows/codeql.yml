@@ -1,17 +1,8 @@
 name: "CodeQL"
 
 on:
-  push:
-    branches:
-      - master
-      - branch/*
-  pull_request:
-    branches:
-      - master
-      - branch/*
-    paths-ignore:
-      - 'rfd/**'
-      - '**.md'
+  schedule:
+    - cron: '0 13 * * *' # At 1:00 PM UTC every day
 
 jobs:
   analyze:
