@@ -126,20 +126,20 @@ func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
 	return cluster, nil
 }
 
-// ResolveFullCluster returns full cluster information. It makes a request to the auth server and includes
-// details about the cluster and logged in user
-func (s *Service) ResolveFullCluster(ctx context.Context, uri string) (*clusters.Cluster, error) {
+// ResolveClusterWithDetails returns fully detailed cluster information. It makes requests to the auth server and includes
+// details about the cluster and logged in user.
+func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*clusters.ClusterWithDetails, error) {
 	cluster, err := s.ResolveCluster(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cluster, err = cluster.EnrichWithDetails(ctx)
+	withDetails, err := cluster.GetWithDetails(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return cluster, nil
+	return withDetails, nil
 }
 
 // ClusterLogout logs a user out from the cluster
