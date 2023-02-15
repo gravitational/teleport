@@ -37,7 +37,10 @@ func newGenerator(req *gogoplugin.CodeGeneratorRequest) (*Forest, error) {
 // SchemaCollection includes the  OpenAPI v3 schemas parsed from a single proto
 // file.
 type SchemaCollection struct {
-	memo  map[string]*Schema
+	// Map of message names to schemas we have already visited. Used for
+	// detecting dependency cycles.
+	memo map[string]*Schema
+	// Map of resource kinds to RootSchemas
 	Roots map[string]*RootSchema
 }
 
