@@ -7,17 +7,19 @@ state: draft
 
 ## What
 
-[TODO]
+This RFD explores possible solutions to the current performance problems in the destkop
+access module.
 
-## Details
+## Why
 
-### Goals
+We want to improve user experiance when using the desktop access module. Currently the main issue
+is insufficent performance of the video rendering which results in choppier experience or noticeable stuttering. Each frame in the RDP protocol consists of (in most cases) 64x64 pixel bitmaps that are assembeld into the full frame. All of these bitmaps needs to be send by the server, received and processed by the client. There are different ways in which we can reduce time to render a frame.
+One of the ways is to reduce number of bitmaps that we need to send over the wire. The other way is to reduce the time to process individual bitmap. In this document we'll discuss some solutions that might fix these problems.
 
-### Overview
 
 ### RDP Bitmap caching
 
-One of the ways to improve performance of the Desktop Access is to reduce the amount of data that we have to send between the proxy and the web browser and the number of bitmap messages that we need to process.
+One of the ways to improve performance of the desktop access is to reduce the amount of data that we have to send between the proxy and the web browser and the number of bitmap messages that we need to process.
 
 We can achieve this by utilising an extension to the RDP protocol:
 
@@ -73,3 +75,10 @@ The sequence diagram above shows the flow of messages between all components.
 - web browser loads bitmap from the in-memory cache
 
 The browser's in-memory-cache is an array of hash tables where cache_id equals to the index of the array, and the cache_index is a key in the hash table.
+
+#### session recordings
+Since we no longer send every bitmap over the wire and to keep session recordings to work we'll also need to keep the cache of the bitmaps at the proxy. When we encounter the `save bitmap message` we'll need to store that bitmap at the proxy and then whenver `load bitmap message` will be sent we'll need to load bitmap from the cache and generate appropriate event with the bitmap data. 
+
+
+### Move processing of bitmaps from Go client to Rust library
+
