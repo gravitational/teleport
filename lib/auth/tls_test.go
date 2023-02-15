@@ -23,6 +23,8 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"net"
 	"net/url"
 	"os"
@@ -3550,6 +3552,11 @@ func TestCreateToken(t *testing.T) {
 	ctx := context.Background()
 	ac := setupAuthContext(ctx, t)
 
+	// Inject mockEmitter to capture audit event for trusted cluster
+	// creation.
+	mockEmitter := &eventstest.MockEmitter{}
+	ac.server.Auth().SetEmitter(mockEmitter)
+
 	// Create a user with the least privilege access to call this RPC.
 	privilegedUser, _, err := CreateUserAndRole(
 		ac.server.Auth(), "token-creator", nil, []types.Rule{
@@ -3574,15 +3581,20 @@ func TestCreateToken(t *testing.T) {
 
 		requireTokenCreated bool
 		requireError        require.ErrorAssertionFunc
+		requireEventEmitted bool
 	}{
 		{
 			name:     "success",
 			identity: TestUser(privilegedUser.GetName()),
 			token: mustNewToken(
-				t, "success", types.SystemRoles{types.RoleNode}, time.Time{},
+				t,
+				"success",
+				types.SystemRoles{types.RoleNode, types.RoleTrustedCluster},
+				time.Time{},
 			),
 			requireError:        require.NoError,
 			requireTokenCreated: true,
+			requireEventEmitted: true,
 		},
 		{
 			name:     "access denied",
@@ -3617,9 +3629,19 @@ func TestCreateToken(t *testing.T) {
 			client, err := ac.server.NewClient(tt.identity)
 			require.NoError(t, err)
 
+			mockEmitter.Reset()
 			err = client.CreateToken(ctx, tt.token)
 			tt.requireError(t, err)
 
+			if tt.requireEventEmitted {
+				lastEvent := mockEmitter.LastEvent()
+				require.NotNil(t, lastEvent)
+				require.Equal(
+					t,
+					events.TrustedClusterTokenCreateEvent,
+					lastEvent.GetType(),
+				)
+			}
 			if tt.requireTokenCreated {
 				token, err := ac.server.Auth().GetToken(ctx, tt.token.GetName())
 				require.NoError(t, err)
@@ -3638,6 +3660,11 @@ func TestUpsertToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ac := setupAuthContext(ctx, t)
+
+	// Inject mockEmitter to capture audit event for trusted cluster
+	// creation.
+	mockEmitter := &eventstest.MockEmitter{}
+	ac.server.Auth().SetEmitter(mockEmitter)
 
 	// Create a user with the least privilege access to call this RPC.
 	privilegedUser, _, err := CreateUserAndRole(
@@ -3662,16 +3689,21 @@ func TestUpsertToken(t *testing.T) {
 		token    types.ProvisionToken
 
 		requireTokenCreated bool
+		requireEventEmitted bool
 		requireError        require.ErrorAssertionFunc
 	}{
 		{
 			name:     "success",
 			identity: TestUser(privilegedUser.GetName()),
 			token: mustNewToken(
-				t, "success", types.SystemRoles{types.RoleNode}, time.Time{},
+				t,
+				"success",
+				types.SystemRoles{types.RoleNode, types.RoleTrustedCluster},
+				time.Time{},
 			),
 			requireError:        require.NoError,
 			requireTokenCreated: true,
+			requireEventEmitted: true,
 		},
 		{
 			name:     "already exists",
@@ -3681,10 +3713,12 @@ func TestUpsertToken(t *testing.T) {
 				alreadyExistsToken.GetName(),
 				// These roles differ from the roles on the already existing
 				// token.
-				types.SystemRoles{types.RoleProxy},
+				types.SystemRoles{types.RoleNode, types.RoleTrustedCluster},
 				time.Time{},
 			),
-			requireError: require.NoError,
+			requireEventEmitted: true,
+			requireTokenCreated: true,
+			requireError:        require.NoError,
 		},
 		{
 			name:     "access denied",
@@ -3707,9 +3741,19 @@ func TestUpsertToken(t *testing.T) {
 			client, err := ac.server.NewClient(tt.identity)
 			require.NoError(t, err)
 
+			mockEmitter.Reset()
 			err = client.UpsertToken(ctx, tt.token)
 			tt.requireError(t, err)
 
+			if tt.requireEventEmitted {
+				lastEvent := mockEmitter.LastEvent()
+				require.NotNil(t, lastEvent)
+				require.Equal(
+					t,
+					events.TrustedClusterTokenCreateEvent,
+					lastEvent.GetType(),
+				)
+			}
 			if tt.requireTokenCreated {
 				token, err := ac.server.Auth().GetToken(ctx, tt.token.GetName())
 				require.NoError(t, err)
