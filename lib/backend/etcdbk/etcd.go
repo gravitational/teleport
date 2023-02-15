@@ -795,13 +795,19 @@ func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) 
 	return nil
 }
 
+type leaseKey struct {
+	bucket time.Time
+}
+
+var _ map[leaseKey]struct{} // compile-time hashability check
+
 func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *backend.Lease, opts *[]clientv3.OpOption) error {
 	// in order to reduce excess redundant lease generation, we bucket expiry times
 	// to the nearest multiple of 10s and then grant one lease per bucket. Too many
 	// leases can cause problems for etcd at scale.
 	// TODO(fspmarshall): make bucket size configurable.
 	bucket := roundUp(item.Expires, b.leaseBucket)
-	leaseID, err := utils.FnCacheGet(ctx, b.leaseCache, bucket, func(ctx context.Context) (clientv3.LeaseID, error) {
+	leaseID, err := utils.FnCacheGet(ctx, b.leaseCache, leaseKey{bucket: bucket}, func(ctx context.Context) (clientv3.LeaseID, error) {
 		ttl := b.ttl(bucket)
 		elease, err := b.client.Grant(ctx, seconds(ttl))
 		if err != nil {
@@ -831,6 +837,12 @@ func (b *EtcdBackend) ttl(expires time.Time) time.Duration {
 	return backend.TTL(b.clock, expires)
 }
 
+type ttlKey struct {
+	leaseID int64
+}
+
+var _ map[ttlKey]struct{} // compile-time hashability check
+
 func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend.Event, error) {
 	event := &backend.Event{
 		Type: fromType(e.Type),
@@ -842,13 +854,23 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 	if event.Type == types.OpDelete {
 		return event, nil
 	}
-	// get the new expiration date if it was updated
+
+	// Get the new expiration date if it was updated. Multiple resources share the
+	// same lease since the leases are bucketed to the nearest multiple of 10s. To
+	// reduce the number of requests per shared ttl we cache the results per lease id.
 	if e.Kv.Lease != 0 {
-		re, err := b.client.TimeToLive(ctx, clientv3.LeaseID(e.Kv.Lease))
+		ttl, err := utils.FnCacheGet(ctx, b.leaseCache, ttlKey{leaseID: e.Kv.Lease}, func(ctx context.Context) (int64, error) {
+			re, err := b.client.TimeToLive(ctx, clientv3.LeaseID(e.Kv.Lease))
+			if err != nil {
+				return 0, convertErr(err)
+			}
+			return re.TTL, nil
+		})
 		if err != nil {
-			return nil, convertErr(err)
+			return nil, trace.Wrap(err)
 		}
-		event.Item.Expires = b.clock.Now().UTC().Add(time.Second * time.Duration(re.TTL))
+
+		event.Item.Expires = b.clock.Now().UTC().Add(time.Second * time.Duration(ttl))
 	}
 	value, err := unmarshal(e.Kv.Value)
 	if err != nil {

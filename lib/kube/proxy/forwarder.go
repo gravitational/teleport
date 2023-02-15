@@ -843,7 +843,7 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	if sess.noAuditEvents {
+	if !f.isLocalKubeCluster(sess) {
 		return f.remoteJoin(ctx, w, req, p, sess)
 	}
 
@@ -900,6 +900,14 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 
 	return nil, nil
+}
+
+// isLocalKubeCluster checks if the current service must hold the cluster and
+// if it's of Type KubeService.
+// KubeProxy services or remote clusters are automatically forwarded to
+// the final destination.
+func (f *Forwarder) isLocalKubeCluster(sess *clusterSession) bool {
+	return !sess.authContext.teleportCluster.isRemote && f.cfg.KubeServiceType == KubeService
 }
 
 // getSession retrieves the session from in-memory database.
