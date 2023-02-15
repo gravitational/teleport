@@ -3231,7 +3231,7 @@ func (c *Client) DeleteAllPlugins(ctx context.Context) error {
 func (c *Client) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
 	v1, ok := creds.(*types.PluginCredentialsV1)
 	if !ok {
-		return trace.BadParameter("unsupported plugin credentials. expected *types.PluginCredentialsV1; got %T", creds)
+		return trace.BadParameter("unsupported plugin credential type %T, expected %T", creds, v1)
 	}
 	_, err := c.grpc.SetPluginCredentials(ctx, &proto.SetPluginCredentialsRequest{
 		Name:        name,
@@ -3244,7 +3244,7 @@ func (c *Client) SetPluginCredentials(ctx context.Context, name string, creds ty
 func (c *Client) SetPluginStatus(ctx context.Context, name string, status types.PluginStatus) error {
 	v1, ok := status.(types.PluginStatusV1)
 	if !ok {
-		return trace.BadParameter("unsupported plugin status type %T", status)
+		return trace.BadParameter("unsupported plugin status type %T, expected %T", status, v1)
 	}
 	_, err := c.grpc.SetPluginStatus(ctx, &proto.SetPluginStatusRequest{
 		Name:   name,

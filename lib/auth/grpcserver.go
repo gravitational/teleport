@@ -4769,7 +4769,7 @@ func (g *GRPCServer) GetPlugin(ctx context.Context, req *types.ResourceWithSecre
 	}
 	v1, ok := plugin.(*types.PluginV1)
 	if !ok {
-		return nil, trace.Errorf("unexpected plugin type: %T", plugin)
+		return nil, trace.Errorf("unexpected plugin type %T, expected %T", plugin, v1)
 	}
 	return v1, nil
 }
@@ -4788,7 +4788,7 @@ func (g *GRPCServer) GetPlugins(ctx context.Context, req *types.ResourcesWithSec
 	for _, plugin := range plugins {
 		pluginV1, ok := plugin.(*types.PluginV1)
 		if !ok {
-			return nil, trace.BadParameter("unsupported plugin type %T", plugin)
+			return nil, trace.BadParameter("unsupported plugin type %T, expected %T", plugin, pluginV1)
 		}
 		pluginsV1 = append(pluginsV1, pluginV1)
 	}
