@@ -55,7 +55,7 @@ var config = []schemagen.ParseResourceOptions{
 	},
 }
 
-func generateTable(c *schemagen.SchemaCollection) ([]*schemagen.TransformedFile, error) {
+func generateTable(c *schemagen.RootSchema) (*schemagen.TransformedFile, error) {
 	return nil, nil
 }
 

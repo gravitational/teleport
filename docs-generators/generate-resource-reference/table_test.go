@@ -13,8 +13,7 @@ func TestGenerateTable(t *testing.T) {
 	cases := []struct {
 		description string
 		// For convenience, test cases parse YAML documents as
-		// schemagen.SchemaCollections. These must comply with the OpenAPI V3
-		// JSON Schema format unless we expect an error.
+		// schemagen.RootSchemas.
 		inputYAML       io.Reader
 		expectedOutputs []string
 		// Substring within the expected error message. If blank, we don't
@@ -24,12 +23,12 @@ func TestGenerateTable(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.description, func(t *testing.T) {
-			var sc schemagen.SchemaCollection
-			if err := yaml.NewDecoder(c.inputYAML).Decode(&sc); err != nil {
+			var root schemagen.RootSchema
+			if err := yaml.NewDecoder(c.inputYAML).Decode(&root); err != nil {
 				t.Fatalf("error decoding input YAML when setting up the test: %v", err)
 			}
 
-			actual, err := generateTable(&sc)
+			actual, err := generateTable(&root)
 
 			if c.errSubstring != "" {
 				assert.Contains(t, err.Error(), c.errSubstring)
