@@ -3948,10 +3948,14 @@ func TestGetPluginWithSecrets(t *testing.T) {
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
 
-			_, err = client.GetPlugin(ctx, pluginName, false)
-			_, errWithSecrets := client.GetPlugin(ctx, pluginName, true)
-			tc.ErrAssertionRead(t, err)
-			tc.ErrAssertionReadWithSecrets(t, errWithSecrets)
+			t.Run("without secrets", func(t *testing.T) {
+				_, err = client.GetPlugin(ctx, pluginName, false)
+				tc.ErrAssertionRead(t, err)
+			})
+			t.Run("with secrets", func(t *testing.T) {
+				_, err := client.GetPlugin(ctx, pluginName, true)
+				tc.ErrAssertionReadWithSecrets(t, err)
+			})
 		})
 	}
 }
