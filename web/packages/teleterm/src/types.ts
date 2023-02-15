@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
+import { ITshdEventsServiceServer } from 'gen-proto-js/teleport/lib/teleterm/v1/tshd_events_service_grpc_pb';
+
 import { TshClient } from 'teleterm/services/tshd/types';
 import { PtyServiceClient } from 'teleterm/services/pty';
 import { RuntimeSettings, MainProcessClient } from 'teleterm/mainProcess/types';
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { AppearanceConfig } from 'teleterm/services/config';
 import { Logger, LoggerService } from 'teleterm/services/logger/types';
-import { ITshdEventsServiceServer } from 'teleterm/services/tshd/v1/tshd_events_service_grpc_pb';
 
 export {
   Logger,
