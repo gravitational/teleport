@@ -106,6 +106,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.createWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.WithAuth(srv.authenticateSSHUser))
+	srv.POST("/:version/users/:user/ssh/generate", srv.WithAuth(srv.generateOpenSSHCert))
 	srv.GET("/:version/users/:user/web/sessions/:sid", srv.WithAuth(srv.getWebSession))
 	srv.DELETE("/:version/users/:user/web/sessions/:sid", srv.WithAuth(srv.deleteWebSession))
 
@@ -506,6 +507,15 @@ func (s *APIServer) authenticateSSHUser(auth ClientI, w http.ResponseWriter, r *
 	}
 	req.Username = p.ByName("user")
 	return auth.AuthenticateSSHUser(r.Context(), req)
+}
+
+func (s *APIServer) generateOpenSSHCert(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	var req OpenSSHCertRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.Username = p.ByName("user")
+	return auth.GenerateOpenSSHCert(r.Context(), req)
 }
 
 type upsertUserRawReq struct {

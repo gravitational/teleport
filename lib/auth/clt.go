@@ -827,6 +827,24 @@ func (c *Client) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 	return &re, nil
 }
 
+func (c *Client) GenerateOpenSSHCert(ctx context.Context, req OpenSSHCertRequest) ([]byte, error) {
+	out, err := c.PostJSON(
+		ctx,
+		c.Endpoint("users", req.Username, "ssh", "generate"),
+		req,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var cert string
+	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return []byte(cert), nil
+}
+
 // GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 // it is valid, or error otherwise.
 func (c *Client) GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error) {
@@ -1642,6 +1660,8 @@ type ClientI interface {
 	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 	// short-lived certificates as a result
 	AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error)
+
+	GenerateOpenSSHCert(ctx context.Context, req OpenSSHCertRequest) ([]byte, error)
 
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 	// signed certificate if successful.

@@ -538,6 +538,14 @@ func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req Authentic
 	return a.authServer.AuthenticateSSHUser(ctx, req)
 }
 
+func (a *ServerWithRoles) GenerateOpenSSHCert(ctx context.Context, req OpenSSHCertRequest) ([]byte, error) {
+	// this limits the requests types to proxies to make it harder to break
+	if !a.hasBuiltinRole(types.RoleProxy) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+	return a.authServer.GenerateOpenSSHCert(ctx, req)
+}
+
 // CreateCertAuthority not implemented: can only be called locally.
 func (a *ServerWithRoles) CreateCertAuthority(ca types.CertAuthority) error {
 	return trace.NotImplemented(notImplementedMessage)

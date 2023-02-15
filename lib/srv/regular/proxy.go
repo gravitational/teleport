@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -33,6 +34,8 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -247,7 +250,7 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, remoteAdd
 		Certificate:   t.ctx.Identity.Certificate,
 		AccessChecker: t.ctx.Identity.AccessChecker,
 	}
-	conn, err := t.router.DialHost(ctx, remoteAddr, t.host, t.port, t.clusterName, idInfo, t.ctx.StartAgentChannel)
+	conn, isOpenSSHNode, err := t.router.DialHost(ctx, remoteAddr, t.host, t.port, t.clusterName, idInfo, t.ctx.StartAgentChannel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -255,6 +258,27 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, remoteAdd
 	// this custom SSH handshake allows SSH proxy to relay the client's IP
 	// address to the SSH server
 	t.doHandshake(ctx, remoteAddr, ch, conn)
+
+	if isOpenSSHNode {
+		priv, err := native.GeneratePrivateKey()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		client, err := t.router.GetSiteClient(ctx, t.clusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = client.GenerateOpenSSHCert(ctx, auth.OpenSSHCertRequest{
+			Username:  t.ctx.Identity.TeleportUser,
+			PublicKey: priv.MarshalSSHPublicKey(),
+			TTL:       time.Hour,
+			Cluster:   t.clusterName,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	go func() {
 		t.close(utils.ProxyConn(ctx, ch, conn))

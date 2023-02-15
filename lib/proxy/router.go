@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -203,7 +204,7 @@ type IdentityInfo struct {
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
 // is found an error is returned. If more than one matching node is found and the cluster networking
 // configuration is not set to route to the most recent an error is returned.
-func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, clusterName string, idInfo IdentityInfo, agentGetter teleagent.Getter) (_ net.Conn, err error) {
+func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, clusterName string, idInfo IdentityInfo, agentGetter teleagent.Getter) (_ net.Conn, isOpenSSHNode bool, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",
@@ -224,7 +225,7 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 	if clusterName != r.clusterName {
 		remoteSite, err := r.getRemoteCluster(ctx, clusterName, idInfo.AccessChecker)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, false, trace.Wrap(err)
 		}
 		site = remoteSite
 	}
@@ -232,7 +233,7 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 	span.AddEvent("looking up server")
 	target, err := r.serverResolver(ctx, host, port, remoteSite{site})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, false, trace.Wrap(err)
 	}
 	span.AddEvent("retrieved target server")
 
@@ -247,13 +248,15 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 		// if the target node is a registered OpenSSH node, preform a
 		// RBAC check
 		if target.GetSubKind() == types.KindOpenSSHNode {
+			isOpenSSHNode = true
 			client, err := site.GetClient()
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, false, trace.Wrap(err)
 			}
+
 			authPref, err := client.GetAuthPreference(ctx)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, false, trace.Wrap(err)
 			}
 			state := idInfo.AccessChecker.GetAccessState(authPref)
 			_, state.MFAVerified = idInfo.Certificate.Extensions[teleport.CertExtensionMFAVerified]
@@ -266,7 +269,7 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 				state,
 				services.NewLoginMatcher(idInfo.Login),
 			); err != nil {
-				return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
+				return nil, false, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 					idInfo.TeleportUser, r.clusterName, idInfo.Login, clusterName, err)
 			}
 		}
@@ -284,7 +287,7 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 		case serverAddr != "":
 			h, _, err := net.SplitHostPort(serverAddr)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, false, trace.Wrap(err)
 			}
 
 			principals = append(principals, h)
@@ -311,10 +314,10 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 		ConnType:     types.NodeTunnel,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, false, trace.Wrap(err)
 	}
 
-	return newProxiedMetricConn(conn), trace.Wrap(err)
+	return newProxiedMetricConn(conn), isOpenSSHNode, trace.Wrap(err)
 }
 
 // getRemoteCluster looks up the provided clusterName to determine if a remote site exists with
@@ -494,4 +497,16 @@ func (r *Router) DialSite(ctx context.Context, clusterName string) (net.Conn, er
 	}
 
 	return newProxiedMetricConn(conn), trace.Wrap(err)
+}
+
+func (r *Router) GetSiteClient(ctx context.Context, clusterName string) (auth.ClientI, error) {
+	if clusterName == r.clusterName {
+		return r.localSite.GetClient()
+	}
+
+	site, err := r.siteGetter.GetSite(clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return site.GetClient()
 }

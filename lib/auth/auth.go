@@ -1145,6 +1145,9 @@ type certRequest struct {
 	skipAttestation bool
 	// deviceExtensions holds device-aware user certificate extensions.
 	deviceExtensions DeviceExtensions
+	// useOpenSSHCA indicates that OpenSSH CA should be used to sign the
+	// certificate, not User CA.
+	useOpenSSHCA bool
 }
 
 // check verifies the cert request is valid.
@@ -1185,6 +1188,56 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 	return func(r *certRequest) {
 		r.deviceExtensions = DeviceExtensions(ext)
 	}
+}
+
+type OpenSSHCertRequest struct {
+	// Username is the Teleport username.
+	Username string
+	// PublicKey is the public key to sign.
+	PublicKey []byte
+	// TTL is the duration the certificate will be valid for.
+	TTL time.Duration
+	// Cluster is the Teleport cluster name.
+	Cluster string
+	// ClientIP is the IP address of the client.
+	ClientIP string
+}
+
+func (s *Server) GenerateOpenSSHCert(ctx context.Context, req OpenSSHCertRequest) ([]byte, error) {
+	user, err := s.GetUser(req.Username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessInfo := services.AccessInfoFromUser(user)
+	clusterName, err := s.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if checker.PinSourceIP() && req.ClientIP == "" {
+		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
+	}
+
+	certs, err := s.generateUserCert(certRequest{
+		user:      user,
+		publicKey: req.PublicKey,
+		checker:   checker,
+		ttl:       req.TTL,
+		traits: map[string][]string{
+			constants.TraitLogins: {req.Username},
+		},
+		routeToCluster: req.Cluster,
+		clientIP:       req.ClientIP,
+		useOpenSSHCA:   true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return certs.SSH, nil
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -1465,7 +1518,7 @@ func (a *Server) AugmentContextUserCertificates(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCA, sshSigner, _, err := a.getUserSigningCAs(ctx, domainName)
+	tlsCA, sshSigner, _, err := a.getUserSigningCAs(ctx, domainName, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1734,7 +1787,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
-	tlsCA, sshSigner, userCA, err := a.getUserSigningCAs(ctx, clusterName)
+	tlsCA, sshSigner, userCA, err := a.getUserSigningCAs(ctx, clusterName, req.useOpenSSHCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1990,10 +2043,14 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 
 // getUserSigningCAs returns the necessary resources to issue/sign new user
 // certificates.
-func (a *Server) getUserSigningCAs(ctx context.Context, domainName string) (*tlsca.CertAuthority, ssh.Signer, types.CertAuthority, error) {
+func (a *Server) getUserSigningCAs(ctx context.Context, domainName string, getOpenSSHCA bool) (*tlsca.CertAuthority, ssh.Signer, types.CertAuthority, error) {
 	const loadKeys = true
+	caType := types.UserCA
+	if getOpenSSHCA {
+		caType = types.OpenSSHCA
+	}
 	userCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
+		Type:       caType,
 		DomainName: domainName,
 	}, loadKeys)
 	if err != nil {
