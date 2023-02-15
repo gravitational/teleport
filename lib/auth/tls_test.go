@@ -3846,7 +3846,6 @@ func TestGetTokens(t *testing.T) {
 	}
 }
 
-// TestGetToken tests the GetToken RPC end-to-end
 func TestGetToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
