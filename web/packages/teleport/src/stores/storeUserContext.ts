@@ -167,6 +167,6 @@ export default class StoreUserContext extends Store<UserContext> {
   }
 
   hasDiscoverAccess() {
-    return this.hasPrereqAccessToAddAgents() || this.hasAccessToQueryAgent();
+    return this.hasPrereqAccessToAddAgents() && this.hasAccessToQueryAgent();
   }
 }
