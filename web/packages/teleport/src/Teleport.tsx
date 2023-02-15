@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import ThemeProvider from 'design/ThemeProvider';
 
 import { Router, Route, Switch } from 'teleport/components/Router';
@@ -50,24 +50,26 @@ const Teleport: React.FC<Props> = props => {
     <CatchError>
       <ThemeProvider>
         <Router history={history}>
-          <Switch>
-            {publicRoutes()}
-            <Route path={cfg.routes.root}>
-              <Authenticated>
-                <TeleportContextProvider ctx={ctx}>
-                  <FeaturesContextProvider value={features}>
-                    <Switch>
-                      <Route
-                        path={cfg.routes.appLauncher}
-                        component={AppLauncher}
-                      />
-                      <Route>{privateRoutes()}</Route>
-                    </Switch>
-                  </FeaturesContextProvider>
-                </TeleportContextProvider>
-              </Authenticated>
-            </Route>
-          </Switch>
+          <Suspense fallback={null}>
+            <Switch>
+              {publicRoutes()}
+              <Route path={cfg.routes.root}>
+                <Authenticated>
+                  <TeleportContextProvider ctx={ctx}>
+                    <FeaturesContextProvider value={features}>
+                      <Switch>
+                        <Route
+                          path={cfg.routes.appLauncher}
+                          component={AppLauncher}
+                        />
+                        <Route>{privateRoutes()}</Route>
+                      </Switch>
+                    </FeaturesContextProvider>
+                  </TeleportContextProvider>
+                </Authenticated>
+              </Route>
+            </Switch>
+          </Suspense>
         </Router>
       </ThemeProvider>
     </CatchError>
