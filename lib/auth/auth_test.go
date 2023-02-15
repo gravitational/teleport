@@ -688,9 +688,6 @@ func generateTestToken(
 	pt, err := types.NewProvisionToken(token, roles, expires)
 	require.NoError(t, err)
 	require.NoError(t, auth.CreateToken(ctx, pt))
-	t.Cleanup(func() {
-		require.NoError(t, auth.DeleteToken(ctx, token))
-	})
 
 	return token
 }
