@@ -61,7 +61,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	dynamicToken := generateTestToken(
 		ctx,
 		t,
-		types.SystemRoles{types.RoleNode}, time.Now().Add(time.Minute*5),
+		types.SystemRoles{types.RoleNode}, time.Now().Add(time.Minute*30),
 		a,
 	)
 
