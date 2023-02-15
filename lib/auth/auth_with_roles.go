@@ -5496,14 +5496,12 @@ func (a *ServerWithRoles) CreatePlugin(ctx context.Context, req *proto.CreatePlu
 
 // GetPlugin returns a plugin instance by name.
 func (a *ServerWithRoles) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
-	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbReadNoSecrets); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	readVerb := types.VerbReadNoSecrets
 	if withSecrets {
-		if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		readVerb = types.VerbRead
+	}
+	if err := a.action(apidefaults.Namespace, types.KindPlugin, readVerb); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	plugin, err := a.authServer.GetPlugin(ctx, name, withSecrets)
@@ -5515,17 +5513,14 @@ func (a *ServerWithRoles) GetPlugin(ctx context.Context, name string, withSecret
 
 // GetPlugins returns all plugin instances.
 func (a *ServerWithRoles) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
-	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbReadNoSecrets); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	readVerb := types.VerbReadNoSecrets
 	if withSecrets {
-		if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		readVerb = types.VerbRead
 	}
+	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbList, readVerb); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	plugins, err := a.authServer.GetPlugins(ctx, withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5551,14 +5546,11 @@ func (a *ServerWithRoles) DeleteAllPlugins(ctx context.Context) error {
 
 // SetPluginCredentials sets the credentials for the given plugin.
 func (a *ServerWithRoles) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
-	// Check whether user can read (with secrets) first.
-	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbRead); err != nil {
+	// Check whether user can update, and read (with secrets).
+	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbRead, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
 	return trace.Wrap(a.authServer.SetPluginCredentials(ctx, name, creds))
 }
 
