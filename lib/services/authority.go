@@ -346,7 +346,7 @@ type UserCertParams struct {
 	PreviousIdentityExpires time.Time
 	// LoginIP is an observed IP of the client on the moment of certificate creation.
 	LoginIP string
-	// PinnedIP is an IP from which client is allowed to communicate with Teleport.
+	// PinnedIP is an IP from which client must communicate with Teleport.
 	PinnedIP string
 	// DisallowReissue flags that any attempt to request new certificates while
 	// authenticated with this cert should be denied.
