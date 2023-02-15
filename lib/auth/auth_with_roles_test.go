@@ -3883,6 +3883,8 @@ func TestGetLicensePermissions(t *testing.T) {
 }
 
 func TestGetPluginWithSecrets(t *testing.T) {
+	t.Parallel()
+
 	const pluginName = "slack-default"
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -3952,6 +3954,8 @@ func TestGetPluginWithSecrets(t *testing.T) {
 }
 
 func TestSetPluginCredentials(t *testing.T) {
+	t.Parallel()
+
 	const pluginName = "slack-default"
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
