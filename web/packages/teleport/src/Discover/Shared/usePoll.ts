@@ -16,6 +16,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+/**
+ * While enabled is true, usePoll runs the callback every interval milliseconds,
+ * returning the result of callback once it arrives, and null otherwise.
+ *
+ * The polling *does not* automatically terminate once a result is found. It is the caller's
+ * responsibility to terminate the poll by switching the enabled parameter to false.
+ * (This allows for callers to implement more complex logic for terminating polling).
+ */
 export function usePoll<T>(
   callback: (signal: AbortSignal) => Promise<T | null>,
   enabled: boolean,

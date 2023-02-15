@@ -19,6 +19,8 @@ package prehog.v1alpha;
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
+option go_package = "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha";
+
 message UserLoginEvent {
   // anonymized
   string user_name = 1;
@@ -136,6 +138,13 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_APPLICATION_HTTP = 8;
   DISCOVER_RESOURCE_APPLICATION_TCP = 9;
   DISCOVER_RESOURCE_WINDOWS_DESKTOP = 10;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_RDS = 11;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT = 12;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_SELF_HOSTED = 13;
+  DISCOVER_RESOURCE_DATABASE_REDIS_SELF_HOSTED = 14;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_GCP = 15;
+  DISCOVER_RESOURCE_DATABASE_MYSQL_GCP = 16;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP = 17;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
