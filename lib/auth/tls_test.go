@@ -3771,7 +3771,6 @@ func TestUpsertToken(t *testing.T) {
 	}
 }
 
-// TestGetTokens tests the GetTokens RPC end-to-end
 func TestGetTokens(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
