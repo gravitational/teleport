@@ -3723,6 +3723,7 @@ func TestUpsertToken(t *testing.T) {
 	}
 }
 
+// TestGetTokens tests the GetTokens RPC end-to-end
 func TestGetTokens(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -3803,13 +3804,89 @@ func TestGetTokens(t *testing.T) {
 	}
 }
 
-/*
 func TestGetToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ac := setupAuthContext(ctx, t)
+
+	// Create a user with the least privilege access to call this RPC.
+	privilegedUser, _, err := CreateUserAndRole(
+		ac.server.Auth(), "token-reader", nil, []types.Rule{
+			{
+				Resources: []string{types.KindToken},
+				Verbs:     []string{types.VerbRead},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	// Create Provision token
+	pt := mustNewToken(t, "example-token", types.SystemRoles{types.RoleNode}, time.Time{})
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, pt))
+
+	tests := []struct {
+		name      string
+		tokenName string
+		identity  TestIdentity
+
+		requireResponse bool
+		requireError    require.ErrorAssertionFunc
+	}{
+		{
+			name:            "success",
+			tokenName:       pt.GetName(),
+			identity:        TestUser(privilegedUser.GetName()),
+			requireError:    require.NoError,
+			requireResponse: true,
+		},
+		{
+			name:      "access denied",
+			identity:  TestNop(),
+			tokenName: pt.GetName(),
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(
+					t,
+					trace.IsAccessDenied(err),
+					"err should be access denied, was: %s", err,
+				)
+			},
+		},
+		{
+			name:      "not found",
+			tokenName: "does-not-exist",
+			identity:  TestUser(privilegedUser.GetName()),
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(
+					t,
+					trace.IsNotFound(err),
+					"err should be not found, was: %s", err,
+				)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := ac.server.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			token, err := client.GetToken(ctx, tt.tokenName)
+			tt.requireError(t, err)
+
+			if tt.requireResponse {
+				require.Empty(t, cmp.Diff(
+					token,
+					pt,
+					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+				))
+			} else {
+				require.Nil(t, token)
+			}
+		})
+	}
 }
 
+/*
 func TestDeleteToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
