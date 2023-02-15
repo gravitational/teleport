@@ -19,85 +19,52 @@ package main
 import (
 	"os"
 
-	gogoplugin "github.com/gogo/protobuf/protoc-gen-gogo/plugin"
-	"github.com/gogo/protobuf/vanity/command"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/schemagen"
-	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 )
 
-// resourceConfigs maps the name of a resource type/version to its corresponding
-// parsing options.
-var resourceConfigs = map[string]schemagen.ParseResourceOptions{
-	"UserV2":          {},
-	"RoleV6":          {},
-	"SAMLConnectorV2": {},
-	"OIDCConnectorV3": {},
-	"GithubConnectorV3": {
+var config = []schemagen.ParseResourceOptions{
+	schemagen.ParseResourceOptions{
+		Name: "UserV2",
 		IgnoredFields: []string{
-			"TeamsToLogins", // Deprecated field, removed since v11
+			"LocalAuth",
+			"Expires",
+			"CreatedBy",
+			"Status",
 		},
 	},
+	// Use RoleV6 spec but override the version to V5. This will generate
+	// crd based on RoleV6 but with resource version for v5.
+	schemagen.ParseResourceOptions{
+		Name:            "RoleV6",
+		VersionOverride: types.V5,
+	},
+	schemagen.ParseResourceOptions{
+		Name: "RoleV6",
+	},
+	schemagen.ParseResourceOptions{
+		Name: "SAMLConnectorV2",
+	},
+	schemagen.ParseResourceOptions{
+		Name: "OIDCConnectorV3",
+	},
+	schemagen.ParseResourceOptions{
+		Name:          "GithubConnectorV3",
+		IgnoredFields: []string{"TeamsToLogins"}, // Deprecated field, removed since v11
+	},
+}
+
+func generateTable(c *schemagen.SchemaCollection) ([]*schemagen.TransformedFile, error) {
+	return nil, nil
 }
 
 func main() {
 	log.SetLevel(log.DebugLevel)
 	log.SetOutput(os.Stderr)
-	req := command.Read()
-	resp, err := handleRequest(req)
 
-	if err != nil {
+	if err := schemagen.RunPlugin(config, generateTable); err != nil {
 		log.WithError(err).Error("Failed to generate schema")
 		os.Exit(-1)
 	}
-
-	command.Write(resp)
-}
-
-func handleRequest(req *gogoplugin.CodeGeneratorRequest) (*gogoplugin.CodeGeneratorResponse, error) {
-	if len(req.FileToGenerate) == 0 {
-		return nil, trace.Errorf("no input file provided")
-	}
-	if len(req.FileToGenerate) > 1 {
-		return nil, trace.Errorf("too many input files")
-	}
-
-	gen, err := schemagen.NewGenerator(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	rootFileName := req.FileToGenerate[0]
-	gen.SetFile(rootFileName)
-	for _, fileDesc := range gen.AllFiles().File {
-		file := gen.AddFile(fileDesc)
-		if fileDesc.GetName() == rootFileName {
-			if err := generateSchema(file, gen.Response); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-	}
-
-	return gen.Response, nil
-}
-
-func generateSchema(file *schemagen.File, resp *gogoplugin.CodeGeneratorResponse) error {
-	generator := schemagen.NewSchemaGenerator()
-
-	for r, c := range resourceConfigs {
-		if err := generator.ParseResource(file, r, c); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	// TODO: Range through generator.roots and do something with the data
-
-	name := "resource-reference.mdx"
-	content := ""
-
-	resp.File = []*gogoplugin.CodeGeneratorResponse_File{
-		&gogoplugin.CodeGeneratorResponse_File{Name: &name, Content: &content},
-	}
-
-	return nil
 }
