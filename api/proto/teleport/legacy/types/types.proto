@@ -4122,6 +4122,10 @@ message LockTarget {
 
   // AccessRequest specifies the UUID of an access request.
   string AccessRequest = 7 [(gogoproto.jsontag) = "access_request,omitempty"];
+
+  // Device is the device ID of a trusted device.
+  // Requires Teleport Enterprise.
+  string Device = 8 [(gogoproto.jsontag) = "device,omitempty"];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specfied
