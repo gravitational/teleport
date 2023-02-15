@@ -1,0 +1,31 @@
+name: user
+pluralname: users
+kind: ""
+versions:
+- name: v2
+  schema:
+    openAPIV3Schema:
+      description: User is the Schema for the users API
+      properties:
+        spec:
+          description: Options for configuring the user resource. 
+          properties:
+            roles:
+              description: A list of roles assigned to the user
+              items:
+                type: string
+              nullable: true
+              type: array
+            traits:
+              additionalProperties:
+                items:
+                  type: string
+                type: array
+              description: Traits are key/value pairs received from an identity
+                provider (through OIDC claims or SAML assertions) or from a system
+                administrator for local accounts. Traits are used to populate role
+                variables.
+              type: object
+          type: object
+        type: object
+  
