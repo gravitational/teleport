@@ -344,10 +344,10 @@ type UserCertParams struct {
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	PreviousIdentityExpires time.Time
-	// ClientIP is an IP of the client to embed in the certificate.
-	ClientIP string
-	// SourceIP is an IP that certificate should be pinned to.
-	SourceIP string
+	// LoginIP is an observed IP of the client on the moment of certificate creation.
+	LoginIP string
+	// PinnedIP is an IP from which client is allowed to communicate with Teleport.
+	PinnedIP string
 	// DisallowReissue flags that any attempt to request new certificates while
 	// authenticated with this cert should be denied.
 	DisallowReissue bool
