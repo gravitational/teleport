@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -250,7 +251,14 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, remoteAdd
 		Certificate:   t.ctx.Identity.Certificate,
 		AccessChecker: t.ctx.Identity.AccessChecker,
 	}
-	conn, isOpenSSHNode, err := t.router.DialHost(ctx, remoteAddr, t.host, t.port, t.clusterName, idInfo, t.ctx.StartAgentChannel)
+	agentGetter := func(isNeeded bool) teleagent.Getter {
+		if isNeeded {
+			t.ctx.SetForwardAgent(true)
+		}
+		return t.ctx.StartAgentChannel
+	}
+
+	conn, isOpenSSHNode, err := t.router.DialHost(ctx, remoteAddr, t.host, t.port, t.clusterName, idInfo, agentGetter)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -260,22 +268,7 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, remoteAdd
 	t.doHandshake(ctx, remoteAddr, ch, conn)
 
 	if isOpenSSHNode {
-		priv, err := native.GeneratePrivateKey()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		client, err := t.router.GetSiteClient(ctx, t.clusterName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		_, err = client.GenerateOpenSSHCert(ctx, auth.OpenSSHCertRequest{
-			Username:  t.ctx.Identity.TeleportUser,
-			PublicKey: priv.MarshalSSHPublicKey(),
-			TTL:       time.Hour,
-			Cluster:   t.clusterName,
-		})
-		if err != nil {
+		if err := t.handleOpenSSHNode(ctx, ch, conn); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -283,6 +276,7 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, remoteAdd
 	go func() {
 		t.close(utils.ProxyConn(ctx, ch, conn))
 	}()
+
 	return nil
 }
 
@@ -332,4 +326,30 @@ func (t *proxySubsys) doHandshake(ctx context.Context, clientAddr net.Addr, clie
 	if err != nil {
 		t.log.Error(err)
 	}
+}
+
+func (t *proxySubsys) handleOpenSSHNode(ctx context.Context, clientConn io.ReadWriter, serverConn io.ReadWriter) error {
+	priv, err := native.GeneratePrivateKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	client, err := t.router.GetSiteClient(ctx, t.clusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = client.GenerateOpenSSHCert(ctx, auth.OpenSSHCertRequest{
+		Username:  t.ctx.Identity.TeleportUser,
+		PublicKey: priv.MarshalSSHPublicKey(),
+		TTL:       time.Hour,
+		Cluster:   t.clusterName,
+		// TODO: ClientIP?
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO: replace the cert the user will attempt to use for auth
+
+	return nil
 }

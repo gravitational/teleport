@@ -623,8 +623,10 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		return
 	}
 
-	agentGetter := func() (teleagent.Agent, error) {
-		return teleagent.NopCloser(tc.LocalAgent()), nil
+	agentGetter := func(_ bool) teleagent.Getter {
+		return func() (teleagent.Agent, error) {
+			return teleagent.NopCloser(tc.LocalAgent()), nil
+		}
 	}
 	idInfo := proxy.IdentityInfo{
 		TeleportUser:  t.ctx.GetUser(),

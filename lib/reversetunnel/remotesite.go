@@ -793,7 +793,7 @@ func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
 
 	// If the proxy is in recording mode and a SSH connection is being requested,
 	// use the agent to dial and build an in-memory forwarding server.
-	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
+	if params.ForceForwarding || (params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode())) {
 		return s.dialWithAgent(params)
 	}
 

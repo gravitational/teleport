@@ -201,10 +201,15 @@ type IdentityInfo struct {
 	AccessChecker services.AccessChecker
 }
 
+// AgentGetter allows the caller to configure an agent instance only
+// if it is needed. When connecting to a registered OpenSSH node, the
+// agent will be needed.
+type AgentGetter func(isNeeded bool) teleagent.Getter
+
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
 // is found an error is returned. If more than one matching node is found and the cluster networking
 // configuration is not set to route to the most recent an error is returned.
-func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, clusterName string, idInfo IdentityInfo, agentGetter teleagent.Getter) (_ net.Conn, isOpenSSHNode bool, err error) {
+func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, clusterName string, idInfo IdentityInfo, agentGetter AgentGetter) (_ net.Conn, isOpenSSHNode bool, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",
@@ -272,6 +277,11 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 				return nil, false, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 					idInfo.TeleportUser, r.clusterName, idInfo.Login, clusterName, err)
 			}
+
+			// check if roles allow agent forwarding
+			if err := idInfo.AccessChecker.CheckAgentForward(idInfo.Login); err != nil {
+				return nil, false, trace.Wrap(err)
+			}
 		}
 
 		proxyIDs = target.GetProxyIDs()
@@ -304,14 +314,15 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 	}
 
 	conn, err := site.Dial(reversetunnel.DialParams{
-		From:         from,
-		To:           &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
-		GetUserAgent: agentGetter,
-		Address:      host,
-		ServerID:     serverID,
-		ProxyIDs:     proxyIDs,
-		Principals:   principals,
-		ConnType:     types.NodeTunnel,
+		From:            from,
+		To:              &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
+		GetUserAgent:    agentGetter(isOpenSSHNode),
+		Address:         host,
+		ServerID:        serverID,
+		ProxyIDs:        proxyIDs,
+		Principals:      principals,
+		ConnType:        types.NodeTunnel,
+		ForceForwarding: isOpenSSHNode,
 	})
 	if err != nil {
 		return nil, false, trace.Wrap(err)

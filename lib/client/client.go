@@ -1516,7 +1516,8 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 	// mode. we always try and forward an agent here because each new session
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
 	// "already have handler for" we ignore it.
-	if details.RecordingProxy {
+	// TODO: conditionally set if target node is registered OpenSSH node
+	if details.RecordingProxy || true {
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}

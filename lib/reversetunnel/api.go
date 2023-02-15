@@ -67,6 +67,11 @@ type DialParams struct {
 	// FromPeerProxy indicates that the dial request is being tunneled from
 	// a peer proxy.
 	FromPeerProxy bool
+
+	// ForceForwarding specifies that the connection should always be
+	// forwarded, regardless of the other options or session recording
+	// settings.
+	ForceForwarding bool
 }
 
 func (params DialParams) String() string {
