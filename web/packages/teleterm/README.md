@@ -9,9 +9,6 @@ docs](https://goteleport.com/docs/connect-your-client/teleport-connect/).
 
 ## Building and packaging
 
-**Note: At the moment, the OSS build of Connect is broken. Please refer to
-[#17706](https://github.com/gravitational/teleport/issues/17706) for a temporary workaround.**
-
 Teleport Connect consists of two main components: the `tsh` tool and the Electron app.
 
 To get started, first we need to build `tsh`.
