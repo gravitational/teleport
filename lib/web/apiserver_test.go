@@ -380,6 +380,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	router, err := proxy.NewRouter(proxy.RouterConfig{
 		ClusterName:         s.server.ClusterName(),
 		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		Emitter:             s.proxyClient,
 		RemoteClusterGetter: s.proxyClient,
 		SiteGetter:          revTunServer,
 		TracerProvider:      tracing.NoopProvider(),
@@ -6916,6 +6917,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	router, err := proxy.NewRouter(proxy.RouterConfig{
 		ClusterName:         authServer.ClusterName(),
 		Log:                 utils.NewLoggerForTests().WithField(trace.Component, "test"),
+		Emitter:             client,
 		RemoteClusterGetter: client,
 		SiteGetter:          revTunServer,
 		TracerProvider:      tracing.NoopProvider(),

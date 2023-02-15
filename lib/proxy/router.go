@@ -33,8 +33,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auditd"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -116,6 +120,8 @@ type RouterConfig struct {
 	ClusterName string
 	// Log is the logger to use
 	Log *logrus.Entry
+	// Emitter is an event emitter
+	Emitter apievents.Emitter
 	// AccessPoint is the proxy cache
 	RemoteClusterGetter RemoteClusterGetter
 	// SiteGetter allows looking up sites
@@ -131,6 +137,10 @@ type RouterConfig struct {
 func (c *RouterConfig) CheckAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = logrus.WithField(trace.Component, "Router")
+	}
+
+	if c.Emitter == nil {
+		return trace.BadParameter("Emitter required")
 	}
 
 	if c.ClusterName == "" {
@@ -161,6 +171,7 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 type Router struct {
 	clusterName    string
 	log            *logrus.Entry
+	emitter        apievents.Emitter
 	clusterGetter  RemoteClusterGetter
 	localSite      reversetunnel.RemoteSite
 	siteGetter     SiteGetter
@@ -183,6 +194,7 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 	return &Router{
 		clusterName:    cfg.ClusterName,
 		log:            cfg.Log,
+		emitter:        cfg.Emitter,
 		clusterGetter:  cfg.RemoteClusterGetter,
 		localSite:      localSite,
 		siteGetter:     cfg.SiteGetter,
@@ -244,30 +256,64 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 		proxyIDs   []string
 	)
 	if target != nil {
-		// if the target node is a registered OpenSSH node, preform a
-		// RBAC check
+		// if the target node is a registered OpenSSH node, preform a RBAC check
 		if target.GetSubKind() == types.KindOpenSSHNode {
 			client, err := site.GetClient()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			authPref, err := client.GetAuthPreference(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			state := idInfo.AccessChecker.GetAccessState(authPref)
-			_, state.MFAVerified = idInfo.Certificate.Extensions[teleport.CertExtensionMFAVerified]
-			state.EnableDeviceVerification = true
-			state.DeviceVerified = authz.IsSSHDeviceVerified(idInfo.Certificate)
+			rbacErr := preformRBACCheck(ctx, idInfo, r.clusterName, clusterName, client, target)
+			if rbacErr != nil {
+				// only failed attempts are logged right now
+				message := fmt.Sprintf("Principal %q is not allowed by this certificate. Ensure your roles grants access by adding it to the 'login' property.",
+					idInfo.Login,
+				)
+				traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
 
-			// check if roles allow access to server
-			if err := idInfo.AccessChecker.CheckAccess(
-				target,
-				state,
-				services.NewLoginMatcher(idInfo.Login),
-			); err != nil {
-				return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
-					idInfo.TeleportUser, r.clusterName, idInfo.Login, clusterName, err)
+				if trace.IsAccessDenied(rbacErr) {
+					message = "You are not authorized to access this node. Ensure your role grants access by adding it to the 'node_labels' property."
+					traceType = types.ConnectionDiagnosticTrace_RBAC_NODE
+				}
+
+				connectionDiagnosticID := idInfo.Certificate.Extensions[teleport.CertExtensionConnectionDiagnosticID]
+				if connectionDiagnosticID != "" {
+					connectionTrace := types.NewTraceDiagnosticConnection(traceType, message, rbacErr)
+					_, err = client.AppendDiagnosticTrace(ctx, connectionDiagnosticID, connectionTrace)
+					if err != nil {
+						r.log.WithError(err).Warn("Failed to append Trace to ConnectionDiagnostic.")
+					}
+				}
+
+				if err := r.emitter.EmitAuditEvent(ctx, &apievents.AuthAttempt{
+					Metadata: apievents.Metadata{
+						Type: events.AuthAttemptEvent,
+						Code: events.AuthAttemptFailureCode,
+					},
+					UserMetadata: apievents.UserMetadata{
+						Login:         idInfo.Login,
+						User:          idInfo.TeleportUser,
+						TrustedDevice: eventDeviceMetadataFromCert(idInfo.Certificate),
+					},
+					ConnectionMetadata: apievents.ConnectionMetadata{
+						LocalAddr:  from.String(),
+						RemoteAddr: net.JoinHostPort(host, port),
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error:   err.Error(),
+					},
+				}); err != nil {
+					r.log.WithError(err).Warn("Failed to emit failed login audit event.")
+				}
+
+				auditdMsg := auditd.Message{
+					SystemUser:   idInfo.Login,
+					TeleportUser: idInfo.TeleportUser,
+					ConnAddress:  from.String(),
+				}
+				if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
+					r.log.Warnf("Failed to send an event to auditd: %v", err)
+				}
 			}
 		}
 
@@ -315,6 +361,53 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 	}
 
 	return newProxiedMetricConn(conn), trace.Wrap(err)
+}
+
+func preformRBACCheck(ctx context.Context, idInfo IdentityInfo, cluster, targetCluster string, client auth.ClientI, target types.Server) error {
+	// we don't need to check the RBAC for the node if they are only allowed to join sessions
+	if idInfo.Login == teleport.SSHSessionJoinPrincipal && auth.RoleSupportsModeratedSessions(idInfo.AccessChecker.Roles()) {
+		return nil
+	}
+
+	authPref, err := client.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	state := idInfo.AccessChecker.GetAccessState(authPref)
+	_, state.MFAVerified = idInfo.Certificate.Extensions[teleport.CertExtensionMFAVerified]
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = authz.IsSSHDeviceVerified(idInfo.Certificate)
+
+	// check if roles allow access to server
+	if err := idInfo.AccessChecker.CheckAccess(
+		target,
+		state,
+		services.NewLoginMatcher(idInfo.Login),
+	); err != nil {
+		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
+			idInfo.TeleportUser, cluster, idInfo.Login, targetCluster, err)
+	}
+
+	return nil
+}
+
+func eventDeviceMetadataFromCert(cert *ssh.Certificate) *apievents.DeviceMetadata {
+	if cert == nil {
+		return nil
+	}
+
+	devID := cert.Extensions[teleport.CertExtensionDeviceID]
+	assetTag := cert.Extensions[teleport.CertExtensionDeviceAssetTag]
+	credID := cert.Extensions[teleport.CertExtensionDeviceCredentialID]
+	if devID == "" && assetTag == "" && credID == "" {
+		return nil
+	}
+
+	return &apievents.DeviceMetadata{
+		DeviceId:     devID,
+		AssetTag:     assetTag,
+		CredentialId: credID,
+	}
 }
 
 // getRemoteCluster looks up the provided clusterName to determine if a remote site exists with

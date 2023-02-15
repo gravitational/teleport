@@ -3515,6 +3515,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		router, err := proxy.NewRouter(proxy.RouterConfig{
 			ClusterName:         clusterName,
 			Log:                 process.log.WithField(trace.Component, "router"),
+			Emitter:             asyncEmitter,
 			RemoteClusterGetter: accessPoint,
 			SiteGetter:          tsrv,
 			TracerProvider:      process.TracingProvider,
