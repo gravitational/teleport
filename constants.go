@@ -589,6 +589,8 @@ const (
 	PresetAuditorRoleName = "auditor"
 )
 
+var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
+
 // MinClientVersion is the minimum client version required by the server.
 var MinClientVersion string
 
