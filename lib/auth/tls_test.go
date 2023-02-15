@@ -3917,7 +3917,6 @@ func TestGetToken(t *testing.T) {
 	}
 }
 
-// TestDeleteToken tests the DeleteToken RPC end-to-end
 func TestDeleteToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
