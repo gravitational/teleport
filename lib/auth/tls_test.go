@@ -3551,7 +3551,7 @@ func requireNotFound(t require.TestingT, err error, i ...interface{}) {
 	)
 }
 
-func TestCreateToken(t *testing.T) {
+func TestGRPCServer_CreateTokenV2(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ac := setupAuthContext(ctx, t)
@@ -3659,8 +3659,7 @@ func TestCreateToken(t *testing.T) {
 	}
 }
 
-// TestUpsertToken tests the UpsertTokenV2 RPC end-to-end
-func TestUpsertToken(t *testing.T) {
+func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ac := setupAuthContext(ctx, t)
@@ -3771,7 +3770,7 @@ func TestUpsertToken(t *testing.T) {
 	}
 }
 
-func TestGetTokens(t *testing.T) {
+func TestGRPCServer_GetTokens(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ac := setupAuthContext(ctx, t)
@@ -3845,7 +3844,7 @@ func TestGetTokens(t *testing.T) {
 	}
 }
 
-func TestGetToken(t *testing.T) {
+func TestGRPCServer_GetToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ac := setupAuthContext(ctx, t)
@@ -3915,7 +3914,7 @@ func TestGetToken(t *testing.T) {
 	}
 }
 
-func TestDeleteToken(t *testing.T) {
+func TestGRPCServer_DeleteToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ac := setupAuthContext(ctx, t)
