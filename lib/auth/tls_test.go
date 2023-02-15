@@ -2750,7 +2750,11 @@ func TestRegisterCAPin(t *testing.T) {
 
 	// Generate a token to use.
 	token := generateTestToken(
-		ctx, t, types.SystemRoles{types.RoleProxy}, tt.server.Auth(),
+		ctx,
+		t,
+		types.SystemRoles{types.RoleProxy},
+		time.Time{},
+		tt.server.Auth(),
 	)
 
 	// Generate public and private keys for node.
@@ -2888,6 +2892,7 @@ func TestRegisterCAPath(t *testing.T) {
 		ctx,
 		t,
 		types.SystemRoles{types.RoleProxy},
+		time.Time{},
 		tt.server.Auth(),
 	)
 

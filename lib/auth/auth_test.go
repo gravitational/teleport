@@ -678,13 +678,14 @@ func generateTestToken(
 	ctx context.Context,
 	t *testing.T,
 	roles types.SystemRoles,
+	expires time.Time,
 	auth tokenCreatorAndDeleter,
 ) string {
 	t.Helper()
 	token, err := utils.CryptoRandomHex(TokenLenBytes)
 	require.NoError(t, err)
 
-	pt, err := types.NewProvisionToken(token, roles, time.Time{})
+	pt, err := types.NewProvisionToken(token, roles, expires)
 	require.NoError(t, err)
 	require.NoError(t, auth.CreateToken(ctx, pt))
 	t.Cleanup(func() {
@@ -711,6 +712,7 @@ func TestBadTokens(t *testing.T) {
 	tok := generateTestToken(
 		ctx, t,
 		types.SystemRoles{types.RoleNode},
+		time.Time{},
 		s.a,
 	)
 	tampered := string(tok[0]+1) + tok[1:]
