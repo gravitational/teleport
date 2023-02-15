@@ -79,19 +79,14 @@ func main() {
 	}
 }
 
-func GenerateCRD(c *schemagen.SchemaCollection) ([]*schemagen.TransformedFile, error) {
-	var files []*schemagen.TransformedFile
-	for _, root := range c.Roots {
-		crd := CustomResourceDefinition(root, groupName)
-		data, err := yaml.Marshal(crd)
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, &schemagen.TransformedFile{
-			Name:    fmt.Sprintf("%s_%s.yaml", groupName, root.PluralName),
-			Content: string(data),
-		})
+func GenerateCRD(root *schemagen.RootSchema) (*schemagen.TransformedFile, error) {
+	crd := CustomResourceDefinition(root, groupName)
+	data, err := yaml.Marshal(crd)
+	if err != nil {
+		return nil, err
 	}
-
-	return files, nil
+	return &schemagen.TransformedFile{
+		Name:    fmt.Sprintf("%s_%s.yaml", groupName, root.PluralName),
+		Content: string(data),
+	}, nil
 }

@@ -34,14 +34,14 @@ func newGenerator(req *gogoplugin.CodeGeneratorRequest) (*Forest, error) {
 	}, nil
 }
 
-// SchemaCollection includes the  OpenAPI v3 schemas parsed from a single proto
+// schemaCollection includes the  OpenAPI v3 schemas parsed from a single proto
 // file.
-type SchemaCollection struct {
+type schemaCollection struct {
 	// Map of message names to schemas we have already visited. Used for
 	// detecting dependency cycles.
 	memo map[string]*Schema
 	// Map of resource kinds to RootSchemas
-	Roots map[string]*RootSchema
+	roots map[string]*RootSchema
 }
 
 // TransformedFile includes the name and content of a protobuf file transformed
@@ -65,13 +65,21 @@ func generateSchema(
 		}
 	}
 
-	tf, err := transformer(generator)
-
-	if err != nil {
-		return trace.Wrap(err)
+	tf := make([]*TransformedFile, len(generator.roots))
+	var i int
+	for _, root := range generator.roots {
+		file, err := transformer(root)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tf[i] = file
+		i++
 	}
 
 	for _, f := range tf {
+		if f.Name == "" || f.Content == "" {
+			return trace.Wrap(errors.New("all transformed files must include a name and content"))
+		}
 		resp.File = append(resp.File, &gogoplugin.CodeGeneratorResponse_File{Name: &f.Name, Content: &f.Content})
 	}
 
@@ -81,7 +89,7 @@ func generateSchema(
 // TransformerFunc uses the provided *SchemaCollection generate the content for
 // zero or more files to write out, including their names and contents. It
 // returns an error if it fails to generate output.
-type TransformerFunc func(c *SchemaCollection) ([]*TransformedFile, error)
+type TransformerFunc func(c *RootSchema) (*TransformedFile, error)
 
 // RunPlugin loads proto files from standard input, then uses the provided
 // config to parse resource definitions from the proto files in OpenAPI v3
@@ -146,10 +154,10 @@ func (s *Schema) deepCopy() *Schema {
 	}
 }
 
-func newSchemaCollection() *SchemaCollection {
-	return &SchemaCollection{
+func newSchemaCollection() *schemaCollection {
+	return &schemaCollection{
 		memo:  make(map[string]*Schema),
-		Roots: make(map[string]*RootSchema),
+		roots: make(map[string]*RootSchema),
 	}
 }
 
@@ -174,7 +182,7 @@ type ParseResourceOptions struct {
 	IgnoredFields []string
 }
 
-func (generator *SchemaCollection) parseResource(file *File, opts ParseResourceOptions) error {
+func (generator *schemaCollection) parseResource(file *File, opts ParseResourceOptions) error {
 	rootMsg, ok := file.messageByName[opts.Name]
 	if !ok {
 		return trace.NotFound("resource %q is not found", opts.Name)
@@ -209,14 +217,14 @@ func (generator *SchemaCollection) parseResource(file *File, opts ParseResourceO
 	}
 	schema.Description = fmt.Sprintf("%s resource definition %s from Teleport", resourceKind, resourceVersion)
 
-	root, ok := generator.Roots[resourceKind]
+	root, ok := generator.roots[resourceKind]
 	if !ok {
 		root = &RootSchema{
 			Kind:       resourceKind,
 			Name:       strings.ToLower(resourceKind),
 			PluralName: strings.ToLower(english.PluralWord(2, resourceKind, "")),
 		}
-		generator.Roots[resourceKind] = root
+		generator.roots[resourceKind] = root
 	}
 	root.Versions = append(root.Versions, SchemaVersion{
 		Version: resourceVersion,
@@ -235,7 +243,7 @@ func parseKindAndVersion(message *Message) (string, string, error) {
 	return res[1], strings.ToLower(res[2]), nil
 }
 
-func (generator *SchemaCollection) traverseInner(message *Message, ignoredFields stringSet) (*Schema, error) {
+func (generator *schemaCollection) traverseInner(message *Message, ignoredFields stringSet) (*Schema, error) {
 	name := message.Name()
 	if schema, ok := generator.memo[name]; ok {
 		if !schema.built {
@@ -295,7 +303,7 @@ func (generator *SchemaCollection) traverseInner(message *Message, ignoredFields
 	return schema, nil
 }
 
-func (generator *SchemaCollection) singularProp(field *Field, prop *apiextv1.JSONSchemaProps, ignoredFields stringSet) error {
+func (generator *schemaCollection) singularProp(field *Field, prop *apiextv1.JSONSchemaProps, ignoredFields stringSet) error {
 	switch {
 	case field.IsBool():
 		prop.Type = "boolean"
