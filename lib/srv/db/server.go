@@ -912,8 +912,8 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		return trace.Wrap(err)
 	}
 
-	// TODO(jakule): ClientIP should be required starting from 10.0.
-	clientIP := sessionCtx.Identity.ClientIP
+	// TODO(jakule): LoginIP should be required starting from 10.0.
+	clientIP := sessionCtx.Identity.LoginIP
 	if clientIP != "" {
 		s.log.Debugf("Real client IP %s", clientIP)
 
@@ -924,7 +924,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		}
 		defer release()
 	} else {
-		s.log.Debug("ClientIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
+		s.log.Debug("LoginIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
 	}
 
 	err = engine.HandleConnection(ctx, sessionCtx)
