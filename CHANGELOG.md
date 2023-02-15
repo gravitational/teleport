@@ -1,5 +1,33 @@
 # Changelog
 
+## 11.3.4
+
+This release of Teleport contains a low severity security fix and multiple improvements and bug fixes.
+
+### (Low) Arbitrary length data reading in go-mssqldb
+
+* Fixed issue with malicious MS SQL server causing potential DoS with malformed client packet. [go-mssqldb#7](https://github.com/gravitational/go-mssqldb/pull/7), [#21639](https://github.com/gravitational/teleport/pull/21639)
+
+### Other improvements and fixes
+
+* Fixed issue with readyz endpoint not recovering from degraded state. [#21827](https://github.com/gravitational/teleport/pull/21827)
+* Fixed issue with applications temporarily disappearing during app service restart. [#21808](https://github.com/gravitational/teleport/pull/21808)
+* Fixed desktop access discovery errors in access management UI. [#21757](https://github.com/gravitational/teleport/pull/21757)
+* Fixed "handshake failed" and "access denied" Teleport Connect errors on Windows. [#21721](https://github.com/gravitational/teleport/pull/21721)
+* Fixed issue with access management UI not accepting valid port numbers. [#21652](https://github.com/gravitational/teleport/pull/21652)
+* Fixed database connection issues during database service restarts. [#21636](https://github.com/gravitational/teleport/pull/21636)
+* Fixed Kubernetes connection issues during Kubernetes service restarts. [#21616](https://github.com/gravitational/teleport/pull/21616)
+* Fixed issue with application access going into redirect loop sometimes. [#21614](https://github.com/gravitational/teleport/pull/21614)
+* Fixed issue with moderated sessions not working on leaf clusters. [#21611](https://github.com/gravitational/teleport/pull/21611)
+* Fixed issue with invalid role namespaces leading to cluster lockouts. [#21574](https://github.com/gravitational/teleport/pull/21574)
+* Fixed issue with Teleport Connect sometimes not recognizing logged in user. [#21531](https://github.com/gravitational/teleport/pull/21531)
+* Added acknowledgment message for successful security key taps. [#21781](https://github.com/gravitational/teleport/pull/21781)
+* Updated Go toolchain to `1.20`. [#21681](https://github.com/gravitational/teleport/pull/21681)
+* Improved performance of listing resources across clusters. [#21583](https://github.com/gravitational/teleport/pull/21583)
+* Removed short timeouts from resource join links in access management UI. [#21488](https://github.com/gravitational/teleport/pull/21488)
+* Improved error message when trying to rename resource. [#21178](https://github.com/gravitational/teleport/pull/21178)
+* Improved stability in large clusters with etcd backend. [#21904](https://github.com/gravitational/teleport/pull/21904)
+
 ## 11.3.3
 
 This release of Teleport contains multiple improvements and bug fixes.
