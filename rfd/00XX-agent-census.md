@@ -134,6 +134,22 @@ enum TeleportAccessProtocol {
 Both the Teleport version and active Teleport services (which can be used to determine the Teleport access protocols enabled) are already tracked in the ICS.
 We detail below how the remaining data will be computed.
 
+Note that some of the suggestions below require running command-line utilities (such as `sw_vers` and `ldd`) or inspecting some files (such as `/etc/os-release`) and then parsing the output.
+This parsing will be done in Go and if the output does not have the expected format, the whole output will be included in the `UpstreamInventoryAgentMetadata` field.
+For example, if `sw_vers` does not look like what follows, `UpstreamInventoryAgentMetadata.OSVersion` will be set to the full output of `sw_vers` (instead of just `"macOs 13.2"`, as detailed below).
+
+```bash
+ProductName:            macOS
+ProductVersion:         13.2.1
+BuildVersion:           22D68
+```
+
+Including the full output allows us to improve the parsing code as this project evolves.
+This is specially true since we do not have access to agent logs.
+
+An alternative would be to send the full command output to the auth server and do the parsing there (instead of at the agent).
+In this case, we could log the unexpected output and only send "clean" data to PostHog.
+
 ##### 3. OS
 
 `UpstreamInventoryAgentMetadata.OS` will be set to the value on the `GOOS` environment variable.
@@ -141,7 +157,7 @@ This will give us either `darwin` or `linux` as they are the only two supported 
 
 ##### 4. OS version
 
-On `darwin`, `UpstreamInventoryAgentMetadata.OSVersion` will be set to the outcome of (something equivalent) to `$(sw_vers -productName) $(sw_vers -productVersion)` (e.g. "macOS 13.2").
+On `darwin`, `UpstreamInventoryAgentMetadata.OSVersion` will be set to the outcome of (something equivalent to) `$(sw_vers -productName) $(sw_vers -productVersion)` (e.g. `"macOS 13.2"`).
 This is what `gopsutil` is doing ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/host/host_darwin.go#L94-L120)).
 
 On `linux`, we'll inspect `/etc/os-release` and combine the values associated with `"NAME="` and `"VERSION_ID="` (e.g. "Ubuntu 22.04").
@@ -160,7 +176,7 @@ However, `gopsutil` is using [`golang.org/x/sys/unix.Uname`](https://pkg.go.dev/
 
 ##### 6. `glibc` version
 
-If on `linux`, `UpstreamInventoryAgentMetadata.GLibCVersion` will be set to the outcome of `ldd --version | head -n1 | awk '{ print $NF }'` (e.g. "2.35").
+If on `linux`, `UpstreamInventoryAgentMetadata.GLibCVersion` will be set to the outcome of (something equivalent to) `ldd --version | head -n1 | awk '{ print $NF }'` (e.g. "2.35").
 
 ##### 7. Installation methods
 
@@ -249,6 +265,5 @@ Data analysis and visualization are not a goal for this RFD, so no UX concerns f
 
 - Which alternative should we use for __5. Host architecture__?
 - Should we consider [Teleport AMIs](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/aws/terraform/AMIS.md) an installation method?
-- Is the [`install`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/install) script used for anything else?
 - Which container runtimes are we interested in tracking?
 - What happens if the agent is upgraded before the auth server, and the auth server does not know about `UpstreamInventoryAgentMetadata`?
