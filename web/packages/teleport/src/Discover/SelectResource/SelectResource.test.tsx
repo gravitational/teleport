@@ -28,6 +28,16 @@ import { ResourceKind } from 'teleport/Discover/Shared';
 import { DiscoverProvider } from 'teleport/Discover/useDiscover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { fullAccess, fullAcl } from 'teleport/mocks/contexts';
+import cfg from 'teleport/config';
+
+const crypto = require('crypto');
+
+// eslint-disable-next-line jest/require-hook
+Object.defineProperty(globalThis, 'crypto', {
+  value: {
+    randomUUID: () => crypto.randomUUID(),
+  },
+});
 
 const userContextJson = {
   authType: 'sso',
@@ -57,7 +67,7 @@ describe('select resource', () => {
     });
 
     return render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[{ pathname: cfg.routes.discover }]}>
         <TeleportContextProvider ctx={ctx}>
           <FeaturesContextProvider>
             <DiscoverProvider>

@@ -23,7 +23,7 @@ import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSusp
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { resourceKindToJoinRole } from 'teleport/Discover/Shared/ResourceKind';
 
-import { DbMeta } from '../../useDiscover';
+import { DbMeta, useDiscover } from '../../useDiscover';
 
 import type { AgentStepProps } from '../../types';
 import type { Database } from '../resources';
@@ -34,6 +34,7 @@ export function useMutualTls({ ctx, props }: Props) {
   const { joinToken: prevFetchedJoinToken } = useJoinTokenSuspender(
     ResourceKind.Database
   );
+  const { emitErrorEvent } = useDiscover();
   const [joinToken, setJoinToken] = useState(prevFetchedJoinToken);
   const meta = props.agentMeta as DbMeta;
   const clusterId = ctx.storeUser.getClusterId();
@@ -54,6 +55,10 @@ export function useMutualTls({ ctx, props }: Props) {
             method: 'token',
           })
           .then(setJoinToken)
+          .catch((error: Error) => {
+            emitErrorEvent(`error with fetching join token: ${error.message}`);
+            throw error;
+          })
       );
     }
     // Ensure runs only once.
@@ -73,6 +78,12 @@ export function useMutualTls({ ctx, props }: Props) {
           caCert,
         })
         .then(() => props.nextStep())
+        .catch((error: Error) => {
+          emitErrorEvent(
+            `error with update database with caCert: ${error.message}`
+          );
+          throw error;
+        })
     );
   }
 
