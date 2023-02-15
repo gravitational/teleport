@@ -74,14 +74,14 @@ message UpstreamInventoryHello {
 The `Version` field contains the Teleport version, while the `Services` field contains the subset of the system roles that are currently active at the agent.
 
 While initially we considered extending this message to contain all the agent metadata we want track, we decided to instead add a new message type `UpstreamInventoryAgentMetadata` (see the message definition below).
-Some of the agent metadata may be slow to compute (due to HTTP requests), and thus blocking the sending of the `UpstreamInventoryHello` until such metadata is computed could potentially increase the agent start-up time.
+Some of the agent metadata may be slow to compute (due to HTTP requests), and thus blocking the sending of the `UpstreamInventoryHello` until such metadata is computed could potentially increase the agent start-up/connection time.
 
-Instead, when the auth server handle is created at the agent ([here](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/inventory/inventory.go#L87-L97)), a new _agent metadata tracker_ goroutine will be spawned in order to calculate the agent metadata in the background.
+Instead, when the auth server handle is created at the agent ([here](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/inventory/inventory.go#L87-L97)), a new goroutine will be spawned in order to fetch the agent metadata in the background.
 
-Then, once the agent has sent the `UpstreamInventoryHello` to the auth server and received the `UpstreamInventoryHello` reply ([here](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/inventory/inventory.go#L167-L191)), it will request the metadata from the agent metadata tracker and send it to the auth server once it is available.
+Then, once the agent has sent the `UpstreamInventoryHello` to the auth server and received the `DownstreamInventoryHello` reply ([here](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/inventory/inventory.go#L167-L191)), it will request the metadata from the new goroutine and send it to the auth server once it is available.
 This step is non-blocking, and thus it should not impact the existing ICS mechanism.
 
-An initial sketch of this flow can be found in [7737d46](https://github.com/gravitational/teleport/commit/7737d46912a990f37c10e2778c21a3dc1a52af02).
+An initial sketch of this flow can be found in [9dc0d07](https://github.com/gravitational/teleport/commit/9dc0d076e9e613f90481a9c5f564a3de5bb4d170).
 
 ```protobuf
 message UpstreamInventoryAgentMetadata {
