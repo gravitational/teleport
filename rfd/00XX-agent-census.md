@@ -82,6 +82,8 @@ Then, once the agent has sent the `UpstreamInventoryHello` to the auth server an
 This step is non-blocking, and thus it should not impact the existing ICS mechanism.
 
 An initial sketch of this flow can be found in [9dc0d07](https://github.com/gravitational/teleport/commit/9dc0d076e9e613f90481a9c5f564a3de5bb4d170).
+Note that the agent metadata will be sent to auth server at most once (per boot): if the first attempt does not succeed, the proposed flow won't try to send it again.
+However, this attempt only occurs after a successful hello exchange and thus it will likely succeed.
 
 ```protobuf
 message UpstreamInventoryAgentMetadata {
