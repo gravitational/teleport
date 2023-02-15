@@ -2,9 +2,9 @@ name: user
 pluralname: users
 kind: ""
 versions:
-- name: v2
+- version: v2
   schema:
-    openAPIV3Schema:
+    jsonschemaprops:
       description: User is the Schema for the users API
       properties:
         spec:
@@ -27,5 +27,4 @@ versions:
                 variables.
               type: object
           type: object
-        type: object
   
