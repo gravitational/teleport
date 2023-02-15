@@ -32,7 +32,7 @@ main() {
 
   # Generate JS protos.
 	buf generate --template=buf-js.gen.yaml \
-    --path=proto/prehog/ \
+    --path=proto/prehog/v1alpha/connect.proto \
     --path=proto/teleport/lib/teleterm/
 
   cp -r github.com/gravitational/teleport/* .
