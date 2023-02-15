@@ -24,19 +24,16 @@ import (
 	"io"
 	"net"
 	"strings"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -252,57 +249,12 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, remoteAdd
 		Certificate:   t.ctx.Identity.Certificate,
 		AccessChecker: t.ctx.Identity.AccessChecker,
 	}
-	agentGetter := func(isNeeded bool) teleagent.Getter {
-		if !isNeeded {
+	agentGetter := func(nodeIsAgentless bool) teleagent.Getter {
+		if !nodeIsAgentless {
 			return t.ctx.StartAgentChannel
 		}
-
 		return func() (teleagent.Agent, error) {
-			priv, err := native.GeneratePrivateKey()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			client, err := t.router.GetSiteClient(ctx, t.clusterName)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			certBytes, err := client.GenerateOpenSSHCert(ctx, auth.OpenSSHCertRequest{
-				Username:  t.ctx.Identity.TeleportUser,
-				PublicKey: priv.MarshalSSHPublicKey(),
-				TTL:       time.Hour,
-				Cluster:   t.clusterName,
-				// TODO: ClientIP?
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			k, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			cert, ok := k.(*ssh.Certificate)
-			if !ok {
-				return nil, trace.BadParameter("not an SSH certificate")
-			}
-
-			t.ctx.SetForwardAgent(true)
-			tagent, err := t.ctx.StartAgentChannel()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if err := tagent.RemoveAll(); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if err := tagent.Add(agent.AddedKey{
-				PrivateKey:  priv.Signer,
-				Certificate: cert,
-			}); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return tagent, nil
+			return agentless.ConfigureAgent(ctx, t.ctx.Identity.Login, t.clusterName, t.router, t.ctx.StartAgentChannel)
 		}
 	}
 

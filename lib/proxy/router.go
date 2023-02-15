@@ -202,9 +202,8 @@ type IdentityInfo struct {
 }
 
 // AgentGetter allows the caller to configure an agent instance only
-// if it is needed. When connecting to a registered OpenSSH node, the
-// agent will be needed.
-type AgentGetter func(isNeeded bool) teleagent.Getter
+// if it is needed, ie when connecting to an Agentless node.
+type AgentGetter func(nodeIsAgentless bool) teleagent.Getter
 
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
 // is found an error is returned. If more than one matching node is found and the cluster networking

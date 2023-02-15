@@ -45,6 +45,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/agentless"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -623,9 +624,15 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		return
 	}
 
-	agentGetter := func(_ bool) teleagent.Getter {
-		return func() (teleagent.Agent, error) {
+	agentGetter := func(nodeIsAgentless bool) teleagent.Getter {
+		getAgent := func() (teleagent.Agent, error) {
 			return teleagent.NopCloser(tc.LocalAgent()), nil
+		}
+		if !nodeIsAgentless {
+			return getAgent
+		}
+		return func() (teleagent.Agent, error) {
+			return agentless.ConfigureAgent(t.terminalContext, t.ctx.GetUser(), tc.SiteName, t.router, getAgent)
 		}
 	}
 	idInfo := proxy.IdentityInfo{
