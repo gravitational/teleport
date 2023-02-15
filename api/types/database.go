@@ -111,6 +111,9 @@ type Database interface {
 	IsAWSHosted() bool
 	// IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or Cloud SQL).
 	IsCloudHosted() bool
+	// RequireAWSIAMRolesAsUsers returns true for database types that require
+	// AWS IAM roles as database users.
+	RequireAWSIAMRolesAsUsers() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
 }
@@ -306,6 +309,11 @@ func (d *DatabaseV3) SetMySQLServerVersion(version string) {
 // IsEmpty returns true if AWS metadata is empty.
 func (a AWS) IsEmpty() bool {
 	return protoKnownFieldsEqual(&a, &AWS{})
+}
+
+// Partition returns the AWS partition based on the region.
+func (a AWS) Partition() string {
+	return awsutils.GetPartitionFromRegion(a.Region)
 }
 
 // GetAWS returns the database AWS metadata.
@@ -726,6 +734,24 @@ func (d *DatabaseV3) GetManagedUsers() []string {
 // SetManagedUsers sets a list of database users that are managed by Teleport.
 func (d *DatabaseV3) SetManagedUsers(users []string) {
 	d.Status.ManagedUsers = users
+}
+
+// RequireAWSIAMRolesAsUsers returns true for database types that require AWS
+// IAM roles as database users.
+func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
+	awsType, ok := d.getAWSType()
+	if !ok {
+		return false
+	}
+
+	switch awsType {
+	case DatabaseTypeAWSKeyspaces,
+		DatabaseTypeDynamoDB,
+		DatabaseTypeRedshiftServerless:
+		return true
+	default:
+		return false
+	}
 }
 
 const (

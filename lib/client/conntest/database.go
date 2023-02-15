@@ -234,17 +234,8 @@ func (s *DatabaseConnectionTester) getDatabaseServers(ctx context.Context, datab
 }
 
 func checkDatabaseLogin(protocol, databaseUser, databaseName string) error {
-	matchers := role.DatabaseRoleMatchers(protocol, databaseUser, databaseName)
-	needUser := false
-	needDatabase := false
-
-	for _, matcher := range matchers {
-		_, userMatcher := matcher.(*services.DatabaseUserMatcher)
-		needUser = needUser || userMatcher
-
-		_, nameMatcher := matcher.(*services.DatabaseNameMatcher)
-		needDatabase = needDatabase || nameMatcher
-	}
+	needUser := role.RequireDatabaseUserMatcher(protocol)
+	needDatabase := role.RequireDatabaseNameMatcher(protocol)
 
 	if needUser && databaseUser == "" {
 		return trace.BadParameter("missing required parameter Database User")
