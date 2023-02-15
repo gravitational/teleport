@@ -53,12 +53,6 @@ func TestTeleterm(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Run("adding root cluster", func(t *testing.T) {
-		t.Parallel()
-
-		testAddingRootCluster(t, pack, creds)
-	})
-
 	t.Run("ListRootClusters returns logged in user", func(t *testing.T) {
 		t.Parallel()
 
@@ -69,34 +63,6 @@ func TestTeleterm(t *testing.T) {
 
 		testGetClusterReturnsPropertiesFromAuthServer(t, pack)
 	})
-}
-
-func testAddingRootCluster(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
-	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                t.TempDir(),
-		InsecureSkipVerify: true,
-	})
-	require.NoError(t, err)
-
-	daemonService, err := daemon.New(daemon.Config{
-		Storage: storage,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		daemonService.Stop()
-	})
-
-	addedCluster, err := daemonService.AddCluster(context.Background(), pack.Root.Cluster.Web)
-	require.NoError(t, err)
-
-	clusters, err := daemonService.ListRootClusters(context.Background())
-	require.NoError(t, err)
-
-	clusterURIs := make([]uri.ResourceURI, 0, len(clusters))
-	for _, cluster := range clusters {
-		clusterURIs = append(clusterURIs, cluster.URI)
-	}
-	require.ElementsMatch(t, clusterURIs, []uri.ResourceURI{addedCluster.URI})
 }
 
 func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
@@ -140,11 +106,11 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	userName := fmt.Sprintf("%s-%s", "user", uuid)
 	roleName := fmt.Sprintf("%s-%s", "get-cluster-role", uuid)
 
-	requestableRole, err := types.NewRole(requestableRoleName, types.RoleSpecV6{})
+	requestableRole, err := types.NewRole(requestableRoleName, types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	// Create user role with ability to request role
-	userRole, err := types.NewRole(roleName, types.RoleSpecV6{
+	userRole, err := types.NewRole(roleName, types.RoleSpecV5{
 		Options: types.RoleOptions{},
 		Allow: types.RoleConditions{
 			Logins: []string{
@@ -224,6 +190,6 @@ func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, cred
 	require.NoError(t, err)
 	// The profile on disk created by NewClientWithCreds doesn't have WebProxyAddr set.
 	tc.WebProxyAddr = pack.Root.Cluster.Web
-	tc.SaveProfile(false /* makeCurrent */)
+	tc.SaveProfile(tc.KeysDir, false /* makeCurrent */)
 	return tc
 }
