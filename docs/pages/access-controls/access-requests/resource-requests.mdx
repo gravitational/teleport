@@ -124,13 +124,13 @@ Name                                 Hostname    Labels       Resource ID
 ------------------------------------ ----------- ------------ ------------------------------------------------------
 b1168402-9340-421a-a344-af66a6675738 iot         test=test    /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738
 bbb56211-7b54-4f9e-bee9-b68ea156be5f node        test=test    /teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f
- 
+
 To request access to these resources, run
 > tsh request create --resource /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738 --resource /teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f \
     --reason <request reason>
 ```
 
-You can search for resources of kind `node`, `kube_cluster`, `db`, `app`, and
+You can search for resources of kind `node`, `kube_cluster`, `pod`, `db`, `app`, and
 `windows_desktop`. Advanced filters and queries are supported. See our
 [filtering reference](../../reference/cli.mdx#resource-filtering) for more information.
 
@@ -141,7 +141,7 @@ $ tsh request search --kind node --search iot
 Name                                 Hostname    Labels       Resource ID
 ------------------------------------ ----------- ------------ ------------------------------------------------------
 b1168402-9340-421a-a344-af66a6675738 iot         test=test    /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738
- 
+
 To request access to these resources, run
 > tsh request create --resource /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738 \
     --reason <request reason>
@@ -163,9 +163,9 @@ Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
 Reason:     "responding to incident 123"
 Reviewers:  [none] (suggested)
 Status:     PENDING
- 
+
 hint: use 'tsh login --request-id=<request-id>' to login with an approved request
- 
+
 Waiting for request approval...
 
 ```
@@ -187,9 +187,9 @@ $ tsh request ls
 ID                                   User  Roles  Resources                   Created At (UTC)    Status
 ------------------------------------ ----- ------ --------------------------- ------------------- -------
 f406f5d8-3c2a-428f-8547-a1d091a4ddab alice access ["/teleport.example.... [+] 23 Jun 22 18:25 UTC PENDING
- 
+
 [+] Requested resources truncated, use `tsh request show <request-id>` to view the full list
- 
+
 hint: use 'tsh request show <request-id>' for additional details
       use 'tsh login --request-id=<request-id>' to login with an approved request
 $ tsh request show f406f5d8-3c2a-428f-8547-a1d091a4ddab
@@ -200,7 +200,7 @@ Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
 Reason:     "responding to incident 123"
 Reviewers:  [none] (suggested)
 Status:     PENDING
- 
+
 hint: use 'tsh login --request-id=<request-id>' to login with an approved request
 $ tsh request review --approve f406f5d8-3c2a-428f-8547-a1d091a4ddab
 Successfully submitted review.  Request state: APPROVED
@@ -227,13 +227,13 @@ Resources:  ["/teleport.example.com/node/bbb56211-7b54-4f9e-bee9-b68ea156be5f"]
 Reason:     "responding to incident 123"
 Reviewers:  [none] (suggested)
 Status:     PENDING
- 
+
 hint: use 'tsh login --request-id=<request-id>' to login with an approved request
- 
+
 Waiting for request approval...
- 
+
 Approval received, getting updated certificates...
- 
+
 > Profile URL:        https://teleport.example.com
   Logged in as:       alice
   Active requests:    f406f5d8-3c2a-428f-8547-a1d091a4ddab
@@ -253,7 +253,7 @@ $ tsh ls
 Node Name Address   Labels
 --------- --------- ---------
 iot       [::]:3022 test=test
- 
+
 $ tsh ssh alice@iot
 iot:~ alice$
 ```
@@ -296,10 +296,10 @@ Status:     PENDING
 hint: use 'tsh login --request-id=<request-id>' to login with an approved request
 
 Waiting for request approval...
- 
+
 Approval received, reason="okay"
 Getting updated certificates...
- 
+
 iot:~ alice$
 ```
 
@@ -307,7 +307,7 @@ iot:~ alice$
 
 In this guide, we showed you how to enable a user to search for resources to
 request access to. To do so, we assigned the user a Teleport role with the
-`search_as_roles` field set to the preset `access` role. 
+`search_as_roles` field set to the preset `access` role.
 
 You can impose further restrictions on the resources a user is allowed to
 search by assigning `search_as_roles` to a more limited role. Below, we will
@@ -344,7 +344,7 @@ spec:
 
 You can restrict access to searching `kube_cluster` resources by assigning
 values to the `kubernetes_labels` field in the `spec.allow` or `spec.deny`
-fields. 
+fields.
 
 The following role allows access to Kubernetes clusters with the `env:staging`
 label:
@@ -368,7 +368,7 @@ spec:
 #### `pod`
 
 You can restrict access to `pod` resources by assigning values to the
-`kubernetes_resources` field in the `spec.allow` or `spec.deny` fields. 
+`kubernetes_resources` field in the `spec.allow` or `spec.deny` fields.
 
 The following role allows access to Kubernetes pods with the name `nginx` in any
 namespace, and all pods in the `dev` namespace:
@@ -427,23 +427,55 @@ the regular expression `/^nginx-[a-z0-9-]+$/`, run the following command:
 $ tsh request create --resources /teleport.example.com/pod/mycluster/*/^nginx-[a-z0-9-]+$
 ```
 
-<Notice type="warning">
+If a user has no access to a Kubernetes cluster, they can search the list of pods
+in the cluster by running the following command:
 
-Teleport does not currently support `tsh request search --kind=pods`.
+```code
+$ tsh request search --kind=pod --kube-cluster=<Var name="kube-cluster" /> \
+[--kube-namespace=<Var name="namespace" />|--all-kube-namespaces]
+Name               Namespace Labels    Resource ID
+-----------------  --------- --------- ----------------------------------------------------------
+nginx-deployment-0 default   app=nginx /teleport.example.com/pod/local/default/nginx-deployment-0
+nginx-deployment-1 default   app=nginx /teleport.example.com/pod/local/default/nginx-deployment-1
 
-</Notice>
+To request access to these resources, run
+> tsh request create --resource /teleport.example.com/pod/local/default/nginx-deployment-0 --resource /teleport.example.com/pod/local/default/nginx-deployment-1 \
+    --reason <request reason>
+```
+
+The list returned includes the name of the pod, the namespace it is in, its labels,
+and the resource ID. Pods included in the list are those that match the
+`kubernetes_resources` field in the user's `search_as_roles`. The user can then:
+
+- Request access to the pods by running the command provided by the `tsh request
+search` command.
+- Edit the command to request access to a subset of the pods.
+- Use a custom request with wildcards or regular expressions.
+
+`tsh request search --kind=pod` works even if the user has no permissions to interact
+ with the desired Kubernetes cluster, but the user's `search_as_roles` values
+must allow access to the cluster. If the user is unsure of the name of the cluster,
+they can run the following command to search it:
+
+```code
+$ tsh request search --kind=kube_cluster
+Name  Hostname Labels Resource ID
+----- -------- ------ ----------------------------------------
+local                 /teleport.example.com/kube_cluster/local
+
+```
 
 ##### Preventing unintended access
 
 If you are setting up a Teleport role to enable just-in-time access to a
 specific Kubernetes pod, you should set the role's `kubernetes_groups` and
 `kubernetes_users` to a role that has no access to Kubernetes resource beside
-the target pod. 
+the target pod.
 
 This is because, if a user requests access to a Kubernetes pod, and the request
 is approved, the Teleport Kubernetes Service will use the `kubernetes_groups`
 and `kubernetes_users` fields in the role to add impersonation headers to the user's
-requests to a Kubernetes API server. 
+requests to a Kubernetes API server.
 
 If the values of `kubernetes_users` and `kubernetes_groups` map to Kubernetes
 users and groups with access to additional resources, the user will be able to
@@ -453,7 +485,7 @@ send requests that interact with those resources, e.g., `Secret`s and
 #### `db`
 
 You can restrict access to searching `db` resources by assigning values to the
-`db_labels` field in the `spec.allow` or `spec.deny` fields. 
+`db_labels` field in the `spec.allow` or `spec.deny` fields.
 
 The following role allows access to databases with the `environment:dev` or
 `environment:stage` labels:
@@ -476,7 +508,7 @@ spec:
 #### `app`
 
 You can restrict access to searching `app` resources by assigning values to the
-`app_labels` field in the `spec.allow` or `spec.deny` fields. 
+`app_labels` field in the `spec.allow` or `spec.deny` fields.
 
 The following role allows access to all applications except for those in
 `env:prod`:
@@ -499,10 +531,10 @@ spec:
 
 You can restrict access to searching `windows_desktop` resources by assigning
 values to the `windows_desktop_labels` field in the `spec.allow` or `spec.deny`
-fields. 
+fields.
 
 The following role allows access to all Windows desktops with the
-`environment:dev` or `environment:stage` labels. 
+`environment:dev` or `environment:stage` labels.
 
 ```yaml
 kind: role
