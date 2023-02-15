@@ -3890,19 +3890,24 @@ func TestGetPluginWithSecrets(t *testing.T) {
 	srv := newTestTLSServer(t)
 	createPlugin(t, srv, pluginName)
 
+	accessDenied := func(t require.TestingT, err error, msg ...interface{}) {
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected error to be AccessDenied, got %v instead", err)
+	}
+
 	tt := []struct {
 		Name                        string
 		Role                        types.RoleSpecV6
-		ErrAssertionRead            require.BoolAssertionFunc
-		ErrAssertionReadWithSecrets require.BoolAssertionFunc
+		ErrAssertionRead            require.ErrorAssertionFunc
+		ErrAssertionReadWithSecrets require.ErrorAssertionFunc
 	}{
 		{
 			Name: "deny if user has no rules regarding plugins",
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{}},
 			},
-			ErrAssertionRead:            require.True,
-			ErrAssertionReadWithSecrets: require.True,
+			ErrAssertionRead:            accessDenied,
+			ErrAssertionReadWithSecrets: accessDenied,
 		},
 		{
 			Name: "deny secrets if user has ReadNoSecrets",
@@ -3914,8 +3919,8 @@ func TestGetPluginWithSecrets(t *testing.T) {
 					},
 				}},
 			},
-			ErrAssertionRead:            require.False,
-			ErrAssertionReadWithSecrets: require.True,
+			ErrAssertionRead:            require.NoError,
+			ErrAssertionReadWithSecrets: accessDenied,
 		},
 		{
 			Name: "allow if user has Read",
@@ -3927,8 +3932,8 @@ func TestGetPluginWithSecrets(t *testing.T) {
 					},
 				}},
 			},
-			ErrAssertionRead:            require.False,
-			ErrAssertionReadWithSecrets: require.False,
+			ErrAssertionRead:            require.NoError,
+			ErrAssertionReadWithSecrets: require.NoError,
 		},
 	}
 
@@ -3945,10 +3950,8 @@ func TestGetPluginWithSecrets(t *testing.T) {
 
 			_, err = client.GetPlugin(ctx, pluginName, false)
 			_, errWithSecrets := client.GetPlugin(ctx, pluginName, true)
-			tc.ErrAssertionRead(t, err != nil, err)
-			tc.ErrAssertionRead(t, trace.IsAccessDenied(err), err)
-			tc.ErrAssertionReadWithSecrets(t, errWithSecrets != nil, err)
-			tc.ErrAssertionReadWithSecrets(t, trace.IsAccessDenied(errWithSecrets), err)
+			tc.ErrAssertionRead(t, err)
+			tc.ErrAssertionReadWithSecrets(t, errWithSecrets)
 		})
 	}
 }
@@ -3961,17 +3964,22 @@ func TestSetPluginCredentials(t *testing.T) {
 	srv := newTestTLSServer(t)
 	createPlugin(t, srv, pluginName)
 
+	accessDenied := func(t require.TestingT, err error, msg ...interface{}) {
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected error to be AccessDenied, got %v instead", err)
+	}
+
 	tt := []struct {
 		Name         string
 		Role         types.RoleSpecV6
-		ErrAssertion require.BoolAssertionFunc
+		ErrAssertion require.ErrorAssertionFunc
 	}{
 		{
 			Name: "deny if user has no rules regarding plugins",
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{}},
 			},
-			ErrAssertion: require.True,
+			ErrAssertion: accessDenied,
 		},
 		{
 			Name: "deny secrets if user can update, but can not read secrets",
@@ -3983,7 +3991,7 @@ func TestSetPluginCredentials(t *testing.T) {
 					},
 				}},
 			},
-			ErrAssertion: require.True,
+			ErrAssertion: accessDenied,
 		},
 		{
 			Name: "deny if user can read secrets, but not update",
@@ -3995,7 +4003,7 @@ func TestSetPluginCredentials(t *testing.T) {
 					},
 				}},
 			},
-			ErrAssertion: require.True,
+			ErrAssertion: accessDenied,
 		},
 		{
 			Name: "allow if user can read secrets, and update",
@@ -4007,7 +4015,7 @@ func TestSetPluginCredentials(t *testing.T) {
 					},
 				}},
 			},
-			ErrAssertion: require.False,
+			ErrAssertion: require.NoError,
 		},
 	}
 
@@ -4031,8 +4039,7 @@ func TestSetPluginCredentials(t *testing.T) {
 					},
 				},
 			})
-			tc.ErrAssertion(t, err != nil, err)
-			tc.ErrAssertion(t, trace.IsAccessDenied(err), err)
+			tc.ErrAssertion(t, err)
 		})
 	}
 }
