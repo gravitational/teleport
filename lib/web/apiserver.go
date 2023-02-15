@@ -1292,7 +1292,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		IsCloud:              h.ClusterFeatures.GetCloud(),
 		TunnelPublicAddress:  tunnelPublicAddr,
 		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
-		IsDashboard:          getIsDashboard(h.ClusterFeatures),
+		IsDashboard:          isDashboard(h.ClusterFeatures),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -3650,10 +3650,13 @@ func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p htt
 	http.ServeContent(w, r, "authorized_hosts.txt", time.Now(), reader)
 }
 
-// getIsDashboard returns a bool indicating if the cluster is a
+// isDashboard returns a bool indicating if the cluster is a
 // dashboard cluster.
 // Dashboard is a cluster running on cloud infrastructure that
 // isn't a Teleport Cloud cluster
-func getIsDashboard(features proto.Features) bool {
+func isDashboard(features proto.Features) bool {
+	// TODO(matheus): for now, we assume dashboard based on
+	// the presence of recovery codes, which are never enabled
+	// in OSS or self-hosted Teleport.
 	return !features.GetCloud() && features.GetRecoveryCodes()
 }
