@@ -19,6 +19,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -26,6 +27,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -50,7 +52,6 @@ func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http
 			ResourceType: kind,
 			Limit:        1,
 		})
-
 		if err != nil {
 			// Access denied error is returned when user does not have permissions
 			// to read/list a resource kind which can be ignored as this function is not
@@ -403,6 +404,40 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 	}
 
 	return clt.ListResources(r.Context(), req)
+}
+
+// listKubeResources gets a list of kubernetes resources depending on the type of resource.
+func listKubeResources(ctx context.Context, kubeClient kubeproto.KubeServiceClient, values url.Values, site, resourceKind string) (*kubeproto.ListKubernetesResourcesResponse, error) {
+	req, err := newKubeListRequest(values, site, resourceKind)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return kubeClient.ListKubernetesResources(ctx, req)
+}
+
+// newKubeListRequest parses the request parameters into a ListKubernetesResourcesRequest.
+func newKubeListRequest(values url.Values, site, resourceKind string) (*kubeproto.ListKubernetesResourcesRequest, error) {
+	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sortBy := types.GetSortByFromString(values.Get("sort"))
+
+	startKey := values.Get("startKey")
+	req := &kubeproto.ListKubernetesResourcesRequest{
+		ResourceType:        resourceKind,
+		Limit:               limit,
+		StartKey:            startKey,
+		SortBy:              &sortBy,
+		PredicateExpression: values.Get("query"),
+		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
+		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
+		TeleportCluster:     site,
+		KubernetesCluster:   values.Get("kubeCluster"),
+		KubernetesNamespace: values.Get("kubeNamespace"),
+	}
+	return req, nil
 }
 
 type listResourcesGetResponse struct {

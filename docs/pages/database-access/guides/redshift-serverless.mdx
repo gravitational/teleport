@@ -168,10 +168,11 @@ spec:
     db_names:
     - dev
     db_users:
-    - 'teleport-redshift-serverless-access' # only the role name, do not specify the full AWS ARN
+    - 'teleport-redshift-serverless-access'
 ```
 
 - The value of `db_users` corresponds to the IAM role created in the previous step.
+  You can provide either the role name or the full AWS ARN of the IAM role.
 - The value(s) for `db_names` will depend on your Redshift Serverless configuration,
   but `dev` is the default name applied by AWS. You can also provide `*` to grant
   access to all instances.
