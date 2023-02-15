@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	usageevents "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
-	prehogv1 "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
+	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
 )
 

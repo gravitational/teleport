@@ -1,0 +1,8 @@
+version: v1
+plugins:
+  - name: go
+    path: lib/prehog/bin/protoc-gen-go
+    out: .
+  - name: connect-go
+    path: lib/prehog/bin/protoc-gen-connect-go
+    out: .
