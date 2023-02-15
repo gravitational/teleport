@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -252,13 +253,60 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, remoteAdd
 		AccessChecker: t.ctx.Identity.AccessChecker,
 	}
 	agentGetter := func(isNeeded bool) teleagent.Getter {
-		if isNeeded {
-			t.ctx.SetForwardAgent(true)
+		if !isNeeded {
+			return t.ctx.StartAgentChannel
 		}
-		return t.ctx.StartAgentChannel
+
+		return func() (teleagent.Agent, error) {
+			priv, err := native.GeneratePrivateKey()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			client, err := t.router.GetSiteClient(ctx, t.clusterName)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			certBytes, err := client.GenerateOpenSSHCert(ctx, auth.OpenSSHCertRequest{
+				Username:  t.ctx.Identity.TeleportUser,
+				PublicKey: priv.MarshalSSHPublicKey(),
+				TTL:       time.Hour,
+				Cluster:   t.clusterName,
+				// TODO: ClientIP?
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			k, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			cert, ok := k.(*ssh.Certificate)
+			if !ok {
+				return nil, trace.BadParameter("not an SSH certificate")
+			}
+
+			t.ctx.SetForwardAgent(true)
+			tagent, err := t.ctx.StartAgentChannel()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if err := tagent.RemoveAll(); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if err := tagent.Add(agent.AddedKey{
+				PrivateKey:  priv.Signer,
+				Certificate: cert,
+			}); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return tagent, nil
+		}
 	}
 
-	conn, isOpenSSHNode, err := t.router.DialHost(ctx, remoteAddr, t.host, t.port, t.clusterName, idInfo, agentGetter)
+	conn, err := t.router.DialHost(ctx, remoteAddr, t.host, t.port, t.clusterName, idInfo, agentGetter)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -266,12 +314,6 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, remoteAdd
 	// this custom SSH handshake allows SSH proxy to relay the client's IP
 	// address to the SSH server
 	t.doHandshake(ctx, remoteAddr, ch, conn)
-
-	if isOpenSSHNode {
-		if err := t.handleOpenSSHNode(ctx, ch, conn); err != nil {
-			return trace.Wrap(err)
-		}
-	}
 
 	go func() {
 		t.close(utils.ProxyConn(ctx, ch, conn))
@@ -326,30 +368,4 @@ func (t *proxySubsys) doHandshake(ctx context.Context, clientAddr net.Addr, clie
 	if err != nil {
 		t.log.Error(err)
 	}
-}
-
-func (t *proxySubsys) handleOpenSSHNode(ctx context.Context, clientConn io.ReadWriter, serverConn io.ReadWriter) error {
-	priv, err := native.GeneratePrivateKey()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	client, err := t.router.GetSiteClient(ctx, t.clusterName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = client.GenerateOpenSSHCert(ctx, auth.OpenSSHCertRequest{
-		Username:  t.ctx.Identity.TeleportUser,
-		PublicKey: priv.MarshalSSHPublicKey(),
-		TTL:       time.Hour,
-		Cluster:   t.clusterName,
-		// TODO: ClientIP?
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// TODO: replace the cert the user will attempt to use for auth
-
-	return nil
 }

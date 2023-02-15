@@ -209,7 +209,7 @@ type AgentGetter func(isNeeded bool) teleagent.Getter
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
 // is found an error is returned. If more than one matching node is found and the cluster networking
 // configuration is not set to route to the most recent an error is returned.
-func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, clusterName string, idInfo IdentityInfo, agentGetter AgentGetter) (_ net.Conn, isOpenSSHNode bool, err error) {
+func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, clusterName string, idInfo IdentityInfo, agentGetter AgentGetter) (_ net.Conn, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",
@@ -230,7 +230,7 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 	if clusterName != r.clusterName {
 		remoteSite, err := r.getRemoteCluster(ctx, clusterName, idInfo.AccessChecker)
 		if err != nil {
-			return nil, false, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		site = remoteSite
 	}
@@ -238,16 +238,17 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 	span.AddEvent("looking up server")
 	target, err := r.serverResolver(ctx, host, port, remoteSite{site})
 	if err != nil {
-		return nil, false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	span.AddEvent("retrieved target server")
 
 	principals := []string{host}
 
 	var (
-		serverID   string
-		serverAddr string
-		proxyIDs   []string
+		isOpenSSHNode bool
+		serverID      string
+		serverAddr    string
+		proxyIDs      []string
 	)
 	if target != nil {
 		// if the target node is a registered OpenSSH node, preform a
@@ -256,12 +257,12 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 			isOpenSSHNode = true
 			client, err := site.GetClient()
 			if err != nil {
-				return nil, false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 
 			authPref, err := client.GetAuthPreference(ctx)
 			if err != nil {
-				return nil, false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			state := idInfo.AccessChecker.GetAccessState(authPref)
 			_, state.MFAVerified = idInfo.Certificate.Extensions[teleport.CertExtensionMFAVerified]
@@ -274,13 +275,13 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 				state,
 				services.NewLoginMatcher(idInfo.Login),
 			); err != nil {
-				return nil, false, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
+				return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
 					idInfo.TeleportUser, r.clusterName, idInfo.Login, clusterName, err)
 			}
 
 			// check if roles allow agent forwarding
 			if err := idInfo.AccessChecker.CheckAgentForward(idInfo.Login); err != nil {
-				return nil, false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 		}
 
@@ -297,7 +298,7 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 		case serverAddr != "":
 			h, _, err := net.SplitHostPort(serverAddr)
 			if err != nil {
-				return nil, false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 
 			principals = append(principals, h)
@@ -325,10 +326,10 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 		ForceForwarding: isOpenSSHNode,
 	})
 	if err != nil {
-		return nil, false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return newProxiedMetricConn(conn), isOpenSSHNode, trace.Wrap(err)
+	return newProxiedMetricConn(conn), trace.Wrap(err)
 }
 
 // getRemoteCluster looks up the provided clusterName to determine if a remote site exists with

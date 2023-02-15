@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -841,8 +842,12 @@ func (c *Client) GenerateOpenSSHCert(ctx context.Context, req OpenSSHCertRequest
 	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	certBytes, err := base64.StdEncoding.DecodeString(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return []byte(cert), nil
+	return certBytes, nil
 }
 
 // GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
