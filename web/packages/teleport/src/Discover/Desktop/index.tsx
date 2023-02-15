@@ -27,6 +27,7 @@ import { InstallActiveDirectory } from 'teleport/Discover/Desktop/InstallActiveD
 import { Resource } from 'teleport/Discover/flow';
 
 import { DesktopWrapper } from 'teleport/Discover/Desktop/DesktopWrapper';
+import { DiscoverEvent } from 'teleport/services/userEvent';
 
 export const DesktopResource: Resource = {
   kind: ResourceKind.Desktop,
@@ -45,23 +46,31 @@ export const DesktopResource: Resource = {
   },
   views: [
     {
-      title: 'Select Resource',
+      title: 'Select Resource Type',
+      eventName: DiscoverEvent.ResourceSelection,
     },
     {
       title: 'Install Active Directory',
       component: InstallActiveDirectory,
+      eventName: DiscoverEvent.DesktopActiveDirectoryToolsInstall,
     },
     {
       title: 'Connect Teleport',
       component: ConnectTeleport,
+      // Sub-step events are handled inside its component.
+      // This eventName defines the event to emit for the `last` sub-step.
+      eventName: DiscoverEvent.DeployService,
     },
     {
       title: 'Discover Desktops',
       component: DiscoverDesktops,
+      eventName: DiscoverEvent.AutoDiscoveredResources,
+      manuallyEmitSuccessEvent: true,
     },
     {
       title: 'Finished',
       component: Finished,
+      eventName: DiscoverEvent.Completed,
       hide: true,
     },
   ],
