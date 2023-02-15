@@ -1190,20 +1190,20 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 	}
 }
 
-type OpenSSHCertRequest struct {
-	// Username is the Teleport username.
-	Username string
-	// PublicKey is the public key to sign.
-	PublicKey []byte
-	// TTL is the duration the certificate will be valid for.
-	TTL time.Duration
-	// Cluster is the Teleport cluster name.
-	Cluster string
-	// ClientIP is the IP address of the client.
-	ClientIP string
-}
+func (s *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
+	if req.Username == "" {
+		return nil, trace.BadParameter("username is empty")
+	}
+	if len(req.PublicKey) == 0 {
+		return nil, trace.BadParameter("public key is empty")
+	}
+	if req.TTL == 0 {
+		return nil, trace.BadParameter("TTL is not set")
+	}
+	if req.Cluster == "" {
+		return nil, trace.BadParameter("cluster is empty")
+	}
 
-func (s *Server) GenerateOpenSSHCert(ctx context.Context, req OpenSSHCertRequest) ([]byte, error) {
 	user, err := s.GetUser(req.Username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1225,7 +1225,7 @@ func (s *Server) GenerateOpenSSHCert(ctx context.Context, req OpenSSHCertRequest
 		user:      user,
 		publicKey: req.PublicKey,
 		checker:   checker,
-		ttl:       req.TTL,
+		ttl:       time.Duration(req.TTL),
 		traits: map[string][]string{
 			constants.TraitLogins: {req.Username},
 		},
@@ -1237,7 +1237,9 @@ func (s *Server) GenerateOpenSSHCert(ctx context.Context, req OpenSSHCertRequest
 		return nil, trace.Wrap(err)
 	}
 
-	return certs.SSH, nil
+	return &proto.OpenSSHCert{
+		Cert: certs.SSH,
+	}, nil
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests

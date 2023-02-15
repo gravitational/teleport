@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -826,28 +825,6 @@ func (c *Client) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		return nil, trace.Wrap(err)
 	}
 	return &re, nil
-}
-
-func (c *Client) GenerateOpenSSHCert(ctx context.Context, req OpenSSHCertRequest) ([]byte, error) {
-	out, err := c.PostJSON(
-		ctx,
-		c.Endpoint("users", req.Username, "ssh", "generate"),
-		req,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var cert string
-	if err := json.Unmarshal(out.Bytes(), &cert); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certBytes, err := base64.StdEncoding.DecodeString(cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return certBytes, nil
 }
 
 // GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
@@ -1659,14 +1636,15 @@ type ClientI interface {
 	// GenerateHostCerts generates new host certificates (signed
 	// by the host certificate authority) for a node
 	GenerateHostCerts(context.Context, *proto.HostCertsRequest) (*proto.Certs, error)
+	// GenerateOpenSSHCert signs a SSH certificate that can be used
+	// to connect to Agentless nodes.
+	GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error)
 	// AuthenticateWebUser authenticates web user, creates and  returns web session
 	// in case if authentication is successful
 	AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error)
 	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 	// short-lived certificates as a result
 	AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error)
-
-	GenerateOpenSSHCert(ctx context.Context, req OpenSSHCertRequest) ([]byte, error)
 
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 	// signed certificate if successful.

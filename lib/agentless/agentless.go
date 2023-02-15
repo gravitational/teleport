@@ -7,6 +7,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -29,10 +30,10 @@ func ConfigureAgent(ctx context.Context, username, clusterName string, clientGet
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certBytes, err := client.GenerateOpenSSHCert(ctx, auth.OpenSSHCertRequest{
+	reply, err := client.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
 		Username:  username,
 		PublicKey: priv.MarshalSSHPublicKey(),
-		TTL:       time.Hour,
+		TTL:       proto.Duration(time.Hour),
 		Cluster:   clusterName,
 		// TODO: ClientIP?
 	})
@@ -41,7 +42,7 @@ func ConfigureAgent(ctx context.Context, username, clusterName string, clientGet
 	}
 
 	// parse returned certificate bytes
-	k, _, _, _, err := ssh.ParseAuthorizedKey(certBytes)
+	k, _, _, _, err := ssh.ParseAuthorizedKey(reply.Cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
