@@ -3888,6 +3888,7 @@ func TestGetPluginWithSecrets(t *testing.T) {
 	const pluginName = "slack-default"
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
+	t.Cleanup(func() { srv.Close() })
 	createPlugin(t, srv, pluginName)
 
 	accessDenied := func(t require.TestingT, err error, msg ...interface{}) {
@@ -3947,6 +3948,7 @@ func TestGetPluginWithSecrets(t *testing.T) {
 
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
+			t.Cleanup(func() { client.Close() })
 
 			t.Run("without secrets", func(t *testing.T) {
 				_, err = client.GetPlugin(ctx, pluginName, false)
@@ -3966,6 +3968,7 @@ func TestSetPluginCredentials(t *testing.T) {
 	const pluginName = "slack-default"
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
+	t.Cleanup(func() { srv.Close() })
 	createPlugin(t, srv, pluginName)
 
 	accessDenied := func(t require.TestingT, err error, msg ...interface{}) {
@@ -4033,6 +4036,7 @@ func TestSetPluginCredentials(t *testing.T) {
 
 			client, err := srv.NewClient(TestUser(user.GetName()))
 			require.NoError(t, err)
+			t.Cleanup(func() { client.Close() })
 
 			err = client.SetPluginCredentials(ctx, pluginName, &types.PluginCredentialsV1{
 				Credentials: &types.PluginCredentialsV1_Oauth2AccessToken{
