@@ -422,7 +422,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// Expired sessions are purged immediately
 	var sessionLingeringThreshold time.Duration
-	fs, err := NewDebugFileSystem("../../webassets/teleport")
+	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 
 	handlerConfig := Config{
@@ -2175,6 +2175,7 @@ func TestLogin(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &rawSess))
 	cookies := re.Cookies()
 	require.Len(t, cookies, 1)
+	require.NotEmpty(t, rawSess.SessionExpires)
 
 	// now make sure we are logged in by calling authenticated method
 	// we need to supply both session cookie and bearer token for
@@ -6955,7 +6956,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
 
-	fs, err := NewDebugFileSystem("../../webassets/teleport")
+	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
 		Proxy:                revTunServer,
