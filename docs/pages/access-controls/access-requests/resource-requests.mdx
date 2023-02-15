@@ -445,15 +445,17 @@ To request access to these resources, run
 
 The list returned includes the name of the pod, the namespace it is in, its labels,
 and the resource ID. Pods included in the list are those that match the
-`kubernetes_resources` field in the user's `search_as_roles`. The user can then
-request access to the pods by running the command provided by the `tsh request
-search` command, or edit the command to request access to a subset of the pods, or
-to use a custom request with wildcards or regular expressions.
+`kubernetes_resources` field in the user's `search_as_roles`. The user can then:
 
-`tsh request search --kind=pod` works even if the user has no access to the
-Kubernetes cluster, but the user's `search_as_roles` values must allow access to
-the desired Kubernetes Cluster. If the user is unsure of the name of the cluster,
-they can run the following command to search for the cluster:
+- Request access to the pods by running the command provided by the `tsh request
+search` command.
+- Edit the command to request access to a subset of the pods.
+- Use a custom request with wildcards or regular expressions.
+
+`tsh request search --kind=pod` works even if the user has no permissions to interact
+ with the desired Kubernetes cluster, but the user's `search_as_roles` values
+must allow access to the cluster. If the user is unsure of the name of the cluster,
+they can run the following command to search it:
 
 ```code
 $ tsh request search --kind=kube_cluster
