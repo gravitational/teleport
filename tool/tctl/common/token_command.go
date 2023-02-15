@@ -100,7 +100,7 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, config *service.Con
 	// tctl tokens add ..."
 	c.tokenAdd = tokens.Command("add", "Create a invitation token")
 	c.tokenAdd.Flag("type", "Type(s) of token to add, e.g. --type=node,app,db").Required().StringVar(&c.tokenType)
-	c.tokenAdd.Flag("value", "Override the default random token name with a specified value").StringVar(&c.value)
+	c.tokenAdd.Flag("value", "Override the default random token with a specified value").StringVar(&c.value)
 	c.tokenAdd.Flag("labels", "Set token labels, e.g. env=prod,region=us-west").StringVar(&c.labels)
 	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v minutes",
 		int(defaults.ProvisioningTokenTTL/time.Minute))).
@@ -153,7 +153,7 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 	if c.value == "" {
 		token, err = utils.CryptoRandomHex(auth.TokenLenBytes)
 		if err != nil {
-			return trace.WrapWithMessage(err, "generating token value")
+			return trace.Wrap(err, "generating token value")
 		}
 	}
 

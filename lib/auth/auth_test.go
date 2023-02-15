@@ -768,8 +768,6 @@ func TestLocalControlStream(t *testing.T) {
 	}
 }
 
-// Deprecated: REMOVE IN 14.0.0 along with GenerateToken. This test has been
-// superseded.
 func TestGenerateTokenEventsEmitted(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)

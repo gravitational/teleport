@@ -3089,8 +3089,8 @@ func (g *GRPCServer) CreateTokenV2(ctx context.Context, req *proto.CreateTokenV2
 }
 
 // GenerateToken generates a new auth token.
-// Deprecated: REMOVE IN 14.0.0 - Clients should now use CreateToken or
-// UpdateToken.
+// Deprecated: Use CreateToken or UpdateToken.
+// DELETE IN 14.0.0, replaced by methods above (strideynet).
 func (g *GRPCServer) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (*proto.GenerateTokenResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
