@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 
+import Invite from './Invite';
 import Reset from './Reset';
 import { CardWelcome } from './CardWelcome';
 
@@ -33,7 +34,7 @@ export const WelcomeCustom = () => (
 
 export const WelcomeInvite = () => (
   <MemoryRouter initialEntries={['/web/invite/1234']}>
-    <Reset />
+    <Invite />
   </MemoryRouter>
 );
 
