@@ -48,6 +48,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -3186,70 +3187,11 @@ func (c *Client) DeleteAllSAMLIdPServiceProviders(ctx context.Context) error {
 	return nil
 }
 
-// CreatePlugin creates a new plugin instance.
-func (c *Client) CreatePlugin(ctx context.Context, req *proto.CreatePluginRequest) error {
-	_, err := c.grpc.CreatePlugin(ctx, req, c.callOpts...)
-	return trail.FromGRPC(err)
-}
-
-// GetPlugin returns the specified plugin instance.
-func (c *Client) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
-	if name == "" {
-		return nil, trace.BadParameter("missing plugin name")
-	}
-	plugin, err := c.grpc.GetPlugin(ctx, &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}, c.callOpts...)
-	return plugin, trail.FromGRPC(err)
-}
-
-// GetPlugins returns all plugin instances.
-func (c *Client) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
-	items, err := c.grpc.GetPlugins(ctx, &types.ResourcesWithSecretsRequest{WithSecrets: withSecrets}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	plugins := make([]types.Plugin, 0, len(items.Plugins))
-	for _, plugin := range items.Plugins {
-		plugins = append(plugins, plugin)
-	}
-	return plugins, nil
-}
-
-// DeletePlugin removes the specified plugin instance.
-func (c *Client) DeletePlugin(ctx context.Context, name string) error {
-	_, err := c.grpc.DeletePlugin(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
-	return trail.FromGRPC(err)
-}
-
-// DeleteAllPlugins removes all plugin instances.
-func (c *Client) DeleteAllPlugins(ctx context.Context) error {
-	_, err := c.grpc.DeleteAllPlugins(ctx, &emptypb.Empty{}, c.callOpts...)
-	return trail.FromGRPC(err)
-}
-
-// SetPluginCredentials sets the credentials for the given plugin.
-func (c *Client) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
-	v1, ok := creds.(*types.PluginCredentialsV1)
-	if !ok {
-		return trace.BadParameter("unsupported plugin credential type %T, expected %T", creds, v1)
-	}
-	_, err := c.grpc.SetPluginCredentials(ctx, &proto.SetPluginCredentialsRequest{
-		Name:        name,
-		Credentials: v1,
-	}, c.callOpts...)
-	return trail.FromGRPC(err)
-}
-
-// SetPluginStatus sets the credentials for the given plugin.
-func (c *Client) SetPluginStatus(ctx context.Context, name string, status types.PluginStatus) error {
-	v1, ok := status.(types.PluginStatusV1)
-	if !ok {
-		return trace.BadParameter("unsupported plugin status type %T, expected %T", status, v1)
-	}
-	_, err := c.grpc.SetPluginStatus(ctx, &proto.SetPluginStatusRequest{
-		Name:   name,
-		Status: &v1,
-	}, c.callOpts...)
-
-	return trail.FromGRPC(err)
+// PluginsClient returns an unadorned Plugins client, using the underlying
+// Auth gRPC connection.
+// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+// still get a plugins client when calling this method, but all RPCs will return
+// "not implemented" errors (as per the default gRPC behavior).
+func (c *Client) PluginsClient() pluginspb.PluginServiceClient {
+	return pluginspb.NewPluginServiceClient(c.conn)
 }

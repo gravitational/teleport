@@ -204,9 +204,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.UsageReporter == nil {
 		cfg.UsageReporter = services.NewDiscardUsageReporter()
 	}
-	if cfg.Plugins == nil {
-		cfg.Plugins = local.NewPluginsService(cfg.Backend)
-	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -257,7 +254,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
-		Plugins:                 cfg.Plugins,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -346,7 +342,6 @@ type Services struct {
 	services.ConnectionsDiagnostic
 	services.StatusInternal
 	services.UsageReporter
-	services.Plugins
 	types.Events
 	events.IAuditLog
 }
@@ -451,8 +446,6 @@ type Server struct {
 	oidcAuthService OIDCService
 
 	releaseService release.Client
-
-	pluginExchangeService PluginExchangeService
 
 	loginRuleEvaluator loginrule.Evaluator
 
@@ -589,13 +582,6 @@ func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.lockWatcher = lockWatcher
-}
-
-// SetPluginExchangeService sets the plugin exchange service.
-func (a *Server) SetPluginExchangeService(svc PluginExchangeService) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	a.pluginExchangeService = svc
 }
 
 func (a *Server) checkLockInForce(mode constants.LockingMode, targets []types.LockTarget) error {
@@ -3974,88 +3960,6 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 		log.WithError(err).Warn("Failed to emit kube cluster delete event.")
 	}
 	return nil
-}
-
-// CreatePlugin creates a new plugin instance.
-func (a *Server) CreatePlugin(ctx context.Context, req *proto.CreatePluginRequest) error {
-	svc := a.pluginExchangeService
-	if svc == nil {
-		return trace.NotImplemented("Plugins are only available in Cloud")
-	}
-
-	plugin := req.Plugin
-	if plugin == nil {
-		return trace.BadParameter("Plugin is nil")
-	}
-	initialCreds := req.InitialCredentials
-	if initialCreds == nil {
-		return trace.BadParameter("InitialCredentials must be set")
-	}
-
-	authCodeCreds := initialCreds.GetOauth2AuthorizationCode()
-	if authCodeCreds == nil {
-		return trace.BadParameter("unknown type of initial credentials received")
-	}
-
-	exchanger := svc.GetExchanger(plugin)
-	if exchanger == nil {
-		return trace.BadParameter("no suitable exchanger found for plugin")
-	}
-
-	creds, err := exchanger.Exchange(ctx, authCodeCreds.AuthorizationCode, authCodeCreds.RedirectUri)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = plugin.SetCredentials(&types.PluginCredentialsV1{
-		Credentials: &types.PluginCredentialsV1_Oauth2AccessToken{
-			Oauth2AccessToken: &types.PluginOAuth2AccessTokenCredentials{
-				AccessToken:  creds.AccessToken,
-				RefreshToken: creds.RefreshToken,
-				Expires:      creds.ExpiresAt,
-			},
-		},
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.Services.Plugins.CreatePlugin(ctx, req.Plugin); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// GetPlugin returns a plugin instance by name.
-func (a *Server) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
-	plugin, err := a.Services.Plugins.GetPlugin(ctx, name, withSecrets)
-	return plugin, trace.Wrap(err)
-}
-
-// GetPlugins returns all plugin instances.
-func (a *Server) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
-	plugin, err := a.Services.Plugins.GetPlugins(ctx, withSecrets)
-	return plugin, trace.Wrap(err)
-}
-
-// DeletePlugin removes the specified plugin instance.
-func (a *Server) DeletePlugin(ctx context.Context, name string) error {
-	return trace.Wrap(a.Services.Plugins.DeletePlugin(ctx, name))
-}
-
-// DeleteAllPlugins removes all plugin instances.
-func (a *Server) DeleteAllPlugins(ctx context.Context) error {
-	return trace.Wrap(a.Services.Plugins.DeleteAllPlugins(ctx))
-}
-
-// SetPluginCredentials sets the credentials for the given plugin.
-func (a *Server) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
-	return trace.Wrap(a.Services.Plugins.SetPluginCredentials(ctx, name, creds))
-}
-
-// SetPluginStatus sets the status for the given plugin.
-func (a *Server) SetPluginStatus(ctx context.Context, name string, creds types.PluginStatus) error {
-	return trace.Wrap(a.Services.Plugins.SetPluginStatus(ctx, name, creds))
 }
 
 // SubmitUsageEvent submits an external usage event.

@@ -37,6 +37,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -264,6 +265,12 @@ func (a *ServerWithRoles) DevicesClient() devicepb.DeviceTrustServiceClient {
 // It should not be called through ServerWithRoles and will always panic.
 func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 	panic("LoginRuleClient not implemented by ServerWithRoles")
+}
+
+// PluginsClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles and will always panic.
+func (a *ServerWithRoles) PluginsClient() pluginspb.PluginServiceClient {
+	panic("PluginsClient not implemented by ServerWithRoles")
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
@@ -5479,87 +5486,6 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 	}
 
 	return a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)
-}
-
-// CreatePlugin creates a new plugin instance.
-func (a *ServerWithRoles) CreatePlugin(ctx context.Context, req *proto.CreatePluginRequest) error {
-	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.authServer.CreatePlugin(ctx, req); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// GetPlugin returns a plugin instance by name.
-func (a *ServerWithRoles) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
-	readVerb := types.VerbReadNoSecrets
-	if withSecrets {
-		readVerb = types.VerbRead
-	}
-	if err := a.action(apidefaults.Namespace, types.KindPlugin, readVerb); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	plugin, err := a.authServer.GetPlugin(ctx, name, withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return plugin, nil
-}
-
-// GetPlugins returns all plugin instances.
-func (a *ServerWithRoles) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
-	readVerb := types.VerbReadNoSecrets
-	if withSecrets {
-		readVerb = types.VerbRead
-	}
-	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbList, readVerb); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	plugins, err := a.authServer.GetPlugins(ctx, withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return plugins, nil
-}
-
-// DeletePlugin removes the specified plugin instance.
-func (a *ServerWithRoles) DeletePlugin(ctx context.Context, name string) error {
-	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(a.authServer.DeletePlugin(ctx, name))
-}
-
-// DeleteAllPlugins removes all plugin instances.
-func (a *ServerWithRoles) DeleteAllPlugins(ctx context.Context) error {
-	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(a.authServer.DeleteAllPlugins(ctx))
-}
-
-// SetPluginCredentials sets the credentials for the given plugin.
-func (a *ServerWithRoles) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
-	// Check whether user can update, and read (with secrets).
-	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbRead, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(a.authServer.SetPluginCredentials(ctx, name, creds))
-}
-
-// SetPluginStatus sets the status for the given plugin.
-func (a *ServerWithRoles) SetPluginStatus(ctx context.Context, name string, status types.PluginStatus) error {
-	if err := a.action(apidefaults.Namespace, types.KindPlugin, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(a.authServer.SetPluginStatus(ctx, name, status))
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

@@ -40,6 +40,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1700,18 +1701,9 @@ type ClientI interface {
 	// ListReleases returns a list of Teleport Enterprise releases
 	ListReleases(ctx context.Context) ([]*types.Release, error)
 
-	// CreatePlugin creates a new plugin instance.
-	CreatePlugin(ctx context.Context, req *proto.CreatePluginRequest) error
-	// DeleteAllPlugins removes all plugin instances.
-	DeleteAllPlugins(ctx context.Context) error
-	// DeletePlugin removes the specified plugin instance.
-	DeletePlugin(ctx context.Context, name string) error
-	// GetPlugin returns a plugin instance by name.
-	GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error)
-	// GetPlugins returns all plugin instances.
-	GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error)
-	// SetPluginCredentials sets the credentials for the given plugin.
-	SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error
-	// SetPluginStatus sets the status for the given plugin.
-	SetPluginStatus(ctx context.Context, name string, creds types.PluginStatus) error
+	// PluginsClient returns a Plugins client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a plugins client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	PluginsClient() pluginspb.PluginServiceClient
 }
