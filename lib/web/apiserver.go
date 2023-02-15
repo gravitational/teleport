@@ -104,6 +104,11 @@ const (
 
 var metaRedirectTemplate = template.Must(template.New("meta-redirect").Parse(metaRedirectHTML))
 
+// healthCheckAppServerFunc defines a function used to perform a health check
+// to AppServer that can handle application requests (based on cluster name and
+// public address).
+type healthCheckAppServerFunc func(ctx context.Context, publicAddr string, clusterName string) error
+
 // Handler is HTTP web proxy handler
 type Handler struct {
 	log logrus.FieldLogger
@@ -115,6 +120,7 @@ type Handler struct {
 	sessionStreamPollPeriod time.Duration
 	clock                   clockwork.Clock
 	limiter                 *limiter.RateLimiter
+	healthCheckAppServer    healthCheckAppServerFunc
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
@@ -233,6 +239,10 @@ type Config struct {
 
 	// TracerProvider generates tracers to create spans with
 	TracerProvider oteltrace.TracerProvider
+
+	// HealthCheckAppServer is a function that checks if the proxy can handle
+	// application requests.
+	HealthCheckAppServer healthCheckAppServerFunc
 }
 
 type APIHandler struct {
@@ -281,10 +291,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
 	cfg.ProxyClient = auth.WithGithubConnectorConversions(cfg.ProxyClient)
 	h := &Handler{
-		cfg:             cfg,
-		log:             newPackageLogger(),
-		clock:           clockwork.NewRealClock(),
-		ClusterFeatures: cfg.ClusterFeatures,
+		cfg:                  cfg,
+		log:                  newPackageLogger(),
+		clock:                clockwork.NewRealClock(),
+		ClusterFeatures:      cfg.ClusterFeatures,
+		healthCheckAppServer: cfg.HealthCheckAppServer,
 	}
 
 	// for properly handling url-encoded parameter values.
@@ -453,6 +464,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		if h.healthCheckAppServer == nil {
+			h.healthCheckAppServer = appHandler.HealthCheckAppServer
+		}
 	}
 
 	return &APIHandler{
@@ -620,6 +635,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
+	h.GET("/webapi/sites/:site/pods", h.WithClusterAuth(h.clusterKubePodsGet))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
@@ -1741,7 +1757,13 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("need auth")
 	}
 
-	return newSessionResponse(ctx)
+	res, err := newSessionResponse(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	res.SessionExpires = webSession.GetExpiryTime()
+
+	return res, nil
 }
 
 func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
@@ -1984,7 +2006,7 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) getResetPasswordTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	result, err := h.getResetPasswordToken(context.TODO(), p.ByName("token"))
+	result, err := h.getResetPasswordToken(r.Context(), p.ByName("token"))
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to fetch a reset password token.")
 		// We hide the error from the remote user to avoid giving any hints.

@@ -74,10 +74,14 @@ TEST SUITE: None
 </TabItem>
 <TabItem scope="enterprise" label="Teleport Enterprise">
 
-Create a namespace for your Teleport cluster resources:
+Create a namespace for your Teleport cluster resources and configure the
+PodSecurityAdmission:
 
 ```code
 $ kubectl create namespace teleport-cluster
+namespace/teleport-cluster created
+$ kubectl label namespace teleport-cluster 'pod-security.kubernetes.io/enforce=baseline'
+namespace/teleport-cluster labeled
 ```
 
 Obtain your Teleport Enterprise license file from the [Teleport Customer
@@ -256,7 +260,7 @@ guide](../../reference/helm-reference/teleport-cluster.mdx).
 Read our guides to additional ways you can protect a Kubernetes cluster with
 Teleport:
 
-- [Connect Multiple Kubernetes Clusters](../../kubernetes-access/guides/multiple-clusters.mdx)
+- [Connect Multiple Kubernetes Clusters](../../kubernetes-access/register-clusters/register-via-deployment.mdx)
 - [Set up Machine ID with Kubernetes](../../machine-id/guides/kubernetes.mdx)
-- [Federated Access using Trusted Clusters](../../kubernetes-access/guides/federation.mdx)
+- [Federated Access using Trusted Clusters](../../kubernetes-access/manage-access/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../../kubernetes-access/controls.mdx)

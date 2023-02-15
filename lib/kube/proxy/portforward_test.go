@@ -43,29 +43,29 @@ func TestPortForwardKubeService(t *testing.T) {
 	t.Cleanup(func() { kubeMock.Close() })
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
-	testCtx := setupTestContext(
+	testCtx := SetupTestContext(
 		context.Background(),
 		t,
-		testConfig{
-			clusters: []kubeClusterConfig{{name: kubeCluster, apiEndpoint: kubeMock.URL}},
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 		},
 	)
 
 	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
 
 	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
-	user, _ := testCtx.createUserAndRole(
-		testCtx.ctx,
+	user, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
 		t,
 		username,
-		roleSpec{
-			name:       roleName,
-			kubeUsers:  roleKubeUsers,
-			kubeGroups: roleKubeGroups,
+		RoleSpec{
+			Name:       roleName,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
 		})
 
 	// generate a kube client with user certs for auth
-	_, config := testCtx.genTestKubeClientTLSCert(
+	_, config := testCtx.GenTestKubeClientTLSCert(
 		t,
 		user.GetName(),
 		kubeCluster,

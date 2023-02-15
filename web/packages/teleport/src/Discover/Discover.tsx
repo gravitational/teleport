@@ -68,14 +68,13 @@ function DiscoverContent() {
           selectedResource={selectedResource}
           views={views}
         />
-
         {content}
       </FeatureBox>
 
       <Prompt
         message={nextLocation => {
           if (nextLocation.pathname === cfg.routes.discover) return true;
-          return 'Are you sure you want to exit the “Add New Resource” workflow? You’ll have to start from the beginning next time.';
+          return 'Are you sure you want to exit the "Enroll New Resource” workflow? You’ll have to start from the beginning next time.';
         }}
         when={selectedResource.shouldPrompt(currentStep)}
       />

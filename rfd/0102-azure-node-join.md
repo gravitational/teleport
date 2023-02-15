@@ -6,6 +6,7 @@ state: draft
 # RFD 102 - Azure join method
 
 ## Required Approvers
+
 Engineering: @jakule && @r0mant
 Product: @klizhentas && @xinding33
 Security: @reedloden
@@ -44,25 +45,34 @@ to implement the following flow at a new `RegisterWithAzureToken` gRPC endpoint:
 1. The Node initiates a `RegisterWithAzureToken` request.
 2. The auth server enforces that TLS is used for transport.
 3. The auth server sends a base64 encoded 24 byte crypto-random challenge.
-  - We use 24 bytes instead of the 32 used by the IAM method because the nonce
-    parameter is limited to 32 characters, and 24 bytes require 32 base64 characters.
+
+- We use 24 bytes instead of the 32 used by the IAM method because the nonce
+  parameter is limited to 32 characters, and 24 bytes require 32 base64 characters.
+
 4. The node requests a) the attested data document using the challenge as the
-  nonce and b) an access token. Azure signs and returns both.
+   nonce and b) an access token. Azure signs and returns both.
 5. The node sends a join request to the auth server, including the signed
-  document, token, and other parameters in a `RegisterUsingTokenRequest`.
+   document, token, and other parameters in a `RegisterUsingTokenRequest`.
 6. The auth server checks that attested data is valid:
-  - The document's pkcs7 signature is valid.
-  - The returned nonce matches the issued challenge.
+
+- The document's pkcs7 signature is valid.
+- The returned nonce matches the issued challenge.
+
 7. The auth server checks that the access token is valid:
-  - The access token's signature is valid.
-  - The access token was not issued before the start of the
-  `RegisterWithAzureToken` request.
-  - The requested Teleport token allows the node to join. Teleport will get the
-    subscription ID and resource group from the access token's `xms_mirid` claim.
+
+- The access token's signature is valid. The key set will be fetched with the
+  OpenID Connect discovery mechanism.
+- The access token was not issued before the start of the
+  `RegisterWithAzureToken` request and hasn't expired.
+- The access token and attested data document were produced by the same VM
+  (i.e. their subscription ID, resource group, name, and VM ID match).
+- The requested Teleport token allows the node to join. Teleport will get the
+  subscription ID and resource group from the access token's `xms_mirid` claim.
+
 8. The auth server uses the access token to fetch info about the VM from
-  [the Azure API](https://learn.microsoft.com/en-us/rest/api/compute/virtual-machines/get?tabs=HTTP)
-  and use the VM ID to confirm that the access token and attested data are from
-  the same VM.
+   [the Azure API](https://learn.microsoft.com/en-us/rest/api/compute/virtual-machines/get?tabs=HTTP)
+   and use the VM ID to confirm that the access token and attested data are from
+   the same VM.
 9. The auth server sends credentials to join the cluster.
 
 As with IAM join, the flow will occur within a single streaming gRPC request and
@@ -79,10 +89,10 @@ assigned identity, the identity to use must be specified in the join parameters.
 When verifying the signature of attested data, Teleport should accept the
 following common names in certificates:
 
-- *.metadata.azure.com          # Public
-- *.metadata.azure.us           # Government
-- *.metadata.azure.cn           # China
-- *.metadata.microsoftazure.de  # Germany
+- \*.metadata.azure.com # Public
+- \*.metadata.azure.us # Government
+- \*.metadata.azure.cn # China
+- \*.metadata.microsoftazure.de # Germany
 
 Additionally, Teleport will pin any needed intermediate certificates at build
 time, as it already does for EC2 join. More information on Azure certificate
@@ -100,23 +110,24 @@ version: v2
 metadata:
   name: example_azure_token
 spec:
-  roles: [Node,Kube,Db]
+  roles: [Node, Kube, Db]
   azure:
     allow:
       # Subscription from which nodes can join. Required.
-      - azure_subscription: "22222222"
+      - azure_subscription: '22222222'
 
         # Resource groups from which nodes can join. If empty or omitted, nodes
         # from any resource group are allowed.
-        azure_resource_groups: ["rg1", "rg2"]
+        azure_resource_groups: ['rg1', 'rg2']
 ```
 
 teleport.yaml on the nodes should be configured so that they will use the Azure
 join token:
+
 ```yaml
 teleport:
   join_params:
-    token_name: "example_azure_token"
+    token_name: 'example_azure_token'
     method: azure
     azure:
       # client ID of the managed identity to use. Required if the VM has more
@@ -128,8 +139,8 @@ teleport:
 
 ```json
 {
-    "encoding":"pkcs7",
-    "signature":"MIIEEgYJKoZIhvcNAQcCoIIEAzCCA/8CAQExDzANBgkqhkiG9w0BAQsFADCBugYJKoZIhvcNAQcBoIGsBIGpeyJub25jZSI6IjEyMzQ1NjY3NjYiLCJwbGFuIjp7Im5hbWUiOiIiLCJwcm9kdWN0IjoiIiwicHVibGlzaGVyIjoiIn0sInRpbWVTdGFtcCI6eyJjcmVhdGVkT24iOiIxMS8yMC8xOCAyMjowNzozOSAtMDAwMCIsImV4cGlyZXNPbiI6IjExLzIwLzE4IDIyOjA4OjI0IC0wMDAwIn0sInZtSWQiOiIifaCCAj8wggI7MIIBpKADAgECAhBnxW5Kh8dslEBA0E2mIBJ0MA0GCSqGSIb3DQEBBAUAMCsxKTAnBgNVBAMTIHRlc3RzdWJkb21haW4ubWV0YWRhdGEuYXp1cmUuY29tMB4XDTE4MTEyMDIxNTc1N1oXDTE4MTIyMDIxNTc1NlowKzEpMCcGA1UEAxMgdGVzdHN1YmRvbWFpbi5tZXRhZGF0YS5henVyZS5jb20wgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBAML/tBo86ENWPzmXZ0kPkX5dY5QZ150mA8lommszE71x2sCLonzv4/UWk4H+jMMWRRwIea2CuQ5RhdWAHvKq6if4okKNt66fxm+YTVz9z0CTfCLmLT+nsdfOAsG1xZppEapC0Cd9vD6NCKyE8aYI1pliaeOnFjG0WvMY04uWz2MdAgMBAAGjYDBeMFwGA1UdAQRVMFOAENnYkHLa04Ut4Mpt7TkJFfyhLTArMSkwJwYDVQQDEyB0ZXN0c3ViZG9tYWluLm1ldGFkYXRhLmF6dXJlLmNvbYIQZ8VuSofHbJRAQNBNpiASdDANBgkqhkiG9w0BAQQFAAOBgQCLSM6aX5Bs1KHCJp4VQtxZPzXF71rVKCocHy3N9PTJQ9Fpnd+bYw2vSpQHg/AiG82WuDFpPReJvr7Pa938mZqW9HUOGjQKK2FYDTg6fXD8pkPdyghlX5boGWAMMrf7bFkup+lsT+n2tRw2wbNknO1tQ0wICtqy2VqzWwLi45RBwTGB6DCB5QIBATA/MCsxKTAnBgNVBAMTIHRlc3RzdWJkb21haW4ubWV0YWRhdGEuYXp1cmUuY29tAhBnxW5Kh8dslEBA0E2mIBJ0MA0GCSqGSIb3DQEBCwUAMA0GCSqGSIb3DQEBAQUABIGAld1BM/yYIqqv8SDE4kjQo3Ul/IKAVR8ETKcve5BAdGSNkTUooUGVniTXeuvDj5NkmazOaKZp9fEtByqqPOyw/nlXaZgOO44HDGiPUJ90xVYmfeK6p9RpJBu6kiKhnnYTelUk5u75phe5ZbMZfBhuPhXmYAdjc7Nmw97nx8NnprQ="
+  "encoding": "pkcs7",
+  "signature": "MIIEEgYJKoZIhvcNAQcCoIIEAzCCA/8CAQExDzANBgkqhkiG9w0BAQsFADCBugYJKoZIhvcNAQcBoIGsBIGpeyJub25jZSI6IjEyMzQ1NjY3NjYiLCJwbGFuIjp7Im5hbWUiOiIiLCJwcm9kdWN0IjoiIiwicHVibGlzaGVyIjoiIn0sInRpbWVTdGFtcCI6eyJjcmVhdGVkT24iOiIxMS8yMC8xOCAyMjowNzozOSAtMDAwMCIsImV4cGlyZXNPbiI6IjExLzIwLzE4IDIyOjA4OjI0IC0wMDAwIn0sInZtSWQiOiIifaCCAj8wggI7MIIBpKADAgECAhBnxW5Kh8dslEBA0E2mIBJ0MA0GCSqGSIb3DQEBBAUAMCsxKTAnBgNVBAMTIHRlc3RzdWJkb21haW4ubWV0YWRhdGEuYXp1cmUuY29tMB4XDTE4MTEyMDIxNTc1N1oXDTE4MTIyMDIxNTc1NlowKzEpMCcGA1UEAxMgdGVzdHN1YmRvbWFpbi5tZXRhZGF0YS5henVyZS5jb20wgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBAML/tBo86ENWPzmXZ0kPkX5dY5QZ150mA8lommszE71x2sCLonzv4/UWk4H+jMMWRRwIea2CuQ5RhdWAHvKq6if4okKNt66fxm+YTVz9z0CTfCLmLT+nsdfOAsG1xZppEapC0Cd9vD6NCKyE8aYI1pliaeOnFjG0WvMY04uWz2MdAgMBAAGjYDBeMFwGA1UdAQRVMFOAENnYkHLa04Ut4Mpt7TkJFfyhLTArMSkwJwYDVQQDEyB0ZXN0c3ViZG9tYWluLm1ldGFkYXRhLmF6dXJlLmNvbYIQZ8VuSofHbJRAQNBNpiASdDANBgkqhkiG9w0BAQQFAAOBgQCLSM6aX5Bs1KHCJp4VQtxZPzXF71rVKCocHy3N9PTJQ9Fpnd+bYw2vSpQHg/AiG82WuDFpPReJvr7Pa938mZqW9HUOGjQKK2FYDTg6fXD8pkPdyghlX5boGWAMMrf7bFkup+lsT+n2tRw2wbNknO1tQ0wICtqy2VqzWwLi45RBwTGB6DCB5QIBATA/MCsxKTAnBgNVBAMTIHRlc3RzdWJkb21haW4ubWV0YWRhdGEuYXp1cmUuY29tAhBnxW5Kh8dslEBA0E2mIBJ0MA0GCSqGSIb3DQEBCwUAMA0GCSqGSIb3DQEBAQUABIGAld1BM/yYIqqv8SDE4kjQo3Ul/IKAVR8ETKcve5BAdGSNkTUooUGVniTXeuvDj5NkmazOaKZp9fEtByqqPOyw/nlXaZgOO44HDGiPUJ90xVYmfeK6p9RpJBu6kiKhnnYTelUk5u75phe5ZbMZfBhuPhXmYAdjc7Nmw97nx8NnprQ="
 }
 ```
 
@@ -147,14 +158,15 @@ Decoded contents of the attested data document:
   "sku": "20_04-lts-gen2",
   "subscriptionId": "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy",
   "timeStamp": {
-    "createdOn" :"12/06/22 21:01:35 -0000",
-    "expiresOn" :"12/07/22 03:01:35 -0000"
+    "createdOn": "12/06/22 21:01:35 -0000",
+    "expiresOn": "12/07/22 03:01:35 -0000"
   },
   "vmId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 }
 ```
 
 ## Appendix II - Example access token payload
+
 ```json
 {
   "aud": "https://management.azure.com/",

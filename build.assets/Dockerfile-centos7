@@ -1,5 +1,9 @@
 ARG RUST_VERSION
 
+# Create an alias to the assets image. Ref: https://github.com/docker/for-mac/issues/2155
+ARG BUILDARCH
+FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport13-${BUILDARCH} AS teleport-buildbox-centos7-assets
+
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
@@ -27,17 +31,17 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 &&
 # Instal openssl.
 # Pulled from source because repository versions are too old.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b OpenSSL_1_1_1s && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b OpenSSL_1_1_1t && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = '129058165d195e43a0ad10111b0c2e29bdf65980' ] && \
+    [ "$(git rev-parse HEAD)" = '830bf8e1e4749ad65c51b6a1d0d769ae689404ba' ] && \
     ./config --release && \
     make && \
     make install_sw
 
 # Install libcbor.
-RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.1 && \
+RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
     cd libcbor && \
-    [ "$(git rev-parse HEAD)" = '5c1bb892c94b6ae2ef99e3c6673d5e0857242f38' ] && \
+    [ "$(git rev-parse HEAD)" = 'efa6c0886bae46bdaef9b679f61f4b9d8bc296ae' ] && \
     cmake3 \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
@@ -71,24 +75,18 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum update -y && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
-    # required by libbpf
-    centos-release-scl \
-    # required by libbpf
-    devtoolset-11-gcc* \
-    # required by libbpf
-    devtoolset-11-make \
-    # required by libbpf
-    elfutils-libelf-devel-static \
-    git \
-    # required by libbpf
-    scl-utils \
+        centos-release-scl \
+        devtoolset-11-gcc* \
+        devtoolset-11-make \
+        elfutils-libelf-devel-static \
+        scl-utils \
     yum clean all
 
 # Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
 # BUILD_STATIC_ONLY disables libbpf.so build as we don't need it.
 ARG LIBBPF_VERSION
 RUN mkdir -p /opt && cd /opt && \
-    curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     scl enable devtoolset-11 "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install"
 
@@ -246,11 +244,13 @@ COPY --from=libpcsclite \
     /usr/local/lib/libpcsclite.a \
     /usr/local/lib/
 
-# Download pre-built CentOS 7 assets with clang needed to build BPF tools.
-RUN cd / && curl -L https://s3.amazonaws.com/clientbuilds.gravitational.io/go/centos7-assets.tar.gz | tar -xz
-
 # Copy libbpf into the final image.
-COPY --from=libbpf /opt/libbpf/usr /usr
+ARG LIBBPF_VERSION
+COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
+
+# Download pre-built CentOS 7 assets with clang needed to build BPF tools.
+ARG BUILDARCH
+COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
