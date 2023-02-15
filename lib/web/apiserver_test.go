@@ -2175,6 +2175,7 @@ func TestLogin(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &rawSess))
 	cookies := re.Cookies()
 	require.Len(t, cookies, 1)
+	require.NotEmpty(t, rawSess.SessionExpires)
 
 	// now make sure we are logged in by calling authenticated method
 	// we need to supply both session cookie and bearer token for
@@ -5796,7 +5797,8 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: "User-associated roles do not configure \"kubernetes_groups\" or \"kubernetes_users\". Make sure that at least one is configured for the user.",
-					Error:   "this user cannot request kubernetes access, has no assigned groups or users",
+					Error: "Your user's Teleport role does not allow Kubernetes access." +
+						" Please ask cluster administrator to ensure your role has appropriate kubernetes_groups and kubernetes_users set.",
 				},
 			},
 		},
