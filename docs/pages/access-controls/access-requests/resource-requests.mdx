@@ -427,11 +427,12 @@ the regular expression `/^nginx-[a-z0-9-]+$/`, run the following command:
 $ tsh request create --resources /teleport.example.com/pod/mycluster/*/^nginx-[a-z0-9-]+$
 ```
 
-If a user has no access to a Kubernetes cluster, he can search the list of pods
+If a user has no access to a Kubernetes cluster, they can search the list of pods
 in the cluster by running the following command:
 
 ```code
-$ tsh request search --kind=pod --kube-cluster=<Var name="kube-cluster" /> [--kube-namespace=<Var name="namespace" />|--all-kube-namespaces]
+$ tsh request search --kind=pod --kube-cluster=<Var name="kube-cluster" /> \
+[--kube-namespace=<Var name="namespace" />|--all-kube-namespaces]
 Name               Namespace Labels    Resource ID
 -----------------  --------- --------- ----------------------------------------------------------
 nginx-deployment-0 default   app=nginx /teleport.example.com/pod/local/default/nginx-deployment-0
@@ -442,18 +443,17 @@ To request access to these resources, run
     --reason <request reason>
 ```
 
-The list returned includes the name of the pod, the namespace it is in, its labels
+The list returned includes the name of the pod, the namespace it is in, its labels,
 and the resource ID. Pods included in the list are those that match the
 `kubernetes_resources` field in the user's `search_as_roles`. The user can then
 request access to the pods by running the command provided by the `tsh request
-search` command or edit the command to request access to a subset of the pods or
+search` command, or edit the command to request access to a subset of the pods, or
 to use a custom request with wildcards or regular expressions.
 
-
 `tsh request search --kind=pod` works even if the user has no access to the
-Kubernetes cluster but the user's `search_as_roles` must allow accessing the
-desired Kubernetes Cluster. If the user is unsure of the name of the cluster, he can
-run the following command to search for the cluster:
+Kubernetes cluster, but the user's `search_as_roles` values must allow access to
+the desired Kubernetes Cluster. If the user is unsure of the name of the cluster,
+they can run the following command to search for the cluster:
 
 ```code
 $ tsh request search --kind=kube_cluster
