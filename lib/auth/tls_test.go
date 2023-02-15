@@ -3804,6 +3804,7 @@ func TestGetTokens(t *testing.T) {
 	}
 }
 
+// TestGetToken tests the GetToken RPC end-to-end
 func TestGetToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -3886,12 +3887,87 @@ func TestGetToken(t *testing.T) {
 	}
 }
 
-/*
+// TestDeleteToken tests the DeleteToken RPC end-to-end
 func TestDeleteToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ac := setupAuthContext(ctx, t)
-}*/
+
+	// Create a user with the least privilege access to call this RPC.
+	privilegedUser, _, err := CreateUserAndRole(
+		ac.server.Auth(), "token-deleter", nil, []types.Rule{
+			{
+				Resources: []string{types.KindToken},
+				Verbs:     []string{types.VerbDelete},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	// Create Provision token
+	pt := mustNewToken(t, "example-token", types.SystemRoles{types.RoleNode}, time.Time{})
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, pt))
+
+	tests := []struct {
+		name      string
+		tokenName string
+		identity  TestIdentity
+
+		requireTokenDeleted bool
+		requireError        require.ErrorAssertionFunc
+	}{
+		{
+			name:                "success",
+			tokenName:           pt.GetName(),
+			identity:            TestUser(privilegedUser.GetName()),
+			requireError:        require.NoError,
+			requireTokenDeleted: true,
+		},
+		{
+			name:      "access denied",
+			identity:  TestNop(),
+			tokenName: pt.GetName(),
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(
+					t,
+					trace.IsAccessDenied(err),
+					"err should be access denied, was: %s", err,
+				)
+			},
+		},
+		{
+			name:      "not found",
+			tokenName: "does-not-exist",
+			identity:  TestUser(privilegedUser.GetName()),
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(
+					t,
+					trace.IsNotFound(err),
+					"err should be not found, was: %s", err,
+				)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := ac.server.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			err = client.DeleteToken(ctx, tt.tokenName)
+			tt.requireError(t, err)
+
+			if tt.requireTokenDeleted {
+				_, err := ac.server.Auth().GetToken(ctx, tt.tokenName)
+				require.True(
+					t,
+					trace.IsNotFound(err),
+					"expected token to be deleted",
+				)
+			}
+		})
+	}
+}
 
 // verifyJWT verifies that the token was signed by one the passed in key pair.
 func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token string) (*jwt.Claims, error) {
