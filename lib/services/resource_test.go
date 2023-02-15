@@ -143,6 +143,11 @@ func TestParseShortcut(t *testing.T) {
 		"saml_sp":                    {expectedOutput: types.KindSAMLIdPServiceProvider},
 		"saml_sps":                   {expectedOutput: types.KindSAMLIdPServiceProvider},
 
+		"user_group":  {expectedOutput: types.KindUserGroup},
+		"user_groups": {expectedOutput: types.KindUserGroup},
+		"usergroup":   {expectedOutput: types.KindUserGroup},
+		"usergroups":  {expectedOutput: types.KindUserGroup},
+
 		"SamL_IDP_sERVICe_proVidER": {expectedOutput: types.KindSAMLIdPServiceProvider},
 
 		"unknown_type": {expectedErr: true},
