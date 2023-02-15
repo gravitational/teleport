@@ -3551,7 +3551,6 @@ func requireNotFound(t require.TestingT, err error, i ...interface{}) {
 	)
 }
 
-// TestCreateToken tests the CreateTokenV2 RPC end-to-end
 func TestCreateToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
