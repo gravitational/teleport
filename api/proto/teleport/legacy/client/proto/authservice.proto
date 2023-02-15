@@ -1446,32 +1446,6 @@ message DeleteSAMLIdPServiceProviderRequest {
   string Name = 1 [(gogoproto.jsontag) = "name"];
 }
 
-// CreatePluginRequest creates a new plugin from the given spec and initial credentials.
-message CreatePluginRequest {
-  // Plugin is the plugin object without live credentials.
-  types.PluginV1 Plugin = 1 [(gogoproto.jsontag) = "plugin"];
-  // InitialCredentials are the initial credentials of the plugin.
-  // In the scope of processing this request, these are exchanged for
-  // "live" credentials, which are stored in the Plugin.
-  types.PluginInitialCredentialsV1 InitialCredentials = 2 [(gogoproto.jsontag) = "initial_credentials"];
-}
-
-// SetPluginCredentialsRequest is a request to set credentials for an existing plugin
-message SetPluginCredentialsRequest {
-  // Name is the name of the plugin instance.
-  string Name = 1 [(gogoproto.jsontag) = "name"];
-  // Credentials are the live plugin credentials.
-  types.PluginCredentialsV1 Credentials = 2 [(gogoproto.jsontag) = "credentials"];
-}
-
-// SetPluginStatusRequest is a request to set the status for an existing plugin
-message SetPluginStatusRequest {
-  // Name is the name of the plugin instance.
-  string Name = 1 [(gogoproto.jsontag) = "name"];
-  // Status is the plugin status.
-  types.PluginStatusV1 Status = 2 [(gogoproto.jsontag) = "status"];
-}
-
 // CertAuthorityRequest is a request that identifies a Teleport CA.
 message CertAuthorityRequest {
   // Type is either user or host certificate authority.
@@ -2741,25 +2715,4 @@ service AuthService {
 
   // DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
   rpc DeleteAllSAMLIdPServiceProviders(google.protobuf.Empty) returns (google.protobuf.Empty);
-
-  // CreatePlugin creates a new plugin instance.
-  rpc CreatePlugin(CreatePluginRequest) returns (google.protobuf.Empty);
-
-  // GetPlugin returns a plugin instance by name.
-  rpc GetPlugin(types.ResourceWithSecretsRequest) returns (types.PluginV1);
-
-  // GetPlugins returns all plugin instances.
-  rpc GetPlugins(types.ResourcesWithSecretsRequest) returns (types.PluginListV1);
-
-  // DeletePlugin removes the specified plugin instance.
-  rpc DeletePlugin(types.ResourceRequest) returns (google.protobuf.Empty);
-
-  // DeleteAllPlugins removes all plugin instances.
-  rpc DeleteAllPlugins(google.protobuf.Empty) returns (google.protobuf.Empty);
-
-  // SetPluginCredentials sets the credentials for the given plugin.
-  rpc SetPluginCredentials(SetPluginCredentialsRequest) returns (google.protobuf.Empty);
-
-  // SetPluginCredentials sets the status for the given plugin.
-  rpc SetPluginStatus(SetPluginStatusRequest) returns (google.protobuf.Empty);
 }
