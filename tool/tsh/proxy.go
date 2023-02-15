@@ -731,6 +731,12 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		}
 		templates = append(templates, awsProxyJDBCHeaderFooterTemplate, awsProxyAthenaJDBCTemplate)
 
+	case cf.Format == awsProxyFormatTimestreamJDBC:
+		if !cf.AWSEndpointURLMode {
+			return trace.BadParameter("Timestream JDBC driver does not support HTTP proxy settings. Please re-run this command with `--endpoint-url` to start a local proxy as an AWS endpoint URL.")
+		}
+		templates = append(templates, awsProxyJDBCHeaderFooterTemplate, awsProxyTimestreamJDBCTemplate)
+
 	case cf.AWSEndpointURLMode:
 		templates = append(templates, awsEndpointURLProxyTemplate)
 	default:
@@ -906,8 +912,9 @@ const (
 	envVarFormatWindowsCommandPrompt = "command-prompt"
 	envVarFormatWindowsPowershell    = "powershell"
 
-	awsProxyFormatAthenaODBC = "athena-odbc"
-	awsProxyFormatAthenaJDBC = "athena-jdbc"
+	awsProxyFormatAthenaODBC     = "athena-odbc"
+	awsProxyFormatAthenaJDBC     = "athena-jdbc"
+	awsProxyFormatTimestreamJDBC = "timestream-jdbc"
 )
 
 var (
@@ -921,6 +928,7 @@ var (
 	awsProxyServiceFormats = []string{
 		awsProxyFormatAthenaODBC,
 		awsProxyFormatAthenaJDBC,
+		awsProxyFormatTimestreamJDBC,
 	}
 
 	awsProxyFormats = append(envVarFormats, awsProxyServiceFormats...)
@@ -1058,6 +1066,20 @@ ProxyPort = {{.proxyPort}};
 
 Here is a sample JDBC connection URL using the above credentials and proxy settings:
 jdbc:awsathena://User={{.envVars.AWS_ACCESS_KEY_ID}};Password={{.envVars.AWS_SECRET_ACCESS_KEY}};ProxyHost={{.proxyHost}};ProxyPort={{.proxyPort}};AwsRegion={{.region}};Workgroup={{.workgroup}}
+
+{{- template "jdbc-footer" -}}
+`
+
+// awsProxyTimestreamJDBCTemplate is the message that gets printed to a user
+// when an AWS proxy is used for Timestream JDBC driver.
+var awsProxyTimestreamJDBCTemplate = `{{- template "jdbc-header" . -}}
+Then, set the following properties in the JDBC connection URL:
+AccessKeyId = {{.envVars.AWS_ACCESS_KEY_ID}}
+SecretAccessKey = {{.envVars.AWS_SECRET_ACCESS_KEY}}
+Endpoint = {{.endpointURL}}
+
+Here is a sample JDBC connection URL using the above credentials and proxy settings:
+jdbc:timestream://AccessKeyId={{.envVars.AWS_ACCESS_KEY_ID}};SecretAccessKey={{.envVars.AWS_SECRET_ACCESS_KEY}};Endpoint={{.endpointURL}};Region={{.region}}
 
 {{- template "jdbc-footer" -}}
 `
