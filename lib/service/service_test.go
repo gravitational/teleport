@@ -55,25 +55,6 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestServiceDebugModeEnv(t *testing.T) {
-	require.False(t, isDebugMode())
-
-	for _, test := range []struct {
-		debugVal string
-		isDebug  bool
-	}{
-		{"no", false},
-		{"0", false},
-		{"1", true},
-		{"true", true},
-	} {
-		t.Run(fmt.Sprintf("%v=%v", teleport.DebugEnvVar, test.debugVal), func(t *testing.T) {
-			t.Setenv(teleport.DebugEnvVar, test.debugVal)
-			require.Equal(t, test.isDebug, isDebugMode())
-		})
-	}
-}
-
 func TestServiceSelfSignedHTTPS(t *testing.T) {
 	cfg := &Config{
 		DataDir:  t.TempDir(),
