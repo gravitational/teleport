@@ -21,44 +21,13 @@ import { MemoryRouter } from 'react-router';
 import { render, screen } from 'design/utils/testing';
 
 import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
-import { Access, Acl, makeUserContext } from 'teleport/services/user';
+import { Acl, makeUserContext } from 'teleport/services/user';
 import TeleportContext from 'teleport/teleportContext';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { DiscoverProvider } from 'teleport/Discover/useDiscover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-
-const fullAccess: Access = {
-  list: true,
-  read: true,
-  edit: true,
-  create: true,
-  remove: true,
-};
-
-const fullAcl: Acl = {
-  windowsLogins: ['Administrator'],
-  tokens: fullAccess,
-  appServers: fullAccess,
-  kubeServers: fullAccess,
-  recordedSessions: fullAccess,
-  activeSessions: fullAccess,
-  authConnectors: fullAccess,
-  roles: fullAccess,
-  users: fullAccess,
-  trustedClusters: fullAccess,
-  events: fullAccess,
-  accessRequests: fullAccess,
-  billing: fullAccess,
-  dbServers: fullAccess,
-  db: fullAccess,
-  desktops: fullAccess,
-  nodes: fullAccess,
-  clipboardSharingEnabled: true,
-  desktopSessionRecordingEnabled: true,
-  directorySharingEnabled: true,
-  connectionDiagnostic: fullAccess,
-};
+import { fullAccess, fullAcl } from 'teleport/mocks/contexts';
 
 const userContextJson = {
   authType: 'sso',

@@ -51,6 +51,8 @@ export default function makeAcl(json): Acl {
     json.directorySharing !== undefined ? json.directorySharing : true;
 
   const nodes = json.nodes || defaultAccess;
+  const license = json.license || defaultAccess;
+  const download = json.download || defaultAccess;
 
   return {
     windowsLogins,
@@ -74,6 +76,8 @@ export default function makeAcl(json): Acl {
     nodes,
     directorySharingEnabled,
     connectionDiagnostic,
+    license,
+    download,
   };
 }
 
