@@ -63,6 +63,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		GCPMatchers:   process.Config.Discovery.GCPMatchers,
 		Emitter:       asyncEmitter,
 		AccessPoint:   accessPoint,
+		Auth:          conn.Client,
 		Log:           process.log,
 	})
 	if err != nil {

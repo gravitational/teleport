@@ -177,10 +177,14 @@ type CommandLineFlags struct {
 	OpenSSHConfigPath string
 	// OpenSSHKeysPath is the path to write teleport keys and certs into
 	OpenSSHKeysPath string
+	// OpenSSHKeysBackupPath is the path to write teleport keys and certs into after rotation
+	OpenSSHKeysBackupPath string
 	// AdditionalPrincipals are a list of extra principals to include when generating host keys.
 	AdditionalPrincipals string
 	// RestartOpenSSH indicates whether openssh should be restarted or not.
 	RestartOpenSSH bool
+	// RotateOpenSSH indicates that the OpenSSHCA certs should be rotated
+	RotateOpenSSH string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)

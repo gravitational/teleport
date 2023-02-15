@@ -42,6 +42,8 @@ import (
 
 // Config provides configuration for the discovery server.
 type Config struct {
+	// Auth is an auth server client
+	Auth auth.ClientI
 	// Clients is an interface for retrieving cloud clients.
 	Clients cloud.Clients
 	// AWSMatchers is a list of AWS EC2 matchers.
@@ -290,13 +292,17 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []services.GCPMat
 	return nil
 }
 
-func (s *Server) filterExistingEC2Nodes(instances *server.EC2Instances) {
-	nodes := s.nodeWatcher.GetNodes(func(n services.Node) bool {
+func (s *Server) getEC2Nodes() []types.Server {
+	return s.nodeWatcher.GetNodes(func(n services.Node) bool {
 		labels := n.GetAllLabels()
 		_, accountOK := labels[types.AWSAccountIDLabel]
 		_, instanceOK := labels[types.AWSInstanceIDLabel]
 		return accountOK && instanceOK
 	})
+}
+
+func (s *Server) filterExistingEC2Nodes(instances *server.EC2Instances) {
+	nodes := s.getEC2Nodes()
 
 	var filtered []*ec2.Instance
 outer:
@@ -464,6 +470,75 @@ func (s *Server) Wait() error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (s *Server) watchCARotations(ctx context.Context) error {
+	clustername, err := s.Auth.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	watcher, err := s.Auth.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{{
+			Kind: types.KindCertAuthority,
+			Filter: types.CertAuthorityFilter{
+				types.OpenSSHCA: clustername.GetName(),
+			}.IntoMap()}},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for {
+		select {
+		case event := <-watcher.Events():
+			if event.Type == types.OpInit {
+				s.Log.Infof("Started watching for CA rotations")
+				continue
+			}
+
+			if event.Type != types.OpPut {
+				continue
+			}
+			ca, ok := event.Resource.(types.CertAuthority)
+			if !ok {
+				s.Log.Debugf("event resource was not CertAuthority (%T)", event.Resource)
+				continue
+			}
+			// We want to update for all phases but init and update_servers
+			phase := ca.GetRotation().Phase
+			if !slices.Contains([]string{
+				"", types.RotationPhaseUpdateServers, types.RotationPhaseRollback,
+			}, phase) {
+				s.Log.Debugf("skipping due to phase '%s'", phase)
+				continue
+			}
+
+			// Skip anything not from our cluster
+			if ca.GetClusterName() != clustername.GetName() {
+				s.Log.Debugf("skipping due to cluster name of CA: was '%s', wanted '%s'", ca.GetClusterName(), clustername.GetName())
+				continue
+			}
+
+			// We want to skip anything that is not host, user, or db
+			if !slices.Contains([]string{
+				string(types.OpenSSHCA),
+			}, ca.GetSubKind()) {
+				continue
+			}
+
+			// todo(amk): retreive known agentless nodes here and execute
+			// a ca rotation command on them
+
+		case <-watcher.Done():
+			if err := watcher.Error(); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		case <-ctx.Done():
+			return nil
+		}
+	}
 }
 
 func (s *Server) getAzureSubscriptions(ctx context.Context, subs []string) ([]string, error) {

@@ -7,7 +7,31 @@ set -o nounset
 (
   flock -n 9 || exit 1
   if grep -q "Section created by 'teleport join openssh'" "$SSHD_CONFIG"; then
-    exit 0
+    case "$TELEPORT_ROTATION_STAGE" in
+    "update")
+      sudo /usr/bin/teleport join openssh \
+        --openssh-config="${SSHD_CONFIG}" \
+        --join-method=iam \
+        --token="$1" \
+        --proxy-server="{{ .PublicProxyAddr }}" \
+        --additional-principals="$PRINCIPALS" \
+        --restart-sshd \
+        --rotate=update
+      ;;
+    "rollback")
+      sudo /usr/bin/teleport join openssh \
+        --openssh-config="${SSHD_CONFIG}" \
+        --join-method=iam \
+        --token="$1" \
+        --proxy-server="{{ .PublicProxyAddr }}" \
+        --additional-principals="$PRINCIPALS" \
+        --restart-sshd \
+        --rotate=rollback
+      ;;
+    *)
+      exit 0
+      ;;
+    esac
   fi
 
   . /etc/os-release

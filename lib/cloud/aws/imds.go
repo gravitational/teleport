@@ -159,3 +159,11 @@ func (client *InstanceMetadataClient) GetID(ctx context.Context) (string, error)
 
 	return id, nil
 }
+
+func (client *InstanceMetadataClient) GetAccountID(ctx context.Context) (string, error) {
+	idOut, err := client.c.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return idOut.AccountID, nil
+}
