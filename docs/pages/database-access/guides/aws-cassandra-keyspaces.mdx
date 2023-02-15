@@ -47,38 +47,30 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
-Start the Teleport Database Service, pointing the `--auth-server` flag to the
-address of your Teleport Proxy Service:
+Create a configuration for the Teleport Database Service, pointing the
+`--proxy` flag to the address of your Teleport Proxy Service:
 
 ```code
-$ teleport db start \
+$ teleport db configure create \
   --token=/tmp/token \
-  --auth-server=teleport.example.com:443 \
+  --proxy=teleport.example.com:443 \
   --name=keyspaces \
   --protocol=cassandra \
   --aws-account-id=12345678912 \
   --aws-region=us-east-1 \
   --labels=env=dev
 ```
-
-<Admonition type="note">
-
-The `--auth-server` flag must point to the Teleport cluster's Proxy Service
-endpoint because the Database Service always connects back to the cluster over a
-reverse tunnel.
-
-</Admonition>
 
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
-Start the Teleport Database Service, pointing the `--auth-server` flag to the
-address of your Teleport Cloud tenant:
+Create a configuration for the Teleport Database Service, pointing the
+`--proxy` flag to the address of your Teleport Proxy Service:
 
 ```code
-$ teleport db start \
+$ teleport db configure create \
   --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh:443 \
+  --proxy=mytenant.teleport.sh:443 \
   --name=keyspaces \
   --protocol=cassandra \
   --aws-account-id=12345678912 \
@@ -88,15 +80,13 @@ $ teleport db start \
 
 </ScopedBlock>
 
-<Admonition type="tip">
-  You can start the Database Service using a configuration file instead of CLI flags.
-  See the [YAML reference](../reference/configuration.mdx) for details.
-</Admonition>
+(!docs/pages/includes/aws-credentials.mdx service="the Teleport Database Service"!)
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 ## Step 2/5. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
-
 
 ## Step 3/5. Create an AWS Keyspaces role
 
