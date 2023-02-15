@@ -16,9 +16,9 @@
 
 import { ClientReadableStream } from '@grpc/grpc-js';
 import { FileTransferListeners } from 'shared/components/FileTransfer';
+import { FileTransferProgress } from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
+import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
 
-import { FileTransferProgress } from './v1/service_pb';
-import * as api from './v1/service_pb';
 import { TshAbortSignal } from './types';
 
 export function createFileTransferStream(
