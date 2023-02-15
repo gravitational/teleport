@@ -590,8 +590,6 @@ func requireTokenExpiry(t *testing.T, token types.ProvisionToken, expectExpiry t
 }
 
 func TestTokensCRUD(t *testing.T) {
-	// This test is deprecated, prefer creating tests named after the RPC
-	// in tls_test.go . See TestCreateToken for an example.
 	t.Parallel()
 	s := newAuthSuite(t)
 	ctx := context.Background()
@@ -649,6 +647,9 @@ func TestTokensCRUD(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	// TODO(strideynet): In Teleport 14.0.0 when GenerateToken is removed
+	// break this SetStaticTokens test out into its own test as the rest of
+	// this test is removed.
 	t.Run("SetStaticTokens", func(t *testing.T) {
 		// lets use static tokens now
 		roles := types.SystemRoles{types.RoleProxy}
