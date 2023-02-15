@@ -552,7 +552,7 @@ func verifyAssumeRoleDuration(wantDuration time.Duration) func(*testing.T, *http
 		clone, err := cloneRequest(req)
 		require.NoError(t, err)
 		require.NoError(t, clone.ParseForm())
-		require.Equal(t, wantDuration, getAssumeRoleDuration(clone.PostForm))
+		require.Equal(t, wantDuration, getAssumeRoleQueryDuration(clone.PostForm))
 	}
 }
 

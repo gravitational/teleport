@@ -35,36 +35,30 @@ import (
 
 func updateAssumeRoleDuration(identity *tlsca.Identity, w http.ResponseWriter, req *http.Request, clock clockwork.Clock) error {
 	// Skip non-AssumeRole request
-	query, err := getAssumeRoleQuery(req)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil
-		}
+	query, found, err := getAssumeRoleQuery(req)
+	if err != nil || !found {
 		return trace.Wrap(err)
 	}
 
-	requestedDuration := getAssumeRoleDuration(query)
-	identityDuration := identity.Expires.Sub(clock.Now()).Round(time.Second)
-	switch {
 	// Deny access if identity duration is shorter than the minimum that can be
 	// requested.
-	case identityDuration < assumeRoleMinDuration:
-		return trace.AccessDenied("minimum AWS session duration is %v but Teleport identity expires in %v", assumeRoleMinDuration, identityDuration)
-
-	// Use shorter identity duration.
-	case identityDuration < requestedDuration:
-		setAssumeRoleDuration(query, identityDuration)
-		newBody := io.NopCloser(strings.NewReader(query.Encode()))
-		if err := utils.ReplaceRequestBody(req, newBody); err != nil {
-			return trace.Wrap(err)
-		}
-		w.Header().Add(common.TeleportAPIInfoHeader, fmt.Sprintf("requested DurationSeconds of AssumeRole is overwritten to \"%d\" as the Teleport identity will expire at %v", int(identityDuration.Seconds()), identity.Expires))
-		return nil
+	identityTTL := identity.Expires.Sub(clock.Now())
+	if identityTTL < assumeRoleMinDuration {
+		// TODO write error message in XML so the client can understand.
+		return trace.AccessDenied("minimum AWS session duration is %v but Teleport identity expires in %v", assumeRoleMinDuration, identityTTL)
+	}
 
 	// Use shorter requested duration (no update required).
-	default:
+	if getAssumeRoleQueryDuration(query) <= identityTTL {
 		return nil
 	}
+
+	// Rewrite the request.
+	if err := rewriteAssumeRoleQuery(req, withAssumeRoleQueryDuration(query, identityTTL)); err != nil {
+		return trace.Wrap(err)
+	}
+	w.Header().Add(common.TeleportAPIInfoHeader, fmt.Sprintf("requested DurationSeconds of AssumeRole is overwritten to \"%d\" as the Teleport identity will expire at %v", int(identityTTL.Seconds()), identity.Expires))
+	return nil
 }
 
 // getAssumeRoleQuery extracts AssumeRole query values from provided request.
@@ -72,29 +66,34 @@ func updateAssumeRoleDuration(identity *tlsca.Identity, w http.ResponseWriter, r
 // AWS SDK reference:
 // https://github.com/aws/aws-sdk-go/blob/main/private/protocol/query/build.go
 // https://github.com/aws/aws-sdk-go/blob/main/service/sts/api.go
-func getAssumeRoleQuery(req *http.Request) (url.Values, error) {
+func getAssumeRoleQuery(req *http.Request) (url.Values, bool, error) {
 	// http.Request.ParseForm may drain the body. Use a clone.
 	clone, err := cloneRequest(req)
 	if err != nil {
-		return nil, trace.Wrap(nil)
+		return nil, false, trace.Wrap(err)
 	}
 	if err := clone.ParseForm(); err != nil || clone.PostForm == nil {
-		return nil, trace.NotFound("request is not a POST form")
+		return nil, false, nil
 	}
 	if clone.PostForm.Get("Action") != "AssumeRole" {
-		return nil, trace.NotFound("query action is not AssumeRole")
+		return nil, false, nil
 	}
-	return clone.PostForm, nil
+	return clone.PostForm, true, nil
 }
 
-func getAssumeRoleDuration(query url.Values) time.Duration {
+func getAssumeRoleQueryDuration(query url.Values) time.Duration {
 	if durationSeconds, err := strconv.ParseInt(query.Get(assumeRoleQueryKeyDurationSeconds), 10, 32); err == nil {
 		return time.Duration(durationSeconds) * time.Second
 	}
 	return assumeRoleDefaultDuration
 }
-func setAssumeRoleDuration(query url.Values, duration time.Duration) {
+func withAssumeRoleQueryDuration(query url.Values, duration time.Duration) url.Values {
 	query.Set(assumeRoleQueryKeyDurationSeconds, strconv.Itoa(int(duration.Seconds())))
+	return query
+}
+
+func rewriteAssumeRoleQuery(req *http.Request, query url.Values) error {
+	return trace.Wrap(utils.ReplaceRequestBody(req, io.NopCloser(strings.NewReader(query.Encode()))))
 }
 
 const (
