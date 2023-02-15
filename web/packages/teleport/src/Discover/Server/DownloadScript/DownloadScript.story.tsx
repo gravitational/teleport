@@ -23,6 +23,8 @@ import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinToke
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { userContext } from 'teleport/Main/fixtures';
 import { ResourceKind } from 'teleport/Discover/Shared';
+import { DiscoverProvider } from 'teleport/Discover/useDiscover';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 
 import DownloadScript from './DownloadScript';
 
@@ -115,14 +117,22 @@ const Provider = props => {
   const ctx = createTeleportContext();
 
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: 'database' } },
+      ]}
+    >
       <ContextProvider ctx={ctx}>
-        <PingTeleportProvider
-          interval={props.interval || 100000}
-          resourceKind={ResourceKind.Server}
-        >
-          {props.children}
-        </PingTeleportProvider>
+        <FeaturesContextProvider value={[]}>
+          <DiscoverProvider>
+            <PingTeleportProvider
+              interval={props.interval || 100000}
+              resourceKind={ResourceKind.Server}
+            >
+              {props.children}
+            </PingTeleportProvider>
+          </DiscoverProvider>
+        </FeaturesContextProvider>
       </ContextProvider>
     </MemoryRouter>
   );

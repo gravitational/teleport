@@ -20,13 +20,13 @@ import styled, { keyframes } from 'styled-components';
 import { Box, ButtonPrimary, Text } from 'design';
 
 import { DesktopItem } from 'teleport/Discover/Desktop/DiscoverDesktops/DesktopItem';
-import { State } from 'teleport/Discover/useDiscover';
 import {
   Header,
   Mark,
   ResourceKind,
   useShowHint,
 } from 'teleport/Discover/Shared';
+import { useDiscover } from 'teleport/Discover/useDiscover';
 import { ProxyDesktopServiceDiagram } from 'teleport/Discover/Desktop/DiscoverDesktops/ProxyDesktopServiceDiagram';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { useTeleport } from 'teleport';
@@ -34,6 +34,7 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import cfg from 'teleport/config';
 import { NavLink } from 'teleport/components/Router';
+import { DiscoverEventStatus } from 'teleport/services/userEvent';
 
 import { HintBox } from 'teleport/Discover/Shared/HintBox';
 
@@ -96,8 +97,9 @@ const ViewLink = styled(NavLink)`
   }
 `;
 
-export function DiscoverDesktops(props: State) {
+export function DiscoverDesktops() {
   const ctx = useTeleport();
+  const { emitEvent, nextStep } = useDiscover();
 
   const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
   const { result: desktopService, active } =
@@ -134,12 +136,12 @@ export function DiscoverDesktops(props: State) {
 
     if (foundDesktops.length) {
       for (const desktop of foundDesktops.values()) {
-        const os = desktop.labels.find(
-          label => label.name === 'teleport.dev/os'
-        ).value;
-        const osVersion = desktop.labels.find(
-          label => label.name === 'teleport.dev/os_version'
-        ).value;
+        const os =
+          desktop.labels.find(label => label.name === 'teleport.dev/os')
+            ?.value || 'unknown os';
+        const osVersion =
+          desktop.labels.find(label => label.name === 'teleport.dev/os_version')
+            ?.value || 'unknown version';
 
         desktops.push({
           os,
@@ -149,6 +151,14 @@ export function DiscoverDesktops(props: State) {
         });
       }
     }
+  }
+
+  function handleNextStep() {
+    emitEvent(
+      { stepStatus: DiscoverEventStatus.Success },
+      { autoDiscoverResourcesCount: desktops.length }
+    );
+    nextStep();
   }
 
   const items = desktops
@@ -224,7 +234,7 @@ export function DiscoverDesktops(props: State) {
           <Text mb={3}>
             - A Desktop could have had issues joining the Teleport Desktop
             Service. Check the logs for errors by running{' '}
-            <Mark>journalctl status teleport</Mark> on your Desktop Service.
+            <Mark>journalctl -fu teleport</Mark> on your Desktop Service.
           </Text>
 
           <Text>
@@ -256,7 +266,7 @@ export function DiscoverDesktops(props: State) {
       {hint}
 
       <Box mt={5}>
-        <ButtonPrimary width="165px" mr={3} onClick={() => props.nextStep()}>
+        <ButtonPrimary width="165px" mr={3} onClick={handleNextStep}>
           Finish
         </ButtonPrimary>
       </Box>

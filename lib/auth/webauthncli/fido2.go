@@ -554,17 +554,23 @@ func runOnFIDO2Devices(
 	filter deviceFilterFunc,
 	deviceCallback deviceCallbackFunc) error {
 	// About to select, prompt user.
-	if err := prompt.PromptTouch(); err != nil {
+	ackTouch, err := prompt.PromptTouch()
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// List/select devices.
 	cb := withPINHandler(withRetries(deviceCallback))
 	dev, requiresPIN, err := findAndSelectDevice(ctx, filter, cb)
-	switch {
-	case err != nil:
+	if err != nil {
 		return trace.Wrap(err)
-	case !requiresPIN:
+	}
+
+	if err := ackTouch(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !requiresPIN {
 		return nil
 	}
 
@@ -579,7 +585,8 @@ func runOnFIDO2Devices(
 	}
 
 	// Prompt a second touch after reading the PIN.
-	if err := prompt.PromptTouch(); err != nil {
+	ackTouch, err = prompt.PromptTouch()
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -587,7 +594,11 @@ func runOnFIDO2Devices(
 	// selectDevice is used since it correctly deals with cancellation.
 	cb = withoutPINHandler(withRetries(deviceCallback))
 	_, err = selectDevice(ctx, pin, dev, cb)
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(ackTouch())
 }
 
 // withRetries wraps callback with retries and error handling for commonly seen

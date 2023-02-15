@@ -36,7 +36,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -729,7 +728,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 	// so not all connections can be kept forever.
 	timeoutCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 	defer cancel()
-	srv.Shutdown(timeoutCtx)
+	srv.Shutdown(services.ProcessReloadContext(timeoutCtx))
 	if timeoutCtx.Err() == context.DeadlineExceeded {
 		// The new service can start initiating connections to the old service
 		// keeping it from shutting down gracefully, or some external
@@ -4582,8 +4581,13 @@ func (process *TeleportProcess) initApps() {
 
 		// Execute this when process is asked to exit.
 		process.OnExit("apps.stop", func(payload interface{}) {
-			log.Infof("Shutting down.")
-			warnOnErr(appServer.Close(), log)
+			if payload == nil {
+				log.Infof("Shutting down immediately.")
+				warnOnErr(appServer.Close(), log)
+			} else {
+				log.Infof("Shutting down gracefully.")
+				warnOnErr(appServer.Shutdown(payloadContext(payload, log)), log)
+			}
 			if asyncEmitter != nil {
 				warnOnErr(asyncEmitter.Close(), log)
 			}
@@ -4677,6 +4681,11 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	// imported listeners that haven't been used so far
 	warnOnErr(process.closeImportedDescriptors(""), process.log)
 	warnOnErr(process.stopListeners(), process.log)
+
+	// populate context values
+	if len(process.getForkedPIDs()) > 0 {
+		ctx = services.ProcessForkedContext(ctx)
+	}
 
 	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
 	localCtx, cancel := context.WithCancel(ctx)
@@ -4882,28 +4891,11 @@ func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 // newHTTPFileSystem creates a new HTTP file system for the web handler.
 // It uses external configuration to make the decision
 func newHTTPFileSystem() (http.FileSystem, error) {
-	if !isDebugMode() {
-		fs, err := teleport.NewWebAssetsFilesystem() //nolint:staticcheck
-		if err != nil {                              //nolint:staticcheck
-			return nil, trace.Wrap(err)
-		}
-		return fs, nil
-	}
-
-	// Use the supplied HTTP filesystem path (defaults to the current dir).
-	assetsPath := os.Getenv(teleport.DebugAssetsPath)
-	fs, err := web.NewDebugFileSystem(assetsPath)
-	if err != nil {
+	fs, err := teleport.NewWebAssetsFilesystem() //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+	if err != nil {                              //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
 		return nil, trace.Wrap(err)
 	}
 	return fs, nil
-}
-
-// isDebugMode determines if teleport is running in a "debug" mode.
-// It looks at DEBUG environment variable
-func isDebugMode() bool {
-	v, _ := strconv.ParseBool(os.Getenv(teleport.DebugEnvVar))
-	return v
 }
 
 // readOrGenerateHostID tries to read the `host_uuid` from Kubernetes storage (if available) or local storage.
