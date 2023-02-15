@@ -311,6 +311,34 @@ func (u *UsageCertificateIssued) Anonymize(a utils.Anonymizer) prehogv1.SubmitEv
 	}
 }
 
+// UsageKubeRequest is an event emitted when a Kubernetes API request is
+// handled.
+type UsageKubeRequest prehogv1.KubeRequestEvent
+
+func (u *UsageKubeRequest) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_KubeRequest{
+			KubeRequest: &prehogv1.KubeRequestEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
+// UsageSFTP is an event emitted for each file operation in a SFTP connection.
+type UsageSFTP prehogv1.SFTPEvent
+
+func (u *UsageSFTP) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_Sftp{
+			Sftp: &prehogv1.SFTPEvent{
+				UserName: a.AnonymizeString(u.UserName),
+				Action:   u.Action,
+			},
+		},
+	}
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
