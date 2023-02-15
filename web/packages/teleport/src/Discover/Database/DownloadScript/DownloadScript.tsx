@@ -152,7 +152,6 @@ export function DownloadScript(
 
   // Starts resource querying interval.
   const { active, result } = usePingTeleport<Database>(
-    joinToken,
     props.agentMeta.resourceName
   );
 
