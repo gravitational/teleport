@@ -3198,16 +3198,12 @@ func (c *Client) GetPlugin(ctx context.Context, name string, withSecrets bool) (
 		return nil, trace.BadParameter("missing plugin name")
 	}
 	plugin, err := c.grpc.GetPlugin(ctx, &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return plugin, nil
+	return plugin, trail.FromGRPC(err)
 }
 
 // GetPlugins returns all plugin instances.
 func (c *Client) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
 	items, err := c.grpc.GetPlugins(ctx, &types.ResourcesWithSecretsRequest{WithSecrets: withSecrets}, c.callOpts...)
-
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -3235,7 +3231,7 @@ func (c *Client) DeleteAllPlugins(ctx context.Context) error {
 func (c *Client) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
 	v1, ok := creds.(*types.PluginCredentialsV1)
 	if !ok {
-		return trace.BadParameter("unsupported plugin credentials type %T", creds)
+		return trace.BadParameter("unsupported plugin credentials. expected *types.PluginCredentialsV1; got %T", creds)
 	}
 	_, err := c.grpc.SetPluginCredentials(ctx, &proto.SetPluginCredentialsRequest{
 		Name:        name,

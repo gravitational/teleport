@@ -3994,12 +3994,12 @@ func (a *Server) CreatePlugin(ctx context.Context, req *proto.CreatePluginReques
 
 	authCodeCreds := initialCreds.GetOauth2AuthorizationCode()
 	if authCodeCreds == nil {
-		return trace.BadParameter("Unknown type of initial credentials received")
+		return trace.BadParameter("unknown type of initial credentials received")
 	}
 
 	exchanger := svc.GetExchanger(plugin)
 	if exchanger == nil {
-		return trace.BadParameter("No suitable exchanger found for plugin")
+		return trace.BadParameter("no suitable exchanger found for plugin")
 	}
 
 	creds, err := exchanger.Exchange(ctx, authCodeCreds.AuthorizationCode, authCodeCreds.RedirectUri)
@@ -4029,19 +4029,13 @@ func (a *Server) CreatePlugin(ctx context.Context, req *proto.CreatePluginReques
 // GetPlugin returns a plugin instance by name.
 func (a *Server) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
 	plugin, err := a.Services.Plugins.GetPlugin(ctx, name, withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return plugin, nil
+	return plugin, trace.Wrap(err)
 }
 
 // GetPlugins returns all plugin instances.
 func (a *Server) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
 	plugin, err := a.Services.Plugins.GetPlugins(ctx, withSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return plugin, nil
+	return plugin, trace.Wrap(err)
 }
 
 // DeletePlugin removes the specified plugin instance.
