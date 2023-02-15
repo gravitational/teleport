@@ -146,7 +146,7 @@ See the full [YAML reference](../reference/configuration.mdx) for details.
 
 See below for details on how to configure the Teleport Database Service.
 
-#### Connection endpoint
+### Connection endpoint
 
 You will need to provide your Atlas cluster's connection endpoint for the `db_service.databases[*].uri` configuration option or `--uri` CLI flag. You can find this via the Connect dialog on the Database Deployments overview page:
 
@@ -163,7 +163,7 @@ Use only the scheme and hostname parts of the connection string in the URI:
 $ --uri=mongodb+srv://cluster0.abcde.mongodb.net
 ```
 
-#### Atlas CA certificate
+### Atlas CA certificate
 
 MongoDB Atlas uses certificates signed by Let's Encrypt.
 
