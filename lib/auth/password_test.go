@@ -440,7 +440,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 	for _, c := range tests {
 		t.Run(c.name, func(t *testing.T) {
 			username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
-			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 			require.NoError(t, err)
 
 			c.setAuthPreference()
@@ -501,7 +501,7 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	username := "joe@example.com"
-	_, _, err = CreateUserAndRole(s.a, username, []string{username})
+	_, _, err = CreateUserAndRole(s.a, username, []string{username}, nil)
 	require.NoError(t, err)
 
 	token, err := s.a.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
@@ -629,7 +629,7 @@ func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secon
 		return req, err
 	}
 
-	_, _, err = CreateUserAndRole(s.a, user, []string{user})
+	_, _, err = CreateUserAndRole(s.a, user, []string{user}, nil)
 	if err != nil {
 		return req, err
 	}
