@@ -210,24 +210,27 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 		return trace.BadParameter("unknown CA type %T", cai)
 	}
 
-	if len(ca.Spec.ActiveKeys.TLS) != 1 {
-		return trace.BadParameter("SAML IDP certificate authority must contain one key pair")
+	if len(ca.Spec.ActiveKeys.TLS) == 0 {
+		return trace.BadParameter("missing SAML IdP CA")
 	}
 
-	pair := ca.GetTrustedTLSKeyPairs()[0]
-	if len(pair.Key) != 0 && pair.KeyType == types.PrivateKeyType_RAW {
-		var err error
-		if len(pair.Cert) > 0 {
-			_, err = tls.X509KeyPair(pair.Cert, pair.Key)
-		} else {
-			_, err = utils.ParsePrivateKey(pair.Key)
+	for _, pair := range ca.GetTrustedTLSKeyPairs() {
+		if len(pair.Key) != 0 && pair.KeyType == types.PrivateKeyType_RAW {
+			var err error
+			if len(pair.Cert) > 0 {
+				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
+			} else {
+				_, err = utils.ParsePrivateKey(pair.Key)
+			}
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
-		if err != nil {
+		if _, err := tlsca.ParseCertificatePEM(pair.Cert); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	_, err := tlsca.ParseCertificatePEM(pair.Cert)
-	return trace.Wrap(err)
+	return nil
 }
 
 // GetJWTSigner returns the active JWT key used to sign tokens.

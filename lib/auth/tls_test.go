@@ -1710,7 +1710,7 @@ func TestGetCertAuthority(t *testing.T) {
 	// generate server keys for node
 	nodeClt, err := tt.server.NewClient(TestIdentity{I: BuiltinRole{Username: "00000000-0000-0000-0000-000000000000", Role: types.RoleNode}})
 	require.NoError(t, err)
-	defer nodeClt.Close()
+	t.Cleanup(func() { require.NoError(t, nodeClt.Close()) })
 
 	// node is authorized to fetch CA without secrets
 	ca, err := nodeClt.GetCertAuthority(ctx, types.CertAuthID{
@@ -1731,6 +1731,32 @@ func TestGetCertAuthority(t *testing.T) {
 		Type:       types.HostCA,
 	}, true)
 	require.True(t, trace.IsAccessDenied(err))
+
+	// generate server keys for proxy
+	proxyClt, err := tt.server.NewClient(TestIdentity{I: BuiltinRole{Username: "00000000-0000-0000-0000-000000000001", Role: types.RoleProxy}})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxyClt.Close()) })
+
+	// proxy can't fetch the host CA with secrets
+	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.HostCA,
+	}, true)
+	require.Error(t, err)
+
+	// proxy can fetch SAML IdP CA with secrets
+	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.SAMLIDPCA,
+	}, true)
+	require.NoError(t, err)
+
+	// proxy can't fetch anything else with secrets
+	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.DatabaseCA,
+	}, true)
+	require.Error(t, err)
 
 	// non-admin users are not allowed to get access to private key material
 	user, err := types.NewUser("bob")
