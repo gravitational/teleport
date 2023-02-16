@@ -424,10 +424,12 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return this.getClusters().filter(c => !c.leaf);
   }
 
+  // TODO(ravicious): Use ResourcesService instead.
   async fetchKubes(params: ServerSideParams) {
     return await this.client.getKubes(params);
   }
 
+  // TODO(ravicious): Move to ResourceService.
   async getDbUsers(dbUri: uri.DatabaseUri): Promise<string[]> {
     return await this.client.listDatabaseUsers(dbUri);
   }
