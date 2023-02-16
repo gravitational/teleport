@@ -20,7 +20,6 @@ import { useStore, Store } from 'shared/libs/stores';
 
 import { IAppContext } from 'teleterm/ui/types';
 import { ClusterUri, DocumentUri, KubeUri, routing } from 'teleterm/ui/uri';
-import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 
@@ -76,19 +75,6 @@ class ClusterContext extends Store<State> {
 
   connectKube = (kubeUri: KubeUri) => {
     this.appCtx.commandLauncher.executeCommand('kube-connect', { kubeUri });
-  };
-
-  sync = async () => {
-    try {
-      await retryWithRelogin(this.appCtx, this.clusterUri, () =>
-        this.appCtx.clustersService.syncCluster(this.clusterUri)
-      );
-    } catch (e) {
-      this.appCtx.notificationsService.notifyError({
-        title: `Could not synchronize cluster ${this.state.clusterName}`,
-        description: e.message,
-      });
-    }
   };
 
   refresh = () => {

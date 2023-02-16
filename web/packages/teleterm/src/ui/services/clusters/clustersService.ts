@@ -84,6 +84,9 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     abortSignal: tsh.TshAbortSignal
   ) {
     await this.client.loginLocal(params, abortSignal);
+    // We explicitly use the `andCatchErrors` variant here. If loginLocal succeeds but syncing the
+    // cluster fails, we don't want to stop the user on the failed modal – we want to open the
+    // workspace and show an error state within the workspace.
     await this.syncRootClusterAndCatchErrors(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, 'local');
   }
@@ -106,6 +109,10 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     this.usageService.captureUserLogin(params.clusterUri, 'passwordless');
   }
 
+  /**
+   * syncRootClusterAndCatchErrors is useful when the call site doesn't have a UI for handling
+   * errors and instead wants to depend on the notifications service.
+   */
   async syncRootClusterAndCatchErrors(clusterUri: uri.RootClusterUri) {
     try {
       await this.syncRootCluster(clusterUri);
@@ -114,6 +121,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       const clusterName =
         cluster?.name ||
         routing.parseClusterUri(clusterUri).params.rootClusterId;
+
       this.notificationsService.notifyError({
         title: `Could not synchronize cluster ${clusterName}`,
         description: e.message,
@@ -121,71 +129,41 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     }
   }
 
-  async syncRootCluster(clusterUri: uri.RootClusterUri) {
-    try {
-      await Promise.all([
-        // syncClusterInfo never fails with a retryable error, only syncLeafClusters does.
-        this.syncClusterInfo(clusterUri),
-        this.syncLeafClusters(clusterUri),
-      ]);
-    } finally {
-      // Functions below handle their own errors, so we don't need to await them.
-      //
-      // Also, we wait for syncClusterInfo to finish first. When the response from it comes back and
-      // it turns out that the cluster is not connected, these functions will immediately exit with
-      // an error.
-      //
-      // Arguably, it is a bit of a race condition, as we assume that syncClusterInfo will return
-      // before syncLeafClusters, but for now this is a condition we can live with.
-      // TODO: What to do with this?
-      this.syncGateways();
-    }
+  /**
+   * syncRootCluster is useful in situations where we want to sync the cluster _and_ propagate any
+   * errors up.
+   */
+  private async syncRootCluster(clusterUri: uri.RootClusterUri) {
+    await Promise.all([
+      // syncClusterInfo never fails with a retryable error since it reads data from disk.
+      // syncLeafClusters reaches out to the proxy so it might return a retryable error.
+      this.syncClusterInfo(clusterUri),
+      this.syncLeafClustersList(clusterUri),
+    ]);
   }
 
-  async syncLeafCluster(clusterUri: uri.LeafClusterUri) {
-    try {
-      // Sync leaf clusters list, so that in case of an error that can be resolved with login we can
-      // propagate that error up.
-      const rootClusterUri = routing.ensureRootClusterUri(clusterUri);
-      await this.syncLeafClustersList(rootClusterUri);
-    } finally {
-      // TODO: Is syncGateways needed here?
-      // this.syncLeafClusterResourcesAndCatchErrors(clusterUri);
-      this.syncGateways();
-    }
-  }
+  async syncRootClustersAndCatchErrors() {
+    let clusters: Cluster[];
 
-  async syncRootClusters() {
     try {
-      const clusters = await this.client.listRootClusters();
-      this.setState(draft => {
-        draft.clusters = new Map(clusters.map(c => [c.uri, c]));
-      });
-      clusters
-        .filter(c => c.connected)
-        .forEach(c => this.syncRootClusterAndCatchErrors(c.uri));
+      clusters = await this.client.listRootClusters();
     } catch (error) {
       this.notificationsService.notifyError({
         title: 'Could not fetch root clusters',
         description: error.message,
       });
+      return;
     }
+
+    this.setState(draft => {
+      draft.clusters = new Map(clusters.map(c => [c.uri, c]));
+    });
+    clusters
+      .filter(c => c.connected)
+      .forEach(c => this.syncRootClusterAndCatchErrors(c.uri));
   }
 
-  async syncCluster(clusterUri: uri.ClusterUri) {
-    const cluster = this.findCluster(clusterUri);
-    if (!cluster) {
-      throw Error(`missing cluster: ${clusterUri}`);
-    }
-
-    if (cluster.leaf) {
-      return await this.syncLeafCluster(clusterUri as uri.LeafClusterUri);
-    } else {
-      return await this.syncRootCluster(clusterUri);
-    }
-  }
-
-  async syncGateways() {
+  async syncGatewaysAndCatchErrors() {
     try {
       const gws = await this.client.listGateways();
       this.setState(draft => {
@@ -197,13 +175,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         description: error.message,
       });
     }
-  }
-
-  async syncLeafClusters(clusterUri: uri.RootClusterUri) {
-    await this.syncLeafClustersList(clusterUri);
-
-    // TODO: Is syncGateways necessary here?
-    this.syncGateways();
   }
 
   private async syncLeafClustersList(clusterUri: uri.RootClusterUri) {
@@ -274,7 +245,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     }
     await this.client.assumeRole(rootClusterUri, requestIds, dropIds);
     this.usageService.captureAccessRequestAssumeRole(rootClusterUri);
-    return this.syncCluster(rootClusterUri);
+    return this.syncRootCluster(rootClusterUri);
   }
 
   async getAccessRequest(
@@ -443,10 +414,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
       rootClusterId: parsed.params.rootClusterId,
     });
     return this.findCluster(rootClusterUri);
-  }
-
-  getGateways() {
-    return [...this.state.gateways.values()];
   }
 
   getClusters() {
