@@ -83,12 +83,11 @@ type VersionPropertyRow struct {
 var versionTableTemplate string = strings.ReplaceAll(
 	`|Property|Description|Type|
 |---|---|---|
-{{ range .Rows }}
-| ~{{ .Name }}~|{{.Description}}|{{.Type}}|
-{{ end }} 
+{{- range .Rows }}
+|~{{.Name}}~|{{.Description}}|{{.Type -}}|
+{{- end }}
 
-{{ .ExampleYAML }}
-    `, "~", "`")
+{{ .ExampleYAML }}`, "~", "`")
 
 // To be executed with a TabbedVersionData
 var tabbedVersionTableTemplate string = fmt.Sprintf(`<Tabs>
@@ -158,11 +157,11 @@ func generateExampleValue(props *apiextv1.JSONSchemaProps) (interface{}, error) 
 // rows. It returns an error if props is malformed.
 func registerProperties(
 	yml map[string]interface{},
-	rows []VersionPropertyRow,
 	props *apiextv1.JSONSchemaProps,
 	// If this JSONSchemaProps is a child of another property
 	parent *VersionPropertyRow,
-) error {
+) ([]VersionPropertyRow, error) {
+	rows := []VersionPropertyRow{}
 	for k, v := range props.Properties {
 		n := k
 		if parent != nil {
@@ -183,20 +182,24 @@ func registerProperties(
 		val, err := generateExampleValue(&v)
 
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		err = insertExampleValue(n, yml, val)
 
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
-		if err := registerProperties(yml, rows, &v, &r); err != nil {
-			return trace.Wrap(err)
+		nr, err := registerProperties(yml, &v, &r)
+
+		rows = append(rows, nr...)
+
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
-	return nil
+	return rows, nil
 }
 
 func generateTable(c *schemagen.RootSchema) (*schemagen.TransformedFile, error) {
@@ -213,14 +216,14 @@ func generateTable(c *schemagen.RootSchema) (*schemagen.TransformedFile, error) 
 
 		// We'll use this to populate the example YAML document
 		ex := make(map[string]interface{})
-		var rows []VersionPropertyRow
 
-		if err := registerProperties(
+		rows, err := registerProperties(
 			ex,
-			rows,
 			&v.Schema.JSONSchemaProps,
 			nil,
-		); err != nil {
+		)
+
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 

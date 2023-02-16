@@ -36,8 +36,7 @@ func TestGenerateTable(t *testing.T) {
 			description:  "simple case with only scalars",
 			inputYAML:    mustReadFile(t, path.Join("testdata", "user-scalars.yaml")),
 			expectedName: "user.yaml",
-			expectedContent: strings.ReplaceAll(`
-|Property|Description|Type|
+			expectedContent: strings.ReplaceAll(`|Property|Description|Type|
 |---|---|---|
 |~spec~|Options for configuring the user resource.|object|
 |~spec.role~|The one role assigned to the user in this test|string|
