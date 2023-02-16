@@ -20,12 +20,11 @@ import { MemoryRouter } from 'react-router';
 import { ContextProvider, Context as TeleportContext } from 'teleport';
 import cfg from 'teleport/config';
 import { ResourceKind } from 'teleport/Discover/Shared';
-import {
-  clearCachedJoinTokenResult,
-  JoinTokenProvider,
-} from 'teleport/Discover/Shared/JoinTokenContext';
+import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { userContext } from 'teleport/mocks/contexts';
+import { DiscoverProvider } from 'teleport/Discover/useDiscover';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 
 import HelmChart from './HelmChart';
 
@@ -37,7 +36,7 @@ export default {
     Story => {
       // Reset request handlers added in individual stories.
       worker.resetHandlers();
-      clearCachedJoinTokenResult();
+      clearCachedJoinTokenResult(ResourceKind.Kubernetes);
       return <Story />;
     },
   ],
@@ -61,7 +60,7 @@ export const Polling = () => {
   );
   return (
     <Provider>
-      <HelmChart runJoinTokenPromise={true} />
+      <HelmChart />
     </Provider>
   );
 };
@@ -76,7 +75,7 @@ export const PollingSuccess = () => {
   );
   return (
     <Provider interval={5}>
-      <HelmChart runJoinTokenPromise={true} />
+      <HelmChart />
     </Provider>
   );
 };
@@ -91,7 +90,7 @@ export const PollingError = () => {
   );
   return (
     <Provider timeout={50}>
-      <HelmChart runJoinTokenPromise={true} />
+      <HelmChart />
     </Provider>
   );
 };
@@ -104,7 +103,7 @@ export const Processing = () => {
   );
   return (
     <Provider interval={5}>
-      <HelmChart runJoinTokenPromise={true} />
+      <HelmChart />
     </Provider>
   );
 };
@@ -117,7 +116,7 @@ export const Failed = () => {
   );
   return (
     <Provider>
-      <HelmChart runJoinTokenPromise={true} />
+      <HelmChart />
     </Provider>
   );
 };
@@ -126,17 +125,22 @@ const Provider = props => {
   const ctx = createTeleportContext();
 
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: 'database' } },
+      ]}
+    >
       <ContextProvider ctx={ctx}>
-        <JoinTokenProvider timeout={props.timeout || 100000}>
-          <PingTeleportProvider
-            timeout={props.timeout || 100000}
-            interval={props.interval || 100000}
-            resourceKind={ResourceKind.Kubernetes}
-          >
-            {props.children}
-          </PingTeleportProvider>
-        </JoinTokenProvider>
+        <FeaturesContextProvider value={[]}>
+          <DiscoverProvider>
+            <PingTeleportProvider
+              interval={props.interval || 100000}
+              resourceKind={ResourceKind.Kubernetes}
+            >
+              {props.children}
+            </PingTeleportProvider>
+          </DiscoverProvider>
+        </FeaturesContextProvider>
       </ContextProvider>
     </MemoryRouter>
   );

@@ -7,8 +7,6 @@
 # teleport built on any newer Ubuntu version will not run on Centos 7 because
 # of this.
 
-ARG RUST_VERSION
-
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
@@ -27,9 +25,9 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 &&
     make clean
 
 # Install libcbor.
-RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.1 && \
+RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
     cd libcbor && \
-    [ "$(git rev-parse HEAD)" = '5c1bb892c94b6ae2ef99e3c6673d5e0857242f38' ] && \
+    [ "$(git rev-parse HEAD)" = 'efa6c0886bae46bdaef9b679f61f4b9d8bc296ae' ] && \
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
@@ -137,6 +135,8 @@ RUN apt-get -y update && \
         python3-setuptools \
         python3-wheel \
         pkg-config \
+        # Used during tag builds to build the RPM package of Connect.
+        rpm \
         shellcheck \
         softhsm2 \
         sudo \
@@ -193,7 +193,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
 # user.
 USER root
 
-# Install Nodejs
+# Install Node.js.
 ARG NODE_VERSION
 ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
 ENV NODE_PATH="/usr/local/lib/nodejs-linux"
@@ -236,6 +236,9 @@ RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     chown -R ci /home/ci/.local/share/helm && \
     HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
 
+# Install JS gRPC tools.
+RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1 grpc-tools@1.12.4)
+
 # Install protobuf and grpc build tools.
 ARG PROTOC_VER
 ARG GOGO_PROTO_TAG
@@ -252,6 +255,8 @@ RUN (git clone https://github.com/gogo/protobuf.git --branch ${GOGO_PROTO_TAG} -
      make install && \
      make clean)
 ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
+# Install protoc-gen-go for lib/teleterm as #17267 and #17302 were not backported to v11.
+RUN go install github.com/golang/protobuf/protoc-gen-go@v1.4.3
 
 # Install addlicense.
 RUN go install github.com/google/addlicense@v1.0.0
@@ -260,11 +265,11 @@ RUN go install github.com/google/addlicense@v1.0.0
 RUN go install github.com/daixiang0/gci@v0.8.2
 
 # Install golangci-lint.
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
+RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.1
 
 # Install buf
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.13.1" && \
+    VERSION="1.14.0" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
@@ -276,7 +281,7 @@ COPY --from=libbpf /usr/lib64/ /usr/lib64/
 RUN cd /usr/local/lib && ldconfig
 
 # Copy libfido2 libraries.
-# Do this last to take better advantage of the multi-stage build.
+# Do this near the end to take better advantage of the multi-stage build.
 COPY --from=libfido2 /usr/local/include/ /usr/local/include/
 COPY --from=libfido2 /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
 COPY --from=libfido2 \

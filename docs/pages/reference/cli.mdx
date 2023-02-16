@@ -604,7 +604,7 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 #### Examples
 
 ```code
-$ tsh --proxy=proxy.example.com scp -P example.txt user@host:/destination/dir
+$ tsh --proxy=proxy.example.com scp example.txt user@host:/destination/dir
 ```
 
 ### tsh ls
@@ -2063,6 +2063,47 @@ $ tctl sso configure saml -p okta -r group,dev,access -e https://dev-123456.okta
 
 ```code
 $ tctl sso configure saml -p okta -r group,developer,access -e entity-desc.xml | tctl sso test
+```
+
+### tctl login_rule test
+
+Test a Login Rule resource without installing it in the cluster.
+
+#### Arguments
+
+- `<traits-file>` input traits file in JSON or YAML format. Empty for stdin.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--resource-file` | none | **string** filepath | Path to Login Rule resource path, can be repeated for multiple files |
+| `--load-from-cluster` | `false` | `true, false` | When true, all Login Rules currently installed in the cluster will be loaded for the test. Can be combined with `--resource-file` to test interactions. |
+| `--format` | `yaml` | `yaml, json` | Output format for traits |
+
+#### Global flags
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+#### Examples
+
+Test evaluation of the Login Rules from rule1.yaml and rule2.yaml with input traits from traits.json
+
+```code
+$tctl login_rule test --resource-file rule1.yaml --resource-file rule2.yaml traits.json
+```
+
+Test the Login Rule in rule.yaml along with all Login Rules already present in the cluster
+
+```code
+$ tctl login_rule test --resource-file rule.yaml --load-from-cluster traits.json
+```
+
+Read the input traits from stdin
+
+```code
+$ echo '{"groups": ["example"]}' | tctl login_rule test --resource-file rule.yaml
 ```
 
 ### tctl create

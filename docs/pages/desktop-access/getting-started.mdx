@@ -48,13 +48,7 @@ access to Windows desktops.
   encrypted LDAP connection). Typically this means installing
   [AD CS](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
 
-## Step 1/2. Install Teleport
-
-### Set up the Teleport Auth and Proxy Services
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-## Step 2/2. Run the discovery wizard
+## Step 1/2. Run the discovery wizard
 
 In your web browser, access the teleport Web UI at <ScopedBlock scope={["oss", "enterprise"]}>
 `teleport.example.com`</ScopedBlock><ScopedBlock scope={["cloud"]}>
@@ -120,6 +114,8 @@ windows_desktop_service:
 
 Click **Next**.
 
+## Step 2/2. Start Teleport
+
 Once you've saved `/etc/teleport.yaml`, start Teleport:
 
 <Tabs>
@@ -138,7 +134,7 @@ Service, and then use the following configuration:
 version: v3
 teleport:
   auth_token: /path/to/token
-  proxy_server: teleport.example.com # replace with your proxy address
+  proxy_server: teleport.example.com:443 # replace with your proxy address
 windows_desktop_service:
   enabled: yes
   ldap:
@@ -175,7 +171,7 @@ Service, and then use the following configuration:
 version: v3
 teleport:
   auth_token: /path/to/token
-  proxy_server: mytenant.teleport.sh # replace with your cloud tenant
+  proxy_server: mytenant.teleport.sh:443 # replace with your cloud tenant
 windows_desktop_service:
   enabled: yes
   ldap:

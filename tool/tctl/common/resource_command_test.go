@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"crypto/x509"
 	"fmt"
 	"os"
@@ -25,10 +26,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -36,6 +39,8 @@ import (
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
 func TestDatabaseServerResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -63,18 +68,19 @@ func TestDatabaseServerResource(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
 	waitForBackendDatabaseResourcePropagation(t, auth.GetAuthServer())
 
 	var out []*types.DatabaseServerV3
@@ -112,6 +118,8 @@ func TestDatabaseServerResource(t *testing.T) {
 
 // TestDatabaseResource tests tctl commands that manage database resources.
 func TestDatabaseResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -125,18 +133,18 @@ func TestDatabaseResource(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	dbA, err := types.NewDatabaseV3(types.Metadata{
 		Name:   "db-a",
@@ -199,8 +207,91 @@ func TestDatabaseResource(t *testing.T) {
 	))
 }
 
+// TestDatabaseServiceResource tests tctl db_services get commands.
+func TestDatabaseServiceResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+	ctx := context.Background()
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
+	var out []*types.DatabaseServiceV1
+
+	// Add a lot of DatabaseServices to test pagination
+	dbS, err := types.NewDatabaseServiceV1(
+		types.Metadata{Name: uuid.NewString()},
+		types.DatabaseServiceSpecV1{
+			ResourceMatchers: []*types.DatabaseResourceMatcher{
+				{Labels: &types.Labels{"env": []string{"prod"}}},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	randomDBServiceName := ""
+	totalDBServices := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
+	for i := 0; i < totalDBServices; i++ {
+		dbS.SetName(uuid.NewString())
+		if i == apidefaults.DefaultChunkSize { // A "random" database service name
+			randomDBServiceName = dbS.GetName()
+		}
+		_, err = auth.GetAuthServer().UpsertDatabaseService(ctx, dbS)
+		require.NoError(t, err)
+	}
+
+	t.Run("test pagination of database services ", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseService, "--format=json"})
+		require.NoError(t, err)
+		mustDecodeJSON(t, buff, &out)
+		require.Len(t, out, totalDBServices)
+	})
+
+	service := fmt.Sprintf("%v/%v", types.KindDatabaseService, randomDBServiceName)
+
+	t.Run("get specific database service", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", service, "--format=json"})
+		require.NoError(t, err)
+		mustDecodeJSON(t, buff, &out)
+		require.Len(t, out, 1)
+		require.Equal(t, randomDBServiceName, out[0].GetName())
+	})
+
+	t.Run("get unknown database service", func(t *testing.T) {
+		unknownService := fmt.Sprintf("%v/%v", types.KindDatabaseService, "unknown")
+		_, err := runResourceCommand(t, fileConfig, []string{"get", unknownService, "--format=json"})
+		require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+	})
+
+	t.Run("get specific database service with human output", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", service, "--format=text"})
+		require.NoError(t, err)
+		outputString := buff.String()
+		require.Contains(t, outputString, "env=[prod]")
+		require.Contains(t, outputString, randomDBServiceName)
+	})
+}
+
 // TestAppResource tests tctl commands that manage application resources.
 func TestAppResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -214,18 +305,18 @@ func TestAppResource(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	appA, err := types.NewAppV3(types.Metadata{
 		Name:   "appA",
@@ -288,6 +379,8 @@ func TestAppResource(t *testing.T) {
 
 // TestCreateDatabaseInInsecureMode connects to auth server with --insecure mode and creates a DB resource.
 func TestCreateDatabaseInInsecureMode(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -301,18 +394,18 @@ func TestCreateDatabaseInInsecureMode(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	// Create the databases yaml file.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
@@ -360,6 +453,7 @@ spec:
 )
 
 func TestCreateClusterAuthPreferencet_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -367,12 +461,12 @@ func TestCreateClusterAuthPreferencet_WithSupportForSecondFactorWithoutQuotes(t 
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	tests := []struct {
 		desc               string

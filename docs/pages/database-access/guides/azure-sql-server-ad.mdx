@@ -34,20 +34,18 @@ This guide will help you to:
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - SQL Server running on Azure.
 - The Teleport Database Service running on an Azure virtual instance.
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
-## Step 1/7. Set up the Teleport Auth and Proxy Services
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-## Step 2/7. Create a Teleport user
+## Step 1/6. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/7. Enable the SQL Server Azure Active Directory integration
+## Step 2/6. Enable the SQL Server Azure Active Directory integration
 
 If you have it enabled, you can go to the next step.
 
@@ -62,7 +60,7 @@ login to SQL Server.
 
 ![Azure SQL Server Azure Active Directory admin page](../../../img/database-access/guides/sqlserver/azure-set-ad-admin.png)
 
-## Step 4/7. Configure Azure Managed Identities
+## Step 3/6. Configure Azure Managed Identities
 
 The Teleport Database Service needs access tokens from Azure AD to authenticate with
 SQL Server databases.
@@ -82,7 +80,7 @@ created:
 
 ![Azure Virtual machine user managed identities page](../../../img/database-access/guides/sqlserver/azure-attach-managed-identity-vm.png)
 
-## Step 5/7. Enable managed identities login on SQL Server
+## Step 4/6. Enable managed identities login on SQL Server
 
 Azure AD SQL Server integration uses database-level authentication (contained
 users), meaning we must create a user for our identities on each database we
@@ -103,7 +101,7 @@ the user as a member of the `db_datareader` role:
 ALTER ROLE db_datareader ADD MEMBER [sqlserver-identity];
 ```
 
-## Step 6/7. Start Teleport Database Service
+## Step 5/6. Start Teleport Database Service
 
 Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 
@@ -129,6 +127,7 @@ $ teleport db configure create \
    --protocol=sqlserver \
    --uri=my-server.database.windows.net:1433 \
    --labels=env=dev
+   --azure-sqlserver-discovery=eastus
 ```
 </ScopedBlock>
 
@@ -148,7 +147,7 @@ Start the Database Service:
 $ teleport start --config=/etc/teleport.yaml
 ```
 
-## Step 7/7. Connect
+## Step 6/6. Connect
 
 Log in to your Teleport cluster. Your database should appear in the list of
 available databases:
@@ -195,7 +194,7 @@ connect with is not attached to the Teleport Database Service virtual machine.
 You can navigate to the [Virtual Machines](https://portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.Compute%2FVirtualMachines) page within Azure Portal,
 open the **Teleport instance**, **Identity** section, and choose **User
 assigned** to see all identities you can connect with. If you don’t see your
-identity check [Step 4](#step-47-configure-azure-managed-identities) to see how
+identity check [Step 4](#step-36-configure-azure-managed-identities) to see how
 to add it.
 
 ### Login failed for the user
@@ -203,7 +202,7 @@ to add it.
 When connecting to your database, and you see the error `mssql: login error: Login
 failed for user '<token-identified principal>'`, it means your managed identity
 login is not present on the SQL database. You’ll need to create their users as
-described in [Step 5](#step-57-enable-managed-identities-login-on-sql-server).
+described in [Step 5](#step-46-enable-managed-identities-login-on-sql-server).
 Remember: you must create the users on all databases you want to connect.
 
 ## Next steps

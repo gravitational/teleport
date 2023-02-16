@@ -72,6 +72,10 @@ func (h *fakeHeartbeatDriver) FallbackAnnounce(ctx context.Context) (ok bool) {
 	return true
 }
 
+func (h *fakeHeartbeatDriver) SupportsFallback() bool {
+	return true
+}
+
 func (h *fakeHeartbeatDriver) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()

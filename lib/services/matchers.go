@@ -29,6 +29,18 @@ type ResourceMatcher struct {
 	Labels types.Labels
 }
 
+// ResourceMatchersToTypes converts []]services.ResourceMatchers into []*types.ResourceMatcher
+func ResourceMatchersToTypes(in []ResourceMatcher) []*types.DatabaseResourceMatcher {
+	out := make([]*types.DatabaseResourceMatcher, len(in))
+	for i, resMatcher := range in {
+		resMatcher := resMatcher
+		out[i] = &types.DatabaseResourceMatcher{
+			Labels: &resMatcher.Labels,
+		}
+	}
+	return out
+}
+
 // AWSSSM provides options to use when executing SSM documents
 type AWSSSM struct {
 	// DocumentName is the name of the document to use when executing an
@@ -130,7 +142,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	resourceKey := ResourceSeenKey{}
 	switch filter.ResourceKind {
-	case types.KindNode, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindKubernetesCluster:
+	case types.KindNode, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindKubernetesCluster, types.KindDatabaseService:
 		specResource = resource
 		resourceKey.name = specResource.GetName()
 
