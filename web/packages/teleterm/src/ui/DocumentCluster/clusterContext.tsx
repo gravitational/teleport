@@ -132,10 +132,6 @@ class ClusterContext extends Store<State> {
     this.setState({ searchValue });
   };
 
-  getSyncStatus() {
-    return this.appCtx.clustersService.getClusterSyncStatus(this.clusterUri);
-  }
-
   changeLocation(navLocation: NavLocation) {
     this.setState({
       navLocation,

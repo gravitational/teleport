@@ -15,13 +15,10 @@
  */
 
 import React from 'react';
-
 import styled from 'styled-components';
-
 import { Box, Flex, Text, Label } from 'design';
 
 import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-
 import { LoggedInUser } from 'teleterm/services/tshd/types';
 
 import { IdentityRootCluster } from '../useIdentity';
@@ -70,7 +67,6 @@ export function IdentityList(props: IdentityListProps) {
               isSelected={i.active}
               userName={i.userName}
               clusterName={i.clusterName}
-              isSyncing={i.isSyncing}
               onSelect={() => props.onSelectCluster(i.uri)}
               onLogout={() => props.onLogout(i.uri)}
             />
