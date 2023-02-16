@@ -48,17 +48,34 @@ service.
 
 ### Consent
 
-Users will explicitly opt-in to anonymous usage telemetry with a command-line
-parameter or configuration file field e.g:
+Users will explicitly opt-in to anonymous usage telemetry with an environment
+variable, e.g:
 
 ```sh
-tbot --anonymous-telemetry-opt-in
+# Send anonymous telemetry on startup about the usage of tbot in order
+# to help us understand what parts of Machine ID to improve.
+# Find out more at goteleport.com/awesome-docs-page
+export TBOT_ANONYMOUS_TELEMETRY=1
+tbot start --snip--
 ```
 
-or
+For helpers like GitHub actions, this will be another option the user can
+provide, e.g:
 
 ```yaml
-anonymous_telemetry_opt_in: true
+steps:
+  - name: Install Teleport
+    uses: teleport-actions/setup@v1
+    with:
+      version: 11.0.3
+  - name: Authorize against Teleport
+    id: auth
+    uses: teleport-actions/auth@v1
+    with:
+      # Send anonymous telemetry on startup about the usage of tbot in order
+      # to help us understand what parts of Machine ID to improve.
+      # Find out more at goteleport.com/awesome-docs-page
+      anonymous-telemetry: true
 ```
 
 Examples provided in the documentation will be updated to include this value
