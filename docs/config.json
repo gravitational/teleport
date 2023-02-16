@@ -572,6 +572,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "Monitor Audit Events with Datadog",
+              "slug": "/management/export-audit-events/datadog/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
               "title": "Monitor Audit Events with the Elastic Stack",
               "slug": "/management/export-audit-events/elastic-stack/",
               "forScopes": ["enterprise", "cloud"]
