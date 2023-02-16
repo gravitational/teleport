@@ -13,7 +13,7 @@ versions:
             role:
               description: The one role assigned to the user in this test
               type: string
-            logins:
+            login:
               description: The one login assigned to the user in this test
               type: string
           type: object

@@ -44,8 +44,8 @@ func TestGenerateTable(t *testing.T) {
 |~spec.login~|The one login assigned to the user in this test|string|
 
 spec:
-  role: "example"
-  login: "example"
+  login: string
+  role: string
 `, "~", "`"),
 		},
 		{
@@ -120,6 +120,8 @@ spec:
 
 			if c.errSubstring != "" {
 				assert.Contains(t, err.Error(), c.errSubstring)
+			} else if err != nil {
+				t.Fatalf("unexpected error generating the configuration resource docs: %v", err)
 			}
 
 			if actual == nil {

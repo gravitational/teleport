@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"text/template"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/schemagen"
@@ -78,7 +79,7 @@ type VersionPropertyRow struct {
 	Description string
 }
 
-// To be executed with a VersionDAta
+// To be executed with a VersionData
 var versionTableTemplate string = strings.ReplaceAll(
 	`|Property|Description|Type|
 |---|---|---|
@@ -99,21 +100,78 @@ var tabbedVersionTableTemplate string = fmt.Sprintf(`<Tabs>
 </Tabs>
 `, versionTableTemplate)
 
+// insertExampleValue uses the provided path, e.g., "key1.key2.key3", to insert the
+// value val into map doc. Returns an error if the path is malformed.
+func insertExampleValue(path string, doc map[string]interface{}, val interface{}) error {
+	keyPath := strings.Split(path, ".")
+
+	if len(keyPath) == 0 {
+		return trace.Wrap(errors.New("no keys found to use for inserting an example value"))
+	}
+
+	var i map[string]interface{} = doc
+	for j, k := range keyPath {
+		v, ok := i[k]
+		if !ok && j != len(keyPath)-1 {
+			return trace.Wrap(fmt.Errorf("key path has more keys than will fit in the example YAML doc: %v", path))
+		}
+		// We've found a leaf node of the map
+		if !ok {
+			i[k] = val
+			break
+		}
+
+		if m, ok := v.(map[string]interface{}); ok {
+			i = m
+			continue
+		}
+		return trace.Wrap(errors.New("unexpected value found while inserting example YAML"))
+	}
+	return nil
+}
+
+// generateExampleValue returns a value to insert into an example YAML document
+// based on the type of props. It returns an error if it is not possible to
+// generate an example.
+// TODO: make this work recursively with arrays and maps
+func generateExampleValue(props *apiextv1.JSONSchemaProps) (interface{}, error) {
+	switch props.Type {
+	case "string":
+		return "string", nil
+	case "number":
+		return 0, nil
+
+	// TODO: Detect if there are more properties to document examples for.
+	// If not, populate the map with dummy values.
+	case "object":
+		return map[string]interface{}{}, nil
+	default:
+		return nil, trace.Wrap(fmt.Errorf(
+			"unsupported property type: %v",
+			props.Type,
+		))
+	}
+}
+
 // registerProperties recursively descends through the properties in props, adding
 // these to the example YAML document in yml and the VersionPropertyRows in
-// rows.
+// rows. It returns an error if props is malformed.
 func registerProperties(
 	yml map[string]interface{},
 	rows []VersionPropertyRow,
 	props *apiextv1.JSONSchemaProps,
 	// If this JSONSchemaProps is a child of another property
 	parent *VersionPropertyRow,
-) {
+) error {
 	for k, v := range props.Properties {
 		n := k
 		if parent != nil {
 			n = parent.Name + "." + k
 		}
+
+		// TODO: For composite types, recursively descend through the
+		// type's Items or AdditionalProperties to get the type of the
+		// values
 
 		r := VersionPropertyRow{
 			Name:        n,
@@ -121,9 +179,24 @@ func registerProperties(
 			Description: v.Description,
 		}
 		rows = append(rows, r)
-		// TODO: Assign new key to the example yml
-		registerProperties(yml, rows, &v, &r)
+
+		val, err := generateExampleValue(&v)
+
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		err = insertExampleValue(n, yml, val)
+
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := registerProperties(yml, rows, &v, &r); err != nil {
+			return trace.Wrap(err)
+		}
 	}
+	return nil
 }
 
 func generateTable(c *schemagen.RootSchema) (*schemagen.TransformedFile, error) {
@@ -142,12 +215,14 @@ func generateTable(c *schemagen.RootSchema) (*schemagen.TransformedFile, error) 
 		ex := make(map[string]interface{})
 		var rows []VersionPropertyRow
 
-		registerProperties(
+		if err := registerProperties(
 			ex,
 			rows,
 			&v.Schema.JSONSchemaProps,
 			nil,
-		)
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		vd.Rows = rows
 		var buf bytes.Buffer
@@ -158,7 +233,32 @@ func generateTable(c *schemagen.RootSchema) (*schemagen.TransformedFile, error) 
 		td.Versions = append(td.Versions, vd)
 	}
 
-	return nil, nil
+	var buf bytes.Buffer
+
+	if len(td.Versions) > 1 {
+		tmpl, err := template.New("Tabbed version data").Parse(tabbedVersionTableTemplate)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err = tmpl.Execute(&buf, td)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		tmpl, err := template.New("Version data").Parse(versionTableTemplate)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		err = tmpl.Execute(&buf, td.Versions[0])
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return &schemagen.TransformedFile{
+		Name:    c.Name + ".yaml",
+		Content: buf.String(),
+	}, nil
 }
 
 func main() {
