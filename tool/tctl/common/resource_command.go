@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/gravitational/kingpin"
@@ -1613,6 +1614,46 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			}
 		}
 		return &samlIDPServiceProviderCollection{serviceProviders: resources}, nil
+	case types.KindDevice:
+		remote := client.DevicesClient()
+		if rc.ref.Name == "" {
+			device, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &deviceCollection{devices: []*devicepb.Device{device}}, nil
+		}
+
+		req := &devicepb.ListDevicesRequest{
+			View: devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
+		}
+		var devs []*devicepb.Device
+		for {
+			resp, err := remote.ListDevices(ctx, req)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			devs = append(devs, resp.Devices...)
+
+			if resp.NextPageToken == "" {
+				break
+			}
+			req.PageToken = resp.NextPageToken
+		}
+
+		sort.Slice(devs, func(i, j int) bool {
+			d1 := devs[i]
+			d2 := devs[j]
+
+			if d1.AssetTag == d2.AssetTag {
+				return d1.OsType < d2.OsType
+			}
+
+			return d1.AssetTag < d2.AssetTag
+		})
+
+		return &deviceCollection{devices: devs}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
