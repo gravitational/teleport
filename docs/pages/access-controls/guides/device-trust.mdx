@@ -1,5 +1,5 @@
 ---
-title: "Device Trust (Preview)"
+title: Device Trust (Preview)
 description: Learn how to use and enforce trusted devices with Teleport
 ---
 
@@ -7,6 +7,7 @@ description: Learn how to use and enforce trusted devices with Teleport
 Device Trust is currently in Preview mode.
 
 Device Trust requires Teleport Enterprise.
+
 </Admonition>
 
 Device Trust allows Teleport admins to enforce the use of trusted devices.
@@ -47,9 +48,9 @@ IT prepares a new device for a user. Enrollment only needs to happen once per
 user/device combination.
 
 <Admonition type="tip" title="Enrollment">
-Device enrollment is key in correctly identifying a device throughout its
-lifetime. The more trusted the enrollment operator, the better the ongoing
-guarantees that the device itself is trustworthy.
+  Device enrollment is key in correctly identifying a device throughout its
+  lifetime. The more trusted the enrollment operator, the better the ongoing
+  guarantees that the device itself is trustworthy.
 </Admonition>
 
 The tie between the device inventory and enrollment is a device enrollment
@@ -84,15 +85,15 @@ metadata:
 spec:
   allow:
     rules:
-    - resources: ["device"]
-      verbs:
-      - create
-      - read
-      - list
-      - update
-      - delete
-      - create_enroll_token
-      - enroll
+      - resources: ['device']
+        verbs:
+          - create
+          - read
+          - list
+          - update
+          - delete
+          - create_enroll_token
+          - enroll
 ```
 
 ```code
@@ -101,9 +102,9 @@ role 'device-admin' has been created
 ```
 
 <Admonition type="tip" title="Editor Role">
-For clusters created using Teleport v12 or newer, the builtin role `editor` has
-the necessary permissions to manage devices. For production setups a separate
-role is still recommended.
+  For clusters created using Teleport v12 or newer, the builtin role `editor`
+  has the necessary permissions to manage devices. For production setups a
+  separate role is still recommended.
 </Admonition>
 
 Note that in addition to the usual CRUD verbs (create, read, list, update and
@@ -193,10 +194,11 @@ $ tsh logout; tsh login --proxy=example.com --user=alice # fetch new certificate
 
 The device above is now a trusted device.
 
-## Optional: Enforce trusted devices
+## Trusted device access
 
-Device trust has the following modes of operation, represented by the
-`device_trust.mode` authentication setting:
+Ensure only trusted and authenticated device can access protected resources.
+
+Device trust has the following three modes of operation:
 
 - `off` - disables device trust. Device authentication is not performed and
   device-aware audit logs are absent.
@@ -206,17 +208,46 @@ Device trust has the following modes of operation, represented by the
   Additionally, it requires a trusted device for all SSH, Database and
   Kubernetes connections.
 
-Enterprise clusters run in `optional` mode by default. Changing the mode to
-`required` will enforce a trusted device for all SSH, Database and Kubernetes
-accesses.
-
 <Admonition type="warning" title="Web UI">
-The Web UI is not capable of trusted device access during the device trust
-preview. Only `tsh` and Teleport Connect are able to fulfill device mode
-`required`.
+  The Web UI is not capable of trusted device access during the device trust
+  preview. Only `tsh` and Teleport Connect are able to fulfill device mode
+  `required`.
 </Admonition>
 
-To enable device mode `required` update your configuration as follows:
+### Per-Role
+
+To enforce authenticated device checks for a specific role, update the role as the following:
+
+```diff
+kind: role
+version: v6
+metadata:
+  name: example-role
+spec:
+  options:
+    # require authenticated device check for this role
++   device_trust_mode: "required" # add this line
+  allow:
+    ...
+  deny:
+    ...
+
+```
+
+<Admonition type="tip" title="Per-role vs. Cluster-wide">
+Per-role configuration let's progressively block unauthorized device access and is useful for getting started with Teleport Device Trust.
+
+Once all the devices used by engineers are enrolled to Teleport, cluster-wide configuration will ensure every resources can only ever be accessed with a trusted device.
+
+</Admonition>
+
+### Cluster-wide
+
+Cluster-wide configuration will enforce authenticated device access to all the configured roles and resources.
+
+Enterprise clusters run in `optional` mode by default. Changing the mode to
+`required` will enforce a trusted device for all SSH, Database and Kubernetes
+accesses. To enable device mode `required` update your configuration as follows:
 
 <Tabs>
 <TabItem label="Static Config">
@@ -232,6 +263,7 @@ auth_service:
     device_trust:
 +     mode: "required" # add this line
 ```
+
 </TabItem>
 <TabItem label="Dynamic resources">
 Create a `cap.yaml` file or get the existing configuration using
@@ -257,10 +289,11 @@ Update the configuration:
 $ tctl create -f cap.yaml
 cluster auth preference has been updated
 ```
+
 </TabItem>
 </Tabs>
 
-SSH, Database and Kubernetes access without a trusted device is now forbidden.
+Once this configuration is picked up by the Auth Server, SSH, Database and Kubernetes access without a trusted device will be forbidden.
 For example, SSH access without a trusted device fails with the following error:
 
 ```code
@@ -269,12 +302,12 @@ ERROR: ssh: rejected: administratively prohibited (unauthorized device)
 ```
 
 <Admonition type="tip" title="Trusted Clusters">
-It is possible to use [trusted
-clusters](../../management/admin/trustedclusters.mdx) to limit the impact of
-device mode `required`. A leaf cluster in mode `required` will enforce access to
-all of its resources, without imposing the same restrictions to the root
-cluster. Likewise, a root cluster will not enforce device trust on resources in
-leaf clusters.
+  It is possible to use [trusted
+  clusters](../../management/admin/trustedclusters.mdx) to limit the impact of
+  device mode `required`. A leaf cluster in mode `required` will enforce access
+  to all of its resources, without imposing the same restrictions to the root
+  cluster. Likewise, a root cluster will not enforce device trust on resources
+  in leaf clusters.
 </Admonition>
 
 ## Troubleshooting
