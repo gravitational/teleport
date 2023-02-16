@@ -17,9 +17,6 @@
 import React, { useMemo } from 'react';
 
 import styled from 'styled-components';
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-// @ts-ignore
-import { DocumentAccessRequests } from 'e-teleterm/ui/DocumentAccessRequests/DocumentAccessRequests';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
@@ -100,8 +97,6 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
       case 'doc.terminal_tsh_node':
       case 'doc.terminal_tsh_kube':
         return <DocumentTerminal doc={doc} visible={visible} />;
-      case 'doc.access_requests':
-        return <DocumentAccessRequests doc={doc} visible={visible} />;
       default:
         return (
           <Document visible={visible}>

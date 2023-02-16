@@ -14,11 +14,6 @@
  * limitations under the License.
  */
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-// @ts-ignore
-import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
-// @ts-ignore
-import { RequestState } from 'e-teleport/services/workflow';
 import { SortType } from 'design/DataTable/types';
 import { FileTransferListeners } from 'shared/components/FileTransfer';
 import apiCluster from 'gen-proto-js/teleport/lib/teleterm/v1/cluster_pb';
@@ -256,7 +251,7 @@ export type ServerSideParams = {
 };
 
 export type ReviewAccessRequestParams = {
-  state: RequestState;
+  state: any;
   reason: string;
   roles: string[];
   id: string;
@@ -267,12 +262,12 @@ export type CreateAccessRequestParams = {
   reason: string;
   roles: string[];
   suggestedReviewers: string[];
-  resourceIds: { kind: ResourceKind; clusterName: string; id: string }[];
+  resourceIds: { kind: any; clusterName: string; id: string }[];
 };
 
 export type GetRequestableRolesParams = {
   rootClusterUri: uri.RootClusterUri;
-  resourceIds?: { kind: ResourceKind; clusterName: string; id: string }[];
+  resourceIds?: { kind: any; clusterName: string; id: string }[];
 };
 
 export type AssumedRequest = {

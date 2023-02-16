@@ -14,11 +14,8 @@
  * limitations under the License.
  */
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
 import React from 'react';
 import { Flex, Text } from 'design';
-// @ts-ignore
-import { AccessRequestCheckoutButton } from 'e-teleterm/ui/StatusBar/AccessRequestCheckoutButton';
 
 import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
 import { ShareFeedback } from './ShareFeedback';
@@ -49,7 +46,6 @@ export function StatusBar() {
         {clusterBreadcrumbs}
       </Text>
       <Flex gap={2} alignItems="center">
-        <AccessRequestCheckoutButton />
         <ShareFeedback />
       </Flex>
     </Flex>
