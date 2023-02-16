@@ -72,18 +72,24 @@ type License interface {
 	SetSupportsDesktopAccess(Bool)
 
 	// GetSupportsModeratedSessions returns moderated sessions support flag
+	// Note: this field is unused in Teleport v11+
 	GetSupportsModeratedSessions() Bool
 	// SetSupportsModeratedSessions sets moderated sessions support flag
+	// Note: this field is unused in Teleport v11+
 	SetSupportsModeratedSessions(Bool)
 
 	// GetSupportsMachineID returns MachineID support flag
+	// Note: this field is unused in Teleport v11+
 	GetSupportsMachineID() Bool
 	// SetSupportsMachineID sets MachineID support flag
+	// Note: this field is unused in Teleport v11+
 	SetSupportsMachineID(Bool)
 
 	// GetSupportsResourceAccessRequests returns resource access requests support flag
+	// Note: this field is unused in Teleport v11+
 	GetSupportsResourceAccessRequests() Bool
 	// SetSupportsResourceAccessRequests sets resource access requests support flag
+	// Note: this field is unused in Teleport v11+
 	SetSupportsResourceAccessRequests(Bool)
 
 	// GetTrial returns the trial flag.
@@ -370,15 +376,6 @@ func (c *LicenseV3) String() string {
 	}
 	if c.GetSupportsDesktopAccess() {
 		features = append(features, "supports desktop access")
-	}
-	if c.GetSupportsModeratedSessions() {
-		features = append(features, "supports moderated sessions")
-	}
-	if c.GetSupportsMachineID() {
-		features = append(features, "supports Machine ID")
-	}
-	if c.GetSupportsResourceAccessRequests() {
-		features = append(features, "supports resource access requests")
 	}
 	if c.GetCloud() {
 		features = append(features, "is hosted by Gravitational")
