@@ -3245,3 +3245,78 @@ func (c *Client) DeleteAllSAMLIdPServiceProviders(ctx context.Context) error {
 	}
 	return nil
 }
+
+// ListUserGroups returns a paginated list of SAML IdP service provider resources.
+func (c *Client) ListUserGroups(ctx context.Context, pageSize int, nextKey string) ([]types.UserGroup, string, error) {
+	resp, err := c.grpc.ListUserGroups(ctx, &proto.ListUserGroupsRequest{
+		Limit:   int32(pageSize),
+		NextKey: nextKey,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+	userGroups := make([]types.UserGroup, 0, len(resp.GetUserGroups()))
+	for _, ug := range resp.GetUserGroups() {
+		userGroups = append(userGroups, ug)
+	}
+	return userGroups, resp.GetNextKey(), nil
+}
+
+// GetUserGroup returns the specified SAML IdP service provider resources.
+func (c *Client) GetUserGroup(ctx context.Context, name string) (types.UserGroup, error) {
+	ug, err := c.grpc.GetUserGroup(ctx, &proto.GetUserGroupRequest{
+		Name: name,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return ug, nil
+}
+
+// CreateUserGroup creates a new user group resource.
+func (c *Client) CreateUserGroup(ctx context.Context, ug types.UserGroup) error {
+	ugV1, ok := ug.(*types.UserGroupV1)
+	if !ok {
+		return trace.BadParameter("unsupported user group type %T", ug)
+	}
+
+	_, err := c.grpc.CreateUserGroup(ctx, ugV1, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// UpdateUserGroup updates an existing user group resource.
+func (c *Client) UpdateUserGroup(ctx context.Context, ug types.UserGroup) error {
+	ugV1, ok := ug.(*types.UserGroupV1)
+	if !ok {
+		return trace.BadParameter("unsupported user group type %T", ug)
+	}
+
+	_, err := c.grpc.UpdateUserGroup(ctx, ugV1, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteUserGroup removes the specified user group resource.
+func (c *Client) DeleteUserGroup(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteUserGroup(ctx, &proto.DeleteUserGroupRequest{
+		Name: name,
+	}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteAllUserGroups removes all user groups.
+func (c *Client) DeleteAllUserGroups(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllUserGroups(ctx, &emptypb.Empty{}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
