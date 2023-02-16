@@ -278,7 +278,7 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	a.localALPNProxy, err = alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
+	localProxyConfig := alpnproxy.LocalProxyConfig{
 		Listener:           listener,
 		RemoteProxyAddr:    tc.WebProxyAddr,
 		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolHTTP},
@@ -287,7 +287,21 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 		SNI:                address.Host(),
 		HTTPMiddleware:     &alpnproxy.AWSAccessMiddleware{AWSCredentials: cred},
 		Certs:              []tls.Certificate{appCerts},
-	})
+	}
+	// TODO refactor this so all callers to alpnproxy.NewLocalProxy can share the same logic.
+	localProxyConfig.ALPNConnUpgradeRequired = alpnproxy.IsALPNConnUpgradeRequired(tc.WebProxyAddr, a.cf.InsecureSkipVerify)
+	if localProxyConfig.ALPNConnUpgradeRequired {
+		rootClusterName, err := tc.RootClusterName(a.cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		localProxyConfig.RootCAs, err = utils.NewCertPoolFromPath(a.profile.CACertPathForCluster(rootClusterName))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	a.localALPNProxy, err = alpnproxy.NewLocalProxy(localProxyConfig)
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
 			return trace.NewAggregate(err, cerr)

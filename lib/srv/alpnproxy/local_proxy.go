@@ -250,12 +250,16 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 	}
 
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			NextProtos:         l.cfg.GetProtocols(),
-			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
-			ServerName:         l.cfg.SNI,
-			Certificates:       l.getCerts(),
-		},
+		DialTLSContext: NewALPNDialer(ALPNDialerConfig{
+			ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
+			TLSConfig: &tls.Config{
+				NextProtos:         l.cfg.GetProtocols(),
+				InsecureSkipVerify: l.cfg.InsecureSkipVerify,
+				ServerName:         l.cfg.SNI,
+				Certificates:       l.getCerts(),
+				RootCAs:            l.cfg.RootCAs,
+			},
+		}).DialContext,
 	}
 	proxy := &httputil.ReverseProxy{
 		Director: func(outReq *http.Request) {
