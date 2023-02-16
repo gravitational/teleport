@@ -969,7 +969,9 @@ func (s *session) join(p *party) error {
 		// the goroutine will unblock the s.io terminal.
 		// types.SessionState_SessionStatePending marks a session that is waiting for
 		// a moderator to rejoin.
-		s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStateRunning)
+		if err := s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStateRunning); err != nil {
+			s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
+		}
 	}
 
 	return nil
