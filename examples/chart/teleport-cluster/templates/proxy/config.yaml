@@ -1,4 +1,4 @@
-{{- $proxy := mustMergeOverwrite .Values .Values.proxy -}}
+{{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- $configTemplate := printf "teleport-cluster.proxy.config.%s" $proxy.chartMode -}}
 apiVersion: v1
 kind: ConfigMap
