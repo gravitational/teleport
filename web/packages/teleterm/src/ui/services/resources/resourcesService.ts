@@ -14,18 +14,20 @@
  * limitations under the License.
  */
 
-import { ServerSideParams, TshClient } from 'teleterm/services/tshd/types';
-
+import type * as types from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
 
 export class ResourcesService {
-  constructor(private tshClient: TshClient) {}
+  constructor(private tshClient: types.TshClient) {}
 
-  fetchServers(params: ServerSideParams) {
+  fetchServers(params: types.ServerSideParams) {
     return this.tshClient.getServers(params);
   }
 
-  async getServerByHostname(clusterUri: uri.ClusterUri, hostname: string) {
+  async getServerByHostname(
+    clusterUri: uri.ClusterUri,
+    hostname: string
+  ): Promise<types.Server | undefined> {
     const query = `name == "${hostname}"`;
     const { agentsList: servers } = await this.fetchServers({
       clusterUri,
@@ -40,11 +42,11 @@ export class ResourcesService {
     return servers[0];
   }
 
-  fetchDatabases(params: ServerSideParams) {
+  fetchDatabases(params: types.ServerSideParams) {
     return this.tshClient.getDatabases(params);
   }
 
-  fetchKubes(params: ServerSideParams) {
+  fetchKubes(params: types.ServerSideParams) {
     return this.tshClient.getKubes(params);
   }
 }
