@@ -33,29 +33,23 @@ import {
 } from 'teleterm/services/tshd/types';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { UsageService } from 'teleterm/ui/services/usage';
-import type * as tsh from 'teleterm/services/tshd/types';
 
 import { ImmutableStore } from '../immutableStore';
 
-import {
-  AuthSettings,
-  ClustersServiceState,
-  LoginLocalParams,
-  LoginSsoParams,
-  LoginPasswordlessParams,
-} from './types';
+import type * as types from './types';
+import type * as tsh from 'teleterm/services/tshd/types';
 
 const { routing } = uri;
 
-export function createClusterServiceState(): ClustersServiceState {
+export function createClusterServiceState(): types.ClustersServiceState {
   return {
     clusters: new Map(),
     gateways: new Map(),
   };
 }
 
-export class ClustersService extends ImmutableStore<ClustersServiceState> {
-  state: ClustersServiceState = createClusterServiceState();
+export class ClustersService extends ImmutableStore<types.ClustersServiceState> {
+  state: types.ClustersServiceState = createClusterServiceState();
 
   constructor(
     public client: tsh.TshClient,
@@ -85,20 +79,26 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     await this.removeClusterKubeConfigs(clusterUri);
   }
 
-  async loginLocal(params: LoginLocalParams, abortSignal: tsh.TshAbortSignal) {
+  async loginLocal(
+    params: types.LoginLocalParams,
+    abortSignal: tsh.TshAbortSignal
+  ) {
     await this.client.loginLocal(params, abortSignal);
     await this.syncRootClusterAndCatchErrors(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, 'local');
   }
 
-  async loginSso(params: LoginSsoParams, abortSignal: tsh.TshAbortSignal) {
+  async loginSso(
+    params: types.LoginSsoParams,
+    abortSignal: tsh.TshAbortSignal
+  ) {
     await this.client.loginSso(params, abortSignal);
     await this.syncRootClusterAndCatchErrors(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, params.providerType);
   }
 
   async loginPasswordless(
-    params: LoginPasswordlessParams,
+    params: types.LoginPasswordlessParams,
     abortSignal: tsh.TshAbortSignal
   ) {
     await this.client.loginPasswordless(params, abortSignal);
@@ -340,7 +340,9 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
   }
 
   async getAuthSettings(clusterUri: uri.RootClusterUri) {
-    return (await this.client.getAuthSettings(clusterUri)) as AuthSettings;
+    return (await this.client.getAuthSettings(
+      clusterUri
+    )) as types.AuthSettings;
   }
 
   async createGateway(params: tsh.CreateGatewayParams) {
