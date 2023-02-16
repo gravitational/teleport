@@ -28,11 +28,16 @@ import (
 type License interface {
 	Resource
 
-	// GetReportsUsage returns true if teleport cluster reports usage
-	// to control plane
+	// GetReportsUsage returns true if the Teleport cluster should report usage
+	// to the Houston control plane.
 	GetReportsUsage() Bool
-	// SetReportsUsage sets usage report
+	// SetReportsUsage sets the Houston usage reporting flag.
 	SetReportsUsage(Bool)
+	// GetUsageReporting returns true if the Teleport cluster should report
+	// usage to Sales Center.
+	GetUsageReporting() Bool
+	// SetUsageReporting sets the Sales Center usage reporting flag.
+	SetUsageReporting(Bool)
 
 	// GetCloud returns true if teleport cluster is hosted by Gravitational
 	GetCloud() Bool
@@ -204,10 +209,16 @@ func (c *LicenseV3) GetMetadata() Metadata {
 	return c.Metadata
 }
 
-// GetReportsUsage returns true if teleport cluster reports usage
-// to control plane
+// GetReportsUsage returns true if the Teleport cluster should report usage to
+// the Houston control plane.
 func (c *LicenseV3) GetReportsUsage() Bool {
 	return c.Spec.ReportsUsage
+}
+
+// GetUsageReporting returns true if the Teleport cluster should report usage to
+// Sales Center.
+func (c *LicenseV3) GetUsageReporting() Bool {
+	return c.Spec.UsageReporting
 }
 
 // GetCloud returns true if teleport cluster is hosted by Gravitational
@@ -220,9 +231,14 @@ func (c *LicenseV3) SetCloud(cloud Bool) {
 	c.Spec.Cloud = cloud
 }
 
-// SetReportsUsage sets usage report
+// SetReportsUsage sets the Houston usage reporting flag.
 func (c *LicenseV3) SetReportsUsage(reports Bool) {
 	c.Spec.ReportsUsage = reports
+}
+
+// SetUsageReporting sets the Sales Center usage reporting flag.
+func (c *LicenseV3) SetUsageReporting(reports Bool) {
+	c.Spec.UsageReporting = reports
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -409,8 +425,10 @@ type LicenseSpecV3 struct {
 	SupportsDatabaseAccess Bool `json:"db,omitempty"`
 	// SupportsDesktopAccess turns desktop access on or off
 	SupportsDesktopAccess Bool `json:"desktop,omitempty"`
-	// ReportsUsage turns usage reporting on or off
+	// ReportsUsage turns Houston usage reporting on or off
 	ReportsUsage Bool `json:"usage,omitempty"`
+	// UsageReporting turns Sales Center usage reporting on or off
+	UsageReporting Bool `json:"reporting,omitempty"`
 	// Cloud is turned on when teleport is hosted by Gravitational
 	Cloud Bool `json:"cloud,omitempty"`
 	// SupportsModeratedSessions turns on moderated sessions
