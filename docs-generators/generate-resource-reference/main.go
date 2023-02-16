@@ -143,6 +143,17 @@ func generateExampleValue(props *apiextv1.JSONSchemaProps) (interface{}, error) 
 	// If not, populate the map with dummy values.
 	case "object":
 		return map[string]interface{}{}, nil
+	case "array":
+		if props.Items.Schema == nil {
+			return nil, errors.New("the items of a JSON Schema array must include their own schema")
+		}
+
+		switch props.Items.Schema.Type {
+		case "string":
+			return []string{"string1", "string2", "string3"}, nil
+		default:
+			return nil, fmt.Errorf("unsupported array item type: %v", props.Items.Schema.Type)
+		}
 	default:
 		return nil, trace.Wrap(fmt.Errorf(
 			"unsupported property type: %v",

@@ -106,7 +106,7 @@ spec:
 </Tabs>`, "~", "`"),
 		},
 
-		// TODO: Example with nested types, e.g., an "allow" rule
+		// TODO: Example with complex nested types, e.g., an "allow" rule
 	}
 
 	for _, c := range cases {
