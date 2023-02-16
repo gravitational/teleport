@@ -1746,9 +1746,18 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 	err = s.a.UpsertRole(ctx, pinnedRole)
 	require.NoError(t, err)
 
-	findTLSClientIP := func(names []pkix.AttributeTypeAndValue) any {
+	findTLSLoginIP := func(names []pkix.AttributeTypeAndValue) any {
 		for _, name := range names {
-			if name.Type.Equal(tlsca.ClientIPASN1ExtensionOID) {
+			if name.Type.Equal(tlsca.LoginIPASN1ExtensionOID) {
+				return name.Value
+			}
+		}
+		return nil
+	}
+
+	findTLSPinnedIP := func(names []pkix.AttributeTypeAndValue) any {
+		for _, name := range names {
+			if name.Type.Equal(tlsca.PinnedIPASN1ExtensionOID) {
 				return name.Value
 			}
 		}
@@ -1758,13 +1767,13 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 	testCases := []struct {
 		desc       string
 		user       string
-		clientIP   string
+		loginIP    string
 		wantPinned bool
 	}{
-		{desc: "no client ip, not pinned", user: unpinnedUser, clientIP: "", wantPinned: false},
-		{desc: "client ip, not  pinned", user: unpinnedUser, clientIP: "1.2.3.4", wantPinned: false},
-		{desc: "client ip, pinned", user: pinnedUser, clientIP: "1.2.3.4", wantPinned: true},
-		{desc: "no client ip, pinned", user: pinnedUser, clientIP: "", wantPinned: true},
+		{desc: "no client ip, not pinned", user: unpinnedUser, loginIP: "", wantPinned: false},
+		{desc: "client ip, not  pinned", user: unpinnedUser, loginIP: "1.2.3.4", wantPinned: false},
+		{desc: "client ip, pinned", user: pinnedUser, loginIP: "1.2.3.4", wantPinned: true},
+		{desc: "no client ip, pinned", user: pinnedUser, loginIP: "", wantPinned: true},
 	}
 
 	baseAuthRequest := AuthenticateSSHRequest{
@@ -1780,13 +1789,13 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			authRequest := baseAuthRequest
 			authRequest.AuthenticateUserRequest.Username = tt.user
-			if tt.clientIP != "" {
+			if tt.loginIP != "" {
 				authRequest.ClientMetadata = &ForwardedClientMetadata{
-					RemoteAddr: tt.clientIP,
+					RemoteAddr: tt.loginIP,
 				}
 			}
 			resp, err := s.a.AuthenticateSSHUser(ctx, authRequest)
-			if tt.wantPinned && tt.clientIP == "" {
+			if tt.wantPinned && tt.loginIP == "" {
 				require.ErrorContains(t, err, "source IP pinning is enabled but client IP is unknown")
 				return
 			}
@@ -1799,26 +1808,32 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 			tlsCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
 			require.NoError(t, err)
 
-			tlsClientIP := findTLSClientIP(tlsCert.Subject.Names)
-			sshClientIP, sshClientIPOK := sshCert.Extensions[teleport.CertExtensionClientIP]
+			tlsLoginIP := findTLSLoginIP(tlsCert.Subject.Names)
+			tlsPinnedIP := findTLSPinnedIP(tlsCert.Subject.Names)
+			sshLoginIP, sshLoginIPOK := sshCert.Extensions[teleport.CertExtensionLoginIP]
 			sshCriticalAddress, sshCriticalAddressOK := sshCert.CriticalOptions["source-address"]
 
-			if tt.clientIP != "" {
-				require.NotNil(t, tlsClientIP, "client IP not found on TLS cert")
-				require.Equal(t, tlsClientIP, tt.clientIP, "TLS ClientIP mismatch")
+			if tt.loginIP != "" {
+				require.NotNil(t, tlsLoginIP, "client IP not found on TLS cert")
+				require.Equal(t, tlsLoginIP, tt.loginIP, "TLS LoginIP mismatch")
 
-				require.True(t, sshClientIPOK, "SSH ClientIP extension not present")
-				require.Equal(t, tt.clientIP, sshClientIP, "SSH ClientIP mismatch")
+				require.True(t, sshLoginIPOK, "SSH LoginIP extension not present")
+				require.Equal(t, tt.loginIP, sshLoginIP, "SSH LoginIP mismatch")
 			} else {
-				require.Nil(t, tlsClientIP, "client IP unexpectedly found on TLS cert")
+				require.Nil(t, tlsLoginIP, "client IP unexpectedly found on TLS cert")
 
-				require.False(t, sshClientIPOK, "client IP unexpectedly found on SSH cert")
+				require.False(t, sshLoginIPOK, "client IP unexpectedly found on SSH cert")
 			}
 
 			if tt.wantPinned {
+				require.NotNil(t, tlsPinnedIP, "pinned IP not found on TLS cert")
+				require.Equal(t, tt.loginIP, tlsPinnedIP, "pinned IP on TLS cert mismatch")
+
 				require.True(t, sshCriticalAddressOK, "source address not found on SSH cert")
-				require.Equal(t, tt.clientIP+"/32", sshCriticalAddress, "SSH source address mismatch")
+				require.Equal(t, tt.loginIP+"/32", sshCriticalAddress, "SSH source address mismatch")
 			} else {
+				require.Nil(t, tlsPinnedIP, "pinned IP unexpectedly found on TLS cert")
+
 				require.False(t, sshCriticalAddressOK, "source address unexpectedly found on SSH cert")
 			}
 		})
