@@ -76,10 +76,10 @@ spec:
 `, "~", "`"),
 		},
 		{
-		    description: "multiple versions",
-		    inputYAML: mustReadFile(t, path.Join("testdata", "user-scalars-multiversion.yaml"),
-		    expectedName: "user.yaml",
-		    expectedContent: strings.ReplaceAll(`<Tabs>
+			description:  "multiple versions",
+			inputYAML:    mustReadFile(t, path.Join("testdata", "user-scalars-multiversion.yaml")),
+			expectedName: "user.yaml",
+			expectedContent: strings.ReplaceAll(`<Tabs>
 <TabItem label="v2">
 |Property|Description|Type|
 |---|---|---|
@@ -103,7 +103,7 @@ spec:
   login: "example"
 </TabItem>
 </Tabs>
-`, "~", "`")
+`, "~", "`"),
 		},
 
 		// TODO: Example with nested types, e.g., an "allow" rule

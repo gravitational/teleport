@@ -17,11 +17,18 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
 	"os"
+	"strings"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/schemagen"
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
 var config = []schemagen.ParseResourceOptions{
@@ -55,7 +62,102 @@ var config = []schemagen.ParseResourceOptions{
 	},
 }
 
+type TabbedVersionData struct {
+	Versions []VersionData
+}
+
+type VersionData struct {
+	VersionName string
+	Rows        []VersionPropertyRow
+	ExampleYAML string
+}
+
+type VersionPropertyRow struct {
+	Name        string
+	Type        string
+	Description string
+}
+
+// To be executed with a VersionDAta
+var versionTableTemplate string = strings.ReplaceAll(
+	`|Property|Description|Type|
+|---|---|---|
+{{ range .Rows }}
+| ~{{ .Name }}~|{{.Description}}|{{.Type}}|
+{{ end }} 
+
+{{ .ExampleYAML }}
+    `, "~", "`")
+
+// To be executed with a TabbedVersionData
+var tabbedVersionTableTemplate string = fmt.Sprintf(`<Tabs>
+{{ range .Versions }}
+<TabItem label={{ .VersionName }}>
+%v
+</TabItem>
+{{ end }}
+</Tabs>
+`, versionTableTemplate)
+
+// registerProperties recursively descends through the properties in props, adding
+// these to the example YAML document in yml and the VersionPropertyRows in
+// rows.
+func registerProperties(
+	yml map[string]interface{},
+	rows []VersionPropertyRow,
+	props *apiextv1.JSONSchemaProps,
+	// If this JSONSchemaProps is a child of another property
+	parent *VersionPropertyRow,
+) {
+	for k, v := range props.Properties {
+		n := k
+		if parent != nil {
+			n = parent.Name + "." + k
+		}
+
+		r := VersionPropertyRow{
+			Name:        n,
+			Type:        v.Type,
+			Description: v.Description,
+		}
+		rows = append(rows, r)
+		// TODO: Assign new key to the example yml
+		registerProperties(yml, rows, &v, &r)
+	}
+}
+
 func generateTable(c *schemagen.RootSchema) (*schemagen.TransformedFile, error) {
+	if c == nil || c.Versions == nil || len(c.Versions) == 0 {
+		return nil, trace.Wrap(errors.New("no schema version available to parse"))
+	}
+
+	td := TabbedVersionData{}
+
+	for _, v := range c.Versions {
+		vd := VersionData{
+			VersionName: v.Version,
+		}
+
+		// We'll use this to populate the example YAML document
+		ex := make(map[string]interface{})
+		var rows []VersionPropertyRow
+
+		registerProperties(
+			ex,
+			rows,
+			&v.Schema.JSONSchemaProps,
+			nil,
+		)
+
+		vd.Rows = rows
+		var buf bytes.Buffer
+		if err := yaml.NewEncoder(&buf).Encode(ex); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		vd.ExampleYAML = buf.String()
+		td.Versions = append(td.Versions, vd)
+	}
+
 	return nil, nil
 }
 
