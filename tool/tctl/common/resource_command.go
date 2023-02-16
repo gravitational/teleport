@@ -1745,13 +1745,13 @@ func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustService
 		for _, found := range resp.Devices {
 			if found.AssetTag == idOrTag {
 				// Sanity check.
-				if device == nil {
+				if device != nil {
 					return nil, trace.BadParameter(
 						"found multiple devices for asset tag %q, please retry using the device ID instead", idOrTag)
 				}
-			}
 
-			device = found
+				device = found
+			}
 		}
 	}
 
