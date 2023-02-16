@@ -33,15 +33,31 @@ func TestGenerateTable(t *testing.T) {
 		errSubstring string
 	}{
 		{
-			description:  "simple case",
+			description:  "simple case with only scalars",
+			inputYAML:    mustReadFile(t, path.Join("testdata", "user-scalars.yaml")),
+			expectedName: "user.yaml",
+			expectedContent: strings.ReplaceAll(`
+|Property|Description|Type|
+|---|---|---|
+|~spec~|Options for configuring the user resource.|object|
+|~spec.role~|The one role assigned to the user in this test|string|
+|~spec.login~|The one login assigned to the user in this test|string|
+
+spec:
+  role: "example"
+  login: "example"
+`, "~", "`"),
+		},
+		{
+			description:  "simple case with arrays of strings",
 			inputYAML:    mustReadFile(t, path.Join("testdata", "user.yaml")),
 			expectedName: "user.yaml",
 			expectedContent: strings.ReplaceAll(`
 |Property|Description|Type|
 |---|---|---|
 |~spec~|Options for configuring the user resource.|object|
-|~spec.roles~|Roles is a list of roles assigned to the user|array|
-|~spec.traits~|Traits are key/value pairs received from an identity provider (through OIDC claims or SAML assertions) or from a system administrator for local accounts. Traits are used to populate role variables.|object (values are arrays of strings)|
+|~spec.roles~|Roles is a list of roles assigned to the user|array[string]|
+|~spec.traits~|Traits are key/value pairs received from an identity provider (through OIDC claims or SAML assertions) or from a system administrator for local accounts. Traits are used to populate role variables.|map[string]array[string]|
 
 spec:
   roles:
@@ -58,6 +74,36 @@ spec:
       - "example2"
       - "example3"
 `, "~", "`"),
+		},
+		{
+		    description: "multiple versions",
+		    inputYAML: mustReadFile(t, path.Join("testdata", "user-scalars-multiversion.yaml"),
+		    expectedName: "user.yaml",
+		    expectedContent: strings.ReplaceAll(`<Tabs>
+<TabItem label="v2">
+|Property|Description|Type|
+|---|---|---|
+|~spec~|Options for configuring the user resource.|object|
+|~spec.role~|The one role assigned to the user in this test|string|
+|~spec.login~|The one login assigned to the user in this test|string|
+
+spec:
+  role: "example"
+  login: "example"
+</TabItem>
+<TabItem label="v3">
+|Property|Description|Type|
+|---|---|---|
+|~spec~|Options for configuring the user resource.|object|
+|~spec.role~|The one role assigned to the user in this test|string|
+|~spec.login~|The one login assigned to the user in this test|string|
+
+spec:
+  role: "example"
+  login: "example"
+</TabItem>
+</Tabs>
+`, "~", "`")
 		},
 
 		// TODO: Example with nested types, e.g., an "allow" rule

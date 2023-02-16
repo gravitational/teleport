@@ -1,0 +1,37 @@
+name: user
+pluralname: users
+kind: ""
+versions:
+- version: v2
+  schema:
+    jsonschemaprops:
+      description: User is the Schema for the users API
+      properties:
+        spec:
+          description: Options for configuring the user resource. 
+          properties:
+            role:
+              description: The one role assigned to the user in this test
+              type: string
+            logins:
+              description: The one login assigned to the user in this test
+              type: string
+          type: object
+- version: v3
+  schema:
+    jsonschemaprops:
+      description: User is the Schema for the users API
+      properties:
+        spec:
+          description: Options for configuring the user resource. 
+          properties:
+            role:
+              description: The one role assigned to the user in this test
+              type: string
+            tenure:
+              description: Number of years the user has been with the organization.
+              type: number
+          type: object
+
+
+  
