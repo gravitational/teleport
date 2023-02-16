@@ -420,7 +420,10 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return this.state.gateways.get(gatewayUri);
   }
 
-  findClusterByResource(uri: string) {
+  /**
+   * Returns a root cluster or a leaf cluster to which the given resource belongs to.
+   */
+  findClusterByResource(uri: uri.ClusterOrResourceUri) {
     const parsed = routing.parseClusterUri(uri);
     if (!parsed) {
       return null;
