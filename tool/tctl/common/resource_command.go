@@ -1020,42 +1020,12 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		fmt.Printf("SAML IdP service provider %q has been deleted\n", rc.ref.Name)
 	case types.KindDevice:
 		remote := client.DevicesClient()
-		resp, err := remote.FindDevices(ctx, &devicepb.FindDevicesRequest{
-			IdOrTag: rc.ref.Name,
-		})
+		device, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		// Attempt to find device by ID first.
-		var deviceID string
-		for _, found := range resp.Devices {
-			if found.Id == rc.ref.Name {
-				deviceID = found.Id
-			}
-		}
-
-		// If device ID was not found, attempt to find device by asset tag.
-		if deviceID == "" {
-			for _, found := range resp.Devices {
-				if found.AssetTag == rc.ref.Name {
-					// Sanity check.
-					if deviceID != "" {
-						return trace.BadParameter(
-							"found multiple devices for asset tag %q, please retry using the device ID instead", rc.ref.Name)
-					}
-				}
-
-				deviceID = found.Id
-			}
-		}
-
-		// Error if device was not found.
-		if deviceID == "" {
-			return trace.NotFound("device %q not found", rc.ref.Name)
-		}
-
-		if _, err := remote.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{DeviceId: deviceID}); err != nil {
+		if _, err := remote.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{DeviceId: device.Id}); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Device %q has been deleted\n", rc.ref.Name)
@@ -1713,3 +1683,42 @@ If you would still like to proceed, re-run the command with both --force and --c
 }
 
 const managedByStaticDeleteMsg = `This resource is managed by static configuration. In order to reset it to defaults, remove relevant configuration from teleport.yaml and restart the servers.`
+
+func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustServiceClient, idOrTag string) (*devicepb.Device, error) {
+	resp, err := remote.FindDevices(ctx, &devicepb.FindDevicesRequest{
+		IdOrTag: idOrTag,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Attempt to find device by ID first.
+	var device *devicepb.Device
+	for _, found := range resp.Devices {
+		if found.Id == idOrTag {
+			device = found
+		}
+	}
+
+	// If device ID was not found, attempt to find device by asset tag.
+	if device == nil {
+		for _, found := range resp.Devices {
+			if found.AssetTag == idOrTag {
+				// Sanity check.
+				if device == nil {
+					return nil, trace.BadParameter(
+						"found multiple devices for asset tag %q, please retry using the device ID instead", idOrTag)
+				}
+			}
+
+			device = found
+		}
+	}
+
+	// Error if device was not found.
+	if device == nil {
+		return nil, trace.NotFound("device %q not found", idOrTag)
+	}
+
+	return device, nil
+}
