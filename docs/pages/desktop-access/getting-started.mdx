@@ -39,6 +39,8 @@ Teleport Desktop Access is not yet compatible with Windows Server 2022.
 
 - A Linux server to run the Teleport Desktop Access service on.
   You can reuse an existing server running any other Teleport instance.
+- A server or virtual machine running a Windows Server operating system with
+Remote Desktop Services (RDP) enabled and the RDP port available to the Linux server.
 
 (!docs/pages/includes/tctl.mdx!)
 
@@ -70,7 +72,8 @@ privileges. You can use this to automate installation, uninstallation, and
 certificate updates. For example:
 
 ```code
-$ teleport-windows-auth-setup-v12.0.0-amd64.exe install --cert=teleport.cer -r
+# Installs Teleport Certificate and reboots
+$ teleport-windows-auth-setup.exe install --cert=teleport.cer -r
 Teleport Authentication Package installed
 ```
 
@@ -96,12 +99,13 @@ Copy the token to the Linux host where you will run the Desktop service as `/tmp
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Create `/etc/teleport.yaml` and configure it for Desktop Access:
+Create `/etc/teleport.yaml` and configure it for Desktop Access. Update the `proxy_server`
+to your Teleport proxy service and put the Windows machine address under `non_ad_hosts`:
 
 ```yml
 version: v3
 teleport:
-  nodename: example.teleport.com
+  nodename: examplewindowsaccess.teleport.com
   proxy_server: teleport-proxy.example.com:443
   auth_token: /tmp/token
 windows_desktop_service:
