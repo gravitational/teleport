@@ -45,7 +45,7 @@ func updateAssumeRoleDuration(identity *tlsca.Identity, w http.ResponseWriter, r
 	identityTTL := identity.Expires.Sub(clock.Now())
 	if identityTTL < assumeRoleMinDuration {
 		// TODO write error message in XML so the client can understand.
-		return trace.AccessDenied("minimum AWS session duration is %v but Teleport identity expires in %v", assumeRoleMinDuration, identityTTL)
+		return trace.AccessDenied("minimum AWS session duration is %v but Teleport identity expires in %v. Please re-login the app and try again.", assumeRoleMinDuration, identityTTL)
 	}
 
 	// Use shorter requested duration (no update required).
@@ -57,7 +57,7 @@ func updateAssumeRoleDuration(identity *tlsca.Identity, w http.ResponseWriter, r
 	if err := rewriteAssumeRoleQuery(req, withAssumeRoleQueryDuration(query, identityTTL)); err != nil {
 		return trace.Wrap(err)
 	}
-	w.Header().Add(common.TeleportAPIInfoHeader, fmt.Sprintf("requested DurationSeconds of AssumeRole is overwritten to \"%d\" as the Teleport identity will expire at %v", int(identityTTL.Seconds()), identity.Expires))
+	w.Header().Add(common.TeleportAPIInfoHeader, fmt.Sprintf("requested DurationSeconds of AssumeRole is lowered to \"%d\" as the Teleport identity will expire at %v", int(identityTTL.Seconds()), identity.Expires))
 	return nil
 }
 
