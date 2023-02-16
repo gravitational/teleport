@@ -949,7 +949,7 @@ func (s *session) join(p *party) error {
 			}
 		}
 	} else if canStart && s.tracker.GetState() == types.SessionState_SessionStatePending {
-		// If the session is already running, but the party is a moderator that leaved
+		// If the session is already running, but the party is a moderator that left
 		// a session with onLeave=pause and then rejoined, we need to unpause the session.
 		// When the moderator leaved the session, the session was paused, and we spawn
 		// a goroutine to wait for the moderator to rejoin. If the moderator rejoins
