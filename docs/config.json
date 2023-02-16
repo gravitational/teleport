@@ -567,17 +567,17 @@
           "slug": "/management/export-audit-events/",
           "entries": [
             {
-              "title": "Exporting Audit Events to Fluentd",
+              "title": "Forward Audit Events to Fluentd",
               "slug": "/management/export-audit-events/fluentd/",
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Monitoring Audit Events with the Elastic Stack",
+              "title": "Monitor Audit Events with the Elastic Stack",
               "slug": "/management/export-audit-events/elastic-stack/",
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Monitoring Audit Events with Splunk",
+              "title": "Monitor Audit Events with Splunk",
               "slug": "/management/export-audit-events/splunk/",
               "forScopes": ["enterprise", "cloud"]
             }
