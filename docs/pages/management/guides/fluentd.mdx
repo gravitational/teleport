@@ -292,7 +292,7 @@ $ tctl auth sign --user=teleport-event-handler --out=identity
 ```
 
 This command creates one PEM-encoded file, `identity`. The identity file
-includes both TLS and SSH credentials. Your Event Handler plugin uses the SSH
+includes both TLS and SSH credentials. The Event Handler plugin uses the SSH
 credentials to connect to the Proxy Service, which establishes a reverse tunnel
 connection to the Auth Service. The plugin uses this reverse tunnel, along with
 your TLS credentials, to connect to the Auth Service's gRPC endpoint.
