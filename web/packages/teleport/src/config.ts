@@ -43,8 +43,8 @@ const cfg = {
 
   baseUrl: window.location.origin,
 
-  uiConfig: {
-    scrollbackLength: 1000,
+  ui: {
+    scrollbackLines: 1000,
   },
 
   auth: {
@@ -558,7 +558,7 @@ const cfg = {
   },
 
   getUiConfig() {
-    return cfg.uiConfig;
+    return cfg.ui;
   },
 
   init(backendConfig = {}) {
@@ -643,9 +643,5 @@ export interface UrlResourcesParams {
   startKey?: string;
   searchAsRoles?: 'yes' | '';
 }
-
-export type UiConfig = {
-  scrollbackLength: number;
-};
 
 export default cfg;

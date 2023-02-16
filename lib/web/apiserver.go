@@ -244,11 +244,7 @@ type Config struct {
 	// application requests.
 	HealthCheckAppServer healthCheckAppServerFunc
 
-	UiConfig UiConfig
-}
-
-type UiConfig struct {
-	ScrollbackLength int
+	UI webclient.UIConfig
 }
 
 type APIHandler struct {
@@ -1298,7 +1294,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		IsCloud:              h.ClusterFeatures.GetCloud(),
 		TunnelPublicAddress:  tunnelPublicAddr,
 		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
-		UiConfig:             webclient.UiConfig(h.cfg.UiConfig),
+		UI:                   h.cfg.UI,
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()

@@ -49,7 +49,7 @@ export default class TtyTerminal {
     this._fontSize = fontSize || 14;
     // Passing scrollback will overwrite the default config. This is to support ttyplayer.
     // Default to the config when not passed anything, which is the normal usecase
-    this._scrollBack = scrollBack || cfg.uiConfig.scrollbackLength;
+    this._scrollBack = scrollBack || cfg.ui.scrollbackLines;
     this.tty = tty;
     this.term = null;
 

@@ -56,11 +56,11 @@ type WebConfig struct {
 	// RecoveryCodesEnabled is a flag that determines if recovery codes are enabled in the cluster.
 	RecoveryCodesEnabled bool `json:"recoveryCodesEnabled,omitempty"`
 
-	UiConfig UiConfig `json:"uiConfig,omitempty"`
+	UI UIConfig `json:"ui,omitempty"`
 }
 
-type UiConfig struct {
-	ScrollbackLength int `json:"scrollbackLength,omitempty"`
+type UIConfig struct {
+	ScrollbackLines int `json:"scrollbackLines,omitempty"`
 }
 
 // WebConfigAuthProvider describes auth. provider
