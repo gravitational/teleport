@@ -927,12 +927,12 @@ func (s *session) join(p *party) error {
 		}()
 	}
 
-	if !s.started {
-		canStart, _, err := s.canStart()
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	canStart, _, err := s.canStart()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
+	if !s.started {
 		if canStart {
 			go func() {
 				if err := s.launch(); err != nil {
@@ -948,6 +948,16 @@ func (s *session) join(p *party) error {
 				s.BroadcastMessage(base)
 			}
 		}
+	} else if canStart && s.tracker.GetState() == types.SessionState_SessionStatePending {
+		// If the session is already running, but the party is a moderator that leaved
+		// a session with onLeave=pause and then rejoined, we need to unpause the session.
+		// When the moderator leaved the session, the session was paused, and we spawn
+		// a goroutine to wait for the moderator to rejoin. If the moderator rejoins
+		// before the session ends, we need to unpause the session by updating its state and
+		// the goroutine will unblock the s.io terminal.
+		// types.SessionState_SessionStatePending marks a session that is waiting for
+		// a moderator to rejoin.
+		s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStateRunning)
 	}
 
 	return nil
