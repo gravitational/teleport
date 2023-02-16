@@ -91,13 +91,12 @@ var versionTableTemplate string = strings.ReplaceAll(
 
 // To be executed with a TabbedVersionData
 var tabbedVersionTableTemplate string = fmt.Sprintf(`<Tabs>
-{{ range .Versions }}
-<TabItem label={{ .VersionName }}>
+{{ range .Versions -}}
+<TabItem label="{{ .VersionName }}">
 %v
 </TabItem>
-{{ end }}
-</Tabs>
-`, versionTableTemplate)
+{{ end -}}
+</Tabs>`, versionTableTemplate)
 
 // insertExampleValue uses the provided path, e.g., "key1.key2.key3", to insert the
 // value val into map doc. Returns an error if the path is malformed.

@@ -87,22 +87,23 @@ spec:
 |~spec.login~|The one login assigned to the user in this test|string|
 
 spec:
-  role: "example"
-  login: "example"
+  login: string
+  role: string
+
 </TabItem>
 <TabItem label="v3">
 |Property|Description|Type|
 |---|---|---|
 |~spec~|Options for configuring the user resource.|object|
 |~spec.role~|The one role assigned to the user in this test|string|
-|~spec.login~|The one login assigned to the user in this test|string|
+|~spec.tenure~|Number of years the user has been with the organization|number|
 
 spec:
-  role: "example"
-  login: "example"
+  role: string
+  tenure: 0
+
 </TabItem>
-</Tabs>
-`, "~", "`"),
+</Tabs>`, "~", "`"),
 		},
 
 		// TODO: Example with nested types, e.g., an "allow" rule

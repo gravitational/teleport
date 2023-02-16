@@ -13,7 +13,7 @@ versions:
             role:
               description: The one role assigned to the user in this test
               type: string
-            logins:
+            login:
               description: The one login assigned to the user in this test
               type: string
           type: object
@@ -29,7 +29,7 @@ versions:
               description: The one role assigned to the user in this test
               type: string
             tenure:
-              description: Number of years the user has been with the organization.
+              description: Number of years the user has been with the organization
               type: number
           type: object
 
