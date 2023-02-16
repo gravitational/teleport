@@ -41,10 +41,8 @@ func (r *Resource) CheckAndSetDefaults() error {
 	} else if r.Kind != types.KindDevice {
 		return trace.BadParameter("unexpected resource kind %q, must be %q", r.Kind, types.KindDevice)
 	}
-	if r.Version == "" {
-		r.Version = types.V1
-	} else if r.Version != types.V1 {
-		return trace.BadParameter("unsupported resource version %q, %q is currently the only supported version", r.Version, types.V1)
+	if r.Version != r.Spec.ApiVersion {
+		return trace.BadParameter("mismatched resource version %q and spec api version %q", r.Version, r.Spec.ApiVersion)
 	}
 	if r.Spec.ApiVersion == "" {
 		r.Spec.ApiVersion = types.V1
