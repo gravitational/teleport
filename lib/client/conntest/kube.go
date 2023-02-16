@@ -257,8 +257,10 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, clusterName
 		// agents is still running an older version.
 		// For this reason, messages are not shared between this connection test and
 		// `kubernetes_service` to force detection of incompatible messages.
+		// TODO(tigrato): Remove this check once we no longer support Teleport versions bellow 12.
 		noAssignedGroups := strings.Contains(kubeErr.ErrStatus.Message, "has no assigned groups or users")
-		if noAssignedGroups {
+		noConfiguredGroups := strings.Contains(kubeErr.ErrStatus.Message, "Please ask cluster administrator to ensure your role has appropriate kubernetes_groups and kubernetes_users set.")
+		if noAssignedGroups || noConfiguredGroups {
 			message := `User-associated roles do not configure "kubernetes_groups" or "kubernetes_users". Make sure that at least one is configured for the user.`
 			traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
 
