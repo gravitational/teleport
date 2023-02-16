@@ -143,20 +143,18 @@ test('remove cluster', async () => {
 });
 
 test('sync root cluster', async () => {
-  const { getCluster, listLeafClusters, listGateways } = getClientMocks();
+  const { getCluster, listLeafClusters } = getClientMocks();
   const service = createService({
     getCluster,
     listLeafClusters,
-    listGateways,
   });
 
-  await service.syncRootCluster(clusterUri);
+  await service.syncRootClusterAndCatchErrors(clusterUri);
 
   expect(service.findCluster(clusterUri)).toStrictEqual(clusterMock);
   expect(service.findCluster(leafClusterMock.uri)).toStrictEqual(
     leafClusterMock
   );
-  expect(listGateways).toHaveBeenCalledWith();
   expect(listLeafClusters).toHaveBeenCalledWith(clusterUri);
 });
 
@@ -174,7 +172,6 @@ test('login into cluster and sync cluster', async () => {
   await service.loginLocal(loginParams, undefined);
 
   expect(client.loginLocal).toHaveBeenCalledWith(loginParams, undefined);
-  expect(client.listGateways).toHaveBeenCalledWith();
   expect(service.findCluster(clusterUri).connected).toBe(true);
 });
 
@@ -235,9 +232,11 @@ test('sync gateways', async () => {
     listGateways,
   });
 
-  await service.syncGateways();
+  await service.syncGatewaysAndCatchErrors();
 
-  expect(service.getGateways()).toStrictEqual([gatewayMock]);
+  expect(service.state.gateways).toStrictEqual(
+    new Map([[gatewayMock.uri, gatewayMock]])
+  );
   expect(listGateways).toHaveBeenCalledWith();
 });
 
