@@ -38,7 +38,7 @@ Teleport Desktop Access is not yet compatible with Windows Server 2022.
 
 - A Linux server to run the Teleport Desktop Access service on.
   You can reuse an existing server running any other Teleport instance.
-- A server or virtual machine running a Windows Server operating system with
+- A server or virtual machine running a Windows operating system with
 Remote Desktop Services (RDP) enabled and the RDP port available to the Linux server.
 
 (!docs/pages/includes/tctl.mdx!)
@@ -71,7 +71,7 @@ privileges. You can use this to automate installation, uninstallation, and
 certificate updates. For example:
 
 ```code
-# Installs Teleport Certificate and reboots
+# Installs Teleport Certificate, loads required DLL, disables NLA and reboots
 $ teleport-windows-auth-setup.exe install --cert=teleport.cer -r
 Teleport Authentication Package installed
 ```
