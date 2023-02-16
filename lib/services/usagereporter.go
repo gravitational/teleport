@@ -18,7 +18,9 @@ package services
 
 import (
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
+	"github.com/gravitational/teleport"
 	usageevents "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
@@ -33,7 +35,7 @@ type UsageAnonymizable interface {
 
 // UsageReporter is a service that accepts Teleport usage events.
 type UsageReporter interface {
-	// SubmitAnonymizedUsageEvent submits a usage event. The payload will be
+	// SubmitAnonymizedUsageEvents submits a usage event. The payload will be
 	// anonymized by the reporter implementation.
 	SubmitAnonymizedUsageEvents(event ...UsageAnonymizable) error
 }
@@ -218,6 +220,77 @@ func (u *UsageUIRecoveryCodesPrintClick) Anonymize(a utils.Anonymizer) prehogv1.
 	}
 }
 
+// UsageRoleCreate is an event emitted when a custom role is created.
+type UsageRoleCreate prehogv1.RoleCreateEvent
+
+func (u *UsageRoleCreate) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	role := u.RoleName
+	if !slices.Contains(teleport.PresetRoles, u.RoleName) {
+		role = a.AnonymizeString(u.RoleName)
+	}
+
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_RoleCreate{
+			RoleCreate: &prehogv1.RoleCreateEvent{
+				UserName: a.AnonymizeString(u.UserName),
+				RoleName: role,
+			},
+		},
+	}
+}
+
+// UsageUICreateNewRoleClickEvent is a UI event sent when a user prints recovery codes.
+type UsageUICreateNewRoleClickEvent prehogv1.UICreateNewRoleClickEvent
+
+func (u *UsageUICreateNewRoleClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleClick{
+			UiCreateNewRoleClick: &prehogv1.UICreateNewRoleClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
+// UsageUICreateNewRoleSaveClickEvent is a UI event sent when a user prints recovery codes.
+type UsageUICreateNewRoleSaveClickEvent prehogv1.UICreateNewRoleSaveClickEvent
+
+func (u *UsageUICreateNewRoleSaveClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleSaveClick{
+			UiCreateNewRoleSaveClick: &prehogv1.UICreateNewRoleSaveClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
+// UsageUICreateNewRoleCancelClickEvent is a UI event sent when a user prints recovery codes.
+type UsageUICreateNewRoleCancelClickEvent prehogv1.UICreateNewRoleCancelClickEvent
+
+func (u *UsageUICreateNewRoleCancelClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleCancelClick{
+			UiCreateNewRoleCancelClick: &prehogv1.UICreateNewRoleCancelClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
+// UsageUICreateNewRoleViewDocumentationClickEvent is a UI event sent when a user prints recovery codes.
+type UsageUICreateNewRoleViewDocumentationClickEvent prehogv1.UICreateNewRoleViewDocumentationClickEvent
+
+func (u *UsageUICreateNewRoleViewDocumentationClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleViewDocumentationClick{
+			UiCreateNewRoleViewDocumentationClick: &prehogv1.UICreateNewRoleViewDocumentationClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
 // UsageCertificateIssued is an event emitted when a certificate has been
 // issued, used to track the duration and restriction.
 type UsageCertificateIssued prehogv1.UserCertificateIssuedEvent
@@ -286,6 +359,22 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 	case *usageevents.UsageEventOneOf_UiRecoveryCodesPrintClick:
 		return &UsageUIRecoveryCodesPrintClick{
 			UserName: e.UiRecoveryCodesPrintClick.Username,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiCreateNewRoleClick:
+		return &UsageUICreateNewRoleClickEvent{
+			UserName: identityUsername,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiCreateNewRoleSaveClick:
+		return &UsageUICreateNewRoleSaveClickEvent{
+			UserName: identityUsername,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiCreateNewRoleCancelClick:
+		return &UsageUICreateNewRoleCancelClickEvent{
+			UserName: identityUsername,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiCreateNewRoleViewDocumentationClick:
+		return &UsageUICreateNewRoleViewDocumentationClickEvent{
+			UserName: identityUsername,
 		}, nil
 	case *usageevents.UsageEventOneOf_UiDiscoverStartedEvent:
 		ret := &UsageUIDiscoverStartedEvent{

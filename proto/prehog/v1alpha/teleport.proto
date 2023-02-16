@@ -138,6 +138,13 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_APPLICATION_HTTP = 8;
   DISCOVER_RESOURCE_APPLICATION_TCP = 9;
   DISCOVER_RESOURCE_WINDOWS_DESKTOP = 10;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_RDS = 11;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT = 12;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_SELF_HOSTED = 13;
+  DISCOVER_RESOURCE_DATABASE_REDIS_SELF_HOSTED = 14;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_GCP = 15;
+  DISCOVER_RESOURCE_DATABASE_MYSQL_GCP = 16;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP = 17;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -265,6 +272,31 @@ message UIDiscoverCompletedEvent {
   DiscoverStepStatus status = 3;
 }
 
+// RoleCreateEvent is emitted when user creates a custom role.
+message RoleCreateEvent {
+  // anonymized
+  string user_name = 1;
+  // anonymized
+  string role_name = 2;
+}
+
+message UICreateNewRoleClickEvent {
+  //anonymized
+  string user_name = 1;
+}
+message UICreateNewRoleSaveClickEvent {
+  //anonymized
+  string user_name = 1;
+}
+message UICreateNewRoleCancelClickEvent {
+  //anonymized
+  string user_name = 1;
+}
+message UICreateNewRoleViewDocumentationClickEvent {
+  //anonymized
+  string user_name = 1;
+}
+
 message SubmitEventRequest {
   // anonymized
   string cluster_name = 1;
@@ -311,6 +343,13 @@ message SubmitEventRequest {
     UIDiscoverPrincipalsConfigureEvent ui_discover_principals_configure_event = 28;
     UIDiscoverTestConnectionEvent ui_discover_test_connection_event = 29;
     UIDiscoverCompletedEvent ui_discover_completed_event = 30;
+
+    RoleCreateEvent role_create = 31;
+
+    UICreateNewRoleClickEvent ui_create_new_role_click = 32;
+    UICreateNewRoleSaveClickEvent ui_create_new_role_save_click = 33;
+    UICreateNewRoleCancelClickEvent ui_create_new_role_cancel_click = 34;
+    UICreateNewRoleViewDocumentationClickEvent ui_create_new_role_view_documentation_click = 35;
   }
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

@@ -33,9 +33,8 @@ message Cluster {
   bool leaf = 5;
   // User is the cluster access control list of the logged-in user
   LoggedInUser logged_in_user = 7;
-  // features describes the auth servers features
-  // Only present in situations where detailed
-  // information is queried from the auth server.
+  // features describes the auth servers features.
+  // Only present when detailed information is queried from the auth server.
   Features features = 8;
 }
 
@@ -51,8 +50,11 @@ message LoggedInUser {
   ACL acl = 4;
   // active_requests is an array of request-id strings of active requests
   repeated string active_requests = 5;
-
+  // suggested_reviewers for the given user.
+  // Only present when detailed information is queried from the auth server.
   repeated string suggested_reviewers = 6;
+  // requestable_roles for the given user.
+  // Only present when detailed information is queried from the auth server.
   repeated string requestable_roles = 7;
 }
 
