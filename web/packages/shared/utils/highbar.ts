@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-export function mergeDeep(target, ...sources) {
+type SupportedMergeTypes = string | number | Record<string, unknown>;
+type MergeTarget = Record<string, unknown> | Array<SupportedMergeTypes>;
+
+export function mergeDeep(target: MergeTarget, ...sources: Array<MergeTarget>) {
   const isObject = obj => obj && typeof obj === 'object' && !Array.isArray(obj);
 
   const mergeArray = (target, source) => {
@@ -43,7 +46,7 @@ export function mergeDeep(target, ...sources) {
         if (!target[key]) Object.assign(target, { [key]: {} });
         mergeDeep(target[key], source[key]);
       } else if (Array.isArray(source[key])) {
-        mergeDeep(target[key], mergeArray(target[key], source[key]));
+        mergeArray(target[key], source[key]);
       } else {
         Object.assign(target, { [key]: source[key] });
       }
