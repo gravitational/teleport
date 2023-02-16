@@ -15,8 +15,8 @@
  */
 
 import React from 'react';
-
 import Flex from 'design/Flex';
+import { makeEmptyAttempt, makeProcessingAttempt } from 'shared/hooks/useAsync';
 
 import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -29,14 +29,14 @@ import {
   SuggestionSshLogin,
 } from 'teleterm/ui/services/quickInput';
 
-import QuickInput from './QuickInput';
+import QuickInput, { QuickInput as QuickInputPlain } from './QuickInput';
 import QuickInputList from './QuickInputList';
 
 export default {
   title: 'Teleterm/QuickInput',
 };
 
-export const Story = () => {
+export const MockedExample = () => {
   const appContext = new MockAppContext();
 
   appContext.workspacesService.state = {
@@ -84,6 +84,73 @@ export const Story = () => {
         <QuickInput />
       </div>
     </AppContextProvider>
+  );
+};
+
+const noop = () => {};
+
+export const InputStates = () => {
+  const mockedProps = {
+    activeSuggestion: undefined,
+    keyboardShortcut: '⌘K',
+    onFocus: noop,
+    onEscape: noop,
+    onEnter: noop,
+    onActiveSuggestion: noop,
+    onInputChange: noop,
+    onHide: noop,
+    onShow: noop,
+  };
+
+  return (
+    <div
+      css={`
+        max-width: 500px;
+      `}
+    >
+      <h1>Pristine</h1>
+      <div
+        css={`
+          height: 40px;
+        `}
+      >
+        <QuickInputPlain
+          visible={false}
+          suggestionsAttempt={makeEmptyAttempt()}
+          executeCommandAttempt={makeEmptyAttempt()}
+          inputValue={''}
+          {...mockedProps}
+        />
+      </div>
+      <h1>Loading suggestions</h1>
+      <div
+        css={`
+          height: 40px;
+        `}
+      >
+        <QuickInputPlain
+          visible={true}
+          suggestionsAttempt={makeProcessingAttempt()}
+          executeCommandAttempt={makeEmptyAttempt()}
+          inputValue={'tsh ssh roo'}
+          {...mockedProps}
+        />
+      </div>
+      <h1>Executing a command</h1>
+      <div
+        css={`
+          height: 40px;
+        `}
+      >
+        <QuickInputPlain
+          visible={true}
+          suggestionsAttempt={makeEmptyAttempt()}
+          executeCommandAttempt={makeProcessingAttempt()}
+          inputValue={'tsh ssh root@ubuntu'}
+          {...mockedProps}
+        />
+      </div>
+    </div>
   );
 };
 

@@ -26,7 +26,9 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import useQuickInput from './useQuickInput';
 import QuickInputList from './QuickInputList';
 
-export default function Container() {
+// QuickInputWrapper exists because if the user is not logged in to any cluster, we don't want to
+// execute `useQuickInput`.
+export default function QuickInputWrapper() {
   const { workspacesService } = useAppContext();
 
   workspacesService.useState();
@@ -34,12 +36,23 @@ export default function Container() {
   if (!workspacesService.getRootClusterUri()) {
     return null;
   }
-  return <QuickInput />;
+  return <QuickInputContainer />;
 }
 
-function QuickInput() {
-  const props = useQuickInput();
-  const { visible, activeSuggestion, suggestionsAttempt, inputValue } = props;
+function QuickInputContainer() {
+  const quickInput = useQuickInput();
+
+  return <QuickInput {...quickInput} />;
+}
+
+export function QuickInput(props: ReturnType<typeof useQuickInput>) {
+  const {
+    visible,
+    activeSuggestion,
+    suggestionsAttempt,
+    inputValue,
+    executeCommandAttempt,
+  } = props;
   const hasSuggestions =
     suggestionsAttempt.data?.length > 0 &&
     suggestionsAttempt.status === 'success';
@@ -49,6 +62,10 @@ function QuickInput() {
   const refContainer = useRef<HTMLElement>();
   const [measuredInputTextWidth, setMeasuredInputTextWidth] =
     useState<number>();
+  const showSpinner =
+    suggestionsAttempt.status === 'processing' ||
+    executeCommandAttempt.status === 'processing';
+  const disableInput = executeCommandAttempt.status === 'processing';
 
   const handleInputChange = useMemo(() => {
     return debounce(() => {
@@ -136,12 +153,12 @@ function QuickInput() {
   };
 
   useEffect(() => {
-    if (visible) {
+    if (visible && !disableInput) {
       refInput.current.focus();
     }
 
     return () => handleInputChange.cancel();
-  }, [visible]);
+  }, [visible, disableInput]);
 
   return (
     <Flex
@@ -163,8 +180,9 @@ function QuickInput() {
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
         isOpened={visible}
+        disabled={disableInput}
       />
-      {suggestionsAttempt.status === 'processing' && (
+      {showSpinner && (
         <Animate>
           <Spinner
             css={`
@@ -224,6 +242,10 @@ const Input = styled.input(props => {
       '::placeholder': {
         color: theme.colors.text.placeholder,
       },
+    },
+    '&:disabled': {
+      backgroundColor: theme.colors.primary.light,
+      color: theme.colors.text.secondary,
     },
 
     ...space(props),

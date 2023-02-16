@@ -29,6 +29,8 @@ import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 
+// run functions of commands should handle errors from any remote calls, typically by displaying an
+// error notification.
 const commands = {
   // For handling "tsh ssh" executed from the command bar.
   'tsh-ssh': {
@@ -252,8 +254,16 @@ export class CommandLauncher {
     this.appContext = appContext;
   }
 
-  executeCommand<T extends CommandName>(name: T, args: CommandArgs<T>) {
-    commands[name].run(this.appContext, args as any);
+  /**
+   * executeCommand executes the given command. The run functions should be implemented so that they
+   * never throw in case of e.g. network errors. Instead they should catch errors and notify the
+   * user about them, for example by showing an error notification.
+   */
+  executeCommand<T extends CommandName>(
+    name: T,
+    args: CommandArgs<T>
+  ): void | Promise<void> {
+    return commands[name].run(this.appContext, args as any);
   }
 
   getAutocompleteCommands() {

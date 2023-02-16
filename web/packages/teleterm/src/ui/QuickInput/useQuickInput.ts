@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 
 import { CanceledError, useAsync } from 'shared/hooks/useAsync';
 
@@ -98,45 +98,59 @@ export default function useQuickInput() {
     pickSuggestion(parseResult.targetToken, suggestionsAttempt.data, index);
   };
 
-  const executeCommand = (command: AutocompleteCommand) => {
-    switch (command.kind) {
-      case 'command.unknown': {
-        const params = routing.parseClusterUri(
-          workspacesService.getActiveWorkspace()?.localClusterUri
-        ).params;
-        documentsService.openNewTerminal({
-          initCommand: inputValue,
-          rootClusterId: routing.parseClusterUri(
-            workspacesService.getRootClusterUri()
-          ).params.rootClusterId,
-          leafClusterId: params.leafClusterId,
-        });
-        break;
-      }
-      case 'command.tsh-ssh': {
-        const { localClusterUri } = workspacesService.getActiveWorkspace();
+  const memoizedExecuteCommand = useCallback(
+    async (command: AutocompleteCommand) => {
+      switch (command.kind) {
+        case 'command.unknown': {
+          const params = routing.parseClusterUri(
+            workspacesService.getActiveWorkspace()?.localClusterUri
+          ).params;
+          documentsService.openNewTerminal({
+            initCommand: inputValue,
+            rootClusterId: routing.parseClusterUri(
+              workspacesService.getRootClusterUri()
+            ).params.rootClusterId,
+            leafClusterId: params.leafClusterId,
+          });
+          break;
+        }
+        case 'command.tsh-ssh': {
+          const { localClusterUri } = workspacesService.getActiveWorkspace();
 
-        commandLauncher.executeCommand('tsh-ssh', {
-          loginHost: command.loginHost,
-          localClusterUri,
-        });
-        break;
+          await commandLauncher.executeCommand('tsh-ssh', {
+            loginHost: command.loginHost,
+            localClusterUri,
+          });
+          break;
+        }
+        case 'command.tsh-install': {
+          commandLauncher.executeCommand('tsh-install', undefined);
+          break;
+        }
+        case 'command.tsh-uninstall': {
+          commandLauncher.executeCommand('tsh-uninstall', undefined);
+          break;
+        }
+        default: {
+          assertUnreachable(command);
+        }
       }
-      case 'command.tsh-install': {
-        commandLauncher.executeCommand('tsh-install', undefined);
-        break;
-      }
-      case 'command.tsh-uninstall': {
-        commandLauncher.executeCommand('tsh-uninstall', undefined);
-        break;
-      }
-      default: {
-        assertUnreachable(command);
-      }
-    }
 
-    quickInputService.clearInputValueAndHide();
-  };
+      quickInputService.clearInputValueAndHide();
+    },
+    [
+      commandLauncher,
+      documentsService,
+      inputValue,
+      quickInputService,
+      workspacesService,
+    ]
+  );
+  // executeCommandAttempt is necessary because we want to disable the input until commandLauncher
+  // executes the given command.
+  const [executeCommandAttempt, executeCommand] = useAsync(
+    memoizedExecuteCommand
+  );
 
   const pickSuggestion = (
     targetToken: AutocompleteToken,
@@ -184,6 +198,7 @@ export default function useQuickInput() {
   return {
     visible,
     suggestionsAttempt,
+    executeCommandAttempt,
     activeSuggestion,
     inputValue,
     onFocus,
