@@ -119,7 +119,8 @@ permissions to impersonate target service accounts.
 
 If you are enabling access to an existing service account, you can skip to the
 [next
-section](#enable-the-application-service-to-impersonate-your-service-account).
+section](#enable-teleport-google-cloud-cli-to-impersonate-target-service-accounts
+).
 
 </Notice>
 
@@ -539,7 +540,7 @@ Log in to the application, specifying that you would like to assume the
 `teleport-vm-viewer` service account:
 
 ```code
-$ tsh app login google-cloud-cli --gcp-service-account teleport-vm-viewer
+$ tsh apps login google-cloud-cli --gcp-service-account teleport-vm-viewer
 ```
 
 This command validates the value of the `--gcp-service-account` flag against the
@@ -680,7 +681,6 @@ command.
   our documentation on [Role Access
   Requests](../../access-controls/access-requests/role-requests.mdx) and [Access
   Request plugins](../../access-controls/access-request-plugins/index.mdx).
-
 - You can proxy any `gcloud` or `gsutil` command via Teleport. For a full
   reference of commands, view the Google Cloud documentation for
   [`gcloud`](https://cloud.google.com/sdk/gcloud/reference) and

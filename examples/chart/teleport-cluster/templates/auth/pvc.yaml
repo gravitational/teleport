@@ -1,4 +1,4 @@
-{{- $auth := mustMergeOverwrite .Values .Values.auth -}}
+{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 {{- if $auth.persistence.enabled }}
   {{/* Disable persistence for aws and gcp modes */}}
   {{- if and (not (eq $auth.chartMode "aws")) (not (eq $auth.chartMode "gcp")) }}

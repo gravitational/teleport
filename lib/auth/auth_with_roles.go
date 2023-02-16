@@ -651,6 +651,8 @@ func (a *ServerWithRoles) UpdateUserCARoleMap(ctx context.Context, name string, 
 }
 
 // GenerateToken generates multi-purpose authentication token.
+// Deprecated: Use CreateToken or UpdateToken.
+// DELETE IN 14.0.0, replaced by methods above (strideynet).
 func (a *ServerWithRoles) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return "", trace.Wrap(err)
@@ -1791,6 +1793,25 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 	return nil
 }
 
+// emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
+// events. For now, this just emits trusted_cluster_token.create.
+func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken) {
+	userMetadata := ClientUserMetadata(ctx)
+	for _, role := range token.GetRoles() {
+		if role == types.RoleTrustedCluster {
+			if err := e.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
+				Metadata: apievents.Metadata{
+					Type: events.TrustedClusterTokenCreateEvent,
+					Code: events.TrustedClusterTokenCreateCode,
+				},
+				UserMetadata: userMetadata,
+			}); err != nil {
+				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
+			}
+		}
+	}
+}
+
 func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
@@ -1798,7 +1819,11 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertToken(ctx, token)
+	if err := a.authServer.UpsertToken(ctx, token); err != nil {
+		return trace.Wrap(err)
+	}
+	emitTokenEvent(ctx, a.authServer.emitter, token)
+	return nil
 }
 
 func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.ProvisionToken) error {
@@ -1808,7 +1833,11 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.CreateToken(ctx, token)
+	if err := a.authServer.CreateToken(ctx, token); err != nil {
+		return trace.Wrap(err)
+	}
+	emitTokenEvent(ctx, a.authServer.emitter, token)
+	return nil
 }
 
 // ChangePassword updates users password based on the old password.
@@ -2716,8 +2745,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		checker:           checker,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
-		clientIP: a.context.Identity.GetIdentity().ClientIP,
-		traits:   accessInfo.Traits,
+		loginIP: a.context.Identity.GetIdentity().LoginIP,
+		traits:  accessInfo.Traits,
 		activeRequests: services.RequestIDs{
 			AccessRequests: req.AccessRequests,
 		},

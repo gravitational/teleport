@@ -3145,12 +3145,99 @@ message WebSessionSpecV2 {
   // ConsumedAccessRequestID is the ID of the access request from which additional roles to assume
   // were obtained.
   string ConsumedAccessRequestID = 10 [(gogoproto.jsontag) = "consumed_access_request_id,omitempty"];
+  // SAMLSession is data associated with a SAML IdP session.
+  SAMLSessionData SAMLSession = 11 [(gogoproto.jsontag) = "saml_session,omitempty"];
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.
 message WebSessionFilter {
   // User is the username to filter web sessions for.
   string User = 1 [(gogoproto.jsontag) = "user"];
+}
+
+// SAMLSessionData contains data for a SAML session.
+// Based on crewjam/saml's session object: https://github.com/crewjam/saml/blob/main/identity_provider.go
+message SAMLSessionData {
+  // ID is the identifier for the SAML session.
+  string ID = 1 [(gogoproto.jsontag) = "id"];
+  // CreateTime is the time that the session was created.
+  google.protobuf.Timestamp CreateTime = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "create_time"
+  ];
+  // ExpireTime is the time that the session will expire.
+  google.protobuf.Timestamp ExpireTime = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "expire_time"
+  ];
+  // Index is the session index that allows the IdP to uniquely identify a session.
+  string Index = 4 [(gogoproto.jsontag) = "index"];
+
+  // NameID an identifier for the session.
+  string NameID = 5 [(gogoproto.jsontag) = "name_id"];
+  // NameIDFormat is the format of the Name ID.
+  string NameIDFormat = 6 [(gogoproto.jsontag) = "name_id_format"];
+  // SubjectID is the identifier for the subject of the session.
+  string SubjectID = 7 [(gogoproto.jsontag) = "subject_id"];
+
+  // Groups is a list of groups that the user has access to.
+  repeated string Groups = 8 [(gogoproto.jsontag) = "groups"];
+  // UserName is the user's name.
+  string UserName = 9 [(gogoproto.jsontag) = "user_name"];
+  // UserEmail is the user's e-mail.
+  string UserEmail = 10 [(gogoproto.jsontag) = "user_email"];
+  // UserCommonName is the user's common name.
+  string UserCommonName = 11 [(gogoproto.jsontag) = "user_common_name"];
+  // UserSurname is the user's surname.
+  string UserSurname = 12 [(gogoproto.jsontag) = "user_surname"];
+  // UserGivenName is the user's given name.
+  string UserGivenName = 13 [(gogoproto.jsontag) = "user_given_name"];
+  // UserScopedAffiliation is the user's scoped affiliation.
+  string UserScopedAffiliation = 14 [(gogoproto.jsontag) = "user_scoped_affiliation"];
+
+  // CustomAttributes are any custom attributes associated with the request.
+  repeated SAMLAttribute CustomAttributes = 15 [(gogoproto.jsontag) = "custom_attributes"];
+}
+
+// SAMLAttribute contains an attribute name and associated values.
+// Defined in http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
+message SAMLAttribute {
+  // FriendlyName is a user readable name for the attribute.
+  string FriendlyName = 1 [(gogoproto.jsontag) = "friendly_name"];
+  // Name is a full name for the attribute, typically an OID value.
+  string Name = 2 [(gogoproto.jsontag) = "name"];
+  // NameFormat is the format of the name.
+  string NameFormat = 3 [(gogoproto.jsontag) = "name_format"];
+  // Values is a list of attribute values.
+  repeated SAMLAttributeValue Values = 4 [(gogoproto.jsontag) = "values"];
+}
+
+// SAMLAttributeValues contains a type, value, and an associated name ID block.
+// Defined in http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
+message SAMLAttributeValue {
+  // Type is the type of value this attribute represents.
+  string Type = 1 [(gogoproto.jsontag) = "type"];
+  // Value is the value of the attribute.
+  string Value = 2 [(gogoproto.jsontag) = "value"];
+  // NameID is a more restrictive identifier for the attribute value.
+  SAMLNameID NameID = 3 [(gogoproto.jsontag) = "name_id,omitempty"];
+}
+
+// SAMLNameID is a more restrictive identifier for an object in SAML.
+// Defined in http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
+message SAMLNameID {
+  // NameQualifier is the domain that qualifies the identifier.
+  string NameQualifier = 1 [(gogoproto.jsontag) = "name_qualifier"];
+  // SPNameQualifier qualifies the identifier with the name of the service provider.
+  string SPNameQualifier = 2 [(gogoproto.jsontag) = "sp_name_qualifier"];
+  // Format is the format of the identifier.
+  string Format = 3 [(gogoproto.jsontag) = "format"];
+  // SPProvidedID is an identifier established by the service provider.
+  string SPProvidedID = 4 [(gogoproto.jsontag) = "sp_provider_id"];
+  // Value is the value of the name ID.
+  string Value = 5 [(gogoproto.jsontag) = "value"];
 }
 
 // RemoteClusterV3 represents remote cluster resource specification
@@ -4141,6 +4228,10 @@ message LockTarget {
 
   // AccessRequest specifies the UUID of an access request.
   string AccessRequest = 7 [(gogoproto.jsontag) = "access_request,omitempty"];
+
+  // Device is the device ID of a trusted device.
+  // Requires Teleport Enterprise.
+  string Device = 8 [(gogoproto.jsontag) = "device,omitempty"];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specfied
@@ -4937,4 +5028,17 @@ message KubernetesResourceV1 {
 message KubernetesResourceSpecV1 {
   // Namespace is the resource namespace.
   string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
+}
+
+// UserGroupV1 is a representation of an externally sourced user group.
+message UserGroupV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header for the user group.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
 }

@@ -4,6 +4,10 @@ go 1.19
 
 require (
 	cloud.google.com/go/container v1.10.0
+	cloud.google.com/go/firestore v1.9.0
+	cloud.google.com/go/iam v0.10.0
+	cloud.google.com/go/kms v1.8.0
+	cloud.google.com/go/storage v1.28.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.3.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3 v3.0.1
@@ -21,14 +25,14 @@ require (
 	github.com/Microsoft/go-winio v0.6.0
 	github.com/ThalesIgnite/crypto11 v1.2.5
 	github.com/alicebob/miniredis/v2 v2.30.0
-	github.com/aquasecurity/libbpfgo v0.2.5-libbpf-0.7.0
+	github.com/aquasecurity/libbpfgo v0.4.5-libbpf-1.0.1
 	github.com/armon/go-radix v1.0.0
-	github.com/aws/aws-sdk-go v1.44.195
+	github.com/aws/aws-sdk-go v1.44.199
 	github.com/aws/aws-sdk-go-v2 v1.17.4
 	github.com/aws/aws-sdk-go-v2/config v1.18.12
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.12
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.22
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.84.1
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.85.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.3
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
 	github.com/beevik/etree v1.1.0
@@ -42,6 +46,7 @@ require (
 	github.com/elastic/go-elasticsearch/v8 v8.6.0
 	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
 	github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
+	github.com/fsouza/fake-gcs-server v1.44.0
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
@@ -74,10 +79,10 @@ require (
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2 v2.0.0-rc.3
 	github.com/hashicorp/golang-lru v0.6.0
-	github.com/jackc/pgconn v1.13.0
+	github.com/jackc/pgconn v1.14.0
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
-	github.com/jackc/pgproto3/v2 v2.3.1
-	github.com/jackc/pgx/v4 v4.17.2
+	github.com/jackc/pgproto3/v2 v2.3.2
+	github.com/jackc/pgx/v4 v4.18.0
 	github.com/jcmturner/gokrb5/v8 v8.4.3
 	github.com/johannesboyne/gofakes3 v0.0.0-20210217223559-02ffa763be97
 	github.com/jonboulle/clockwork v0.3.0
@@ -112,25 +117,27 @@ require (
 	go.etcd.io/etcd/client/v3 v3.5.7
 	go.mongodb.org/mongo-driver v1.10.4
 	go.mozilla.org/pkcs7 v0.0.0-20210826202110-33d05740a352
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.38.0
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.39.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.39.0
 	go.opentelemetry.io/otel v1.13.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.12.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.12.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.12.0
-	go.opentelemetry.io/otel/sdk v1.12.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.13.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.13.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.13.0
+	go.opentelemetry.io/otel/sdk v1.13.0
 	go.opentelemetry.io/otel/trace v1.13.0
 	go.opentelemetry.io/proto/otlp v0.19.0
-	golang.org/x/crypto v0.2.0 // replaced
+	golang.org/x/crypto v0.6.0 // replaced
 	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9
-	golang.org/x/mod v0.7.0
-	golang.org/x/net v0.5.0
-	golang.org/x/oauth2 v0.4.0
+	golang.org/x/mod v0.8.0
+	golang.org/x/net v0.6.0
+	golang.org/x/oauth2 v0.5.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.4.0
-	golang.org/x/term v0.4.0
-	golang.org/x/text v0.6.0
-	google.golang.org/grpc v1.52.3
+	golang.org/x/sys v0.5.0
+	golang.org/x/term v0.5.0
+	golang.org/x/text v0.7.0
+	google.golang.org/api v0.109.0
+	google.golang.org/genproto v0.0.0-20230209215440-0dfe4f8abfcc
+	google.golang.org/grpc v1.53.0
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
@@ -148,22 +155,9 @@ require (
 	k8s.io/klog/v2 v2.90.0
 	k8s.io/kubectl v0.26.1
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
-	sigs.k8s.io/controller-runtime v0.14.3
+	sigs.k8s.io/controller-runtime v0.14.4
 	sigs.k8s.io/controller-tools v0.11.3
 	sigs.k8s.io/yaml v1.3.0
-)
-
-// DO NOT UPDATE any of the following dependencies until the
-// deprecated Firestore Batch API is replaced. Updating causes
-// the linter to fail due to deprecation warnings.
-require (
-	cloud.google.com/go/firestore v1.6.1
-	cloud.google.com/go/iam v0.8.0
-	cloud.google.com/go/kms v1.6.0
-	cloud.google.com/go/storage v1.28.0
-	github.com/fsouza/fake-gcs-server v1.42.2
-	google.golang.org/api v0.103.0
-	google.golang.org/genproto v0.0.0-20221201164419-0e50fba7f41c
 )
 
 // Indirect mailgun dependencies.
@@ -174,11 +168,11 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.107.0 // indirect
-	cloud.google.com/go/compute v1.13.0 // indirect
-	cloud.google.com/go/compute/metadata v0.2.1 // indirect
-	cloud.google.com/go/longrunning v0.3.0 // indirect
-	cloud.google.com/go/pubsub v1.27.1 // indirect
+	cloud.google.com/go v0.109.0 // indirect
+	cloud.google.com/go/compute v1.18.0 // indirect
+	cloud.google.com/go/compute/metadata v0.2.3 // indirect
+	cloud.google.com/go/longrunning v0.4.0 // indirect
+	cloud.google.com/go/pubsub v1.28.0 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.2 // indirect
 	github.com/Azure/azure-pipeline-go v0.2.3 // indirect
@@ -211,7 +205,7 @@ require (
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/boombuler/barcode v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
-	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534 // indirect
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
@@ -266,8 +260,8 @@ require (
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
-	github.com/jackc/pgtype v1.12.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
+	github.com/jackc/pgtype v1.14.0 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
 	github.com/jcmturner/gofork v1.7.6 // indirect
@@ -338,7 +332,7 @@ require (
 	github.com/zenazn/goji v1.0.1 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.7 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.12.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.13.0 // indirect
 	go.opentelemetry.io/otel/metric v0.36.0 // indirect
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
