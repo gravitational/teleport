@@ -18,7 +18,6 @@ package common
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -46,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tctl/common/device"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
@@ -763,21 +763,20 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI
 		return trace.BadParameter("Devices cannot be overwritten with the --force flag.")
 	}
 
-	var device devicepb.Device
-	err := json.Unmarshal(raw.Raw, &device)
+	dev, err := device.UnmarshalDevice(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = client.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device:            &device,
+		Device:            dev,
 		CreateEnrollToken: false,
 	})
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
 
-	fmt.Printf("Device '%s' has been created\n", device.Id)
+	fmt.Printf("Device '%s' has been created\n", dev.Id)
 	return nil
 }
 
