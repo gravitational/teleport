@@ -83,6 +83,11 @@ type bufferedConn struct {
 	r io.Reader
 }
 
+// NetConn returns the underlying net.Conn.
+func (conn bufferedConn) NetConn() net.Conn {
+	return conn.Conn
+}
+
 func (conn bufferedConn) Read(p []byte) (int, error) { return conn.r.Read(p) }
 
 // readOnlyConn allows to only for Read operation. Other net.Conn operation will be discarded.
