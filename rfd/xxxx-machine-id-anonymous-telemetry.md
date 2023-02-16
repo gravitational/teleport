@@ -77,7 +77,7 @@ documentation.
 ### Anonymization
 
 The events will contain no properties that identify a user, `tbot` or Teleport
-instance. Therefore, no anonymization is required at this time.
+instance. Therefore, no additional anonymization is required at this time.
 
 ### Events
 
