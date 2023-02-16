@@ -46,6 +46,11 @@ func (r *Resource) CheckAndSetDefaults() error {
 	} else if r.Version != types.V1 {
 		return trace.BadParameter("unsupported resource version %q, %q is currently the only supported version", r.Version, types.V1)
 	}
+	if r.Spec.ApiVersion == "" {
+		r.Spec.ApiVersion = types.V1
+	} else if r.Spec.ApiVersion != types.V1 {
+		return trace.BadParameter("unsupported resource version %q, %q is currently the only supported version", r.Version, types.V1)
+	}
 	if r.Metadata.Name == "" {
 		return trace.BadParameter("device must have a name")
 	}
