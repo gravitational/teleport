@@ -3,7 +3,7 @@ authors: Noah Stride (noah.stride@goteleport.com)
 state: draft
 ---
 
-# RFD XXXX - Machine ID Anonymous Agent Usage Metrics
+# RFD XXXX - Machine ID Anonymous Agent Telemetry
 
 ## Required Approvers
 
@@ -23,7 +23,7 @@ It is currently difficult to determine the uptake of Machine ID by customers,
 and for what use-cases they use Machine ID for. This makes product decisions
 about determining areas of focus more difficult.
 
-Adding basic anonymous metrics to the `tbot` agent will provide helpful
+Basic anonymous telemetry from the `tbot` agent will provide helpful
 information on adoption without compromising privacy.
 
 ## Details
@@ -35,21 +35,31 @@ information on adoption without compromising privacy.
 
 ### Consent
 
-Users will explicitly opt-in to anonymous usage metrics with a command-line
+Users will explicitly opt-in to anonymous usage telemetry with a command-line
 parameter or configuration file field e.g:
 
 ```sh
-tbot --anonymous-analytics
+tbot --anonymous-telemetry-opt-in
 ```
 
 or
 
 ```yaml
-anonymous_analytics: true
+anonymous_telemetry_opt_in: true
 ```
 
 Examples provided in the documentation will be updated to include this value
 to encourage opt-in, but will make clear that this parameter can be removed.
+
+A documentation page will be created that will explain what telemetry is
+collected and where this telemetry is stored.
+
+When telemetry is enabled, a log message will be output on startup stating that
+telemetry is being collected and linking to the relevant documentation.
+
+When telemetry is not enabled, a log message will be output on startup
+informing the user that Telemetry is not enabled and linking to the relevant
+documentation.
 
 ### Anonymization
 
