@@ -929,11 +929,11 @@ Use the following command to connect to the database or to the address above usi
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
-  * default: 
+  * default:
 
   $ echo "hello world"
 
-  * alternative: 
+  * alternative:
 
   $ echo "goodbye world"
 
@@ -982,11 +982,11 @@ To avoid port randomization, you can choose the listening port using the --port 
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
-  * default: 
+  * default:
 
   $ echo "hello world"
 
-  * alternative: 
+  * alternative:
 
   $ echo "goodbye world"
 
