@@ -1873,6 +1873,12 @@ type Proxy struct {
 	//
 	//nolint:revive // Because we want this to be IdP.
 	IdP IdP `yaml:"idp,omitempty"`
+
+	UiConfig UiConfig `yaml:"ui"`
+}
+
+type UiConfig struct {
+	ScrollbackLength int `yaml:"scrollback_length"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
