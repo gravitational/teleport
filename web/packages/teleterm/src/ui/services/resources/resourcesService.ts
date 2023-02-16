@@ -16,11 +16,28 @@
 
 import { ServerSideParams, TshClient } from 'teleterm/services/tshd/types';
 
+import type * as uri from 'teleterm/ui/uri';
+
 export class ResourcesService {
   constructor(private tshClient: TshClient) {}
 
   fetchServers(params: ServerSideParams) {
     return this.tshClient.getServers(params);
+  }
+
+  async getServerByHostname(clusterUri: uri.ClusterUri, hostname: string) {
+    const query = `name == "${hostname}"`;
+    const { agentsList: servers } = await this.fetchServers({
+      clusterUri,
+      query,
+      limit: 2,
+    });
+
+    if (servers.length > 1) {
+      throw new AmbiguousHostnameError(hostname);
+    }
+
+    return servers[0];
   }
 
   fetchDatabases(params: ServerSideParams) {
@@ -29,5 +46,12 @@ export class ResourcesService {
 
   fetchKubes(params: ServerSideParams) {
     return this.tshClient.getKubes(params);
+  }
+}
+
+export class AmbiguousHostnameError extends Error {
+  constructor(hostname: string) {
+    super(`Ambiguous hostname "${hostname}"`);
+    this.name = 'AmbiguousHostname';
   }
 }

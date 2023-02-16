@@ -24,6 +24,8 @@ import {
 } from 'teleterm/ui/uri';
 import { TrackedKubeConnection } from 'teleterm/ui/services/connectionTracker';
 import { Platform } from 'teleterm/mainProcess/types';
+import { AmbiguousHostnameError } from 'teleterm/ui/services/resources';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 
@@ -32,7 +34,7 @@ const commands = {
   'tsh-ssh': {
     displayName: '',
     description: '',
-    run(
+    async run(
       ctx: IAppContext,
       args: { loginHost: string; localClusterUri: ClusterUri }
     ) {
@@ -55,22 +57,29 @@ const commands = {
         host = parts[0];
       }
 
-      // TODO(ravicious): Handle finding host by more than just a name.
-      // Basically we have to replicate tsh ssh behavior here.
-      const servers = ctx.clustersService.searchServers(localClusterUri, {
-        search: host,
-        searchableProps: ['hostname'],
-      });
       let server: tsh.Server | undefined;
-
-      if (servers.length === 1) {
-        server = servers[0];
-      } else if (servers.length > 1) {
-        // TODO(ravicious): Handle ambiguous host name. See `onSSH` in `tool/tsh/tsh.go`.
-        console.error('Ambiguous host');
-      }
-
       let serverUri: ServerUri, serverHostname: string;
+
+      try {
+        // TODO(ravicious): Handle finding a server by more than just a name.
+        // Basically we have to replicate tsh ssh behavior here.
+        server = await retryWithRelogin(ctx, localClusterUri, () =>
+          ctx.resourcesService.getServerByHostname(localClusterUri, host)
+        );
+      } catch (error) {
+        // TODO(ravicious): Handle ambiguous host name. See `onSSH` in `tool/tsh/tsh.go`.
+        if (error instanceof AmbiguousHostnameError) {
+          // Log the ambiguity of the hostname but continue anyway. This will pass the ambiguous
+          // hostname to tsh ssh and show an appropriate error in the new tab.
+          console.error(error.message);
+        } else {
+          ctx.notificationsService.notifyError({
+            title: `Could not establish a connection to ${host}`,
+            description: error['message'],
+          });
+          return;
+        }
+      }
 
       if (server) {
         serverUri = server.uri;
@@ -85,7 +94,6 @@ const commands = {
         });
         serverHostname = host;
       }
-      // TODO(ravicious): Handle failure due to incorrect host name.
       const doc = documentsService.createTshNodeDocument(serverUri);
       doc.title = login ? `${login}@${serverHostname}` : serverHostname;
       doc.login = login;

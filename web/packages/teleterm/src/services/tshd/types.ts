@@ -247,11 +247,13 @@ export type CreateGatewayParams = {
 
 export type ServerSideParams = {
   clusterUri: uri.ClusterUri;
+  // search is used for regular search.
   search?: string;
   searchAsRoles?: string;
   sort?: SortType;
   startKey?: string;
   limit?: number;
+  // query is used for advanced search.
   query?: string;
 };
 
