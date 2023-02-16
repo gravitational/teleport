@@ -341,7 +341,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     const omitUriAndTitle = (documents: Document[]) =>
       documents.map(d => ({ ...d, uri: undefined, title: undefined }));
 
-    if (!previousDocuments) {
+    if (!previousDocuments?.length) {
       return false;
     }
 
@@ -349,8 +349,8 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     const omittedCurrentDocs = omitUriAndTitle(currentDocuments);
     return (
       // Ensure they are equal
-      !Object.keys(omittedPreviousDocs).some(
-        key => omittedPreviousDocs[key] === omittedCurrentDocs[key]
+      Object.keys(omittedPreviousDocs).some(
+        key => omittedPreviousDocs[key] !== omittedCurrentDocs[key]
       )
     );
   }
