@@ -39,7 +39,7 @@ Teleport Desktop Access is not yet compatible with Windows Server 2022.
 - A Linux server to run the Teleport Desktop Access service on.
   You can reuse an existing server running any other Teleport instance.
 - A server or virtual machine running a Windows operating system with
-Remote Desktop Services (RDP) enabled and the RDP port available to the Linux server.
+Remote Desktop enabled and the RDP port available to the Linux server.
 (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Prepare Windows
@@ -67,10 +67,10 @@ Teleport certificate file from the previous step. Once complete, reboot the syst
 <Admonition type="tip" title="Headless Installation">
 The Teleport Windows Auth Setup can be run in a shell environment with elevated
 privileges. You can use this to automate installation, uninstallation, and
-certificate updates. For example:
+certificate updates. The following CLI execution example will install the Teleport Certificate,
+load the required DLL, disable NLA and reboot the Windows machine:
 
 ```code
-# Installs Teleport Certificate, loads required DLL, disables NLA and reboots
 $ teleport-windows-auth-setup.exe install --cert=teleport.cer -r
 Teleport Authentication Package installed
 ```
