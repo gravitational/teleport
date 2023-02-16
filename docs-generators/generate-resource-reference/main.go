@@ -150,6 +150,9 @@ func insertExampleValue(path string, doc map[string]interface{}, val interface{}
 // generateExampleValue returns a value to insert into an example YAML document
 // based on the type of props. It returns an error if it is not possible to
 // generate an example.
+//
+// Based on the JSON Schema instance data model:
+// https://json-schema.org/draft/2020-12/json-schema-core.html#name-instance-data-model
 // TODO: make this work recursively with arrays and maps
 func generateExampleValue(props *apiextv1.JSONSchemaProps) (interface{}, error) {
 	switch props.Type {
@@ -170,6 +173,10 @@ func generateExampleValue(props *apiextv1.JSONSchemaProps) (interface{}, error) 
 		switch props.Items.Schema.Type {
 		case "string":
 			return []string{"string1", "string2", "string3"}, nil
+		case "number":
+			return []int{1, 2, 3}, nil
+		case "boolean":
+			return []bool{false, true, false}, nil
 		default:
 			return nil, fmt.Errorf("unsupported array item type: %v", props.Items.Schema.Type)
 		}

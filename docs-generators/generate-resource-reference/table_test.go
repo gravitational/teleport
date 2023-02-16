@@ -48,31 +48,31 @@ spec:
 `, "~", "`"),
 		},
 		{
-			description:  "simple case with arrays of strings",
-			inputYAML:    mustReadFile(t, path.Join("testdata", "user.yaml")),
+			description:  "simple case with arrays of scalars",
+			inputYAML:    mustReadFile(t, path.Join("testdata", "user-array-scalars.yaml")),
 			expectedName: "user.yaml",
-			expectedContent: strings.ReplaceAll(`
-|Property|Description|Type|
+			expectedContent: strings.ReplaceAll(`|Property|Description|Type|
 |---|---|---|
 |~spec~|Options for configuring the user resource.|object|
-|~spec.roles~|Roles is a list of roles assigned to the user|array[string]|
-|~spec.traits~|Traits are key/value pairs received from an identity provider (through OIDC claims or SAML assertions) or from a system administrator for local accounts. Traits are used to populate role variables.|map[string]array[string]|
+|~spec.booleans~|Booleans that the user has chosen|array[boolean]|
+|~spec.lucky_numbers~|The lukcy numbers assigned ot the user in this test|array[number]|
+|~spec.roles~|The roles assigned to the user in this test|array[string]|
 
 spec:
+  booleans:
+  - false
+  - true
+  - false
+  lucky_numbers:
+  - 1
+  - 2
+  - 3
   roles:
-   - "example1"
-   - "example2"
-   - "example3"
-  traits:
-    key1:
-      - "example1"
-      - "example2"
-      - "example3"
-    key2:
-      - "example1"
-      - "example2"
-      - "example3"
-`, "~", "`"),
+  - string1
+  - string2
+  - string3
+
+  `, "~", "`"),
 		},
 		{
 			description:  "multiple versions",

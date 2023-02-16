@@ -1,0 +1,32 @@
+name: user
+pluralname: users
+kind: ""
+versions:
+- version: v2
+  schema:
+    jsonschemaprops:
+      description: User is the Schema for the users API
+      properties:
+        spec:
+          description: Options for configuring the user resource. 
+          properties:
+            roles:
+              description: The roles assigned to the user in this test
+              type: array
+              items:
+                schema:
+                  type: string
+            lucky_numbers:
+              description: The lucky numbers assigned to the user in this test
+              type: array
+              items:
+                schema:
+                  type: number
+            booleans:
+              description: Booleans that the user has chosen
+              type: array
+              items:
+                schema:
+                  type: boolean
+          type: object
+  
