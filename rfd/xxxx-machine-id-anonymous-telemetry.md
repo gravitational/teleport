@@ -12,26 +12,39 @@ state: draft
 
 ## What
 
-Collect anonymous usage information about invocations of the Machine ID agent
-from the agent itself.
+Collect anonymous usage information about invocations of the Machine ID agent.
 
 Out of scope is the collection of usage information from the Auth server.
 
 ## Why
 
-It is currently difficult to determine the uptake of Machine ID by customers,
-and for what use-cases they use Machine ID for. This makes product decisions
-about determining areas of focus more difficult.
+It is currently difficult to determine the adoption of Machine ID, and for what
+use-cases they use Machine ID for. This makes product decisions about 
+determining areas of focus more difficult.
 
 Basic anonymous telemetry from the `tbot` agent will provide helpful
 information on adoption without compromising privacy.
 
 ## Details
 
-### Collecting events
+### Event collection and submission
 
+For now, a single event on startup will be submitted by `tbot`.
 
-### Submitting events
+This will be implemented as part of `tool/tbot` rather than `lib/tbot`, meaning
+that events will be submitted when using the `tbot` binary but not when
+embedding the `tbot` library within another binary. This means data will not
+be polluted by internal uses of the `tbot` library (e.g the operator).
+
+Event collection and submission will be started concurrently to the `tbot`
+functionality, and should not impede the primary function of `tbot`. In the
+case of failure, a warning message should be omitted.
+
+Events will be submitted directly to the public endpoint of the `prehog`
+service.
+
+### Event storage
+
 
 ### Consent
 
@@ -78,12 +91,12 @@ Event properties:
 - `helper`: optional string indicating if a helper is invoking `tbot`. For 
   example: `gha:teleport-actions/auth`
 - `helper_version`: optional string indicating the version of the helper that
-  invoking `tbot`.
-- `destinations_configured`: a count of total destinations configured.
+  invoking `tbot`
+- `destinations_configured`: a count of total destinations configured
 - `destinations_configured_database_access`: a count of Database Access 
-  destinations configured.
+  destinations configured
 - `destinations_configured_kubernetes_access`: a count of Kubernetes Access
-  destinations configured.
+  destinations configured
 - `destinations_configured_application_access`: a count of Application Access
   destinations configured.
 
