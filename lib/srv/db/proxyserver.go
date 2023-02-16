@@ -592,7 +592,7 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 		identity.RouteToDatabase.Database = params.Database
 	}
 	if params.ClientIP != "" {
-		identity.ClientIP = params.ClientIP
+		identity.LoginIP = params.ClientIP
 	}
 	cluster, servers, err := s.getDatabaseServers(ctx, identity)
 	if err != nil {
