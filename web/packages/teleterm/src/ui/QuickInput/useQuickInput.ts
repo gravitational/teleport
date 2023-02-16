@@ -42,6 +42,8 @@ export default function useQuickInput() {
   const { visible, inputValue } = quickInputService.useState();
   const [activeSuggestion, setActiveSuggestion] = React.useState(0);
 
+  // Getting suggestions.
+
   const parseResult = React.useMemo(
     () => quickInputService.parse(inputValue),
     // `localClusterUri` has been added to refresh suggestions from
@@ -76,27 +78,7 @@ export default function useQuickInput() {
   const openQuickInputShortcutKey: KeyboardShortcutType = 'open-quick-input';
   const { getShortcut } = useKeyboardShortcutFormatters();
 
-  const onFocus = (e: any) => {
-    if (e.relatedTarget) {
-      quickInputService.lastFocused = new WeakRef(e.relatedTarget);
-    }
-  };
-
-  const onActiveSuggestion = (index: number) => {
-    if (!hasSuggestions) {
-      return;
-    }
-    setActiveSuggestion(index);
-  };
-
-  const onEnter = (index?: number) => {
-    if (!hasSuggestions || !visible) {
-      executeCommand(parseResult.command);
-      return;
-    }
-
-    pickSuggestion(parseResult.targetToken, suggestionsAttempt.data, index);
-  };
+  // Executing the command.
 
   const memoizedExecuteCommand = useCallback(
     async (command: AutocompleteCommand) => {
@@ -151,6 +133,30 @@ export default function useQuickInput() {
   const [executeCommandAttempt, executeCommand] = useAsync(
     memoizedExecuteCommand
   );
+
+  // Event handlers.
+
+  const onFocus = (e: any) => {
+    if (e.relatedTarget) {
+      quickInputService.lastFocused = new WeakRef(e.relatedTarget);
+    }
+  };
+
+  const onActiveSuggestion = (index: number) => {
+    if (!hasSuggestions) {
+      return;
+    }
+    setActiveSuggestion(index);
+  };
+
+  const onEnter = (index?: number) => {
+    if (!hasSuggestions || !visible) {
+      executeCommand(parseResult.command);
+      return;
+    }
+
+    pickSuggestion(parseResult.targetToken, suggestionsAttempt.data, index);
+  };
 
   const pickSuggestion = (
     targetToken: AutocompleteToken,
