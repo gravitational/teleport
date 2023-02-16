@@ -1540,7 +1540,7 @@ func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference) error {
 			continue
 		}
 
-		// If any role specifically denies access to the IdP, we'll return NotFound.
+		// If any role specifically denies access to the IdP, we'll return AccessDenied.
 		if !options.IDP.SAML.Enabled.Value {
 			return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
 		}
