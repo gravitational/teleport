@@ -84,7 +84,7 @@ Log into your Teleport cluster with `tsh login` and make sure your Elasticsearch
 application is available:
 
 ```code
-$ tsh app ls
+$ tsh apps ls
 Application Description   Public Address               Labels
 ----------- ------------- ---------------------------- -------------------------------
 elastic                   elastic.teleport.example.com
@@ -93,7 +93,7 @@ elastic                   elastic.teleport.example.com
 Fetch a short-lived X.509 certificate for Elasticsearch:
 
 ```code
-$ tsh app login elastic
+$ tsh apps login elastic
 ```
 
 Then you can use the `curl` command to communicate with the Elasticsearch API,
