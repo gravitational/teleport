@@ -557,7 +557,7 @@ const cfg = {
     });
   },
 
-  getUiConfig() {
+  getUIConfig() {
     return cfg.ui;
   },
 
