@@ -59,7 +59,7 @@ jobs:
       - name: Run base difftest
         uses: ./.github/actions/difftest
         with:
-          flags: -e "integrations/operator/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*"
+          flags: -e "integrations/operator/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*"  -e "integrations/kube-agent-updater/**/*"
           target: test-go-unit
 
       - name: Run libfido2 difftest
@@ -85,3 +85,9 @@ jobs:
         with:
           flags: --include "api/**/*" --relative "api"
           target: test-api
+
+      - name: Run kube-agent-updater difftest
+        uses: ./.github/actions/difftest
+        with:
+          flags: --include "integrations/kube-agent-updater/**/*" --relative "integrations/kube-agent-updater"
+          target: test-kube-agent-updater
