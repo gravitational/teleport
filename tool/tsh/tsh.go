@@ -962,6 +962,12 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		}
 	}
 
+	// Identity files do not currently contain a proxy address. When loading an
+	// Identity file, a proxy must be passed on the command line as well.
+	if cf.IdentityFileIn != "" && cf.Proxy == "" {
+		return trace.BadParameter("tsh --identity also requires --proxy")
+	}
+
 	// prevent Kingpin from calling os.Exit(), we want to handle errors ourselves.
 	// shouldTerminate will be checked after app.Parse() call.
 	var shouldTerminate *int
