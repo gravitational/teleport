@@ -3156,7 +3156,6 @@ message WebSessionFilter {
 }
 
 // SAMLSessionData contains data for a SAML session.
-// Based on crewjam/saml's session object: https://github.com/crewjam/saml/blob/main/identity_provider.go
 message SAMLSessionData {
   // ID is the identifier for the SAML session.
   string ID = 1 [(gogoproto.jsontag) = "id"];
@@ -4961,7 +4960,7 @@ message PluginListV1 {
   repeated PluginV1 plugins = 1;
 }
 
-// SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
+// SAMLIDPServiceProviderV1 is the representation of a SAML IdP service provider.
 message SAMLIdPServiceProviderV1 {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
