@@ -17,6 +17,23 @@
 export function mergeDeep(target, ...sources) {
   const isObject = obj => obj && typeof obj === 'object' && !Array.isArray(obj);
 
+  const mergeArray = (target, source) => {
+    source.forEach((value, index) => {
+      if (
+        Array.isArray(value) ||
+        (isObject(value) && isObject(source[index]))
+      ) {
+        if (target[index] === undefined) {
+          target[index] = source[index];
+        } else {
+          mergeDeep(target[index], source[index]);
+        }
+      } else {
+        target[index] = source[index];
+      }
+    });
+  };
+
   if (!sources.length) return target;
   const source = sources.shift();
 
@@ -25,10 +42,14 @@ export function mergeDeep(target, ...sources) {
       if (isObject(source[key])) {
         if (!target[key]) Object.assign(target, { [key]: {} });
         mergeDeep(target[key], source[key]);
+      } else if (Array.isArray(source[key])) {
+        mergeDeep(target[key], mergeArray(target[key], source[key]));
       } else {
         Object.assign(target, { [key]: source[key] });
       }
     }
+  } else if (Array.isArray(target) && Array.isArray(source)) {
+    mergeArray(target, source);
   }
 
   return mergeDeep(target, ...sources);
