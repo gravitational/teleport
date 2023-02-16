@@ -55,7 +55,7 @@ spec:
 |---|---|---|
 |~spec~|Options for configuring the user resource.|object|
 |~spec.booleans~|Booleans that the user has chosen|array[boolean]|
-|~spec.lucky_numbers~|The lukcy numbers assigned ot the user in this test|array[number]|
+|~spec.lucky_numbers~|The lucky numbers assigned to the user in this test|array[number]|
 |~spec.roles~|The roles assigned to the user in this test|array[string]|
 
 spec:
@@ -71,8 +71,7 @@ spec:
   - string1
   - string2
   - string3
-
-  `, "~", "`"),
+`, "~", "`"),
 		},
 		{
 			description:  "multiple versions",

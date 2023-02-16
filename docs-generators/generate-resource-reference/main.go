@@ -150,9 +150,6 @@ func insertExampleValue(path string, doc map[string]interface{}, val interface{}
 // generateExampleValue returns a value to insert into an example YAML document
 // based on the type of props. It returns an error if it is not possible to
 // generate an example.
-//
-// Based on the JSON Schema instance data model:
-// https://json-schema.org/draft/2020-12/json-schema-core.html#name-instance-data-model
 // TODO: make this work recursively with arrays and maps
 func generateExampleValue(props *apiextv1.JSONSchemaProps) (interface{}, error) {
 	switch props.Type {
@@ -188,6 +185,34 @@ func generateExampleValue(props *apiextv1.JSONSchemaProps) (interface{}, error) 
 	}
 }
 
+// getPropType returns the name of the type represented by the property at the
+// top level of props. It returns an error if props is malformed.
+// TODO: Consider merging this with generateExampleValue so we only need to
+// visit each property once.
+func getPropType(props *apiextv1.JSONSchemaProps) (string, error) {
+	switch t := props.Type; t {
+	case "string", "number", "boolean", "object":
+		return t, nil
+	case "array":
+		if props.Items.Schema == nil {
+			return "", trace.Wrap(errors.New("the items of a JSON Schema array must include their own schema"))
+		}
+		inner, err := getPropType(props.Items.Schema)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		return "array[" + inner + "]", nil
+
+	default:
+		return "", trace.Wrap(fmt.Errorf(
+			"unsupported property type: %v",
+			props.Type,
+		))
+	}
+
+}
+
 // registerProperties recursively descends through the properties in props, adding
 // these to the example YAML document in yml and the VersionPropertyRows in
 // rows. It returns an error if props is malformed.
@@ -204,13 +229,14 @@ func registerProperties(
 			n = parent.Name + "." + k
 		}
 
-		// TODO: For composite types, recursively descend through the
-		// type's Items or AdditionalProperties to get the type of the
-		// values
+		typ, err := getPropType(&v)
+		if err != nil {
+			return nil, err
+		}
 
 		r := VersionPropertyRow{
 			Name:        n,
-			Type:        v.Type,
+			Type:        typ,
 			Description: v.Description,
 		}
 		rows = append(rows, r)
