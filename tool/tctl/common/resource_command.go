@@ -18,6 +18,7 @@ package common
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -34,6 +35,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -117,6 +119,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindSAMLConnector:           rc.createSAMLConnector,
 		types.KindLoginRule:               rc.createLoginRule,
 		types.KindSAMLIdPServiceProvider:  rc.createSAMLIdPServiceProvider,
+		types.KindDevice:                  rc.createDevice,
 	}
 	rc.config = config
 
@@ -751,6 +754,24 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 		}
 	}
 	fmt.Printf("SAML IdP service provider '%s' has been %s\n", serviceProviderName, UpsertVerb(exists, rc.IsForced()))
+	return nil
+}
+
+func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	var device devicepb.Device
+	err := json.Unmarshal(raw.Raw, &device)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = client.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device:            &device,
+		CreateEnrollToken: false,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
 	return nil
 }
 
