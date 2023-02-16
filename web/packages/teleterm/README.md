@@ -4,54 +4,35 @@ Teleport Connect (previously Teleport Terminal, package name `teleterm`) is a de
 
 ## Usage
 
-### The `--insecure` flag
-
-Just like tsh, Connect supports the `--insecure` flag which skips the verification of the server
-certificate and host name.
-
-```
-open -a "Teleport Connect" --args --insecure
-```
-
-or
-
-```
-/Applications/Teleport\ Connect.app/Contents/MacOS/Teleport\ Connect --insecure
-```
+Please refer to [the _Using Teleport Connect_ page from our
+docs](https://goteleport.com/docs/connect-your-client/teleport-connect/).
 
 ## Building and packaging
 
-Teleport Connect consists of two main components: the `tsh` tool and the Electron app. Our build
-scripts assume that the `webapps` repo and the `teleport` repo are in the same folder.
+**Note: At the moment, the OSS build of Connect is broken. Please refer to
+[#17706](https://github.com/gravitational/teleport/issues/17706) for a temporary workaround.**
 
-To get started, first we need to build `tsh` that resides in the `teleport` repo.
+Teleport Connect consists of two main components: the `tsh` tool and the Electron app.
 
-Prepare Teleport repo:
-
-```bash
-## Clone Teleport repo
-$ git clone https://github.com/gravitational/teleport.git
-$ cd teleport
-## Build tsh binary
-$ make build/tsh
-```
-
-The build output can be found in the `/teleport/build` directory. The tsh binary will be packed
-together with the Electron app.
-
-Prepare Webapps repo
-
-1. Make sure that your node version is v16 (current tls) https://nodejs.org/en/about/releases/
-2. Clone and build `webapps` repository
+To get started, first we need to build `tsh`.
 
 ```bash
-$ git clone https://github.com/gravitational/webapps.git
-$ cd webapps
-$ yarn install
-$ yarn build-term && CONNECT_TSH_BIN_PATH=$PWD/../teleport/build/tsh yarn package-term
+cd teleport
+make build/tsh
 ```
 
-The installable file can be found in `/webapps/packages/teleterm/build/release/`
+The build output can be found in the `build` directory. The tsh binary will be packed together with
+the Electron app.
+
+Next, we're going to build the Electron app. **This project uses Node.js v16 and Yarn v1.**
+
+```bash
+cd teleport
+yarn install
+yarn build-term && CONNECT_TSH_BIN_PATH=$PWD/build/tsh yarn package-term
+```
+
+The resulting package can be found at `web/packages/teleterm/build/release`.
 
 For more details on how Connect is built for different platforms, see the [Build
 process](#build-process) section.
@@ -63,25 +44,24 @@ development mode. That's because Electron is running its own version of Node. Th
 fetch or build native packages that were made for that specific version of Node.
 
 ```sh
-$ cd webapps
-
-$ yarn install
-$ yarn build-native-deps-for-term
+cd teleport
+yarn install
+yarn build-native-deps-for-term
 ```
 
 To launch `teleterm` in development mode:
 
 ```sh
-$ cd webapps
+cd teleport
 
-$ yarn start-term
+yarn start-term
 
-## By default, the dev version assumes that the tsh binary is at ../teleport/build/tsh.
-## You can provide a different absolute path to a tsh binary though the CONNECT_TSH_BIN_PATH env var.
-$ CONNECT_TSH_BIN_PATH=$PWD/../teleport/build/tsh yarn start-term
+# By default, the dev version assumes that the tsh binary is at build/tsh.
+# You can provide a different absolute path to a tsh binary though the CONNECT_TSH_BIN_PATH env var.
+CONNECT_TSH_BIN_PATH=$PWD/build/tsh yarn start-term
 ```
 
-For a quick restart which restarts all processes and the `tsh` daemon, press `F6`.
+For a quick restart which restarts the Electron app and the `tsh` daemon, press `F6`.
 
 ### Generating tshd gRPC protobuf files
 
@@ -90,7 +70,7 @@ Rebuilding them is needed only if you change any of the files in `proto/teleport
 To rebuild and update gRPC proto files:
 
 ```sh
-$ make grpc
+make grpc
 ```
 
 Resulting Go and JS files can be found in `gen/proto`.
