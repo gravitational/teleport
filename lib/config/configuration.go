@@ -2054,6 +2054,10 @@ func Configure(clf *CommandLineFlags, cfg *service.Config, legacyAppFlags bool) 
 		cfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
 	}
 
+	if fileConf.Proxy.UiConfig.ScrollbackLength > 0 {
+		cfg.Proxy.UiConfig.ScrollbackLength = fileConf.Proxy.UiConfig.ScrollbackLength
+	}
+
 	// add data_dir to the backend config:
 	if cfg.Auth.StorageConfig.Params == nil {
 		cfg.Auth.StorageConfig.Params = backend.Params{}

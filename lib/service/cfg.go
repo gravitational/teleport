@@ -524,6 +524,12 @@ type ProxyConfig struct {
 
 	// DisableALPNSNIListener allows turning off the ALPN Proxy listener. Used in tests.
 	DisableALPNSNIListener bool
+
+	UiConfig UiConfig
+}
+
+type UiConfig struct {
+	ScrollbackLength int
 }
 
 // ACME configures ACME automatic certificate renewal

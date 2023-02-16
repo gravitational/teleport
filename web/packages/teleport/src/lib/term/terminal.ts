@@ -19,6 +19,8 @@ import { FitAddon } from 'xterm-addon-fit';
 import { debounce, Cancelable, isInteger } from 'lodash';
 import Logger from 'shared/libs/logger';
 
+import cfg from 'teleport/config';
+
 import { TermEvent } from './enums';
 import Tty from './tty';
 
@@ -45,7 +47,9 @@ export default class TtyTerminal {
     this._el = el;
     this._fontFamily = fontFamily || undefined;
     this._fontSize = fontSize || 14;
-    this._scrollBack = scrollBack;
+    // Passing scrollback will overwrite the default config. This is to support ttyplayer.
+    // Default to the config when not passed anything, which is the normal usecase
+    this._scrollBack = scrollBack || cfg.uiConfig.scrollbackLength;
     this.tty = tty;
     this.term = null;
 
@@ -59,7 +63,7 @@ export default class TtyTerminal {
       lineHeight: 1,
       fontFamily: this._fontFamily,
       fontSize: this._fontSize,
-      scrollback: this._scrollBack || 1000,
+      scrollback: this._scrollBack,
       cursorBlink: false,
       allowTransparency: true,
     });

@@ -43,6 +43,10 @@ const cfg = {
 
   baseUrl: window.location.origin,
 
+  uiConfig: {
+    scrollbackLength: 1000,
+  },
+
   auth: {
     localAuthEnabled: true,
     allowPasswordless: false,
@@ -553,6 +557,10 @@ const cfg = {
     });
   },
 
+  getUiConfig() {
+    return cfg.uiConfig;
+  },
+
   init(backendConfig = {}) {
     merge(this, backendConfig);
   },
@@ -635,5 +643,9 @@ export interface UrlResourcesParams {
   startKey?: string;
   searchAsRoles?: 'yes' | '';
 }
+
+export type UiConfig = {
+  scrollbackLength: number;
+};
 
 export default cfg;

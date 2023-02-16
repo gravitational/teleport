@@ -243,6 +243,12 @@ type Config struct {
 	// HealthCheckAppServer is a function that checks if the proxy can handle
 	// application requests.
 	HealthCheckAppServer healthCheckAppServerFunc
+
+	UiConfig UiConfig
+}
+
+type UiConfig struct {
+	ScrollbackLength int
 }
 
 type APIHandler struct {
@@ -1292,6 +1298,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		IsCloud:              h.ClusterFeatures.GetCloud(),
 		TunnelPublicAddress:  tunnelPublicAddr,
 		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
+		UiConfig:             webclient.UiConfig(h.cfg.UiConfig),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
