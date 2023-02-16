@@ -22,11 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// Resource is a type to represent login rules which implements types.Resource
-// and custom YAML (un)marshaling. This satisfies the expected YAML format for
-// the resource, which would be hard/impossible to do for loginrulepb.LoginRule
-// directly. Specifically, protoc-gen-go does not have good support for parsing
-// a map[string][]string from YAML.
+// Resource is a wrapper around devicepb.Device that implements types.Resource.
 type Resource struct {
 	// ResourceHeader is embedded to implement types.Resource
 	types.ResourceHeader
@@ -43,7 +39,7 @@ func (r *Resource) CheckAndSetDefaults() error {
 	if r.Kind == "" {
 		r.Kind = types.KindDevice
 	} else if r.Kind != types.KindDevice {
-		return trace.BadParameter("unexpected resource kind %q, must be %q", r.Kind, types.KindLoginRule)
+		return trace.BadParameter("unexpected resource kind %q, must be %q", r.Kind, types.KindDevice)
 	}
 	if r.Version == "" {
 		r.Version = types.V1
