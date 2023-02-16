@@ -310,6 +310,30 @@ ERROR: ssh: rejected: administratively prohibited (unauthorized device)
   in leaf clusters.
 </Admonition>
 
+## Locking device
+
+Similar to [session and identity locking](./locking.mdx), a device can be locked using `tctl lock`.
+
+```code
+# Find device id to lock
+$ tctl devices ls
+Asset Tag     OS    Enroll Status   Device ID
+------------ -----  ------------- ------------------------------------
+C0XXXXXXXXXX  macOS  enrolled      9cdfc0ad-64b7-4d9c-9342-50e97f418ba0
+
+# Lock device
+$ tctl lock --device 9cdfc0ad-64b7-4d9c-9342-50e97f418ba0 --ttl=12h
+Created a lock with name "5444970a-39a0-4814-968d-e58b4a8fa686".
+
+```
+
+Now if when user tries to access, say an SSH server, Teleport will deny access.
+
+```code
+$ tsh ssh server1
+ERROR: ssh: rejected: administratively prohibited (lock targeting Device:"9cdfc0ad-64b7-4d9c-9342-50e97f418ba0" is in force)
+```
+
 ## Troubleshooting
 
 ### "binary missing signature or entitlements" on `tsh device enroll`
