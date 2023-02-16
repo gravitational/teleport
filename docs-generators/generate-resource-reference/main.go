@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -71,6 +72,24 @@ type VersionData struct {
 	VersionName string
 	Rows        []VersionPropertyRow
 	ExampleYAML string
+}
+
+// Number of Rows in the VersionData. Required for sorting VersionData rows.
+func (d VersionData) Len() int {
+	return len(d.Rows)
+}
+
+// Less is used to sort the rows in a VersionData by name in lexigraphic order.
+// i and j are indices within d.Rows.
+func (d VersionData) Less(i, j int) bool {
+	return d.Rows[i].Name < d.Rows[j].Name
+}
+
+// Swap swaps the order of rows with indices i and j.
+func (d VersionData) Swap(i, j int) {
+	tmp := d.Rows[i]
+	d.Rows[i] = d.Rows[j]
+	d.Rows[j] = tmp
 }
 
 type VersionPropertyRow struct {
@@ -243,6 +262,9 @@ func generateTable(c *schemagen.RootSchema) (*schemagen.TransformedFile, error) 
 			return nil, trace.Wrap(err)
 		}
 		vd.ExampleYAML = buf.String()
+
+		sort.Sort(vd)
+
 		td.Versions = append(td.Versions, vd)
 	}
 

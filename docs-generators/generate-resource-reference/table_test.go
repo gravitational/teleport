@@ -39,8 +39,8 @@ func TestGenerateTable(t *testing.T) {
 			expectedContent: strings.ReplaceAll(`|Property|Description|Type|
 |---|---|---|
 |~spec~|Options for configuring the user resource.|object|
-|~spec.role~|The one role assigned to the user in this test|string|
 |~spec.login~|The one login assigned to the user in this test|string|
+|~spec.role~|The one role assigned to the user in this test|string|
 
 spec:
   login: string
@@ -83,8 +83,8 @@ spec:
 |Property|Description|Type|
 |---|---|---|
 |~spec~|Options for configuring the user resource.|object|
-|~spec.role~|The one role assigned to the user in this test|string|
 |~spec.login~|The one login assigned to the user in this test|string|
+|~spec.role~|The one role assigned to the user in this test|string|
 
 spec:
   login: string
