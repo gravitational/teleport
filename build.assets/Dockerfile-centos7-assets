@@ -54,16 +54,14 @@ RUN git clone --branch llvmorg-10.0.1 --depth=1 https://github.com/llvm/llvm-pro
     -DLLVM_INCLUDE_TESTS=OFF \
     -DLLVM_TOOL_LLI_BUILD=OFF \
     -G \"Unix Makefiles\" ../llvm && \
-    make -j6 &&  \
+    make -j$(grep -c processor /proc/cpuinfo) &&  \
     make install"' && \
     cd ../.. && \
     rm -rf llvm-project
 
-FROM centos:7 AS assetbox
+# Create the final image with Clang only. We're using this Docker image as a tar.gz mainly
+# because we want to keep our artifacts on GitHub, and GH doesn't support blobs, only Docker images.
+FROM scratch AS buildbox-centos7-assets
 
 # Copy Clang into the final image.
 COPY --from=clang10 /opt/llvm /opt/llvm/
-ENV PATH=/opt/llvm/bin:${PATH}
-
-# Create the archive and copy it to the host.
-RUN tar -czvf centos7-assets.tar.gz /opt
