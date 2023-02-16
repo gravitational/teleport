@@ -758,6 +758,10 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 }
 
 func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	if rc.IsForced() {
+		return trace.BadParameter("Devices cannot be overwritten with the --force flag.")
+	}
+
 	var device devicepb.Device
 	err := json.Unmarshal(raw.Raw, &device)
 	if err != nil {
@@ -772,6 +776,7 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI
 		return trail.FromGRPC(err)
 	}
 
+	fmt.Printf("Device '%s' has been created\n", device.Id)
 	return nil
 }
 
@@ -1008,13 +1013,16 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trail.FromGRPC(err)
 		}
 		fmt.Printf("login rule %q has been deleted\n", rc.ref.Name)
-
 	case types.KindSAMLIdPServiceProvider:
 		if err := client.DeleteSAMLIdPServiceProvider(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("SAML IdP service provider %q has been deleted\n", rc.ref.Name)
-
+	case types.KindDevice:
+		if _, err := client.DevicesClient().DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{DeviceId: rc.ref.Name}); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Device %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
