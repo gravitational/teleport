@@ -18,7 +18,7 @@ import { AmbiguousHostnameError, ResourcesService } from './resourcesService';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 
-const expectedServer: tsh.Server = {
+const server: tsh.Server = {
   uri: '/clusters/bar/servers/foo',
   tunnel: false,
   name: 'foo',
@@ -27,68 +27,65 @@ const expectedServer: tsh.Server = {
   labelsList: [],
 };
 
-test('getServerByHostname returns a server when the hostname matches a single server', async () => {
-  const tshClient: Partial<tsh.TshClient> = {
-    getServers: jest.fn().mockResolvedValueOnce({
-      agentsList: [expectedServer],
+const getServerByHostnameTests: Array<
+  {
+    name: string;
+    getServersMockedValue: Awaited<ReturnType<tsh.TshClient['getServers']>>;
+  } & (
+    | { expectedServer: tsh.Server; expectedErr?: never }
+    | { expectedErr: any; expectedServer?: never }
+  )
+> = [
+  {
+    name: 'returns a server when the hostname matches a single server',
+    getServersMockedValue: {
+      agentsList: [server],
       totalCount: 1,
       startKey: 'foo',
-    } as Awaited<ReturnType<tsh.TshClient['getServers']>>),
-  };
-  const service = new ResourcesService(tshClient as tsh.TshClient);
-
-  const actualServer = await service.getServerByHostname(
-    '/clusters/bar',
-    'foo'
-  );
-  expect(actualServer).toStrictEqual(expectedServer);
-  expect(tshClient.getServers).toHaveBeenCalledWith({
-    clusterUri: '/clusters/bar',
-    query: 'name == "foo"',
-    limit: 2,
-  });
-});
-
-test('getServerByHostname returns an error when the hostname matches multiple servers', async () => {
-  const tshClient: Partial<tsh.TshClient> = {
-    getServers: jest.fn().mockResolvedValueOnce({
-      agentsList: [expectedServer, expectedServer],
+    },
+    expectedServer: server,
+  },
+  {
+    name: 'throws an error when the hostname matches multiple servers',
+    getServersMockedValue: {
+      agentsList: [server, server],
       totalCount: 2,
       startKey: 'foo',
-    } as Awaited<ReturnType<tsh.TshClient['getServers']>>),
-  };
-  const service = new ResourcesService(tshClient as tsh.TshClient);
-
-  await expect(
-    service.getServerByHostname('/clusters/bar', 'foo')
-  ).rejects.toThrow(AmbiguousHostnameError);
-
-  expect(tshClient.getServers).toHaveBeenCalledWith({
-    clusterUri: '/clusters/bar',
-    query: 'name == "foo"',
-    limit: 2,
-  });
-});
-
-test('getServerByHostname returns nothing if the hostname does not match any servers', async () => {
-  const tshClient: Partial<tsh.TshClient> = {
-    getServers: jest.fn().mockResolvedValueOnce({
+    },
+    expectedErr: AmbiguousHostnameError,
+  },
+  {
+    name: 'returns nothing if the hostname does not match any servers',
+    getServersMockedValue: {
       agentsList: [],
       totalCount: 0,
       startKey: 'foo',
-    } as Awaited<ReturnType<tsh.TshClient['getServers']>>),
-  };
-  const service = new ResourcesService(tshClient as tsh.TshClient);
+    },
+    expectedServer: undefined,
+  },
+];
+test.each(getServerByHostnameTests)(
+  'getServerByHostname $name',
+  async ({ getServersMockedValue, expectedServer, expectedErr }) => {
+    const tshClient: Partial<tsh.TshClient> = {
+      getServers: jest.fn().mockResolvedValueOnce(getServersMockedValue),
+    };
+    const service = new ResourcesService(tshClient as tsh.TshClient);
 
-  const actualServer = await service.getServerByHostname(
-    '/clusters/bar',
-    'foo'
-  );
+    const promise = service.getServerByHostname('/clusters/bar', 'foo');
 
-  expect(actualServer).toBeFalsy();
-  expect(tshClient.getServers).toHaveBeenCalledWith({
-    clusterUri: '/clusters/bar',
-    query: 'name == "foo"',
-    limit: 2,
-  });
-});
+    if (expectedErr) {
+      // eslint-disable-next-line jest/no-conditional-expect
+      await expect(promise).rejects.toThrow(expectedErr);
+    } else {
+      // eslint-disable-next-line jest/no-conditional-expect
+      await expect(promise).resolves.toStrictEqual(expectedServer);
+    }
+
+    expect(tshClient.getServers).toHaveBeenCalledWith({
+      clusterUri: '/clusters/bar',
+      query: 'name == "foo"',
+      limit: 2,
+    });
+  }
+);
