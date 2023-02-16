@@ -100,7 +100,8 @@ Copy the token to the Linux host where you will run the Desktop service as `/tmp
 (!docs/pages/includes/install-linux.mdx!)
 
 Create `/etc/teleport.yaml` and configure it for Desktop Access. Update the `proxy_server`
-to your Teleport proxy service and put the Windows machine address under `non_ad_hosts`:
+value to your Teleport proxy service or cloud tenant, and put the Windows machine address
+under `non_ad_hosts`:
 
 ```yml
 version: v3
