@@ -115,7 +115,7 @@ export function usePingTeleport<T>() {
   const ctx = useContext<PingTeleportContextState<T>>(pingTeleportContext);
 
   useEffect(() => {
-    if (!ctx.active) {
+    if (!ctx.active && !ctx.result) {
       ctx.start();
     }
   }, []);
