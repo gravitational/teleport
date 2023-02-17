@@ -53,6 +53,8 @@ pkgs.mkShell {
   buildInputs = with pkgs; [
     buf
     drone-cli
+    grpc-tools
+    kubernetes-helm
     protobuf
     protoc-gen-go
     protoc-gen-go-grpc
@@ -62,9 +64,12 @@ pkgs.mkShell {
     zip
 
     go
+    nodejs
+    python3
     rustc
     rust-cbindgen
     cargo
+    yarn
 
     teleport-hot-reload
   ];
@@ -72,5 +77,8 @@ pkgs.mkShell {
     export PROTOBUF_LOCATION=${pkgs.protobuf}
     export PROTOC=${pkgs.protobuf}/bin/protoc
     export PROTOC_INCLUDE=${pkgs.protobuf}/include
+
+    # npm install grpc_tools_node_protoc_ts grpc_tools_node_protoc_plugin
+    export PATH="$PWD/node_modules/grpc_tools_node_protoc_ts/bin:$PATH"
   '';
 }
