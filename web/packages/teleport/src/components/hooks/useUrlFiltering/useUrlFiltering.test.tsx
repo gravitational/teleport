@@ -36,11 +36,9 @@ test('extracting params from URL with simple search and sort params', () => {
   const history = createMemoryHistory({ initialEntries: [url] });
 
   let result;
-  act(() => {
-    result = renderHook(() => useUrlFiltering(initialSort), {
-      wrapper: Wrapper,
-      wrapperProps: { history },
-    });
+  result = renderHook(() => useUrlFiltering(initialSort), {
+    wrapper: Wrapper,
+    wrapperProps: { history },
   });
 
   expect(result.current.params).toEqual(expected);
@@ -62,11 +60,9 @@ test('extracting params from URL with advanced search and sort params', () => {
   const history = createMemoryHistory({ initialEntries: [url] });
 
   let result;
-  act(() => {
-    result = renderHook(() => useUrlFiltering(initialSort), {
-      wrapper: Wrapper,
-      wrapperProps: { history },
-    });
+  result = renderHook(() => useUrlFiltering(initialSort), {
+    wrapper: Wrapper,
+    wrapperProps: { history },
   });
 
   expect(result.current.params).toEqual(expected);
@@ -84,11 +80,9 @@ test('extracting params from URL with simple search param but no sort param', ()
   const history = createMemoryHistory({ initialEntries: [url] });
 
   let result;
-  act(() => {
-    result = renderHook(() => useUrlFiltering(initialSort), {
-      wrapper: Wrapper,
-      wrapperProps: { history },
-    });
+  result = renderHook(() => useUrlFiltering(initialSort), {
+    wrapper: Wrapper,
+    wrapperProps: { history },
   });
 
   expect(result.current.params).toEqual(expected);
@@ -105,11 +99,9 @@ test('extracting params from URL with no search param and with sort param with u
   const history = createMemoryHistory({ initialEntries: [url] });
 
   let result;
-  act(() => {
-    result = renderHook(() => useUrlFiltering(initialSort), {
-      wrapper: Wrapper,
-      wrapperProps: { history },
-    });
+  result = renderHook(() => useUrlFiltering(initialSort), {
+    wrapper: Wrapper,
+    wrapperProps: { history },
   });
 
   expect(result.current.params).toEqual(expected);
