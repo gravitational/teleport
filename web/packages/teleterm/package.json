@@ -52,8 +52,8 @@
     "split2": "4.1.0",
     "ts-loader": "^9.3.1",
     "winston": "^3.3.3",
-    "xterm": "^4.15.0",
-    "xterm-addon-fit": "^0.5.0"
+    "xterm": "^5.1.0",
+    "xterm-addon-fit": "^0.7.0"
   },
   "productName": "Teleport Connect"
 }
