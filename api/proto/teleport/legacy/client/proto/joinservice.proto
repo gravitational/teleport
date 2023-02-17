@@ -42,6 +42,31 @@ message RegisterUsingIAMMethodResponse {
   Certs certs = 2;
 }
 
+// RegisterUsingAzureMethodRequest is the request for registration via the Azure
+// join method.
+message RegisterUsingAzureMethodRequest {
+  // RegisterUsingTokenRequest holds registration parameters common to all
+  // join methods.
+  types.RegisterUsingTokenRequest register_using_token_request = 1;
+  // AttestedData is a signed JSON document from an Azure VM's attested data
+  // metadata endpoint used to prove the identity of a joining node. It must
+  // include the challenge string as the nonce.
+  bytes attested_data = 2;
+  // AccessToken is a JWT signed by Azure, used to prove the identity of a
+  // joining node.
+  string access_token = 3;
+}
+
+// RegisterUsingAzureMethodResponse is a stream response and will contain either
+// a Challenge or signed Certs to join the cluster.
+message RegisterUsingAzureMethodResponse {
+  // Challenge is a crypto-random string that should be included in the signed
+  // attested data.
+  string challenge = 1;
+  // Certs is the returned signed certs.
+  Certs certs = 2;
+}
+
 // JoinService provides methods which allow Teleport nodes, proxies, and other
 // services to join the Teleport cluster by fetching signed cluster
 // certificates. It is implemented on both the Auth and Proxy servers to serve
@@ -51,4 +76,7 @@ service JoinService {
   // RegisterUsingIAMMethod is used to register a new node to the cluster using
   // the IAM join method.
   rpc RegisterUsingIAMMethod(stream RegisterUsingIAMMethodRequest) returns (stream RegisterUsingIAMMethodResponse);
+  // RegisterUsingAzureMethod is used to register a new node to the cluster
+  // using the Azure join method.
+  rpc RegisterUsingAzureMethod(stream RegisterUsingAzureMethodRequest) returns (stream RegisterUsingAzureMethodResponse);
 }

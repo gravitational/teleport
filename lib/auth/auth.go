@@ -36,6 +36,7 @@ import (
 	insecurerand "math/rand"
 	"net"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -50,6 +51,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -178,6 +180,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
+	if cfg.SAMLIdPServiceProviders == nil {
+		cfg.SAMLIdPServiceProviders = local.NewSAMLIdPServiceProviderService(cfg.Backend)
+	}
 	if cfg.ConnectionsDiagnostic == nil {
 		cfg.ConnectionsDiagnostic = local.NewConnectionsDiagnosticService(cfg.Backend)
 	}
@@ -228,26 +233,27 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	services := &Services{
-		Trust:                 cfg.Trust,
-		PresenceInternal:      cfg.Presence,
-		Provisioner:           cfg.Provisioner,
-		Identity:              cfg.Identity,
-		Access:                cfg.Access,
-		DynamicAccessExt:      cfg.DynamicAccessExt,
-		ClusterConfiguration:  cfg.ClusterConfiguration,
-		Restrictions:          cfg.Restrictions,
-		Apps:                  cfg.Apps,
-		Kubernetes:            cfg.Kubernetes,
-		Databases:             cfg.Databases,
-		DatabaseServices:      cfg.DatabaseServices,
-		IAuditLog:             cfg.AuditLog,
-		Events:                cfg.Events,
-		WindowsDesktops:       cfg.WindowsDesktops,
-		SessionTrackerService: cfg.SessionTrackerService,
-		Enforcer:              cfg.Enforcer,
-		ConnectionsDiagnostic: cfg.ConnectionsDiagnostic,
-		StatusInternal:        cfg.Status,
-		UsageReporter:         cfg.UsageReporter,
+		Trust:                   cfg.Trust,
+		PresenceInternal:        cfg.Presence,
+		Provisioner:             cfg.Provisioner,
+		Identity:                cfg.Identity,
+		Access:                  cfg.Access,
+		DynamicAccessExt:        cfg.DynamicAccessExt,
+		ClusterConfiguration:    cfg.ClusterConfiguration,
+		Restrictions:            cfg.Restrictions,
+		Apps:                    cfg.Apps,
+		Kubernetes:              cfg.Kubernetes,
+		Databases:               cfg.Databases,
+		DatabaseServices:        cfg.DatabaseServices,
+		IAuditLog:               cfg.AuditLog,
+		Events:                  cfg.Events,
+		WindowsDesktops:         cfg.WindowsDesktops,
+		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
+		SessionTrackerService:   cfg.SessionTrackerService,
+		Enforcer:                cfg.Enforcer,
+		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
+		StatusInternal:          cfg.Status,
+		UsageReporter:           cfg.UsageReporter,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -285,6 +291,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	as.ttlCache, err = utils.NewFnCache(utils.FnCacheConfig{
+		TTL: time.Second * 3,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if as.ghaIDTokenValidator == nil {
 		as.ghaIDTokenValidator = githubactions.NewIDTokenValidator(
 			githubactions.IDTokenValidatorConfig{
@@ -322,6 +336,7 @@ type Services struct {
 	services.Databases
 	services.DatabaseServices
 	services.WindowsDesktops
+	services.SAMLIdPServiceProviders
 	services.SessionTrackerService
 	services.Enforcer
 	services.ConnectionsDiagnostic
@@ -488,6 +503,9 @@ type Server struct {
 	// githubOrgSSOCache is used to cache whether Github organizations use
 	// external SSO or not.
 	githubOrgSSOCache *utils.FnCache
+
+	// ttlCache is a generic ttl cache. typed keys must be used.
+	ttlCache *utils.FnCache
 
 	// traceClient is used to forward spans to the upstream collector for components
 	// within the cluster that don't have a direct connection to said collector
@@ -985,7 +1003,7 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	}
 
 	// get the certificate authority that will be signing the public key of the host
-	ca, err := a.Services.GetCertAuthority(context.TODO(), types.CertAuthID{
+	ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: domainName,
 	}, true)
@@ -999,7 +1017,7 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	}
 
 	// create and sign!
-	return a.generateHostCert(services.HostCertParams{
+	return a.generateHostCert(ctx, services.HostCertParams{
 		CASigner:      caSigner,
 		PublicHostKey: hostPublicKey,
 		HostID:        hostID,
@@ -1011,8 +1029,10 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	})
 }
 
-func (a *Server) generateHostCert(p services.HostCertParams) ([]byte, error) {
-	authPref, err := a.GetAuthPreference(context.TODO())
+func (a *Server) generateHostCert(
+	ctx context.Context, p services.HostCertParams,
+) ([]byte, error) {
+	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1100,10 +1120,10 @@ type certRequest struct {
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	previousIdentityExpires time.Time
-	// clientIP is an IP of the client requesting the certificate.
-	clientIP string
-	// sourceIP is an IP this certificate should be pinned to
-	sourceIP string
+	// loginIP is an IP of the client requesting the certificate.
+	loginIP string
+	// pinIP flags that client's login IP should be pinned in the certificate
+	pinIP bool
 	// disallowReissue flags that a cert should not be allowed to issue future
 	// certificates.
 	disallowReissue bool
@@ -1157,8 +1177,8 @@ func certRequestPreviousIdentityExpires(previousIdentityExpires time.Time) certR
 	return func(r *certRequest) { r.previousIdentityExpires = previousIdentityExpires }
 }
 
-func certRequestClientIP(ip string) certRequestOption {
-	return func(r *certRequest) { r.clientIP = ip }
+func certRequestLoginIP(ip string) certRequestOption {
+	return func(r *certRequest) { r.loginIP = ip }
 }
 
 func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
@@ -1168,7 +1188,7 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
-func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, sourceIP string) ([]byte, []byte, error) {
+func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, pinnedIP string) ([]byte, []byte, error) {
 	user, err := a.GetUser(username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1190,7 +1210,8 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 		routeToCluster: routeToCluster,
 		checker:        checker,
 		traits:         user.GetTraits(),
-		sourceIP:       sourceIP,
+		loginIP:        pinnedIP,
+		pinIP:          pinnedIP != "",
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1403,6 +1424,21 @@ func (a *Server) AugmentContextUserCertificates(
 			return nil, trace.Wrap(err)
 		}
 
+		// filter and sort TLS and SSH principals for comparison.
+		// Order does not matter and "-teleport-*" principals are filtered out.
+		filterAndSortPrincipals := func(s []string) []string {
+			res := make([]string, 0, len(s))
+			for _, principal := range s {
+				// Ignore -teleport- internal principals.
+				if strings.HasPrefix(principal, "-teleport-") {
+					continue
+				}
+				res = append(res, principal)
+			}
+			sort.Strings(res)
+			return res
+		}
+
 		// Verify SSH certificate against identity.
 		// The SSH certificate isn't used to establish the connection that
 		// eventually reaches this method, so we check it more thoroughly.
@@ -1413,7 +1449,7 @@ func (a *Server) AugmentContextUserCertificates(
 			return nil, trace.BadParameter("ssh cert type mismatch")
 		case sshCert.KeyId != identity.Username:
 			return nil, trace.BadParameter("identity and SSH user mismatch")
-		case !slices.Equal(sshCert.ValidPrincipals, identity.Principals):
+		case !slices.Equal(filterAndSortPrincipals(sshCert.ValidPrincipals), filterAndSortPrincipals(identity.Principals)):
 			return nil, trace.BadParameter("identity and SSH principals mismatch")
 		case !apisshutils.KeysEqual(sshCert.Key, xPubKey):
 			return nil, trace.BadParameter("x509 and SSH public key mismatch")
@@ -1486,6 +1522,7 @@ func (a *Server) AugmentContextUserCertificates(
 		username:             identity.Username,
 		mfaVerified:          identity.MFAVerified,
 		activeAccessRequests: identity.ActiveRequests,
+		deviceID:             opts.DeviceExtensions.DeviceID, // Check lock against requested device.
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1540,6 +1577,59 @@ func (a *Server) AugmentContextUserCertificates(
 	}, nil
 }
 
+// submitCertificateIssuedEvent submits a certificate issued usage event to the
+// usage reporting service.
+func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
+	var database, app, kubernetes, desktop bool
+
+	if req.dbService != "" {
+		database = true
+	}
+
+	if req.appName != "" {
+		app = true
+	}
+
+	if req.kubernetesCluster != "" {
+		kubernetes = true
+	}
+
+	// Bot users are regular Teleport users, but have a special internal label.
+	bot := false
+	if _, ok := req.user.GetMetadata().Labels[types.BotLabel]; ok {
+		bot = true
+	}
+
+	// Unfortunately the only clue we have about Windows certs is the usage
+	// restriction: `RouteToWindowsDesktop` isn't actually passed along to the
+	// certRequest.
+	for _, usage := range req.usage {
+		switch usage {
+		case teleport.UsageWindowsDesktopOnly:
+			desktop = true
+		}
+	}
+
+	// For usage reporting, we care about the impersonator rather than the user
+	// being impersonated (if any).
+	user := req.user.GetName()
+	if req.impersonator != "" {
+		user = req.impersonator
+	}
+
+	if err := a.AnonymizeAndSubmit(&services.UsageCertificateIssued{
+		UserName:        user,
+		Ttl:             durationpb.New(req.ttl),
+		IsBot:           bot,
+		UsageDatabase:   database,
+		UsageApp:        app,
+		UsageKubernetes: kubernetes,
+		UsageDesktop:    desktop,
+	}); err != nil {
+		log.Debugf("Unable to submit certificate issued usage event: %v", err)
+	}
+}
+
 // generateUserCert generates user certificates
 func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	ctx := context.TODO()
@@ -1563,6 +1653,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		username:             req.user.GetName(),
 		mfaVerified:          req.mfaVerified,
 		activeAccessRequests: req.activeRequests.AccessRequests,
+		deviceID:             req.deviceExtensions.DeviceID,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1659,16 +1750,14 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	pinnedIP := ""
-	if req.checker.PinSourceIP() {
-		if req.clientIP == "" && req.sourceIP == "" {
-			// TODO(anton): make sure all upstream callers provide clientIP and make this into hard error instead of warning.
+	if req.checker.PinSourceIP() || req.pinIP {
+		if req.loginIP == "" {
+			// TODO(anton): make sure all upstream callers provide clientIP and make this into hard error
+			// instead of warning, after merging #21080
 			log.Warnf("IP pinning is enabled for user %q but there is no client ip information", req.user.GetName())
 		}
 
-		pinnedIP = req.clientIP
-		if req.sourceIP != "" {
-			pinnedIP = req.sourceIP
-		}
+		pinnedIP = req.loginIP
 	}
 
 	params := services.UserCertParams{
@@ -1688,13 +1777,13 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		ActiveRequests:          req.activeRequests,
 		MFAVerified:             req.mfaVerified,
 		PreviousIdentityExpires: req.previousIdentityExpires,
-		ClientIP:                req.clientIP,
+		LoginIP:                 req.loginIP,
+		PinnedIP:                pinnedIP,
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
 		Generation:              req.generation,
 		CertificateExtensions:   req.checker.CertificateExtensions(),
 		AllowedResourceIDs:      requestedResourcesStr,
-		SourceIP:                pinnedIP,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		DeviceID:                req.deviceExtensions.DeviceID,
@@ -1781,7 +1870,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		DatabaseUsers:           dbUsers,
 		MFAVerified:             req.mfaVerified,
 		PreviousIdentityExpires: req.previousIdentityExpires,
-		ClientIP:                req.clientIP,
+		LoginIP:                 req.loginIP,
+		PinnedIP:                pinnedIP,
 		AWSRoleARNs:             roleARNs,
 		AzureIdentities:         azureIdentities,
 		GCPServiceAccounts:      gcpAccounts,
@@ -1852,6 +1942,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		certs.SSHCACerts = append(certs.SSHCACerts, services.GetSSHCheckingKeys(ca)...)
 	}
 
+	a.submitCertificateIssuedEvent(&req)
+
 	return certs, nil
 }
 
@@ -1870,6 +1962,9 @@ type verifyLocksForUserCertsReq struct {
 	// activeAccessRequests are the UUIDs of active access requests for the user.
 	// Eg: tlsca.Identity.ActiveRequests.
 	activeAccessRequests []string
+	// deviceID is the trusted device ID.
+	// Eg: tlsca.Identity.DeviceExtensions.DeviceID
+	deviceID string
 }
 
 // verifyLocksForUserCerts verifies if any locks are in place before issuing new
@@ -1881,7 +1976,7 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	lockTargets := []types.LockTarget{
 		{User: req.username},
 		{MFADevice: req.mfaVerified},
-		// TODO(codingllama): Verify device locks.
+		{Device: req.deviceID},
 	}
 	lockTargets = append(lockTargets,
 		services.RolesToLockTargets(checker.RoleNames())...,
@@ -2681,6 +2776,8 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 }
 
 // GenerateToken generates multi-purpose authentication token.
+// Deprecated: Use CreateToken or UpdateToken.
+// DELETE IN 14.0.0, replaced by methods above (strideynet).
 func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	ttl := defaults.ProvisioningTokenTTL
 	if req.TTL != 0 {
@@ -2861,7 +2958,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		return nil, trace.Wrap(err)
 	}
 	// generate host SSH certificate
-	hostSSHCert, err := a.generateHostCert(services.HostCertParams{
+	hostSSHCert, err := a.generateHostCert(ctx, services.HostCertParams{
 		CASigner:      caSigner,
 		PublicHostKey: req.PublicSSHKey,
 		HostID:        req.HostID,
@@ -3118,15 +3215,23 @@ func (a *Server) ValidateToken(ctx context.Context, token string) (types.Provisi
 // checkTokenTTL checks if the token is still valid. If it is not, the token
 // is removed from the backend and returns false. Otherwise returns true.
 func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
-	ctx := context.TODO()
+	// Always accept tokens without an expiry configured.
+	if tok.Expiry().IsZero() {
+		return true
+	}
+
 	now := a.clock.Now().UTC()
 	if tok.Expiry().Before(now) {
-		err := a.DeleteToken(ctx, tok.GetName())
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				log.Warnf("Unable to delete token from backend: %v.", err)
+		// Tidy up the expired token in background if it has expired.
+		go func() {
+			ctx, cancel := context.WithTimeout(a.CloseContext(), time.Second*30)
+			defer cancel()
+			if err := a.DeleteToken(ctx, tok.GetName()); err != nil {
+				if !trace.IsNotFound(err) {
+					log.Warnf("Unable to delete token from backend: %v.", err)
+				}
 			}
-		}
+		}()
 		return false
 	}
 	return true
@@ -3990,7 +4095,7 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		}
 
 		dbRoleMatchers := role.DatabaseRoleMatchers(
-			db.GetProtocol(),
+			db,
 			t.Database.Username,
 			t.Database.GetDatabase(),
 		)
@@ -4314,6 +4419,13 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 			return keySet, trace.Wrap(err)
 		}
 		keySet.JWT = append(keySet.JWT, jwtKeyPair)
+	case types.SAMLIDPCA:
+		// SAML IDP CA only contains TLS certs.
+		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName)
+		if err != nil {
+			return keySet, trace.Wrap(err)
+		}
+		keySet.TLS = append(keySet.TLS, tlsKeyPair)
 	default:
 		return keySet, trace.BadParameter("unknown ca type: %s", caID.Type)
 	}

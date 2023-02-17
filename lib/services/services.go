@@ -38,6 +38,7 @@ type Services interface {
 	types.WebSessionsGetter
 	types.WebTokensGetter
 	WindowsDesktops
+	SAMLIdPServiceProviders
 }
 
 // RotationGetter returns the rotation state.

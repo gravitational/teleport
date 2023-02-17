@@ -159,7 +159,8 @@ Loop:
 	if r, ok := c.Identity.(BuiltinRole); ok && r.Role == types.RoleNode {
 		lockTargets = append(lockTargets,
 			types.LockTarget{Node: r.GetServerID()},
-			types.LockTarget{Node: r.Identity.Username})
+			types.LockTarget{Node: r.Identity.Username},
+		)
 	}
 	return lockTargets
 }
@@ -346,7 +347,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		RouteToApp:        u.Identity.RouteToApp,
 		RouteToDatabase:   u.Identity.RouteToDatabase,
 		MFAVerified:       u.Identity.MFAVerified,
-		ClientIP:          u.Identity.ClientIP,
+		LoginIP:           u.Identity.LoginIP,
 		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
 	}
 
@@ -446,12 +447,13 @@ func roleSpecForProxyWithRecordAtProxy(clusterName string) types.RoleSpecV6 {
 func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 	return types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Namespaces:       []string{types.Wildcard},
-			ClusterLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
-			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Namespaces:            []string{types.Wildcard},
+			ClusterLabels:         types.Labels{types.Wildcard: []string{types.Wildcard}},
+			NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindProxy, services.RW()),
 				types.NewRule(types.KindOIDCRequest, services.RW()),
@@ -493,6 +495,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindInstaller, services.RO()),
 				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 				types.NewRule(types.KindDatabaseService, services.RO()),
+				types.NewRule(types.KindSAMLIdPServiceProvider, services.RO()),
 				// this rule allows local proxy to update the remote cluster's host certificate authorities
 				// during certificates renewal
 				{
@@ -671,14 +674,15 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					MaxSessionTTL: types.MaxDuration(),
 				},
 				Allow: types.RoleConditions{
-					Namespaces:           []string{types.Wildcard},
-					Logins:               []string{},
-					NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
-					AppLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
-					KubernetesLabels:     types.Labels{types.Wildcard: []string{types.Wildcard}},
-					DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-					ClusterLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-					WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Namespaces:            []string{types.Wildcard},
+					Logins:                []string{},
+					NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+					AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
+					KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+					DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					ClusterLabels:         types.Labels{types.Wildcard: []string{types.Wildcard}},
+					WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.Wildcard, services.RW()),
 						types.NewRule(types.KindDevice, append(services.RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),

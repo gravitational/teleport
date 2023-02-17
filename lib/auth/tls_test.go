@@ -51,6 +51,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
@@ -156,7 +158,7 @@ func TestAcceptedUsage(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, _, err := CreateUserAndRole(server.AuthServer, "user", []string{"role"})
+	user, _, err := CreateUserAndRole(server.AuthServer, "user", []string{"role"}, nil)
 	require.NoError(t, err)
 
 	tlsServer, err := server.NewTestTLSServer()
@@ -882,7 +884,7 @@ func TestRemoteUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	remoteUser, remoteRole, err := CreateUserAndRole(remoteServer.AuthServer, "remote-user", []string{"remote-role"})
+	remoteUser, remoteRole, err := CreateUserAndRole(remoteServer.AuthServer, "remote-user", []string{"remote-role"}, nil)
 	require.NoError(t, err)
 
 	certPool, err := tt.server.CertPool()
@@ -910,7 +912,7 @@ func TestRemoteUser(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Establish trust and map remote role to local admin role
-	_, localRole, err := CreateUserAndRole(tt.server.Auth(), "local-user", []string{"local-role"})
+	_, localRole, err := CreateUserAndRole(tt.server.Auth(), "local-user", []string{"local-role"}, nil)
 	require.NoError(t, err)
 
 	err = tt.server.AuthServer.Trust(ctx, remoteServer, types.RoleMap{{Remote: remoteRole.GetName(), Local: []string{localRole.GetName()}}})
@@ -980,7 +982,7 @@ func TestGetCurrentUser(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	user1, _, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"})
+	user1, _, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"}, nil)
 	require.NoError(t, err)
 
 	client1, err := srv.NewClient(TestIdentity{I: LocalUser{Username: user1.GetName()}})
@@ -1010,7 +1012,7 @@ func TestGetCurrentUserRoles(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	user1, user1Role, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user-role"})
+	user1, user1Role, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user-role"}, nil)
 	require.NoError(t, err)
 
 	client1, err := srv.NewClient(TestIdentity{I: LocalUser{Username: user1.GetName()}})
@@ -1184,20 +1186,6 @@ func TestPasswordCRUD(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTokens(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
-
-	out, err := clt.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
-	require.NoError(t, err)
-	require.NotEqual(t, out, 0)
-}
-
 func TestOTPCRUD(t *testing.T) {
 	t.Parallel()
 
@@ -1261,7 +1249,7 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	user := "user1"
 	pass := []byte("abc123")
 
-	_, _, err = CreateUserAndRole(clt, user, []string{user})
+	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
 
 	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
@@ -1657,7 +1645,7 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	user := "user2"
 	pass := []byte("abc123")
 
-	newUser, _, err := CreateUserAndRole(clt, user, nil)
+	newUser, _, err := CreateUserAndRole(clt, user, nil, nil)
 	require.NoError(t, err)
 	require.Empty(t, newUser.GetTraits())
 
@@ -1794,7 +1782,7 @@ func TestPluginData(t *testing.T) {
 	require.NoError(t, err)
 
 	plugin := "my-plugin"
-	_, err = CreateAccessPluginUser(context.TODO(), tt.server.Auth(), plugin)
+	_, err = CreateAccessPluginUser(ctx, tt.server.Auth(), plugin)
 	require.NoError(t, err)
 
 	pluginUser := TestUser(plugin)
@@ -1805,9 +1793,9 @@ func TestPluginData(t *testing.T) {
 	req, err := services.NewAccessRequest(user, role)
 	require.NoError(t, err)
 
-	require.NoError(t, userClient.CreateAccessRequest(context.TODO(), req))
+	require.NoError(t, userClient.CreateAccessRequest(ctx, req))
 
-	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
+	err = pluginClient.UpdatePluginData(ctx, types.PluginDataUpdateParams{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
@@ -1817,7 +1805,7 @@ func TestPluginData(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	data, err := pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
+	data, err := pluginClient.GetPluginData(ctx, types.PluginDataFilter{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 	})
@@ -1828,7 +1816,7 @@ func TestPluginData(t *testing.T) {
 	require.Equal(t, ok, true)
 	require.Empty(t, cmp.Diff(entry.Data, map[string]string{"foo": "bar"}))
 
-	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
+	err = pluginClient.UpdatePluginData(ctx, types.PluginDataUpdateParams{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
@@ -1842,7 +1830,7 @@ func TestPluginData(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	data, err = pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
+	data, err = pluginClient.GetPluginData(ctx, types.PluginDataFilter{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 	})
@@ -1939,10 +1927,10 @@ func TestGenerateCerts(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(err))
 	})
 
-	user1, userRole, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"})
+	user1, userRole, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"}, nil)
 	require.NoError(t, err)
 
-	user2, userRole2, err := CreateUserAndRole(srv.Auth(), "user2", []string{"user2"})
+	user2, userRole2, err := CreateUserAndRole(srv.Auth(), "user2", []string{"user2"}, nil)
 	require.NoError(t, err)
 
 	t.Run("Nop", func(t *testing.T) {
@@ -2337,7 +2325,7 @@ func TestCertificateFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	// use admin client to create user and role
-	user, userRole, err := CreateUserAndRole(tt.server.Auth(), "user", []string{"user"})
+	user, userRole, err := CreateUserAndRole(tt.server.Auth(), "user", []string{"user"}, nil)
 	require.NoError(t, err)
 
 	pass := []byte("very secure password")
@@ -2447,7 +2435,7 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	_, _, err = CreateUserAndRole(clt, user, []string{user})
+	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
 
 	err = tt.server.Auth().UpsertPassword(user, pass)
@@ -2530,7 +2518,7 @@ func TestLoginAttempts(t *testing.T) {
 	user := "user1"
 	pass := []byte("abc123")
 
-	_, _, err = CreateUserAndRole(clt, user, []string{user})
+	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
 
 	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
@@ -2593,7 +2581,7 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	_, _, err = CreateUserAndRole(clt, username, []string{"role1"})
+	_, _, err = CreateUserAndRole(clt, username, []string{"role1"}, nil)
 	require.NoError(t, err)
 
 	token, err := tt.server.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
@@ -2635,7 +2623,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	// Create a local user.
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
-	_, _, err = CreateUserAndRole(clt, user, []string{user})
+	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
 	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
@@ -2761,13 +2749,13 @@ func TestRegisterCAPin(t *testing.T) {
 	tt := setupAuthContext(ctx, t)
 
 	// Generate a token to use.
-	token, err := tt.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{
-			types.RoleProxy,
-		},
-		TTL: proto.Duration(time.Hour),
-	})
-	require.NoError(t, err)
+	token := generateTestToken(
+		ctx,
+		t,
+		types.SystemRoles{types.RoleProxy},
+		time.Time{},
+		tt.server.Auth(),
+	)
 
 	// Generate public and private keys for node.
 	priv, pub, err := testauthority.New().GenerateKeyPair()
@@ -2900,13 +2888,13 @@ func TestRegisterCAPath(t *testing.T) {
 	tt := setupAuthContext(ctx, t)
 
 	// Generate a token to use.
-	token, err := tt.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{
-			types.RoleProxy,
-		},
-		TTL: proto.Duration(time.Hour),
-	})
-	require.NoError(t, err)
+	token := generateTestToken(
+		ctx,
+		t,
+		types.SystemRoles{types.RoleProxy},
+		time.Time{},
+		tt.server.Auth(),
+	)
 
 	// Generate public and private keys for node.
 	priv, pub, err := testauthority.New().GenerateKeyPair()
@@ -3526,6 +3514,491 @@ func TestNetworkRestrictions(t *testing.T) {
 		RestrictionsS: clt,
 	}
 	suite.NetworkRestrictions(t)
+}
+
+func mustNewToken(
+	t *testing.T,
+	token string,
+	roles types.SystemRoles,
+	expires time.Time,
+) types.ProvisionToken {
+	tok, err := types.NewProvisionToken(token, roles, expires)
+	require.NoError(t, err)
+	return tok
+}
+
+func requireAccessDenied(t require.TestingT, err error, i ...interface{}) {
+	require.True(
+		t,
+		trace.IsAccessDenied(err),
+		"err should be access denied, was: %s", err,
+	)
+}
+
+func requireBadParameter(t require.TestingT, err error, i ...interface{}) {
+	require.True(
+		t,
+		trace.IsBadParameter(err),
+		"err should be bad parameter, was: %s", err,
+	)
+}
+
+func requireNotFound(t require.TestingT, err error, i ...interface{}) {
+	require.True(
+		t,
+		trace.IsNotFound(err),
+		"err should be not found, was: %s", err,
+	)
+}
+
+func TestGRPCServer_CreateTokenV2(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+
+	// Inject mockEmitter to capture audit event for trusted cluster
+	// creation.
+	mockEmitter := &eventstest.MockEmitter{}
+	ac.server.Auth().SetEmitter(mockEmitter)
+
+	// Create a user with the least privilege access to call this RPC.
+	privilegedUser, _, err := CreateUserAndRole(
+		ac.server.Auth(), "token-creator", nil, []types.Rule{
+			{
+				Resources: []string{types.KindToken},
+				Verbs:     []string{types.VerbCreate},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	// create a token to conflict with for already having been created
+	alreadyExistsToken := mustNewToken(
+		t, "already-exists", types.SystemRoles{types.RoleNode}, time.Time{},
+	)
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, alreadyExistsToken))
+
+	tests := []struct {
+		name     string
+		identity TestIdentity
+		token    types.ProvisionToken
+
+		requireTokenCreated bool
+		requireError        require.ErrorAssertionFunc
+		requireEventEmitted bool
+	}{
+		{
+			name:     "success",
+			identity: TestUser(privilegedUser.GetName()),
+			token: mustNewToken(
+				t,
+				"success",
+				types.SystemRoles{types.RoleNode, types.RoleTrustedCluster},
+				time.Time{},
+			),
+			requireError:        require.NoError,
+			requireTokenCreated: true,
+			requireEventEmitted: true,
+		},
+		{
+			name:     "access denied",
+			identity: TestNop(),
+			token: mustNewToken(
+				t, "access denied", types.SystemRoles{types.RoleNode}, time.Time{},
+			),
+			requireError: requireAccessDenied,
+		},
+		{
+			name:     "already exists",
+			identity: TestUser(privilegedUser.GetName()),
+			token:    alreadyExistsToken,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(
+					t,
+					trace.IsAlreadyExists(err),
+					"err should be already exists, was: %s", err,
+				)
+			},
+		},
+		{
+			name:         "invalid token",
+			identity:     TestUser(privilegedUser.GetName()),
+			token:        &types.ProvisionTokenV2{},
+			requireError: requireBadParameter,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := ac.server.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			mockEmitter.Reset()
+			err = client.CreateToken(ctx, tt.token)
+			tt.requireError(t, err)
+
+			if tt.requireEventEmitted {
+				lastEvent := mockEmitter.LastEvent()
+				require.NotNil(t, lastEvent)
+				require.Equal(
+					t,
+					events.TrustedClusterTokenCreateEvent,
+					lastEvent.GetType(),
+				)
+			}
+			if tt.requireTokenCreated {
+				token, err := ac.server.Auth().GetToken(ctx, tt.token.GetName())
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(
+					tt.token,
+					token,
+					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+				))
+			}
+		})
+	}
+}
+
+func TestGRPCServer_UpsertTokenV2(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+
+	// Inject mockEmitter to capture audit event for trusted cluster
+	// creation.
+	mockEmitter := &eventstest.MockEmitter{}
+	ac.server.Auth().SetEmitter(mockEmitter)
+
+	// Create a user with the least privilege access to call this RPC.
+	privilegedUser, _, err := CreateUserAndRole(
+		ac.server.Auth(), "token-upserter", nil, []types.Rule{
+			{
+				Resources: []string{types.KindToken},
+				Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	// create a token to ensure UpsertToken overwrites an existing token.
+	alreadyExistsToken := mustNewToken(
+		t, "already-exists", types.SystemRoles{types.RoleNode}, time.Time{},
+	)
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, alreadyExistsToken))
+
+	tests := []struct {
+		name     string
+		identity TestIdentity
+		token    types.ProvisionToken
+
+		requireTokenCreated bool
+		requireEventEmitted bool
+		requireError        require.ErrorAssertionFunc
+	}{
+		{
+			name:     "success",
+			identity: TestUser(privilegedUser.GetName()),
+			token: mustNewToken(
+				t,
+				"success",
+				types.SystemRoles{types.RoleNode, types.RoleTrustedCluster},
+				time.Time{},
+			),
+			requireError:        require.NoError,
+			requireTokenCreated: true,
+			requireEventEmitted: true,
+		},
+		{
+			name:     "existing token replaced",
+			identity: TestUser(privilegedUser.GetName()),
+			token: mustNewToken(
+				t,
+				alreadyExistsToken.GetName(),
+				// These roles differ from the roles on the already existing
+				// token.
+				types.SystemRoles{types.RoleNode, types.RoleTrustedCluster},
+				time.Time{},
+			),
+			requireEventEmitted: true,
+			requireTokenCreated: true,
+			requireError:        require.NoError,
+		},
+		{
+			name:     "access denied",
+			identity: TestNop(),
+			token: mustNewToken(
+				t, "access denied", types.SystemRoles{types.RoleNode}, time.Time{},
+			),
+			requireError: requireAccessDenied,
+		},
+		{
+			name:         "invalid token",
+			identity:     TestUser(privilegedUser.GetName()),
+			token:        &types.ProvisionTokenV2{},
+			requireError: requireBadParameter,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := ac.server.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			mockEmitter.Reset()
+			err = client.UpsertToken(ctx, tt.token)
+			tt.requireError(t, err)
+
+			if tt.requireEventEmitted {
+				lastEvent := mockEmitter.LastEvent()
+				require.NotNil(t, lastEvent)
+				require.Equal(
+					t,
+					events.TrustedClusterTokenCreateEvent,
+					lastEvent.GetType(),
+				)
+			}
+			if tt.requireTokenCreated {
+				token, err := ac.server.Auth().GetToken(ctx, tt.token.GetName())
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(
+					tt.token,
+					token,
+					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+				))
+			}
+		})
+	}
+}
+
+func TestGRPCServer_GetTokens(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+
+	// Create a user with the least privilege access to call this RPC.
+	privilegedUser, _, err := CreateUserAndRole(
+		ac.server.Auth(), "token-reader", nil, []types.Rule{
+			{
+				Resources: []string{types.KindToken},
+				Verbs:     []string{types.VerbRead, types.VerbList},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	t.Run("no tokens", func(t *testing.T) {
+		client, err := ac.server.NewClient(TestUser(privilegedUser.GetName()))
+		require.NoError(t, err)
+		toks, err := client.GetTokens(ctx)
+		require.NoError(t, err)
+		require.Empty(t, toks)
+	})
+
+	// Create tokens to then assert are returned
+	pt := mustNewToken(
+		t,
+		"example-token",
+		types.SystemRoles{types.RoleNode},
+		time.Time{},
+	)
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, pt))
+	pt2 := mustNewToken(
+		t,
+		"example-token-2",
+		types.SystemRoles{types.RoleNode},
+		time.Time{},
+	)
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, pt2))
+	st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{
+			{
+				Roles: types.SystemRoles{types.RoleProxy},
+				Token: "example-static-token",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, ac.server.Auth().SetStaticTokens(st))
+	expectTokens := append([]types.ProvisionToken{pt, pt2}, st.GetStaticTokens()...)
+
+	tests := []struct {
+		name     string
+		identity TestIdentity
+
+		requireResponse bool
+		requireError    require.ErrorAssertionFunc
+	}{
+		{
+			name:            "success",
+			identity:        TestUser(privilegedUser.GetName()),
+			requireError:    require.NoError,
+			requireResponse: true,
+		},
+		{
+			name:         "access denied",
+			identity:     TestNop(),
+			requireError: requireAccessDenied,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := ac.server.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			tokens, err := client.GetTokens(ctx)
+			tt.requireError(t, err)
+
+			if tt.requireResponse {
+				require.Empty(t, cmp.Diff(
+					expectTokens,
+					tokens,
+					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+				))
+			} else {
+				require.Empty(t, tokens)
+			}
+		})
+	}
+}
+
+func TestGRPCServer_GetToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+
+	// Create a user with the least privilege access to call this RPC.
+	privilegedUser, _, err := CreateUserAndRole(
+		ac.server.Auth(), "token-reader", nil, []types.Rule{
+			{
+				Resources: []string{types.KindToken},
+				Verbs:     []string{types.VerbRead},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	// Create Provision token
+	pt := mustNewToken(t, "example-token", types.SystemRoles{types.RoleNode}, time.Time{})
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, pt))
+
+	tests := []struct {
+		name      string
+		tokenName string
+		identity  TestIdentity
+
+		requireResponse bool
+		requireError    require.ErrorAssertionFunc
+	}{
+		{
+			name:            "success",
+			tokenName:       pt.GetName(),
+			identity:        TestUser(privilegedUser.GetName()),
+			requireError:    require.NoError,
+			requireResponse: true,
+		},
+		{
+			name:         "access denied",
+			identity:     TestNop(),
+			tokenName:    pt.GetName(),
+			requireError: requireAccessDenied,
+		},
+		{
+			name:         "not found",
+			tokenName:    "does-not-exist",
+			identity:     TestUser(privilegedUser.GetName()),
+			requireError: requireNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := ac.server.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			token, err := client.GetToken(ctx, tt.tokenName)
+			tt.requireError(t, err)
+
+			if tt.requireResponse {
+				require.Empty(t, cmp.Diff(
+					token,
+					pt,
+					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+				))
+			} else {
+				require.Nil(t, token)
+			}
+		})
+	}
+}
+
+func TestGRPCServer_DeleteToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+
+	// Create a user with the least privilege access to call this RPC.
+	privilegedUser, _, err := CreateUserAndRole(
+		ac.server.Auth(), "token-deleter", nil, []types.Rule{
+			{
+				Resources: []string{types.KindToken},
+				Verbs:     []string{types.VerbDelete},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	// Create Provision token
+	pt := mustNewToken(t, "example-token", types.SystemRoles{types.RoleNode}, time.Time{})
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, pt))
+
+	tests := []struct {
+		name      string
+		tokenName string
+		identity  TestIdentity
+
+		requireTokenDeleted bool
+		requireError        require.ErrorAssertionFunc
+	}{
+		{
+			name:                "success",
+			tokenName:           pt.GetName(),
+			identity:            TestUser(privilegedUser.GetName()),
+			requireError:        require.NoError,
+			requireTokenDeleted: true,
+		},
+		{
+			name:         "access denied",
+			identity:     TestNop(),
+			tokenName:    pt.GetName(),
+			requireError: requireAccessDenied,
+		},
+		{
+			name:         "not found",
+			tokenName:    "does-not-exist",
+			identity:     TestUser(privilegedUser.GetName()),
+			requireError: requireNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := ac.server.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			err = client.DeleteToken(ctx, tt.tokenName)
+			tt.requireError(t, err)
+
+			if tt.requireTokenDeleted {
+				_, err := ac.server.Auth().GetToken(ctx, tt.tokenName)
+				require.True(
+					t,
+					trace.IsNotFound(err),
+					"expected token to be deleted",
+				)
+			}
+		})
+	}
 }
 
 // verifyJWT verifies that the token was signed by one the passed in key pair.

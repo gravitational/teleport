@@ -151,6 +151,10 @@ type CommandLineFlags struct {
 	DatabaseAWSRDSInstanceID string
 	// DatabaseAWSRDSClusterID is RDS cluster (Aurora) cluster identifier.
 	DatabaseAWSRDSClusterID string
+	// DatabaseAWSElastiCacheGroupID is the ElastiCache replication group identifier.
+	DatabaseAWSElastiCacheGroupID string
+	// DatabaseAWSMemoryDBClusterName is the MemoryDB cluster name.
+	DatabaseAWSMemoryDBClusterName string
 	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
@@ -1028,6 +1032,12 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.PeerPublicAddr = *addr
 	}
 
+	if fc.Proxy.IdP.SAMLIdP.Enabled() {
+		cfg.Proxy.IdP.SAMLIdP.Enabled = true
+	}
+
+	cfg.Proxy.IdP.SAMLIdP.BaseURL = fc.Proxy.IdP.SAMLIdP.BaseURL
+
 	acme, err := fc.Proxy.ACME.Parse()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1258,11 +1268,6 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	// Sanity check the local proxy config, so that users don't forget to
-	// enable the k8s endpoint there.
-	if fc.Proxy.Enabled() && fc.Proxy.Kube.Disabled() && fc.Proxy.KubeAddr == "" {
-		log.Warning("both kubernetes_service and proxy_service are enabled, but proxy_service doesn't set kube_listen_addr; consider setting kube_listen_addr on proxy_service, to handle incoming Kubernetes requests")
-	}
 	return nil
 }
 
@@ -1875,6 +1880,12 @@ func Configure(clf *CommandLineFlags, cfg *service.Config, legacyAppFlags bool) 
 					InstanceID: clf.DatabaseAWSRDSInstanceID,
 					ClusterID:  clf.DatabaseAWSRDSClusterID,
 				},
+				ElastiCache: service.DatabaseAWSElastiCache{
+					ReplicationGroupID: clf.DatabaseAWSElastiCacheGroupID,
+				},
+				MemoryDB: service.DatabaseAWSMemoryDB{
+					ClusterName: clf.DatabaseAWSMemoryDBClusterName,
+				},
 			},
 			GCP: service.DatabaseGCP{
 				ProjectID:  clf.DatabaseGCPProjectID,
@@ -2216,6 +2227,14 @@ func applyTokenConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 
 		cfg.JoinMethod = fc.JoinParams.Method
+
+		if fc.JoinParams.Azure != (AzureJoinParams{}) {
+			cfg.JoinParams = service.JoinParams{
+				Azure: service.AzureJoinParams{
+					ClientID: fc.JoinParams.Azure.ClientID,
+				},
+			}
+		}
 	}
 
 	return nil

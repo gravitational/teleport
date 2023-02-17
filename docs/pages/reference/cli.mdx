@@ -244,6 +244,70 @@ List all available applications:
 $ tsh apps ls
 ```
 
+### tsh gcloud
+
+Proxy `gcloud` CLI commands through the Teleport Application Service. `gcloud`
+is a tool for interacting with Google Cloud. A user must already be
+authenticated to a Google Cloud application in Teleport before they can execute
+`tsh gcloud` commands.
+
+```code
+$ tsh gcloud [--app] [<command>] 
+```
+
+#### Arguments
+
+`command`: A `gcloud` command to run, including arguments and flags.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| <nobr>`--app`</nobr> | Currently logged in Google Cloud application | The name of a Google Cloud application as listed via `tsh apps ls`. | The Google Cloud application to run the command against, if logged in to multiple Google Cloud applications. |
+
+#### Global flags
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
+
+#### Examples
+
+```code
+$ tsh gcloud compute instances list 
+```
+
+### tsh gsutil
+
+Proxy `gsutil` CLI commands through the Teleport Application Service. `gsutil`
+is a tool for interacting with Google Cloud Storage. A user must already be
+authenticated to a Google Cloud application in Teleport before they can execute
+`tsh gsutil` commands.
+
+```code
+$ tsh gsutil [--app] [<command>] 
+```
+
+#### Arguments
+
+`command`: A `gsutil` command to run, including arguments and flags.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| <nobr>`--app`</nobr> | Currently logged in Google Cloud application | The name of a Google Cloud application as listed via `tsh apps ls`. | The Google Cloud application to run the command against, if logged in to multiple Google Cloud applications. |
+
+#### Global flags
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
+
+#### Examples
+
+```code
+$ tsh gsutil ls
+```
+
 ### tsh join
 
 Joins an active session:
@@ -316,7 +380,7 @@ $ tsh play c0a02222-70dc-4be8-9308-7b7901d2d60
 # List recorded sessions that occurred between Nov 1, 2022 to Nov 3, 2022
 $ tsh recordings ls --from-utc=2022-11-01 --to-utc=2022-11-3
 
-# Retrieve recorded sessions in the last 6 hours 
+# Retrieve recorded sessions in the last 6 hours
 $ tsh recordings ls --last=6h0m0s
 ```
 
@@ -444,7 +508,7 @@ Use the following command to connect to the database:
 ### tsh proxy ssh
 
 Start a local TLS proxy for `ssh` connections when using Teleport in TLS Routing mode.
-This is typically used as part of the SSH client configuration to use `ssh` as a client 
+This is typically used as part of the SSH client configuration to use `ssh` as a client
 through Teleport.  See the [OpenSSH Guide](../server-access/guides/openssh.mdx) guide
 on configuring OpenSSH servers and clients.  The `tsh config` output will include `tsh proxy ssh`
 within a `ProxyCommand` directive.
@@ -475,7 +539,7 @@ Run the following command to generate an OpenSSH client configuration:
 $ tsh config
 ```
 
-This command produces the following configuration: 
+This command produces the following configuration:
 
 ```
 # Common flags for all example.com hosts
@@ -581,7 +645,7 @@ To run the local proxy server, one of the user's roles must include the
 `spec.allow.azure_identities` field with one of the identities used by the
 Application Service. To learn how to set up secure access to Azure via
 Teleport, read [Protect the Azure CLI with Teleport Application
-Access](../application-access/guides/azure.mdx).
+Access](../application-access/cloud-apis/azure.mdx).
 
 #### Arguments
 
@@ -590,7 +654,7 @@ This command does not accept any arguments.
 #### Flags
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--app` | none | string | Name of the Teleport application representing Azure (i.e., based on `tsh apps ls`). Use this flag if your Teleport user has access to multiple Azure applications. | 
+| `--app` | none | string | Name of the Teleport application representing Azure (i.e., based on `tsh apps ls`). Use this flag if your Teleport user has access to multiple Azure applications. |
 | `--port` | none | port number | The port on `localhost` where the local proxy will listen for connections. |
 | `--format` | `powershell` if on Windows, `unix` otherwise | `text`, `unix`, `command-prompt`, or `powershell` | The format to use for listing environment variables for Azure client applications connecting to the local proxy. |
 
@@ -605,7 +669,7 @@ Start a local proxy for AWS access. The user must already be logged in to at
 least one AWS application via Teleport before the proxy can start.
 
 ```code
-$ tsh proxy aws [<flags>] 
+$ tsh proxy aws [<flags>]
 ```
 
 #### Flags
@@ -636,6 +700,40 @@ $ tsh apps logins awsapp2
 $ tsh proxy aws --port=10700 --app=awsapp2
 # Set env variables from output
 $ aws s3 ls
+```
+
+### tsh proxy gcloud
+
+Start a local proxy for Google Cloud API access. The user must already be logged
+in to at least one Google Cloud application via Teleport before the proxy can
+start.
+
+```code
+$ tsh proxy gcloud [<flags>] 
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--app` | Currently logged in Google Cloud app | string | Optional name of the Google Cloud application (as shown in `tsh apps ls`) to use if logged in to multiple |
+| `-p, --port` | none | port number | Specify the source port for the local proxy |
+| <nobr>`-e, --endpoint-url`</nobr> | HTTP Proxy | Endpoint URL | Run the local proxy to serve as a Google Cloud endpoint URL. If not specified, the local proxy serves as an HTTPS proxy. |
+| `-f, --format` | unix | `text`, `unix`, `command-prompt`, or `powershell` | Optional format for printing environment variables for the Google Cloud proxy |
+
+#### [Global Flags](#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
+
+#### Examples
+
+```code
+$ tsh apps login google-cloud-app
+$ tsh proxy gcloud
+# Set env variables from output
+$ gcloud compute instances list 
+$ gsutil ls
 ```
 
 ### tsh scp
@@ -670,7 +768,7 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 #### Examples
 
 ```code
-$ tsh --proxy=proxy.example.com scp -P example.txt user@host:/destination/dir
+$ tsh --proxy=proxy.example.com scp example.txt user@host:/destination/dir
 ```
 
 ### tsh ls
@@ -887,9 +985,9 @@ $ kubectl config get-contexts
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--all` | false | Boolean | Whether to generate a kubeconfig for every Kubernetes cluster the current Teleport user has access to. If this is false, `tsh` will only generate a kubeconfig for the cluster specified in the `tsh kube login` command.|  
+| `--all` | false | Boolean | Whether to generate a kubeconfig for every Kubernetes cluster the current Teleport user has access to. If this is false, `tsh` will only generate a kubeconfig for the cluster specified in the `tsh kube login` command.|
 | `--as` | none | string | The Kubernetes user that the current Teleport user will log in as when they authenticate to the specified Kubernetes cluster. <br/><br/>This uses [Kubernetes impersonation](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation), so the Teleport user's Kubernetes user must have permissions to impersonate the target user. |
-| `--as-groups` | none | string | A Kubernetes group that the current Teleport user will log in as when they authenticate to the specified Kubernetes cluster. <br/><br/>This uses [Kubernetes impersonation](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation), so the Teleport user's Kubernetes user must have permissions to impersonate the target group. <br /><br/>You can include this flag multiple times to enable impersonation of multiple Kubernetes groups. | 
+| `--as-groups` | none | string | A Kubernetes group that the current Teleport user will log in as when they authenticate to the specified Kubernetes cluster. <br/><br/>This uses [Kubernetes impersonation](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation), so the Teleport user's Kubernetes user must have permissions to impersonate the target group. <br /><br/>You can include this flag multiple times to enable impersonation of multiple Kubernetes groups. |
 | `--cluster` | none | string | Name of the Teleport cluster to log into in order to connect to the given Kubernetes cluster. |
 | `-n`, `--kube-namespace` | none | string | The name of the Kubernetes namespace to configure as the default within the cluster the user is logging into. |
 
@@ -1095,6 +1193,29 @@ $ tsh request drop [<request-id>...]
 - `<request-id>` - IDs of requests to "drop" from the current identity so that
   your certificate will lose elevated roles and/or resource restrictions.
   If no request ID is given, the default is to drop all Access Requests.
+
+### tsh device enroll
+
+Enroll the current device as a trusted device.
+
+Requires a device enrollment token created via `tctl devices enroll`.
+
+```code
+$ tsh device enroll --token=TOKEN
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--token` | none | String | Device enrollment token |
+
+#### Examples
+
+```code
+$ tsh device enroll --token=(=devicetrust.enroll_token=)
+Device "(=devicetrust.asset_tag=)"/macOS enrolled
+```
 
 ### tsh environment variables
 
@@ -2066,7 +2187,7 @@ $ tctl sso configure oidc ... | tctl sso test
 
 Configure the SAML auth connector, optionally using a preset.
 
-The flag `--attributes-to-roles/-r` can be provided multiple times. 
+The flag `--attributes-to-roles/-r` can be provided multiple times.
 
 To avoid errors when pasting XML to a YAML file, we encourage the usage of the flag `--entity-descriptor`/`-e`.
 
@@ -2140,6 +2261,47 @@ $ tctl sso configure saml -p okta -r group,dev,access -e https://dev-123456.okta
 
 ```code
 $ tctl sso configure saml -p okta -r group,developer,access -e entity-desc.xml | tctl sso test
+```
+
+### tctl login_rule test
+
+Test a Login Rule resource without installing it in the cluster.
+
+#### Arguments
+
+- `<traits-file>` input traits file in JSON or YAML format. Empty for stdin.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--resource-file` | none | **string** filepath | Path to Login Rule resource path, can be repeated for multiple files |
+| `--load-from-cluster` | `false` | `true, false` | When true, all Login Rules currently installed in the cluster will be loaded for the test. Can be combined with `--resource-file` to test interactions. |
+| `--format` | `yaml` | `yaml, json` | Output format for traits |
+
+#### Global flags
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+#### Examples
+
+Test evaluation of the Login Rules from rule1.yaml and rule2.yaml with input traits from traits.json
+
+```code
+$tctl login_rule test --resource-file rule1.yaml --resource-file rule2.yaml traits.json
+```
+
+Test the Login Rule in rule.yaml along with all Login Rules already present in the cluster
+
+```code
+$ tctl login_rule test --resource-file rule.yaml --load-from-cluster traits.json
+```
+
+Read the input traits from stdin
+
+```code
+$ echo '{"groups": ["example"]}' | tctl login_rule test --resource-file rule.yaml
 ```
 
 ### tctl create
@@ -2314,7 +2476,7 @@ $ tctl edit role/sre
 $ TELEPORT_EDITOR=nano tctl edit user/alice
 ```
 
-  
+
 ### tctl status
 
 Report cluster status:
@@ -2373,6 +2535,113 @@ $ tctl alerts create \
     "The system is under maintenance, functionality may be limited."
 ```
 
+### tctl devices add
+
+Register a device.
+
+
+```code
+$ tctl devices add --os=OS --asset-tag=SERIAL_NUMBER
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--os` | none | `linux`, `macos`, `windows` | Device operating system |
+| `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
+| `--enroll` | false | boolean | If set, creates a device enrollment token |
+
+#### Examples
+
+```code
+$ tctl devices add --os=macos --asset-tag=(=devicetrust.asset_tag=)
+Device (=devicetrust.asset_tag=)/macOS added to the inventory
+
+$ tctl devices add --os=macos --asset-tag=(=devicetrust.asset_tag=) --enroll
+Device (=devicetrust.asset_tag=)/macOS added to the inventory
+Run the command below on device "(=devicetrust.asset_tag=)" to enroll it:
+tsh device enroll --token=(=devicetrust.enroll_token=)
+```
+
+### tctl devices enroll
+
+Create an enrollment token for a device.
+
+```code
+$ tctl devices enroll [--device-id=ID] [--asset-tag=ASSET_TAG]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--device-id` | none | string | Teleport device identifier |
+| `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
+
+One of `--device-id` or `--asset-tag` must be present.
+
+#### Examples
+
+```code
+$ tctl devices enroll --device-id=d40f2ee4-856d-4aef-b784-c4371e39c036
+Run the command below on device "d40f2ee4-856d-4aef-b784-c4371e39c036" to enroll it:
+tsh device enroll --token=(=devicetrust.enroll_token=)
+
+$ tctl devices enroll --asset-tag=(=devicetrust.asset_tag=)
+Run the command below on device "(=devicetrust.asset_tag=)" to enroll it:
+tsh device enroll --token=(=devicetrust.enroll_token=)
+```
+
+### tctl devices ls
+
+List registered devices.
+
+
+```code
+$ tctl devices ls
+```
+
+#### Examples
+
+```code
+$ tctl devices ls
+
+Asset Tag    OS    Enroll Status Device ID
+------------ ----- ------------- ------------------------------------
+(=devicetrust.asset_tag=) macOS enrolled      d40f2ee4-856d-4aef-b784-c4371e39c036
+```
+
+### tctl devices rm
+
+Removes a registered device.
+
+A removed device is not considered a trusted device for future device
+authentication attempts.
+
+```code
+$ tctl devices rm [--device-id=ID] [--asset-tag=ASSET_TAG]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--device-id` | none | string | Teleport device identifier |
+| `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
+
+One of `--device-id` or `--asset-tag` must be present.
+
+#### Examples
+
+```code
+$ tctl devices rm --device-id=d40f2ee4-856d-4aef-b784-c4371e39c036
+Device "ac3590ec-87d4-4519-8e9e-2f35af0a9f85" removed
+
+$ tctl devices rm --asset-tag=(=devicetrust.asset_tag=)
+Device "(=devicetrust.asset_tag=)" removed
+```
+
 ### tctl top
 
 Reports diagnostic information.
@@ -2406,7 +2675,8 @@ tctl version
 
 ## Resource filtering
 
-Both `tsh` and `tctl` allow you to filter `nodes`, `apps`, `db`, and `kube` resources using the `--search` and `--query` flags.
+Both `tsh` and `tctl` allow you to filter servers, applications, databases,
+desktops, and Kubernetes clusters using the `--search` and `--query` flags.
 
 The `--search` flag performs a simple fuzzy search on resource fields. For example, `--search=mac` searches for resources containing `mac`.
 
