@@ -60,7 +60,7 @@ message SubmitTbotEventRequest {
 
   oneof event {
     // See the events section for the fields included within startup.
-    TbotStartupEvent startup = 2;
+    TbotStartEvent start = 2;
   }
 }
 
