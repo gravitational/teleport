@@ -375,16 +375,25 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routeToDatabase, _, err := getDatabaseInfo(cf, client, cf.DatabaseService)
+	route, _, err := getDatabaseInfo(cf, client, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase); err != nil {
-		return trace.Wrap(err)
-	}
 
-	if routeToDatabase.Protocol == defaults.ProtocolSnowflake && !cf.LocalProxyTunnel {
-		return trace.BadParameter("Snowflake proxy works only in the tunnel mode. Please add --tunnel flag to enable it")
+	// When proxying without the `--tunnel` flag, we need to:
+	// 1. check if --tunnel is required.
+	// 2. check if db login is required.
+	// These steps are not needed with `--tunnel`, because the local proxy tunnel
+	// will manage database certificates itself and reissue them as needed.
+	requires := getDBLocalProxyRequirement(client, route)
+	if requires.tunnel && !cf.LocalProxyTunnel {
+		// Some scenarios require the --tunnel flag, e.g.:
+		// - Snowflake, DynamoDB protocol
+		// - Hardware-backed private key policy
+		return trace.BadParameter(formatDbCmdUnsupported(cf, route, requires.tunnelReasons...))
+	}
+	if err := maybeDatabaseLogin(cf, client, profile, route, requires); err != nil {
+		return trace.Wrap(err)
 	}
 
 	rootCluster, err := client.RootClusterName(cf.Context)
@@ -412,7 +421,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		cliConf:          cf,
 		teleportClient:   client,
 		profile:          profile,
-		routeToDatabase:  routeToDatabase,
+		routeToDatabase:  route,
 		listener:         listener,
 		localProxyTunnel: cf.LocalProxyTunnel,
 		rootClusterName:  rootCluster,
@@ -435,7 +444,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		commands, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
+		commands, err := dbcmd.NewCmdBuilder(client, profile, route, rootCluster,
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
@@ -448,8 +457,8 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 		// shared template arguments
 		templateArgs := map[string]any{
-			"database":   routeToDatabase.ServiceName,
-			"type":       defaults.ReadableDatabaseProtocol(routeToDatabase.Protocol),
+			"database":   route.ServiceName,
+			"type":       defaults.ReadableDatabaseProtocol(route.Protocol),
 			"cluster":    client.SiteName,
 			"address":    listener.Addr().String(),
 			"randomPort": randomPort,
@@ -463,10 +472,10 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 	} else {
 		err = dbProxyTpl.Execute(os.Stdout, map[string]any{
-			"database":   routeToDatabase.ServiceName,
+			"database":   route.ServiceName,
 			"address":    listener.Addr().String(),
 			"ca":         profile.CACertPathForCluster(rootCluster),
-			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, routeToDatabase.ServiceName),
+			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, route.ServiceName),
 			"key":        profile.KeyPath(),
 			"randomPort": randomPort,
 		})

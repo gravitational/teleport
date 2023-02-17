@@ -35,20 +35,14 @@ This guide will help you to:
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - Deployed Azure Database for PostgreSQL or MySQL server.
 - Azure Active Directory administrative privileges.
 - A host, e.g., an Azure VM instance, where you will run the Teleport Database
   Service.
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
-
-## Step 1/5. Install and configure Teleport
-
-### Set up the Teleport Auth and Proxy Services
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-### Set up the Teleport Database Service
+## Step 1/6. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -119,11 +113,11 @@ The command will generate a Database Service configuration with Azure MySQL/Post
 database auto-discovery enabled in the `eastus` region and place it at the
 `/etc/teleport.yaml` location.
 
-### Create a Teleport user
+## Step 2/6. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 2/5. Configure Azure service principal
+## Step 3/6. Configure Azure service principal
 
 To authenticate with PostgreSQL or MySQL databases, Teleport Database Service
 needs to obtain access tokens from Azure AD. There are a couple of ways to
@@ -199,7 +193,7 @@ achieve that:
 </TabItem>
 </Tabs>
 
-## Step 3/5. Configure IAM permissions for Teleport
+## Step 4/6. Configure IAM permissions for Teleport
 
 ### Create a custom role
 
@@ -277,6 +271,7 @@ all matching databases. See
 [Identify the needed scope](https://docs.microsoft.com/en-us/azure/role-based-access-control/role-assignments-steps#step-3-identify-the-needed-scope)
 for more information about Azure scopes and creating role assignments.
 </Admonition>
+
 ## Step 4/5. Create Azure database users
 
 To let Teleport connect to your Azure database authenticating as a service
@@ -359,7 +354,7 @@ registrations:
 
 You can create multiple database users identified by the same service principal.
 
-## Step 5/5. Connect
+## Step 6/6. Connect
 
 Log in to your Teleport cluster. Your Azure database should appear in the list of
 available databases:

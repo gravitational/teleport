@@ -18,11 +18,20 @@ This guide will help you to:
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+<Notice type="warning">
+
+Teleport Database Access for Cloud SQL MySQL is available starting from the
+`7.0` release.
+
+</Notice>
+
 - Google Cloud account
 - A host, e.g., a Compute Engine instance, where you will run the Teleport Database
   Service
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Create a service account for the Teleport Database Service
 
@@ -107,12 +116,7 @@ file from the Connections tab under Security section:
 
 ![Instance Root Certificate](../../../img/database-access/guides/cloudsql/instance-root-ca@2x.png)
 
-## Step 3/5. Set up the Teleport Auth and Proxy services
-
-Teleport Database Access for Cloud SQL MySQL is available starting from the
-`7.0` release.
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
+## Step 3/5. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
