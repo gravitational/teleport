@@ -235,7 +235,7 @@ This release of Teleport contains multiple improvements and bug fixes.
 * Fixed issue with fetching desktops using the list resources API. [#17117](https://github.com/gravitational/teleport/pull/17117)
 * Fixed potential integer overflow issue in the desktop access protocol. [#17179](https://github.com/gravitational/teleport/pull/17179)
 * Added ability to specify OIDC username claim using `username_claim` field. [#17070](https://github.com/gravitational/teleport/pull/17070)
-* Improved `curl` command produced by `tsh app login` to avoid TLS errors. [#16975](https://github.com/gravitational/teleport/pull/16975)
+* Improved `curl` command produced by `tsh apps login` to avoid TLS errors. [#16975](https://github.com/gravitational/teleport/pull/16975)
 * Improved data consistency when using etcd backend. [#17049](https://github.com/gravitational/teleport/pull/17049)
 * Improved memory usage in large clusters. [#17087](https://github.com/gravitational/teleport/pull/17087)
 * Improved desktop access performance. [#17071](https://github.com/gravitational/teleport/pull/17071)
@@ -1203,7 +1203,7 @@ proxy_service:
 #### AWS CLI
 
 Teleport application access extends AWS console support to CLI . Users are able
-to log into their AWS console using `tsh app login` and use `tsh aws` commands
+to log into their AWS console using `tsh apps login` and use `tsh aws` commands
 to interact with AWS APIs.
 
 See more info in the
@@ -2142,7 +2142,7 @@ Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and admin
 Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](./docs/pages/access-controls/access-request-plugins/index.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
 
 *   [PagerDuty](./docs/pages/access-controls/access-request-plugins/ssh-approval-pagerduty.mdx)
-*   [Jira](./docs/pages/access-controls/access-request-plugins/ssh-approval-jira.mdx) 
+*   [Jira](./docs/pages/access-controls/access-request-plugins/ssh-approval-jira.mdx)
 *   [Slack](./docs/pages/access-controls/access-request-plugins/ssh-approval-slack.mdx)
 *   [Mattermost](./docs/pages/access-controls/access-request-plugins/ssh-approval-mattermost.mdx)
 
