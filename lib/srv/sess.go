@@ -883,7 +883,7 @@ func (s *session) setHasEnhancedRecording(val bool) {
 func (s *session) launch() {
 	// Mark the session as started here, as we want to avoid double initialization.
 	if s.started.Swap(true) {
-		s.log.Debugf("Session has already satrted")
+		s.log.Debugf("Session has already started")
 		return
 	}
 
