@@ -264,6 +264,7 @@ message LoginPasswordlessRequest {
 }
 
 message FileTransferRequest {
+  reserved 1, 3;
   // login is the SSH username to use for the transfer.
   string login = 2;
   // source path of the transferred file.
