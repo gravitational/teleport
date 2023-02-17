@@ -136,7 +136,7 @@ cluster. Therefore, no additional anonymization is required at this time.
 
 Event properties:
 
-- `tbot.run_mode`: one of [`one-shot`, `continuous`]
+- `tbot.run_mode`: one of [`one-shot`, `daemon`]
 - `tbot.version`: string indicating the version of `tbot`
 - `tbot.join_type`: string indicating the join type configured
 - `tbot.helper`: optional string indicating if a helper is invoking `tbot`. For 
