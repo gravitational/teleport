@@ -69,8 +69,8 @@ Teleport certificate file from the previous step. Once complete, reboot the syst
 <Admonition type="tip" title="Headless Installation">
 The Teleport Windows Auth Setup can be run in a shell environment with elevated
 privileges. You can use this to automate installation, uninstallation, and
-certificate updates. The following CLI execution example will install the Teleport Certificate,
-load the required DLL, disable NLA and reboot the Windows machine:
+certificate updates. The following command will install the Teleport Certificate,
+load the required DLL, disable NLA, and reboot the Windows machine:
 
 ```code
 $ teleport-windows-auth-setup.exe install --cert=teleport.cer -r
