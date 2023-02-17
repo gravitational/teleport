@@ -117,6 +117,11 @@ type AuthPreference interface {
 	// SetDeviceTrust sets the cluster device trust settings.
 	SetDeviceTrust(*DeviceTrust)
 
+	// IsSAMLIdPEnabled returns true if the SAML IdP is enabled.
+	IsSAMLIdPEnabled() bool
+	// SetSAMLIdPEnabled sets the SAML IdP to enabled.
+	SetSAMLIdPEnabled(bool)
+
 	// String represents a human readable version of authentication settings.
 	String() string
 }
@@ -407,6 +412,16 @@ func (c *AuthPreferenceV2) SetDeviceTrust(dt *DeviceTrust) {
 	c.Spec.DeviceTrust = dt
 }
 
+// IsSAMLIdPEnabled returns true if the SAML IdP is enabled.
+func (c *AuthPreferenceV2) IsSAMLIdPEnabled() bool {
+	return c.Spec.IDP.SAML.Enabled.Value
+}
+
+// SetSAMLIdPEnabled sets the SAML IdP to enabled.
+func (c *AuthPreferenceV2) SetSAMLIdPEnabled(enabled bool) {
+	c.Spec.IDP.SAML.Enabled = NewBoolOption(enabled)
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (c *AuthPreferenceV2) setStaticFields() {
 	c.Kind = KindClusterAuthPreference
@@ -552,13 +567,20 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		}
 	}
 
+	// Make sure the IdP section is populated.
 	if c.Spec.IDP == nil {
+		c.Spec.IDP = &IdPOptions{}
+	}
+
+	// Make sure the SAML section is populated.
+	if c.Spec.IDP.SAML == nil {
+		c.Spec.IDP.SAML = &IdPSAMLOptions{}
+	}
+
+	// Make sure the SAML enabled field is populated.
+	if c.Spec.IDP.SAML.Enabled == nil {
 		// Enable the IdP by default.
-		c.Spec.IDP = &IdPOptions{
-			SAML: &IdPSAMLOptions{
-				Enabled: NewBoolOption(true),
-			},
-		}
+		c.Spec.IDP.SAML.Enabled = NewBoolOption(true)
 	}
 
 	return nil

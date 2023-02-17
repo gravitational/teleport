@@ -5069,12 +5069,11 @@ proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.toObject = function
  */
 proto.teleport.lib.teleterm.v1.FileTransferRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    clusterUri: jspb.Message.getFieldWithDefault(msg, 1, ""),
     login: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    hostname: jspb.Message.getFieldWithDefault(msg, 3, ""),
     source: jspb.Message.getFieldWithDefault(msg, 4, ""),
     destination: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    direction: jspb.Message.getFieldWithDefault(msg, 6, 0)
+    direction: jspb.Message.getFieldWithDefault(msg, 6, 0),
+    serverUri: jspb.Message.getFieldWithDefault(msg, 7, "")
   };
 
   if (includeInstance) {
@@ -5111,17 +5110,9 @@ proto.teleport.lib.teleterm.v1.FileTransferRequest.deserializeBinaryFromReader =
     }
     var field = reader.getFieldNumber();
     switch (field) {
-    case 1:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setClusterUri(value);
-      break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
       msg.setLogin(value);
-      break;
-    case 3:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setHostname(value);
       break;
     case 4:
       var value = /** @type {string} */ (reader.readString());
@@ -5134,6 +5125,10 @@ proto.teleport.lib.teleterm.v1.FileTransferRequest.deserializeBinaryFromReader =
     case 6:
       var value = /** @type {!proto.teleport.lib.teleterm.v1.FileTransferDirection} */ (reader.readEnum());
       msg.setDirection(value);
+      break;
+    case 7:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setServerUri(value);
       break;
     default:
       reader.skipField();
@@ -5164,24 +5159,10 @@ proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.serializeBinary = f
  */
 proto.teleport.lib.teleterm.v1.FileTransferRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getClusterUri();
-  if (f.length > 0) {
-    writer.writeString(
-      1,
-      f
-    );
-  }
   f = message.getLogin();
   if (f.length > 0) {
     writer.writeString(
       2,
-      f
-    );
-  }
-  f = message.getHostname();
-  if (f.length > 0) {
-    writer.writeString(
-      3,
       f
     );
   }
@@ -5206,24 +5187,13 @@ proto.teleport.lib.teleterm.v1.FileTransferRequest.serializeBinaryToWriter = fun
       f
     );
   }
-};
-
-
-/**
- * optional string cluster_uri = 1;
- * @return {string}
- */
-proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.getClusterUri = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
-};
-
-
-/**
- * @param {string} value
- * @return {!proto.teleport.lib.teleterm.v1.FileTransferRequest} returns this
- */
-proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.setClusterUri = function(value) {
-  return jspb.Message.setProto3StringField(this, 1, value);
+  f = message.getServerUri();
+  if (f.length > 0) {
+    writer.writeString(
+      7,
+      f
+    );
+  }
 };
 
 
@@ -5242,24 +5212,6 @@ proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.getLogin = function
  */
 proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.setLogin = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
-};
-
-
-/**
- * optional string hostname = 3;
- * @return {string}
- */
-proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.getHostname = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
-};
-
-
-/**
- * @param {string} value
- * @return {!proto.teleport.lib.teleterm.v1.FileTransferRequest} returns this
- */
-proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.setHostname = function(value) {
-  return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 
@@ -5314,6 +5266,24 @@ proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.getDirection = func
  */
 proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.setDirection = function(value) {
   return jspb.Message.setProto3EnumField(this, 6, value);
+};
+
+
+/**
+ * optional string server_uri = 7;
+ * @return {string}
+ */
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.getServerUri = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.teleport.lib.teleterm.v1.FileTransferRequest} returns this
+ */
+proto.teleport.lib.teleterm.v1.FileTransferRequest.prototype.setServerUri = function(value) {
+  return jspb.Message.setProto3StringField(this, 7, value);
 };
 
 

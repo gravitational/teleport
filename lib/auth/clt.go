@@ -412,7 +412,7 @@ func (c *Client) UpdateUserCARoleMap(ctx context.Context, name string, roleMap t
 }
 
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
-// which was previously issued via GenerateToken.
+// which was previously issued via CreateToken/UpsertToken.
 func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -1450,15 +1450,6 @@ type IdentityService interface {
 
 	// ChangePassword changes user password
 	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
-
-	// GenerateToken creates a special provisioning token for a new SSH server
-	// that is valid for ttl period seconds.
-	//
-	// This token is used by SSH server to authenticate with Auth server
-	// and get signed certificate and private key from the auth server.
-	//
-	// If token is not supplied, it will be auto generated and returned.
-	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the

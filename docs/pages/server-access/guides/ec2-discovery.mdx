@@ -24,7 +24,7 @@ install Teleport manually.)
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/6. Create an EC2 invite token
+## Step 1/7. Create an EC2 invite token
 
 When discovering EC2 instances, Teleport makes use of IAM invite tokens for
 authenticating joining Nodes.
@@ -58,7 +58,7 @@ Add the token to the Teleport cluster with:
 $ tctl create -f token.yaml
 ```
 
-## Step 2/6. Define an IAM policy
+## Step 2/7. Define an IAM policy
 
 The `teleport discovery bootstrap` command will automate the process of
 defining and implementing IAM policies required to make auto-discovery work. It
@@ -90,7 +90,7 @@ the command:
 
 Create this policy and apply it to the Node (EC2 instance) that will run the Discovery Service.
 
-## Step 3/6. Install Teleport on the Discovery Node
+## Step 3/7. Install Teleport on the Discovery Node
 
 <Admonition type="tip">
 
@@ -103,7 +103,7 @@ Install Teleport on the EC2 instance that will run the Discovery Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 4/6. Configure Teleport to discover EC2 instances
+## Step 4/7. Configure Teleport to discover EC2 instances
 
 If you are running the Discovery Service on its own host, the service requires a
 valid invite token to connect to the cluster. Generate one by running the
@@ -148,7 +148,7 @@ discovery_service:
   specifically the regions and tags you want to associate with the Discovery
   Service.
 
-## Step 5/6. Bootstrap the Discovery Service
+## Step 5/7. Bootstrap the Discovery Service AWS configuration
 
 On the same Node as above, run `teleport discovery bootstrap`. This command
 will generate and display the additional IAM policies and AWS Systems Manager (SSM) documents
@@ -294,12 +294,7 @@ This policy includes the following permissions:
 }
 ```
 
-Once Teleport is configured for discovery, it can be started and EC2 instances
-matching the tags specified in the AWS section will begin to be added to the
-Teleport cluster automatically. You can start Teleport now, or follow the next
-section to customize the Teleport installation script first.
-
-## Step 6/6. [Optional] Customize the default installer script
+## Step 6/7. [Optional] Customize the default installer script
 
 To customize the default installer script, execute the following command on
 your workstation:
@@ -373,6 +368,15 @@ The default installer will take the following actions:
 - Install Teleport via `apt` or `yum`.
 - Generate the Teleport config file and write it to `/etc/teleport.yaml`.
 - Enable and start the Teleport service.
+
+## Step 7/7. Start Teleport
+
+(!docs/pages/includes/aws-credentials.mdx service="the Discovery Service"!)
+
+(!docs/pages/includes/start-teleport.mdx service="the Discovery Service"!)
+
+Once you have started the Discovery Service, EC2 instances matching the tags you
+specified earlier will begin to be added to the Teleport cluster automatically.
 
 ## Troubleshooting
 
