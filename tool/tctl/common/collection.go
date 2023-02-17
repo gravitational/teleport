@@ -1033,8 +1033,8 @@ type deviceCollection struct {
 
 func (c *deviceCollection) resources() []types.Resource {
 	r := make([]types.Resource, len(c.devices))
-	for _, resource := range c.devices {
-		r = append(r, device.ProtoToResource(resource))
+	for i, resource := range c.devices {
+		r[i] = device.ProtoToResource(resource)
 	}
 	return r
 }
