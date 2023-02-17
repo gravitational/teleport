@@ -335,7 +335,7 @@ func (s *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 func (s *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest,
 	identity tlsca.Identity, checker services.AccessChecker,
 ) (types.WebSession, error) {
-	// TODO: implement a module.Features() check.
+	// TODO(mdwn): implement a module.Features() check.
 
 	// Create services.WebSession for this session.
 	session, err := types.NewWebSession(req.SessionID, types.KindSAMLIdPSession, types.WebSessionSpecV2{
