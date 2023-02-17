@@ -39,9 +39,6 @@ export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
                 mono: ctx.mainProcessClient.configService.get(
                   'fonts.monoFamily'
                 ).value,
-                sansSerif: ctx.mainProcessClient.configService.get(
-                  'fonts.sansSerifFamily'
-                ).value,
               }}
             >
               <AppInitializer />
