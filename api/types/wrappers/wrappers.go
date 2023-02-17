@@ -187,3 +187,24 @@ func (s Strings) MarshalYAML() (interface{}, error) {
 	}
 	return []string(s), nil
 }
+
+// UnmarshalJSON unmarshals scalar string or strings slice to Strings
+func (s *StringValues) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+	var stringVar Strings
+	if err := json.Unmarshal(data, &stringVar); err != nil {
+		return trace.Wrap(err)
+	}
+
+	*s = StringValues{Values: stringVar}
+	return nil
+}
+
+// MarshalJSON marshals to scalar value
+// if there is only one value in the list
+// to list otherwise
+func (s StringValues) MarshalJSON() ([]byte, error) {
+	return json.Marshal(Strings(s.Values))
+}
