@@ -25,10 +25,11 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 message CreatePluginRequest {
   // Plugin is the plugin object without live credentials.
   types.PluginV1 plugin = 1;
-  // InitialCredentials are the initial credentials of the plugin.
+  // BootstrapCredentials are the initial credentials
+  // issued by e.g. OAuth2 authorization code flow.
   // In the scope of processing this request, these are exchanged for
-  // "live" credentials, which are stored in the Plugin.
-  types.PluginInitialCredentialsV1 initial_credentials = 2;
+  // short-lived renewable credentials, which are stored in the Plugin.
+  types.PluginBootstrapCredentialsV1 bootstrap_credentials = 2;
 }
 
 // GetPluginRequest is a request to return a plugin instance by name.
