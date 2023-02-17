@@ -69,6 +69,11 @@ type AccessChecker interface {
 	// CheckGCPServiceAccounts returns a list of GCP service accounts the user is allowed to assume.
 	CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error)
 
+	// CheckAccessToSAMLIdP checks access to the SAML IdP.
+	//
+	//nolint:revive // Because we want this to be IdP.
+	CheckAccessToSAMLIdP(types.AuthPreference) error
+
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
 	AdjustSessionTTL(ttl time.Duration) time.Duration
