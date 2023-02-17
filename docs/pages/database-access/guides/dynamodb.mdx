@@ -186,7 +186,7 @@ Note that your federated login session is marked with your Teleport username.
 Now, log into the previously configured AWS DynamoDB app on your desktop:
 
 ```code
-$ tsh app login --aws-role ExampleTeleportDynamoDBRole aws-dynamodb
+$ tsh apps login --aws-role ExampleTeleportDynamoDBRole aws-dynamodb
 Logged into AWS app aws. Example AWS CLI command:
 
 $ tsh aws s3 ls
@@ -206,7 +206,7 @@ $ tsh aws dynamodb list-tables
 To log out of the `aws-dynamodb` application and remove credentials:
 
 ```code
-$ tsh app logout aws-dynamodb
+$ tsh apps logout aws-dynamodb
 ```
 
 ### Using other DynamoDB applications
@@ -215,7 +215,7 @@ First, log into the previously configured AWS DynamoDB app if you haven't
 already done so:
 
 ```code
-$ tsh app login --aws-role ExampleTeleportDynamoDBRole aws-dynamodb
+$ tsh apps login --aws-role ExampleTeleportDynamoDBRole aws-dynamodb
 ```
 
 To connect your DynamoDB application, you can start either a local HTTPS proxy
@@ -295,7 +295,7 @@ or a local AWS Service Endpoint proxy.
 To log out of the `aws-dynamodb` application and remove credentials:
 
 ```code
-$ tsh app logout aws-dynamodb
+$ tsh apps logout aws-dynamodb
 ```
 
 ## Next steps
