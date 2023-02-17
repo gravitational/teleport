@@ -41,19 +41,24 @@ func (r *Resource) CheckAndSetDefaults() error {
 	} else if r.Kind != types.KindDevice {
 		return trace.BadParameter("unexpected resource kind %q, must be %q", r.Kind, types.KindDevice)
 	}
-	if r.Version != r.Spec.ApiVersion {
-		return trace.BadParameter("mismatched resource version %q and spec api version %q", r.Version, r.Spec.ApiVersion)
-	}
-	if r.Spec.ApiVersion == "" {
-		r.Spec.ApiVersion = types.V1
-	} else if r.Spec.ApiVersion != types.V1 {
-		return trace.BadParameter("unsupported resource version %q, %q is currently the only supported version", r.Version, types.V1)
-	}
-	if r.Metadata.Name == "" {
-		return trace.BadParameter("device must have a name")
-	}
 	if r.Spec == nil {
 		return trace.BadParameter("device must have a spec")
+	}
+	switch {
+	case r.Version != types.V1:
+		return trace.BadParameter("unsupported resource version %q, %q is currently the only supported version", r.Version, types.V1)
+	case r.Spec.ApiVersion == "":
+		r.Spec.ApiVersion = r.Version
+	case r.Spec.ApiVersion != types.V1:
+		return trace.BadParameter("mismatched resource version %q and spec api version %q", r.Version, r.Spec.ApiVersion)
+	}
+	switch {
+	case r.Metadata.Name == "":
+		return trace.BadParameter("device must have a name")
+	case r.Spec.Id == "":
+		r.Spec.Id = r.Metadata.Name
+	case r.Spec.Id != r.Metadata.Name:
+		return trace.BadParameter("mismatched resource name %q and spec id %q", r.Metadata.Name, r.Spec.Id)
 	}
 
 	return nil
