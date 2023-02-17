@@ -62,13 +62,19 @@ export function isInteger(checkVal: any): boolean {
   return Number.isInteger(checkVal) || checkVal == parseInt(checkVal);
 }
 
-export function isObject(checkVal) {
+export function isObject(checkVal: unknown): boolean {
   const type = typeof checkVal;
   return checkVal != null && (type == 'object' || type == 'function');
 }
 
-// Lift & Shift from lodash
-export function runOnce(func) {
+/**
+ * Lodash <https://lodash.com/>
+ * Copyright JS Foundation and other contributors <https://js.foundation/>
+ * Released under MIT license <https://lodash.com/license>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ */
+export function runOnce<T extends (...args) => any>(func: T) {
   let n = 2;
   let result;
   return function () {
@@ -87,7 +93,13 @@ interface ThrottleSettings {
   trailing?: boolean | undefined;
 }
 
-// Lift & Shift from lodash
+/**
+ * Lodash <https://lodash.com/>
+ * Copyright JS Foundation and other contributors <https://js.foundation/>
+ * Released under MIT license <https://lodash.com/license>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ */
 export function throttle<T extends (...args: any) => any>(
   func: T,
   wait = 0,
@@ -119,7 +131,13 @@ type DebounceSettings = {
   trailing?: boolean | undefined;
 };
 
-// Lift & Shift from lodash
+/**
+ * Lodash <https://lodash.com/>
+ * Copyright JS Foundation and other contributors <https://js.foundation/>
+ * Released under MIT license <https://lodash.com/license>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ */
 export function debounce<T extends (...args: any) => any>(
   func: T,
   wait = 0,
@@ -260,7 +278,13 @@ type MemoizedFunction = {
   cache: MapCacheType;
 };
 
-// Lift & Shift from lodash
+/**
+ * Lodash <https://lodash.com/>
+ * Copyright JS Foundation and other contributors <https://js.foundation/>
+ * Released under MIT license <https://lodash.com/license>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ */
 export function memoize<T extends (...args: any) => any>(
   func: T
 ): T & MemoizedFunction {
@@ -344,6 +368,49 @@ function Hash(entries?) {
     this.set(entry[0], entry[1]);
   }
 }
+
+const HASH_UNDEFINED = '__lodash_hash_undefined__';
+
+function hashClear() {
+  this.__data__ = Object.create ? Object.create(null) : {};
+  this.size = 0;
+}
+
+function hashDelete(key) {
+  var result = this.has(key) && delete this.__data__[key];
+  this.size -= result ? 1 : 0;
+  return result;
+}
+
+function hashGet(key) {
+  var data = this.__data__;
+  if (Object.create) {
+    var result = data[key];
+    return result === HASH_UNDEFINED ? undefined : result;
+  }
+  return Object.hasOwnProperty.call(data, key) ? data[key] : undefined;
+}
+
+function hashHas(key) {
+  var data = this.__data__;
+  return Object.create
+    ? data[key] !== undefined
+    : Object.hasOwnProperty.call(data, key);
+}
+
+function hashSet(key, value) {
+  var data = this.__data__;
+  this.size += this.has(key) ? 0 : 1;
+  data[key] = Object.create && value === undefined ? HASH_UNDEFINED : value;
+  return this;
+}
+
+// Add methods to `Hash`.
+Hash.prototype.clear = hashClear;
+Hash.prototype['delete'] = hashDelete;
+Hash.prototype.get = hashGet;
+Hash.prototype.has = hashHas;
+Hash.prototype.set = hashSet;
 
 function getMapData(map, key) {
   var data = map.__data__;
