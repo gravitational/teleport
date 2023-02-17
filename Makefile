@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=12.0.1
+VERSION=12.0.2
 
 DOCKER_IMAGE ?= teleport
 
@@ -1151,7 +1151,7 @@ init-submodules-e:
 #
 #    Usage:
 #    - tsh login --proxy=platform.teleport.sh
-#    - tsh app login drone
+#    - tsh apps login drone
 #    - set $DRONE_TOKEN and $DRONE_SERVER (http://localhost:8080)
 #    - tsh proxy app --port=8080 drone
 #    - make dronegen

@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/google/uuid"
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
@@ -986,7 +988,7 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 
 	// check each individual user against the database.
 	for _, user := range users {
-		err := set.checkAccess(database, AccessState{MFAVerified: true}, &DatabaseUserMatcher{User: user})
+		err := set.checkAccess(database, AccessState{MFAVerified: true}, NewDatabaseUserMatcher(database, user))
 		result.allowedDeniedMap[user] = err == nil
 	}
 
@@ -1076,9 +1078,12 @@ func MatchDatabaseName(selectors []string, name string) (bool, string) {
 }
 
 // MatchDatabaseUser returns true if provided database user matches selectors.
-func MatchDatabaseUser(selectors []string, user string) (bool, string) {
+func MatchDatabaseUser(selectors []string, user string, matchWildcard bool) (bool, string) {
 	for _, u := range selectors {
-		if u == user || u == types.Wildcard {
+		if u == user {
+			return true, "matched"
+		}
+		if matchWildcard && u == types.Wildcard {
 			return true, "matched"
 		}
 	}
@@ -2045,20 +2050,66 @@ func (m RoleMatchers) MatchAny(role types.Role, condition types.RoleConditionTyp
 	return false, nil, nil
 }
 
-// DatabaseUserMatcher matches a role against database account name.
-type DatabaseUserMatcher struct {
-	User string
+// databaseUserMatcher matches a role against database account name.
+type databaseUserMatcher struct {
+	// user is the name of the database user.
+	user string
+	// alternativeNames is a list of alternative names for the database user.
+	alternativeNames []string
+}
+
+// NewDatabaseUserMatcher creates a RoleMatcher that checks whether the role's
+// database users match the specified condition.
+func NewDatabaseUserMatcher(db types.Database, user string) RoleMatcher {
+	if db.RequireAWSIAMRolesAsUsers() {
+		return &databaseUserMatcher{
+			user:             user,
+			alternativeNames: makeAlternativeNamesForAWSRole(db, user),
+		}
+	}
+
+	return &databaseUserMatcher{user: user}
 }
 
 // Match matches database account name against provided role and condition.
-func (m *DatabaseUserMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	match, _ := MatchDatabaseUser(role.GetDatabaseUsers(condition), m.User)
-	return match, nil
+func (m *databaseUserMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	selectors := role.GetDatabaseUsers(condition)
+	if match, _ := MatchDatabaseUser(selectors, m.user, true); match {
+		return true, nil
+	}
+
+	for _, altName := range m.alternativeNames {
+		if match, _ := MatchDatabaseUser(selectors, altName, false); match {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // String returns the matcher's string representation.
-func (m *DatabaseUserMatcher) String() string {
-	return fmt.Sprintf("DatabaseUserMatcher(User=%v)", m.User)
+func (m *databaseUserMatcher) String() string {
+	return fmt.Sprintf("databaseUserMatcher(user=%v, alternativeNames=%v)", m.user, m.alternativeNames)
+}
+
+func makeAlternativeNamesForAWSRole(db types.Database, user string) []string {
+	metadata := db.GetAWS()
+	if metadata.Region == "" || metadata.AccountID == "" {
+		return nil
+	}
+
+	// If input database user is a role ARN, try the short role name.
+	// The input role ARN must have matching partition and account ID in
+	// order to try the short role name.
+	if arn.IsARN(user) {
+		roleName, err := awsutils.ValidateRoleARNAndExtractRoleName(user, metadata.Partition(), metadata.AccountID)
+		if err != nil {
+			return nil
+		}
+		return []string{roleName}
+	}
+
+	// If input database user is the short role name, try the full ARN.
+	return []string{awsutils.BuildRoleARN(user, metadata.Region, metadata.AccountID)}
 }
 
 // DatabaseNameMatcher matches a role against database name.

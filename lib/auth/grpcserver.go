@@ -2565,7 +2565,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 		ctx, req,
 		certRequestMFAVerified(mfaDev.Id),
 		certRequestPreviousIdentityExpires(actx.Identity.GetIdentity().Expires),
-		certRequestClientIP(clientIP),
+		certRequestLoginIP(clientIP),
 		certRequestDeviceExtensions(actx.Identity.GetIdentity().DeviceExtensions),
 	)
 	if err != nil {

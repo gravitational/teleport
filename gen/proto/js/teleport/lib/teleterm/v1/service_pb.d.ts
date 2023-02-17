@@ -598,14 +598,8 @@ export namespace LoginPasswordlessRequest {
 }
 
 export class FileTransferRequest extends jspb.Message { 
-    getClusterUri(): string;
-    setClusterUri(value: string): FileTransferRequest;
-
     getLogin(): string;
     setLogin(value: string): FileTransferRequest;
-
-    getHostname(): string;
-    setHostname(value: string): FileTransferRequest;
 
     getSource(): string;
     setSource(value: string): FileTransferRequest;
@@ -615,6 +609,9 @@ export class FileTransferRequest extends jspb.Message {
 
     getDirection(): FileTransferDirection;
     setDirection(value: FileTransferDirection): FileTransferRequest;
+
+    getServerUri(): string;
+    setServerUri(value: string): FileTransferRequest;
 
 
     serializeBinary(): Uint8Array;
@@ -629,12 +626,11 @@ export class FileTransferRequest extends jspb.Message {
 
 export namespace FileTransferRequest {
     export type AsObject = {
-        clusterUri: string,
         login: string,
-        hostname: string,
         source: string,
         destination: string,
         direction: FileTransferDirection,
+        serverUri: string,
     }
 }
 
@@ -1093,27 +1089,6 @@ export class RemoveGatewayRequest extends jspb.Message {
 }
 
 export namespace RemoveGatewayRequest {
-    export type AsObject = {
-        gatewayUri: string,
-    }
-}
-
-export class RestartGatewayRequest extends jspb.Message { 
-    getGatewayUri(): string;
-    setGatewayUri(value: string): RestartGatewayRequest;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): RestartGatewayRequest.AsObject;
-    static toObject(includeInstance: boolean, msg: RestartGatewayRequest): RestartGatewayRequest.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: RestartGatewayRequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): RestartGatewayRequest;
-    static deserializeBinaryFromReader(message: RestartGatewayRequest, reader: jspb.BinaryReader): RestartGatewayRequest;
-}
-
-export namespace RestartGatewayRequest {
     export type AsObject = {
         gatewayUri: string,
     }

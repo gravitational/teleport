@@ -48,14 +48,6 @@ Create a new board for tasks in the permission management project. The board has
 
 Teleport's Jira plugin will create a new issue for each new permission request in the first available column on the board. When you drag the request task to the Approved column in Jira, the request will be approved. If you drag the request task to the Denied column in Jira, the request will be denied.
 
-### Setting up a request ID field on Jira
-
-The Teleport Jira plugin requires a custom issue field to be created.
-
-Go to your Jira Project settings → Issue Types → Select type `Task` → add a new Short Text field named `TeleportAccessRequestId`.
-
-Teleport uses this field to reference its internal request ID. If anyone changes this field on Jira, or tries to forge the permission request, Teleport will validate it and ignore it.
-
 ### Getting your Jira API token
 
 If you're using Jira Cloud, navigate to [Account Settings → Security → API Tokens](https://id.atlassian.com/manage-profile/security/api-tokens) and create a new app specific API token in your Jira installation. You'll need this token later to configure the plugin.
