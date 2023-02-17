@@ -64,24 +64,9 @@ RUN apt-get update -y --fix-missing && \
 
 ARG LIBBPF_VERSION
 RUN mkdir -p /opt && cd /opt &&  \
-    curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make &&  \
-    BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install
-
-# Install newer libbpf.
-FROM buildpack-deps:18.04 AS libbpf-1-0-1
-
-# Install required dependencies
-RUN apt-get update -y --fix-missing && \
-    apt-get -q -y upgrade && \
-    apt-get install -q -y --no-install-recommends \
-        libelf-dev
-
-RUN mkdir -p /opt && cd /opt && \
-    curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v1.0.1.tar.gz | tar xz && \
-    cd /opt/libbpf-1.0.1/src && \
-    make && \
     BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install
 
 ## BUILDBOX ###################################################################
@@ -301,7 +286,7 @@ RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.1
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.13.1" && \
+    VERSION="1.14.0" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
@@ -310,7 +295,6 @@ RUN BIN="/usr/local/bin" && \
 # Copy BPF libraries.
 ARG LIBBPF_VERSION
 COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
-COPY --from=libbpf-1-0-1 /opt/libbpf/usr /usr/libbpf-1.0.1
 
 # Copy libfido2 libraries.
 # Do this near the end to take better advantage of the multi-stage build.

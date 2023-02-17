@@ -339,6 +339,8 @@ type CLIConf struct {
 	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
 	LocalProxyTunnel bool
 
+	// Exec is the command to run via tsh aws.
+	Exec string
 	// AWSRole is Amazon Role ARN or role name that will be used for AWS CLI access.
 	AWSRole string
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
@@ -497,15 +499,20 @@ const (
 	proxyEnvVar       = "TELEPORT_PROXY"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
-	siteEnvVar             = "TELEPORT_SITE"
-	userEnvVar             = "TELEPORT_USER"
-	addKeysToAgentEnvVar   = "TELEPORT_ADD_KEYS_TO_AGENT"
-	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
-	globalTshConfigEnvVar  = "TELEPORT_GLOBAL_TSH_CONFIG"
-	mfaModeEnvVar          = "TELEPORT_MFA_MODE"
-	debugEnvVar            = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
-	identityFileEnvVar     = "TELEPORT_IDENTITY_FILE"
-	gcloudSecretEnvVar     = "TELEPORT_GCLOUD_SECRET"
+	siteEnvVar               = "TELEPORT_SITE"
+	userEnvVar               = "TELEPORT_USER"
+	addKeysToAgentEnvVar     = "TELEPORT_ADD_KEYS_TO_AGENT"
+	useLocalSSHAgentEnvVar   = "TELEPORT_USE_LOCAL_SSH_AGENT"
+	globalTshConfigEnvVar    = "TELEPORT_GLOBAL_TSH_CONFIG"
+	mfaModeEnvVar            = "TELEPORT_MFA_MODE"
+	debugEnvVar              = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
+	identityFileEnvVar       = "TELEPORT_IDENTITY_FILE"
+	gcloudSecretEnvVar       = "TELEPORT_GCLOUD_SECRET"
+	awsAccessKeyIDEnvVar     = "TELEPORT_AWS_ACCESS_KEY_ID"
+	awsSecretAccessKeyEnvVar = "TELEPORT_AWS_SECRET_ACCESS_KEY"
+	awsRegionEnvVar          = "TELEPORT_AWS_REGION"
+	awsKeystoreEnvVar        = "TELEPORT_AWS_KEYSTORE"
+	awsWorkgroupEnvVar       = "TELEPORT_AWS_WORKGROUP"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -648,6 +655,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
 		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
+	aws.Flag("exec", "Execute different commands (e.g. terraform) under Teleport credentials").StringVar(&cf.Exec)
 
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
@@ -957,6 +965,12 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 			log.Debugf("Failing due to recursive alias %q. Aliases seen: %v", aliasCommand, ar.getSeenAliases())
 			return trace.BadParameter("recursive alias %q; correct alias definition and try again", aliasCommand)
 		}
+	}
+
+	// Identity files do not currently contain a proxy address. When loading an
+	// Identity file, a proxy must be passed on the command line as well.
+	if cf.IdentityFileIn != "" && cf.Proxy == "" {
+		return trace.BadParameter("tsh --identity also requires --proxy")
 	}
 
 	// prevent Kingpin from calling os.Exit(), we want to handle errors ourselves.

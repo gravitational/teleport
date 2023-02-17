@@ -66,7 +66,12 @@ func onAWS(cf *CLIConf) error {
 		args = append(args, "--endpoint-url", awsApp.GetEndpointURL())
 	}
 
-	cmd := exec.Command(awsCLIBinaryName, args...)
+	commandToRun := awsCLIBinaryName
+	if cf.Exec != "" {
+		commandToRun = cf.Exec
+	}
+
+	cmd := exec.Command(commandToRun, args...)
 	return awsApp.RunCommand(cmd)
 }
 
@@ -149,7 +154,11 @@ func (a *awsApp) GetAWSCredentials() (*credentials.Credentials, error) {
 	//
 	// https://docs.aws.amazon.com/STS/latest/APIReference/API_Credentials.html
 	a.credentialsOnce.Do(func() {
-		a.credentials = credentials.NewStaticCredentials(uuid.NewString(), uuid.NewString(), "")
+		a.credentials = credentials.NewStaticCredentials(
+			getEnvOrDefault(awsAccessKeyIDEnvVar, uuid.NewString()),
+			getEnvOrDefault(awsSecretAccessKeyEnvVar, uuid.NewString()),
+			"",
+		)
 	})
 
 	if a.credentials == nil {
