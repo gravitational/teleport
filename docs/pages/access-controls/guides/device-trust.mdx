@@ -4,10 +4,8 @@ description: Learn how to use and enforce trusted devices with Teleport
 ---
 
 <Admonition type="warning">
-Device Trust is currently in Preview mode.
-
-Device Trust requires Teleport Enterprise.
-
+  Device Trust is currently in Preview mode. Device Trust requires Teleport
+  Enterprise.
 </Admonition>
 
 Device Trust allows Teleport admins to enforce the use of trusted devices.
@@ -194,11 +192,10 @@ $ tsh logout; tsh login --proxy=example.com --user=alice # fetch new certificate
 
 The device above is now a trusted device.
 
-## Trusted device access
+## Optional: Cluster-wide device enforcement
 
-Ensure only trusted and authenticated device can access protected resources.
-
-Device trust has the following three modes of operation:
+Cluster-wide configuration enforces trusted device access at cluster level. It can be configured with the following three modes of operation, represented by the
+`device_trust.mode` authentication setting:
 
 - `off` - disables device trust. Device authentication is not performed and
   device-aware audit logs are absent.
@@ -208,46 +205,17 @@ Device trust has the following three modes of operation:
   Additionally, it requires a trusted device for all SSH, Database and
   Kubernetes connections.
 
+Enterprise clusters run in `optional` mode by default. Changing the mode to
+`required` will enforce a trusted device for all SSH, Database and Kubernetes
+accesses.
+
 <Admonition type="warning" title="Web UI">
   The Web UI is not capable of trusted device access during the device trust
   preview. Only `tsh` and Teleport Connect are able to fulfill device mode
   `required`.
 </Admonition>
 
-### Per-Role
-
-To enforce authenticated device checks for a specific role, update the role as the following:
-
-```diff
-kind: role
-version: v6
-metadata:
-  name: example-role
-spec:
-  options:
-    # require authenticated device check for this role
-+   device_trust_mode: "required" # add this line
-  allow:
-    ...
-  deny:
-    ...
-
-```
-
-<Admonition type="tip" title="Per-role vs. Cluster-wide">
-Per-role configuration let's progressively block unauthorized device access and is useful for getting started with Teleport Device Trust.
-
-Once all the devices used by engineers are enrolled to Teleport, cluster-wide configuration will ensure every resources can only ever be accessed with a trusted device.
-
-</Admonition>
-
-### Cluster-wide
-
-Cluster-wide configuration will enforce authenticated device access to all the configured roles and resources.
-
-Enterprise clusters run in `optional` mode by default. Changing the mode to
-`required` will enforce a trusted device for all SSH, Database and Kubernetes
-accesses. To enable device mode `required` update your configuration as follows:
+To enable device mode `required` update your configuration as follows:
 
 <Tabs>
 <TabItem label="Static Config">
@@ -293,7 +261,7 @@ cluster auth preference has been updated
 </TabItem>
 </Tabs>
 
-Once this configuration is picked up by the Auth Server, SSH, Database and Kubernetes access without a trusted device will be forbidden.
+SSH, Database and Kubernetes access without a trusted device is now forbidden.
 For example, SSH access without a trusted device fails with the following error:
 
 ```code
@@ -310,21 +278,58 @@ ERROR: ssh: rejected: administratively prohibited (unauthorized device)
   in leaf clusters.
 </Admonition>
 
-## Locking device
+## Optional: Role-based device enforcement
+
+Role-based configuration enforces trusted device access at role level. It can be configured with `device_trust_mode` (`required`, `optional`, `off`) option and applies to the resources in its `allow` rules. It works similar to [`require_session_mfa`](per-session-mfa.mdx).
+
+To enforce authenticated device checks for a specific role, update the role as the following:
+
+```diff
+kind: role
+version: v6
+metadata:
+  name: example-role
+spec:
+  options:
+    # require authenticated device check for this role
++   device_trust_mode: "required" # add this line
+  allow:
+    logins: ['admin']
+    kubernetes_groups: ['edit']
+    node_labels:
+      '*': '*'
+    ...
+
+```
+
+<Admonition type="tip" title="Per-role vs. Cluster-wide">
+Per-role configuration let's progressively block unauthorized device access and is useful for getting started with Teleport Device Trust.
+
+Once all the devices used by engineers are enrolled to Teleport, cluster-wide configuration will ensure every resources can only ever be accessed with a trusted device.
+
+</Admonition>
+
+## Optional: Locking a trusted device
 
 Similar to [session and identity locking](./locking.mdx), a device can be locked using `tctl lock`.
 
+Locking blocks certificate issuance and ongoing or future accesses originating from a locked device.
+Locking device only works if device trust is enabled and if the device is enrolled to Teleport.
+
+Find device ID to lock:
+
 ```code
-# Find device id to lock
 $ tctl devices ls
 Asset Tag     OS    Enroll Status   Device ID
 ------------ -----  ------------- ------------------------------------
 C0XXXXXXXXXX  macOS  enrolled      9cdfc0ad-64b7-4d9c-9342-50e97f418ba0
+```
 
-# Lock device
+Lock device:
+
+```code
 $ tctl lock --device 9cdfc0ad-64b7-4d9c-9342-50e97f418ba0 --ttl=12h
 Created a lock with name "5444970a-39a0-4814-968d-e58b4a8fa686".
-
 ```
 
 Now if when user tries to access, say an SSH server, Teleport will deny access.
