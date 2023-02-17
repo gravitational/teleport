@@ -696,7 +696,11 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyHost, proxyPort, _ := net.SplitHostPort(awsApp.GetForwardProxyAddr())
+	proxyHost, proxyPort, err := net.SplitHostPort(awsApp.GetForwardProxyAddr())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	templateData := map[string]interface{}{
 		"envVars":     envVars,
 		"address":     awsApp.GetForwardProxyAddr(),
