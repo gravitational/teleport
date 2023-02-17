@@ -68,7 +68,7 @@ function DiscoverContent() {
           selectedResource={selectedResource}
           views={views}
         />
-          {content}
+        {content}
       </FeatureBox>
 
       <Prompt

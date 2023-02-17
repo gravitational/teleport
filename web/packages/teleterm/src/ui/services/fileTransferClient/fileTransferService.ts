@@ -46,14 +46,14 @@ export class FileTransferService {
       options.direction ===
       FileTransferDirection.FILE_TRANSFER_DIRECTION_DOWNLOAD
     ) {
-      this.usageService.captureFileTransferRun(options.clusterUri, {
+      this.usageService.captureFileTransferRun(options.serverUri, {
         isUpload: false,
       });
     }
     if (
       options.direction === FileTransferDirection.FILE_TRANSFER_DIRECTION_UPLOAD
     ) {
-      this.usageService.captureFileTransferRun(options.clusterUri, {
+      this.usageService.captureFileTransferRun(options.serverUri, {
         isUpload: true,
       });
     }
