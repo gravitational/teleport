@@ -55,7 +55,8 @@ package prehog.v1alpha;
 import "google/protobuf/timestamp.proto";
 
 message SubmitTbotEventRequest {
-  // UUID
+  // UUID identifying that tbot session. This is future-proofing for if we
+  // decide to add multiple events in future, and need to tie them together.
   string distinct_id = 1;
   // optional, will default to the ingest time if unset
   google.protobuf.Timestamp timestamp = 2;
