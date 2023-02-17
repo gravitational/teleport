@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
@@ -34,13 +35,14 @@ import (
 func TestPluginsCRUD(t *testing.T) {
 	ctx := context.Background()
 
-	backend, err := memory.New(memory.Config{
+	mem, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { mem.Close() })
 
-	service := NewPluginsService(backend)
+	service := NewPluginsService(func() backend.Backend { return mem })
 
 	// Define two plugins
 	plugin1 := types.NewPluginV1(types.Metadata{Name: "p1"}, types.PluginSpecV1{
