@@ -456,13 +456,38 @@
       	  "slug": "/management/introduction/"
 	},
         {
+          "title": "Joining Teleport Services to a Cluster",
+          "slug": "/management/join-services-to-your-cluster/",
+          "entries": [
+            {
+              "title": "Via AWS EC2",
+              "slug": "/management/join-services-to-your-cluster/aws-ec2/",
+              "forScopes": ["oss", "enterprise"]
+            },
+            {
+              "title": "Via AWS IAM",
+              "slug": "/management/join-services-to-your-cluster/aws-iam/"
+            },
+            {
+              "title": "Via Azure",
+              "slug": "/management/join-services-to-your-cluster/azure/"
+            },            
+            {
+              "title": "Joining Services via Kubernetes ServiceAccount",
+              "slug": "/management/join-services-to-your-cluster/kubernetes/",
+              "forScopes": ["oss", "enterprise"]
+            },
+
+            {
+              "title": "Via a Join Token",
+              "slug": "/management/join-services-to-your-cluster/join-token/"
+            }
+          ]
+        },
+        {
           "title": "Admin Guides",
           "slug": "/management/admin/",
           "entries": [
-            {
-              "title": "Adding Nodes",
-              "slug": "/management/admin/adding-nodes/"
-            },
             {
               "title": "Trusted Clusters",
               "slug": "/management/admin/trustedclusters/"
@@ -561,24 +586,6 @@
             {
               "title": "EC2 Tags",
               "slug": "/management/guides/ec2-tags/"
-            },
-            {
-              "title": "Joining Nodes via AWS IAM",
-              "slug": "/management/guides/joining-nodes-aws-iam/"
-            },
-            {
-              "title": "Joining Nodes via AWS EC2",
-              "slug": "/management/guides/joining-nodes-aws-ec2/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Joining Nodes via Azure",
-              "slug": "/management/guides/joining-nodes-azure/"
-            },
-            {
-              "title": "Joining Services via Kubernetes ServiceAccount",
-              "slug": "/management/guides/joining-services-kubernetes-serviceaccount/",
-              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "Using Teleport's CA with GitHub",
@@ -1690,7 +1697,7 @@
     },
     {
       "source": "/setup/guides/joining-nodes-aws/",
-      "destination": "/management/guides/joining-nodes-aws-iam/",
+      "destination": "/management/join-services-to-your-cluster/aws-iam/",
       "permanent": true
     },
     {
@@ -2040,7 +2047,7 @@
     },
     {
       "source": "/setup/admin/adding-nodes/",
-      "destination": "/management/admin/adding-nodes/",
+      "destination": "/management/join-services-to-your-cluster/join-token/",
       "permanent": true
     },
     {
@@ -2095,12 +2102,12 @@
     },
     {
       "source": "/setup/guides/joining-nodes-aws-ec2/",
-      "destination": "/management/guides/joining-nodes-aws-ec2/",
+      "destination": "/management/join-services-to-your-cluster/aws-ec2/",
       "permanent": true
     },
     {
       "source": "/setup/guides/joining-nodes-aws-iam/",
-      "destination": "/management/guides/joining-nodes-aws-iam/",
+      "destination": "/management/join-services-to-your-cluster/aws-iam/",
       "permanent": true
     },
     {
@@ -2436,6 +2443,31 @@
     {
       "source": "/contributing/",
       "destination": "/contributing/documentation/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/joining-nodes-aws-ec2/",
+      "destination": "/management/join-services-to-your-cluster/aws-ec2/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/joining-nodes-aws-iam/",
+      "destination": "/management/join-services-to-your-cluster/aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/management/admin/adding-nodes/",
+      "destination": "/management/join-services-to-your-cluster/join-token/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/joining-nodes-azure/",
+      "destination": "/management/join-services-to-your-cluster/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/joining-services-kubernetes-serviceaccount/",
+      "destination": "/management/join-services-to-your-cluster/kubernetes",
       "permanent": true
     }
   ]

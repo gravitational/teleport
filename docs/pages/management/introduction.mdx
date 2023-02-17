@@ -7,19 +7,14 @@ layout: tocless-doc
 In this section, you can find guides on managing a Teleport cluster after
 deploying it. 
 
-## Export audit events
+## Join Teleport services to your cluster
 
-Teleport's Auth Service maintains an audit log that tracks events in your
-cluster, such when a user begins an SSH session or attempts to authenticate. You
-can get insight into how users are interacting with your Teleport cluster by
-exporting audit events to your log management solution. See how in the
-[Exporting Audit Events](./export-audit-events.mdx) guides.
-
-## Security
-
-While Teleport is designed with security in mind, there are steps you can take
-to ensure that your cluster is as secure as possible. Read about these in the
-[Security](./security.mdx) section.
+Protect resources in your infrastructure with Teleport by joining Teleport
+services to proxy those resources. To do this, start a Teleport process that
+runs one or more services. The Teleport process establishes a trust relationship
+with your Teleport cluster through a variety of methods. Read [Joining Teleport
+Services to a Cluster](./join-services-to-your-cluster.mdx) for a detailed
+explanation of each method.
 
 ## Admin guides
 
@@ -33,6 +28,12 @@ The [Operations](./operations.mdx) section describes how to perform critical,
 infrequent tasks such as achieving scalability, upgrading a cluster, and
 rotating Teleport's certificate authority.
 
+## Security
+
+While Teleport is designed with security in mind, there are steps you can take
+to ensure that your cluster is as secure as possible. Read about these in the
+[Security](./security.mdx) section.
+
 ## Integrations
 
 Teleport integrates with third-party software in order to enable secure access
@@ -45,3 +46,10 @@ To get visibility into the performance of the Teleport services running in your
 infrastructure, you can use Teleport's built-in metrics, traces, and profiling.
 Learn more in the [Diagnostics](./diagnostics.mdx) section.
 
+## Export audit events
+
+Teleport's Auth Service maintains an audit log that tracks events in your
+cluster, such when a user begins an SSH session or attempts to authenticate. You
+can get insight into how users are interacting with your Teleport cluster by
+exporting audit events to your log management solution. See how in the
+[Exporting Audit Events](./export-audit-events.mdx) guides.
