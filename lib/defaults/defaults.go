@@ -761,7 +761,7 @@ const (
 	TeleportConfigVersionV2 string = "v2"
 	// TeleportConfigVersionV3 is the teleport proxy configuration v3 version.
 	TeleportConfigVersionV3 string = "v3"
-	// TeleportConfigVersionV3 is the teleport proxy configuration v4 version.
+	// TeleportConfigVersionV4 is the teleport proxy configuration v4 version.
 	TeleportConfigVersionV4 string = "v4"
 )
 

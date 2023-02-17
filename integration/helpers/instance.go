@@ -661,12 +661,13 @@ func (i *TeleInstance) StartNodeWithTargetPort(tconf *service.Config, authPort s
 
 	tconf.DataDir = dataDir
 
-	if tconf.Version == defaults.TeleportConfigVersionV3 || tconf.Version == defaults.TeleportConfigVersionV4 {
+	switch tconf.Version {
+	case defaults.TeleportConfigVersionV3, defaults.TeleportConfigVersionV4:
 		if tconf.ProxyServer.IsEmpty() {
 			authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
 			tconf.SetAuthServerAddress(*authServer)
 		}
-	} else {
+	default:
 		authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
 		if err := tconf.SetAuthServerAddresses(append(tconf.AuthServerAddresses(), *authServer)); err != nil {
 			return nil, err

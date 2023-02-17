@@ -86,7 +86,8 @@ func validateAuthOrProxyServices(cfg *Config) error {
 	haveAuthServers := len(cfg.authServers) > 0
 	haveProxyServer := !cfg.ProxyServer.IsEmpty()
 
-	if cfg.Version == defaults.TeleportConfigVersionV3 || cfg.Version == defaults.TeleportConfigVersionV4 {
+	switch cfg.Version {
+	case defaults.TeleportConfigVersionV3, defaults.TeleportConfigVersionV4:
 		if haveAuthServers && haveProxyServer {
 			return trace.BadParameter("config: cannot use both auth_server and proxy_server")
 		}

@@ -222,8 +222,8 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		Method:    types.JoinMethod(joinMethod),
 	}
 
-	if flags.Version == defaults.TeleportConfigVersionV3 ||
-		flags.Version == defaults.TeleportConfigVersionV4 {
+	switch flags.Version {
+	case defaults.TeleportConfigVersionV3, defaults.TeleportConfigVersionV4:
 
 		if flags.AuthServer != "" && flags.ProxyAddress != "" {
 			return nil, trace.BadParameter("--proxy and --auth-server cannot both be set")
@@ -232,7 +232,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		} else if flags.ProxyAddress != "" {
 			g.ProxyServer = flags.ProxyAddress
 		}
-	} else {
+	default:
 		if flags.AuthServer != "" {
 			g.AuthServers = []string{flags.AuthServer}
 		}
@@ -1547,7 +1547,7 @@ type InstallParams struct {
 	SSHDConfig string `yaml:"sshd_config,omitempty"`
 }
 
-func ConfigVersionGTE(minVersion, version string) (bool, error) {
+func configVersionGTE(minVersion, version string) (bool, error) {
 	ver, err := strconv.Atoi(version[1:])
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -1568,7 +1568,7 @@ func (ip *InstallParams) Parse(version string) (services.InstallerParams, error)
 		SSHDConfig:      ip.SSHDConfig,
 	}
 
-	isV4OrGreater, err := ConfigVersionGTE(defaults.TeleportConfigVersionV4, version)
+	isV4OrGreater, err := configVersionGTE(defaults.TeleportConfigVersionV4, version)
 	if err != nil {
 		return services.InstallerParams{}, trace.Wrap(err)
 	}
