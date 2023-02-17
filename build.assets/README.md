@@ -9,7 +9,7 @@ It is a part of Gravitational CI/CD pipeline. To build Teleport type:
 make
 ```
 
-### DynamoDB static binary docker build 
+### DynamoDB static binary docker build
 
 The static binary will be built along with all nodejs assets inside the container.
 From the root directory of the source checkout run:
@@ -43,7 +43,7 @@ Multiple migrations can be performed at once. To run a migration do the followin
 6. Get your Drone credentials from here: https://drone.platform.teleport.sh/account.
 7. Export your drone credentials as shown under "Example CLI Usage" on the Drone account page
 8. Open a new terminal.
-9. Run `tsh app login drone` and follow any prompts.
+9. Run `tsh apps login drone` and follow any prompts.
 10. Run `tsh proxy app drone` and copy the printed socket. This should look something like `127.0.0.1:60982`
 11. Switch back to your previous terminal.
 12. Run `export DRONE_SERVER=http://{host:port}`, replacing `{host:port}` with the data you copied in (10)
