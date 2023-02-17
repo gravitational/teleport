@@ -598,14 +598,8 @@ export namespace LoginPasswordlessRequest {
 }
 
 export class FileTransferRequest extends jspb.Message { 
-    getClusterUri(): string;
-    setClusterUri(value: string): FileTransferRequest;
-
     getLogin(): string;
     setLogin(value: string): FileTransferRequest;
-
-    getHostname(): string;
-    setHostname(value: string): FileTransferRequest;
 
     getSource(): string;
     setSource(value: string): FileTransferRequest;
@@ -615,6 +609,9 @@ export class FileTransferRequest extends jspb.Message {
 
     getDirection(): FileTransferDirection;
     setDirection(value: FileTransferDirection): FileTransferRequest;
+
+    getServerUri(): string;
+    setServerUri(value: string): FileTransferRequest;
 
 
     serializeBinary(): Uint8Array;
@@ -629,12 +626,11 @@ export class FileTransferRequest extends jspb.Message {
 
 export namespace FileTransferRequest {
     export type AsObject = {
-        clusterUri: string,
         login: string,
-        hostname: string,
         source: string,
         destination: string,
         direction: FileTransferDirection,
+        serverUri: string,
     }
 }
 
