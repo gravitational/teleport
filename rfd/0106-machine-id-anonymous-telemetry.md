@@ -136,18 +136,18 @@ cluster. Therefore, no additional anonymization is required at this time.
 
 Event properties:
 
-- `run_mode`: one of [`one-shot`, `continuous`]
-- `version`: string indicating the version of `tbot`
-- `join_type`: string indicating the join type configured
-- `helper`: optional string indicating if a helper is invoking `tbot`. For 
+- `tbot.run_mode`: one of [`one-shot`, `continuous`]
+- `tbot.version`: string indicating the version of `tbot`
+- `tbot.join_type`: string indicating the join type configured
+- `tbot.helper`: optional string indicating if a helper is invoking `tbot`. For 
   example: `gha:teleport-actions/auth`
-- `helper_version`: optional string indicating the version of the helper that
+- `tbot.helper_version`: optional string indicating the version of the helper that
   invoking `tbot`
-- `destinations_configured`: a count of total destinations configured
-- `destinations_configured_database_access`: a count of Database Access 
+- `tbot.destinations_configured`: a count of total destinations configured
+- `tbot.destinations_configured_database_access`: a count of Database Access 
   destinations configured
-- `destinations_configured_kubernetes_access`: a count of Kubernetes Access
+- `tbot.destinations_configured_kubernetes_access`: a count of Kubernetes Access
   destinations configured
-- `destinations_configured_application_access`: a count of Application Access
+- `tbot.destinations_configured_application_access`: a count of Application Access
   destinations configured.
 
