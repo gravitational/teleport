@@ -147,7 +147,7 @@ BuildVersion:           22D68
 ```
 
 Including the full output allows us to improve the parsing code as this project evolves.
-This is specially true since we do not have access to agent logs.
+This is especially true since we do not have access to agent logs.
 
 An alternative would be to send the full command output to the auth server and do the parsing there (instead of at the agent).
 In this case, we could log the unexpected output and only send "clean" data to PostHog.
