@@ -72,7 +72,7 @@ const configFactory = {
       return {
         test: /\.svg$/,
         type: 'asset/inline',
-        exclude: /node_modules/,
+        exclude: /[\\/]node_modules[\\/]/,
       };
     },
     css() {
@@ -98,7 +98,7 @@ const configFactory = {
     jsx() {
       return {
         test: /\.(ts|tsx|js|jsx)$/,
-        exclude: /(node_modules)|(assets)/,
+        exclude: /[\\/]node_modules[\\/]/,
         use: [
           {
             loader: 'babel-loader',
@@ -172,6 +172,7 @@ function createDefaultConfig() {
         'e-teleport': path.join(__dirname, '/../../../../e/web/teleport/src'),
         design: path.join(__dirname, '/../../design/src'),
         shared: path.join(__dirname, '/../../shared'),
+        'gen-proto-js': path.join(__dirname, '/../../../../gen/proto/js'),
       },
 
       /*
