@@ -892,13 +892,10 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 	}
 
 	log.WithFields(logrus.Fields{
-		"not_after":   req.NotAfter,
-		"dns_names":   req.DNSNames,
-		"common_name": req.Subject.CommonName,
-		"org":         req.Subject.Organization,
-		"org_unit":    req.Subject.OrganizationalUnit,
-		"locality":    req.Subject.Locality,
-	}).Infof("Generating TLS certificate %v.", req)
+		"not_after": req.NotAfter,
+		"dns_names": req.DNSNames,
+		"key_usage": req.KeyUsage,
+	}).Infof("Generating TLS certificate %v", req.Subject.String())
 
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
