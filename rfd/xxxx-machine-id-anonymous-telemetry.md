@@ -27,7 +27,7 @@ information on adoption without compromising privacy.
 
 ## Details
 
-### Event collection and submission
+### Event collection
 
 For now, a single event on startup will be submitted by `tbot`.
 
@@ -38,13 +38,47 @@ be polluted by internal uses of the `tbot` library (e.g the operator).
 
 Event collection and submission will be started concurrently to the `tbot`
 functionality, and should not impede the primary function of `tbot`. In the
-case of failure, a warning message should be omitted.
+case of failure, a warning message should be omitted. The routine will read in
+the configuration of `tbot`, extract the relevant values and encode these within
+an event protobuf.
 
-Events will be submitted directly to the public endpoint of the `prehog`
-service.
+### Event submission
+
+Events will be submitted directly to an unauthenticated `tbot` specific endpoint
+of the `prehog` service:
+
+```protobuf
+syntax = "proto3";
+
+package prehog.v1alpha;
+
+import "google/protobuf/timestamp.proto";
+
+message SubmitTbotEventRequest {
+  // optional, will default to the ingest time if unset
+  google.protobuf.Timestamp timestamp = 1;
+
+  oneof event {
+    // See the events section for the fields included within startup.
+    TbotStartupEvent startup = 2;
+  }
+}
+
+message SubmitTbotEventResponse {}
+
+service TbotReportingService {
+  rpc SubmitTbotEvent(SubmitTbotEventRequest) returns (SubmitTbotEventResponse) {}
+}
+```
+
+As only a single event will be submitted, batching is not of concern.
 
 ### Event storage
 
+Events received by `prehog` will be encoded in a PostHog compatible format
+and then submitted to PostHog.
+
+Tbot events will be share the same project as clusters and website events.
 
 ### Consent
 
@@ -94,7 +128,7 @@ documentation.
 ### Anonymization
 
 The events will contain no properties that identify a user, `tbot` or Teleport
-instance. Therefore, no additional anonymization is required at this time.
+cluster. Therefore, no additional anonymization is required at this time.
 
 ### Events
 
