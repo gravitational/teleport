@@ -2582,7 +2582,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 		ctx, req,
 		certRequestMFAVerified(mfaDev.Id),
 		certRequestPreviousIdentityExpires(actx.Identity.GetIdentity().Expires),
-		certRequestClientIP(clientIP),
+		certRequestLoginIP(clientIP),
 		certRequestDeviceExtensions(actx.Identity.GetIdentity().DeviceExtensions),
 	)
 	if err != nil {
@@ -3089,11 +3089,14 @@ func (g *GRPCServer) CreateTokenV2(ctx context.Context, req *proto.CreateTokenV2
 }
 
 // GenerateToken generates a new auth token.
+// Deprecated: Use CreateToken or UpdateToken.
+// DELETE IN 14.0.0, replaced by methods above (strideynet).
 func (g *GRPCServer) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (*proto.GenerateTokenResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	g.Warn("Deprecated GenerateToken RPC called. This will stop functioning in Teleport 14.0.0. Upgrade your client.")
 
 	token, err := auth.ServerWithRoles.GenerateToken(ctx, req)
 	if err != nil {

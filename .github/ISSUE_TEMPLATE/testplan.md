@@ -769,16 +769,16 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] `tsh play <chunk-id>` can fetch and print a session chunk archive.
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
-- [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh app login`.
+- [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh apps login`.
 - [ ] Verify [AWS console access](https://goteleport.com/docs/application-access/cloud-apis/aws-console/).
   - [ ] Can log into AWS web console through the web UI.
   - [ ] Can interact with AWS using `tsh` commands.
     - [ ] `tsh aws`
     - [ ] `tsh aws --endpoint-url` (this is a hidden flag)
-- [ ] Verify [Azure CLI access](https://goteleport.com/docs/application-access/cloud-apis/azure/) with `tsh app login`.
+- [ ] Verify [Azure CLI access](https://goteleport.com/docs/application-access/cloud-apis/azure/) with `tsh apps login`.
   - [ ] Can interact with Azure using `tsh az` commands.
   - [ ] Can interact with Azure using a combination of `tsh proxy az` and `az` commands.
-- [ ] Verify [GCP CLI access](https://goteleport.com/docs/application-access/cloud-apis/google-cloud/) with `tsh app login`.
+- [ ] Verify [GCP CLI access](https://goteleport.com/docs/application-access/cloud-apis/google-cloud/) with `tsh apps login`.
   - [ ] Can interact with GCP using `tsh gcloud` commands.
   - [ ] Can interact with Google Cloud Storage using `tsh gsutil` commands.
   - [ ] Can interact with GCP/GCS using a combination of `tsh proxy gcloud` and `gcloud`/`gsutil` commands.
@@ -1153,7 +1153,7 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] New SSH session in a child cluster on the previous major version
   - [ ] New SSH session from a parent cluster
   - [ ] Application access through a browser
-  - [ ] Application access through curl with `tsh app login`
+  - [ ] Application access through curl with `tsh apps login`
   - [ ] `kubectl get po` after `tsh kube login`
   - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)
 

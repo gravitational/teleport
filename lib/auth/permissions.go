@@ -159,7 +159,8 @@ Loop:
 	if r, ok := c.Identity.(BuiltinRole); ok && r.Role == types.RoleNode {
 		lockTargets = append(lockTargets,
 			types.LockTarget{Node: r.GetServerID()},
-			types.LockTarget{Node: r.Identity.Username})
+			types.LockTarget{Node: r.Identity.Username},
+		)
 	}
 	return lockTargets
 }
@@ -346,7 +347,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		RouteToApp:        u.Identity.RouteToApp,
 		RouteToDatabase:   u.Identity.RouteToDatabase,
 		MFAVerified:       u.Identity.MFAVerified,
-		ClientIP:          u.Identity.ClientIP,
+		LoginIP:           u.Identity.LoginIP,
 		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
 	}
 

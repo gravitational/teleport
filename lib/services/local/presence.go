@@ -1791,6 +1791,7 @@ const (
 	nodesPrefix                  = "nodes"
 	appsPrefix                   = "apps"
 	snowflakePrefix              = "snowflake"
+	samlIdPPrefix                = "saml_idp" //nolint:revive // Because we want this to be IdP.
 	serversPrefix                = "servers"
 	dbServersPrefix              = "databaseServers"
 	appServersPrefix             = "appServers"

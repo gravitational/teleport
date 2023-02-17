@@ -18,6 +18,7 @@ package inventory
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -284,7 +285,17 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	}
 }
 
+// instanceHeartbeatDisabled allows users to opt into using instance heartbeats.
+// TODO(tross,fspmarshal): remove this once issues with etcd stability are resolved.
+func instanceHeartbeatDisabled() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_ENABLE_INSTANCE_HB") != "yes"
+}
+
 func (c *Controller) heartbeatInstanceState(handle *upstreamHandle, now time.Time) error {
+	if instanceHeartbeatDisabled() {
+		return nil
+	}
+
 	tracker := &handle.stateTracker
 	tracker.mu.Lock()
 	defer tracker.mu.Unlock()

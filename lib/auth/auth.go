@@ -1120,10 +1120,10 @@ type certRequest struct {
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	previousIdentityExpires time.Time
-	// clientIP is an IP of the client requesting the certificate.
-	clientIP string
-	// sourceIP is an IP this certificate should be pinned to
-	sourceIP string
+	// loginIP is an IP of the client requesting the certificate.
+	loginIP string
+	// pinIP flags that client's login IP should be pinned in the certificate
+	pinIP bool
 	// disallowReissue flags that a cert should not be allowed to issue future
 	// certificates.
 	disallowReissue bool
@@ -1177,8 +1177,8 @@ func certRequestPreviousIdentityExpires(previousIdentityExpires time.Time) certR
 	return func(r *certRequest) { r.previousIdentityExpires = previousIdentityExpires }
 }
 
-func certRequestClientIP(ip string) certRequestOption {
-	return func(r *certRequest) { r.clientIP = ip }
+func certRequestLoginIP(ip string) certRequestOption {
+	return func(r *certRequest) { r.loginIP = ip }
 }
 
 func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
@@ -1188,7 +1188,7 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
-func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, sourceIP string) ([]byte, []byte, error) {
+func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, pinnedIP string) ([]byte, []byte, error) {
 	user, err := a.GetUser(username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1210,7 +1210,8 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 		routeToCluster: routeToCluster,
 		checker:        checker,
 		traits:         user.GetTraits(),
-		sourceIP:       sourceIP,
+		loginIP:        pinnedIP,
+		pinIP:          pinnedIP != "",
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1521,6 +1522,7 @@ func (a *Server) AugmentContextUserCertificates(
 		username:             identity.Username,
 		mfaVerified:          identity.MFAVerified,
 		activeAccessRequests: identity.ActiveRequests,
+		deviceID:             opts.DeviceExtensions.DeviceID, // Check lock against requested device.
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1651,6 +1653,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		username:             req.user.GetName(),
 		mfaVerified:          req.mfaVerified,
 		activeAccessRequests: req.activeRequests.AccessRequests,
+		deviceID:             req.deviceExtensions.DeviceID,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1747,16 +1750,14 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	}
 
 	pinnedIP := ""
-	if req.checker.PinSourceIP() {
-		if req.clientIP == "" && req.sourceIP == "" {
-			// TODO(anton): make sure all upstream callers provide clientIP and make this into hard error instead of warning.
+	if req.checker.PinSourceIP() || req.pinIP {
+		if req.loginIP == "" {
+			// TODO(anton): make sure all upstream callers provide clientIP and make this into hard error
+			// instead of warning, after merging #21080
 			log.Warnf("IP pinning is enabled for user %q but there is no client ip information", req.user.GetName())
 		}
 
-		pinnedIP = req.clientIP
-		if req.sourceIP != "" {
-			pinnedIP = req.sourceIP
-		}
+		pinnedIP = req.loginIP
 	}
 
 	params := services.UserCertParams{
@@ -1776,13 +1777,13 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		ActiveRequests:          req.activeRequests,
 		MFAVerified:             req.mfaVerified,
 		PreviousIdentityExpires: req.previousIdentityExpires,
-		ClientIP:                req.clientIP,
+		LoginIP:                 req.loginIP,
+		PinnedIP:                pinnedIP,
 		DisallowReissue:         req.disallowReissue,
 		Renewable:               req.renewable,
 		Generation:              req.generation,
 		CertificateExtensions:   req.checker.CertificateExtensions(),
 		AllowedResourceIDs:      requestedResourcesStr,
-		SourceIP:                pinnedIP,
 		ConnectionDiagnosticID:  req.connectionDiagnosticID,
 		PrivateKeyPolicy:        attestedKeyPolicy,
 		DeviceID:                req.deviceExtensions.DeviceID,
@@ -1869,7 +1870,8 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		DatabaseUsers:           dbUsers,
 		MFAVerified:             req.mfaVerified,
 		PreviousIdentityExpires: req.previousIdentityExpires,
-		ClientIP:                req.clientIP,
+		LoginIP:                 req.loginIP,
+		PinnedIP:                pinnedIP,
 		AWSRoleARNs:             roleARNs,
 		AzureIdentities:         azureIdentities,
 		GCPServiceAccounts:      gcpAccounts,
@@ -1960,6 +1962,9 @@ type verifyLocksForUserCertsReq struct {
 	// activeAccessRequests are the UUIDs of active access requests for the user.
 	// Eg: tlsca.Identity.ActiveRequests.
 	activeAccessRequests []string
+	// deviceID is the trusted device ID.
+	// Eg: tlsca.Identity.DeviceExtensions.DeviceID
+	deviceID string
 }
 
 // verifyLocksForUserCerts verifies if any locks are in place before issuing new
@@ -1971,7 +1976,7 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	lockTargets := []types.LockTarget{
 		{User: req.username},
 		{MFADevice: req.mfaVerified},
-		// TODO(codingllama): Verify device locks.
+		{Device: req.deviceID},
 	}
 	lockTargets = append(lockTargets,
 		services.RolesToLockTargets(checker.RoleNames())...,
@@ -2771,6 +2776,8 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 }
 
 // GenerateToken generates multi-purpose authentication token.
+// Deprecated: Use CreateToken or UpdateToken.
+// DELETE IN 14.0.0, replaced by methods above (strideynet).
 func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	ttl := defaults.ProvisioningTokenTTL
 	if req.TTL != 0 {

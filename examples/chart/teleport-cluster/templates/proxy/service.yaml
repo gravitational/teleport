@@ -1,4 +1,4 @@
-{{- $proxy := mustMergeOverwrite .Values .Values.proxy -}}
+{{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- $backendProtocol := ternary "ssl" "tcp" (hasKey $proxy.annotations.service "service.beta.kubernetes.io/aws-load-balancer-ssl-cert") -}}
 apiVersion: v1
 kind: Service

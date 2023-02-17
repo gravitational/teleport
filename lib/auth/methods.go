@@ -516,7 +516,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		traits:               user.GetTraits(),
 		routeToCluster:       req.RouteToCluster,
 		kubernetesCluster:    req.KubernetesCluster,
-		clientIP:             clientIP,
+		loginIP:              clientIP,
 		attestationStatement: req.AttestationStatement,
 	})
 	if err != nil {

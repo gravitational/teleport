@@ -58,12 +58,12 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// create a dynamic token
-	dynamicToken, err := a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{types.RoleNode},
-		TTL:   proto.Duration(time.Hour),
-	})
-	require.NoError(t, err)
-	require.NotNil(t, dynamicToken)
+	dynamicToken := generateTestToken(
+		ctx,
+		t,
+		types.SystemRoles{types.RoleNode}, time.Now().Add(time.Minute*30),
+		a,
+	)
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
