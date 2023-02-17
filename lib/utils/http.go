@@ -60,9 +60,21 @@ func GetAndReplaceResponseBody(response *http.Response) ([]byte, error) {
 	return payload, nil
 }
 
+// ReplaceRequestBody drains the old request body and replaces it with a new one.
+func ReplaceRequestBody(req *http.Request, newBody io.ReadCloser) error {
+	if _, err := tryDrainBody(req.Body); err != nil {
+		return trace.Wrap(err)
+	}
+	req.Body = newBody
+	return nil
+}
+
 // tryDrainBody tries to drain and close the body, returning the read bytes.
 // It may fail to completely drain the body if the size of the body exceeds MaxHTTPRequestSize.
 func tryDrainBody(b io.ReadCloser) (payload []byte, err error) {
+	if b == nil {
+		return nil, nil
+	}
 	defer func() {
 		if closeErr := b.Close(); closeErr != nil {
 			err = trace.NewAggregate(err, closeErr)
