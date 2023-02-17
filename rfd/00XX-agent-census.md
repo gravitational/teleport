@@ -51,7 +51,7 @@ We want to start tracking the following data in PreHog:
 3. OS (`linux` or `darwin`, as these are the only two OS currently supported)
 4. OS version (e.g. Linux distribution)
 5. Host architecture (e.g. `amd64`)
-6. `glibc` version
+6. `glibc` version (Linux only)
 7. [Installation methods](https://goteleport.com/docs/installation/) (Dockerfile, Helm, `install-node.sh`)
 8. Container runtime (e.g. Docker)
 9. Container orchestrator (e.g. Kubernetes)
