@@ -1724,7 +1724,7 @@ func TestGetCertAuthority(t *testing.T) {
 	proxyClt, err := tt.server.NewClient(TestIdentity{
 		I: BuiltinRole{
 			Username: "00000000-0000-0000-0000-000000000001",
-			Role: types.RoleProxy,
+			Role:     types.RoleProxy,
 		},
 	})
 	require.NoError(t, err)
