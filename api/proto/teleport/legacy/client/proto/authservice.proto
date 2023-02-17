@@ -2192,6 +2192,27 @@ message UpsertTokenV2Request {
   }
 }
 
+// Request for GetHeadlessAuthentication.
+message GetHeadlessAuthenticationRequest {
+  // Name is the headless authentication id.
+  string name = 1;
+}
+
+// Request for UpdateHeadlessAuthenticationState.
+message UpdateHeadlessAuthenticationStateRequest {
+  // Name is the headless authentication id.
+  string name = 1;
+
+  // NewState is the state that the request will be updated to.
+  // MFA verification is required if NewState=APPROVED.
+  types.HeadlessAuthenticationState new_state = 2;
+
+  // MFAResponse is an mfa challenge response used to verify the user.
+  // MFA Auth Challenges can be created for a user with the
+  // authservice.GenerateAuthenticateChallenge rpc.
+  MFAAuthenticateResponse mfa_response = 3;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2858,4 +2879,10 @@ service AuthService {
 
   // DeleteAllUserGroups removes all user groups.
   rpc DeleteAllUserGroups(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // GetHeadlessAuthentication is a request to retrieve a headless authentication from the backend.
+  rpc GetHeadlessAuthentication(GetHeadlessAuthenticationRequest) returns (types.HeadlessAuthentication);
+
+  // UpdateHeadlessAuthenticationState is a request to update a headless authentication's state.
+  rpc UpdateHeadlessAuthenticationState(UpdateHeadlessAuthenticationStateRequest) returns (google.protobuf.Empty);
 }
