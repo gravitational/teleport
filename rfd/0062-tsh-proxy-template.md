@@ -33,12 +33,12 @@ currently they can create an SSH config similar to this:
 Host *.leaf1.us.acme.com
     HostName %h
     Port 3022
-    ProxyCommand ssh -p 3023 %r@leaf1.us.acme.com -s proxy:$(echo %h | cut -d '.' -f1):%p@leaf1
+    ProxyCommand ssh -p 3023 %r@leaf1.us.acme.com -s proxy:$(echo %n | cut -d '.' -f1):%p@leaf1
 
 Host *.leaf2.eu.acme.com
     HostName %h
     Port 3022
-    ProxyCommand ssh -p 3023 %r@leaf2.eu.acme.com -s proxy:$(echo %h | cut -d '.' -f1):%p@leaf2
+    ProxyCommand ssh -p 3023 %r@leaf2.eu.acme.com -s proxy:$(echo %n | cut -d '.' -f1):%p@leaf2
 ```
 
 This is not ideal because users need to maintain complex SSH config, update it
@@ -60,7 +60,7 @@ determine which host/proxy/cluster user is connecting to.
 ## UX
 
 The proposal is to extend the existing `tsh proxy ssh` command with support for
-parsing out the node name and proxy address from the full hostname `%h:%p` in
+parsing out the node name and proxy address from the full original hostname `%n:%p` in
 SSH config.
 
 Specifically, the syntax for the `<some proxy command>` would look like:
@@ -69,8 +69,11 @@ Specifically, the syntax for the `<some proxy command>` would look like:
 Host *.acme.com
     HostName %h
     Port 3022
-    ProxyCommand tsh proxy ssh -J {{proxy}} %r@%h:%p
+    ProxyCommand tsh proxy ssh -J {{proxy}} %r@%n:%p
 ```
+
+`%n` is used instead of `%h` to pass hostnames using uppercases without additional
+formatting.
 
 With the `-J` flag set, the command connects directly to the specified proxy
 instead of the default behavior of connecting to the proxy of the current
@@ -78,7 +81,7 @@ client profile. This usage of the `-J` flag is consistent with the existing
 proxy jump functionality (`tsh ssh -J`) and [Cluster Routing](https://github.com/gravitational/teleport/blob/master/rfd/0021-cluster-routing.md).
 
 When a template variable `{{proxy}}` is used, the desired hostname and proxy address
-are extracted from the full hostname in the `%r@%h:%p` spec. Users define the
+are extracted from the full hostname in the `%r@%n:%p` spec. Users define the
 rules of how to parse node/proxy from the full hostname in the tsh config file
 `$TELEPORT_HOME/config/config.yaml` (or global `/etc/tsh.yaml`). Group captures
 are supported:
@@ -110,8 +113,8 @@ proxy_templates:
   host: "$1:$3"
 ```
 
-In the node spec `%r@%h:%p` the hostname `%h:%p` will be replaced by the host from
-the template specification and will default to full `%h:%p` if it's not present in
+In the node spec `%r@%n:%p` the hostname `%n:%p` will be replaced by the host from
+the template specification and will default to full `%n:%p` if it's not present in
 the template.
 
 So given the above proxy template configuration, the following proxy command:

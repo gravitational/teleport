@@ -49,9 +49,9 @@ Host *.{{ $clusterName }} {{ $dot.ProxyHost }}
 Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
     Port 3022
     {{- if eq $dot.AppName "tsh" }}
-    ProxyCommand "{{ $dot.ExecutablePath }}" proxy ssh --cluster={{ $clusterName }} --proxy={{ $dot.ProxyHost }} %r@%h:%p
+    ProxyCommand "{{ $dot.ExecutablePath }}" proxy ssh --cluster={{ $clusterName }} --proxy={{ $dot.ProxyHost }} %r@%n:%p
 {{- end }}{{- if eq $dot.AppName "tbot" }}
-    ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy={{ $dot.ProxyHost }} ssh --cluster={{ $clusterName }}  %r@%h:%p
+    ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy={{ $dot.ProxyHost }} ssh --cluster={{ $clusterName }}  %r@%n:%p
 {{- end }}
 {{- end }}
 

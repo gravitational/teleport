@@ -66,7 +66,7 @@ Host {bastion}
 Host *.compute.internal
     HostName %h
     Port 22
-    ProxyCommand ssh {ssh_key_path} -p 22 %r@{bastion} nc %h %p
+    ProxyCommand ssh {ssh_key_path} -p 22 %r@{bastion} nc %n %p
 '''
 
 def generate_ssh_cfg(cluster, ssh_key=None):

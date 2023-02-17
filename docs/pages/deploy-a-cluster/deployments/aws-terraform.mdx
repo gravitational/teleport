@@ -464,7 +464,7 @@ $ echo ${AUTH_IP}
 [`key_name`](#key_name) variable is available in the current directory, or update the `-i` parameter to point to it:
 
 ```code
-$ ssh -i ${TF_VAR_key_name}.pem -o ProxyCommand="ssh -i ${TF_VAR_key_name}.pem -W '[%h]:%p' ec2-user@${BASTION_IP}" ec2-user@${AUTH_IP}
+$ ssh -i ${TF_VAR_key_name}.pem -o ProxyCommand="ssh -i ${TF_VAR_key_name}.pem -W '[%n]:%p' ec2-user@${BASTION_IP}" ec2-user@${AUTH_IP}
 # The authenticity of host '1.2.3.4 (1.2.3.4)' can't be established.
 # ECDSA key fingerprint is SHA256:vFPnCFliRsRQ1Dk+muIv2B1Owm96hXiihlOUsj5H3bg.
 # Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
@@ -833,7 +833,7 @@ elif [[ "${INSTANCE_TYPE}" == "node" ]]; then
 fi
 
 echo "Keypair name: ${TF_VAR_key_name}"
-ssh -i ${TF_VAR_key_name}.pem -o ProxyCommand="ssh -i ${TF_VAR_key_name}.pem -W '[%h]:%p' ec2-user@${BASTION_IP}" ec2-user@${SERVER_IP}
+ssh -i ${TF_VAR_key_name}.pem -o ProxyCommand="ssh -i ${TF_VAR_key_name}.pem -W '[%n]:%p' ec2-user@${BASTION_IP}" ec2-user@${SERVER_IP}
 ```
 
 Save this as `connect.sh`, run `chmod +x connect.sh` to make it executable, then use it like so:

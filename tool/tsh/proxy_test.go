@@ -469,7 +469,7 @@ proxy_templates:
 Host *
   HostName %%h
   StrictHostKeyChecking no
-  ProxyCommand %v -d --insecure proxy ssh -J {{proxy}} %%r@%%h:%%p
+  ProxyCommand %v -d --insecure proxy ssh -J {{proxy}} %%r@%%n:%%p
 `, tshPath)), 0o644)
 	require.NoError(t, err)
 

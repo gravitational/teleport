@@ -178,7 +178,7 @@ func setupJumpHost(cf *CLIConf, tc *libclient.TeleportClient, sp sshProxyParams)
 }
 
 // sshProxy opens up a new SSH session connected to the Teleport Proxy's SSH proxy subsystem,
-// This is the equivalent of `ssh -o 'ForwardAgent yes' -p port %r@host -s proxy:%h:%p`.
+// This is the equivalent of `ssh -o 'ForwardAgent yes' -p port %r@host -s proxy:%n:%p`.
 // If tls routing is enabled, the connection to RemoteProxyAddr is wrapped with TLS protocol.
 func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyParams) error {
 	upstreamConn, err := dialSSHProxy(ctx, tc, sp)

@@ -157,7 +157,7 @@ as well as an upgrade of the previous version of Teleport.
     log:
 
     ```shell
-    sftp -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%h:%p" root@node1
+    sftp -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%n:%p" root@node1
     ```
 
 - [ ] Interact with a cluster using `tsh`
@@ -352,18 +352,18 @@ When interacting with a cluster, the following command templates are useful:
 
 ```
 # when connecting to the recording proxy, `-o 'ForwardAgent yes'` is required.
-ssh -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%h:%p" \
+ssh -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%n:%p" \
   node.example.com
 
 # the above command only forwards the agent to the proxy, to forward the agent
 # to the target node, `-o 'ForwardAgent yes'` needs to be passed twice.
 ssh -o "ForwardAgent yes" \
-  -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%h:%p" \
+  -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%n:%p" \
   node.example.com
 
 # when connecting to a remote cluster using OpenSSH, the subsystem request is
 # updated with the name of the remote cluster.
-ssh -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%h:%p@foo.com" \
+ssh -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@proxy.example.com -s proxy:%n:%p@foo.com" \
   node.foo.com
 ```
 
@@ -944,7 +944,7 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Verify app access through proxy running in `multiplex` mode
 - [ ] SSH Access
   - [ ] Connect to a OpenSSH server through a local ssh proxy `ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh" user@host.example.com`
-  - [ ] Connect to a OpenSSH server on leaf-cluster through a local ssh proxy`ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh --user=%r --cluster=leaf-cluster %h:%p" user@node.foo.com`
+  - [ ] Connect to a OpenSSH server on leaf-cluster through a local ssh proxy`ssh -o "ForwardAgent yes" -o "ProxyCommand tsh proxy ssh --user=%r --cluster=leaf-cluster %n:%p" user@node.foo.com`
   - [ ] Verify `tsh ssh` access through proxy running in multiplex mode
 - [ ] Kubernetes access:
   - [ ] Verify kubernetes access through proxy running in `multiplex` mode

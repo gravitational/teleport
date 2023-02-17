@@ -14,7 +14,7 @@ We've outlined these reasons in [OpenSSH vs Teleport SSH for Servers?](https://g
 
 ## Prerequisites
 
-- OpenSSH version 6.9 or above on your local machine. View your OpenSSH version
+- OpenSSH version 8.1 or above on your local machine. View your OpenSSH version
   with the command:
   
   ```code
@@ -277,7 +277,7 @@ directory.
 # Flags for all {{ .ClusterName }} hosts except the proxy
 Host *.{{ .ClusterName }} !{{ .ProxyHost }}
     Port 3022
-    ProxyCommand "{{ .TSHPath }}" proxy ssh --cluster={{ .ClusterName }} --proxy={{ .ProxyHost }} %r@%h:%p
+    ProxyCommand "{{ .TSHPath }}" proxy ssh --cluster={{ .ClusterName }} --proxy={{ .ProxyHost }} %r@%n:%p
 ```
 
 If the host that you are `ssh`ing into belongs to your Teleport cluster, the
@@ -330,7 +330,7 @@ a jumphost, using the `-J` flag.
 ```txt
 Host *.{{ .NodeName }}.leaf1.example.com
    Port 3022
-   ProxyCommand tsh proxy ssh -J proxy.leaf1.example.com:443 %r@%h:%p
+   ProxyCommand tsh proxy ssh -J proxy.leaf1.example.com:443 %r@%n:%p
 ```
 
 ### Proxy Templates
@@ -345,7 +345,7 @@ your `~/.ssh/config`.
 ```txt
 Host *.example.com
    Port 3022
-   ProxyCommand tsh proxy ssh -J {{proxy}} %r@%h:%p
+   ProxyCommand tsh proxy ssh -J {{proxy}} %r@%n:%p
 ```
 
 Then, add `proxy_templates` to your `tsh` configuration file (`~/.tsh/config/config.yaml`
@@ -357,16 +357,16 @@ proxy_templates:
   proxy: "$2:443"
 ```
 
-`tsh proxy ssh -J {{proxy}}` will attempt to match the host server address `%h:%p` with the 
+`tsh proxy ssh -J {{proxy}}` will attempt to match the host server address `%n:%p` with the
 configured templates. If there is a match, then the jump proxy address `{{proxy}}` will
-be replaced using the template's `proxy` field and the host server address `%h:%p` will be 
+be replaced using the template's `proxy` field and the host server address `%n:%p` will be
 replaced using the template's `host` field if set.
 
 | Field      | Description |
 | ---------- | ----------- |
-| `template` | (Required) Regular expression that the host server address `%h:%p` is matched against. |
+| `template` | (Required) Regular expression that the host server address `%n:%p` is matched against. |
 | `proxy`    | (Required) Proxy Service address to use for proxy jump. Can reference capturing groups from the regular expression in `template` (e.g., `$1` or `$2`). |
-| `host`     | (Optional) Host Server address to connect to. Can reference capturing groups from the regular expression in `template` (e.g., `$1` or `$2`). Defaults to full host spec `%h:%p`. |
+| `host`     | (Optional) Host Server address to connect to. Can reference capturing groups from the regular expression in `template` (e.g., `$1` or `$2`). Defaults to full host spec `%n:%p`. |
 
 ### Example configuration
 

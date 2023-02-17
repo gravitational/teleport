@@ -42,7 +42,7 @@ Host *.test-cluster localhost
 # Flags for all test-cluster hosts except the proxy
 Host *.test-cluster !localhost
     Port 3022
-    ProxyCommand "/bin/tsh" proxy ssh --cluster=test-cluster --proxy=localhost %r@%h:%p
+    ProxyCommand "/bin/tsh" proxy ssh --cluster=test-cluster --proxy=localhost %r@%n:%p
 
 # End generated Teleport configuration
 `

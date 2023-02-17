@@ -200,7 +200,7 @@ terminate the SSH connection to record it:
 # (mandatory if using a recording proxy), and then optionally from a proxy
 # to the end server if you want your agent running on the end server
 $ ssh -o "ForwardAgent yes" \
-    -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@p.example.com -s proxy:%h:%p" \
+    -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@p.example.com -s proxy:%n:%p" \
     user@host.example.com
 ```
 

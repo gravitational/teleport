@@ -100,7 +100,7 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 		proxyCommand = append(proxyCommand, "-oForwardAgent=yes")
 	}
 	proxyCommand = append(proxyCommand, fmt.Sprintf("-p %v", o.ProxyPort))
-	proxyCommand = append(proxyCommand, `%r@localhost -s proxy:%h:%p`)
+	proxyCommand = append(proxyCommand, `%r@localhost -s proxy:%n:%p`)
 
 	// Add in ProxyCommand option, needed for all Teleport connections.
 	execArgs = append(execArgs, fmt.Sprintf("-oProxyCommand=%v", strings.Join(proxyCommand, " ")))

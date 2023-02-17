@@ -158,14 +158,14 @@ UX remains unchanged. The `onSSH` and `onSCP` tsh commands handlers will be exte
 A new `tsh proxy ssh` command will be introduced allowing for injection to `ProxyCommand` openssh client command:
 ```
 ssh -o "ForwardAgent yes" \
-    -o "ProxyCommand tsh proxy ssh --user=%r %h:%p" \
+    -o "ProxyCommand tsh proxy ssh --user=%r %n:%p" \
     alice@node.example.teleport.sh
 ```
 
 `--cluster` flag allows connecting to a node within a trusted cluster:
 ```
  ssh -o "ForwardAgent yes" \
-     -o "ProxyCommand tsh proxy ssh --user=%r --cluster=leaf1.example.teleport.sh %h:%p" \
+     -o "ProxyCommand tsh proxy ssh --user=%r --cluster=leaf1.example.teleport.sh %n:%p" \
      alice@node.leaf1.example.teleport.sh
 ```
 

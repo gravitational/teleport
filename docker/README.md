@@ -110,7 +110,7 @@ To setup Ansible:
     echo "172.10.1.2:3022" >> /etc/ansible/hosts
 
     # setup ssh_args that ansible will use to access trusted cluster nodes
-    sed -i '/ssh_args = -o ControlMaster=auto -o ControlPersist=60s/assh_args = -o "ProxyCommand ssh -p 3023 one -s proxy:%h:%p@two"' /etc/ansible/ansible.cfg
+    sed -i '/ssh_args = -o ControlMaster=auto -o ControlPersist=60s/assh_args = -o "ProxyCommand ssh -p 3023 one -s proxy:%n:%p@two"' /etc/ansible/ansible.cfg
 
     # use scp over sftp
     sed -i '/scp_if_ssh/s/^#//g' /etc/ansible/ansible.cfg
