@@ -3,7 +3,7 @@ authors: Noah Stride (noah.stride@goteleport.com)
 state: draft
 ---
 
-# RFD XXXX - Machine ID Anonymous Agent Telemetry
+# RFD 0106 - Machine ID Anonymous Agent Telemetry
 
 ## Required Approvers
 
