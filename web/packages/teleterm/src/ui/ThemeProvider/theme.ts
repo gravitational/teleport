@@ -114,11 +114,32 @@ const borders = [
   '32px solid',
 ];
 
+function getSansSerif() {
+  const platform = getPlatform();
+
+  if (platform.isLinux) {
+    return "system-ui, 'Ubuntu', 'Droid Sans', sans-serif";
+  }
+
+  if (platform.isMac) {
+    return '-apple-system, BlinkMacSystemFont, sans-serif';
+  }
+
+  if (platform.isWin) {
+    return "system-ui, 'Segoe WPC', 'Segoe UI', sans-serif";
+  }
+}
+
+const sansSerif = getSansSerif();
+
 const theme = {
   colors,
   typography,
-  font: fonts.sansSerif,
-  fonts: fonts,
+  font: sansSerif,
+  fonts: {
+    sansSerif,
+    mono: fonts.mono,
+  },
   fontWeights,
   fontSizes,
   space,

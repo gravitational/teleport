@@ -23,14 +23,12 @@ import theme from './theme';
 type TeletermThemeProvider = {
   fonts: {
     mono: string;
-    sansSerif: string;
   };
 };
 
 const TeletermThemeProvider: React.FC<TeletermThemeProvider> = props => {
   if (props?.fonts) {
-    theme.font = props.fonts.sansSerif;
-    theme.fonts = props.fonts;
+    theme.fonts.mono = props.fonts.mono;
   }
 
   return (

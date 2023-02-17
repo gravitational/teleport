@@ -85,9 +85,6 @@ const createAppConfigSchema = (platform: Platform) => {
     'keymap.openQuickInput': omitStoredConfigValue(
       z.string().default(defaultKeymap['open-quick-input'])
     ),
-    'fonts.sansSerifFamily': omitStoredConfigValue(
-      z.string().default(defaultFonts['sansSerif'])
-    ),
     'fonts.monoFamily': omitStoredConfigValue(
       z.string().default(defaultFonts['mono'])
     ),
@@ -193,17 +190,14 @@ function getDefaultFonts(platform: Platform) {
   switch (platform) {
     case 'win32':
       return {
-        sansSerif: "system-ui, 'Segoe WPC', 'Segoe UI', sans-serif",
         mono: "'Consolas', 'Courier New', monospace",
       };
     case 'linux':
       return {
-        sansSerif: "system-ui, 'Ubuntu', 'Droid Sans', sans-serif",
         mono: "'Droid Sans Mono', 'Courier New', monospace, 'Droid Sans Fallback'",
       };
     case 'darwin':
       return {
-        sansSerif: '-apple-system, BlinkMacSystemFont, sans-serif',
         mono: "Menlo, Monaco, 'Courier New', monospace",
       };
   }
