@@ -760,7 +760,7 @@ if teleport_binaries_exist; then
     fi
 fi
 
-install_from_file(){
+install_from_file() {
     # select correct URL/installation method based on distro
     if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
         URL="https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
@@ -845,7 +845,7 @@ install_from_file(){
     fi
 }
 
-install_from_repo(){
+install_from_repo() {
     if [[ "${REPO_CHANNEL}" == "" ]]; then
         # By default, use the current version's channel.
         REPO_CHANNEL=v"${TELEPORT_VERSION//.*/}"
@@ -862,33 +862,32 @@ install_from_repo(){
             ($ID == "ubuntu" && $VERSION_ID == "16.04") || \
             ($ID == "debian" && $VERSION_ID == "9" )
         ]]; then
-            sudo apt install apt-transport-https gnupg -y
-            curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo apt-key add -
-            echo "deb https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} stable/${REPO_CHANNEL}" | sudo tee /etc/apt/sources.list.d/teleport.list
+            apt install apt-transport-https gnupg -y
+            curl -fsSL https://deb.releases.teleport.dev/teleport-pubkey.asc | apt-key add -
+            echo "deb https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} stable/${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         else
-            sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
+            curl -fsSL https://deb.releases.teleport.dev/teleport-pubkey.asc \
                 -o /usr/share/keyrings/teleport-archive-keyring.asc
             echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
-            https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} stable/${REPO_CHANNEL}" | \
-            sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
+            https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} stable/${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         fi
-        sudo apt-get update
-        sudo apt-get install -y ${TELEPORT_PACKAGE_NAME}
+        apt-get update
+        apt-get install -y ${TELEPORT_PACKAGE_NAME}
     elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ] || [ "$ID" = "centos" ] ; then
         if [ "$ID" = "rhel" ]; then
             VERSION_ID="${VERSION_ID//.*/}" # convert version numbers like '7.2' to only include the major version
         fi
-        sudo yum install -y yum-utils
-        sudo yum-config-manager --add-repo \
+        yum install -y yum-utils
+        yum-config-manager --add-repo \
         "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/${REPO_CHANNEL}/teleport.repo")"
-        sudo yum install -y ${TELEPORT_PACKAGE_NAME}
+        yum install -y ${TELEPORT_PACKAGE_NAME}
     else
         echo "Unsupported distro: $ID"
         exit 1
     fi
 }
 
-is_repo_available(){
+is_repo_available() {
     if [[ "${OSTYPE}" != "linux-gnu" ]]; then
         return 1
     fi
