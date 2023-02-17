@@ -18,9 +18,11 @@ package services
 
 import (
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
+	"github.com/gravitational/teleport"
 	usageevents "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
-	prehogv1 "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
+	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -33,7 +35,7 @@ type UsageAnonymizable interface {
 
 // UsageReporter is a service that accepts Teleport usage events.
 type UsageReporter interface {
-	// SubmitAnonymizedUsageEvent submits a usage event. The payload will be
+	// SubmitAnonymizedUsageEvents submits a usage event. The payload will be
 	// anonymized by the reporter implementation.
 	SubmitAnonymizedUsageEvents(event ...UsageAnonymizable) error
 }
@@ -72,8 +74,8 @@ type UsageSessionStart prehogv1.SessionStartEvent
 
 func (u *UsageSessionStart) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_SessionStart{
-			SessionStart: &prehogv1.SessionStartEvent{
+		Event: &prehogv1.SubmitEventRequest_SessionStartV2{
+			SessionStartV2: &prehogv1.SessionStartEvent{
 				UserName:    a.AnonymizeString(u.UserName),
 				SessionType: u.SessionType,
 			},
@@ -218,120 +220,92 @@ func (u *UsageUIRecoveryCodesPrintClick) Anonymize(a utils.Anonymizer) prehogv1.
 	}
 }
 
-func discoverMetadataToPrehog(u *usageevents.DiscoverMetadata, identityUsername string) *prehogv1.DiscoverMetadata {
-	return &prehogv1.DiscoverMetadata{
-		Id:       u.Id,
-		UserName: identityUsername,
-	}
-}
+// UsageRoleCreate is an event emitted when a custom role is created.
+type UsageRoleCreate prehogv1.RoleCreateEvent
 
-func validateDiscoverMetadata(u *prehogv1.DiscoverMetadata) error {
-	if u == nil {
-		return trace.BadParameter("metadata is required")
+func (u *UsageRoleCreate) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	role := u.RoleName
+	if !slices.Contains(teleport.PresetRoles, u.RoleName) {
+		role = a.AnonymizeString(u.RoleName)
 	}
 
-	if len(u.Id) == 0 {
-		return trace.BadParameter("metadata.id is required")
-	}
-
-	return nil
-}
-
-func discoverResourceToPrehog(u *usageevents.DiscoverResourceMetadata) *prehogv1.DiscoverResourceMetadata {
-	return &prehogv1.DiscoverResourceMetadata{
-		Resource: prehogv1.DiscoverResource(u.Resource),
-	}
-}
-
-func validateDiscoverResourceMetadata(u *prehogv1.DiscoverResourceMetadata) error {
-	if u == nil {
-		return trace.BadParameter("resource is required")
-	}
-
-	if u.Resource == prehogv1.DiscoverResource_DISCOVER_RESOURCE_UNSPECIFIED {
-		return trace.BadParameter("invalid resource")
-	}
-
-	return nil
-}
-
-func discoverStatusToPrehog(u *usageevents.DiscoverStepStatus) *prehogv1.DiscoverStepStatus {
-	return &prehogv1.DiscoverStepStatus{
-		Status: prehogv1.DiscoverStatus(u.Status),
-		Error:  u.Error,
-	}
-}
-
-func validateDiscoverStatus(u *prehogv1.DiscoverStepStatus) error {
-	if u == nil {
-		return trace.BadParameter("status is required")
-	}
-
-	if u.Status == prehogv1.DiscoverStatus_DISCOVER_STATUS_UNSPECIFIED {
-		return trace.BadParameter("invalid status.status")
-	}
-
-	if u.Status == prehogv1.DiscoverStatus_DISCOVER_STATUS_ERROR && len(u.Error) == 0 {
-		return trace.BadParameter("status.error is required when status.status is ERROR")
-	}
-
-	return nil
-}
-
-// UsageUIDiscoverStartedEvent is a UI event sent when a user starts the Discover Wizard.
-type UsageUIDiscoverStartedEvent prehogv1.UIDiscoverStartedEvent
-
-func (u *UsageUIDiscoverStartedEvent) CheckAndSetDefaults() error {
-	if err := validateDiscoverMetadata(u.Metadata); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := validateDiscoverStatus(u.Status); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (u *UsageUIDiscoverStartedEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiDiscoverStartedEvent{
-			UiDiscoverStartedEvent: &prehogv1.UIDiscoverStartedEvent{
-				Metadata: &prehogv1.DiscoverMetadata{
-					Id:       u.Metadata.Id,
-					UserName: a.AnonymizeString(u.Metadata.UserName),
-				},
-				Status: u.Status,
+		Event: &prehogv1.SubmitEventRequest_RoleCreate{
+			RoleCreate: &prehogv1.RoleCreateEvent{
+				UserName: a.AnonymizeString(u.UserName),
+				RoleName: role,
 			},
 		},
 	}
 }
 
-// UsageUIDiscoverResourceSelectionEvent is a UI event sent when a user starts the Discover Wizard.
-type UsageUIDiscoverResourceSelectionEvent prehogv1.UIDiscoverResourceSelectionEvent
+// UsageUICreateNewRoleClickEvent is a UI event sent when a user prints recovery codes.
+type UsageUICreateNewRoleClickEvent prehogv1.UICreateNewRoleClickEvent
 
-func (u *UsageUIDiscoverResourceSelectionEvent) CheckAndSetDefaults() error {
-	if err := validateDiscoverMetadata(u.Metadata); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := validateDiscoverResourceMetadata(u.Resource); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := validateDiscoverStatus(u.Status); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-func (u *UsageUIDiscoverResourceSelectionEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UsageUICreateNewRoleClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiDiscoverResourceSelectionEvent{
-			UiDiscoverResourceSelectionEvent: &prehogv1.UIDiscoverResourceSelectionEvent{
-				Metadata: &prehogv1.DiscoverMetadata{
-					Id:       u.Metadata.Id,
-					UserName: a.AnonymizeString(u.Metadata.UserName),
-				},
-				Resource: u.Resource,
-				Status:   u.Status,
+		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleClick{
+			UiCreateNewRoleClick: &prehogv1.UICreateNewRoleClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
+// UsageUICreateNewRoleSaveClickEvent is a UI event sent when a user prints recovery codes.
+type UsageUICreateNewRoleSaveClickEvent prehogv1.UICreateNewRoleSaveClickEvent
+
+func (u *UsageUICreateNewRoleSaveClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleSaveClick{
+			UiCreateNewRoleSaveClick: &prehogv1.UICreateNewRoleSaveClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
+// UsageUICreateNewRoleCancelClickEvent is a UI event sent when a user prints recovery codes.
+type UsageUICreateNewRoleCancelClickEvent prehogv1.UICreateNewRoleCancelClickEvent
+
+func (u *UsageUICreateNewRoleCancelClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleCancelClick{
+			UiCreateNewRoleCancelClick: &prehogv1.UICreateNewRoleCancelClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
+// UsageUICreateNewRoleViewDocumentationClickEvent is a UI event sent when a user prints recovery codes.
+type UsageUICreateNewRoleViewDocumentationClickEvent prehogv1.UICreateNewRoleViewDocumentationClickEvent
+
+func (u *UsageUICreateNewRoleViewDocumentationClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleViewDocumentationClick{
+			UiCreateNewRoleViewDocumentationClick: &prehogv1.UICreateNewRoleViewDocumentationClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
+// UsageCertificateIssued is an event emitted when a certificate has been
+// issued, used to track the duration and restriction.
+type UsageCertificateIssued prehogv1.UserCertificateIssuedEvent
+
+func (u *UsageCertificateIssued) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_UserCertificateIssuedEvent{
+			UserCertificateIssuedEvent: &prehogv1.UserCertificateIssuedEvent{
+				UserName:        a.AnonymizeString(u.UserName),
+				Ttl:             u.Ttl,
+				IsBot:           u.IsBot,
+				UsageDatabase:   u.UsageDatabase,
+				UsageApp:        u.UsageApp,
+				UsageKubernetes: u.UsageKubernetes,
+				UsageDesktop:    u.UsageDesktop,
 			},
 		},
 	}
@@ -386,6 +360,22 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 		return &UsageUIRecoveryCodesPrintClick{
 			UserName: e.UiRecoveryCodesPrintClick.Username,
 		}, nil
+	case *usageevents.UsageEventOneOf_UiCreateNewRoleClick:
+		return &UsageUICreateNewRoleClickEvent{
+			UserName: identityUsername,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiCreateNewRoleSaveClick:
+		return &UsageUICreateNewRoleSaveClickEvent{
+			UserName: identityUsername,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiCreateNewRoleCancelClick:
+		return &UsageUICreateNewRoleCancelClickEvent{
+			UserName: identityUsername,
+		}, nil
+	case *usageevents.UsageEventOneOf_UiCreateNewRoleViewDocumentationClick:
+		return &UsageUICreateNewRoleViewDocumentationClickEvent{
+			UserName: identityUsername,
+		}, nil
 	case *usageevents.UsageEventOneOf_UiDiscoverStartedEvent:
 		ret := &UsageUIDiscoverStartedEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverStartedEvent.Metadata, identityUsername),
@@ -401,6 +391,117 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverResourceSelectionEvent.Metadata, identityUsername),
 			Resource: discoverResourceToPrehog(e.UiDiscoverResourceSelectionEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverResourceSelectionEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverDeployServiceEvent:
+		ret := &UsageUIDiscoverDeployServiceEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverDeployServiceEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverDeployServiceEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverDatabaseRegisterEvent:
+		ret := &UsageUIDiscoverDatabaseRegisterEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseRegisterEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverDatabaseRegisterEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverDatabaseRegisterEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverDatabaseConfigureMtlsEvent:
+		ret := &UsageUIDiscoverDatabaseConfigureMTLSEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryToolsInstallEvent:
+		ret := &UsageUIDiscoverDesktopActiveDirectoryToolsInstallEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryConfigureEvent:
+		ret := &UsageUIDiscoverDesktopActiveDirectoryConfigureEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent:
+		ret := &UsageUIDiscoverAutoDiscoveredResourcesEvent{
+			Metadata:       discoverMetadataToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Metadata, identityUsername),
+			Resource:       discoverResourceToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Resource),
+			Status:         discoverStatusToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Status),
+			ResourcesCount: e.UiDiscoverAutoDiscoveredResourcesEvent.ResourcesCount,
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverDatabaseConfigureIamPolicyEvent:
+		ret := &UsageUIDiscoverDatabaseConfigureIAMPolicyEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverPrincipalsConfigureEvent:
+		ret := &UsageUIDiscoverPrincipalsConfigureEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverTestConnectionEvent:
+		ret := &UsageUIDiscoverTestConnectionEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverTestConnectionEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverTestConnectionEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverTestConnectionEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageevents.UsageEventOneOf_UiDiscoverCompletedEvent:
+		ret := &UsageUIDiscoverCompletedEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverCompletedEvent.Metadata, identityUsername),
+			Resource: discoverResourceToPrehog(e.UiDiscoverCompletedEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverCompletedEvent.Status),
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

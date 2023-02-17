@@ -25,6 +25,10 @@ import useTeleport from 'teleport/useTeleport';
 import { Acl } from 'teleport/services/user';
 
 import { ResourceKind, Header, HeaderSubtitle } from 'teleport/Discover/Shared';
+import {
+  DiscoverEvent,
+  DiscoverEventStatus,
+} from 'teleport/services/userEvent';
 
 import { ApplicationResource } from '../Application/ApplicationResource';
 import { DatabaseResource } from '../Database/DatabaseResource';
@@ -32,6 +36,7 @@ import { DesktopResource } from '../Desktop/DesktopResource';
 import { KubernetesResource } from '../Kubernetes/KubernetesResource';
 import { ServerResource } from '../Server/ServerResource';
 import { DatabaseEngine, DatabaseLocation } from '../Database/resources';
+import { useDiscover } from '../useDiscover';
 
 import k8sIcon from './assets/kubernetes.png';
 import serverIcon from './assets/server.png';
@@ -67,6 +72,7 @@ interface SelectResourceProps<T = any> {
 
 export function SelectResource(props: SelectResourceProps) {
   const ctx = useTeleport();
+  const { emitEvent } = useDiscover();
 
   const userContext = ctx.storeUser.state;
   const { acl } = userContext;
@@ -141,6 +147,7 @@ export function SelectResource(props: SelectResourceProps) {
                 state.engine === DatabaseEngine.MySQL
               ) {
                 props.onNext();
+                return;
               }
             }
 
@@ -150,10 +157,12 @@ export function SelectResource(props: SelectResourceProps) {
                 state.engine === DatabaseEngine.MySQL
               ) {
                 props.onNext();
+                return;
               }
             }
 
             // Unsupported databases will default to the modal popup.
+            emitEvent({ stepStatus: DiscoverEventStatus.Success });
             return setShowAddDB(true);
           }}
         />
@@ -161,7 +170,13 @@ export function SelectResource(props: SelectResourceProps) {
       {props.selectedResourceKind === ResourceKind.Application && (
         <ApplicationResource
           disabled={disabled}
-          onProceed={() => setShowAddApp(true)}
+          onProceed={() => {
+            setShowAddApp(true);
+            emitEvent(
+              { stepStatus: DiscoverEventStatus.Success },
+              { eventName: DiscoverEvent.ResourceSelection }
+            );
+          }}
         />
       )}
       {props.selectedResourceKind === ResourceKind.Desktop && (

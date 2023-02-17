@@ -23,6 +23,8 @@ import { ResourceKind } from 'teleport/Discover/Shared';
 import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 import { userContext } from 'teleport/mocks/contexts';
+import { DiscoverProvider } from 'teleport/Discover/useDiscover';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 
 import HelmChart from './HelmChart';
 
@@ -123,14 +125,22 @@ const Provider = props => {
   const ctx = createTeleportContext();
 
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: 'database' } },
+      ]}
+    >
       <ContextProvider ctx={ctx}>
-        <PingTeleportProvider
-          interval={props.interval || 100000}
-          resourceKind={ResourceKind.Kubernetes}
-        >
-          {props.children}
-        </PingTeleportProvider>
+        <FeaturesContextProvider value={[]}>
+          <DiscoverProvider>
+            <PingTeleportProvider
+              interval={props.interval || 100000}
+              resourceKind={ResourceKind.Kubernetes}
+            >
+              {props.children}
+            </PingTeleportProvider>
+          </DiscoverProvider>
+        </FeaturesContextProvider>
       </ContextProvider>
     </MemoryRouter>
   );

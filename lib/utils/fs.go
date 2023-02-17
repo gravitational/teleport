@@ -169,7 +169,7 @@ func FSTryWriteLock(filePath string) (unlock func() error, err error) {
 		return nil, trace.Retry(ErrUnsuccessfulLockTry, "")
 	}
 
-	return unlockWrapper(fileLock.Unlock, fileLock.Path()), nil
+	return fileLock.Unlock, nil
 }
 
 // FSTryWriteLockTimeout tries to grab write lock, it's doing it until locks is acquired, or timeout is expired,
@@ -182,7 +182,7 @@ func FSTryWriteLockTimeout(ctx context.Context, filePath string, timeout time.Du
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	return unlockWrapper(fileLock.Unlock, fileLock.Path()), nil
+	return fileLock.Unlock, nil
 }
 
 // FSTryReadLock tries to grab write lock, returns ErrUnsuccessfulLockTry
@@ -197,7 +197,7 @@ func FSTryReadLock(filePath string) (unlock func() error, err error) {
 		return nil, trace.Retry(ErrUnsuccessfulLockTry, "")
 	}
 
-	return unlockWrapper(fileLock.Unlock, fileLock.Path()), nil
+	return fileLock.Unlock, nil
 }
 
 // FSTryReadLockTimeout tries to grab read lock, it's doing it until locks is acquired, or timeout is expired,
@@ -210,7 +210,7 @@ func FSTryReadLockTimeout(ctx context.Context, filePath string, timeout time.Dur
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	return unlockWrapper(fileLock.Unlock, fileLock.Path()), nil
+	return fileLock.Unlock, nil
 }
 
 // RemoveSecure attempts to securely delete the file by first overwriting the file with random data three times

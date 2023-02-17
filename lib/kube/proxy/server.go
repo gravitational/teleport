@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -87,6 +88,8 @@ type TLSServerConfig struct {
 	// If StaticLabels and CloudLabels define labels with the same key,
 	// StaticLabels take precedence over CloudLabels.
 	CloudLabels labels.Importer
+	// IngressReporter reports new and active connections.
+	IngressReporter *ingress.Reporter
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -195,6 +198,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout * 2,
 			TLSConfig:         cfg.TLS,
+			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
 		},
 		heartbeats: make(map[string]*srv.Heartbeat),
 		monitoredKubeClusters: monitoredKubeClusters{
@@ -262,13 +266,27 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 
 // Close closes the server and cleans up all resources.
 func (t *TLSServer) Close() error {
+	return trace.Wrap(t.close(t.closeContext))
+}
+
+// Shutdown closes the server and cleans up all resources.
+func (t *TLSServer) Shutdown(ctx context.Context) error {
+	// TODO(tigrato): handle connections gracefully and wait for them to finish.
+	// This might be problematic because exec and port forwarding connections
+	// are long lived connections and if we wait for them to finish, we might
+	// end up waiting forever.
+	return trace.Wrap(t.close(ctx))
+}
+
+// close closes the server and cleans up all resources.
+func (t *TLSServer) close(ctx context.Context) error {
 	var errs []error
 	// Stop the legacy heartbeat resource watcher.
 	if t.legacyHeartbeat != nil {
 		errs = append(errs, t.legacyHeartbeat.Close())
 	}
 	for _, kubeCluster := range t.fwd.kubeClusters() {
-		errs = append(errs, t.unregisterKubeCluster(t.closeContext, kubeCluster.GetName()))
+		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster.GetName()))
 	}
 	errs = append(errs, t.fwd.Close(), t.Server.Close())
 

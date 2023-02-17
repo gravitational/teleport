@@ -21,18 +21,19 @@ import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/us
 import { RequestState } from 'e-teleport/services/workflow';
 import { SortType } from 'design/DataTable/types';
 import { FileTransferListeners } from 'shared/components/FileTransfer';
+import apiCluster from 'gen-proto-js/teleport/lib/teleterm/v1/cluster_pb';
+import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
+import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
+import apiServer from 'gen-proto-js/teleport/lib/teleterm/v1/server_pb';
+import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
+import apiApp from 'gen-proto-js/teleport/lib/teleterm/v1/app_pb';
+import apiService, {
+  FileTransferDirection,
+} from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
+import apiAuthSettings from 'gen-proto-js/teleport/lib/teleterm/v1/auth_settings_pb';
+import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
 
 import * as uri from 'teleterm/ui/uri';
-
-import apiCluster from './v1/cluster_pb';
-import apiDb from './v1/database_pb';
-import apigateway from './v1/gateway_pb';
-import apiServer from './v1/server_pb';
-import apiKube from './v1/kube_pb';
-import apiApp from './v1/app_pb';
-import apiService from './v1/service_pb';
-import apiAuthSettings from './v1/auth_settings_pb';
-import apiAccessRequest from './v1/access_request_pb';
 
 export type Application = apiApp.App.AsObject;
 export interface Kube extends apiKube.Kube.AsObject {
@@ -41,7 +42,7 @@ export interface Kube extends apiKube.Kube.AsObject {
 export interface Server extends apiServer.Server.AsObject {
   uri: uri.ServerUri;
 }
-export interface Gateway extends apigateway.Gateway.AsObject {
+export interface Gateway extends apiGateway.Gateway.AsObject {
   uri: uri.GatewayUri;
   targetUri: uri.DatabaseUri;
 }
@@ -85,7 +86,10 @@ export type LoggedInUser = apiCluster.LoggedInUser.AsObject & {
 export type AuthProvider = apiAuthSettings.AuthProvider.AsObject;
 export type AuthSettings = apiAuthSettings.AuthSettings.AsObject;
 
-export type FileTransferRequest = apiService.FileTransferRequest.AsObject;
+export interface FileTransferRequest
+  extends apiService.FileTransferRequest.AsObject {
+  serverUri: uri.ServerUri;
+}
 
 export type WebauthnCredentialInfo = apiService.CredentialInfo.AsObject;
 export type WebauthnLoginPrompt =
@@ -252,3 +256,5 @@ export type AssumedRequest = {
   expires: Date;
   roles: string[];
 };
+
+export { FileTransferDirection };

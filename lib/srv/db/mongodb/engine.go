@@ -166,7 +166,7 @@ func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Ses
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
 		mfaParams,
-		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
+		services.NewDatabaseUserMatcher(sessionCtx.Database, sessionCtx.DatabaseUser),
 	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
@@ -199,7 +199,8 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 	if _, ok := message.(*protocol.MessageOpKillCursors); ok {
 		return sessionCtx.Checker.CheckAccess(sessionCtx.Database,
 			services.AccessMFAParams{Verified: true},
-			&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
+			services.NewDatabaseUserMatcher(sessionCtx.Database, sessionCtx.DatabaseUser),
+		)
 	}
 	// Do not allow certain commands that deal with authentication.
 	command, err := message.GetCommand()
@@ -214,7 +215,7 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 	return sessionCtx.Checker.CheckAccess(sessionCtx.Database,
 		services.AccessMFAParams{Verified: true},
 		role.DatabaseRoleMatchers(
-			defaults.ProtocolMongoDB,
+			sessionCtx.Database,
 			sessionCtx.DatabaseUser,
 			database)...)
 }

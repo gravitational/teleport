@@ -92,7 +92,7 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 
 	mfaParams := e.sessionCtx.MFAParams(ap.GetRequireMFAType())
 	dbRoleMatchers := role.DatabaseRoleMatchers(
-		e.sessionCtx.Database.GetProtocol(),
+		e.sessionCtx.Database,
 		e.sessionCtx.DatabaseUser,
 		e.sessionCtx.DatabaseName,
 	)
