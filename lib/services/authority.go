@@ -129,10 +129,11 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-		}
-		_, err := tlsca.ParseCertificatePEM(pair.Cert)
-		if err != nil {
-			return trace.Wrap(err)
+		} else {
+			_, err := tlsca.ParseCertificatePEM(pair.Cert)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
