@@ -80,5 +80,9 @@ The browser's in-memory-cache is an array of hash tables where cache_id equals t
 Since we no longer send every bitmap over the wire and to keep session recordings to work we'll also need to keep the cache of the bitmaps at the proxy. When we encounter the `save bitmap message` we'll need to store that bitmap at the proxy and then whenver `load bitmap message` will be sent we'll need to load bitmap from the cache and generate appropriate event with the bitmap data. 
 
 
-### Move processing of bitmaps from Go client to Rust library
+### Process bitmaps in Rust library
 
+While interacting with the remote desktop using the RDP protocol, most of the protocol messages exchanged between the server and a client are related to rendering bitmaps. Messages almost always contain compressed data to reduce bandwidth usage and latency. Rendering compressed bitmaps on the screen requires uncompressing data first using decompress algorithm.
+ It is the most common operation while using the protocol, so it must execute extermaly fast to provide good user experience.
+The best performance can be achived be moving the bitmap decompression procdure from the Go client to the faster compiled library written in the Rust language. It'll also allow to simplyfy the way we encode and decode PNG tdp messages.
+During the tests average time it took to process message (read, process and decompress) when the decompression took place in Go side was around 500μs. After moving decompression alogirhm to the Rust library, time it took process message went down to 50μs.
