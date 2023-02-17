@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import { Router } from 'react-router';
 import { createMemoryHistory } from 'history';
-import renderHook, { act } from 'design/utils/renderHook';
+import renderHook from 'design/utils/renderHook';
 import { SortType } from 'design/DataTable/types';
 
 import { useUrlFiltering } from './useUrlFiltering';
