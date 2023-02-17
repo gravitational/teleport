@@ -126,7 +126,9 @@ func NewLicense(name string, spec LicenseSpecV3) (License, error) {
 	return l, nil
 }
 
-// LicenseV3 represents License resource version V3
+// LicenseV3 represents License resource version V3. When changing this, keep in
+// mind that other consumers of teleport/api (Houston, Sales Center) might still
+// need to generate or parse licenses for older versions of Teleport.
 type LicenseV3 struct {
 	// Kind is a resource kind - always resource.
 	Kind string `json:"kind"`
@@ -408,7 +410,10 @@ func (c *LicenseV3) String() string {
 	return strings.Join(features, ",")
 }
 
-// LicenseSpecV3 is the actual data we care about for LicenseV3.
+// LicenseSpecV3 is the actual data we care about for LicenseV3. When changing
+// this, keep in mind that other consumers of teleport/api (Houston, Sales
+// Center) might still need to generate or parse licenses for older versions of
+// Teleport.
 type LicenseSpecV3 struct {
 	// AccountID is a customer account ID
 	AccountID string `json:"account_id,omitempty"`
