@@ -26,6 +26,7 @@ import {
   yellow,
 } from 'design/theme/palette';
 import typography, { fontSizes, fontWeights } from 'design/theme/typography';
+import { getPlatform } from 'design/theme/utils';
 
 const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
 const contrastThreshold = 3;
@@ -138,7 +139,13 @@ const theme = {
   font: sansSerif,
   fonts: {
     sansSerif,
-    mono: fonts.mono,
+    /**
+     * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
+     * in a styled component, as it may inject malicious CSS code.
+     * Before using it, sanitize it with `CSS.escape` or pass it as a `style` prop.
+     * Read more https://frontarm.com/james-k-nelson/how-can-i-use-css-in-js-securely/.
+     */
+    unsanitizedMono: fonts.mono,
   },
   fontWeights,
   fontSizes,
