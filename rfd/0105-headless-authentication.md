@@ -162,7 +162,7 @@ type HeadlessAuthentication struct {
 
 In parallel to headless login initiation, the client will generate a Teleport web Proxy URL for the client to complete headless authentication: `https://proxy.example.com/headless/<id>/approve`. The URL is shared with the user so they can locally authenticate the auth request from their local browser.
 
-When the user runs the command or opens the URL locally, their local login session will be used to connect to the Teleport Auth server. If the user is not yet logged in, they will be prompted to login with MFA as usual.
+When the user opens the URL locally, their local login session will be used to connect to the Teleport Auth server. If the user is not yet logged in, they will be prompted to login with MFA as usual.
 
 Once connected, the user can view the request details and either approve or deny the request:
 
@@ -328,7 +328,7 @@ It is authorized for roles with `read` permissions on the `headless_authenticati
 
 This endpoint is used by Teleport clients to update headless login request state to approved or denied. 
 
-It is only authorized authorized for the user who requested headless authentication. Additionally, when updating the state to `APROVED`, the client must provide a valid MFA challenge response for the user. An MFA challenge can be requested from the existing rpc `CreateAuthenticateChallenge`.
+It is only authorized authorized for the user who requested headless authentication. Additionally, when updating the state to `APPROVED`, the client must provide a valid MFA challenge response for the user. An MFA challenge can be requested from the existing rpc `CreateAuthenticateChallenge`.
 
 #### `rpc GenerateUserCerts`
 
@@ -365,25 +365,15 @@ https://proxy.example.com/headless/<id>/approve
 <user@node01> $
 ```
 
-#### Supported commands
-
-Initially, we will only add support headless authentication for `tsh ls`, `tsh ssh`, and `tsh scp`. This way, when we the certificate permission limitations noted in the security section, we only need to support these three commands. Otherwise, we may end up regressing support for other `tsh` commands that are not covered by the certificate permission limitation changes. We may add support for more commands once certificate permission limitations are implemented.
-
-#### Environment variables
-
-In the `tsh --headless` flow, users never run `tsh login` on their remote machine. Instead, we expect the `--proxy`, `--user`, and `--headless` flags to be supplied to each command. To reduce UX friction, users can set the environment variables `TELEPORT_PROXY=<proxy_addr>`, `TELEPORT_USER=<user>`, and `TELEPORT_HEADLESS=true` instead.
-
-We prefer setting environment variables rather than saving config to disk (`~/.tsh/proxy.example.com.yaml` and `~/.tsh/current-profile`) so that the headless flow remains stateless, preventing conflicts on shared machines.
-
-#### `tsh headless`
+#### Headless authentication URL
 
 When the user goes to the headless authentication URL, the user will be prompted to login with MFA, if they are not logged in already. The user will then be notified of additional request details. Finally, the user is asked to verify with MFA to approve the request.
 
 Example (Exact UI/UX TBD):
+
 ```
-Headless request requires authentication. Contact your administrator if you didn't initiate this request.
+Headless login attempt requires approval. Contact your administrator if you didn't initiate this login attempt.
 Additional details:
-  - command: "tsh ssh user@localhost"
   - request id: <id>
   - ip address: <ip_address>
 Tap your YubiKey to approve
@@ -394,6 +384,16 @@ Note: When the user has to log in for the first time, we do not reuse their MFA 
 #### View headless requests
 
 In the Web UI, we will create a new page to view and accept `tsh` requests for a headless session: `https://proxy.example.com/headless/<headless_session_id>/requests`. The UI may be very similar to the access request page, where a user can view requests, view additional details, and then click approve/deny. When the user clicks "approve", this will trigger a prompt for MFA verification to complete the approval.
+
+#### Environment variables
+
+In the `tsh --headless` flow, users never run `tsh login` on their remote machine. Instead, we expect the `--proxy`, `--user`, and `--headless` flags to be supplied to each command. To reduce UX friction, users can set the environment variables `TELEPORT_PROXY=<proxy_addr>`, `TELEPORT_USER=<user>`, and `TELEPORT_HEADLESS=true` instead.
+
+We prefer setting environment variables rather than saving config to disk (`~/.tsh/proxy.example.com.yaml` and `~/.tsh/current-profile`) so that the headless flow remains stateless, preventing conflicts on shared machines.
+
+#### Supported commands
+
+Initially, we will only add support headless authentication for `tsh ls`, `tsh ssh`, and `tsh scp`. This way, when we the certificate permission limitations noted in the security section, we only need to support these three commands. Otherwise, we may end up regressing support for other `tsh` commands that are not covered by the certificate permission limitation changes. We may add support for more commands once certificate permission limitations are implemented.
 
 #### Teleport Connect
 
