@@ -881,8 +881,9 @@ exports[`failed state 1`] = `
           <div
             class="c20"
             color="primary.contrastText"
+            style="text-transform: uppercase;"
           >
-            SHOWING 
+            Showing 
             <strong>
               1
             </strong>
@@ -1848,8 +1849,9 @@ exports[`loaded state 1`] = `
           <div
             class="c20"
             color="primary.contrastText"
+            style="text-transform: uppercase;"
           >
-            SHOWING 
+            Showing 
             <strong>
               1
             </strong>

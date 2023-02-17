@@ -807,8 +807,9 @@ exports[`failed 1`] = `
         <div
           class="c20"
           color="primary.contrastText"
+          style="text-transform: uppercase;"
         >
-          SHOWING 
+          Showing 
           <strong>
             1
           </strong>
@@ -1571,8 +1572,9 @@ exports[`open source loaded 1`] = `
         <div
           class="c20"
           color="primary.contrastText"
+          style="text-transform: uppercase;"
         >
-          SHOWING 
+          Showing 
           <strong>
             1
           </strong>
