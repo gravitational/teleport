@@ -19,7 +19,7 @@ auth_service:
 proxy_service:
   enabled: "yes"
   # Set public address proxy will be reachable at.
-  public_addr: teleport.example.com:3080
+  public_addr: teleport.example.com:443
 ssh_service:
   enabled: "no"
 ```
@@ -88,7 +88,7 @@ You can start the Teleport Application Service with a single CLI command:
 $ sudo teleport start \
     --roles=app \
     --token=/tmp/token \
-    --auth-server=teleport.example.com:3080 \
+    --auth-server=teleport.example.com:443 \
     --app-name="grafana" \
     --app-uri="http://localhost:3000" \
     --labels=env=dev
@@ -123,7 +123,7 @@ teleport:
   # Proxy address to connect to. Note that it has to be the proxy address
   # because the app service always connects to the cluster over a reverse
   # tunnel.
-  proxy_server: teleport.example.com:3080
+  proxy_server: teleport.example.com:443
 app_service:
     enabled: yes
     # Teleport provides a small debug app that can be used to make sure application

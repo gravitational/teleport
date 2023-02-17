@@ -87,7 +87,7 @@ $ docker run --hostname localhost --rm \
 $ docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
   -v ~/teleport/data:/var/lib/teleport \
-  -p 3023:3023 -p 3025:3025 -p 3080:3080 \
+  -p 3023:3023 -p 3025:3025 -p 443:443 \
   ${TELEPORT_DOCKER_IMAGE}
 ```
 
@@ -116,7 +116,7 @@ $ docker run --hostname localhost --rm \
 $ docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
   -v ~/teleport/data:/var/lib/teleport \
-  -p 3023:3023 -p 3025:3025 -p 3080:3080 \
+  -p 3023:3023 -p 3025:3025 -p 443:443 \
   (=teleport.latest_ent_docker_image=)
 ```
 
@@ -137,8 +137,8 @@ When you run this command, Teleport will output a URL that you must open to comp
 
 ```txt
 User testuser has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h0m0s:
-https://localhost:3080/web/invite/4f2718a52ce107568b191f222ba069f7
-NOTE: Make sure localhost:3080 points at a Teleport proxy which users can access.
+https://localhost:443/web/invite/4f2718a52ce107568b191f222ba069f7
+NOTE: Make sure localhost:443 points at a Teleport proxy which users can access.
 ```
 
 The Web UI will be available at the displayed URL.
@@ -170,8 +170,8 @@ Enter your OTP token:
 After successfully authenticating you should see the following in your terminal:
 
 ```
-WARNING: You are using insecure connection to Teleport proxy https://localhost:3080
-> Profile URL:        https://localhost:3080
+WARNING: You are using insecure connection to Teleport proxy https://localhost:443
+> Profile URL:        https://localhost:443
   Logged in as:       testuser
   Cluster:            localhost
   Roles:              editor, access

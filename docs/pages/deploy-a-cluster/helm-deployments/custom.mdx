@@ -94,7 +94,7 @@ proxy:
         severity: INFO
     proxy_service:
       enabled: true
-      listen_addr: 0.0.0.0:3080
+      listen_addr: 0.0.0.0:443
       public_addr: custom.example.com:443
       
 # If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
@@ -151,7 +151,7 @@ Due to this, your `proxy_service.public_addr` should always end in `:443`:
 
 ```yaml
 proxy_service:
-  listen_addr: 0.0.0.0:3080
+  listen_addr: 0.0.0.0:443
   public_addr: custom.example.com:443
 ```
 

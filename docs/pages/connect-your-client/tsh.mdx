@@ -225,7 +225,7 @@ command:
 ```code
 $ tsh status
 
-# > Profile URL:  https://proxy.example.com:3080
+# > Profile URL:  https://proxy.example.com:443
 #   Logged in as: johndoe
 #  Cluster:      proxy.example.com
 #   Roles:        admin*
@@ -616,7 +616,7 @@ $ teleport status
 
 # User ID    : joe, logged in as joe from 10.0.10.1 43026 3022
 # Session ID : 7645d523-60cb-436d-b732-99c5df14b7c4
-Session URL: https://work:3080/web/sessions/7645d523-60cb-436d-b732-99c5df14b7c4
+Session URL: https://work:443/web/sessions/7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
 Now you can invite another user account to the `work` cluster. You can share the
@@ -761,7 +761,7 @@ You'll also need to ensure that your user has the `permit_x11_forwarding` role o
 
 ```code
 $ tsh status
-> Profile URL:        https://proxy.example.com:3080
+> Profile URL:        https://proxy.example.com:443
   Logged in as:       dev
   ...
   Extensions:         permit-X11-forwarding

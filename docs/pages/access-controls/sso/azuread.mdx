@@ -59,7 +59,7 @@ Before you get started you’ll need:
 
 8. For **Entity ID** and **Reply URL**, enter the same proxy URL.
 
-   For self-hosted deployments, the URL will be similar to `https://teleport.example.com:3080/v1/webapi/saml/acs/connectorName`.
+   For self-hosted deployments, the URL will be similar to `https://teleport.example.com:443/v1/webapi/saml/acs/connectorName`.
 
    For Teleport Cloud users, the URL will be similar to `https://mytenant.teleport.sh`.
 
@@ -110,7 +110,7 @@ spec:
   # acs is the Assertion Consumer Service URL. This should be the address of
   # the Teleport proxy that your identity provider will communicate with.
   # The last segment of the URL must be identical to the connector metadata name.
-  acs: https://teleport.example.com:3080/v1/webapi/saml/acs/azure-saml
+  acs: https://teleport.example.com:443/v1/webapi/saml/acs/azure-saml
   attributes_to_roles:
     - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 930210...>", roles: ["editor"]}
     - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 93b110...>", roles: ["dev"]}

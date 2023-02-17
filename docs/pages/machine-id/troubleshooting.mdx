@@ -16,8 +16,8 @@ ERROR: renewable cert generation mismatch: stored=3, presented=2
 Subsequent connection attempts by the bot may see errors like the following:
 ```text
 ERROR: failed direct dial to auth server: auth API: access denied [00]
-"\tauth API: access denied [00], failed dial to auth server through reverse tunnel: Get \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://example.com:3025/webapi/find\": x509: cannot validate certificate for example.com because it doesn't contain any IP SANs"
-"\tGet \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://example.com:3025/webapi/find\": x509: cannot validate certificate for example.com because it doesn't contain any IP SANs"
+"\tauth API: access denied [00], failed dial to auth server through reverse tunnel: Get \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://teleport.example.com:443/webapi/find\": x509: cannot validate certificate for example.com because it doesn't contain any IP SANs"
+"\tGet \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://teleport.example.com:443/webapi/find\": x509: cannot validate certificate for example.com because it doesn't contain any IP SANs"
 ```
 
 In particular, note the message `auth API: access denied`.
@@ -108,11 +108,11 @@ Restarting a `tbot` process outputs a log like the following:
 INFO [TBOT]      Successfully loaded bot identity, valid: after=2022-07-21T21:49:26Z, before=2022-07-21T22:50:26Z, duration=1h1m0s | kind=tls, renewable=true, disallow-reissue=false, roles=[bot-test], principals=[-teleport-internal-join], generation=2 tbot/tbot.go:281
 ERRO [TBOT]      Identity has expired. The renewal is likely to fail. (expires: 2022-07-21T22:50:26Z, current time: 2022-07-25T20:18:33Z) tbot/tbot.go:415
 WARN [TBOT]      Note: onboarding config ignored as identity was loaded from persistent storage tbot/tbot.go:288
-ERRO [TBOT]      Failed to resolve tunnel address Get "https://auth.example.com:3025/webapi/find": x509: cannot validate certificate for auth.example.com because it doesn't contain any IP SANs reversetunnel/transport.go:90
-ERRO [TBOT]      Failed to resolve tunnel address Get "https://auth.example.com:3025/webapi/find": x509: cannot validate certificate for auth.example.com because it doesn't contain any IP SANs reversetunnel/transport.go:90
+ERRO [TBOT]      Failed to resolve tunnel address Get "https://teleport.example.com:443/webapi/find": x509: cannot validate certificate for auth.example.com because it doesn't contain any IP SANs reversetunnel/transport.go:90
+ERRO [TBOT]      Failed to resolve tunnel address Get "https://teleport.example.com:443/webapi/find": x509: cannot validate certificate for auth.example.com because it doesn't contain any IP SANs reversetunnel/transport.go:90
 ERROR: failed direct dial to auth server: Get "https://teleport.cluster.local/v2/configuration/name": remote error: tls: bad certificate
-"\tGet \"https://teleport.cluster.local/v2/configuration/name\": remote error: tls: bad certificate, failed dial to auth server through reverse tunnel: Get \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://auth.example.com:3025/webapi/find\": x509: cannot validate certificate for auth.example.com because it doesn't contain any IP SANs"
-"\tGet \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://auth.example.com:3025/webapi/find\": x509: cannot validate certificate for auth.example.com because it doesn't contain any IP SANs"
+"\tGet \"https://teleport.cluster.local/v2/configuration/name\": remote error: tls: bad certificate, failed dial to auth server through reverse tunnel: Get \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://teleport.example.com:443/webapi/find\": x509: cannot validate certificate for auth.example.com because it doesn't contain any IP SANs"
+"\tGet \"https://teleport.cluster.local/v2/configuration/name\": Get \"https://teleport.example.com:443/webapi/find\": x509: cannot validate certificate for auth.example.com because it doesn't contain any IP SANs"
 ```
 
 In particular, note the log line: "Identity has expired. The renewal is likely to

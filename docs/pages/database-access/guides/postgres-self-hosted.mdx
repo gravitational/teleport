@@ -103,7 +103,7 @@ CLI command:
 ```code
 $ teleport db start \
    --token=/tmp/token \
-   --auth-server=teleport.example.com:3080 \
+   --auth-server=teleport.example.com:443 \
    --name=test \
    --protocol=postgres \
    --uri=postgres.example.com:5432 \
@@ -143,7 +143,7 @@ Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 $ teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=teleport.example.com:3080 \
+   --proxy=teleport.example.com:443 \
    --name=test \
    --protocol=postgres \
    --uri=postgres.example.com:5432 \

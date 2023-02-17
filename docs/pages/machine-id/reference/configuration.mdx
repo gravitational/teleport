@@ -12,7 +12,7 @@ The following snippet shows full YAML configuration of the Machine ID client
 debug: true
 
 # Address of the Teleport Auth Server (on-prem installs) or Teleport Cloud tenant.
-auth_server: "auth.example.com:3025" # or "example.teleport.sh:443" for Teleport Cloud
+auth_server: "teleport.example.com:443" # or "example.teleport.sh:443" for Teleport Cloud
 
 # TTL of short-lived machine certificates.
 certificate_ttl: "5m"
@@ -138,13 +138,13 @@ $ tbot start \
    --destination-dir=./tbot-user \
    --token=00000000000000000000000000000000 \
    --ca-pin=(=presets.ca_pin=) \
-   --auth-server=auth.example.com:3025
+   --auth-server=auth.example.com:443
 ```
 
 ... it uses a configuration equivalent to the following:
 
 ```yaml
-auth_server: auth.example.com:3025
+auth_server: teleport.example.com:443
 
 onboarding:
     join_method: "token"

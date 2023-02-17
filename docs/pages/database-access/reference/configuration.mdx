@@ -32,7 +32,7 @@ The following Proxy service configuration is relevant for Database Access:
 proxy_service:
   enabled: "yes"
   # PostgreSQL proxy is listening on the regular web proxy port.
-  web_listen_addr: "0.0.0.0:3080"
+  web_listen_addr: "0.0.0.0:443"
   # MySQL proxy is listening on a separate port and needs to be enabled
   # on the proxy server.
   mysql_listen_addr: "0.0.0.0:3036"
@@ -45,7 +45,7 @@ proxy_service:
   # By default database clients will be connecting to the Proxy over this
   # hostname. To override public address for specific database protocols
   # use postgres_public_addr and mysql_public_addr.
-  public_addr: "teleport.example.com:3080"
+  public_addr: "teleport.example.com:443"
   # Address advertised to MySQL clients. If not set, public_addr is used.
   mysql_public_addr: "mysql.teleport.example.com:3306"
   # Address advertised to PostgreSQL clients. If not set, public_addr is used.
@@ -66,7 +66,7 @@ address.
 proxy_service:
   enabled: "yes"
   # PostgreSQL proxy is listening on the regular web proxy port.
-  web_listen_addr: "0.0.0.0:3080"
+  web_listen_addr: "0.0.0.0:443"
   # MySQL proxy is listening on a separate port.
   mysql_listen_addr: "0.0.0.0:3036"
   # Database clients will connect to the Proxy Service over this hostname.

@@ -49,7 +49,7 @@ another mapping of `E-Mail-Addresses` to `UPN`.
 
 You'll also need to create a Relying Party Trust. Use the below information to
 help guide you through the Wizard. Note that for development purposes we recommend
-using `https://localhost:3080/v1/webapi/saml/acs` as the Assertion Consumer
+using `https://localhost:443/v1/webapi/saml/acs` as the Assertion Consumer
 Service (ACS) URL, but for production you'll want to change this to a domain
 that can be accessed by other users as well.
 
@@ -57,8 +57,8 @@ that can be accessed by other users as well.
 - Enter data about the relying party manually.
 - Set the display name to something along the lines of `Teleport`.
 - Skip the token encryption certificate.
-- Select *"Enable support for SAML 2.0 Web SSO protocol"* and set the URL to `https://localhost:3080/v1/webapi/saml/acs`.
-- Set the relying party trust identifier to `https://localhost:3080/v1/webapi/saml/acs` as well.
+- Select *"Enable support for SAML 2.0 Web SSO protocol"* and set the URL to `https://localhost:443/v1/webapi/saml/acs`.
+- Set the relying party trust identifier to `https://localhost:443/v1/webapi/saml/acs` as well.
 - For access control policy select *"Permit everyone"*.
 
 Once the Relying Party Trust has been created, update the Claim Issuance Policy

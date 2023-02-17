@@ -120,7 +120,7 @@ sudo teleport start --roles=node --auth-server=10.1.0.1 --token=xyz --nodename=d
 sudo teleport start --roles=node --auth-server=10.1.0.1 --labels=db=master
 
 # Starts an app server that proxies the application "example-app" running at http://localhost:8080.
-sudo teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080 \
+sudo teleport start --roles=app --token=xyz --auth-server=proxy.example.com:443 \
     --app-name="example-app" \
     --app-uri="http://localhost:8080" \
     --labels=group=dev
@@ -919,7 +919,6 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 *The proxy endpoint can take a https and ssh port in this format `host:https_port[,ssh_proxy_port]`*
 
 ```code
-# Try Toboth ports 443 and 3080 for https
 $ tsh --proxy=proxy.example.com login
 
 # Use ports 8080 and 8023 for https and SSH proxy:
@@ -1012,7 +1011,7 @@ $ tsh status
 ```code
 $ tsh status
 
-# > Profile URL:  https://proxy.example.com:3080
+# > Profile URL:  https://proxy.example.com:443
 #   Logged in as:       benarent
 #   Cluster:            aws
 #   Roles:              admin*
@@ -1059,7 +1058,7 @@ $ tsh mfa add
 # Enter device name: android
 # Tap any *registered* security key
 # Open your TOTP app and create a new manual entry with these fields:
-# Name: awly@example.com:3080
+# Name: awly@example.com:443
 # Issuer: Teleport
 # Algorithm: SHA1
 # Number of digits: 6
@@ -1228,7 +1227,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |
 | TELEPORT_LOGIN_BIND_ADDR | Address in the form of host:port to bind to for login command webhook | host:port |
-| TELEPORT_PROXY | Address of the Teleport proxy server | cluster.example.com:3080 |
+| TELEPORT_PROXY | Address of the Teleport proxy server |cluster.example.com:443 |
 | TELEPORT_HOME | Home location for tsh configuration and data | /directory |
 | TELEPORT_USER | A Teleport user name | alice |
 | TELEPORT_ADD_KEYS_TO_AGENT | Specifies if the user certificate should be stored on the running SSH agent | yes, no, auto, only |
@@ -1581,7 +1580,7 @@ Reset local user account password and any associated second factor with expiring
 ```code
 $ tctl users reset jeff
 # User jeff has been reset. Share this URL with the user to complete password reset, the link is valid for 8h0m0s:
-# https://teleport.example.com:3080/web/reset/8a4a40bec3a31a28db44fa64c0c70ca3
+# https://teleport.example.com:443/web/reset/8a4a40bec3a31a28db44fa64c0c70ca3
 # Resets jeff's password and any associated second factor.  Jeff populates the password and confirms the token with the link.
 ```
 
@@ -2054,7 +2053,7 @@ Generate a GitHub auth connector. Two role mappings are defined:
 ```code
 $ tctl sso configure gh -r octocats,admin,access,editor,auditor -r octocats,dev,access --secret GH_SECRET --id CLIENT_ID
 INFO [CLIENT]    RedirectURL empty, resolving automatically.
-INFO [CLIENT]    RedirectURL set to "https://teleport.example.com:3080/v1/webapi/github/callback"
+INFO [CLIENT]    RedirectURL set to "https://teleport.example.com:443/v1/webapi/github/callback"
 kind: github
 metadata:
   name: github
@@ -2062,7 +2061,7 @@ spec:
   client_id: CLIENT_ID
   client_secret: GH_SECRET
   display: ""
-  redirect_url: https://teleport.example.com:3080/v1/webapi/github/callback
+  redirect_url: https://teleport.example.com:443/v1/webapi/github/callback
   teams_to_logins:
   - logins:
     - access
@@ -2493,7 +2492,7 @@ $ tctl status Cluster  grav-00 User CA  never updated Host CA  never updated CA
 # pin   sha256:1146cdd2b887772dcc2e879232c8f60012a839f7958724ce5744005474b15b9d
 # Checks remote auth status using exported identity.
 $ tctl status \
-    --auth-server=192.168.99.102:3025 \
+    --auth-server=192.168.99.102:443 \
     --identity=identity.pem
 ```
 
@@ -2766,7 +2765,7 @@ $ tbot start \
    --token=00000000000000000000000000000000 \
    --join-method=token \
    --ca-pin=sha256:1111111111111111111111111111111111111111111111111111111111111111 \
-   --auth-server=auth.example.com:3025
+   --auth-server=auth.example.com:443
 ```
 
   </TabItem>
@@ -2889,7 +2888,7 @@ For this reason, it is recommended that settings are explicitly applied to a con
 The following command forwards standard input and output over a proxy suitable for use as an OpenSSH `ProxyCommand` for SSH access:
 
 ```code
-$ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:3080 ssh alice@node:3022
+$ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:443 ssh alice@node:3022
 ```
 
   In this case:
@@ -2904,7 +2903,7 @@ The following example opens a local proxy server to the given database. Your dat
 must still be configured with client TLS certificates:
 
 ```code
-$ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:3080 db --port=1234 example
+$ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:443 db --port=1234 example
 ```
 
 In this case:
@@ -2916,7 +2915,7 @@ the `--tunnel` flag may be used to perform authentication at the local proxy
 rather than within your client:
 
 ```code
-$ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:3080 db --tunnel --port=1234 example
+$ tbot proxy --destination-dir=./tbot-user --proxy=proxy.example.com:443 db --tunnel --port=1234 example
 ```
 
 Note that this decreases security:

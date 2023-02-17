@@ -208,10 +208,6 @@ The output should look something like this:
 $ sudo netstat -lptne | grep teleport
 tcp6       0      0 :::443                  :::*                    LISTEN
 0          168760     29504/teleport    
-tcp6       0      0 :::3022                 :::*                    LISTEN
-0          167812     29504/teleport    
-tcp6       0      0 :::3025                 :::*                    LISTEN
-0          168741     29504/teleport
 ```
 
 ## Step 4/5. Add a local user
@@ -243,7 +239,7 @@ account on your Linux host):
 $ sudo tctl users add --roles=access --logins=ubuntu myuser
 
 Signup token has been created and is valid for 1 hours. Share this URL with the user:
-https://auth.example.com:3080/web/newuser/22e3acb6a0c2cde22f13bdc879ff9d2a
+https://auth.example.com:443/web/newuser/22e3acb6a0c2cde22f13bdc879ff9d2a
 ```
 
 Navigate to the link displayed in your terminal, pick a password, and configure

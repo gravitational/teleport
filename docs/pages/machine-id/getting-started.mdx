@@ -166,7 +166,7 @@ the foreground to better understand how it works.
      --token=(=presets.tokens.first=) \
      --join-method=token \
      --ca-pin=(=presets.ca_pin=) \
-     --auth-server=auth.example.com:3025
+     --auth-server=auth.example.com:443
   ```
 
   </ScopedBlock>
@@ -196,7 +196,7 @@ the foreground to better understand how it works.
      --token=iam-token \
      --join-method=iam \
      --ca-pin=(=presets.ca_pin=) \
-     --auth-server=auth.example.com:3025
+     --auth-server=auth.example.com:443
   ```
 
   </ScopedBlock>
@@ -234,8 +234,8 @@ Replace the following fields with values from your own cluster.
 - `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
 - `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
 - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
-- `auth-server` is the address of your Teleport Auth Server, for example
-  `auth.example.com:3025`. If your Machine ID host is in a different network
+- `auth-server` is the address of your Teleport Proxy Service, for example
+  `teleport.example.com:443`. If your Machine ID host is in a different network
   than your Auth Server, use the public web address of your Proxy Service
   instead (e.g., `auth.example.com:443`). 
 

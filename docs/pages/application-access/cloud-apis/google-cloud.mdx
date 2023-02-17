@@ -249,10 +249,10 @@ Run this on the new node to join the cluster:
    --roles=app \
    --token=(=presets.tokens.first=) \
    --ca-pin=(=presets.ca_pin=) \
-   --auth-server=192.0.2.255:3025
+   --auth-server=192.0.2.255:443
 Please note:
   - This invitation token will expire in 30 minutes
-  - 192.0.2.255:3025 must be reachable from the new node
+  - 192.0.2.255:443 must be reachable from the new node
 ```
 
 On the host where you will install the Teleport Application Service, create a

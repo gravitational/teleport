@@ -36,7 +36,7 @@ You should have at least one group configured in GitLab to map to Teleport roles
 
 Settings
 
-- Redirect URL `https://<proxy url>/v1/webapi/oidc/callback` such as `https://teleport.example.com:3080/v1/webapi/oidc/callback`
+- Redirect URL `https://<proxy url>/v1/webapi/oidc/callback` such as `https://teleport.example.com:443/v1/webapi/oidc/callback`
 - Check `Confidential`, `openid`, `profile`, and `email`.
 
 ![Create App](../../../img/sso/gitlab/gitlab-oidc-0.png)
@@ -78,7 +78,7 @@ spec:
   display: GitLab
   issuer_url: https://gitlab.com
   prompt: "none"
-  redirect_url: https://teleport.example.com:3080/v1/webapi/oidc/callback
+  redirect_url: https://teleport.example.com:443/v1/webapi/oidc/callback
   scope:
   - email
 version: v2

@@ -177,7 +177,7 @@ First, create a basic configuration file using the following parameters:
      --join-method=token \
      --certificate-ttl=1h0m0s \
      --ca-pin=(=presets.ca_pin=) \
-     --auth-server=auth.example.com:3025
+     --auth-server=auth.example.com:443
   ```
 
   </ScopedBlock>
@@ -207,7 +207,7 @@ First, create a basic configuration file using the following parameters:
      --join-method=iam \
      --certificate-ttl=1h0m0s \
      --ca-pin=(=presets.ca_pin=) \
-     --auth-server=auth.example.com:3025
+     --auth-server=auth.example.com:443
   ```
 
   </ScopedBlock>
@@ -246,8 +246,8 @@ Replace the following fields with values from your own cluster:
     - `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
     - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
     - `certificate-ttl` is the option that will determine the time until expiration for any `tbot` issued certificates, including host certificates. The default TTL is for one hour, meaning that all generated certificates will expire after one hour's time.
-    - `auth-server` is the address of your Teleport Auth Server, for example
-      `auth.example.com:3025`. If your Machine ID host is in a different network
+    - `auth-server` is the address of your Teleport Proxy Service, for example
+      `teleport.example.com:443`. If your Machine ID host is in a different network
       than your Auth Server, use the public web address of your Proxy Service
       instead (e.g., `auth.example.com:443`).
 

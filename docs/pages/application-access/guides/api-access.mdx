@@ -59,7 +59,7 @@ $ tsh apps login grafana
 $ curl \
   --cert /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem \
   --key /Users/alice/.tsh/keys/teleport.example.com/alice \
-  https://grafana.teleport.example.com:3080
+  https://grafana.teleport.example.com:443
 ```
 
 The login message shows an example `curl` command you can run to call the
@@ -84,7 +84,7 @@ call its `/api/users` endpoint:
 $ curl --user admin:admin \
   --cert /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem \
   --key /Users/alice/.tsh/keys/teleport.example.com/alice \
-    https://grafana.teleport.example.com:3080/api/users
+    https://grafana.teleport.example.com:443/api/users
 
 # [{"id":1,"name":"","login":"admin","email":"admin@localhost","avatarUrl":"/avatar/46d229b033af06a191ff2267bca9ae56","isAdmin":true,"isDisabled":false,"lastSeenAt":"2021-03-18T17:25:59Z","lastSeenAtAge":"\u003c 1m","authLabels":[]}]
 ```
@@ -113,7 +113,7 @@ Let's print the app information in a table format:
 $ tsh apps config
 
 # Name:      grafana
-# URI:       https://grafana.teleport.example.com:3080
+# URI:       https://grafana.teleport.example.com:443
 # CA:        /Users/alice/.tsh/keys/teleport.example.com/certs.pem
 # Cert:      /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem
 # Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
@@ -124,7 +124,7 @@ of the app configuration:
 
 ```code
 $ tsh apps config --format=uri
-# https://grafana-root.gravitational.io:3080
+# https://grafana-root.gravitational.io:443
 
 $ tsh apps config --format=ca
 # /Users/alice/.tsh/keys/teleport.example.com/certs.pem

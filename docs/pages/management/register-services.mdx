@@ -1,0 +1,20 @@
+---
+title: Register Services with your Teleport Cluster
+description: How to register the Proxy Service, Database Service, and other Telepoert services with your cluster.
+---
+
+A **Teleport service** manages access to resources in your infrastructure, such
+as Kubernetes clusters, Windows desktops, internal web applications, and
+databases. 
+
+You can register a Teleport service or an instance of the Proxy Service with
+your cluster via several methods. Choose the method that best suits your network
+topology or cloud provider:
+
+|Method|Description|When to use|
+|------|-----------|-----------|
+|[EC2 Identity Document](./register-services/register-services-aws-ec2.mdx)|A Teleport service running on an EC2 instance authenticates to your cluster via a signed EC2 identity instance identity document.|Your service is running on EC2.|
+|[AWS IAM](./register-services/register-services-aws-iam.mdx)|A Teleport service uses AWS credentials to join the cluster, whether running on EC2 or not.|At least some of your infrastructure runs on AWS and your Teleport cluster is self hosted.|
+|[Join Token](./register-services/register-services-join-token.mdx)|A Teleport service presents a join token provided when starting the service.|There is no other supported method for your cloud provider.|
+[Join Token via the Auth Service](./register-services/register-services-auth-service.mdx)|The Teleport service performs the join token method, but connects via the Auth Service instead of the Proxy Service.|It is not possible to use the regular join token method due to the constraints of your network.|
+

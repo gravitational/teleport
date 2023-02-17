@@ -293,12 +293,12 @@ Run this on the new node to join the cluster:
    --roles=discovery,kube \
    --token=(=presets.tokens.first=) \
    --ca-pin=(=presets.ca_pin=) \
-   --auth-server=192.0.2.255:3025
+   --auth-server=192.0.2.255:443
 
 Please note:
 
   - This invitation token will expire in 60 minutes
-  - 192.0.2.255:3025 must be reachable from the new node
+  - 192.0.2.255:443 must be reachable from the new node
 ```
 
 Copy the token (e.g., `(=presets.tokens.first=)` above) and save the token in
@@ -326,12 +326,12 @@ Run this on the new node to join the cluster:
    --roles=discovery \
    --token=(=presets.tokens.second=) \
    --ca-pin=(=presets.ca_pin=) \
-   --auth-server=192.0.2.255:3025
+   --auth-server=192.0.2.255:443
 
 Please note:
 
   - This invitation token will expire in 60 minutes
-  - 192.0.2.255:3025 must be reachable from the new node
+  - 192.0.2.255:443 must be reachable from the new node
 $ tctl tokens add --type=kube
 The invite token: (=presets.tokens.third=)
 This token will expire in 60 minutes.
@@ -342,12 +342,12 @@ Run this on the new node to join the cluster:
    --roles=kube \
    --token=(=presets.tokens.third=) \
    --ca-pin=(=presets.ca_pin=) \
-   --auth-server=192.0.2.255:3025
+   --auth-server=192.0.2.255:443
 
 Please note:
 
   - This invitation token will expire in 60 minutes
-  - 192.0.2.255:3025 must be reachable from the new node
+  - 192.0.2.255:443 must be reachable from the new node
 ```
 
 Copy each token (e.g., `(=presets.tokens.first=)` and

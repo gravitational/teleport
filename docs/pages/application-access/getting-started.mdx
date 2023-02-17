@@ -84,10 +84,10 @@ $ sudo teleport app start \
   --name=grafana \
   --token=/tmp/token \
   --uri=http://localhost:3000 \
-  --auth-server=https://teleport.example.com:3080
+  --auth-server=https://teleport.example.com:443
 ```
 
-Change `https://teleport.example.com:3080` to the address and port of your Teleport Proxy Server. If you are a Teleport Cloud customer, use port 443 of your tenant's subdomain, e.g., `mytenant.teleport.sh:443`.
+Change `https://teleport.example.com:443` to the address and port of your Teleport Proxy Server. If you are a Teleport Cloud customer, use port 443 of your tenant's subdomain, e.g., `mytenant.teleport.sh:443`.
 
 Make sure to update `--app-name` and `--app-uri` accordingly if you're using your own web application.
 

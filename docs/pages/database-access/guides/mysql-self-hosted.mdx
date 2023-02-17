@@ -127,7 +127,7 @@ command:
 ```code
 $ teleport db start \
    --token=/tmp/token \
-   --auth-server=teleport.example.com:3080 \
+   --auth-server=teleport.example.com:443 \
    --name=test \
    --protocol=mysql \
    --uri=mysql.example.com:3306 \
@@ -168,7 +168,7 @@ configuration file at `/etc/teleport.yaml`:
 $ teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=teleport.example.com:3080 \
+   --proxy=teleport.example.com:443 \
    --name=test \
    --protocol=mysql \
    --uri=mysql.example.com:3306 \

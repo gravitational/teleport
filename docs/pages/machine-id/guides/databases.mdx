@@ -213,7 +213,7 @@ Type=simple
 User=teleport
 Group=teleport
 Restart=on-failure
-ExecStart=/usr/local/bin/tbot -c /etc/tbot.yaml proxy --proxy=proxy.example.com:3080 --destination-dir=/opt/machine-id db --port=12345 example-server
+ExecStart=/usr/local/bin/tbot -c /etc/tbot.yaml proxy --proxy=proxy.example.com:443 --destination-dir=/opt/machine-id db --port=12345 example-server
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/machine-id-proxy.pid
 LimitNOFILE=8192

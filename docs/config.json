@@ -312,7 +312,7 @@
             }
           ]
         },
-		{
+        {
           "title": "Login Rules",
           "slug": "/access-controls/login-rules/",
           "forScopes": ["enterprise", "oss", "cloud"],
@@ -327,8 +327,8 @@
               "slug": "/access-controls/login-rules/reference/",
               "forScopes": ["enterprise", "cloud"]
             }
-		  ]
-		},
+          ]
+        },
         {
           "title": "Access Requests",
           "slug": "/access-controls/access-requests/",
@@ -419,13 +419,33 @@
       "title": "Manage your Cluster",
       "entries": [
         {
+          "title": "Registering Teleport Services",
+          "slug": "/management/register-services/",
+          "entries": [
+            {
+              "title": "Via a Join Token",
+              "slug": "/management/register-services/register-services-join-token/"
+            },
+            {
+              "title": "Via AWS EC2",
+              "slug": "/management/register-services/register-services-aws-ec2/",
+              "forScopes": ["oss", "enterprise"]
+            },
+            {
+              "title": "Via AWS IAM",
+              "slug": "/management/register-services/register-services-aws-iam/"
+            },
+            {
+              "title": "Via a Token Using the Auth Service",
+              "slug": "/management/register-services/register-services-auth-service/",
+              "forScopes": ["oss", "enterprise"]
+            }
+          ]
+        },
+        {
           "title": "Admin Guides",
           "slug": "/management/admin/",
           "entries": [
-            {
-              "title": "Adding Nodes",
-              "slug": "/management/admin/adding-nodes/"
-            },
             {
               "title": "Trusted Clusters",
               "slug": "/management/admin/trustedclusters/"
@@ -521,15 +541,7 @@
               "title": "EC2 Tags",
               "slug": "/management/guides/ec2-tags/"
             },
-            {
-              "title": "Joining Nodes via AWS IAM",
-              "slug": "/management/guides/joining-nodes-aws-iam/"
-            },
-            {
-              "title": "Joining Nodes via AWS EC2",
-              "slug": "/management/guides/joining-nodes-aws-ec2/",
-              "forScopes": ["oss", "enterprise"]
-            },
+
             {
               "title": "Using Teleport's CA with GitHub",
               "slug": "/management/guides/ssh-key-extensions/"
@@ -838,104 +850,104 @@
           "slug": "/database-access/guides/",
           "entries": [
             {
-               "title": "AWS DynamoDB",
-               "slug": "/database-access/guides/aws-dynamodb/"
+              "title": "AWS DynamoDB",
+              "slug": "/database-access/guides/aws-dynamodb/"
             },
             {
-               "title": "AWS ElastiCache & MemoryDB",
-               "slug": "/database-access/guides/redis-aws/"
+              "title": "AWS ElastiCache & MemoryDB",
+              "slug": "/database-access/guides/redis-aws/"
             },
             {
-               "title": "AWS Keyspaces (Apache Cassandra)",
-               "slug": "/database-access/guides/aws-cassandra-keyspaces/"
+              "title": "AWS Keyspaces (Apache Cassandra)",
+              "slug": "/database-access/guides/aws-cassandra-keyspaces/"
             },
             {
-               "title": "AWS RDS & Aurora",
-               "slug": "/database-access/guides/rds/"
+              "title": "AWS RDS & Aurora",
+              "slug": "/database-access/guides/rds/"
             },
             {
               "title": "AWS RDS Proxy",
               "slug": "/database-access/guides/rds-proxy/"
             },
             {
-               "title": "AWS Redshift",
-               "slug": "/database-access/guides/postgres-redshift/"
+              "title": "AWS Redshift",
+              "slug": "/database-access/guides/postgres-redshift/"
             },
             {
               "title": "AWS Redshift Serverless",
               "slug": "/database-access/guides/redshift-serverless/"
             },
             {
-               "title": "Azure Cache for Redis",
-               "slug": "/database-access/guides/azure-redis/"
+              "title": "Azure Cache for Redis",
+              "slug": "/database-access/guides/azure-redis/"
             },
             {
-               "title": "Azure PostgreSQL & MySQL",
-               "slug": "/database-access/guides/azure-postgres-mysql/"
+              "title": "Azure PostgreSQL & MySQL",
+              "slug": "/database-access/guides/azure-postgres-mysql/"
             },
             {
-               "title": "Azure SQL Server (Preview)",
-               "slug": "/database-access/guides/azure-sql-server-ad/"
+              "title": "Azure SQL Server (Preview)",
+              "slug": "/database-access/guides/azure-sql-server-ad/"
             },
             {
-               "title": "Dynamic Registration",
-               "slug": "/database-access/guides/dynamic-registration/"
+              "title": "Dynamic Registration",
+              "slug": "/database-access/guides/dynamic-registration/"
             },
             {
-               "title": "GCP Cloud SQL MySQL",
-               "slug": "/database-access/guides/mysql-cloudsql/"
+              "title": "GCP Cloud SQL MySQL",
+              "slug": "/database-access/guides/mysql-cloudsql/"
             },
             {
-               "title": "GCP Cloud SQL PostgreSQL",
-               "slug": "/database-access/guides/postgres-cloudsql/"
+              "title": "GCP Cloud SQL PostgreSQL",
+              "slug": "/database-access/guides/postgres-cloudsql/"
             },
             {
-               "title": "High Availability",
-               "slug": "/database-access/guides/ha/"
+              "title": "High Availability",
+              "slug": "/database-access/guides/ha/"
             },
             {
-               "title": "MongoDB Atlas",
-               "slug": "/database-access/guides/mongodb-atlas/"
+              "title": "MongoDB Atlas",
+              "slug": "/database-access/guides/mongodb-atlas/"
             },
             {
-               "title": "SQL Server (Preview)",
-               "slug": "/database-access/guides/sql-server-ad/"
+              "title": "SQL Server (Preview)",
+              "slug": "/database-access/guides/sql-server-ad/"
             },
             {
-               "title": "Self-Hosted Cassandra & ScyllaDB",
-               "slug": "/database-access/guides/cassandra-self-hosted/"
+              "title": "Self-Hosted Cassandra & ScyllaDB",
+              "slug": "/database-access/guides/cassandra-self-hosted/"
             },
             {
-               "title": "Self-Hosted CockroachDB",
-               "slug": "/database-access/guides/cockroachdb-self-hosted/"
+              "title": "Self-Hosted CockroachDB",
+              "slug": "/database-access/guides/cockroachdb-self-hosted/"
             },
             {
-               "title": "Self-Hosted Elasticsearch",
-               "slug": "/database-access/guides/elastic/"
+              "title": "Self-Hosted Elasticsearch",
+              "slug": "/database-access/guides/elastic/"
             },
             {
-               "title": "Self-Hosted MongoDB",
-               "slug": "/database-access/guides/mongodb-self-hosted/"
+              "title": "Self-Hosted MongoDB",
+              "slug": "/database-access/guides/mongodb-self-hosted/"
             },
             {
-               "title": "Self-Hosted MySQL/MariaDB",
-               "slug": "/database-access/guides/mysql-self-hosted/"
+              "title": "Self-Hosted MySQL/MariaDB",
+              "slug": "/database-access/guides/mysql-self-hosted/"
             },
             {
-               "title": "Self-Hosted PostgreSQL",
-               "slug": "/database-access/guides/postgres-self-hosted/"
+              "title": "Self-Hosted PostgreSQL",
+              "slug": "/database-access/guides/postgres-self-hosted/"
             },
             {
-               "title": "Self-Hosted Redis",
-               "slug": "/database-access/guides/redis/"
+              "title": "Self-Hosted Redis",
+              "slug": "/database-access/guides/redis/"
             },
             {
-               "title": "Self-Hosted Redis Cluster",
-               "slug": "/database-access/guides/redis-cluster/"
+              "title": "Self-Hosted Redis Cluster",
+              "slug": "/database-access/guides/redis-cluster/"
             },
             {
-               "title": "Snowflake (Preview)",
-               "slug": "/database-access/guides/snowflake/"
+              "title": "Snowflake (Preview)",
+              "slug": "/database-access/guides/snowflake/"
             }
           ]
         },
@@ -1578,7 +1590,7 @@
     },
     {
       "source": "/setup/guides/joining-nodes-aws/",
-      "destination": "/management/guides/joining-nodes-aws-iam/",
+      "destination": "/management/register-services/register-services-aws-iam/",
       "permanent": true
     },
     {
@@ -1928,7 +1940,7 @@
     },
     {
       "source": "/setup/admin/adding-nodes/",
-      "destination": "/management/admin/adding-nodes/",
+      "destination": "/management/register-services/register-services-join-token/",
       "permanent": true
     },
     {
@@ -1983,12 +1995,12 @@
     },
     {
       "source": "/setup/guides/joining-nodes-aws-ec2/",
-      "destination": "/management/guides/joining-nodes-aws-ec2/",
+      "destination": "/management/register-services/register-services-aws-ec2/",
       "permanent": true
     },
     {
       "source": "/setup/guides/joining-nodes-aws-iam/",
-      "destination": "/management/guides/joining-nodes-aws-iam/",
+      "destination": "/management/register-services/register-services-aws-iam/",
       "permanent": true
     },
     {
@@ -2254,6 +2266,21 @@
     {
       "source": "/kubernetes-access/guides/",
       "destination": "/kubernetes-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/joining-nodes-aws-ec2/",
+      "destination": "/management/register-services/register-services-aws-ec2/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/joining-nodes-aws-iam/",
+      "destination": "/management/register-services/register-services-aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/management/admin/adding-nodes/",
+      "destination": "/management/register-services/register-services-join-token/",
       "permanent": true
     }
   ]

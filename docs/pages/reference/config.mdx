@@ -172,7 +172,7 @@ teleport:
     # point to a Load Balancer.
     # If adding a node located behind NAT, use the Proxy URL (e.g. teleport-proxy.example.com:443)
     # and set `proxy_server` instead.
-    auth_server: 10.1.0.5:3025
+    auth_server: 10.1.0.5:443
 
     # Proxy Server address and port to connect to. If you enable the Teleport
     # Proxy Server to run in High Availability configuration, the address should
@@ -408,7 +408,7 @@ auth_service:
         u2f:
             # app ID used by U2F registrations.
             # Keep it in your config to avoid having to re-register U2F devices.
-            app_id: https://localhost:3080
+            app_id: https://localhost:443
 
         # Locking mode determines how to apply lock views locally available to
         # a Teleport component; can be strict or best_effort.
@@ -435,11 +435,11 @@ auth_service:
     # IP and the port to bind to. Other Teleport Nodes will be connecting to
     # this port (AKA "Auth API" or "Cluster API") to validate client
     # certificates
-    listen_addr: 0.0.0.0:3025
+    listen_addr: 0.0.0.0:443
 
     # The optional DNS name for the auth server if located behind a load
     # balancer.
-    public_addr: auth.example.com:3025
+    public_addr: auth.example.com:443
 
     # Pre-defined tokens for adding new nodes to a cluster. Each token specifies
     # the role a new node will be allowed to assume. The more secure way to
@@ -697,7 +697,7 @@ proxy_service:
 
     # The HTTPS listen address to serve the Web UI and authenticate users.
     # Handles the PostgreSQL proxy if Database Access is enabled.
-    web_listen_addr: 0.0.0.0:3080
+    web_listen_addr: 0.0.0.0:443
 
     # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
     # Defaults to the proxy's hostname if not specified. If running multiple
@@ -708,7 +708,7 @@ proxy_service:
     # If database access is enabled, Database clients will connect to the Proxy
     # over this hostname
     # (https://goteleport.com/docs/database-access/architecture/#database-client-to-proxy).
-    public_addr: proxy.example.com:3080
+    public_addr: proxy.example.com:443
 
     # The DNS name of the proxy SSH endpoint as accessible by cluster clients.
     # Defaults to the proxy's hostname if not specified. If running multiple
