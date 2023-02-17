@@ -55,12 +55,14 @@ package prehog.v1alpha;
 import "google/protobuf/timestamp.proto";
 
 message SubmitTbotEventRequest {
+  // UUID
+  string distinct_id = 1;
   // optional, will default to the ingest time if unset
-  google.protobuf.Timestamp timestamp = 1;
+  google.protobuf.Timestamp timestamp = 2;
 
   oneof event {
     // See the events section for the fields included within startup.
-    TbotStartEvent start = 2;
+    TbotStartEvent start = 3;
   }
 }
 
