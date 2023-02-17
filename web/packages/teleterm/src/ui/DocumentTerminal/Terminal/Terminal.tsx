@@ -26,12 +26,11 @@ import XTermCtrl from './ctrl';
 export default function Terminal(props: Props) {
   const refElement = useRef<HTMLElement>();
   const refCtrl = useRef<XTermCtrl>();
-  const fontFamily = useTheme().fonts.mono;
+  const fontFamily = useTheme().fonts.unsanitizedMono;
 
   useEffect(() => {
     const ctrl = new XTermCtrl(props.ptyProcess, {
       el: refElement.current,
-      fontFamily,
     });
 
     ctrl.open();
@@ -70,7 +69,7 @@ export default function Terminal(props: Props) {
       width="100%"
       style={{ overflow: 'hidden' }}
     >
-      <StyledXterm ref={refElement} />
+      <StyledXterm ref={refElement} style={{ fontFamily }} />
     </Flex>
   );
 }

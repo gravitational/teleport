@@ -22,13 +22,13 @@ import theme from './theme';
 
 type TeletermThemeProvider = {
   fonts: {
-    mono: string;
+    unsanitizedMono: string;
   };
 };
 
 const TeletermThemeProvider: React.FC<TeletermThemeProvider> = props => {
   if (props?.fonts) {
-    theme.fonts.mono = props.fonts.mono;
+    theme.fonts.unsanitizedMono = props.fonts.unsanitizedMono;
   }
 
   return (

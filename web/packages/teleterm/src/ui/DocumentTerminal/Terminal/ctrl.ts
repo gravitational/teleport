@@ -27,7 +27,6 @@ const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
 
 type Options = {
   el: HTMLElement;
-  fontFamily?: string;
 };
 
 export default class TtyTerminal {
@@ -51,7 +50,7 @@ export default class TtyTerminal {
   open(): void {
     this.term = new Terminal({
       cursorBlink: false,
-      fontFamily: this.options.fontFamily,
+      fontFamily: this.el.style.fontFamily, // grab font family from style to prevent injecting malicious CSS
       scrollback: 5000,
       theme: {
         background: theme.colors.primary.darker,

@@ -36,9 +36,9 @@ export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
           <AppContextProvider value={ctx}>
             <ThemeProvider
               fonts={{
-                mono: ctx.mainProcessClient.configService.get(
-                  'fonts.monoFamily'
-                ).value,
+                unsanitizedMono:
+                  ctx.mainProcessClient.configService.get('fonts.monoFamily')
+                    .value,
               }}
             >
               <AppInitializer />

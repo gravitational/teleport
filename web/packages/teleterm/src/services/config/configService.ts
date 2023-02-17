@@ -85,9 +85,7 @@ const createAppConfigSchema = (platform: Platform) => {
     'keymap.openQuickInput': omitStoredConfigValue(
       z.string().default(defaultKeymap['open-quick-input'])
     ),
-    'fonts.monoFamily': omitStoredConfigValue(
-      z.string().default(defaultFonts['mono'])
-    ),
+    'fonts.monoFamily': z.string().default(defaultFonts['mono']),
   });
 };
 
