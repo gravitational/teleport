@@ -1733,7 +1733,12 @@ func TestGetCertAuthority(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// generate server keys for proxy
-	proxyClt, err := tt.server.NewClient(TestIdentity{I: BuiltinRole{Username: "00000000-0000-0000-0000-000000000001", Role: types.RoleProxy}})
+	proxyClt, err := tt.server.NewClient(TestIdentity{
+		I: BuiltinRole{
+			Username: "00000000-0000-0000-0000-000000000001",
+			Role: types.RoleProxy,
+		},
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyClt.Close()) })
 
