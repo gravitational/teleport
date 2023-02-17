@@ -141,13 +141,13 @@ Event properties:
 - `tbot.join_type`: string indicating the join type configured
 - `tbot.helper`: optional string indicating if a helper is invoking `tbot`. For 
   example: `gha:teleport-actions/auth`
-- `tbot.helper_version`: optional string indicating the version of the helper that
-  invoking `tbot`
+- `tbot.helper_version`: optional string indicating the version of the helper 
+  that invoking `tbot`
 - `tbot.destinations_configured`: a count of total destinations configured
 - `tbot.destinations_configured_database_access`: a count of Database Access 
   destinations configured
 - `tbot.destinations_configured_kubernetes_access`: a count of Kubernetes Access
   destinations configured
-- `tbot.destinations_configured_application_access`: a count of Application Access
-  destinations configured.
+- `tbot.destinations_configured_application_access`: a count of Application 
+  Access destinations configured.
 
