@@ -580,7 +580,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
 
 	// Issues SSH temp certificates based on 2FA access creds
-	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
+	h.POST("/webapi/ssh/certs", h.WithLimiter(h.createSSHCert))
 
 	// list available sites
 	h.GET("/webapi/sites", h.WithAuth(h.getClusters))
@@ -3101,6 +3101,7 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	authClient := h.cfg.ProxyClient
+
 	cap, err := authClient.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3122,6 +3123,9 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 			Password: []byte(req.Password),
 			Token:    req.OTPToken,
 		}
+	case constants.SecondFactorWebauthn:
+		// WebAuthn only supports this endpoint for headless login.
+		authReq.HeadlessAuthenticationID = req.HeadlessAuthenticationID
 	default:
 		return nil, trace.AccessDenied("unsupported second factor type: %q", cap.GetSecondFactor())
 	}
@@ -3137,7 +3141,6 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return loginResp, nil
 }
 
