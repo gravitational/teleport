@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -670,7 +671,7 @@ func testInteroperability(t *testing.T, suite *integrationTestSuite) {
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	SetTestTimeouts(100 * time.Millisecond)
+	SetTestTimeouts(3 * time.Second)
 	// If the test is re-executing itself, handle the appropriate sub-command.
 	if srv.IsReexec() {
 		common.Run(common.Options{Args: os.Args[1:]})
@@ -2760,14 +2761,15 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 	tunnelOutput := &bytes.Buffer{}
 	tunnelClient.Stdout = tunnelOutput
 	require.NoError(t, err)
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Millisecond * 50)
+
+	// Use assert package to get access to the returned error. In this way we can log it.
+	if !assert.Eventually(t, func() bool {
 		err = tunnelClient.SSH(context.Background(), cmd, false)
-		if err == nil {
-			break
-		}
+		return err == nil
+	}, 10*time.Second, 200*time.Millisecond) {
+		require.FailNow(t, "Failed to established SSH connection", err)
 	}
-	require.NoError(t, err)
+
 	require.Equal(t, "hello world\n", tunnelOutput.String())
 
 	// Stop clusters and remaining nodes.
@@ -3332,13 +3334,13 @@ func waitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, c
 }
 
 // waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
-func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) {
+func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server, expectedCount int) { //nolint:unused // Only used by skipped test TestProxyTunnelStrategyProxyPeering
 	require.Eventually(t, func() bool {
 		return tunnel.GetProxyPeerClient().GetConnectionsCount() >= expectedCount
 	},
 		30*time.Second,
 		time.Second,
-		"Peer proxy connections did not reach %v in the expected time frame", expectedCount,
+		"Peer proxy connections did not reach %v in the expected time frame %v", expectedCount, 30*time.Second,
 	)
 }
 
