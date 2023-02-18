@@ -871,6 +871,9 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.PeerAddr = *addr
 	}
+	if fc.Proxy.UI != nil {
+		cfg.Proxy.UI = *fc.Proxy.UI
+	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.
@@ -2052,10 +2055,6 @@ func Configure(clf *CommandLineFlags, cfg *service.Config, legacyAppFlags bool) 
 	// auth_servers not configured, but the 'auth' is enabled (auth is on localhost)?
 	if len(cfg.AuthServerAddresses()) == 0 && cfg.Auth.Enabled {
 		cfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
-	}
-
-	if fileConf.Proxy.UI != nil {
-		cfg.Proxy.UI.ScrollbackLines = fileConf.Proxy.UI.ScrollbackLines
 	}
 
 	// add data_dir to the backend config:
