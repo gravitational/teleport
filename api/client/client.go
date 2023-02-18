@@ -1902,17 +1902,6 @@ func (c *Client) CreateToken(ctx context.Context, token types.ProvisionToken) er
 	return nil
 }
 
-// GenerateToken generates a new auth token for the given service roles.
-// This token can be used by corresponding services to authenticate with
-// the Auth server and get a signed certificate and private key.
-func (c *Client) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-	resp, err := c.grpc.GenerateToken(ctx, req, c.callOpts...)
-	if err != nil {
-		return "", trail.FromGRPC(err)
-	}
-	return resp.Token, nil
-}
-
 // DeleteToken deletes a provision token by name.
 func (c *Client) DeleteToken(ctx context.Context, name string) error {
 	if name == "" {
