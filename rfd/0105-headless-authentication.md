@@ -335,8 +335,8 @@ type AuthenticateUserRequest struct {
   Session *SessionCreds `json:"session,omitempty"`
   // ClientMetadata includes forwarded information about a client
   ClientMetadata *ForwardedClientMetadata `json:"client_metadata,omitempty"`
-  // Headless determines whether headless authentication will be used
-  Headless bool `json:"headless"`
+  // HeadlessAuthenticationID is the ID for a headless authentication resource.
+  HeadlessAuthenticationID string `json:"headless_authentication_id"`
 }
 ```
 

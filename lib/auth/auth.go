@@ -4703,6 +4703,40 @@ func (a *Server) GetLicense(ctx context.Context) (string, error) {
 	return fmt.Sprintf("%s%s", a.license.CertPEM, a.license.KeyPEM), nil
 }
 
+// GetOrWaitForHeadlessAuthentication returns a headless authentication from the backend by name.
+// If it does not yet exist, an empty item will be inserted and this function will wait until
+// the item is updated with the request details from the headless login request.
+func (a *Server) GetOrWaitForHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+	if headlessAuthn, err := a.Services.GetHeadlessAuthentication(ctx, name); err == nil {
+		return headlessAuthn, nil
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := a.Services.CreateHeadlessAuthenticationStub(ctx, name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// wait for the headless authentication to be updated with valid login details.
+	headlessAuthn, err := a.headlessAuthenticationWatcher.Wait(ctx, name, func(ha *types.HeadlessAuthentication) (bool, error) {
+		return services.ValidateHeadlessAuthentication(ha) == nil, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return headlessAuthn, nil
+}
+
+// CompareAndSwapHeadlessAuthentication performs a compare
+// and swap replacement on a headless authentication resource.
+func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
+	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return headlessAuthn, nil
+}
+
 // authKeepAliver is a keep aliver using auth server directly
 type authKeepAliver struct {
 	sync.RWMutex

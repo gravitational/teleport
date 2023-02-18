@@ -257,6 +257,16 @@ type Identity interface {
 	// GetKeyAttestationData gets a verified public key attestation response.
 	GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error)
 
+	// CreateHeadlessAuthenticationStub creates a headless authentication stub.
+	CreateHeadlessAuthenticationStub(ctx context.Context, name string) (*types.HeadlessAuthentication, error)
+
+	// CompareAndSwapHeadlessAuthentication performs a compare
+	// and swap replacement on a headless authentication resource.
+	CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error)
+
+	// GetHeadlessAuthentication retrieves a headless authentication by name.
+	GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error)
+
 	types.WebSessionsGetter
 	types.WebTokensGetter
 

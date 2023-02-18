@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
@@ -699,6 +700,64 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			require.NoError(t, err, "Web authentication expected to succeed")
 		})
 	}
+}
+
+func TestServer_Authenticate_headless(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	// We don't mind about the specifics of the configuration, as long as we have
+	// a user and TOTP/WebAuthn devices.
+	mfa := configureForMFA(t, srv)
+	username := mfa.User
+
+	proxyClient, err := srv.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
+	ctx := context.Background()
+
+	// Approve the headless login in a goroutine
+	errC := make(chan error)
+	go func() {
+		defer close(errC)
+
+		ctx, cancel := context.WithTimeout(ctx, time.Millisecond*100)
+		defer cancel()
+
+		headlessAuthn, err := srv.Auth().GetOrWaitForHeadlessAuthentication(ctx, headlessID)
+		if err != nil {
+			errC <- err
+			return
+		}
+
+		// create a shallow copy with approval for the compare and swap below.
+		approvedHeadlessAuthn := *headlessAuthn
+		approvedHeadlessAuthn.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
+		approvedHeadlessAuthn.MfaDevice = mfa.WebDev.MFA
+		_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &approvedHeadlessAuthn)
+		if err != nil {
+			errC <- err
+			return
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*100)
+	defer cancel()
+
+	_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Username:                 username,
+			PublicKey:                []byte(sshPubKey),
+			HeadlessAuthenticationID: headlessID,
+			ClientMetadata: &ForwardedClientMetadata{
+				RemoteAddr: "0.0.0.0",
+			},
+		},
+		TTL: 24 * time.Hour,
+	})
+	require.NoError(t, err)
+	require.NoError(t, <-errC)
 }
 
 type configureMFAResp struct {

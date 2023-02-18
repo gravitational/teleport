@@ -5722,14 +5722,62 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 
 // GetHeadlessAuthentication retrieves a headless authentication by id.
 func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error) {
-	// TODO (joerger): Add implementation - follow up PR
-	return nil, trace.NotImplemented("GetHeadlessAuthentication is not implemented")
+	headlessAuthn, err := a.authServer.GetOrWaitForHeadlessAuthentication(ctx, id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// User can always get their own headless authentication state. Otherwise, check for associated rule.
+	if !hasLocalUserRole(a.context) || headlessAuthn.User != a.context.User.GetName() {
+		if err := a.action(apidefaults.Namespace, types.KindHeadlessAuthentication, types.VerbRead); err != nil {
+			// If the headless authentication can not be accessed by the user, we will return a not
+			// found error. This method would usually time out above if the headless authentication
+			// does not exist, so we mimick this behavior here.
+			<-ctx.Done()
+			return nil, trace.Wrap(ctx.Err())
+		}
+	}
+
+	return headlessAuthn, nil
 }
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
-func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
-	// TODO (joerger): Add implementation - follow up PR
-	return trace.NotImplemented("UpdateHeadlessAuthenticationState is not implemented")
+func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, id string, newState types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
+	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, id)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Only users can approve their own headless auth requests.
+	if !hasLocalUserRole(a.context) || headlessAuthn.User != a.context.User.GetName() {
+		return trace.AccessDenied("cannot update a different user's headless authentication state")
+	}
+
+	// Shallow copy headless authn for compare and swap below.
+	replaceHeadlessAuthn := *headlessAuthn
+	replaceHeadlessAuthn.State = newState
+
+	// The user must authenticate with MFA to change the state to approved.
+	if newState == types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED {
+		if mfaResp == nil {
+			return trace.BadParameter("expected MFA auth challenge response")
+		}
+
+		// Only WebAuthn is supported in headless login flow for superior phishing prevention.
+		if _, ok := mfaResp.Response.(*proto.MFAAuthenticateResponse_Webauthn); !ok {
+			return trace.BadParameter("expected WebAuthn challenge response, but got %T", mfaResp.Response)
+		}
+
+		mfaDevice, _, err := a.authServer.validateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		replaceHeadlessAuthn.MfaDevice = mfaDevice
+	}
+
+	_, err = a.authServer.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
+	return trace.Wrap(err)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,
