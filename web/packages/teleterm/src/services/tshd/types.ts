@@ -111,7 +111,7 @@ export type AuthSettings = apiAuthSettings.AuthSettings.AsObject;
 
 export interface FileTransferRequest
   extends apiService.FileTransferRequest.AsObject {
-  clusterUri: uri.ClusterUri;
+  serverUri: uri.ServerUri;
 }
 
 export type WebauthnCredentialInfo = apiService.CredentialInfo.AsObject;

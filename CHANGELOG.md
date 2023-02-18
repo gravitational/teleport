@@ -1347,7 +1347,7 @@ proxy_service:
 #### AWS CLI
 
 Teleport application access extends AWS console support to CLI . Users are able
-to log into their AWS console using `tsh app login` and use `tsh aws` commands
+to log into their AWS console using `tsh apps login` and use `tsh aws` commands
 to interact with AWS APIs.
 
 See more info in the
@@ -2286,7 +2286,7 @@ Teleport's Web UI now exposes Teleport’s Audit log, letting auditors and admin
 Teleport 4.3 introduces four new plugins that work out of the box with [Approval Workflow](./docs/pages/access-controls/access-request-plugins/index.mdx). These plugins allow you to automatically support role escalation with commonly used third party services. The built-in plugins are listed below.
 
 *   [PagerDuty](./docs/pages/access-controls/access-request-plugins/ssh-approval-pagerduty.mdx)
-*   [Jira](./docs/pages/access-controls/access-request-plugins/ssh-approval-jira.mdx) 
+*   [Jira](./docs/pages/access-controls/access-request-plugins/ssh-approval-jira.mdx)
 *   [Slack](./docs/pages/access-controls/access-request-plugins/ssh-approval-slack.mdx)
 *   [Mattermost](./docs/pages/access-controls/access-request-plugins/ssh-approval-mattermost.mdx)
 

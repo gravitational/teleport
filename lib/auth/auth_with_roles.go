@@ -602,15 +602,21 @@ func (a *ServerWithRoles) GetCertAuthorities(ctx context.Context, caType types.C
 }
 
 func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
-	if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbReadNoSecrets); err != nil {
+	readVerb := types.VerbReadNoSecrets
+	if loadKeys {
+		readVerb = types.VerbRead
+	}
+
+	ca, err := a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if loadKeys {
-		if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	sctx := &services.Context{User: a.context.User, Resource: ca}
+	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindCertAuthority, readVerb); err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
+
+	return ca, nil
 }
 
 func (a *ServerWithRoles) GetDomainName(ctx context.Context) (string, error) {
@@ -2693,8 +2699,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		checker:           checker,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
-		clientIP: a.context.Identity.GetIdentity().ClientIP,
-		traits:   accessInfo.Traits,
+		loginIP: a.context.Identity.GetIdentity().LoginIP,
+		traits:  accessInfo.Traits,
 		activeRequests: services.RequestIDs{
 			AccessRequests: req.AccessRequests,
 		},

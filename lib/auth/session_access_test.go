@@ -31,6 +31,7 @@ type startTestCase struct {
 	participants []SessionAccessContext
 	owner        string
 	expected     []bool
+	terminate    types.OnSessionLeaveAction
 }
 
 func successStartTestCase(t *testing.T) startTestCase {
@@ -43,14 +44,14 @@ func successStartTestCase(t *testing.T) startTestCase {
 		Filter:  "contains(user.roles, \"participant\")",
 		Kinds:   []string{string(types.SSHSessionKind), string(types.KubernetesSessionKind)},
 		Count:   2,
-		OnLeave: types.OnSessionLeaveTerminate,
+		OnLeave: string(types.OnSessionLeaveTerminate),
 		Modes:   []string{"peer"},
 	}})
 
 	participantRole.SetSessionJoinPolicies([]*types.SessionJoinPolicy{{
 		Roles: []string{hostRole.GetName()},
 		Kinds: []string{string(types.SSHSessionKind), string(types.KubernetesSessionKind)},
-		Modes: []string{string("*")},
+		Modes: []string{"*"},
 	}})
 
 	return startTestCase{
@@ -69,7 +70,99 @@ func successStartTestCase(t *testing.T) startTestCase {
 				Mode:     "peer",
 			},
 		},
-		expected: []bool{true, true},
+		expected:  []bool{true, true},
+		terminate: types.OnSessionLeaveTerminate,
+	}
+}
+
+func successStartTestCasePause(t *testing.T) startTestCase {
+	hostRole, err := types.NewRole("host", types.RoleSpecV6{})
+	require.NoError(t, err)
+	participantRole, err := types.NewRole("participant", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	hostRole.SetSessionRequirePolicies([]*types.SessionRequirePolicy{{
+		Filter:  "contains(user.roles, \"participant\")",
+		Kinds:   []string{string(types.SSHSessionKind), string(types.KubernetesSessionKind)},
+		Count:   2,
+		OnLeave: string(types.OnSessionLeavePause),
+		Modes:   []string{"peer"},
+	}})
+
+	participantRole.SetSessionJoinPolicies([]*types.SessionJoinPolicy{{
+		Roles: []string{hostRole.GetName()},
+		Kinds: []string{string(types.SSHSessionKind), string(types.KubernetesSessionKind)},
+		Modes: []string{"*"},
+	}})
+
+	return startTestCase{
+		name:         "successStartTestCasePause",
+		host:         []types.Role{hostRole},
+		sessionKinds: []types.SessionKind{types.SSHSessionKind, types.KubernetesSessionKind},
+		participants: []SessionAccessContext{
+			{
+				Username: "participant",
+				Roles:    []types.Role{participantRole},
+				Mode:     "peer",
+			},
+			{
+				Username: "participant2",
+				Roles:    []types.Role{participantRole},
+				Mode:     "peer",
+			},
+		},
+		expected:  []bool{true, true},
+		terminate: types.OnSessionLeavePause,
+	}
+}
+
+func pauseCanBeOverwritten(t *testing.T) startTestCase {
+	hostRole, err := types.NewRole("host", types.RoleSpecV6{})
+	require.NoError(t, err)
+	participantRole, err := types.NewRole("participant", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	hostRole.SetSessionRequirePolicies([]*types.SessionRequirePolicy{
+		{
+			Filter:  "contains(user.roles, \"participant\")",
+			Kinds:   []string{string(types.SSHSessionKind), string(types.KubernetesSessionKind)},
+			Count:   2,
+			OnLeave: string(types.OnSessionLeavePause),
+			Modes:   []string{"peer"},
+		},
+		{
+			Filter:  "contains(user.roles, \"participant\")",
+			Kinds:   []string{string(types.SSHSessionKind), string(types.KubernetesSessionKind)},
+			Count:   2,
+			OnLeave: string(types.OnSessionLeaveTerminate),
+			Modes:   []string{"peer"},
+		},
+	})
+
+	participantRole.SetSessionJoinPolicies([]*types.SessionJoinPolicy{{
+		Roles: []string{hostRole.GetName()},
+		Kinds: []string{string(types.SSHSessionKind), string(types.KubernetesSessionKind)},
+		Modes: []string{"*"},
+	}})
+
+	return startTestCase{
+		name:         "pauseCanBeOverwritten",
+		host:         []types.Role{hostRole},
+		sessionKinds: []types.SessionKind{types.SSHSessionKind, types.KubernetesSessionKind},
+		participants: []SessionAccessContext{
+			{
+				Username: "participant",
+				Roles:    []types.Role{participantRole},
+				Mode:     "peer",
+			},
+			{
+				Username: "participant2",
+				Roles:    []types.Role{participantRole},
+				Mode:     "peer",
+			},
+		},
+		expected:  []bool{true, true},
+		terminate: types.OnSessionLeaveTerminate,
 	}
 }
 
@@ -83,7 +176,7 @@ func successStartTestCaseSpec(t *testing.T) startTestCase {
 		Filter:  "contains(user.spec.roles, \"participant\")",
 		Kinds:   []string{string(types.SSHSessionKind), string(types.KubernetesSessionKind)},
 		Count:   2,
-		OnLeave: types.OnSessionLeaveTerminate,
+		OnLeave: string(types.OnSessionLeaveTerminate),
 		Modes:   []string{"peer"},
 	}})
 
@@ -109,7 +202,8 @@ func successStartTestCaseSpec(t *testing.T) startTestCase {
 				Mode:     "peer",
 			},
 		},
-		expected: []bool{true, true},
+		expected:  []bool{true, true},
+		terminate: types.OnSessionLeaveTerminate,
 	}
 }
 
@@ -129,7 +223,7 @@ func failCountStartTestCase(t *testing.T) startTestCase {
 	participantRole.SetSessionJoinPolicies([]*types.SessionJoinPolicy{{
 		Roles: []string{hostRole.GetName()},
 		Kinds: []string{string(types.SSHSessionKind), string(types.KubernetesSessionKind)},
-		Modes: []string{string("*")},
+		Modes: []string{"*"},
 	}})
 
 	return startTestCase{
@@ -148,7 +242,8 @@ func failCountStartTestCase(t *testing.T) startTestCase {
 				Mode:     "peer",
 			},
 		},
-		expected: []bool{false, false},
+		expected:  []bool{false, false},
+		terminate: types.OnSessionLeaveTerminate,
 	}
 }
 
@@ -187,7 +282,7 @@ func failFilterStartTestCase(t *testing.T) startTestCase {
 	participantRole.SetSessionJoinPolicies([]*types.SessionJoinPolicy{{
 		Roles: []string{hostRole.GetName()},
 		Kinds: []string{string(types.SSHSessionKind)},
-		Modes: []string{string("*")},
+		Modes: []string{"*"},
 	}})
 
 	return startTestCase{
@@ -206,21 +301,29 @@ func failFilterStartTestCase(t *testing.T) startTestCase {
 				Mode:     "peer",
 			},
 		},
-		expected: []bool{false},
+		expected:  []bool{false},
+		terminate: types.OnSessionLeaveTerminate,
 	}
 }
 
 func TestSessionAccessStart(t *testing.T) {
+	t.Parallel()
+
 	testCases := []startTestCase{
 		successStartTestCase(t),
+		successStartTestCasePause(t),
 		successStartTestCaseSpec(t),
 		failCountStartTestCase(t),
 		failFilterStartTestCase(t),
 		succeedDiscardPolicySetStartTestCase(t),
+		pauseCanBeOverwritten(t),
 	}
 
 	for _, testCase := range testCases {
+		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
 			var policies []*types.SessionTrackerPolicySet
 			for _, role := range testCase.host {
 				policySet := role.GetSessionPolicySet()
@@ -229,9 +332,10 @@ func TestSessionAccessStart(t *testing.T) {
 
 			for i, kind := range testCase.sessionKinds {
 				evaluator := NewSessionAccessEvaluator(policies, kind, testCase.owner)
-				result, _, err := evaluator.FulfilledFor(testCase.participants)
+				result, policyOptions, err := evaluator.FulfilledFor(testCase.participants)
 				require.NoError(t, err)
 				require.Equal(t, testCase.expected[i], result)
+				require.Equal(t, testCase.terminate, policyOptions.OnLeaveAction)
 			}
 		})
 	}
@@ -383,6 +487,8 @@ func versionDefaultJoinTestCase(t *testing.T) joinTestCase {
 }
 
 func TestSessionAccessJoin(t *testing.T) {
+	t.Parallel()
+
 	testCases := []joinTestCase{
 		successJoinTestCase(t),
 		successGlobJoinTestCase(t),
