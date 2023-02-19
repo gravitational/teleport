@@ -4025,7 +4025,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 				proxySettings.DB.PostgresPublicAddr)
 		}
 		tc.PostgresProxyAddr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(tc.WebProxyPort())))
-		// When in TLS routing mode the web port should be used if no Postgres Public Addr is set
+		// Listen address port applies if set and not in TLS routing mode.
 	case proxySettings.DB.PostgresListenAddr != "" && !proxySettings.TLSRoutingEnabled:
 		addr, err := utils.ParseAddr(proxySettings.DB.PostgresListenAddr)
 		if err != nil {
@@ -4034,7 +4034,6 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 		}
 		tc.PostgresProxyAddr = net.JoinHostPort(tc.WebProxyHost(), strconv.Itoa(addr.Port(defaults.PostgresListenPort)))
 	default:
-		log.Debugf("Returning default")
 		webProxyHost, webProxyPort := tc.WebProxyHostPort()
 		tc.PostgresProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(webProxyPort))
 	}
