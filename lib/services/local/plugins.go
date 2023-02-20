@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -107,7 +108,7 @@ func (s *PluginsService) GetPlugin(ctx context.Context, name string, withSecrets
 
 // GetPlugins implements services.Plugins
 func (s *PluginsService) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
-	const pageSize = 1000
+	const pageSize = apidefaults.DefaultChunkSize
 	var results []types.Plugin
 
 	var page []types.Plugin
