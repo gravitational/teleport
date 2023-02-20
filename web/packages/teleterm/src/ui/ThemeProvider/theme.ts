@@ -122,13 +122,7 @@ const theme = {
   font: sansSerif,
   fonts: {
     sansSerif,
-    /**
-     * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
-     * in a styled component, as it may inject malicious CSS code.
-     * Before using it, sanitize it with `CSS.escape` or pass it as a `style` prop.
-     * Read more https://frontarm.com/james-k-nelson/how-can-i-use-css-in-js-securely/.
-     */
-    unsanitizedMono: fonts.mono,
+    mono: fonts.mono,
   },
   fontWeights,
   fontSizes,
