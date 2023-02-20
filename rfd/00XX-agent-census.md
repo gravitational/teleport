@@ -82,7 +82,7 @@ Instead, when the auth server handle is created at the agent ([here](https://git
 Then, once the agent has sent the `UpstreamInventoryHello` to the auth server and received the `DownstreamInventoryHello` reply ([here](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/inventory/inventory.go#L167-L191)), it will request the metadata from the new goroutine and send it to the auth server once it is available.
 This step is non-blocking, and thus it should not impact the existing ICS mechanism.
 
-An initial sketch of this flow can be found in [9dc0d07](https://github.com/gravitational/teleport/commit/9dc0d076e9e613f90481a9c5f564a3de5bb4d170).
+An initial sketch of this flow can be found in [7dccfc9](https://github.com/gravitational/teleport/commit/7dccfc98ccccec745df1ad4bec3aff79bfb9bcbb).
 Note that the agent metadata will be sent to auth server at most once (per boot): if the first attempt does not succeed, the proposed flow won't try to send it again.
 However, this attempt only occurs after a successful hello exchange and thus it will likely succeed.
 
