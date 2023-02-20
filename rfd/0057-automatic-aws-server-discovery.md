@@ -372,21 +372,6 @@ present in the cluster.
 When rotating certs the `teleport join` command will fetch the
 OpenSSHCA and overwrite the existing file.
 
-### Including AWS Tags as Teleport labels
-
-The AWS tags on discovered EC2 instances will be included as Teleport labels on the
-discovered Nodes.
-
-In order to achieve this a helper resource named `DiscoveredServer` will be
-introduced with will store metadata about discovered nodes that was retrieved via the
-AWS API.
-
-When Teleport is installed and registers the EC2 instance, the Auth server will check
-for a corresponding `DiscoveredServer` resource by matching on `instance-id` and
-`account-id` labels. If there is a matching `DiscoveredServer`, it will create a
-`Server` resource using the metadata from the `DiscoveredServer` and ignore labels
-sent via heartbeat from the node.
-
 ## UX
 
 ### User has 1 account to discover servers on
