@@ -48,6 +48,7 @@ export default function useDocumentTerminal(doc: Doc) {
     };
   }, [state]);
 
+  // TODO: Move this within the call to initState in useAsync.
   useEffect(() => {
     if (state.status === 'error') {
       ctx.notificationsService.notifyError({
@@ -123,6 +124,10 @@ async function initState(
     }
     // The initCommand has to be launched only once, not every time we recreate the document from
     // the state.
+    //
+    // Imagine that someone creates a new terminal document with `rm -rf /tmp` as initCommand.
+    // We'd execute the command each time the document gets recreated from the state, which is not
+    // what the user would expect.
     docsService.update(doc.uri, { initCommand: undefined });
   };
 
@@ -189,6 +194,8 @@ function createCmd(
 ): PtyCommand {
   if (doc.kind === 'doc.terminal_tsh_node') {
     return {
+      // TODO(ravicious): Pick relevant field from doc rather than destructuring.
+      // Change tests to not use `objectContaining`.
       ...doc,
       proxyHost,
       clusterName,

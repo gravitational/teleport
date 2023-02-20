@@ -37,11 +37,15 @@ export interface DocumentBlank extends DocumentBase {
 
 export interface DocumentTshNode extends DocumentBase {
   kind: 'doc.terminal_tsh_node';
-  status: 'connecting' | 'connected' | 'disconnected';
+  status: '' | 'connecting' | 'connected' | 'disconnected';
   serverId: string;
   serverUri: uri.ServerUri;
   rootClusterId: string;
   leafClusterId?: string;
+  // login is missing when the user executes `tsh ssh user` from the command bar without supplying
+  // the hostname. In that case, login will be undefined and serverId will be equal to "user".
+  //
+  // We will execute `tsh ssh user` anyway and let tsh show an appropriate error message.
   login?: string;
 }
 

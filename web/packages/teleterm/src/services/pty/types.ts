@@ -46,10 +46,14 @@ export type ShellCommand = PtyCommandBase & {
 
 export type TshLoginCommand = PtyCommandBase & {
   kind: 'pty.tsh-login';
-  login?: string;
+  // login is missing when the user executes `tsh ssh user` from the command bar without supplying
+  // the hostname. In that case, login will be undefined and serverId will be equal to "user".
+  //
+  // We will execute `tsh ssh user` anyway and let tsh show an appropriate error message.
+  login: string | undefined;
   serverId: string;
   rootClusterId: string;
-  leafClusterId?: string;
+  leafClusterId: string | undefined;
 };
 
 export type TshKubeLoginCommand = PtyCommandBase & {
