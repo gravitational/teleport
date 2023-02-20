@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -3054,13 +3055,31 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 	go func() {
 		select {
 		case msg := <-upstream.Recv():
-			hello, ok := msg.(proto.UpstreamInventoryHello)
-			if !ok {
+			switch m := msg.(type) {
+			case proto.UpstreamInventoryHello:
+				if err := a.RegisterInventoryControlStream(upstream, m); err != nil {
+					upstream.CloseWithError(err)
+					return
+				}
+			case proto.UpstreamInventoryAgentMetadata:
+				log.Debugf("Agent metadata received: %v", m)
+				if err := a.AnonymizeAndSubmit(&services.AgentMetadataEvent{
+					Version:               m.Version,
+					ServerId:              m.ServerID,
+					Services:              m.Services,
+					Os:                    m.OS,
+					OsVersion:             m.OSVersion,
+					HostArchitecture:      m.HostArchitecture,
+					GlibcVersion:          m.GLibCVersion,
+					InstallMethods:        m.InstallMethods,
+					ContainerRuntime:      m.ContainerRuntime,
+					ContainerOrchestrator: m.ContainerOrchestrator,
+					CloudEnvironment:      m.CloudEnvironment,
+				}); err != nil {
+					log.Debugf("Unable to submit agent metadata: %v", err)
+				}
+			default:
 				upstream.CloseWithError(trace.BadParameter("expected upstream hello, got: %T", msg))
-				return
-			}
-			if err := a.RegisterInventoryControlStream(upstream, hello); err != nil {
-				upstream.CloseWithError(err)
 				return
 			}
 		case <-upstream.Done():

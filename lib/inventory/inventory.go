@@ -86,13 +86,18 @@ type DownstreamSender interface {
 // supplied create func and manage hello exchange with the supplied upstream hello.
 func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) DownstreamHandle {
 	ctx, cancel := context.WithCancel(context.Background())
+	agentMetadataCh := make(chan proto.UpstreamInventoryAgentMetadata, 1)
 	handle := &downstreamHandle{
-		senderC:      make(chan DownstreamSender),
-		pingHandlers: make(map[uint64]DownstreamPingHandler),
-		closeContext: ctx,
-		cancel:       cancel,
+		senderC:         make(chan DownstreamSender),
+		pingHandlers:    make(map[uint64]DownstreamPingHandler),
+		closeContext:    ctx,
+		cancel:          cancel,
+		agentMetadataCh: agentMetadataCh,
 	}
 	go handle.run(fn, hello)
+	go func() {
+		agentMetadataCh <- fetchAgentMetadata(ctx, hello)
+	}()
 	return handle
 }
 
@@ -113,12 +118,13 @@ func SendHeartbeat(ctx context.Context, handle DownstreamHandle, hb proto.Invent
 }
 
 type downstreamHandle struct {
-	mu           sync.Mutex
-	handlerNonce uint64
-	pingHandlers map[uint64]DownstreamPingHandler
-	senderC      chan DownstreamSender
-	closeContext context.Context
-	cancel       context.CancelFunc
+	mu              sync.Mutex
+	handlerNonce    uint64
+	pingHandlers    map[uint64]DownstreamPingHandler
+	senderC         chan DownstreamSender
+	closeContext    context.Context
+	cancel          context.CancelFunc
+	agentMetadataCh chan proto.UpstreamInventoryAgentMetadata
 }
 
 func (h *downstreamHandle) closing() bool {
@@ -192,10 +198,17 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 
 	sender := downstreamSender{stream, downstreamHello}
 
-	// handle incoming messages and distribute sender references
+	// handle incoming messages, distribute sender references and
+	// send agent metadata to the auth server.
+	// note that the metadata is sent at most once: if the first
+	// attempt does not succeed, the ICS won't try to send it again.
 	for {
 		select {
 		case h.senderC <- sender:
+		case m := <-h.agentMetadataCh:
+			if err := stream.Send(h.closeContext, m); err != nil {
+				log.Warnf("failed to send agent metadata: %v", err)
+			}
 		case msg := <-stream.Recv():
 			switch m := msg.(type) {
 			case proto.DownstreamInventoryHello:

@@ -333,6 +333,10 @@ func (i *downstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStr
 				oneOf.Msg = &proto.UpstreamInventoryOneOf_Pong{
 					Pong: &msg,
 				}
+			case proto.UpstreamInventoryAgentMetadata:
+				oneOf.Msg = &proto.UpstreamInventoryOneOf_AgentMetadata{
+					AgentMetadata: &msg,
+				}
 			default:
 				sendMsg.errC <- trace.BadParameter("cannot send unexpected upstream msg type: %T", msg)
 				continue
