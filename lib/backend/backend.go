@@ -301,8 +301,6 @@ func NextPaginationKey(r types.Resource) string {
 		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
 	case types.KubeServer:
 		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
-	case types.Plugin:
-		return string(nextKey(Key("plugins", resourceWithType.GetName())))
 	default:
 		return string(nextKey([]byte(r.GetName())))
 	}
@@ -319,8 +317,6 @@ func GetPaginationKey(r types.Resource) string {
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
 	case types.WindowsDesktop:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
-	case types.Plugin:
-		return string(Key("plugins", resourceWithType.GetName()))
 	default:
 		return r.GetName()
 	}

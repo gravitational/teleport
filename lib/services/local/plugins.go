@@ -76,7 +76,7 @@ func (s *PluginsService) DeletePlugin(ctx context.Context, name string) error {
 
 // DeleteAllPlugins implements service.Plugins
 func (s *PluginsService) DeleteAllPlugins(ctx context.Context) error {
-	startKey := backend.Key(pluginsPrefix)
+	startKey := backend.Key(pluginsPrefix, "")
 	err := s.backend().DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)
@@ -130,11 +130,9 @@ func (s *PluginsService) GetPlugins(ctx context.Context, withSecrets bool) ([]ty
 // ListPlugins returns a paginated list of plugin instances.
 // StartKey is a resource name, which is the suffix of its key.
 func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
-	startKeyBytes := []byte(startKey)
-	if len(startKeyBytes) == 0 {
-		startKeyBytes = backend.Key(pluginsPrefix)
-	}
-	result, err := s.backend().GetRange(ctx, startKeyBytes, backend.RangeEnd(backend.Key(pluginsPrefix)), limit)
+	startKeyBytes := backend.Key(pluginsPrefix, startKey)
+	endKey := backend.RangeEnd(backend.Key(pluginsPrefix, ""))
+	result, err := s.backend().GetRange(ctx, startKeyBytes, endKey, limit)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
