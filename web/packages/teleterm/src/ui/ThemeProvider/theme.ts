@@ -26,7 +26,6 @@ import {
   yellow,
 } from 'design/theme/palette';
 import typography, { fontSizes, fontWeights } from 'design/theme/typography';
-import { getPlatform } from 'design/theme/utils';
 
 const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
 const contrastThreshold = 3;
@@ -115,23 +114,7 @@ const borders = [
   '32px solid',
 ];
 
-function getSansSerif() {
-  const platform = getPlatform();
-
-  if (platform.isLinux) {
-    return "system-ui, 'Ubuntu', 'Droid Sans', sans-serif";
-  }
-
-  if (platform.isMac) {
-    return '-apple-system, BlinkMacSystemFont, sans-serif';
-  }
-
-  if (platform.isWin) {
-    return "system-ui, 'Segoe WPC', 'Segoe UI', sans-serif";
-  }
-}
-
-const sansSerif = getSansSerif();
+const sansSerif = 'system-ui';
 
 const theme = {
   colors,
