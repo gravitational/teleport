@@ -28,10 +28,10 @@ type PluginServiceClient interface {
 	CreatePlugin(ctx context.Context, in *CreatePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetPlugin returns a plugin instance by name.
 	GetPlugin(ctx context.Context, in *GetPluginRequest, opts ...grpc.CallOption) (*types.PluginV1, error)
-	// GetPlugins returns all plugin instances.
-	GetPlugins(ctx context.Context, in *GetPluginsRequest, opts ...grpc.CallOption) (*types.PluginListV1, error)
 	// DeletePlugin removes the specified plugin instance.
 	DeletePlugin(ctx context.Context, in *DeletePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// ListPlugins returns a paginated view of plugin instances.
+	ListPlugins(ctx context.Context, in *ListPluginsRequest, opts ...grpc.CallOption) (*ListPluginsResponse, error)
 	// SetPluginCredentials sets the credentials for the given plugin.
 	SetPluginCredentials(ctx context.Context, in *SetPluginCredentialsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// SetPluginCredentials sets the status for the given plugin.
@@ -64,18 +64,18 @@ func (c *pluginServiceClient) GetPlugin(ctx context.Context, in *GetPluginReques
 	return out, nil
 }
 
-func (c *pluginServiceClient) GetPlugins(ctx context.Context, in *GetPluginsRequest, opts ...grpc.CallOption) (*types.PluginListV1, error) {
-	out := new(types.PluginListV1)
-	err := c.cc.Invoke(ctx, "/teleport.plugins.v1.PluginService/GetPlugins", in, out, opts...)
+func (c *pluginServiceClient) DeletePlugin(ctx context.Context, in *DeletePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/teleport.plugins.v1.PluginService/DeletePlugin", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *pluginServiceClient) DeletePlugin(ctx context.Context, in *DeletePluginRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/teleport.plugins.v1.PluginService/DeletePlugin", in, out, opts...)
+func (c *pluginServiceClient) ListPlugins(ctx context.Context, in *ListPluginsRequest, opts ...grpc.CallOption) (*ListPluginsResponse, error) {
+	out := new(ListPluginsResponse)
+	err := c.cc.Invoke(ctx, "/teleport.plugins.v1.PluginService/ListPlugins", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -108,10 +108,10 @@ type PluginServiceServer interface {
 	CreatePlugin(context.Context, *CreatePluginRequest) (*emptypb.Empty, error)
 	// GetPlugin returns a plugin instance by name.
 	GetPlugin(context.Context, *GetPluginRequest) (*types.PluginV1, error)
-	// GetPlugins returns all plugin instances.
-	GetPlugins(context.Context, *GetPluginsRequest) (*types.PluginListV1, error)
 	// DeletePlugin removes the specified plugin instance.
 	DeletePlugin(context.Context, *DeletePluginRequest) (*emptypb.Empty, error)
+	// ListPlugins returns a paginated view of plugin instances.
+	ListPlugins(context.Context, *ListPluginsRequest) (*ListPluginsResponse, error)
 	// SetPluginCredentials sets the credentials for the given plugin.
 	SetPluginCredentials(context.Context, *SetPluginCredentialsRequest) (*emptypb.Empty, error)
 	// SetPluginCredentials sets the status for the given plugin.
@@ -129,11 +129,11 @@ func (UnimplementedPluginServiceServer) CreatePlugin(context.Context, *CreatePlu
 func (UnimplementedPluginServiceServer) GetPlugin(context.Context, *GetPluginRequest) (*types.PluginV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetPlugin not implemented")
 }
-func (UnimplementedPluginServiceServer) GetPlugins(context.Context, *GetPluginsRequest) (*types.PluginListV1, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetPlugins not implemented")
-}
 func (UnimplementedPluginServiceServer) DeletePlugin(context.Context, *DeletePluginRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeletePlugin not implemented")
+}
+func (UnimplementedPluginServiceServer) ListPlugins(context.Context, *ListPluginsRequest) (*ListPluginsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListPlugins not implemented")
 }
 func (UnimplementedPluginServiceServer) SetPluginCredentials(context.Context, *SetPluginCredentialsRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetPluginCredentials not implemented")
@@ -190,24 +190,6 @@ func _PluginService_GetPlugin_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PluginService_GetPlugins_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetPluginsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(PluginServiceServer).GetPlugins(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/teleport.plugins.v1.PluginService/GetPlugins",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PluginServiceServer).GetPlugins(ctx, req.(*GetPluginsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _PluginService_DeletePlugin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeletePluginRequest)
 	if err := dec(in); err != nil {
@@ -222,6 +204,24 @@ func _PluginService_DeletePlugin_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(PluginServiceServer).DeletePlugin(ctx, req.(*DeletePluginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PluginService_ListPlugins_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListPluginsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PluginServiceServer).ListPlugins(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/teleport.plugins.v1.PluginService/ListPlugins",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PluginServiceServer).ListPlugins(ctx, req.(*ListPluginsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -278,12 +278,12 @@ var PluginService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _PluginService_GetPlugin_Handler,
 		},
 		{
-			MethodName: "GetPlugins",
-			Handler:    _PluginService_GetPlugins_Handler,
-		},
-		{
 			MethodName: "DeletePlugin",
 			Handler:    _PluginService_DeletePlugin_Handler,
+		},
+		{
+			MethodName: "ListPlugins",
+			Handler:    _PluginService_ListPlugins_Handler,
 		},
 		{
 			MethodName: "SetPluginCredentials",
