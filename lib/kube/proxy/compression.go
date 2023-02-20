@@ -38,7 +38,7 @@ const (
 )
 
 var gzipPool = &sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		gw, err := gzip.NewWriterLevel(nil, defaultGzipContentEncodingLevel)
 		if err != nil {
 			// This should never happen.

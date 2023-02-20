@@ -207,14 +207,14 @@ func TestCheckSAMLIDPCA(t *testing.T) {
 			name: "multiple active keys",
 			keyset: types.CAKeySet{
 				TLS: []*types.TLSKeyPair{{
-					Cert: bytes.Repeat([]byte{49}, 1666),
-					Key:  bytes.Repeat([]byte{49}, 1222),
+					Cert: cert,
+					Key:  key,
 				}, {
-					Cert: bytes.Repeat([]byte{49}, 1666),
-					Key:  bytes.Repeat([]byte{49}, 1222),
+					Cert: cert,
+					Key:  key,
 				}},
 			},
-			errAssertionFunc: require.Error,
+			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "empty key",

@@ -14248,6 +14248,8 @@ type AuthServiceClient interface {
 	// UpsertTokenV2 upserts a token in a backend.
 	UpsertTokenV2(ctx context.Context, in *UpsertTokenV2Request, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GenerateToken generates a new auth token.
+	// Deprecated: switch to CreateTokenV2.
+	// DELETE IN 14.0.0, replaced by CreateTokenV2 (strideynet).
 	GenerateToken(ctx context.Context, in *GenerateTokenRequest, opts ...grpc.CallOption) (*GenerateTokenResponse, error)
 	// DeleteToken deletes an existing token in a backend described by the given request.
 	DeleteToken(ctx context.Context, in *types.ResourceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -17152,6 +17154,8 @@ type AuthServiceServer interface {
 	// UpsertTokenV2 upserts a token in a backend.
 	UpsertTokenV2(context.Context, *UpsertTokenV2Request) (*emptypb.Empty, error)
 	// GenerateToken generates a new auth token.
+	// Deprecated: switch to CreateTokenV2.
+	// DELETE IN 14.0.0, replaced by CreateTokenV2 (strideynet).
 	GenerateToken(context.Context, *GenerateTokenRequest) (*GenerateTokenResponse, error)
 	// DeleteToken deletes an existing token in a backend described by the given request.
 	DeleteToken(context.Context, *types.ResourceRequest) (*emptypb.Empty, error)

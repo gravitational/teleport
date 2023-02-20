@@ -39,6 +39,8 @@ Teleport Desktop Access is not yet compatible with Windows Server 2022.
 
 - A Linux server to run the Teleport Desktop Access service on.
   You can reuse an existing server running any other Teleport instance.
+- A server or virtual machine running a Windows operating system with
+  Remote Desktop enabled and the RDP port available to the Linux server.
 
 (!docs/pages/includes/tctl.mdx!)
 
@@ -67,10 +69,11 @@ Teleport certificate file from the previous step. Once complete, reboot the syst
 <Admonition type="tip" title="Headless Installation">
 The Teleport Windows Auth Setup can be run in a shell environment with elevated
 privileges. You can use this to automate installation, uninstallation, and
-certificate updates. For example:
+certificate updates. The following command will install the Teleport Certificate,
+load the required DLL, disable NLA, and reboot the Windows machine:
 
 ```code
-$ teleport-windows-auth-setup-v12.0.0-amd64.exe install --cert=teleport.cer -r
+$ teleport-windows-auth-setup.exe install --cert=teleport.cer -r
 Teleport Authentication Package installed
 ```
 
@@ -96,12 +99,14 @@ Copy the token to the Linux host where you will run the Desktop service as `/tmp
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Create `/etc/teleport.yaml` and configure it for Desktop Access:
+Create `/etc/teleport.yaml` and configure it for Desktop Access. Update the `proxy_server`
+value to your Teleport proxy service or cloud tenant, and put the Windows machine address
+under `non_ad_hosts`:
 
 ```yml
 version: v3
 teleport:
-  nodename: example.teleport.com
+  nodename: windows.teleport.example.com
   proxy_server: teleport-proxy.example.com:443
   auth_token: /tmp/token
 windows_desktop_service:
@@ -217,6 +222,5 @@ You can now connect to your Windows desktops from the Teleport Web UI:
 
 - See the [RBAC page](./rbac.mdx) for more information about setting up
 Windows Desktop Access permissions.
-
 - See the [Access Controls Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles)
 guide for instructions on how to create or update a user with a given role.
