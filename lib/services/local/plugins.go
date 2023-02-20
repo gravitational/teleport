@@ -26,15 +26,14 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const (
-	pluginsPrefix = "plugins"
-)
+const pluginsPrefix = "plugins"
 
 // PluginsService manages plugin instances in the backend.
 type PluginsService struct {
 	getBackend func() backend.Backend
 }
 
+// NewPluginsService constructs a new PluginsService
 func NewPluginsService(getBackend func() backend.Backend) *PluginsService {
 	return &PluginsService{getBackend: getBackend}
 }
@@ -127,6 +126,38 @@ func (s *PluginsService) GetPlugins(ctx context.Context, withSecrets bool) ([]ty
 	}
 
 	return plugins, nil
+}
+
+// ListPlugins returns a paginated list of plugin instances.
+// StartKey is a resource name, which is the suffix of its key.
+func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
+	startKeyBytes := []byte(startKey)
+	if len(startKeyBytes) == 0 {
+		startKeyBytes = backend.Key(pluginsPrefix)
+	}
+	result, err := s.backend().GetRange(ctx, startKeyBytes, backend.RangeEnd(backend.Key(pluginsPrefix)), limit)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	plugins := make([]types.Plugin, 0, len(result.Items))
+	for _, item := range result.Items {
+		plugin, err := services.UnmarshalPlugin(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		if !withSecrets {
+			plugin = plugin.WithoutSecrets().(types.Plugin)
+		}
+		plugins = append(plugins, plugin)
+	}
+
+	var nextKey string
+	if len(result.Items) == limit {
+		nextKey = backend.NextPaginationKey(plugins[len(plugins)-1])
+	}
+
+	return plugins, nextKey, nil
 }
 
 // SetPluginCredentials implements services.Plugins

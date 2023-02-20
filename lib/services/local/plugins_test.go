@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -127,4 +128,60 @@ func TestPluginsCRUD(t *testing.T) {
 	out, err = service.GetPlugins(ctx, true)
 	require.NoError(t, err)
 	require.Len(t, out, 0)
+}
+
+func TestListPlugins(t *testing.T) {
+	const pageSize = 5
+	const numPlugins = 2*pageSize + 1
+	ctx := context.Background()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { mem.Close() })
+
+	service := NewPluginsService(func() backend.Backend { return mem })
+
+	var insertedPlugins []types.Plugin
+	for i := 0; i < numPlugins; i++ {
+		plugin := types.NewPluginV1(
+			types.Metadata{Name: fmt.Sprintf("p%02d", i+1)},
+			types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_SlackAccessPlugin{
+					SlackAccessPlugin: &types.PluginSlackAccessSettings{
+						FallbackChannel: fmt.Sprintf("#foo-%02d", i+1),
+					},
+				},
+			},
+			nil)
+		err := service.CreatePlugin(ctx, plugin)
+		require.NoError(t, err)
+		insertedPlugins = append(insertedPlugins, plugin)
+	}
+
+	page1, nextKey, err := service.ListPlugins(ctx, pageSize, "", true)
+	require.NoError(t, err)
+	require.NotEmpty(t, nextKey)
+	require.Len(t, page1, pageSize)
+
+	page2, nextKey, err := service.ListPlugins(ctx, pageSize, nextKey, true)
+	require.NoError(t, err)
+	require.NotEmpty(t, nextKey)
+	require.Len(t, page2, pageSize)
+
+	page3, nextKey, err := service.ListPlugins(ctx, pageSize, nextKey, true)
+	require.NoError(t, err)
+	require.Empty(t, nextKey)
+	require.Len(t, page3, 1)
+
+	var fetchedPlugins []types.Plugin
+	fetchedPlugins = append(fetchedPlugins, page1...)
+	fetchedPlugins = append(fetchedPlugins, page2...)
+	fetchedPlugins = append(fetchedPlugins, page3...)
+
+	require.Empty(t, cmp.Diff(insertedPlugins, fetchedPlugins,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
 }
