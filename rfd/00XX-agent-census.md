@@ -218,17 +218,15 @@ To determine if the agent is running on a Kubernetes pod, we can try to initiali
 If this succeeds, the agent is running on Kubernetes.
 
 Afterwards, we'll try to detect in which cloud provider the pod is running on.
-For this, we'll call `client.ServerVersion()` and check if the returned `gitVersion` contains a certain substring specific for each provider:
+For this, we'll call `client.ServerVersion()`:
+- in EKS, the git version looks like `"v1.24.8-eks-ffeb93d"` (i.e. contains the substring `"-eks"`)
+- in GPC ([docs](https://cloud.google.com/kubernetes-engine/docs/release-notes)), the git version looks like `"1.23.14-gke.1800"` (i.e. contains the substring `"-gke"`)
+- in AKS, the git version looks like `"v1.25.2"`, so it's not possible to detect this environment using this method. (This is also a problem for Helm charts, as reported in [Azure/AKS#3375](https://github.com/Azure/AKS/issues/3375).)
 
-- in EKS, the git version looks like `"v1.24.8-eks-ffeb93d"` (we'll search for substring `"-eks"`)
-- in GPC ([docs](https://cloud.google.com/kubernetes-engine/docs/release-notes)), the git version looks like `"1.23.14-gke.1800"` (we'll search for substring `"-gke"`)
+In the end, `UpstreamInventoryAgentMetadata.ContainerOrchestrator` will be set to `kubernetes-$GIT_VERSION`.
 
-In AKS, the git version looks like `"v1.25.2"`, so it's not possible to detect this environment using this method. (This is also a problem for Helm charts, as reported in [Azure/AKS#3375](https://github.com/Azure/AKS/issues/3375).)
-
-In the end, `UpstreamInventoryAgentMetadata.ContainerOrchestrator` will be set to:
-- `kubernetes-eks` if on EKS
-- `kubernetes-gke` if on GKE
-- `kubernetes-unknown` otherwise (AKS, other cloud provider, or no cloud provider)
+Initially we considered setting `UpstreamInventoryAgentMetadata.ContainerOrchestrator` to `kubernetes-eks` if on EKS, `kubernetes-gcp` if on GCP and `kubernetes-unknown` otherwise.
+However, this will require changing the agent code in order to track AKS (if at some point they decide to include the substring `"-aks"`) or some other container orchestrator that can also be detected using the git version.
 
 ##### 10. Cloud environment
 
