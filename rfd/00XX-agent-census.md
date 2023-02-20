@@ -87,19 +87,32 @@ Note that the agent metadata will be sent to auth server at most once (per boot)
 However, this attempt only occurs after a successful hello exchange and thus it will likely succeed.
 
 ```protobuf
+  // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing
+// metadata about the instance.
 message UpstreamInventoryAgentMetadata {
   // Version advertises the teleport version of the instance.
   string Version = 1;
   // ServerID advertises the server ID of the instance.
   string ServerID = 2;
-  repeated string Services = 3 [(gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"];
+  // Services advertises the currently live services of the instance that represent
+  // access protocols ("node", "kube", "app", "db" and "windows_desktop").
+  repeated string Services = 3;
+  // OS advertises the instance OS ("darwin" or "linux").
   string OS = 4;
+  // OSVersion advertises the instance OS version (e.g. "Ubuntu 22.04").
   string OSVersion = 5;
+  // HostArchitecture advertises the instance host architecture (e.g. "x86_64" or "arm64").
   string HostArchitecture = 6;
+  // GLibCVersion advertises the instance glibc version of linux instances (e.g. "2.35").
   string GLibCVersion = 7;
+  // InstallMethods advertises the install methods used for the instance (e.g. "dockerfile").
   repeated string InstallMethods = 8;
+  // ContainerRuntime advertises the container runtime for the instance, if any (e.g. "docker").
   string ContainerRuntime = 9;
+  // ContainerOrchestrator advertises the container orchestrator for the instance, if any
+  // (e.g. "kubernetes-v1.24.8-eks-ffeb93d").
   string ContainerOrchestrator = 10;
+  // CloudEnvironment advertises the cloud environment for the instance, if any (e.g. "aws").
   string CloudEnvironment = 11;
 }
 ```
