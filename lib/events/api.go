@@ -757,14 +757,8 @@ type StreamEmitter interface {
 }
 
 // IAuditLog is the primary (and the only external-facing) interface for AuditLogger.
-// If you wish to implement a different kind of logger (not filesystem-based), you
-// have to implement this interface
 type IAuditLog interface {
-	// Closer releases connection and resources associated with log if any
-	io.Closer
-
-	// EmitAuditEvent emits audit event
-	EmitAuditEvent(context.Context, apievents.AuditEvent) error
+	ExternalAuditLogger
 
 	// GetSessionChunk returns a reader which can be used to read a byte stream
 	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
@@ -772,6 +766,16 @@ type IAuditLog interface {
 	//
 	// If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
 	GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error)
+}
+
+// ExternalAuditLogger defines which methods need to implemented by external
+// audit loggers.
+type ExternalAuditLogger interface {
+	// Closer releases connection and resources associated with log if any
+	io.Closer
+
+	// EmitAuditEvent emits audit event
+	EmitAuditEvent(context.Context, apievents.AuditEvent) error
 
 	// Returns all events that happen during a session sorted by time
 	// (oldest first).
@@ -815,7 +819,6 @@ func (f EventFields) AsString() string {
 		f.GetString(EventLogin),
 		f.GetInt(EventCursor),
 		f.GetInt(SessionPrintEventBytes))
-
 }
 
 // GetType returns the type (string) of the event

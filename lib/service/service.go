@@ -1305,10 +1305,10 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 	}
 }
 
-// initAuthAuditLog initializes the auth server's audit log.
-func initAuthAuditLog(ctx context.Context, auditConfig types.ClusterAuditConfig, backend backend.Backend) (events.IAuditLog, error) {
+// initAuthExternalAuditLog initializes the auth server's audit log.
+func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAuditConfig, backend backend.Backend) (events.ExternalAuditLogger, error) {
 	var hasNonFileLog bool
-	var loggers []events.IAuditLog
+	var loggers []events.ExternalAuditLogger
 	for _, eventsURI := range auditConfig.AuditEventsURIs() {
 		uri, err := apiutils.ParseSessionsURI(eventsURI)
 		if err != nil {
@@ -1454,7 +1454,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initAuthAuditLog(process.ExitContext(), cfg.Auth.AuditConfig, process.backend)
+		externalLog, err := initAuthExternalAuditLog(process.ExitContext(), cfg.Auth.AuditConfig, process.backend)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)

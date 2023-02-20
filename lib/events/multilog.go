@@ -28,7 +28,7 @@ import (
 )
 
 // NewMultiLog returns a new instance of a multi logger
-func NewMultiLog(loggers ...IAuditLog) (*MultiLog, error) {
+func NewMultiLog(loggers ...ExternalAuditLogger) (*MultiLog, error) {
 	emitters := make([]apievents.Emitter, 0, len(loggers))
 	for _, logger := range loggers {
 		emitter, ok := logger.(apievents.Emitter)
@@ -47,7 +47,7 @@ func NewMultiLog(loggers ...IAuditLog) (*MultiLog, error) {
 // to all loggers, and performs all read and search operations
 // on the first logger that implements the operation
 type MultiLog struct {
-	loggers []IAuditLog
+	loggers []ExternalAuditLogger
 	*MultiEmitter
 }
 
@@ -58,21 +58,6 @@ func (m *MultiLog) Close() error {
 		errors = append(errors, log.Close())
 	}
 	return trace.NewAggregate(errors...)
-}
-
-// GetSessionChunk returns a reader which can be used to read a byte stream
-// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
-// beginning) up to maxBytes bytes.
-//
-// If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
-func (m *MultiLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) (data []byte, err error) {
-	for _, log := range m.loggers {
-		data, err = log.GetSessionChunk(namespace, sid, offsetBytes, maxBytes)
-		if !trace.IsNotImplemented(err) {
-			return data, err
-		}
-	}
-	return data, err
 }
 
 // Returns all events that happen during a session sorted by time
