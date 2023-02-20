@@ -107,25 +107,24 @@ func (s *PluginsService) GetPlugin(ctx context.Context, name string, withSecrets
 
 // GetPlugins implements services.Plugins
 func (s *PluginsService) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
-	startKey := backend.Key(pluginsPrefix)
-	result, err := s.backend().GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	const pageSize = 1000
+	var results []types.Plugin
 
-	plugins := make([]types.Plugin, 0, len(result.Items))
-	for _, item := range result.Items {
-		plugin, err := services.UnmarshalPlugin(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	var page []types.Plugin
+	var startKey string
+	var err error
+	for {
+		page, startKey, err = s.ListPlugins(ctx, pageSize, startKey, withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if !withSecrets {
-			plugin = plugin.WithoutSecrets().(types.Plugin)
+		results = append(results, page...)
+		if startKey == "" {
+			break
 		}
-		plugins = append(plugins, plugin)
 	}
 
-	return plugins, nil
+	return results, nil
 }
 
 // ListPlugins returns a paginated list of plugin instances.
