@@ -772,6 +772,12 @@ type SessionStreamer interface {
 	// If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
 	GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error)
 
+	// Returns all events that happen during a session sorted by time
+	// (oldest first).
+	//
+	// after is used to return events after a specified cursor ID
+	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error)
+
 	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
 	// The event channel is not closed on error to prevent race conditions in downstream select statements.
@@ -785,14 +791,6 @@ type AuditLogger interface {
 
 	// EmitAuditEvent emits audit event
 	EmitAuditEvent(context.Context, apievents.AuditEvent) error
-
-	// TODO(tobiaszheller): move GetSessionEvents into SessionStreamer.
-
-	// Returns all events that happen during a session sorted by time
-	// (oldest first).
-	//
-	// after is used to return events after a specified cursor ID
-	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error)
 
 	// SearchEvents is a flexible way to find events.
 	//

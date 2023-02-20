@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -393,10 +392,6 @@ func (l *FileLog) Close() error {
 		l.file = nil
 	}
 	return err
-}
-
-func (l *FileLog) GetSessionEvents(namespace string, sid session.ID, after int, fetchPrintEvents bool) ([]EventFields, error) {
-	return nil, trace.NotImplemented("not implemented")
 }
 
 // mightNeedRotation checks if the current log file looks older than a given duration,
