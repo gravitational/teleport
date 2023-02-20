@@ -259,6 +259,18 @@ A similar reasoning also applies to step 1 since each field in `AgentMetadataEve
 Detecting the __9. Container orchestrator__ and __10. Cloud environment__ requires hitting certain HTTP endpoints.
 This may be considered too intrusive, so we have to make a decision on whether we really want to track it and argue why it's okay to do so.
 
+#### Data sanitization
+
+Most of the information we want to track comes e.g. from environment variables or the file system, and thus is controlled by the user.
+We will assume these are hostile and ensure that the data is sanitized before being sent to the auth server.
+
+The actual implementation is TBD but may look something like this:
+- check if the the output/content has the expected format with [`strings.Split`](https://pkg.go.dev/strings#Split) followed by [`regexp.MatchString`](https://pkg.go.dev/regexp#MatchString)
+  - if expected, send it as is to the auth server
+  - if unexpected, escape it e.g. with [`strconv.Quote`](https://pkg.go.dev/strconv#Quote) and send it to the auth server
+
+The security team will be a required reviewer of the PR containing this implementation.
+
 ### UX
 
 Data analysis and visualization are not a goal for this RFD, so no UX concerns for now.
