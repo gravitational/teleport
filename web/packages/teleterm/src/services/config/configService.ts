@@ -23,6 +23,7 @@ import { createConfigStore } from './configStore';
 
 const createAppConfigSchema = (platform: Platform) => {
   const defaultKeymap = getDefaultKeymap(platform);
+  const defaultTerminalFont = getDefaultTerminalFont(platform);
 
   // Important: all keys except 'usageReporting.enabled' are currently not
   // configurable by the user. Before we let the user configure them,
@@ -84,6 +85,14 @@ const createAppConfigSchema = (platform: Platform) => {
     'keymap.openQuickInput': omitStoredConfigValue(
       z.string().default(defaultKeymap['open-quick-input'])
     ),
+    /**
+     * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
+     * in a styled component or used in CSS, as it may inject malicious CSS code.
+     * Before using it, sanitize it with `CSS.escape` or pass it as a `style` prop.
+     * Read more https://frontarm.com/james-k-nelson/how-can-i-use-css-in-js-securely/.
+     */
+    'terminal.fontFamily': z.string().default(defaultTerminalFont),
+    'terminal.fontSize': z.number().min(5).max(100).default(15),
   });
 };
 
@@ -181,6 +190,17 @@ const getDefaultKeymap = (platform: Platform) => {
       };
   }
 };
+
+function getDefaultTerminalFont(platform: Platform) {
+  switch (platform) {
+    case 'win32':
+      return "'Consolas', 'Courier New', monospace";
+    case 'linux':
+      return "'Droid Sans Mono', 'Courier New', monospace, 'Droid Sans Fallback'";
+    case 'darwin':
+      return "Menlo, Monaco, 'Courier New', monospace";
+  }
+}
 
 export function createConfigService(
   appConfigFileStorage: FileStorage,
