@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=11.3.3
+VERSION=11.3.4
 
 DOCKER_IMAGE ?= teleport
 
@@ -1152,7 +1152,7 @@ init-submodules-e:
 #    - install drone cli
 #    - set $DRONE_TOKEN
 #    - tsh login --proxy=platform.teleport.sh
-#    - tsh app login drone
+#    - tsh apps login drone
 #    - tsh proxy app drone
 #    - export DRONE_SERVER=https://localhost:$TSH_PROXY_PORT
 #    - make dronegen

@@ -200,9 +200,8 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 
 	mfaParams := sessionCtx.MFAParams(ap.GetRequireMFAType())
 	err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, mfaParams,
-		&services.DatabaseUserMatcher{
-			User: sessionCtx.DatabaseUser,
-		})
+		services.NewDatabaseUserMatcher(sessionCtx.Database, sessionCtx.DatabaseUser),
+	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)

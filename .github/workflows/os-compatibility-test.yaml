@@ -5,7 +5,15 @@ on:
     branches:
       - master
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'web/**'
+      - 'rfd/**'
   merge_group:
+    paths-ignore:
+      - 'docs/**'
+      - 'web/**'
+      - 'rfd/**'
 
 jobs:
   build:
