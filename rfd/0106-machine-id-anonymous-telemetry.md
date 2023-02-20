@@ -146,11 +146,12 @@ Event properties:
   example: `gha:teleport-actions/auth`
 - `tbot.helper_version`: optional string indicating the version of the helper 
   that invoking `tbot`
-- `tbot.destinations_configured`: a count of total destinations configured
-- `tbot.destinations_configured_database_access`: a count of Database Access 
+- `tbot.destinations_other`: a count of destinations configured that are not
+  associated with Database Access, Kubernetes Access or Application Access
+- `tbot.destinations_database`: a count of Database Access 
   destinations configured
-- `tbot.destinations_configured_kubernetes_access`: a count of Kubernetes Access
+- `tbot.destinations_kubernetes`: a count of Kubernetes Access
   destinations configured
-- `tbot.destinations_configured_application_access`: a count of Application 
+- `tbot.destinations_application`: a count of Application 
   Access destinations configured.
 
