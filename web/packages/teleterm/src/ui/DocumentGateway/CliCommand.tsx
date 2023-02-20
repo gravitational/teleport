@@ -16,7 +16,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { Box, ButtonPrimary, Flex, Indicator } from 'design';
-import { useTheme } from 'styled-components';
 
 interface CliCommandProps {
   cliCommand: string;
@@ -26,7 +25,6 @@ interface CliCommandProps {
 
 export function CliCommand({ cliCommand, onRun, isLoading }: CliCommandProps) {
   const [shouldDisplayIsLoading, setShouldDisplayIsLoading] = useState(false);
-  const theme = useTheme();
 
   useEffect(() => {
     let timeout: ReturnType<typeof setTimeout>;
@@ -54,8 +52,8 @@ export function CliCommand({ cliCommand, onRun, isLoading }: CliCommandProps) {
         mr="2"
         color={shouldDisplayIsLoading ? 'text.secondary' : 'text.primary'}
         width="100%"
-        style={{ fontFamily: theme.fonts.unsanitizedMono }}
         css={`
+          font-family: ${props => props.theme.fonts.mono};
           overflow: auto;
           white-space: pre;
           word-break: break-all;

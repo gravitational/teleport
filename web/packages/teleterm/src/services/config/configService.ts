@@ -23,7 +23,6 @@ import { createConfigStore } from './configStore';
 
 const createAppConfigSchema = (platform: Platform) => {
   const defaultKeymap = getDefaultKeymap(platform);
-  const defaultFonts = getDefaultFonts(platform);
 
   // Important: all keys except 'usageReporting.enabled' are currently not
   // configurable by the user. Before we let the user configure them,
@@ -85,7 +84,6 @@ const createAppConfigSchema = (platform: Platform) => {
     'keymap.openQuickInput': omitStoredConfigValue(
       z.string().default(defaultKeymap['open-quick-input'])
     ),
-    'fonts.monoFamily': z.string().default(defaultFonts['mono']),
   });
 };
 
@@ -183,23 +181,6 @@ const getDefaultKeymap = (platform: Platform) => {
       };
   }
 };
-
-function getDefaultFonts(platform: Platform) {
-  switch (platform) {
-    case 'win32':
-      return {
-        mono: "'Consolas', 'Courier New', monospace",
-      };
-    case 'linux':
-      return {
-        mono: "'Droid Sans Mono', 'Courier New', monospace, 'Droid Sans Fallback'",
-      };
-    case 'darwin':
-      return {
-        mono: "Menlo, Monaco, 'Courier New', monospace",
-      };
-  }
-}
 
 export function createConfigService(
   appConfigFileStorage: FileStorage,
