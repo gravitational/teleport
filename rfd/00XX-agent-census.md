@@ -245,12 +245,11 @@ The only way to determine this seems to be by hitting certain HTTP endpoints spe
 The above work will be divided in the following tasks:
 
 1. Add new message type `AgentMetadataEvent` to PreHog.
-2. Add new message type `UpstreamInventoryAgentMetadata`. These will be empty initially, except for the fields common with `UpstreamInventoryHello`. This is okay since being empty means that the field could not be determined, which may happen anyways.
-3. Extend auth server to convert `UpstreamInventoryAgentMetadata` messages to `AgentMetadataEvent` messages and push them to PreHog.
-4. Gradually instrument & add new code that fills each new `UpstreamInventoryAgentMetadata` message field.
+2. Add new message type `UpstreamInventoryAgentMetadata` and extend the auth server to convert `UpstreamInventoryAgentMetadata` messages to `AgentMetadataEvent` messages and push them to PreHog. The `UpstreamInventoryAgentMetadata` fields will be empty initially, except for the fields common with `UpstreamInventoryHello`. This is okay since being empty means that the field could not be determined, which may happen anyways.
+3. Gradually instrument & add new code that fills each `UpstreamInventoryAgentMetadata` message field.
 
-We could decide to do step 4 together with step 2 if we don't want to risk adding fields to `UpstreamInventoryAgentMetadata` that possibly won't be used in the end (if for some reason we figure out they can/should not be tracked).
-However, step 4 requires several changes (Go code & files used by the multiple installation methods) which we may want to review separately.
+We could decide to do step 3 together with step 2 if we don't want to risk adding fields to `UpstreamInventoryAgentMetadata` that possibly won't be used in the end (if for some reason we figure out they can/should not be tracked).
+However, step 3 requires several changes (Go code & files used by the multiple installation methods) which we may want to review separately.
 A similar reasoning also applies to step 1 since each field in `AgentMetadataEvent` should only exist if it also exists in `UpstreamInventoryAgentMetadata`.
 
 ### Security
