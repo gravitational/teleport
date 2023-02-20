@@ -400,14 +400,14 @@ func pickActiveAzureApp(cf *CLIConf) (*azureApp, error) {
 		return nil, trace.Wrap(err)
 	}
 	if len(profile.Apps) == 0 {
-		return nil, trace.NotFound("Please login to Azure app using 'tsh app login' first")
+		return nil, trace.NotFound("Please login to Azure app using 'tsh apps login' first")
 	}
 	name := cf.AppName
 	if name != "" {
 		app, err := findApp(profile.Apps, name)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return nil, trace.NotFound("Please login to Azure app using 'tsh app login' first")
+				return nil, trace.NotFound("Please login to Azure app using 'tsh apps login' first")
 			}
 			return nil, trace.Wrap(err)
 		}
@@ -420,7 +420,7 @@ func pickActiveAzureApp(cf *CLIConf) (*azureApp, error) {
 	}
 	azureApps := getAzureApps(profile.Apps)
 	if len(azureApps) == 0 {
-		return nil, trace.NotFound("Please login to Azure App using 'tsh app login' first")
+		return nil, trace.NotFound("Please login to Azure App using 'tsh apps login' first")
 	}
 	if len(azureApps) > 1 {
 		var names []string
