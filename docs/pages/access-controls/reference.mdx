@@ -16,7 +16,7 @@ When declaring access rules, keep in mind the following:
 - Deny rules get evaluated first and take priority.
 
 A rule consists of two parts: the resources and verbs. Here's an example of an
-`allow` rule describing a `list` verb applied to the SSH `sessions` resource. It means "allow
+`allow` rule describing a `list` verb applied to the SSH `sessions` resource.  It means "allow
 users of this role to see a list of active SSH sessions".
 
 ```yaml
@@ -63,10 +63,10 @@ Here is a full role specification:
 
 The following variables can be used with `logins` and `windows_desktop_logins` fields:
 
-| Variable              | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Variable | Description |
+| - | - |
 | `{{internal.logins}}` | Substituted with a value stored in Teleport's local user database<br/>and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the<br/>"allowed logins" parameter used in the<br/>`tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [Trusted Cluster](../management/admin/trustedclusters.mdx),<br/>Teleport will substitute the logins from the root cluster<br/>whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root<br/>cluster, then `ubuntu` will be substituted in the leaf<br/>cluster with this variable. |
-| `{{external.xyz}}`    | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on).<br/>If using SAML, this will be expanded with "xyz" assertion value.<br/>For OIDC, this will be expanded a value of "xyz" claim.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on).<br/>If using SAML, this will be expanded with "xyz" assertion value.<br/>For OIDC, this will be expanded a value of "xyz" claim. |
 
 Both variables above are there to deliver the same benefit: they allow Teleport
 administrators to define allowed OS logins via the user database, be it the
@@ -94,43 +94,38 @@ logins:
 As shown above, a role can define certain restrictions on sessions initiated by users.
 The table below documents the behavior of each option if multiple roles are assigned to a user.
 
-| Option                       | Description                                                                                                                         | Multi-role behavior                                                                                 |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `max_session_ttl`            | Max. time to live (TTL) of a user's SSH certificates                                                                                | The shortest TTL wins                                                                               |
-| `forward_agent`              | Allow SSH agent forwarding                                                                                                          | Logical "OR" i.e. if any role allows agent forwarding, it's allowed                                 |
-| `port_forwarding`            | Allow TCP port forwarding                                                                                                           | Logical "OR" i.e. if any role allows port forwarding, it's allowed                                  |
-| `ssh_file_copy`              | Allow SCP/SFTP                                                                                                                      | Logical "AND" i.e. if all roles allows file copying, it's allowed                                   |
-| `client_idle_timeout`        | Forcefully terminate active SSH sessions after an idle interval                                                                     | The shortest timeout value wins, i.e. the most restrictive value is selected                        |
-| `disconnect_expired_cert`    | Forcefully terminate active SSH sessions when a client certificate expires                                                          | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination              |
-| `max_sessions`               | Total number of session channels which can be established across a single SSH connection via Teleport                               |                                                                                                     |
-| `enhanced_recording`         | Indicates which events should be recorded by the BFP-based session recorder                                                         |                                                                                                     |
-| `permit_x11_forwarding`      | Allow users to enable X11 forwarding with OpenSSH clients and servers                                                               |                                                                                                     |
-| `device_trust_mode`          | Enforce authenticated device access for the owner of this role (`required`, `optional`, `off`)                                      |                                                                                                     |
-| `require_session_mfa`        | Enforce per-session MFA or PIV-hardware key restrictions on user login sessions (`no`, `yes`, `hardware_key`, `hardware_key_touch`) | For per-session MFA, Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
-| `lock`                       | Locking mode (`strict` or `best_effort`)                                                                                            | `strict` wins in case of conflict                                                                   |
-| `request_access`             | Enterprise-only Access Request strategy (`optional`, `always` or `reason`)                                                          |                                                                                                     |
-| `request_prompt`             | Prompt for the Access Request "reason" field                                                                                        |                                                                                                     |
-| `max_connections`            | Enterprise-only limit on how many concurrent sessions can be started via Teleport                                                   |                                                                                                     |
-| `max_kubernetes_connections` | Defines the maximum number of concurrent Kubernetes sessions per user                                                               |                                                                                                     |
-| `record_session`             | Defines the [Session recording mode](../reference/audit.mdx#modes).                                                                 | The strictest value takes precedence.                                                               |
-| `desktop_clipboard`          | Allow clipboard sharing for desktop sessions                                                                                        | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing                         |
-| `pin_source_ip`              | Enable source IP pinning for SSH certificates. **Note:** IP pinning is currently in Preview mode                                    | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination              |
-| `cert_extensions`            | Specifies extensions to be included in SSH certificates                                                                             |                                                                                                     |
-| `create_host_user`           | Allow users to be automatically created on a host                                                                                   | Logical "AND" i.e. evaluates to "yes" if all roles matching a Node enable host user creation        |
-
-# device_trust_mode enforces authenticated device access for the owner of this role.
-
-    device_trust_mode: required|optional|off
+| Option | Description | Multi-role behavior |
+| - | - | - |
+| `max_session_ttl` | Max. time to live (TTL) of a user's SSH certificates | The shortest TTL wins |
+| `forward_agent` | Allow SSH agent forwarding | Logical "OR" i.e. if any role allows agent forwarding, it's allowed |
+| `port_forwarding` | Allow TCP port forwarding | Logical "OR" i.e. if any role allows port forwarding, it's allowed |
+| `ssh_file_copy` | Allow SCP/SFTP | Logical "AND" i.e. if all roles allows file copying, it's allowed |
+| `client_idle_timeout` | Forcefully terminate active SSH sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected |
+| `disconnect_expired_cert` | Forcefully terminate active SSH sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
+| `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | |
+| `enhanced_recording` | Indicates which events should be recorded by the BFP-based session recorder | |
+| `permit_x11_forwarding` | Allow users to enable X11 forwarding with OpenSSH clients and servers | |
+| `require_session_mfa` | Enforce per-session MFA or PIV-hardware key restrictions on user login sessions (`no`, `yes`, `hardware_key`, `hardware_key_touch`) | For per-session MFA, Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
+| `lock` | Locking mode (`strict` or `best_effort`) | `strict` wins in case of conflict |
+| `request_access` | Enterprise-only Access Request strategy (`optional`, `always` or `reason`) | |
+| `request_prompt` | Prompt for the Access Request "reason" field | |
+| `max_connections` | Enterprise-only limit on how many concurrent sessions can be started via Teleport | |
+| `max_kubernetes_connections` | Defines the maximum number of concurrent Kubernetes sessions per user | |
+| `record_session` |Defines the [Session recording mode](../reference/audit.mdx#modes).|The strictest value takes precedence.|
+| `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
+| `pin_source_ip` | Enable source IP pinning for SSH certificates. **Note:** IP pinning is currently in Preview mode | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
+| `cert_extensions` | Specifies extensions to be included in SSH certificates | |
+| `create_host_user` | Allow users to be automatically created on a host |  Logical "AND" i.e. evaluates to "yes" if all roles matching a Node enable host user creation |
 
 ## Preset roles
 
 Teleport provides several pre-defined roles out-of-the-box:
 
-| Role      | Description                                                                  |
-| --------- | ---------------------------------------------------------------------------- |
-| `editor`  | Allows editing of cluster configuration settings.                            |
-| `auditor` | Allows reading cluster events, audit logs, and playing back session records. |
-| `access`  | Allows access to cluster resources.                                          |
+| Role | Description |
+| --- | --- |
+| `editor` | Allows editing of cluster configuration settings. |
+| `auditor`| Allows reading cluster events, audit logs, and playing back session records. |
+| `access`| Allows access to cluster resources. |
 
 ### Role versions
 
@@ -139,12 +134,12 @@ completely backwards-compatible with `v3`, the only difference lies in the
 default allow labels which will be applied to the role if they are not
 explicitly set. Additionally, `v5` is required to use [Moderated Sessions](./guides/moderated-sessions.mdx).
 
-| Label               | `v3` Default                                         | `v4` and `v5` Default |
-| ------------------- | ---------------------------------------------------- | --------------------- |
-| `node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`                  |
-| `app_labels`        | `[{"*": "*"}]`                                       | `[]`                  |
-| `kubernetes_labels` | `[{"*": "*"}]`                                       | `[]`                  |
-| `database_labels`   | `[{"*": "*"}]`                                       | `[]`                  |
+Label              | `v3` Default   | `v4` and `v5` Default
+------------------ | -------------- | ---------------
+`node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
+`app_labels`        | `[{"*": "*"}]` | `[]`
+`kubernetes_labels` | `[{"*": "*"}]` | `[]`
+`database_labels`   | `[{"*": "*"}]` | `[]`
 
 ## RBAC for hosts
 
@@ -183,9 +178,11 @@ spec:
       'workload': ['database', 'backup']
 ```
 
-<Admonition type="tip" title="Dynamic RBAC">
-  Node labels can be dynamic, i.e. determined at runtime by an output of an
-  executable. In this case, you can implement "permissions follow workload"
+<Admonition
+  type="tip"
+  title="Dynamic RBAC"
+>
+  Node labels can be dynamic, i.e. determined at runtime by an output of an executable. In this case, you can implement "permissions follow workload"
   policies (eg., any server where PostgreSQL is running becomes *automatically*
   accessible only by the members of the "DBA" group and nobody else).
 </Admonition>
@@ -273,6 +270,7 @@ allow:
     - resources:
         - token
       verbs: [list, create, read, update, delete]
+
 ```
 
 ## RBAC for sessions
@@ -284,15 +282,18 @@ The examples below illustrate how to restrict session access only for the user
 who created the session.
 
 <Details title="Version Warning: Before 8.1" opened={false}>
-  Teleport versions prior to 8.1 don't support the roles shown below. You may
-  create these roles after upgrading, but in the event of a cluster downgrade
-  they will become invalid.
+Teleport versions prior to 8.1 don't support the roles shown below.
+You may create these roles after upgrading, but in the event of a cluster
+downgrade they will become invalid.
 </Details>
 
-<Admonition type="warning" title="Preset Auditor Role">
-  In order for these roles to take effect, you must ensure your user doesn't
-  also have a more permissive role, like the preset `auditor` role, which allows
-  access to all events, sessions, and session recordings.
+<Admonition
+  type="warning"
+  title="Preset Auditor Role"
+>
+In order for these roles to take effect, you must ensure your user doesn't also
+have a more permissive role, like the preset `auditor` role, which allows access
+to all events, sessions, and session recordings.
 </Admonition>
 
 Role for restricted access to session recordings:
@@ -305,11 +306,11 @@ metadata:
 spec:
   allow:
     rules:
-      # Users can only view session recordings for sessions in which they
-      # participated.
-      - resources: [session]
-        verbs: [list, read]
-        where: contains(session.participants, user.metadata.name)
+    # Users can only view session recordings for sessions in which they
+    # participated.
+    - resources: [session]
+      verbs: [list, read]
+      where: contains(session.participants, user.metadata.name)
 ```
 
 Role for restricted access to active sessions:
@@ -322,18 +323,18 @@ metadata:
 spec:
   allow:
     rules:
-      # Teleport allows shared session access by default, so for our restrictions
-      # to work we first allow access to ssh_sessions...
-      - resources: [ssh_session]
-        verbs: ['*']
+    # Teleport allows shared session access by default, so for our restrictions
+    # to work we first allow access to ssh_sessions...
+    - resources: [ssh_session]
+      verbs: ['*']
   deny:
     rules:
-      # ... and then limit that access via a deny rule.
-      # Deny rules take precedence over allow rules, so the resulting role allows
-      # users to create SSH sessions but to only view their own sessions.
-      - resources: [ssh_session]
-        verbs: [list, read, update, delete]
-        where: '!contains(ssh_session.participants, user.metadata.name)'
+    # ... and then limit that access via a deny rule.
+    # Deny rules take precedence over allow rules, so the resulting role allows
+    # users to create SSH sessions but to only view their own sessions.
+    - resources: [ssh_session]
+      verbs: [list, read, update, delete]
+      where: '!contains(ssh_session.participants, user.metadata.name)'
 ```
 
 ## Second Factor - U2F

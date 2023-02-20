@@ -30,9 +30,9 @@ spec:
     max_sessions: 10
     # Defines which events are recorded by the BPF-based session recorder.
     enhanced_recording:
-      - command
-      - disk
-      - network
+    - command
+    - disk
+    - network
     # permit_x11_forwarding allows users to use X11 forwarding with openssh
     # clients and servers through the proxy
     permit_x11_forwarding: true
@@ -92,10 +92,10 @@ spec:
     # The name and value fields can be arbitrary strings and the value field
     # supports variable interpolation.
     cert_extensions:
-      - type: ssh
-        mode: extension
-        name: login@github.com
-        value: '{{ external.github_login }}'
+     - type: ssh
+       mode: extension
+       name: login@github.com
+       value: "{{ external.github_login }}"
     # Controls whether this role supports auto provisioning of users.
     create_host_user: true
 
@@ -126,7 +126,7 @@ spec:
     # kubernetes_groups specifies Kubernetes groups a user with this role will assume.
     # You can refer to a SAML/OIDC trait via the "external" property bag.
     # This allows you to specify Kubernetes group membership in an identity manager:
-    kubernetes_groups: ['system:masters', '{{external.trait_name}}']
+    kubernetes_groups: ["system:masters", "{{external.trait_name}}"]
 
     # kubernetes_users is an optional field that specifies kubernetes users
     # this role can assume.
@@ -144,21 +144,21 @@ spec:
       'cluster_name': '^us.*\.example\.com$'
 
     # kubernetes_resources indicates the Kubernetes resources that a user with
-    # this role is allowed to access.
+    # this role is allowed to access. 
     kubernetes_resources:
-      # The resource kind. Teleport currently only supports "pod".
+        # The resource kind. Teleport currently only supports "pod".
       - kind: pod
         # The name of the Kubernetes namespace in which to allow access the
-        # resources you specify with "name" and "kind".
-        # The wildcard character "*" matches any sequence of characters.
+        # resources you specify with "name" and "kind". 
+        # The wildcard character "*" matches any sequence of characters. 
         # If the value begins with "^" and ends with "$", the Kubernetes
         # Service will treat it as a regular expression.
-        namespace: '*'
+        namespace: "*"
         # The name of the resource to allow access to.
         # The wildcard character "*" matches any sequence of characters.
         # If the value begins with "^" and ends with "$", the Kubernetes
         # Service will treat it as a regular expression.
-        name: '^nginx-[a-z0-9-]+$'
+        name: "^nginx-[a-z0-9-]+$"
 
     # Functions transform variables.
     db_users: ['{{email.local(external.email)}}']
@@ -262,7 +262,7 @@ spec:
         count: 1
         # The action to take if a moderator leaves a session, causing the policy to no longer be satisfied.
         # This may be either "terminate" or "pause". An empty or unknown value will default to "terminate".
-        on_leave: 'terminate'
+        on_leave: "terminate"
 
     # Moderated Sessions policy that dictates the ability to join sessions
     join_sessions:
@@ -270,7 +270,7 @@ spec:
       # identifier in logs and for organisation/categorisation.
       - name: Auditor oversight
         # Allows one to join sessions created by other users with these roles
-        roles: ['prod-access']
+        roles : ['prod-access']
         # The different session kinds this policy applies to.
         kinds: ['k8s', 'ssh']
         # The list of session participant modes the role may join the session as.

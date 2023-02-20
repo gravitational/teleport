@@ -1,11 +1,12 @@
 ---
-title: Device Trust (Preview)
+title: "Device Trust (Preview)"
 description: Learn how to use and enforce trusted devices with Teleport
 ---
 
 <Admonition type="warning">
-  Device Trust is currently in Preview mode. Device Trust requires Teleport
-  Enterprise.
+Device Trust is currently in Preview mode.
+
+Device Trust requires Teleport Enterprise.
 </Admonition>
 
 Device Trust allows Teleport admins to enforce the use of trusted devices.
@@ -46,9 +47,9 @@ IT prepares a new device for a user. Enrollment only needs to happen once per
 user/device combination.
 
 <Admonition type="tip" title="Enrollment">
-  Device enrollment is key in correctly identifying a device throughout its
-  lifetime. The more trusted the enrollment operator, the better the ongoing
-  guarantees that the device itself is trustworthy.
+Device enrollment is key in correctly identifying a device throughout its
+lifetime. The more trusted the enrollment operator, the better the ongoing
+guarantees that the device itself is trustworthy.
 </Admonition>
 
 The tie between the device inventory and enrollment is a device enrollment
@@ -83,15 +84,15 @@ metadata:
 spec:
   allow:
     rules:
-      - resources: ['device']
-        verbs:
-          - create
-          - read
-          - list
-          - update
-          - delete
-          - create_enroll_token
-          - enroll
+    - resources: ["device"]
+      verbs:
+      - create
+      - read
+      - list
+      - update
+      - delete
+      - create_enroll_token
+      - enroll
 ```
 
 ```code
@@ -100,9 +101,9 @@ role 'device-admin' has been created
 ```
 
 <Admonition type="tip" title="Editor Role">
-  For clusters created using Teleport v12 or newer, the builtin role `editor`
-  has the necessary permissions to manage devices. For production setups a
-  separate role is still recommended.
+For clusters created using Teleport v12 or newer, the builtin role `editor`
+has the necessary permissions to manage devices. For production setups a
+separate role is still recommended.
 </Admonition>
 
 Note that in addition to the usual CRUD verbs (create, read, list, update and
@@ -210,9 +211,9 @@ Enterprise clusters run in `optional` mode by default. Changing the mode to
 accesses.
 
 <Admonition type="warning" title="Web UI">
-  The Web UI is not capable of trusted device access during the device trust
-  preview. Only `tsh` and Teleport Connect are able to fulfill device mode
-  `required`.
+The Web UI is not capable of trusted device access during the device trust
+preview. Only `tsh` and Teleport Connect are able to fulfill device mode
+`required`.
 </Admonition>
 
 To enable device mode `required` update your configuration as follows:
@@ -270,12 +271,12 @@ ERROR: ssh: rejected: administratively prohibited (unauthorized device)
 ```
 
 <Admonition type="tip" title="Trusted Clusters">
-  It is possible to use [trusted
-  clusters](../../management/admin/trustedclusters.mdx) to limit the impact of
-  device mode `required`. A leaf cluster in mode `required` will enforce access
-  to all of its resources, without imposing the same restrictions to the root
-  cluster. Likewise, a root cluster will not enforce device trust on resources
-  in leaf clusters.
+It is possible to use [trusted
+clusters](../../management/admin/trustedclusters.mdx) to limit the impact of
+device mode `required`. A leaf cluster in mode `required` will enforce access to
+all of its resources, without imposing the same restrictions to the root
+cluster. Likewise, a root cluster will not enforce device trust on resources in
+leaf clusters.
 </Admonition>
 
 ## Optional: Role-based device enforcement
@@ -306,7 +307,6 @@ spec:
 Per-role configuration let's progressively block unauthorized device access and is useful for getting started with Teleport Device Trust.
 
 Once all the devices used by engineers are enrolled to Teleport, cluster-wide configuration will ensure every resources can only ever be accessed with a trusted device.
-
 </Admonition>
 
 ## Optional: Locking a trusted device
@@ -322,7 +322,7 @@ Find device ID to lock:
 $ tctl devices ls
 Asset Tag     OS    Enroll Status   Device ID
 ------------ -----  ------------- ------------------------------------
-C0XXXXXXXXXX  macOS  enrolled      9cdfc0ad-64b7-4d9c-9342-50e97f418ba0
+(=devicetrust.asset_tag=)  macOS  enrolled      9cdfc0ad-64b7-4d9c-9342-50e97f418ba0
 ```
 
 Lock device:
