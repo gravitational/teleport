@@ -101,9 +101,9 @@ role 'device-admin' has been created
 ```
 
 <Admonition type="tip" title="Editor Role">
-For clusters created using Teleport v12 or newer, the builtin role `editor`
-has the necessary permissions to manage devices. For production setups a
-separate role is still recommended.
+For clusters created using Teleport v12 or newer, the builtin role `editor` has
+the necessary permissions to manage devices. For production setups a separate
+role is still recommended.
 </Admonition>
 
 Note that in addition to the usual CRUD verbs (create, read, list, update and
@@ -195,8 +195,9 @@ The device above is now a trusted device.
 
 ## Optional: Cluster-wide device enforcement
 
-Cluster-wide configuration enforces trusted device access at cluster level. It can be configured with the following three modes of operation, represented by the
-`device_trust.mode` authentication setting:
+Cluster-wide configuration enforces trusted device access at the cluster level.
+It can be configured with the following three modes of operation, represented
+by the `device_trust.mode` authentication setting:
 
 - `off` - disables device trust. Device authentication is not performed and
   device-aware audit logs are absent.
