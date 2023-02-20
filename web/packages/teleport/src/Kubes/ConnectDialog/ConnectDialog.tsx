@@ -55,7 +55,12 @@ function ConnectDialog(props: Props) {
           {' - Login to Teleport'}
           <TextSelectCopy
             mt="2"
-            text={generateTshLoginCommand({ authType, username, clusterId })}
+            text={generateTshLoginCommand({
+              authType,
+              username,
+              clusterId,
+              accessRequestId,
+            })}
           />
         </Box>
         <Box mb={4}>

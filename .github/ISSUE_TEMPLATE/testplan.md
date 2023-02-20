@@ -548,11 +548,11 @@ spec:
   allow:
     app_labels:  # just example labels
       label1-key: label1-value
-      env: [dev, staging] 
+      env: [dev, staging]
     db_labels:
       '*': '*'   # asteriks gives user access to everything
     kubernetes_labels:
-      '*': '*' 
+      '*': '*'
     node_labels:
       '*': '*'
     windows_desktop_labels:
@@ -873,12 +873,12 @@ Add the following to enable read access to trusted clusters
 
 ## Moderated session
 
-Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator). 
- - [ ] `Ctrl+C` in the #1 terminal should disconnect the moderator. 
+Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
+ - [ ] `Ctrl+C` in the #1 terminal should disconnect the moderator.
  - [ ] `Ctrl+C` in the #2 terminal should disconnect the moderator and terminate the session as session has no moderator.
 
 Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
-- [ ] `t` in any terminal should terminate the session for all participants. 
+- [ ] `t` in any terminal should terminate the session for all participants.
 
 ## Performance
 
@@ -888,7 +888,7 @@ Perform all tests on the following configurations:
 - [ ] With Proxy Peering Enabled
 - [ ] With TLS Routing Enabled
 
-* Cluster with 10K direct dial nodes: 
+* Cluster with 10K direct dial nodes:
  - [ ] etcd
  - [ ] DynamoDB
  - [ ] Firestore
@@ -927,7 +927,7 @@ Run a concurrent session test that will spawn 5 interactive sessions per node in
 
 ```shell
 tsh bench sessions --max=5000 user ls
-tsh bench sessions --max=5000 --web user ls 
+tsh bench sessions --max=5000 --web user ls
 ```
 
 - [ ] Verify that all 5000 sessions are able to be established.
@@ -967,7 +967,7 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] `tsh play <chunk-id>` can fetch and print a session chunk archive.
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
-- [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh app login`.
+- [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh apps login`.
 - [ ] Verify AWS console access.
   - [ ] Can log into AWS web console through the web UI.
   - [ ] Can interact with AWS using `tsh aws` commands.
@@ -1044,7 +1044,7 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Can detect and register Azure Cache for Redis servers.
 - [ ] Verify Teleport managed users (password rotation, auto 'auth' on connection, etc.).
   - [ ] Can detect and manage ElastiCache users
-  - [ ] Can detect and manage MemoryDB users 
+  - [ ] Can detect and manage MemoryDB users
 - [ ] Test Databases screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all dbs registered are shown with correct `name`, `description`, `type`, and `labels`
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
@@ -1421,7 +1421,7 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] New SSH session in a child cluster on the previous major version
   - [ ] New SSH session from a parent cluster
   - [ ] Application access through a browser
-  - [ ] Application access through curl with `tsh app login`
+  - [ ] Application access through curl with `tsh apps login`
   - [ ] `kubectl get po` after `tsh kube login`
   - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)
 
