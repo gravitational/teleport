@@ -3,7 +3,7 @@ authors: Vitor Enes (vitor@goteleport.com)
 state: draft
 ---
 
-# RFD XX - Agent Census
+# RFD 106 - Agent Census
 
 ## Required Approvals
 
