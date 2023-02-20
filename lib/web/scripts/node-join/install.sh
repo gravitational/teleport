@@ -896,32 +896,17 @@ is_repo_available() {
     # shellcheck disable=SC1091
     . /etc/os-release
 
-    # Only the following distros are supported:
-    if [[ ! "$ID" =~ ^(ubuntu|debian|amzn|rhel|centos)$ ]]; then
-        return 1
-    fi
+    # The following distros+version have a Teleport repository to install from.
+    case "${ID}-${VERSION_ID}" in
+        ubuntu-16.04* | ubuntu-18.04* | ubuntu-20.04* | ubuntu-22.04* | \
+        debian-9* | debian-10* | debian-11* | \
+        rhel-7* | rhel-8* | rhel-9* | \
+        centos-7* | centos-8* | centos-9* | \
+        amzn-2)
+            return 0;;
+    esac
 
-    # Teleport's deb repo has the following Ubuntu Versions:
-    if [[ "$ID" == "ubuntu" && ! "$VERSION_ID" =~ ^(16\.04|18\.04|20\.04|22\.04) ]]; then
-        return 1
-    fi
-
-    # Teleport's deb repo has the following Debian Versions:
-    if [[ "$ID" == "debian" && ! "$VERSION_ID" =~ ^(9|10|11) ]]; then
-        return 1
-    fi
-
-    # Teleport's yum repo has the following RHEL/CentOS Versions:
-    if [[ ("$ID" == "rhel" || "$ID" == "centos") && ! "$VERSION_ID" =~ ^(7|8|9) ]]; then
-        return 1
-    fi
-
-    # Teleport's yum repo has the following Amazon Linux version:
-    if [[ "$ID" == "amzn" && "$VERSION_ID" != "2" ]]; then
-        return 1
-    fi
-
-    return 0
+    return 1
 }
 
 if is_repo_available; then
