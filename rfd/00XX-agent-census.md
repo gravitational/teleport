@@ -7,8 +7,9 @@ state: draft
 
 ## Required Approvals
 
-* Engineering: @rjones && @jimbishopp
+* Engineering: @zmb3 && @jimbishopp
 * Product: @xin || @klizhentas
+* Security: @wadells
 
 ## What
 
