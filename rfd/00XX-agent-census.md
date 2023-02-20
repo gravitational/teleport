@@ -48,7 +48,7 @@ This section is divided in the following subsections:
 We want to start tracking the following data in PreHog:
 
 1. Teleport version
-2. Teleport access protocols (`ssh`, `kube`, `app`, `db` and `windows_desktop`)
+2. Teleport enabled services (`node`, `kube`, `app`, `db` and `windows_desktop`)
 3. OS (`linux` or `darwin`, as these are the only two OS currently supported)
 4. OS version (e.g. Linux distribution)
 5. Host architecture (e.g. `amd64`)
@@ -111,7 +111,7 @@ For this, a new PreHog `AgentMetadataEvent` message will be added (note that onl
 message AgentMetadataEvent {
   string version = 1;
   string server_id = 2;
-  repeated TeleportAccessProtocol protocols = 3;
+  repeated string services = 3;
   string os = 4;
   string os_version = 5;
   string host_architecture = 6;
@@ -121,20 +121,22 @@ message AgentMetadataEvent {
   string container_orchestrator = 10;
   string cloud_environment = 11;
 }
-
-enum TeleportAccessProtocol {
-  TELEPORT_ACCESS_PROTOCOL_UNSPECIFIED = 0;
-  TELEPORT_ACCESS_PROTOCOL_SSH = 1;
-  TELEPORT_ACCESS_PROTOCOL_KUBE = 2;
-  TELEPORT_ACCESS_PROTOCOL_APP = 3;
-  TELEPORT_ACCESS_PROTOCOL_DB = 4;
-  TELEPORT_ACCESS_PROTOCOL_WINDOWS_DESKTOP = 5;
-}
 ```
+
+##### PostHog data
+
+Some of the fields above are `repeated`.
+In PostHog, instead of storing these field values as arrays, we will create one event property for each element in the array (which will likely help visualizing this information in PostHog).
+
+If, for example, `AgentMetadataEvent.services` contains both `node` and `kube`, in PostHog we'll have the following two properties:
+- `tp.agent.metadata.service.node = true`
+- `tp.agent.metadata.service.kube = true`
+
+The same applies for `AgentMetadataEvent.install_methods`.
 
 #### Data computation
 
-Both the Teleport version and active Teleport services (which can be used to determine the Teleport access protocols enabled) are already tracked in the ICS.
+Both the Teleport version and active Teleport services are already tracked in the ICS.
 We detail below how the remaining data will be computed.
 
 Note that some of the suggestions below require running command-line utilities (such as `sw_vers` and `ldd`) or inspecting some files (such as `/etc/os-release`) and then parsing the output.
@@ -200,8 +202,8 @@ Later on, we may try to track these if, once we start tracking the above install
 
 In summary, we'll have the following values in `UpstreamInventoryAgentMetadata.InstallMethods` for now:
 - `dockerfile`
-- `helm-kube-agent`
-- `node-script`
+- `helm_kube_agent`
+- `node_script`
 - `systemctl`
 
 ##### 8. Container runtime
@@ -275,6 +277,7 @@ Data analysis and visualization are not a goal for this RFD, so no UX concerns f
 
 ### Open questions
 
+- Should we track Teleport services that are not `node`, `kube`, `app`, `db` and `windows_desktop` (e.g. `proxy`, `bot`, and so on)?
 - Which alternative should we use for __5. Host architecture__?
 - Which container runtimes are we interested in tracking?
 - What happens if the agent is upgraded before the auth server, and the auth server does not know about `UpstreamInventoryAgentMetadata`?
