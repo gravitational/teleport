@@ -103,6 +103,9 @@ Now, create a SAML connector [resource](../../reference/resources.mdx):
 ```
 The above example includes the `entity_descriptor` field as multiple lines, although a single line with no spaces will also be accepted.
 
+The `attributes_to_roles` field in the connector resource maps key/value-like attributes of
+the assertion from Okta into a list of Teleport roles to apply to the session.
+
 (!docs/pages/includes/sso/idp-initiated.mdx!)
 
 Create the connector using `tctl` tool:
@@ -116,8 +119,8 @@ $ tctl create okta-connector.yaml
 We are going to create a new role that'll pull in external information from Okta. Notice
 `{{external.username}}` login. It configures Teleport to look at *"username"* Okta claim
 and use that field as an allowed login for each user.  This example uses email as the
-username format.  The `email.local(external.trait)` function will remove the `@domain`
-and just have the username prefix.
+username format.  The `email.local(external.username)` function call will remove
+the `@domain` and leave the username prefix.
 
 ```yaml
 kind: role
