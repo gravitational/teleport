@@ -193,7 +193,7 @@ We have one environment variable for each installation method as some of the ins
 The installation methods that follow won't be tracked for now.
 Later on, we may try to track these if, once we start tracking the above installation methods, we notice that we're not yet covering most methods.
 - tarball: We can add `export TELEPORT_INSTALL_METHOD_TARBALL="true"` to the [`install`](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/build.assets/install) script. (However, if the customer does not use the `install` script and instead moves the binaries manually, we won't be able to track this installation method.)
-- `.deb`/`.rpm`/`.pkg` packages, APT or YUM repository: It's unclear ATM how these can be tracked.
+- `.deb`/`.rpm`/`.pkg` packages, APT or YUM repository, and [Teleport AMIs](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/aws/terraform/AMIS.md): It's unclear ATM how these can be tracked.
 - built from source: While it's technically possible for customers to build Teleport from source, we won't try to track this installation method as it seems an unlikely use-case.
 - `homebrew`: It's also possible to install Teleport on macOS using `homebrew`. The Teleport package in `homebrew` is not maintained by us, so we will also not track this installation method.
 
@@ -266,6 +266,5 @@ Data analysis and visualization are not a goal for this RFD, so no UX concerns f
 ### Open questions
 
 - Which alternative should we use for __5. Host architecture__?
-- Should we consider [Teleport AMIs](https://github.com/gravitational/teleport/tree/6f9ad9553a5b5946f57cb35411c598754d3f926b/examples/aws/terraform/AMIS.md) an installation method?
 - Which container runtimes are we interested in tracking?
 - What happens if the agent is upgraded before the auth server, and the auth server does not know about `UpstreamInventoryAgentMetadata`?
