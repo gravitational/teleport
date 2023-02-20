@@ -17,7 +17,6 @@ limitations under the License.
 package events
 
 import (
-	"context"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -106,39 +105,4 @@ func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, orde
 		}
 	}
 	return events, lastKey, err
-}
-
-// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
-// The event channel is not closed on error to prevent race conditions in downstream select statements.
-func (m *MultiLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-
-	go func() {
-	loggers:
-		for _, log := range m.loggers {
-			subCh, subErrCh := log.StreamSessionEvents(ctx, sessionID, startIndex)
-
-			for {
-				select {
-				case event, more := <-subCh:
-					if !more {
-						close(c)
-						return
-					}
-
-					c <- event
-				case err := <-subErrCh:
-					if !trace.IsNotImplemented(err) {
-						e <- trace.Wrap(err)
-						return
-					}
-
-					continue loggers
-				}
-			}
-		}
-	}()
-
-	return c, e
 }
