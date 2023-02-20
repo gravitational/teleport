@@ -32,15 +32,17 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
+type OnSessionLeaveAction string
+
 const (
 	// OnSessionLeaveTerminate is a moderated sessions policy constant that terminates
 	// a session once the require policy is no longer fulfilled.
-	OnSessionLeaveTerminate = "terminate"
+	OnSessionLeaveTerminate OnSessionLeaveAction = "terminate"
 
 	// OnSessionLeaveTerminate is a moderated sessions policy constant that pauses
 	// a session once the require policies is no longer fulfilled. It is resumed
 	// once the requirements are fulfilled again.
-	OnSessionLeavePause = "pause"
+	OnSessionLeavePause OnSessionLeaveAction = "pause"
 )
 
 // Role contains a set of permissions or settings
