@@ -355,6 +355,9 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			if newProxyLine == nil {
+				continue
+			}
 
 			// If TLVs are empty we know it can't be signed, so we don't try to verify to avoid unnecessary load
 			if m.CertAuthorityGetter != nil && m.LocalClusterName != "" && len(newProxyLine.TLVs) > 0 {

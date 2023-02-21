@@ -1921,6 +1921,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Databases:               cfg.services,
 		AppSession:              cfg.services,
 		SnowflakeSession:        cfg.services,
+		SAMLIdPSession:          cfg.services,
 		WindowsDesktops:         cfg.services,
 		SAMLIdPServiceProviders: cfg.services,
 		WebSession:              cfg.services.WebSessions(),

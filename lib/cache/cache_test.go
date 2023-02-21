@@ -74,6 +74,7 @@ type testPack struct {
 	presenceS               services.Presence
 	appSessionS             services.AppSession
 	snowflakeSessionS       services.SnowflakeSession
+	samlIdPSessionsS        services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
 	restrictions            services.Restrictions
 	apps                    services.Apps
 	kubernetes              services.Kubernetes
@@ -190,6 +191,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.appSessionS = local.NewIdentityService(p.backend)
 	p.webSessionS = local.NewIdentityService(p.backend).WebSessions()
 	p.snowflakeSessionS = local.NewIdentityService(p.backend)
+	p.samlIdPSessionsS = local.NewIdentityService(p.backend)
 	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
@@ -225,6 +227,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -607,6 +610,7 @@ func TestCompletenessInit(t *testing.T) {
 			AppSession:              p.appSessionS,
 			WebSession:              p.webSessionS,
 			SnowflakeSession:        p.snowflakeSessionS,
+			SAMLIdPSession:          p.samlIdPSessionsS,
 			WebToken:                p.webTokenS,
 			Restrictions:            p.restrictions,
 			Apps:                    p.apps,
@@ -671,6 +675,7 @@ func TestCompletenessReset(t *testing.T) {
 		AppSession:              p.appSessionS,
 		WebSession:              p.webSessionS,
 		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
 		WebToken:                p.webTokenS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
@@ -848,6 +853,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -920,6 +926,7 @@ func initStrategy(t *testing.T) {
 		Presence:                p.presenceS,
 		AppSession:              p.appSessionS,
 		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		Restrictions:            p.restrictions,
@@ -2826,6 +2833,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWebSession:              &types.WebSessionV2{SubKind: types.KindWebSession},
 		types.KindAppSession:              &types.WebSessionV2{SubKind: types.KindAppSession},
 		types.KindSnowflakeSession:        &types.WebSessionV2{SubKind: types.KindSnowflakeSession},
+		types.KindSAMLIdPSession:          &types.WebSessionV2{SubKind: types.KindSAMLIdPServiceProvider},
 		types.KindWebToken:                &types.WebTokenV3{},
 		types.KindRemoteCluster:           &types.RemoteClusterV3{},
 		types.KindKubeService:             &types.ServerV2{},

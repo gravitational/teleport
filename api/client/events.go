@@ -96,6 +96,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_SnowflakeSession{
 				SnowflakeSession: r,
 			}
+		case types.KindSAMLIdPSession:
+			out.Resource = &proto.Event_SAMLIdPSession{
+				SAMLIdPSession: r,
+			}
 		default:
 			return nil, trace.BadParameter("only %q supported", types.WebSessionSubKinds)
 		}
