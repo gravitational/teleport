@@ -70,16 +70,18 @@ export function arrayObjectIsEqual(
 
   const compareObjects = (obj1, obj2) => {
     if (!isObject(obj1)) {
-      return false;
+      return obj1 === obj2;
     }
 
     if (Object.keys(obj1).length) {
-      return (
-        Object.keys(obj1).length === Object.keys(obj2).length &&
-        Object.keys(obj1).every(key => compareObjects(obj1[key], obj2[key]))
-      );
+      if (Object.keys(obj1).length !== Object.keys(obj2).length) {
+        return false;
+      }
+      return Object.keys(obj1).every(key => {
+        return compareObjects(obj1[key], obj2[key]);
+      });
     } else {
-      return obj1 === obj2;
+      return true;
     }
   };
   return compareArrays(arr1, arr2);

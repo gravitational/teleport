@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { mergeDeep } from './highbar';
+import { arrayObjectIsEqual, mergeDeep } from './highbar';
 
 describe('mergeDeep can merge two', () => {
   it('objects together', () => {
@@ -124,5 +124,98 @@ describe('mergeDeep can merge two', () => {
         ],
       },
     });
+  });
+});
+
+describe('arrayObjectIsEqual correctly compares', () => {
+  it('simple arrays', () => {
+    const a = [{ foo: 'bar' }];
+    const b = [{ foo: 'bar' }];
+
+    expect(arrayObjectIsEqual(a, b)).toBe(true);
+
+    const c = [{ foo: 'bar' }];
+    const d = [{ foo: 'baz' }];
+    expect(arrayObjectIsEqual(c, d)).toBe(false);
+  });
+
+  it('arrays with complex objects', () => {
+    const a = [
+      {
+        '/clusters/test-uri': {
+          accessRequests: {
+            pending: {
+              app: {},
+              db: {},
+              kube_cluster: {},
+              node: {},
+              role: {},
+              windows_desktop: {},
+            },
+            isBarCollapsed: false,
+          },
+          localClusterUri: '/clusters/test-uri',
+          documents: [
+            {
+              kind: 'doc.cluster',
+              title: 'Cluster Test',
+              clusterUri: '/clusters/test-uri',
+              uri: '/docs/test-cluster-uri',
+            },
+          ],
+          location: '/docs/test-cluster-uri',
+          previous: {
+            documents: [
+              {
+                kind: 'doc.terminal_shell',
+                uri: '/docs/some_uri',
+                title: '/Users/alice/Documents',
+              },
+            ],
+            location: '/docs/some_uri',
+          },
+        },
+      },
+    ];
+
+    const b = [
+      {
+        '/clusters/test-uri': {
+          accessRequests: {
+            pending: {
+              app: {},
+              db: {},
+              kube_cluster: {},
+              node: {},
+              role: {},
+              windows_desktop: {},
+            },
+            isBarCollapsed: false,
+          },
+          localClusterUri: '/clusters/test-uri',
+          documents: [
+            {
+              kind: 'doc.cluster',
+              title: 'Cluster Test',
+              clusterUri: '/clusters/test-uri',
+              uri: '/docs/test-cluster-uri',
+            },
+          ],
+          location: '/docs/test-cluster-uri',
+          previous: {
+            documents: [
+              {
+                kind: 'doc.terminal_shell',
+                uri: '/docs/some_uri',
+                title: '/Users/alice/Documents',
+              },
+            ],
+            location: '/docs/some_uri',
+          },
+        },
+      },
+    ];
+
+    expect(arrayObjectIsEqual(a, b)).toBe(true);
   });
 });
