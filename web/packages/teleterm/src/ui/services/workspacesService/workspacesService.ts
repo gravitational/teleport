@@ -42,6 +42,7 @@ import {
 } from './accessRequestsService';
 
 import { Document, DocumentsService } from './documentsService';
+import { compareArrayObjs } from 'shared/utils/highbar';
 
 export interface WorkspacesState {
   rootClusterUri?: RootClusterUri;
@@ -341,16 +342,11 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     const omitUriAndTitle = (documents: Document[]) =>
       documents.map(d => ({ ...d, uri: undefined, title: undefined }));
 
-    if (!previousDocuments?.length) {
-      return false;
-    }
-
-    const omittedPreviousDocs = omitUriAndTitle(previousDocuments);
-    const omittedCurrentDocs = omitUriAndTitle(currentDocuments);
     return (
-      // Ensure they are equal
-      Object.keys(omittedPreviousDocs).some(
-        key => omittedPreviousDocs[key] !== omittedCurrentDocs[key]
+      previousDocuments?.length &&
+      compareArrayObjs(
+        omitUriAndTitle(previousDocuments),
+        omitUriAndTitle(currentDocuments)
       )
     );
   }
