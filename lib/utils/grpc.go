@@ -19,6 +19,7 @@ package utils
 import (
 	"context"
 
+	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc"
 )
@@ -127,4 +128,18 @@ func ChainStreamServerInterceptors(first grpc.StreamServerInterceptor, rest ...g
 		// call the first interceptor with the wrapped handler
 		return first(srv, ss, info, handler)
 	}
+}
+
+// GRPCDummyClientConnection is an implementation of grpc.ClientConnInterface
+// that always returns a "not implemented" error.
+type GRPCDummyClientConnection struct{}
+
+// Invoke implements grpc.ClientConnInterface
+func (*GRPCDummyClientConnection) Invoke(ctx context.Context, method string, args interface{}, reply interface{}, opts ...grpc.CallOption) error {
+	return trace.NotImplemented("Invoke() called on GRPCDummyClientConnection")
+}
+
+// NewStream implements grpc.ClientConnInterface
+func (*GRPCDummyClientConnection) NewStream(ctx context.Context, desc *grpc.StreamDesc, method string, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+	return nil, trace.NotImplemented("NewStream() called on GRPCDummyClientConnection")
 }

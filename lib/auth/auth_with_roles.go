@@ -256,21 +256,24 @@ func hasLocalUserRole(authContext Context) bool {
 }
 
 // DevicesClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles and will always panic.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
 func (a *ServerWithRoles) DevicesClient() devicepb.DeviceTrustServiceClient {
-	panic("DevicesClient not implemented by ServerWithRoles")
+	return devicepb.NewDeviceTrustServiceClient(&utils.GRPCDummyClientConnection{})
 }
 
 // LoginRuleClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles and will always panic.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
 func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
-	panic("LoginRuleClient not implemented by ServerWithRoles")
+	return loginrulepb.NewLoginRuleServiceClient(&utils.GRPCDummyClientConnection{})
 }
 
 // PluginsClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles and will always panic.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
 func (a *ServerWithRoles) PluginsClient() pluginspb.PluginServiceClient {
-	panic("PluginsClient not implemented by ServerWithRoles")
+	return pluginspb.NewPluginServiceClient(&utils.GRPCDummyClientConnection{})
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
