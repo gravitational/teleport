@@ -1025,7 +1025,9 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 
-		if _, err := remote.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{DeviceId: device.Id}); err != nil {
+		if _, err := remote.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
+			DeviceId: device.Id,
+		}); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Device %q has been deleted\n", rc.ref.Name)
