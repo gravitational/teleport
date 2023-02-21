@@ -18,7 +18,7 @@ import { useEffect } from 'react';
 
 import { useAsync } from 'shared/hooks/useAsync';
 
-import { once } from 'lodash';
+import { runOnce } from 'shared/utils/highbar';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { IAppContext } from 'teleterm/ui/types';
@@ -131,7 +131,7 @@ async function initState(
     removeInitCommand();
   });
 
-  const markDocumentAsConnectedOnce = once(() => {
+  const markDocumentAsConnectedOnce = runOnce(() => {
     docsService.update(doc.uri, { status: 'connected' });
   });
 
