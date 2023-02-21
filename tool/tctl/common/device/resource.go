@@ -30,9 +30,9 @@ type Resource struct {
 	Spec *devicepb.Device `json:"spec"`
 }
 
-// CheckAndSetDefaults sanity checks Resource fields to catch simple errors, and
+// checkAndSetDefaults sanity checks Resource fields to catch simple errors, and
 // sets default values for all fields with defaults.
-func (r *Resource) CheckAndSetDefaults() error {
+func (r *Resource) checkAndSetDefaults() error {
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -72,7 +72,7 @@ func UnmarshalDevice(raw []byte) (*devicepb.Device, error) {
 	if err := utils.FastUnmarshal(raw, &resource); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := resource.CheckAndSetDefaults(); err != nil {
+	if err := resource.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return resourceToProto(&resource), nil
