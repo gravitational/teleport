@@ -130,16 +130,24 @@ func ChainStreamServerInterceptors(first grpc.StreamServerInterceptor, rest ...g
 	}
 }
 
-// GRPCDummyClientConnection is an implementation of grpc.ClientConnInterface
-// that always returns a "not implemented" error.
-type GRPCDummyClientConnection struct{}
+// NewGRPCDummyClientConnection returns an implementation of grpc.ClientConnInterface
+// that always responds with "not implemented" error with the given error message.
+func NewGRPCDummyClientConnection(message string) grpc.ClientConnInterface {
+	return &grpcDummyClientConnection{
+		message: message,
+	}
+}
+
+type grpcDummyClientConnection struct {
+	message string
+}
 
 // Invoke implements grpc.ClientConnInterface
-func (*GRPCDummyClientConnection) Invoke(ctx context.Context, method string, args interface{}, reply interface{}, opts ...grpc.CallOption) error {
-	return trace.NotImplemented("Invoke() called on GRPCDummyClientConnection")
+func (g *grpcDummyClientConnection) Invoke(ctx context.Context, method string, args interface{}, reply interface{}, opts ...grpc.CallOption) error {
+	return trace.NotImplemented(g.message)
 }
 
 // NewStream implements grpc.ClientConnInterface
-func (*GRPCDummyClientConnection) NewStream(ctx context.Context, desc *grpc.StreamDesc, method string, opts ...grpc.CallOption) (grpc.ClientStream, error) {
-	return nil, trace.NotImplemented("NewStream() called on GRPCDummyClientConnection")
+func (g *grpcDummyClientConnection) NewStream(ctx context.Context, desc *grpc.StreamDesc, method string, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+	return nil, trace.NotImplemented(g.message)
 }
