@@ -35,6 +35,7 @@ type Services interface {
 	Kubernetes
 	AppSession
 	SnowflakeSession
+	SAMLIdPSession
 	types.WebSessionsGetter
 	types.WebTokensGetter
 	WindowsDesktops
