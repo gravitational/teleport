@@ -999,7 +999,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	return c, e
 }
 
-// getLocalLog returns the local (file based) audit log.
+// getLocalLog returns the local (file based) ExternalAuditLogger.
 func (l *AuditLog) getLocalLog() ExternalAuditLogger {
 	l.RLock()
 	defer l.RUnlock()
