@@ -25,6 +25,12 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
+
+	// Dummy import so that `go mod tidy` does not clean up this module
+	// that is referenced in teleport.e, but not teleport.
+	// TODO(justinas): remove this import when bumping the e-ref
+	// after the merge of teleport.e#844.
+	_ "github.com/gravitational/teleport-plugins/access/common"
 )
 
 // Plugins is the plugin service
