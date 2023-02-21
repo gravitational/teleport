@@ -43,6 +43,10 @@ type ClusterConfiguration interface {
 	// DeleteStaticTokens deletes static tokens resource
 	DeleteStaticTokens() error
 
+	GetUIConfig(context.Context) (types.UIConfig, error)
+	SetUIConfig(context.Context, types.UIConfig) error
+	DeleteUIConfig(ctx context.Context) error
+
 	// GetAuthPreference gets types.AuthPreference from the backend.
 	GetAuthPreference(context.Context) (types.AuthPreference, error)
 	// SetAuthPreference sets types.AuthPreference from the backend.

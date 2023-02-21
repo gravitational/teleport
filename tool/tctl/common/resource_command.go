@@ -105,6 +105,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindClusterAuthPreference:   rc.createAuthPreference,
 		types.KindClusterNetworkingConfig: rc.createClusterNetworkingConfig,
 		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
+		types.KindUIConfig:                rc.createUIConfig,
 		types.KindLock:                    rc.createLock,
 		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
 		types.KindApp:                     rc.createApp,
@@ -634,6 +635,16 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.Clie
 	return trace.Wrap(err)
 }
 
+func (rc *ResourceCommand) createUIConfig(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	uic, err := services.UnmarshalUIConfig(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = client.SetUIConfig(ctx, uic)
+	return trace.Wrap(err)
+}
+
 func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	server, err := services.UnmarshalServer(raw.Raw, types.KindNode)
 	if err != nil {
@@ -761,6 +772,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		types.KindClusterNetworkingConfig,
 		types.KindSessionRecordingConfig,
 		types.KindInstaller,
+		types.KindUIConfig,
 	}
 	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
@@ -968,6 +980,12 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.NotFound("kubernetes server %q not found", rc.ref.Name)
 		}
 		fmt.Printf("kubernetes server %q has been deleted\n", rc.ref.Name)
+	case types.KindUIConfig:
+		err := client.DeleteUIConfig(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("%s has been deleted\n", types.KindUIConfig)
 	case types.KindInstaller:
 		err := client.DeleteInstaller(ctx, rc.ref.Name)
 		if err != nil {
@@ -1507,6 +1525,15 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &installerCollection{installers: []types.Installer{inst}}, nil
+	case types.KindUIConfig:
+		if rc.ref.Name != "" {
+			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindUIConfig)
+		}
+		uiconfig, err := client.GetUIConfig(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &uiConfigCollection{uiconfig}, nil
 	case types.KindDatabaseService:
 		resourceName := rc.ref.Name
 		listReq := proto.ListResourcesRequest{

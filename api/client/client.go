@@ -2193,6 +2193,30 @@ func (c *Client) GetInstallers(ctx context.Context) ([]types.Installer, error) {
 	return installers, nil
 }
 
+// GetUIConfig gets the configuration for the UI served by the proxy service
+func (c *Client) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
+	resp, err := c.grpc.GetUIConfig(ctx, &emptypb.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// SetUIConfig sets the configuration for the UI served by the proxy service
+func (c *Client) SetUIConfig(ctx context.Context, uic types.UIConfig) error {
+	uicV1, ok := uic.(*types.UIConfigV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", uic)
+	}
+	_, err := c.grpc.SetUIConfig(ctx, uicV1, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+func (c *Client) DeleteUIConfig(ctx context.Context) error {
+	_, err := c.grpc.DeleteUIConfig(ctx, &emptypb.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // GetInstaller gets the cluster installer resource
 func (c *Client) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
 	resp, err := c.grpc.GetInstaller(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
