@@ -51,7 +51,13 @@ export default class TtyTerminal {
   open(): void {
     this.term = new Terminal({
       cursorBlink: false,
-      fontFamily: this.el.style.fontFamily, // grab font family from style to prevent injecting malicious CSS
+      /**
+       * `fontFamily` can be provided by the user and is unsanitized. This means that it cannot be directly used in CSS,
+       * as it may inject malicious CSS code.
+       * To sanitize the value, we set it as a style on the HTML element and then read it from it.
+       * Read more https://frontarm.com/james-k-nelson/how-can-i-use-css-in-js-securely/.
+       */
+      fontFamily: this.el.style.fontFamily,
       fontSize: this.options.fontSize,
       scrollback: 5000,
       theme: {
