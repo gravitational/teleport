@@ -1364,6 +1364,8 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 		} else { // DELETE IN 13.0. Legacy kube server is heartbeating back.
 			key = backend.Key(kubeServicesPrefix, h.Name)
 		}
+	case constants.KeepAliveDatabaseService:
+		key = backend.Key(databaseServicePrefix, h.Name)
 	default:
 		return trace.BadParameter("unknown keep-alive type %q", h.GetType())
 	}

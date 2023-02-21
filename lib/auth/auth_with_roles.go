@@ -1122,6 +1122,16 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbUpdate); err != nil {
 			return trace.Wrap(err)
 		}
+	case constants.KeepAliveDatabaseService:
+		if serverName != handle.Name {
+			return trace.AccessDenied("access denied")
+		}
+		if !a.hasBuiltinRole(types.RoleDatabase) {
+			return trace.AccessDenied("access denied")
+		}
+		if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unknown keep alive type %q", handle.Type)
 	}
