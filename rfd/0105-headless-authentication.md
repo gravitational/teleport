@@ -63,9 +63,7 @@ Headless authentication, like any login mechanism, can be started by any unauthe
 
 To ensure the requesting client is the only client that can use resulting headless certificates, we will use the PKCE-like flow common to all Teleport login flows. The client provides their public key in the login request, and the server issues certificates for the client's public key. If the client does not have access to the corresponding client private key, they cannot use the certificates.
 
-Note: The server can also encrypt the certificates with the client's public key. Since we don't currently do this for other login endpoints, we will omit this from the initial design.
-
-Additionally, headless login will be handled by the Teleport Proxy endpoint - `/webapi/login/headless`. In this endpoint, the Proxy will make multiple Auth server API requests to initiate headless authentication and receive certificates. To prevent attackers from hijacking a headless auth request directly from the Auth server, The Proxy will generate a token for the auth request and pass the token in the initial headless auth request creation. The Auth server will keep this token a secret and authorize the latter API requests using this token.
+Note: The server can also encrypt the certificates with the client's public key. Since we don't currently do this for other login endpoints, we will omit this from this design.
 
 ##### Conclusion
 
@@ -111,10 +109,9 @@ sequenceDiagram
 
     par
         Remote Machine->>Teleport Proxy: POST /webapi/login/headless
-        Note over Teleport Proxy: generate a request token
-        Teleport Proxy->>Teleport Auth: rpc CreateHeadlessAuthentication
-        Note over Teleport Auth: Request: {id, user, publicKey, state=pending, token}
-        Teleport Proxy->>+Teleport Auth: watch for state change
+        Teleport Proxy->>Teleport Auth: POST /:version/users/:user/ssh/authenticate
+        Teleport Auth ->> Backend: CreateHeadlessAuthentication<br/>{id, user, publicKey, state=pending}
+        Teleport Auth ->>+ Backend: watch for state change
     and
         Remote Machine-->>Local Machine: user copies URL to local browser
         Note over Local Machine: proxy.example.com/headless/<id>/approve
@@ -129,12 +126,12 @@ sequenceDiagram
         Teleport Auth->>Local Machine: MFA Challenge
         Note over Local Machine: user taps YubiKey<br/>to sign MFA challenge
         Local Machine->>Teleport Auth: rpc UpdateHeadlessAuthenticationState<br/>with signed MFA challenge response
+        Teleport Auth ->> Backend: UpsertHeadlessAuthentication<br/>{id, user, publicKey, state=approved, mfaDevice}
     end
 
-    Teleport Auth->>-Teleport Proxy: unblock on request state change
-    Teleport Proxy->>Teleport Auth: rpc GenerateUserCerts<br/>(MFA-verified, 1 minute TTL)
-    Teleport Auth->>Teleport Proxy: 
-    Teleport Proxy->>Remote Machine: user certificates
+    Backend ->>- Teleport Auth: unblock on state change
+    Teleport Auth->>Teleport Proxy: user certificates<br/>(MFA-verified, 1 minute TTL)
+    Teleport Proxy->>Remote Machine: user certificates<br/>(MFA-verified, 1 minute TTL)
     Note over Remote Machine: Connect to user@node01
 ```
 
@@ -142,21 +139,9 @@ This flow can be broken down into three parts: headless login initiation, local 
 
 #### Headless login initiation
 
-First, the client initiates headless login through the web proxy endpoint `POST /webapi/login/headless`. The client provides a request UUID and normal login parameters (client public key, proxy address, etc.). The Proxy generates a request token which will be used to authenticate the proxy in the final steps of headless authentication.
+First, the client initiates headless login through the web proxy endpoint `POST /webapi/login/headless`. The client provides a request UUID and normal login parameters (client public key, proxy address, etc.). The Proxy sends these headless login details to the Auth server through `POST /:version/users/:user/ssh/authenticate`, the standard SSH authentication endpoint.
 
-The request details and request token are saved on the Auth server in a `HeadlessAuthentication` object, with the backend prefix `/headless_authentication/`. It will be saved with a 1 minute TTL, by which point the user should have completed the headless authentication flow. The request will begin in the pending state, to be later approved or denied by the user locally.
-
-```go
-type HeadlessAuthentication struct {
-    ID string
-    // User is a teleport username
-    User string
-    // PubKey is SSH public key to sign
-    PubKey []byte
-    // State is the request state (pending, approved, or denied)
-    State string
-}
-```
+The Auth server saves headless authentication details in the backend under `/headless_authentication/` with a 1 minute TTL, by which point the user should have completed the headless authentication flow. The request will begin in the pending state. The Auth server then waits for the user to approve the authentication request using a resource watcher on the `HeadlessAuthentication` resource kind.
 
 #### Local authentication
 
@@ -169,13 +154,13 @@ Once connected, the user can view the request details and either approve or deny
 * If the user approves the request, they will need to pass an MFA challenge to update the request to the approved state.
 * If the user denies the request, the request will be updated to the denied state.
 
+If the headless authentication is approved with a valid MFA challenge, the backend will be updated to reflect the approved state and the MFA device used.
+
 #### Certificate retrieval
 
-After the headless login is initiated, the request will wait until local authentication is complete. This will be handled by the Teleport Proxy by using a resource watcher to wait until the `HeadlessAuthentication` object is updated to the approved or denied state, or it expires.
+If the headless authentication is approved/denied, the Auth server's resource watcher will unblock to complete/deny the authentication attempt. If approved, the auth server will generate certificates for the user. These certs will have a 1 minute TTL and MFA-verfied by the MFA device saved in the headless authentication resource.
 
-If the headless login request is approved, the Teleport Proxy will request MFA-verified, Single-use (1 minute TTL) user certificates from the Auth server with the `GenerateUserCerts` rpc. The proxy will provide the headless auth request ID and the request token previously generated to authorize the request. The login request details will be pulled from the `HeadlessAuthentication` object to generate certificates.
-
-The resulting user certificates will then be sent to the client, and the client will complete the `tsh` request initially requested, e.g. `tsh ssh user@node01`.
+The resulting user certificates will then be returned to the Proxy and then to the client. Now the client can complete the `tsh` request initially requested, e.g. `tsh ssh user@node01`.
 
 ### Audit log
 
@@ -191,20 +176,11 @@ package teleport.headlessauthn.v1;
 
 // HeadlessAuthenticationService provides methods to create, view, and update authentication requests.
 service HeadlessAuthenticationService {
-  // CreateHeadlessAuthentication is a request to store a headless authentication in the backend.
-  rpc CreateHeadlessAuthentication(CreateHeadlessAuthenticationRequest) returns (HeadlessAuthentication);
-
   // GetHeadlessAuthentication is a request to retrieve a headless authentication from the backend.
   rpc GetHeadlessAuthentication(GetHeadlessAuthenticationRequest) returns (HeadlessAuthentication);
 
   // UpdateHeadlessAuthenticationState is a request to update a headless authentication's state.
   rpc UpdateHeadlessAuthenticationState(UpdateHeadlessAuthenticationStateRequest) returns (google.protobuf.Empty);
-}
-
-// Request for CreateHeadlessAuthentication.
-message CreateHeadlessAuthenticationRequest {
-  // HeadlessAuthentication is the headless authentication to be created.
-  HeadlessAuthentication headless_authentication = 1;
 }
 
 // Request for GetHeadlessAuthentication.
@@ -228,7 +204,7 @@ message UpdateHeadlessAuthenticationStateRequest {
   proto.MFAAuthenticateResponse mfa_response = 3;
 }
 
-// HeadlessAuthentication holds data for an ongoing headless authentication attempt.
+// HeadlessAuthentication holds data for a headless authentication request.
 message HeadlessAuthentication {
   // Metadata is resource metadata.
   types.Metadata metadata = 1;
@@ -236,26 +212,17 @@ message HeadlessAuthentication {
   // Version is the resource version.
   string version = 2;
 
-  // Token is a secret token used to identify the user who initiated the authentication attempt.
-  string token = 3;
+  // User is a teleport user name.
+  string user = 3;
 
-  // State is the headless login request state.
+  // State is the headless authentication request state.
   State state = 4;
 
   // MFADevice is the mfa device used to approve the request in case of successful auth.
   types.MFADevice mfa_device = 5;
 
-  // User is a teleport user name.
-  string user = 6;
-
   // PublicKey is a public key to sign in case of successful auth.
-  bytes public_key = 7;
-
-  // Compatibility specifies OpenSSH compatibility flags.
-  string compatibility = 8;
-
-  // RouteToCluster is the name of Teleport cluster to issue credentials for.
-  string route_to_cluster = 9;
+  bytes public_key = 6;
 }
 
 // HeadlessAuthenticationState is a headless authentication state.
@@ -274,8 +241,6 @@ enum HeadlessAuthenticationState {
 ```
 
 ### Server changes
-
-Headless authentication has a unique API flow compared to other login methods.
 
 #### `POST /webapi/login/headless`
 
@@ -312,12 +277,6 @@ type SSHLoginResponse struct {
 }
 ```
 
-#### `rpc CreateHeadlessAuthentication`
-
-This endpoint is used by the Teleport Proxy to create a new headless auth request.
-
-It is authorized for roles with `create` permissions on the `headless_authentication` resource kind, which is only given to the Proxy role by default.
-
 #### `rpc GetHeadlessAuthentication`
 
 This endpoint is used by Teleport clients to retrieve headless login request details before prompting the user for approval/denial.
@@ -326,28 +285,31 @@ It is authorized for roles with `read` permissions on the `headless_authenticati
 
 #### `rpc UpdateHeadlessAuthenticationState`
 
-This endpoint is used by Teleport clients to update headless login request state to approved or denied. 
+This endpoint is used by Teleport clients to update headless login request state to approved or denied.
 
 It is only authorized authorized for the user who requested headless authentication. Additionally, when updating the state to `APPROVED`, the client must provide a valid MFA challenge response for the user. An MFA challenge can be requested from the existing rpc `CreateAuthenticateChallenge`.
 
-#### `rpc GenerateUserCerts`
+#### `POST /:version/users/:user/ssh/authenticate`
 
-This is an existing endpoint used to generate user certs. We will add `headless_authentication_id` field to retrieve request details from the headless auth request saved on the Auth server. We will add the `headless_authentication_token` field to authorize the certificate generation for the headless authentication.
+This is an existing endpoint used to authenticate a user and receive user certs. We will add the `headless_authentication_id` field to switch to headless authentication instead of password/WebAuthn/etc.
 
-```proto
-// UserCertRequest specifies certificate-generation parameters
-// for a user.
-message UserCertsRequest {
-  ...
-  // HeadlessAuthenticationID is the id of a headless authentication entity.
-  // When set, the actual cert request will be formed from the headless authentication
-  // details saved on the Auth server.
-  string headless_authentication_id = 17;
-
-  // HeadlessAuthenticationToken is a secret token used to authorize generating
-  // certificates for a successful headless authentication. This is only known by 
-  // the Proxy Server performing the headless authentication flow and the Auth server.
-  string headless_authentication_token = 18;
+```go
+// AuthenticateUserRequest is a request to authenticate interactive user
+type AuthenticateUserRequest struct {
+  // Username is a username
+  Username string `json:"username"`
+  // Pass is a password used in local authentication schemes
+  Pass *PassCreds `json:"pass,omitempty"`
+  // Webauthn is a signed credential assertion, used in MFA authentication
+  Webauthn *wanlib.CredentialAssertionResponse `json:"webauthn,omitempty"`
+  // OTP is a password and second factor, used for MFA authentication
+  OTP *OTPCreds `json:"otp,omitempty"`
+  // Session is a web session credential used to authenticate web sessions
+  Session *SessionCreds `json:"session,omitempty"`
+  // ClientMetadata includes forwarded information about a client
+  ClientMetadata *ForwardedClientMetadata `json:"client_metadata,omitempty"`
+  // HeadlessAuthenticationID is the ID for a headless authentication resource.
+  HeadlessAuthenticationID string `json:"headless_authentication_id"`
 }
 ```
 
