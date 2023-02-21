@@ -15,6 +15,7 @@
  */
 
 import { useStore } from 'shared/libs/stores';
+import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
 // @ts-ignore
@@ -42,7 +43,6 @@ import {
 } from './accessRequestsService';
 
 import { Document, DocumentsService } from './documentsService';
-import { compareArrayObjs } from 'shared/utils/highbar';
 
 export interface WorkspacesState {
   rootClusterUri?: RootClusterUri;
@@ -344,7 +344,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
     return (
       previousDocuments?.length &&
-      !compareArrayObjs(
+      !arrayObjectIsEqual(
         omitUriAndTitle(previousDocuments),
         omitUriAndTitle(currentDocuments)
       )
