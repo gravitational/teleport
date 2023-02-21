@@ -17,6 +17,7 @@ import 'xterm/css/xterm.css';
 import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { debounce, isInteger } from 'shared/utils/highbar';
+import { WebLinksAddon } from 'xterm-addon-web-links';
 import Logger from 'shared/libs/logger';
 
 import { TermEvent } from './enums';
@@ -41,6 +42,7 @@ export default class TtyTerminal {
   _fontSize: number;
   _debouncedResize: DebouncedFunc<() => void>;
   _fitAddon = new FitAddon();
+  _webLinksAddon = new WebLinksAddon();
 
   constructor(tty: Tty, options: Options) {
     const { el, scrollBack, fontFamily, fontSize } = options;
@@ -67,6 +69,7 @@ export default class TtyTerminal {
     });
 
     this.term.loadAddon(this._fitAddon);
+    this.term.loadAddon(this._webLinksAddon);
     this.term.open(this._el);
     this._fitAddon.fit();
     this.term.focus();
