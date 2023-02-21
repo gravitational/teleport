@@ -40,6 +40,10 @@ type MarshalConfig struct {
 	// specs when marshaling
 	PreserveResourceID bool
 
+	// SkipCheckAndSetDefaults will skip the checking and setting
+	// of defaults during a marshal or unmarshal.
+	SkipCheckAndSetDefaults bool
+
 	// Expires is an optional expiry time
 	Expires time.Time
 }
@@ -107,6 +111,13 @@ func WithVersion(v string) MarshalOption {
 func PreserveResourceID() MarshalOption {
 	return func(c *MarshalConfig) error {
 		c.PreserveResourceID = true
+		return nil
+	}
+}
+
+func SkipCheckAndSetDefaults() MarshalOption {
+	return func(c *MarshalConfig) error {
+		c.SkipCheckAndSetDefaults = true
 		return nil
 	}
 }

@@ -1013,8 +1013,8 @@ type samlIDPServiceProviderCollection struct {
 
 func (c *samlIDPServiceProviderCollection) resources() []types.Resource {
 	r := make([]types.Resource, len(c.serviceProviders))
-	for _, resource := range c.serviceProviders {
-		r = append(r, resource)
+	for i, resource := range c.serviceProviders {
+		r[i] = resource
 	}
 	return r
 }

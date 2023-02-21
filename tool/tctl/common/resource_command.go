@@ -24,6 +24,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -734,10 +735,18 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client auth.Clie
 
 func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	// Create services.SAMLIdPServiceProvider from raw YAML to extract the service provider name.
-	sp, err := services.UnmarshalSAMLIdPServiceProvider(raw.Raw)
+	// Skip the checking and setting of defaults, as we'll check it later.
+	sp, err := services.UnmarshalSAMLIdPServiceProvider(raw.Raw, services.SkipCheckAndSetDefaults())
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Overwrite the entity ID field by extracting it from the entity descriptor.
+	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sp.SetEntityID(ed.EntityID)
 
 	serviceProviderName := sp.GetName()
 	if err := sp.CheckAndSetDefaults(); err != nil {
