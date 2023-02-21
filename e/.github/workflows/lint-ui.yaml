@@ -8,19 +8,6 @@ on:
   pull_request:
     paths:
       - 'web/**'
-  workflow_call:
-    inputs:
-      oss-teleport-repo:
-        description: "The name of the OSS teleport repo to build"
-        required: false
-        default: "gravitational/teleport"
-        type: string
-
-      oss-teleport-ref:
-        description: 'Git SHA, tag or branch of the revision of OSS teleport to build'
-        required: true
-        default: 'master'
-        type: string
 
 jobs:
   lint:
@@ -30,8 +17,8 @@ jobs:
       - name: Checkout OSS Teleport
         uses: actions/checkout@v3
         with:
-          repository: ${{ inputs.oss-teleport-repo }}
-          ref: ${{ inputs.oss-teleport-ref }}
+          repository: gravitational/teleport
+          ref: master
 
       - name: Checkout Enterprise Teleport
         uses: actions/checkout@v3
