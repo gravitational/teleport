@@ -4361,11 +4361,11 @@ func (a *ServerWithRoles) CreateSAMLIdPSession(ctx context.Context, req types.Cr
 		return nil, trace.Wrap(err)
 	}
 
-	snowflakeSession, err := a.authServer.CreateSAMLIdPSession(ctx, req, a.context.Identity.GetIdentity(), a.context.Checker)
+	samlSession, err := a.authServer.CreateSAMLIdPSession(ctx, req, a.context.Identity.GetIdentity(), a.context.Checker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return snowflakeSession, nil
+	return samlSession, nil
 }
 
 // UpsertAppSession not implemented: can only be called locally.
