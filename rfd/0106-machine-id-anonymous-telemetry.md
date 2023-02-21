@@ -92,7 +92,7 @@ variable, e.g:
 # Send anonymous telemetry on startup about the usage of tbot in order
 # to help us understand what parts of Machine ID to improve.
 # Find out more at goteleport.com/awesome-docs-page
-export TBOT_ANONYMOUS_TELEMETRY=1
+export TELEPORT_ANONYMOUS_TELEMETRY=1
 tbot start --snip--
 ```
 
