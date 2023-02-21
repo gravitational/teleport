@@ -35,14 +35,22 @@ type Resource struct {
 
 // ResourceSpec is the device resource specification.
 type ResourceSpec struct {
-	OsType        string                          `json:"os_type"`
-	AssetTag      string                          `json:"asset_tag"`
-	CreateTime    time.Time                       `json:"create_time"`
-	UpdateTime    time.Time                       `json:"update_time"`
-	EnrollToken   *devicepb.DeviceEnrollToken     `json:"enroll_token",omitempty`
-	EnrollStatus  string                          `json:"enroll_status"`
-	Credential    *devicepb.DeviceCredential      `json:"credential",omitempty`
-	CollectedData []*devicepb.DeviceCollectedData `json:"collected_data",omitempty`
+	// OsType is the device's operating system type.
+	OsType string `json:"os_type"`
+	// AssetTag is the device's asset tag.
+	AssetTag string `json:"asset_tag"`
+	// CreateTime is the time the device was created.
+	CreateTime time.Time `json:"create_time,omitempty"`
+	// UpdateTime is the time the device was last updated.
+	UpdateTime time.Time `json:"update_time,omitempty"`
+	// EnrollToken is the device's enrollment token.
+	EnrollToken *devicepb.DeviceEnrollToken `json:"enroll_token,omitempty"`
+	// EnrollStatus is the device's enrollment status.
+	EnrollStatus string `json:"enroll_status"`
+	// Credential is the device's credential.
+	Credential *devicepb.DeviceCredential `json:"credential,omitempty"`
+	// CollectedData is the device's collected data.
+	CollectedData []*devicepb.DeviceCollectedData `json:"collected_data,omitempty"`
 }
 
 // checkAndSetDefaults sanity checks Resource fields to catch simple errors, and
