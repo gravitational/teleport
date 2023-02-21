@@ -38,6 +38,7 @@ func (r *Resource) checkAndSetDefaults() error {
 	}
 	if r.Kind == "" {
 		r.Kind = types.KindDevice
+		// Sanity check.
 	} else if r.Kind != types.KindDevice {
 		return trace.BadParameter("unexpected resource kind %q, must be %q", r.Kind, types.KindDevice)
 	}
