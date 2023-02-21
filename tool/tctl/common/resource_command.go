@@ -1020,13 +1020,13 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		fmt.Printf("SAML IdP service provider %q has been deleted\n", rc.ref.Name)
 	case types.KindDevice:
 		remote := client.DevicesClient()
-		device, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name)
+		device, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		if _, err := remote.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
-			DeviceId: device.Id,
+			DeviceId: device[0].Id,
 		}); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1617,12 +1617,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		return &samlIDPServiceProviderCollection{serviceProviders: resources}, nil
 	case types.KindDevice:
 		remote := client.DevicesClient()
-		if rc.ref.Name == "" {
-			device, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name)
+		if rc.ref.Name != "" {
+			devices, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name, true)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &deviceCollection{devices: []*devicepb.Device{device}}, nil
+			return &deviceCollection{devices: devices}, nil
 		}
 
 		req := &devicepb.ListDevicesRequest{
@@ -1726,41 +1726,30 @@ If you would still like to proceed, re-run the command with both --force and --c
 
 const managedByStaticDeleteMsg = `This resource is managed by static configuration. In order to reset it to defaults, remove relevant configuration from teleport.yaml and restart the servers.`
 
-func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustServiceClient, idOrTag string) (*devicepb.Device, error) {
+func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustServiceClient, idOrTag string, allowMultiple bool) ([]*devicepb.Device, error) {
 	resp, err := remote.FindDevices(ctx, &devicepb.FindDevicesRequest{
 		IdOrTag: idOrTag,
 	})
-	if err != nil {
+	switch {
+	case err != nil:
 		return nil, trace.Wrap(err)
-	}
-
-	// Attempt to find device by ID first.
-	var device *devicepb.Device
-	for _, found := range resp.Devices {
-		if found.Id == idOrTag {
-			device = found
-		}
-	}
-
-	// If device ID was not found, attempt to find device by asset tag.
-	if device == nil {
-		for _, found := range resp.Devices {
-			if found.AssetTag == idOrTag {
-				// Sanity check.
-				if device != nil {
-					return nil, trace.BadParameter(
-						"found multiple devices for asset tag %q, please retry using the device ID instead", idOrTag)
-				}
-
-				device = found
-			}
-		}
-	}
-
-	// Error if device was not found.
-	if device == nil {
+	case len(resp.Devices) == 0:
 		return nil, trace.NotFound("device %q not found", idOrTag)
+	case len(resp.Devices) == 1:
+		return resp.Devices[:1], nil
 	}
 
-	return device, nil
+	// Do we have an ID match?
+	for _, dev := range resp.Devices {
+		if dev.Id == idOrTag {
+			return []*devicepb.Device{dev}, nil
+		}
+	}
+
+	// If we allow multiple devices and don't have a matching ID, return all devices with a maching asset tag.
+	if allowMultiple {
+		return resp.Devices, nil
+	}
+
+	return nil, trace.BadParameter("found multiple devices for asset tag %q, please retry using the device ID instead", idOrTag)
 }
