@@ -1042,7 +1042,14 @@ func (c *deviceCollection) resources() []types.Resource {
 func (c *deviceCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"ID", "OS Type", "Asset Tag", "Enrollment Status", "Creation Time", "Last Updated"})
 	for _, device := range c.devices {
-		t.AddRow([]string{device.Id, device.OsType.String(), device.AssetTag, devicepb.DeviceEnrollStatus_name[int32(device.GetEnrollStatus())], device.CreateTime.AsTime().Format(time.RFC3339), device.UpdateTime.AsTime().Format(time.RFC3339)})
+		t.AddRow([]string{
+			device.Id,
+			devicetrust.FriendlyOSType(device.OsType),
+			device.AssetTag,
+			devicetrust.FriendlyDeviceEnrollStatus(device.EnrollStatus),
+			device.CreateTime.AsTime().Format(time.RFC3339),
+			device.UpdateTime.AsTime().Format(time.RFC3339),
+		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
