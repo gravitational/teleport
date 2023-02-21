@@ -373,6 +373,9 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		packageName = teleportEntPackageName
 	}
 
+	// TODO(marco): when cloud channel is ready and cluster is running in cloud, set this to `cloud`.
+	repoChannel := ""
+
 	// This section relies on Go's default zero values to make sure that the settings
 	// are correct when not installing an app.
 	err = scripts.InstallNodeBashScript.Execute(&buf, map[string]interface{}{
@@ -387,6 +390,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		"caPinsOld":                  strings.Join(caPins, " "),
 		"caPins":                     strings.Join(caPins, ","),
 		"packageName":                packageName,
+		"repoChannel":                repoChannel,
 		"version":                    version,
 		"appInstallMode":             strconv.FormatBool(settings.appInstallMode),
 		"appName":                    settings.appName,
