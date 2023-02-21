@@ -512,6 +512,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 		meta.Labels = utils.CopyStringsMap(tokenLabels)
 		remoteCluster.SetMetadata(meta)
 	}
+	remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 
 	err = a.CreateRemoteCluster(remoteCluster)
 	if err != nil {
