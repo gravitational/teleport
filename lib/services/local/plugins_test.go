@@ -27,6 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -161,27 +162,39 @@ func TestListPlugins(t *testing.T) {
 		insertedPlugins = append(insertedPlugins, plugin)
 	}
 
-	page1, nextKey, err := service.ListPlugins(ctx, pageSize, "", true)
-	require.NoError(t, err)
-	require.NotEmpty(t, nextKey)
-	require.Len(t, page1, pageSize)
+	t.Run("paginated", func(t *testing.T) {
+		page1, nextKey, err := service.ListPlugins(ctx, pageSize, "", true)
+		require.NoError(t, err)
+		require.NotEmpty(t, nextKey)
+		require.Len(t, page1, pageSize)
 
-	page2, nextKey, err := service.ListPlugins(ctx, pageSize, nextKey, true)
-	require.NoError(t, err)
-	require.NotEmpty(t, nextKey)
-	require.Len(t, page2, pageSize)
+		page2, nextKey, err := service.ListPlugins(ctx, pageSize, nextKey, true)
+		require.NoError(t, err)
+		require.NotEmpty(t, nextKey)
+		require.Len(t, page2, pageSize)
 
-	page3, nextKey, err := service.ListPlugins(ctx, pageSize, nextKey, true)
-	require.NoError(t, err)
-	require.Empty(t, nextKey)
-	require.Len(t, page3, 1)
+		page3, nextKey, err := service.ListPlugins(ctx, pageSize, nextKey, true)
+		require.NoError(t, err)
+		require.Empty(t, nextKey)
+		require.Len(t, page3, 1)
 
-	var fetchedPlugins []types.Plugin
-	fetchedPlugins = append(fetchedPlugins, page1...)
-	fetchedPlugins = append(fetchedPlugins, page2...)
-	fetchedPlugins = append(fetchedPlugins, page3...)
+		var fetchedPlugins []types.Plugin
+		fetchedPlugins = append(fetchedPlugins, page1...)
+		fetchedPlugins = append(fetchedPlugins, page2...)
+		fetchedPlugins = append(fetchedPlugins, page3...)
 
-	require.Empty(t, cmp.Diff(insertedPlugins, fetchedPlugins,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
-	))
+		require.Empty(t, cmp.Diff(insertedPlugins, fetchedPlugins,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		))
+	})
+
+	t.Run("single", func(t *testing.T) {
+		fetchedPlugins, nextKey, err := service.ListPlugins(ctx, apidefaults.DefaultChunkSize, "", true)
+		require.NoError(t, err)
+		require.Empty(t, nextKey)
+
+		require.Empty(t, cmp.Diff(insertedPlugins, fetchedPlugins,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		))
+	})
 }
