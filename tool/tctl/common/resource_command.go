@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -776,7 +777,7 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI
 		return trail.FromGRPC(err)
 	}
 
-	fmt.Printf("Device '%s' has been created\n", dev.Id)
+	fmt.Printf("Device %v/%v added to the inventory", dev.AssetTag, devicetrust.FriendlyOSType(dev.OsType))
 	return nil
 }
 
@@ -1030,7 +1031,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		}); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Device %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("Device %q removed\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
