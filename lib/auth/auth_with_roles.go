@@ -602,15 +602,21 @@ func (a *ServerWithRoles) GetCertAuthorities(ctx context.Context, caType types.C
 }
 
 func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
-	if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbReadNoSecrets); err != nil {
+	readVerb := types.VerbReadNoSecrets
+	if loadKeys {
+		readVerb = types.VerbRead
+	}
+
+	ca, err := a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if loadKeys {
-		if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	sctx := &services.Context{User: a.context.User, Resource: ca}
+	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindCertAuthority, readVerb); err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
+
+	return ca, nil
 }
 
 func (a *ServerWithRoles) GetDomainName(ctx context.Context) (string, error) {
@@ -1128,6 +1134,16 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
+	case constants.KeepAliveDatabaseService:
+		if serverName != handle.Name {
+			return trace.AccessDenied("access denied")
+		}
+		if !a.hasBuiltinRole(types.RoleDatabase) {
+			return trace.AccessDenied("access denied")
+		}
+		if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbUpdate); err != nil {
 			return trace.Wrap(err)
 		}
 	default:

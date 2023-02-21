@@ -106,6 +106,9 @@ const (
 	// KeepAliveKube is the keep alive type for Kubernetes server
 	KeepAliveKube = "kube"
 
+	// KeepAliveDatabaseService is the keep alive type for database service.
+	KeepAliveDatabaseService = "db_service"
+
 	// WindowsOS is the GOOS constant used for Microsoft Windows.
 	WindowsOS = "windows"
 

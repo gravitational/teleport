@@ -22,10 +22,10 @@ import (
 	"github.com/sirupsen/logrus"
 
 	proxyv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/proxy/v1"
+	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
-	streamutils "github.com/gravitational/teleport/lib/utils/grpc/stream"
 )
 
 // Dialer is the interface that groups basic dialing methods.
