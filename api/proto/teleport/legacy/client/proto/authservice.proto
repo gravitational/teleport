@@ -123,7 +123,7 @@ message Event {
     // SAMLIdPSession is a SAML IdP session.
     types.WebSessionV2 SAMLIdPSession = 37 [(gogoproto.jsontag) = "saml_idp_session,omitempty"];
     // UIConfig is a config for the UI served by the proxy service
-    types.UIConfigV1 UIConfig = 37 [(gogoproto.jsontag) = "ui_config,omitempty"];
+    types.UIConfigV1 UIConfig = 38 [(gogoproto.jsontag) = "ui_config,omitempty"];
   }
 }
 
