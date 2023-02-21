@@ -87,7 +87,7 @@ func ProtoToResource(device *devicepb.Device) *Resource {
 			Kind:    types.KindDevice,
 			Version: device.ApiVersion,
 			Metadata: types.Metadata{
-				Name: device.Id,
+				Name: device.AssetTag,
 			},
 		},
 		Spec: device,
