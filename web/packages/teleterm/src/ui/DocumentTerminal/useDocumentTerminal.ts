@@ -31,9 +31,9 @@ import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';
 
 export default function useDocumentTerminal(doc: Doc) {
   const ctx = useAppContext();
-  const { documentsService: workspaceDocumentsService } = useWorkspaceContext();
+  const { documentsService } = useWorkspaceContext();
   const [state, init] = useAsync(async () =>
-    initState(ctx, workspaceDocumentsService, doc)
+    initState(ctx, documentsService, doc)
   );
 
   useEffect(() => {
@@ -63,7 +63,7 @@ export default function useDocumentTerminal(doc: Doc) {
 
 async function initState(
   ctx: IAppContext,
-  docsService: DocumentsService,
+  documentsService: DocumentsService,
   doc: Doc
 ) {
   const getClusterName = () => {
@@ -112,7 +112,7 @@ async function initState(
     }
 
     const cwd = await ptyProcess.getCwd();
-    docsService.update(doc.uri, {
+    documentsService.update(doc.uri, {
       cwd,
       title: `${cwd || 'Terminal'} · ${getClusterName()}`,
     });
@@ -128,7 +128,7 @@ async function initState(
     // Imagine that someone creates a new terminal document with `rm -rf /tmp` as initCommand.
     // We'd execute the command each time the document gets recreated from the state, which is not
     // what the user would expect.
-    docsService.update(doc.uri, { initCommand: undefined });
+    documentsService.update(doc.uri, { initCommand: undefined });
   };
 
   ptyProcess.onOpen(() => {
@@ -137,7 +137,7 @@ async function initState(
   });
 
   const markDocumentAsConnectedOnce = runOnce(() => {
-    docsService.update(doc.uri, { status: 'connected' });
+    documentsService.update(doc.uri, { status: 'connected' });
   });
 
   // mark document as connected when first data arrives
@@ -154,7 +154,7 @@ async function initState(
     // We can look up how the terminal in vscode handles this problem, since in the scenario
     // described above they do close the tab correctly.
     if (event.exitCode === 0) {
-      docsService.close(doc.uri);
+      documentsService.close(doc.uri);
     }
   });
 
