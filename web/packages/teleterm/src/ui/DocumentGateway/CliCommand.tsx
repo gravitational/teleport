@@ -53,11 +53,11 @@ export function CliCommand({ cliCommand, onRun, isLoading }: CliCommandProps) {
         color={shouldDisplayIsLoading ? 'text.secondary' : 'text.primary'}
         width="100%"
         css={`
-          font-family: ${props => props.theme.fonts.mono};
           overflow: auto;
           white-space: pre;
           word-break: break-all;
           font-size: 12px;
+          font-family: ${props => props.theme.fonts.mono};
         `}
       >
         <Box mr="1">{`$`}</Box>

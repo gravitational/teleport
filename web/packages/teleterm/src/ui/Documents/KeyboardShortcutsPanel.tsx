@@ -17,7 +17,7 @@
 import React from 'react';
 import { Text } from 'design';
 
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 import Document from 'teleterm/ui/Document';
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
@@ -67,19 +67,12 @@ export function KeyboardShortcutsPanel() {
 }
 
 function Entry(props: { title: string; shortcut: string }) {
-  const theme = useTheme();
   return (
     <>
       <Text textAlign="right" color="light" typography="subtitle1" py="4px">
         {props.title}
       </Text>
-      <MonoText
-        style={{ fontFamily: theme.fonts.unsanitizedMono }}
-        bg="primary.main"
-        textAlign="left"
-        px="12px"
-        py="4px"
-      >
+      <MonoText bg="primary.main" textAlign="left" px="12px" py="4px">
         {props.shortcut}
       </MonoText>
     </>
@@ -87,6 +80,7 @@ function Entry(props: { title: string; shortcut: string }) {
 }
 
 const MonoText = styled(Text)`
+  font-family: ${props => props.theme.fonts.mono};
   width: fit-content;
   opacity: 0.7;
   border-radius: 4px;
