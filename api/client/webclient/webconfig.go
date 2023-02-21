@@ -60,7 +60,7 @@ type WebConfig struct {
 }
 
 type UIConfig struct {
-	ScrollbackLines int `yaml:"scrollback_lines" json:"scrollbackLines,omitempty"`
+	ScrollbackLines int `json:"scrollbackLines,omitempty"`
 }
 
 // WebConfigAuthProvider describes auth. provider

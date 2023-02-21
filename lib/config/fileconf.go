@@ -40,7 +40,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -1875,7 +1874,11 @@ type Proxy struct {
 	//nolint:revive // Because we want this to be IdP.
 	IdP IdP `yaml:"idp,omitempty"`
 
-	UI *webclient.UIConfig `yaml:"ui,omitempty"`
+	UI *UIConfig `yaml:"ui,omitempty"`
+}
+
+type UIConfig struct {
+	ScrollbackLines int `yaml:"scrollback_lines,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
