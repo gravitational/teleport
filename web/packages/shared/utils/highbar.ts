@@ -58,7 +58,12 @@ export function mergeDeep(target: MergeTarget, ...sources: Array<MergeTarget>) {
   return mergeDeep(target, ...sources);
 }
 
-export function compareArrayObjs(arr1, arr2) {
+type CompareArray = Array<Record<string, unknown>>;
+
+export function arrayObjectIsEqual(
+  arr1: CompareArray,
+  arr2: CompareArray
+): boolean {
   const compareArrays = (arr1, arr2) =>
     arr1.length === arr2.length &&
     arr1.every((obj, idx) => compareObjects(obj, arr2[idx]));
