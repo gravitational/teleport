@@ -344,7 +344,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
     return (
       previousDocuments?.length &&
-      compareArrayObjs(
+      !compareArrayObjs(
         omitUriAndTitle(previousDocuments),
         omitUriAndTitle(currentDocuments)
       )
