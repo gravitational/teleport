@@ -15,7 +15,10 @@
 package device
 
 import (
+	"time"
+
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -27,7 +30,19 @@ type Resource struct {
 	// ResourceHeader is embedded to implement types.Resource
 	types.ResourceHeader
 	// Spec is the device specification
-	Spec *devicepb.Device `json:"spec"`
+	Spec ResourceSpec `json:"spec"`
+}
+
+// ResourceSpec is the device resource specification.
+type ResourceSpec struct {
+	OsType        string                          `json:"os_type"`
+	AssetTag      string                          `json:"asset_tag"`
+	CreateTime    time.Time                       `json:"create_time"`
+	UpdateTime    time.Time                       `json:"update_time"`
+	EnrollToken   *devicepb.DeviceEnrollToken     `json:"enroll_token",omitempty`
+	EnrollStatus  string                          `json:"enroll_status"`
+	Credential    *devicepb.DeviceCredential      `json:"credential",omitempty`
+	CollectedData []*devicepb.DeviceCollectedData `json:"collected_data",omitempty`
 }
 
 // checkAndSetDefaults sanity checks Resource fields to catch simple errors, and
@@ -42,24 +57,17 @@ func (r *Resource) checkAndSetDefaults() error {
 	} else if r.Kind != types.KindDevice {
 		return trace.BadParameter("unexpected resource kind %q, must be %q", r.Kind, types.KindDevice)
 	}
-	if r.Spec == nil {
-		return trace.BadParameter("device must have a spec")
+
+	if _, ok := devicepb.OSType_value[r.Spec.OsType]; !ok {
+		return trace.BadParameter("invalid OS type: %q", r.Spec.OsType)
 	}
-	switch {
-	case r.Version != types.V1:
-		return trace.BadParameter("unsupported resource version %q, %q is currently the only supported version", r.Version, types.V1)
-	case r.Spec.ApiVersion == "":
-		r.Spec.ApiVersion = r.Version
-	case r.Spec.ApiVersion != types.V1:
-		return trace.BadParameter("mismatched resource version %q and spec api version %q", r.Version, r.Spec.ApiVersion)
+
+	if r.Spec.AssetTag == "" {
+		return trace.BadParameter("missing asset tag")
 	}
-	switch {
-	case r.Metadata.Name == "":
-		return trace.BadParameter("device must have a name")
-	case r.Spec.Id == "":
-		r.Spec.Id = r.Metadata.Name
-	case r.Spec.Id != r.Metadata.Name:
-		return trace.BadParameter("mismatched resource name %q and spec id %q", r.Metadata.Name, r.Spec.Id)
+
+	if _, ok := devicepb.DeviceEnrollStatus_value[r.Spec.EnrollStatus]; !ok {
+		return trace.BadParameter("invalid enrollment status: %q", r.Spec.EnrollStatus)
 	}
 
 	return nil
@@ -91,12 +99,46 @@ func ProtoToResource(device *devicepb.Device) *Resource {
 				Name: device.AssetTag,
 			},
 		},
-		Spec: device,
+		Spec: ResourceSpec{
+			OsType:        devicepb.OSType_name[int32(device.OsType)],
+			AssetTag:      device.AssetTag,
+			EnrollToken:   device.EnrollToken,
+			EnrollStatus:  devicepb.DeviceEnrollStatus_name[int32(device.EnrollStatus)],
+			Credential:    device.Credential,
+			CollectedData: device.CollectedData,
+		},
+	}
+
+	if device.CreateTime != nil {
+		r.Spec.CreateTime = device.CreateTime.AsTime()
+	}
+
+	if device.UpdateTime != nil {
+		r.Spec.UpdateTime = device.UpdateTime.AsTime()
 	}
 
 	return r
 }
 
 func resourceToProto(r *Resource) *devicepb.Device {
-	return r.Spec
+	dev := &devicepb.Device{
+		ApiVersion:    r.Version,
+		Id:            r.Metadata.Name,
+		OsType:        devicepb.OSType(devicepb.OSType_value[r.Spec.OsType]),
+		AssetTag:      r.Spec.AssetTag,
+		EnrollToken:   r.Spec.EnrollToken,
+		EnrollStatus:  devicepb.DeviceEnrollStatus(devicepb.DeviceEnrollStatus_value[r.Spec.EnrollStatus]),
+		Credential:    r.Spec.Credential,
+		CollectedData: r.Spec.CollectedData,
+	}
+
+	if !r.Spec.CreateTime.IsZero() {
+		dev.CreateTime = timestamppb.New(r.Spec.CreateTime)
+	}
+
+	if !r.Spec.UpdateTime.IsZero() {
+		dev.UpdateTime = timestamppb.New(r.Spec.UpdateTime)
+	}
+
+	return dev
 }
