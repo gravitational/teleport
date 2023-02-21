@@ -1747,7 +1747,7 @@ func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustService
 		}
 	}
 
-	// If we allow multiple devices and don't have a matching ID, return all devices with a maching asset tag.
+	// If we allow multiple devices and don't have a matching ID, return all devices with a matching asset tag.
 	if allowMultiple {
 		return resp.Devices, nil
 	}
