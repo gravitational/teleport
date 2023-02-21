@@ -184,8 +184,13 @@ func (art *AptRepoTool) recreateExistingRepos(localPublishedPath string) ([]*Rep
 func (art *AptRepoTool) getArtifactRepos() ([]*Repo, error) {
 	logrus.Infoln("Creating or getting Aptly repos for artifact requirements...")
 
+	majorVersion := semver.Major(art.config.artifactVersion)
+	if art.config.targetCloud {
+		majorVersion = "cloud"
+	}
+
 	artifactRepos, err := art.aptly.CreateReposFromArtifactRequirements(art.supportedOSs,
-		art.config.releaseChannel, semver.Major(art.config.artifactVersion))
+		art.config.releaseChannel, majorVersion)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to create or get repos from artifact requirements")
 	}

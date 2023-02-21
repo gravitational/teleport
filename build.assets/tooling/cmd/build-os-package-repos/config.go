@@ -122,6 +122,7 @@ type Config struct {
 	artifactVersion string
 	printHelp       bool
 	releaseChannel  string
+	targetCloud     bool
 }
 
 func NewConfigWithFlagset(fs *flag.FlagSet) *Config {
@@ -137,6 +138,7 @@ func NewConfigWithFlagset(fs *flag.FlagSet) *Config {
 		}
 	})
 	fs.StringVar(&c.releaseChannel, "release-channel", "", "The release channel of the repos that the artifacts should be added to")
+	fs.BoolVar(&c.targetCloud, "target-cloud", false, "True to target a \"cloud\" release channel, false otherewise")
 
 	return c
 }

@@ -264,6 +264,11 @@ func (yrt *YumRepoTool) addArtifacts(bucketArtifactPaths []string, relativeGpgPu
 		return trace.Wrap(err, "failed to get artifacts by architecture")
 	}
 
+	majorVersion := semver.Major(yrt.config.artifactVersion)
+	if yrt.config.targetCloud {
+		majorVersion = "cloud"
+	}
+
 	repoCount := 0
 	for os, osVersions := range yrt.supportedOSs {
 		osPath := path.Join(yrt.config.localBucketPath, os)
@@ -274,7 +279,7 @@ func (yrt *YumRepoTool) addArtifacts(bucketArtifactPaths []string, relativeGpgPu
 					"Teleport",
 					arch,
 					yrt.config.releaseChannel,
-					semver.Major(yrt.config.artifactVersion),
+					majorVersion,
 				)
 				repoPath := path.Join(osPath, relativeRepoPath)
 
