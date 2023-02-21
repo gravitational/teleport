@@ -131,9 +131,12 @@ func (s *PluginsService) GetPlugins(ctx context.Context, withSecrets bool) ([]ty
 // ListPlugins returns a paginated list of plugin instances.
 // StartKey is a resource name, which is the suffix of its key.
 func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
+	// Get at most limit+1 results to determine if there will be a next key.
+	maxLimit := limit + 1
+
 	startKeyBytes := backend.Key(pluginsPrefix, startKey)
 	endKey := backend.RangeEnd(backend.Key(pluginsPrefix, ""))
-	result, err := s.backend().GetRange(ctx, startKeyBytes, endKey, limit)
+	result, err := s.backend().GetRange(ctx, startKeyBytes, endKey, maxLimit)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -151,8 +154,9 @@ func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey st
 	}
 
 	var nextKey string
-	if len(result.Items) == limit {
-		nextKey = backend.NextPaginationKey(plugins[len(plugins)-1])
+	if len(plugins) == maxLimit {
+		nextKey = backend.GetPaginationKey(plugins[len(plugins)-1])
+		plugins = plugins[:limit]
 	}
 
 	return plugins, nextKey, nil
