@@ -58,6 +58,28 @@ export function mergeDeep(target: MergeTarget, ...sources: Array<MergeTarget>) {
   return mergeDeep(target, ...sources);
 }
 
+export function compareArrayObjs(arr1, arr2) {
+  const compareArrays = (arr1, arr2) =>
+    arr1.length === arr2.length &&
+    arr1.every((obj, idx) => compareObjects(obj, arr2[idx]));
+
+  const compareObjects = (obj1, obj2) => {
+    if (!isObject(obj1)) {
+      return false;
+    }
+
+    if (Object.keys(obj1).length) {
+      return (
+        Object.keys(obj1).length === Object.keys(obj2).length &&
+        Object.keys(obj1).every(key => compareObjects(obj1[key], obj2[key]))
+      );
+    } else {
+      return obj1 === obj2;
+    }
+  };
+  return compareArrays(arr1, arr2);
+}
+
 export function isInteger(checkVal: any): boolean {
   return Number.isInteger(checkVal) || checkVal == parseInt(checkVal);
 }
