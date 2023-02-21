@@ -161,6 +161,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 					return nil, trace.BadParameter("missing parameter SnowflakeSession")
 				}
 				collections[resourceKind] = &snowflakeSession{watch: watch, Cache: c}
+			case types.KindSAMLIdPSession:
+				if c.SAMLIdPSession == nil {
+					return nil, trace.BadParameter("missing parameter SAMLIdPSession")
+				}
+				collections[resourceKind] = &samlIdPSession{watch: watch, Cache: c}
 			case types.KindWebSession:
 				if c.WebSession == nil {
 					return nil, trace.BadParameter("missing parameter WebSession")
@@ -1819,6 +1824,83 @@ func (a *snowflakeSession) processEvent(ctx context.Context, event types.Event) 
 }
 
 func (a *snowflakeSession) watchKind() types.WatchKind {
+	return a.watch
+}
+
+//nolint:revive // Because we want this to be IdP.
+type samlIdPSession struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (a *samlIdPSession) erase(ctx context.Context) error {
+	if err := a.samlIdPSessionCache.DeleteAllSAMLIdPSessions(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (a *samlIdPSession) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	var resources []types.WebSession
+	var nextToken string
+	for {
+		var sessions []types.WebSession
+		var err error
+		sessions, nextToken, err = a.SAMLIdPSession.ListSAMLIdPSessions(ctx, 0, nextToken, "")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, sessions...)
+		if nextToken == "" {
+			break
+		}
+	}
+
+	return func(ctx context.Context) error {
+		if err := a.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, resource := range resources {
+			if err := a.samlIdPSessionCache.UpsertSAMLIdPSession(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (a *samlIdPSession) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := a.samlIdPSessionCache.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{
+			SessionID: event.Resource.GetName(),
+		})
+		if err != nil {
+			// Resource could be missing in the cache expired or not created, if the
+			// first consumed event is deleted.
+			if !trace.IsNotFound(err) {
+				a.Logger.WithError(err).Warnf("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.WebSession)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if err := a.samlIdPSessionCache.UpsertSAMLIdPSession(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		a.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (a *samlIdPSession) watchKind() types.WatchKind {
 	return a.watch
 }
 

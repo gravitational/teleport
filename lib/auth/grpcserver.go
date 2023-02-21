@@ -1490,6 +1490,51 @@ func (g *GRPCServer) GetSnowflakeSessions(ctx context.Context, e *emptypb.Empty)
 	}, nil
 }
 
+// GetSAMLIdPSession gets a SAML IdPsession.
+func (g *GRPCServer) GetSAMLIdPSession(ctx context.Context, req *proto.GetSAMLIdPSessionRequest) (*proto.GetSAMLIdPSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	samlSession, err := auth.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{SessionID: req.GetSessionID()})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, ok := samlSession.(*types.WebSessionV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected session type %T", samlSession)
+	}
+
+	return &proto.GetSAMLIdPSessionResponse{
+		Session: sess,
+	}, nil
+}
+
+// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+func (g *GRPCServer) ListSAMLIdPSessions(ctx context.Context, req *proto.ListSAMLIdPSessionsRequest) (*proto.ListSAMLIdPSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions, token, err := auth.ListSAMLIdPSessions(ctx, int(req.PageSize), req.PageToken, req.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make([]*types.WebSessionV2, 0, len(sessions))
+	for _, sess := range sessions {
+		s, ok := sess.(*types.WebSessionV2)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", sess)
+		}
+		out = append(out, s)
+	}
+
+	return &proto.ListSAMLIdPSessionsResponse{Sessions: out, NextPageToken: token}, nil
+}
+
 func (g *GRPCServer) DeleteSnowflakeSession(ctx context.Context, req *proto.DeleteSnowflakeSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1571,6 +1616,31 @@ func (g *GRPCServer) CreateSnowflakeSession(ctx context.Context, req *proto.Crea
 	}, nil
 }
 
+// CreateSAMLIdPSession creates a SAML IdP session.
+func (g *GRPCServer) CreateSAMLIdPSession(ctx context.Context, req *proto.CreateSAMLIdPSessionRequest) (*proto.CreateSAMLIdPSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := auth.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+		SessionID:   req.GetSessionID(),
+		Username:    req.GetUsername(),
+		SAMLSession: req.GetSAMLSession(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, ok := session.(*types.WebSessionV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", session)
+	}
+
+	return &proto.CreateSAMLIdPSessionResponse{
+		Session: sess,
+	}, nil
+}
+
 // DeleteAppSession removes an application web session.
 func (g *GRPCServer) DeleteAppSession(ctx context.Context, req *proto.DeleteAppSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -1609,6 +1679,50 @@ func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *proto.Delet
 	}
 
 	if err := auth.DeleteUserAppSessions(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteSAMLIdPSession removes a SAML IdP session.
+func (g *GRPCServer) DeleteSAMLIdPSession(ctx context.Context, req *proto.DeleteSAMLIdPSessionRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{
+		SessionID: req.GetSessionID(),
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+func (g *GRPCServer) DeleteAllSAMLIdPSessions(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteAllSAMLIdPSessions(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteUserSAMLIdPSessions removes all of a user's SAML IdP sessions.
+func (g *GRPCServer) DeleteUserSAMLIdPSessions(ctx context.Context, req *proto.DeleteUserSAMLIdPSessionsRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteUserSAMLIdPSessions(ctx, req.Username); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
