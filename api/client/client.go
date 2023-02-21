@@ -1264,6 +1264,28 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 	return out, nil
 }
 
+// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+func (c *Client) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	resp, err := c.grpc.ListSAMLIdPSessions(
+		ctx,
+		&proto.ListSAMLIdPSessionsRequest{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+			User:      user,
+		},
+		c.callOpts...,
+	)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	out := make([]types.WebSession, 0, len(resp.GetSessions()))
+	for _, v := range resp.GetSessions() {
+		out = append(out, v)
+	}
+	return out, resp.NextPageToken, nil
+}
+
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
@@ -1296,9 +1318,35 @@ func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	return resp.GetSession(), nil
 }
 
+// CreateSAMLIdPSession creates a SAML IdP session.
+func (c *Client) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
+	resp, err := c.grpc.CreateSAMLIdPSession(ctx, &proto.CreateSAMLIdPSessionRequest{
+		SessionID:   req.SessionID,
+		Username:    req.Username,
+		SAMLSession: req.SAMLSession,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
 // GetSnowflakeSession gets a Snowflake web session.
 func (c *Client) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.GetSnowflakeSession(ctx, &proto.GetSnowflakeSessionRequest{
+		SessionID: req.SessionID,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
+// GetSAMLIdPSession gets a SAML IdP session.
+func (c *Client) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
+	resp, err := c.grpc.GetSAMLIdPSession(ctx, &proto.GetSAMLIdPSessionRequest{
 		SessionID: req.SessionID,
 	}, c.callOpts...)
 	if err != nil {
@@ -1324,6 +1372,14 @@ func (c *Client) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSno
 	return trail.FromGRPC(err)
 }
 
+// DeleteSAMLIdPSession removes a SAML IdP session.
+func (c *Client) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
+	_, err := c.grpc.DeleteSAMLIdPSession(ctx, &proto.DeleteSAMLIdPSessionRequest{
+		SessionID: req.SessionID,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // DeleteAllAppSessions removes all application web sessions.
 func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllAppSessions(ctx, &emptypb.Empty{}, c.callOpts...)
@@ -1336,9 +1392,24 @@ func (c *Client) DeleteAllSnowflakeSessions(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
+// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+func (c *Client) DeleteAllSAMLIdPSessions(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllSAMLIdPSessions(ctx, &emptypb.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // DeleteUserAppSessions deletes all user’s application sessions.
 func (c *Client) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
 	_, err := c.grpc.DeleteUserAppSessions(ctx, req, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteUserSAMLIdPSessions deletes all user’s SAML IdP sessions.
+func (c *Client) DeleteUserSAMLIdPSessions(ctx context.Context, username string) error {
+	req := &proto.DeleteUserSAMLIdPSessionsRequest{
+		Username: username,
+	}
+	_, err := c.grpc.DeleteUserSAMLIdPSessions(ctx, req, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 

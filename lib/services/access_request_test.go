@@ -990,13 +990,13 @@ func TestRolesForResourceRequest(t *testing.T) {
 			desc:               "deny search",
 			currentRoles:       []string{"db-response-team", "deny-db-search"},
 			requestResourceIDs: resourceIDs,
-			expectError:        trace.BadParameter(`user attempted a resource request but does not have any "search_as_roles"`),
+			expectError:        trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user "test-user"`),
 		},
 		{
 			desc:               "deny request",
 			currentRoles:       []string{"db-response-team", "deny-db-request"},
 			requestResourceIDs: resourceIDs,
-			expectError:        trace.BadParameter(`user attempted a resource request but does not have any "search_as_roles"`),
+			expectError:        trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user "test-user"`),
 		},
 		{
 			desc:                 "multi allowed roles",
@@ -1028,7 +1028,7 @@ func TestRolesForResourceRequest(t *testing.T) {
 			desc:               "no allowed roles",
 			currentRoles:       nil,
 			requestResourceIDs: resourceIDs,
-			expectError:        trace.BadParameter(`user attempted a resource request but does not have any "search_as_roles"`),
+			expectError:        trace.AccessDenied(`Resource Access Requests require usable "search_as_roles", none found for user "test-user"`),
 		},
 	}
 	for _, tc := range testCases {

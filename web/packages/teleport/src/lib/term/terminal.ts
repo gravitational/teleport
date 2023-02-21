@@ -16,13 +16,16 @@ limitations under the License.
 import 'xterm/css/xterm.css';
 import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
-import { debounce, Cancelable, isInteger } from 'lodash';
+import { debounce, isInteger } from 'shared/utils/highbar';
+import { WebLinksAddon } from 'xterm-addon-web-links';
 import Logger from 'shared/libs/logger';
 
 import cfg from 'teleport/config';
 
 import { TermEvent } from './enums';
 import Tty from './tty';
+
+import type { DebouncedFunc } from 'shared/utils/highbar';
 
 const logger = Logger.create('lib/term/terminal');
 const DISCONNECT_TXT = 'disconnected';
@@ -39,8 +42,9 @@ export default class TtyTerminal {
   _scrollBack: number;
   _fontFamily: string;
   _fontSize: number;
-  _debouncedResize: (() => void) & Cancelable;
+  _debouncedResize: DebouncedFunc<() => void>;
   _fitAddon = new FitAddon();
+  _webLinksAddon = new WebLinksAddon();
 
   constructor(tty: Tty, options: Options) {
     const { el, scrollBack, fontFamily, fontSize } = options;
@@ -69,6 +73,7 @@ export default class TtyTerminal {
     });
 
     this.term.loadAddon(this._fitAddon);
+    this.term.loadAddon(this._webLinksAddon);
     this.term.open(this._el);
     this._fitAddon.fit();
     this.term.focus();
