@@ -13,7 +13,6 @@
     "ace-builds": "1.4.6",
     "create-react-class": "^15.6.3",
     "cross-env": "5.0.5",
-    "lodash": "^4.17.21",
     "date-fns": "^2.28.0",
     "react": "^16.8.4",
     "react-day-picker": "7.3.2",
