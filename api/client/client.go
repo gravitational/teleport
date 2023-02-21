@@ -2833,7 +2833,7 @@ func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req p
 
 // GetKubernetesResourcesWithFilters is a helper for getting a list of kubernetes resources with optional filtering. In addition to
 // iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
-func GetKubernetesResourcesWithFilters(ctx context.Context, clt kubeproto.KubeServiceClient, req kubeproto.ListKubernetesResourcesRequest) ([]types.ResourceWithLabels, error) {
+func GetKubernetesResourcesWithFilters(ctx context.Context, clt kubeproto.KubeServiceClient, req *kubeproto.ListKubernetesResourcesRequest) ([]types.ResourceWithLabels, error) {
 	var (
 		resources []types.ResourceWithLabels
 		startKey  = req.StartKey
@@ -2854,7 +2854,7 @@ func GetKubernetesResourcesWithFilters(ctx context.Context, clt kubeproto.KubeSe
 
 		resp, err := clt.ListKubernetesResources(
 			ctx,
-			&req,
+			req,
 		)
 		if err != nil {
 			if trace.IsLimitExceeded(err) {
