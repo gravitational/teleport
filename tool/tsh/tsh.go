@@ -2897,9 +2897,11 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 	// Try to construct an access request for this node.
 	req, err := accessRequestForSSH(cf.Context, tc)
 	if err != nil {
-		// We can't request access to the node or it doesn't exist, return the
-		// original error but put this one in the debug log.
-		log.WithError(err).Debug("unable to request access to node")
+		// We can't request access to the node or we couldn't query the ID. Log
+		// a short debug message in case this is unexpected, but return the
+		// original AccessDenied error from the ssh attempt which is likely to
+		// be far more relevant to the user.
+		log.Debugf("Not attempting to automatically request access, reason: %v", err)
 		return trace.Wrap(origErr)
 	}
 	cf.RequestID = req.GetName()

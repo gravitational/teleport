@@ -60,7 +60,7 @@ func (s *DatabaseServicesService) UpsertDatabaseService(ctx context.Context, ser
 		return &types.KeepAlive{}, nil
 	}
 	return &types.KeepAlive{
-		Type:      types.KeepAlive_DATABASE,
+		Type:      types.KeepAlive_DATABASE_SERVICE,
 		LeaseID:   lease.ID,
 		Namespace: apidefaults.Namespace,
 		Name:      service.GetName(),
