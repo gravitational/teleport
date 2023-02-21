@@ -44,16 +44,16 @@ version: v1
 metadata:
   name: xaa
 spec:
-  api_version: v1
-  id: xaa
   asset_tag: mymachine
-  os_type: 2
+  os_type: OS_TYPE_MACOS
+  enroll_status: DEVICE_ENROLL_STATUS_ENROLLED
 `,
 			expected: &devicepb.Device{
-				Id:         "xaa",
-				AssetTag:   "mymachine",
-				OsType:     devicepb.OSType_OS_TYPE_MACOS,
-				ApiVersion: "v1",
+				Id:           "xaa",
+				AssetTag:     "mymachine",
+				OsType:       devicepb.OSType_OS_TYPE_MACOS,
+				ApiVersion:   "v1",
+				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
 			},
 		},
 		{
@@ -65,25 +65,9 @@ version: v1
 metadata:
   name: secretid
 spec:
-  api_version: v1
-  id: secretid
   asset_tag: 4
-  os_type: 2
-`,
-		},
-		{
-			desc:          "wrong api version",
-			errorContains: `unsupported resource version`,
-			input: `---
-kind: device
-version: v2
-metadata:
-  name: secretid
-spec:
-  api_version: v2
-  id: secretid
-  asset_tag: "mymachine"
-  os_type: 2
+  os_type: OS_TYPE_MACOS
+  enroll_status: DEVICE_ENROLL_STATUS_NOT_ENROLLED
 `,
 		},
 	} {
