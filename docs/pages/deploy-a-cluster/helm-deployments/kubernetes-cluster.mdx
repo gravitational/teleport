@@ -414,9 +414,8 @@ NAME                                READY   STATUS    RESTARTS   AGE
 teleport-cluster-auth-5f8587bfd4-p5zv6    1/1     Running   0          48s
 teleport-cluster-proxy-767747dd94-vkxz6   1/1     Running   0          48s
 ```
-If a Pod Status is Pending or not ready use the `kubectl logs` and `kubectl describe` 
-for that pod to check the status. The auth pod relies on being able to allocate a Persistent Volume Claim so that may
-put it in a Pending state if no Persistent Volume is available.
+If a pod's status is `Pending`, use the `kubectl logs` and `kubectl describe` commands 
+for that pod to check the status. The Auth Service pod relies on being able to allocate a Persistent Volume Claim, and may enter a `Pending` state if no Persistent Volume is available.
 
 ## Next steps
 
