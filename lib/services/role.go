@@ -995,28 +995,26 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 	return result
 }
 
-// EnumerateServerLogins works on a given role set to return a minimal description of allowed set of logins.
-// The wildcard selector is ignored, since it is now allowed for server logins
-func (set RoleSet) EnumerateServerLogins(server types.Server) EnumerationResult {
-	result := NewEnumerationResult()
-
-	// gather logins for checking from the roles
-	// no need to check for wildcards
-	var logins []string
+// getAllAllowedServerLogins gets all the allowed server
+// logins for the RoleSet.
+func (set RoleSet) getAllAllowedServerLogins() []string {
+	allowed := []string{}
+	denied := []string{}
 	for _, role := range set {
-		logins = append(logins, role.GetLogins(types.Allow)...)
-		logins = append(logins, role.GetLogins(types.Deny)...)
+		denied = append(denied, role.GetLogins(types.Deny)...)
+		allowed = append(allowed, role.GetLogins(types.Allow)...)
 	}
 
-	logins = apiutils.Deduplicate(logins)
-
-	// check each individual user against the server.
-	for _, user := range logins {
-		err := set.checkAccess(server, AccessState{MFAVerified: true}, NewLoginMatcher(user))
-		result.allowedDeniedMap[user] = err == nil
+	allowed = apiutils.Deduplicate(allowed)
+	denied = apiutils.Deduplicate(denied)
+	serverLogins := []string{}
+	for _, login := range allowed {
+		if isDenied := slices.Contains(denied, login); !isDenied {
+			serverLogins = append(serverLogins, login)
+		}
 	}
 
-	return result
+	return serverLogins
 }
 
 // getAllAllowedWindowsDesktopLogins gets all the allowed windows desktop
@@ -1041,22 +1039,31 @@ func (set RoleSet) getAllAllowedWindowsDesktopLogins() []string {
 	return desktopLogins
 }
 
-// GetWindowsDesktopLogins gets all the windows desktop logins allowed for a given
-// RoleSet-WindowsDesktop combo.
-func (set RoleSet) GetWindowsDesktopLogins(windowsDesktop types.WindowsDesktop) []string {
-	allLogins := set.getAllAllowedWindowsDesktopLogins()
-
+// filterAllowedLoginsByResource takes all the allowed logins for a given resource type (allLogins),
+// a constructor for that resource's login matcher (newLoginMatcher), and an instance of that resource type (resource),
+// and returns a slice of logins filtered for only those which are permitted on the given resource instance.
+func (set RoleSet) filterAllowedLoginsByResource(allLogins []string, newLoginMatcher func(login string) RoleMatcher, resource AccessCheckable) []string {
 	// Filter out any logins that are allowed by a role in the role set,
 	// but for which that role does not apply to the given windowsDesktop.
 	var filteredLogins []string
 	for _, login := range allLogins {
-		err := set.checkAccess(windowsDesktop, AccessState{MFAVerified: true}, NewWindowsLoginMatcher(login))
+		err := set.checkAccess(resource, AccessState{MFAVerified: true}, newLoginMatcher(login))
 		if err == nil {
 			filteredLogins = append(filteredLogins, login)
 		}
 	}
 
 	return filteredLogins
+}
+
+// GetAllowedServerLogins gets all the logins allowed for a given RoleSet-Server combo.
+func (set RoleSet) GetAllowedServerLogins(server types.Server) []string {
+	return set.filterAllowedLoginsByResource(set.getAllAllowedServerLogins(), NewLoginMatcher, server)
+}
+
+// GetAllowedWindowsDesktopLogins gets all the windows desktop logins allowed for a given RoleSet-WindowsDesktop combo.
+func (set RoleSet) GetAllowedWindowsDesktopLogins(windowsDesktop types.WindowsDesktop) []string {
+	return set.filterAllowedLoginsByResource(set.getAllAllowedWindowsDesktopLogins(), NewWindowsLoginMatcher, windowsDesktop)
 }
 
 // MatchNamespace returns true if given list of namespace matches

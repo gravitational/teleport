@@ -75,7 +75,7 @@ func MakeServers(clusterName string, servers []types.Server, userRoles services.
 		serverCmdLabels := server.GetCmdLabels()
 		uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
 
-		serverLogins := userRoles.EnumerateServerLogins(server)
+		serverLogins := userRoles.GetAllowedServerLogins(server)
 
 		uiServers = append(uiServers, Server{
 			ClusterName: clusterName,
@@ -84,7 +84,7 @@ func MakeServers(clusterName string, servers []types.Server, userRoles services.
 			Hostname:    server.GetHostname(),
 			Addr:        server.GetAddr(),
 			Tunnel:      server.GetUseTunnel(),
-			SSHLogins:   serverLogins.Allowed(),
+			SSHLogins:   serverLogins,
 		})
 	}
 
@@ -322,7 +322,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, userRoles services.RoleSet
 
 	uiLabels := makeLabels(windowsDesktop.GetAllLabels())
 
-	logins := userRoles.GetWindowsDesktopLogins(windowsDesktop)
+	logins := userRoles.GetAllowedWindowsDesktopLogins(windowsDesktop)
 
 	return Desktop{
 		OS:     constants.WindowsOS,
