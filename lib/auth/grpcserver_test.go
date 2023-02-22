@@ -1361,7 +1361,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.NoError(t, err)
 					require.Equal(t, webDevID, identity.MFAVerified)
 					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
-					require.True(t, net.ParseIP(identity.ClientIP).IsLoopback())
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
 				},
