@@ -74,7 +74,7 @@ func (r *Resource) checkAndSetDefaults() error {
 
 	if _, err := devicetrust.ResourceEnrollStatusFromString(r.Spec.EnrollStatus); err != nil {
 		r.Spec.EnrollStatus = devicetrust.ResourceEnrollStatusToString(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED)
-		log.Debugf("enroll_status is not set, defaulting to %q", r.Spec.EnrollStatus)
+		log.Debugf("Device Trust: enroll_status is not set, defaulting to %q", r.Spec.EnrollStatus)
 	}
 
 	return nil
