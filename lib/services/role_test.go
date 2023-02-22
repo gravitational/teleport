@@ -3622,6 +3622,11 @@ func TestGetAllowedServerAndWindowsDesktopLogins(t *testing.T) {
 			serverLogins := tc.roleSet.GetAllowedServerLogins(server)
 			desktopLogins := tc.roleSet.GetAllowedWindowsDesktopLogins(desktop)
 
+			// sort lists to prevent occasional flakiness caused by different list order
+			sort.Strings(tc.expectedLogins)
+			sort.Strings(serverLogins)
+			sort.Strings(desktopLogins)
+
 			require.Equal(t, tc.expectedLogins, serverLogins)
 			require.Equal(t, tc.expectedLogins, desktopLogins)
 		})
