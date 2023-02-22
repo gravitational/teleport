@@ -998,35 +998,42 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 // getAllAllowedServerLogins gets all the allowed server
 // logins for the RoleSet.
 func (set RoleSet) getAllAllowedServerLogins() []string {
-	mapped := make(map[string]bool)
-	for _, role := range set {
-		for _, login := range role.GetLogins(types.Allow) {
-			mapped[login] = true
-		}
-		for _, login := range role.GetLogins(types.Deny) {
-			mapped[login] = false
-		}
-	}
-
-	var filtered []string
-	for login, isAllowed := range mapped {
-		if isAllowed {
-			filtered = append(filtered, login)
-		}
-	}
-
-	return filtered
+	return set.mustGetAllAllowedLogins(teleport.ComponentServer)
 }
 
 // getAllAllowedServerLogins gets all the allowed server
 // logins for the RoleSet.
 func (set RoleSet) getAllAllowedWindowsDesktopLogins() []string {
+	return set.mustGetAllAllowedLogins(teleport.ComponentWindowsDesktop)
+}
+
+// mustGetAllAllowedLogins gets all the allowed logins in the RoleSet for a particular resource
+// type, filtering out any that are denied. Currently supports the following values for resourceTypes:
+//
+// - ComponentServer (ssh server)
+//
+// - ComponentWindowsDesktop
+//
+// Passing any other value for resourceType will cause a panic.
+func (set RoleSet) mustGetAllAllowedLogins(resourceType string) []string {
 	mapped := make(map[string]bool)
+
 	for _, role := range set {
-		for _, login := range role.GetWindowsLogins(types.Allow) {
+		var loginGetter func(types.RoleConditionType) []string
+
+		switch resourceType {
+		case teleport.ComponentServer:
+			loginGetter = role.GetLogins
+		case teleport.ComponentWindowsDesktop:
+			loginGetter = role.GetWindowsLogins
+		default:
+			panic(fmt.Sprintf("received unsupported resourceType: %s", resourceType))
+		}
+
+		for _, login := range loginGetter(types.Allow) {
 			mapped[login] = true
 		}
-		for _, login := range role.GetWindowsLogins(types.Deny) {
+		for _, login := range loginGetter(types.Deny) {
 			mapped[login] = false
 		}
 	}
