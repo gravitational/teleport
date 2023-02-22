@@ -1737,7 +1737,7 @@ func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustService
 	case len(resp.Devices) == 0:
 		return nil, trace.NotFound("device %q not found", idOrTag)
 	case len(resp.Devices) == 1:
-		return resp.Devices[:1], nil
+		return resp.Devices, nil
 	}
 
 	// Do we have an ID match?
