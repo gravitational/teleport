@@ -47,6 +47,7 @@ func FriendlyDeviceEnrollStatus(enrollStatus devicepb.DeviceEnrollStatus) string
 	}
 }
 
+// ResourceOSTypeToString converts OSType to a string representation suitable for use in resource fields.
 func ResourceOSTypeToString(osType devicepb.OSType) string {
 	switch osType {
 	case devicepb.OSType_OS_TYPE_LINUX:
@@ -60,6 +61,7 @@ func ResourceOSTypeToString(osType devicepb.OSType) string {
 	}
 }
 
+// ResourceOSTypeFromString converts a string representation of OSType suitable for resource fields to OSType.
 func ResourceOSTypeFromString(osType string) (devicepb.OSType, error) {
 	switch osType {
 	case "linux":
