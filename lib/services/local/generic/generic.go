@@ -19,6 +19,7 @@ package generic
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -170,7 +171,7 @@ func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, 
 
 // CreateResource creates a new resource.
 func (s *Service[T]) CreateResource(ctx context.Context, resource T, name string) error {
-	item, err := s.MakeBackendItem(ctx, resource, name)
+	item, err := s.MakeBackendItem(resource, name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -185,7 +186,7 @@ func (s *Service[T]) CreateResource(ctx context.Context, resource T, name string
 
 // UpdateResource updates an existing resource.
 func (s *Service[T]) UpdateResource(ctx context.Context, resource T, name string) error {
-	item, err := s.MakeBackendItem(ctx, resource, name)
+	item, err := s.MakeBackendItem(resource, name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -195,6 +196,17 @@ func (s *Service[T]) UpdateResource(ctx context.Context, resource T, name string
 		return trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
 	}
 
+	return trace.Wrap(err)
+}
+
+// Upsert upserts a resource.
+func (s *Service[T]) UpsertResource(ctx context.Context, resource T, name string) error {
+	item, err := s.MakeBackendItem(resource, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = s.backend.Put(ctx, item)
 	return trace.Wrap(err)
 }
 
@@ -216,8 +228,45 @@ func (s *Service[T]) DeleteAllResources(ctx context.Context) error {
 	return trace.Wrap(s.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
+// UpdateAndSwapResource will get the resource from the backend, modify it, and swap the new value into the backend.
+func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, modify func(T) error) error {
+	key := backend.Key(s.backendPrefix, name)
+	item, err := s.backend.Get(ctx, key)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
+		}
+		return trace.Wrap(err)
+	}
+
+	resource, err := s.unmarshalFunc(item.Value,
+		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = modify(resource)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	value, err := s.marshalFunc(resource)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = s.backend.CompareAndSwap(ctx, *item, backend.Item{
+		Key:     backend.Key(s.backendPrefix, name),
+		Value:   value,
+		Expires: resource.Expiry(),
+		ID:      resource.GetResourceID(),
+	})
+
+	return trace.Wrap(err)
+}
+
 // MakeBackendItem will check and make the backend item.
-func (s *Service[T]) MakeBackendItem(ctx context.Context, resource T, name string) (backend.Item, error) {
+func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, error) {
 	if err := resource.CheckAndSetDefaults(); err != nil {
 		return backend.Item{}, trace.Wrap(err)
 	}
@@ -233,4 +282,9 @@ func (s *Service[T]) MakeBackendItem(ctx context.Context, resource T, name strin
 	}
 
 	return item, nil
+}
+
+// RunWhileLocked will run the given function in a backend lock. This is a wrapper around the backend.RunWhileLocked function.
+func (s *Service[T]) RunWhileLocked(ctx context.Context, lockName string, ttl time.Duration, fn func(ctx context.Context) error) error {
+	return trace.Wrap(backend.RunWhileLocked(ctx, s.backend, lockName, ttl, fn))
 }
