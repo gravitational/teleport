@@ -33,11 +33,11 @@ type License interface {
 	GetReportsUsage() Bool
 	// SetReportsUsage sets the Houston usage reporting flag.
 	SetReportsUsage(Bool)
-	// GetUsageReporting returns true if the Teleport cluster should report
-	// usage to Sales Center.
-	GetUsageReporting() Bool
-	// SetUsageReporting sets the Sales Center usage reporting flag.
-	SetUsageReporting(Bool)
+	// GetSalesCenterReporting returns true if the Teleport cluster should
+	// report usage to Sales Center.
+	GetSalesCenterReporting() Bool
+	// SetSalesCenterReporting sets the Sales Center usage reporting flag.
+	SetSalesCenterReporting(Bool)
 
 	// GetCloud returns true if teleport cluster is hosted by Gravitational
 	GetCloud() Bool
@@ -217,10 +217,10 @@ func (c *LicenseV3) GetReportsUsage() Bool {
 	return c.Spec.ReportsUsage
 }
 
-// GetUsageReporting returns true if the Teleport cluster should report usage to
-// Sales Center.
-func (c *LicenseV3) GetUsageReporting() Bool {
-	return c.Spec.UsageReporting
+// GetSalesCenterReporting returns true if the Teleport cluster should report
+// usage to Sales Center.
+func (c *LicenseV3) GetSalesCenterReporting() Bool {
+	return c.Spec.SalesCenterReporting
 }
 
 // GetCloud returns true if teleport cluster is hosted by Gravitational
@@ -238,9 +238,9 @@ func (c *LicenseV3) SetReportsUsage(reports Bool) {
 	c.Spec.ReportsUsage = reports
 }
 
-// SetUsageReporting sets the Sales Center usage reporting flag.
-func (c *LicenseV3) SetUsageReporting(reports Bool) {
-	c.Spec.UsageReporting = reports
+// SetSalesCenterReporting sets the Sales Center usage reporting flag.
+func (c *LicenseV3) SetSalesCenterReporting(reports Bool) {
+	c.Spec.SalesCenterReporting = reports
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -432,8 +432,8 @@ type LicenseSpecV3 struct {
 	SupportsDesktopAccess Bool `json:"desktop,omitempty"`
 	// ReportsUsage turns Houston usage reporting on or off
 	ReportsUsage Bool `json:"usage,omitempty"`
-	// UsageReporting turns Sales Center usage reporting on or off
-	UsageReporting Bool `json:"reporting,omitempty"`
+	// SalesCenterReporting turns Sales Center usage reporting on or off
+	SalesCenterReporting Bool `json:"reporting,omitempty"`
 	// Cloud is turned on when teleport is hosted by Gravitational
 	Cloud Bool `json:"cloud,omitempty"`
 	// SupportsModeratedSessions turns on moderated sessions

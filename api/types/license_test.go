@@ -28,7 +28,7 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 	// All getters inspected in this test.
 	allFields := []func(License) Bool{
 		License.GetReportsUsage,
-		License.GetUsageReporting,
+		License.GetSalesCenterReporting,
 		License.GetCloud,
 		License.GetSupportsKubernetes,
 		License.GetSupportsApplicationAccess,
@@ -65,10 +65,10 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 			unsetFields: unsetFields(License.GetReportsUsage),
 		},
 		{
-			name:        "Set UsageReporting",
-			setter:      License.SetUsageReporting,
-			getter:      License.GetUsageReporting,
-			unsetFields: unsetFields(License.GetUsageReporting),
+			name:        "Set SalesCenterReporting",
+			setter:      License.SetSalesCenterReporting,
+			getter:      License.GetSalesCenterReporting,
+			unsetFields: unsetFields(License.GetSalesCenterReporting),
 		},
 		{
 			name:        "Set Cloud",
@@ -146,7 +146,7 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 	license := &LicenseV3{}
 	require.True(t, bool(license.GetSupportsApplicationAccess()))
 	require.False(t, bool(license.GetReportsUsage()))
-	require.False(t, bool(license.GetUsageReporting()))
+	require.False(t, bool(license.GetSalesCenterReporting()))
 	require.False(t, bool(license.GetCloud()))
 	require.False(t, bool(license.GetSupportsKubernetes()))
 	require.False(t, bool(license.GetSupportsDatabaseAccess()))
