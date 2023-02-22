@@ -710,6 +710,11 @@ func (h *Handler) GetProxyClient() auth.ClientI {
 	return h.cfg.ProxyClient
 }
 
+// GetAccessPoint returns the caching access point.
+func (h *Handler) GetAccessPoint() auth.ProxyAccessPoint {
+	return h.cfg.AccessPoint
+}
+
 // Close closes associated session cache operations
 func (h *Handler) Close() error {
 	return h.auth.Close()

@@ -104,6 +104,9 @@ spec:
             - wait
             - no-resolve
             - '{{ include "teleport-cluster.auth.previousVersionServiceName" . }}.{{ .Release.Namespace }}.svc.cluster.local'
+{{- if $proxy.securityContext }}
+          securityContext: {{- toYaml $proxy.securityContext | nindent 12 }}
+{{- end }}
 {{- if $proxy.initContainers }}
   {{- range $initContainer := $proxy.initContainers }}
     {{- if and (not $initContainer.resources) $proxy.resources }}

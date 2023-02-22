@@ -582,7 +582,7 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 }
 
 func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress clusters.FileTransferProgressSender) error {
-	cluster, err := s.ResolveCluster(request.GetClusterUri())
+	cluster, err := s.ResolveCluster(request.GetServerUri())
 	if err != nil {
 		return trace.Wrap(err)
 	}

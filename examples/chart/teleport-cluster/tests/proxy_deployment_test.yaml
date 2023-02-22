@@ -186,6 +186,41 @@ tests:
       - isNull:
           path: spec.template.spec.containers[0].securityContext
 
+  - it: should set securityContext for initContainers when set in values
+    template: proxy/deployment.yaml
+    values:
+      - ../.lint/security-context.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.privileged
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.readOnlyRootFilesystem
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsGroup
+          value: 99
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 99
+      - matchSnapshot:
+          path: spec.template.spec
+
+
+  - it: should not set securityContext for initContainers when is empty object (default value)
+    template: proxy/deployment.yaml
+    values:
+      - ../.lint/security-context-empty.yaml
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers[0].securityContext
+
   # we can't use the dynamic chart version or appVersion as a variable in the tests,
   # so we override it manually and check that gets set instead
   # this saves us having to update the test every time we cut a new release
