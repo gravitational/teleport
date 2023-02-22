@@ -4861,6 +4861,87 @@ func (g *GRPCServer) DeleteAllSAMLIdPServiceProviders(ctx context.Context, _ *em
 	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllSAMLIdPServiceProviders(ctx))
 }
 
+// ListUserGroups returns a paginated list of user group resources.
+func (g *GRPCServer) ListUserGroups(ctx context.Context, req *proto.ListUserGroupsRequest) (*proto.ListUserGroupsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userGroups, nextKey, err := auth.ListUserGroups(ctx, int(req.GetLimit()), req.GetNextKey())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userGroupsV1 := make([]*types.UserGroupV1, len(userGroups))
+	for i, g := range userGroups {
+		v1, ok := g.(*types.UserGroupV1)
+		if !ok {
+			return nil, trace.BadParameter("unexpected user group type %T", g)
+		}
+		userGroupsV1[i] = v1
+	}
+
+	return &proto.ListUserGroupsResponse{
+		UserGroups: userGroupsV1,
+		NextKey:    nextKey,
+	}, nil
+}
+
+// GetUserGroup returns the specified user group resources.
+func (g *GRPCServer) GetUserGroup(ctx context.Context, req *proto.GetUserGroupRequest) (*types.UserGroupV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sp, err := auth.GetUserGroup(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serviceProviderV1, ok := sp.(*types.UserGroupV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected user group type %T", sp)
+	}
+
+	return serviceProviderV1, nil
+}
+
+// CreateUserGroup creates a new user group resource.
+func (g *GRPCServer) CreateUserGroup(ctx context.Context, sp *types.UserGroupV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.CreateUserGroup(ctx, sp))
+}
+
+// UpdateUserGroup updates an existing user group resource.
+func (g *GRPCServer) UpdateUserGroup(ctx context.Context, sp *types.UserGroupV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.UpdateUserGroup(ctx, sp))
+}
+
+// DeleteUserGroup removes the specified user group resource.
+func (g *GRPCServer) DeleteUserGroup(ctx context.Context, req *proto.DeleteUserGroupRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.DeleteUserGroup(ctx, req.GetName()))
+}
+
+// DeleteAllUserGroups removes all user groups.
+func (g *GRPCServer) DeleteAllUserGroups(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllUserGroups(ctx))
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
