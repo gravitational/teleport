@@ -127,14 +127,6 @@ export function DiscoverDesktops() {
 
   const ref = useRef<HTMLDivElement>();
 
-  function handleNextStep() {
-    emitEvent(
-      { stepStatus: DiscoverEventStatus.Success },
-      { autoDiscoverResourcesCount: result.agents.length }
-    );
-    nextStep();
-  }
-
   const desktops = [];
 
   if (result && result.agents) {
@@ -144,12 +136,12 @@ export function DiscoverDesktops() {
 
     if (foundDesktops.length) {
       for (const desktop of foundDesktops.values()) {
-        const os = desktop.labels.find(
-          label => label.name === 'teleport.dev/os'
-        ).value;
-        const osVersion = desktop.labels.find(
-          label => label.name === 'teleport.dev/os_version'
-        ).value;
+        const os =
+          desktop.labels.find(label => label.name === 'teleport.dev/os')
+            ?.value || 'unknown os';
+        const osVersion =
+          desktop.labels.find(label => label.name === 'teleport.dev/os_version')
+            ?.value || 'unknown version';
 
         desktops.push({
           os,
@@ -159,6 +151,14 @@ export function DiscoverDesktops() {
         });
       }
     }
+  }
+
+  function handleNextStep() {
+    emitEvent(
+      { stepStatus: DiscoverEventStatus.Success },
+      { autoDiscoverResourcesCount: desktops.length }
+    );
+    nextStep();
   }
 
   const items = desktops
