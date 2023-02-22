@@ -1,5 +1,8 @@
 {{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- if $proxy.validateConfigOnDeploy }}
+{{- if not $proxy.proxy.teleportConfig -}}
+{{- fail "'proxy.teleportConfig' is required in scratch mode" }}
+{{- end -}}
 {{- $configTemplate := printf "teleport-cluster.proxy.config.%s" $proxy.chartMode -}}
 apiVersion: v1
 kind: ConfigMap
