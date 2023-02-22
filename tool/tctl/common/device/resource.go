@@ -44,7 +44,7 @@ type ResourceSpec struct {
 	CreateTime  time.Time                   `json:"create_time,omitempty"`
 	UpdateTime  time.Time                   `json:"update_time,omitempty"`
 	EnrollToken *devicepb.DeviceEnrollToken `json:"enroll_token,omitempty"`
-	// OsType is represented as a string here for user-friendly manipulation.
+	// EnrollStatus is represented as a string here for user-friendly manipulation.
 	EnrollStatus  string                          `json:"enroll_status"`
 	Credential    *devicepb.DeviceCredential      `json:"credential,omitempty"`
 	CollectedData []*devicepb.DeviceCollectedData `json:"collected_data,omitempty"`
