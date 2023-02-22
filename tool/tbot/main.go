@@ -19,9 +19,17 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/bufbuild/connect-go"
+	"github.com/google/uuid"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	"github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -229,6 +237,13 @@ func onStart(botConfig *config.BotConfig) error {
 	defer cancel()
 
 	go handleSignals(log, reloadChan, cancel)
+	go func() {
+		if err := sendTelemetry(ctx, log, botConfig); err != nil {
+			log.WithError(err).Error(
+				"Failed to send anonymous telemetry.",
+			)
+		}
+	}()
 
 	b := tbot.New(botConfig, log, reloadChan)
 	return trace.Wrap(b.Run(ctx))
@@ -250,4 +265,62 @@ func handleSignals(log logrus.FieldLogger, reload chan struct{}, cancel context.
 			reload <- struct{}{}
 		}
 	}
+}
+
+// sendTelemetry sends the anonymous on start Telemetry event.
+// It is imperative that this code does not send any user or teleport instance
+// identifiable information.
+func sendTelemetry(ctx context.Context, log logrus.FieldLogger, cfg *config.BotConfig) error {
+	env := os.Getenv("TELEPORT_ANONYMOUS_TELEMETRY")
+	telemetryEnabled := false
+	if val, err := strconv.ParseBool(env); err == nil {
+		telemetryEnabled = val
+	}
+
+	if !telemetryEnabled {
+		// TODO(noah): Have this not be a placeholder message
+		log.Warn("no telemetry placeholder message")
+		return nil
+	}
+	log.Warn("telemetry enabled placeholder message")
+
+	data := &v1alpha.TbotStartEvent{
+		RunMode: v1alpha.TbotStartEvent_RUN_MODE_UNSPECIFIED,
+		// Default to reporting the "token" join method to account for
+		// scenarios where initial join has onboarding configured but future
+		// starts renew using credentials.
+		JoinType: string(types.JoinMethodToken),
+		Version:  teleport.Version,
+		/**
+		Helper:                  "",
+		HelperVersion:           "",*/
+	}
+	if cfg.Onboarding != nil && cfg.Onboarding.JoinMethod != "" {
+		data.JoinType = string(cfg.Onboarding.JoinMethod)
+	}
+	for _, dest := range cfg.Destinations {
+		switch {
+		case dest.App != nil:
+			data.DestinationsApplication++
+		case dest.Database != nil:
+			data.DestinationsDatabase++
+		case dest.KubernetesCluster != nil:
+			data.DestinationsKubernetes++
+		default:
+			data.DestinationsOther++
+		}
+	}
+
+	// TODO: Determine base URL and allow overriding it
+	client := v1alphaconnect.NewTbotReportingServiceClient(http.DefaultClient, "")
+	_, err := client.SubmitTbotEvent(ctx, connect.NewRequest(&v1alpha.SubmitTbotEventRequest{
+		DistinctId: uuid.New().String(),
+		Timestamp:  timestamppb.Now(),
+		Event:      &v1alpha.SubmitTbotEventRequest_Start{Start: data},
+	}))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
