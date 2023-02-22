@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
@@ -947,6 +948,9 @@ type Auth struct {
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
+
+	// Plugins configures the hosted plugins runtime
+	Plugins Plugins `yaml:"plugins,omitempty"`
 }
 
 // hasCustomNetworkingConfig returns true if any of the networking
@@ -1255,6 +1259,48 @@ type DeviceTrust struct {
 func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 	return &types.DeviceTrust{
 		Mode: dt.Mode,
+	}, nil
+}
+
+// Plugins defines 'auth_service/plugins' Enterprise extension
+type Plugins struct {
+	Enabled        bool                 `yaml:"enabled"`
+	OAuthProviders PluginOAuthProviders `yaml:"oauth_providers,omitempty"`
+}
+
+// PluginOAuthProviders holds application credentials for each
+// 3rd party API provider.
+type PluginOAuthProviders struct {
+	Slack *OAuthClientCredentials `yaml:"slack,omitempty"`
+}
+
+func (p *PluginOAuthProviders) Parse() (service.PluginOAuthProviders, error) {
+	out := service.PluginOAuthProviders{}
+	if p.Slack == nil {
+		return out, trace.BadParameter("when plugin runtime is enabled, at least one plugin provider must be specified")
+	}
+
+	slack, err := p.Slack.Parse()
+	if err != nil {
+		return out, trace.Wrap(err)
+	}
+	out.Slack = slack
+	return out, nil
+}
+
+// OAuthClientCredentials hold client credentials for Teleport's OAuth app.
+type OAuthClientCredentials struct {
+	ClientID     string `yaml:"client_id"`
+	ClientSecret string `yaml:"client_secret"`
+}
+
+func (o *OAuthClientCredentials) Parse() (*oauth2.ClientCredentials, error) {
+	if o.ClientID == "" || o.ClientSecret == "" {
+		return nil, trace.BadParameter("Both client_id and client_secret must be specified")
+	}
+	return &oauth2.ClientCredentials{
+		ID:     o.ClientID,
+		Secret: o.ClientSecret,
 	}, nil
 }
 

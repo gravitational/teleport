@@ -3320,3 +3320,123 @@ func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
 		})
 	}
 }
+
+func TestAuthPlugins(t *testing.T) {
+	t.Parallel()
+
+	badParameter := func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		require.Error(t, err)
+		require.True(t, trace.IsBadParameter(err), `expected "bad parameter", but got %v`, err)
+	}
+
+	tests := []struct {
+		desc     string
+		config   string
+		readErr  require.ErrorAssertionFunc
+		applyErr require.ErrorAssertionFunc
+		assert   func(t *testing.T, p service.PluginsConfig)
+	}{
+		{
+			desc: "Plugins disabled by default",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: require.NoError,
+			assert: func(t *testing.T, p service.PluginsConfig) {
+				require.False(t, p.Enabled)
+			},
+		},
+		{
+			desc: "Plugins enabled but zero providers defined",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  plugins:",
+				"    enabled: yes",
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: badParameter,
+		},
+		{
+			desc: "Unknown OAuth provider specified",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      acmecorp:",
+				"        client_id: foo",
+				"        client_secret: bar",
+			}, "\n"),
+			readErr:  require.Error,
+			applyErr: require.NoError,
+		},
+		{
+			desc: "OAuth client ID without the secret",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      slack:",
+				"        client_id: foo",
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: badParameter,
+		},
+		{
+			desc: "OAuth client secret without the ID",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      slack:",
+				"        client_secret: bar",
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: badParameter,
+		},
+		{
+			desc: "OAuth provider correctly defined",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"",
+				"  plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      slack:",
+				"        client_id: foo",
+				"        client_secret: bar",
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: require.NoError,
+			assert: func(t *testing.T, p service.PluginsConfig) {
+				require.True(t, p.Enabled)
+				require.NotNil(t, p.OAuthProviders.Slack)
+				require.Equal(t, "foo", p.OAuthProviders.Slack.ID)
+				require.Equal(t, "bar", p.OAuthProviders.Slack.Secret)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			conf, err := ReadConfig(bytes.NewBufferString(tc.config))
+			tc.readErr(t, err)
+
+			cfg := service.MakeDefaultConfig()
+			err = ApplyFileConfig(conf, cfg)
+			tc.applyErr(t, err)
+			if tc.assert != nil {
+				tc.assert(t, cfg.Auth.Plugins)
+			}
+		})
+	}
+}
