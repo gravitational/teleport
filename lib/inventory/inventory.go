@@ -96,7 +96,7 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryH
 	}
 	go handle.run(fn, hello)
 	go func() {
-		agentMetadataCh <- fetchAgentMetadata(ctx, hello)
+		agentMetadataCh <- fetchAgentMetadata(&fetchConfig{ctx: ctx, hello: hello})
 	}()
 	return handle
 }
