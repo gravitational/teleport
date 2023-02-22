@@ -34,22 +34,16 @@ type Resource struct {
 }
 
 // ResourceSpec is the device resource specification.
+// This spec is intended to closely mirror `devicepb.Device` but swaps some data around
+// to get a UX that matches with our other resource types.
 type ResourceSpec struct {
-	// OsType is the device's operating system type.
-	OsType string `json:"os_type"`
-	// AssetTag is the device's asset tag.
-	AssetTag string `json:"asset_tag"`
-	// CreateTime is the time the device was created.
-	CreateTime time.Time `json:"create_time,omitempty"`
-	// UpdateTime is the time the device was last updated.
-	UpdateTime time.Time `json:"update_time,omitempty"`
-	// EnrollToken is the device's enrollment token.
-	EnrollToken *devicepb.DeviceEnrollToken `json:"enroll_token,omitempty"`
-	// EnrollStatus is the device's enrollment status.
-	EnrollStatus string `json:"enroll_status"`
-	// Credential is the device's credential.
-	Credential *devicepb.DeviceCredential `json:"credential,omitempty"`
-	// CollectedData is the device's collected data.
+	OsType        string                          `json:"os_type"`
+	AssetTag      string                          `json:"asset_tag"`
+	CreateTime    time.Time                       `json:"create_time,omitempty"`
+	UpdateTime    time.Time                       `json:"update_time,omitempty"`
+	EnrollToken   *devicepb.DeviceEnrollToken     `json:"enroll_token,omitempty"`
+	EnrollStatus  string                          `json:"enroll_status"`
+	Credential    *devicepb.DeviceCredential      `json:"credential,omitempty"`
 	CollectedData []*devicepb.DeviceCollectedData `json:"collected_data,omitempty"`
 }
 
@@ -75,7 +69,7 @@ func (r *Resource) checkAndSetDefaults() error {
 	}
 
 	if _, ok := devicepb.DeviceEnrollStatus_value[r.Spec.EnrollStatus]; !ok {
-		return trace.BadParameter("invalid enrollment status: %q", r.Spec.EnrollStatus)
+		r.Spec.EnrollStatus = devicepb.DeviceEnrollStatus_name[int32(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED)]
 	}
 
 	return nil
