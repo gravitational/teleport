@@ -372,6 +372,10 @@ the user will be unassigned from these. As mentioned above, this will only happe
 no other active `OktaAssignment` objects for a particular resource, otherwise the
 `OktaAssignment` will be marked as `CLEANED_UP` without taking any action in the Okta API.
 
+The `OktaAssignment` objects will be deleted after 24 hours in the `CLEANED_UP` state. If the
+clean up fails for any reason, the failure will be noted in the audit logs and a notification
+should be sent through the notification mechanisms configured for Okta access requests.
+
 #### Note about Okta administration workflows
 
 For approving temporary access, Teleport will assign users to groups and applications independently of
