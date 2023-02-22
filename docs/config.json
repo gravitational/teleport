@@ -312,14 +312,30 @@
             }
           ]
         },
+		{
+          "title": "Login Rules",
+          "slug": "/access-controls/login-rules/",
+          "forScopes": ["enterprise", "oss", "cloud"],
+          "entries": [
+            {
+              "title": "Set Up Login Rules",
+              "slug": "/access-controls/login-rules/guide/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Login Rules Reference",
+              "slug": "/access-controls/login-rules/reference/",
+              "forScopes": ["enterprise", "cloud"]
+            }
+		  ]
+		},
         {
           "title": "Access Requests",
           "slug": "/access-controls/access-requests/",
           "entries": [
             {
               "title": "Role Requests",
-              "slug": "/access-controls/access-requests/role-requests/",
-              "forScopes": ["enterprise", "cloud"]
+              "slug": "/access-controls/access-requests/role-requests/"
             },
             {
               "title": "Resource Requests",
@@ -1295,7 +1311,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "11.3.2",
+      "version": "11.3.4",
       "major_version": "11",
       "sla": {
         "monthly_percentage": "99.5%",

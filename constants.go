@@ -431,9 +431,9 @@ const (
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	CertExtensionPreviousIdentityExpires = "prev-identity-expires"
-	// CertExtensionClientIP is used to embed the IP of the client that created
+	// CertExtensionLoginIP is used to embed the IP of the client that created
 	// the certificate.
-	CertExtensionClientIP = "client-ip"
+	CertExtensionLoginIP = "login-ip"
 	// CertExtensionImpersonator is set when one user has requested certificates
 	// for another user
 	CertExtensionImpersonator = "impersonator"

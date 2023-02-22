@@ -18,7 +18,7 @@ import (
 	"net"
 	"time"
 
-	streamutils "github.com/gravitational/teleport/lib/utils/grpc/stream"
+	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 )
 
 // streamConn wraps [streamutils.ReadWriter] in a [net.Conn] interface.

@@ -411,7 +411,7 @@ func (c *Client) UpdateUserCARoleMap(ctx context.Context, name string, roleMap t
 }
 
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
-// which was previously issued via GenerateToken.
+// which was previously issued via CreateToken/UpsertToken.
 func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -1275,6 +1275,11 @@ func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) e
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpsertSAMLIdPSession not implemented: can only be called locally.
+func (c *Client) UpsertSAMLIdPSession(_ context.Context, _ types.WebSession) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // ResumeAuditStream resumes existing audit stream.
 func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	return c.APIClient.ResumeAuditStream(ctx, string(sid), uploadID)
@@ -1450,16 +1455,6 @@ type IdentityService interface {
 	// ChangePassword changes user password
 	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
 
-	// GenerateToken creates a special provisioning token for a new SSH server
-	// that is valid for ttl period seconds.
-	//
-	// This token is used by SSH server to authenticate with Auth server
-	// and get signed certificate and private key from the auth server.
-	//
-	// If token is not supplied, it will be auto generated and returned.
-	// If TTL is not supplied, token will be valid until removed.
-	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
-
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the
 	// resulting certificate.
@@ -1589,11 +1584,13 @@ type ClientI interface {
 	services.Kubernetes
 	services.WindowsDesktops
 	services.SAMLIdPServiceProviders
+	services.UserGroups
 	WebService
 	services.Status
 	services.ClusterConfiguration
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
+	services.SAMLIdPSession
 	types.Events
 
 	types.WebSessionsGetter
@@ -1658,6 +1655,10 @@ type ClientI interface {
 	// CreateSnowflakeSession creates a Snowflake web session. Snowflake web
 	// sessions represent Database Access Snowflake session the client holds.
 	CreateSnowflakeSession(context.Context, types.CreateSnowflakeSessionRequest) (types.WebSession, error)
+
+	// CreateSAMLIdPSession creates a SAML IdP. SAML IdP sessions represent
+	// sessions created by the SAML identity provider.
+	CreateSAMLIdPSession(context.Context, types.CreateSAMLIdPSessionRequest) (types.WebSession, error)
 
 	// GenerateDatabaseCert generates client certificate used by a database
 	// service to authenticate with the database instance.

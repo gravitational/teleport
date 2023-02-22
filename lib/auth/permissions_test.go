@@ -43,6 +43,9 @@ func TestContextLockTargets(t *testing.T) {
 			Identity: tlsca.Identity{
 				Username: "node.cluster",
 				Groups:   []string{"role1", "role2"},
+				DeviceExtensions: tlsca.DeviceExtensions{
+					DeviceID: "device1",
+				},
 			},
 		},
 		UnmappedIdentity: WrapIdentity(tlsca.Identity{
@@ -57,6 +60,7 @@ func TestContextLockTargets(t *testing.T) {
 		{Role: "role1"},
 		{Role: "role2"},
 		{Role: "mapped-role"},
+		{Device: "device1"},
 	}
 	require.ElementsMatch(t, authContext.LockTargets(), expected)
 }
@@ -71,7 +75,7 @@ func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, role, err := CreateUserAndRole(srv.AuthServer, "test-user", []string{})
+	user, role, err := CreateUserAndRole(srv.AuthServer, "test-user", []string{}, nil)
 	require.NoError(t, err)
 	localUser := LocalUser{
 		Username: user.GetName(),
@@ -191,7 +195,7 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 	authServer := testServer.AuthServer
 	ctx := context.Background()
 
-	user, role, err := CreateUserAndRole(authServer, "llama", []string{"llama"})
+	user, role, err := CreateUserAndRole(authServer, "llama", []string{"llama"}, nil)
 	require.NoError(t, err, "CreateUserAndRole")
 
 	userWithoutExtensions := LocalUser{

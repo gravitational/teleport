@@ -23,12 +23,3 @@ package utils
 func getPlatformLockFilePath(path string) string {
 	return path
 }
-
-func unlockWrapper(unlockFn func() error, path string) func() error {
-	return func() error {
-		if unlockFn == nil {
-			return nil
-		}
-		return unlockFn()
-	}
-}
