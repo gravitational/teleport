@@ -15,33 +15,30 @@ access module.
 
 ## Why
 
-We want to improve user experiance when using the desktop access module. Currently the main issue
-is insufficent performance of the video rendering which results in choppier experience or noticeable stuttering. Each frame in the RDP protocol consists of (in most cases) 64x64 pixel bitmaps that are assembeld into the full frame. All of these bitmaps needs to be send by the server, received and processed by the client. There are different ways in which we can reduce time to render a frame.
-One of the ways is to reduce number of bitmaps that we need to send over the wire. The other way is to reduce the time to process individual bitmap. In this document we'll discuss some solutions that might fix these problems.
+We want to improve user experience when using the desktop access module. Currently the main issue
+is insufficient performance of the video rendering which results in choppier experience or noticeable stuttering. Each frame in the RDP protocol as we're currently using it consists of (in most cases) 64x64 pixel bitmaps that are assembled into the full screen image. All of these bitmaps needs to be sent by the server, and received and processed by the client. There are different settings we can apply to RDP, which can be classified into two general ways in which we can reduce the time needed to render a frame.
+One of the ways is to reduce the amount of data that we need to send over the wire. The other way is to reduce the time required to process that data. In this document we'll discuss some solutions that achieve these goals.
 
 
 ### RDP Bitmap caching
 
-One of the ways to improve the performance of Teleport Desktop Access is to reduce the amount of data sent between the proxy and the web browser and to reduce the number of messages with bitmap data that needs processing. One RDP protocol extensions address the problem of reducing latency and bandwidth usage. It's called [[MS-RDPEGDI] Remote Desktop Protocol: Graphics Device Interface (GDI) Acceleration Extensions](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/745f2eee-d110-464c-8aca-06fc1814f6ad)
+One of the ways to reduce the amount of data sent between the proxy and the web browser is to reduce the number of messages with bitmap data that need processing. The RDP protocol extension [[MS-RDPEGDI] Remote Desktop Protocol: Graphics Device Interface (GDI) Acceleration Extensions](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/745f2eee-d110-464c-8aca-06fc1814f6ad) achieves this end by encoding the drawing operations that produce an image instead of always sending the actual bitmap data. Multiple drawing operations are introduced in this extension, but this document focuses on only two operations that interact with the bitmap caches.
 
-This extension reduces bandwidth usage by encoding the drawing operations that produce an image instead of sending the actual bitmap data. Multiple drawing operations are introduced in this extension, but this document focuses on only two operations that interact with the bitmap caches. The server and the client uses bitmap caches to store graphic bitmaps.
+The way it works is both the server and the client has a bitmap cache, and it's the server responsibility to control the contents of both bitmap caches. The server can either instruct the client to store bitmap data in the cache, or to load stored data from the cache and render in on the screen. This means that the bitmaps in the cache can be rendered multiple times without the need to send the same (bulky) data over the wire each time. On top of that, a single message from the RDP server can contain tens or even hundreds of drawing operations. Together, this system can significantly reduce the latency and bandwidth usage of the RDP connection.
 
-The way it works is both the server and the client has a bitmap cache, but it's the server responsibility to control the contents of both bitmap caches. The server can instruct the client to store bitmap data inside a bitmap cache. It can also tell the client to load stored data from the cache and render in on the screen. The main benefit of this architecture is that the stored bitmap data in the bitmap cache can be loaded and rendered multiple times without the need to send data over again. Only the render bitmap operation from the cache needs have to be transmited over the wire. On top of that single message from the RDP server can contain tens or even hundreds of drawing operations. It can significantly reduce the latency and bandwidth usage.
-
-There are two types of caches specified in the extension. The first one, called `Revision 1` only support memory-based caching and defaults to 6MB of cache storage for 32bpp bitmaps. The other one, called `Revision 2` support persistent disk caching in addition to memory caching and defaults to 40MB of cache storage for 32bpp bitmaps.
-Our choice for a support of caching is to support `Revision 2` cache since it allows to store more data inside its cache.
+There are two types of caches specified in the extension. The first one, called `Revision 1`, only supports memory-based caching and defaults to 6MB of cache storage for 32bpp bitmaps. The other one, called `Revision 2`, supports persistent disk caching in addition to memory caching and defaults to 40MB of cache storage for 32bpp bitmaps.
+Given that our clients can afford a 40MB cache, the obvious choice is to support `Revision 2` cache since it allows to store more data inside its cache, and thus lower bandwidth overall.
 
 #### How it works on the protocol level?
 
-Two new types of messages needs to be handled by our library in order to enable support for bitmap caching. Message which stores bitmap data inside a bitmap cache, called `Cache Bitmap - Revision 2` and message which renders stored bitmap data in the bitmap cache, called `MemBlt`.
-Message which stores bitmap data inside a bitmap cache contains bitmap data and cache index generated by the server. On the other hand, operation that renders the bitmap only has cache index and position on the screen where to render the bitmap.
-The flow of the messages is controlled by the server so it is not possible to have a message which renders a bitmap that uses cache key that hasn't been yet used to store a bitmap. 
+Two new types of messages need to be handled by our RDP library in order to enable support for bitmap caching. One that stores bitmap data inside a bitmap cache, called `Cache Bitmap - Revision 2`, and another that renders a previously stored bitmap, called `MemBlt`.
+`Cache Bitmap - Revision 2` contains the bitmap's data and a cache index generated by the server. On the other hand, `MemBlt` contains only the cache index and the position on the screen where the bitmap should be rendered.
 
 #### What changes are required to support caching?
 
-Teleport Desktop Access protocol, TDP, needs to be extended with two messages: 
+Teleport Desktop Protocol (TDP) needs to be extended with two messages: 
 
-#### 29 - bitmap cache store
+##### 29 - bitmap cache store
 
 This message is sent from the server to the client to store a bitmap in the bitmap cache
 
@@ -49,7 +46,7 @@ This message is sent from the server to the client to store a bitmap in the bitm
 | message type (29) | cache_id uint32 | cache_index uint32 | data_length uint32 | data []byte |
 ```
 
-#### 30 - bitmap cache load
+##### 30 - bitmap cache load
 
 This message is sent from the server to the client to render a bitmap stored in the bitmap cache
 
