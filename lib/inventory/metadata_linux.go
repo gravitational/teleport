@@ -19,9 +19,45 @@ limitations under the License.
 
 package inventory
 
-// fetchOSVersion TODO
+import (
+	"fmt"
+	"regexp"
+	"strings"
+)
+
+var matchOSVersion = regexp.MustCompile(`^[\w\s\.\/]+$`)
+
+// fetchOSVersion combines the content of '/etc/os-release' to be e.g.
+// "Ubuntu 22.04".
 func (c *fetchConfig) fetchOSVersion() string {
-	return ""
+	return c.read("/etc/os-release", func(out string) (string, bool) {
+		var name string
+		var versionID string
+
+		for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+			parts := strings.Split(line, "=")
+			if len(parts) != 2 {
+				return "", false
+			}
+
+			switch parts[0] {
+			case "NAME":
+				name = strings.Trim(parts[1], `"`)
+			case "VERSION_ID":
+				versionID = strings.Trim(parts[1], `"`)
+			}
+		}
+
+		if name == "" || versionID == "" {
+			return "", false
+		}
+
+		osVersion := fmt.Sprintf("%s %s", name, versionID)
+		if !matchOSVersion.MatchString(osVersion) {
+			return "", false
+		}
+		return osVersion, true
+	})
 }
 
 // fetchGlibcVersion TODO
