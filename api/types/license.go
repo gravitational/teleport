@@ -77,24 +77,30 @@ type License interface {
 	SetSupportsDesktopAccess(Bool)
 
 	// GetSupportsModeratedSessions returns moderated sessions support flag
-	// Note: this field is unused in Teleport v11+
+	// Note: this flag is unused in Teleport v11+ but it's still used to
+	// generate licenses that support older versions of Teleport
 	GetSupportsModeratedSessions() Bool
 	// SetSupportsModeratedSessions sets moderated sessions support flag
-	// Note: this field is unused in Teleport v11+
+	// Note: this flag is unused in Teleport v11+ but it's still used to
+	// generate licenses that support older versions of Teleport
 	SetSupportsModeratedSessions(Bool)
 
 	// GetSupportsMachineID returns MachineID support flag
-	// Note: this field is unused in Teleport v11+
+	// Note: this flag is unused in Teleport v11+ but it's still used to
+	// generate licenses that support older versions of Teleport
 	GetSupportsMachineID() Bool
 	// SetSupportsMachineID sets MachineID support flag
-	// Note: this field is unused in Teleport v11+
+	// Note: this flag is unused in Teleport v11+ but it's still used to
+	// generate licenses that support older versions of Teleport
 	SetSupportsMachineID(Bool)
 
 	// GetSupportsResourceAccessRequests returns resource access requests support flag
-	// Note: this field is unused in Teleport v11+
+	// Note: this flag is unused in Teleport v11+ but it's still used to
+	// generate licenses that support older versions of Teleport
 	GetSupportsResourceAccessRequests() Bool
 	// SetSupportsResourceAccessRequests sets resource access requests support flag
-	// Note: this field is unused in Teleport v11+
+	// Note: this flag is unused in Teleport v11+ but it's still used to
+	// generate licenses that support older versions of Teleport
 	SetSupportsResourceAccessRequests(Bool)
 
 	// GetTrial returns the trial flag.
