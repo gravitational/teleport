@@ -72,7 +72,7 @@ func (r *Resource) checkAndSetDefaults() error {
 	}
 
 	if _, ok := devicepb.DeviceEnrollStatus_value[r.Spec.EnrollStatus]; !ok {
-		r.Spec.EnrollStatus = devicepb.DeviceEnrollStatus_name[int32(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED)]
+		r.Spec.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED.String()
 	}
 
 	return nil
