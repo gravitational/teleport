@@ -16,7 +16,7 @@
 
 import fs, { existsSync, readFileSync, writeFileSync } from 'fs';
 
-import { debounce } from 'lodash';
+import { debounce } from 'shared/utils/highbar';
 
 import Logger from 'teleterm/logger';
 

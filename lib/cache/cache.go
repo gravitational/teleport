@@ -92,6 +92,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
 		{Kind: types.KindAppServer, Version: types.V2},
+		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
@@ -429,6 +430,7 @@ type Cache struct {
 	databasesCache               services.Databases
 	appSessionCache              services.AppSession
 	snowflakeSessionCache        services.SnowflakeSession
+	samlIdPSessionCache          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
 	webSessionCache              types.WebSessionInterface
 	webTokenCache                types.WebTokenInterface
 	windowsDesktopsCache         services.WindowsDesktops
@@ -492,6 +494,7 @@ func (c *Cache) read() (readGuard, error) {
 			databases:               c.databasesCache,
 			appSession:              c.appSessionCache,
 			snowflakeSession:        c.snowflakeSessionCache,
+			samlIdPSession:          c.samlIdPSessionCache,
 			webSession:              c.webSessionCache,
 			webToken:                c.webTokenCache,
 			release:                 c.rw.RUnlock,
@@ -515,6 +518,7 @@ func (c *Cache) read() (readGuard, error) {
 		databases:               c.Config.Databases,
 		appSession:              c.Config.AppSession,
 		snowflakeSession:        c.Config.SnowflakeSession,
+		samlIdPSession:          c.Config.SAMLIdPSession,
 		webSession:              c.Config.WebSession,
 		webToken:                c.Config.WebToken,
 		windowsDesktops:         c.Config.WindowsDesktops,
@@ -537,6 +541,7 @@ type readGuard struct {
 	presence                services.Presence
 	appSession              services.AppSession
 	snowflakeSession        services.SnowflakeSession
+	samlIdPSession          services.SAMLIdPSession //nolint: revive // Because we want this to be IdP.
 	restrictions            services.Restrictions
 	apps                    services.Apps
 	kubernetes              services.Kubernetes
@@ -601,6 +606,8 @@ type Config struct {
 	DatabaseServices services.DatabaseServices
 	// Databases is a databases service.
 	Databases services.Databases
+	// SAMLIdPSession holds SAML IdP sessions.
+	SAMLIdPSession services.SAMLIdPSession
 	// SnowflakeSession holds Snowflake sessions.
 	SnowflakeSession services.SnowflakeSession
 	// AppSession holds application sessions.
@@ -760,6 +767,7 @@ func New(config Config) (*Cache, error) {
 		databasesCache:               local.NewDatabasesService(config.Backend),
 		appSessionCache:              local.NewIdentityService(config.Backend),
 		snowflakeSessionCache:        local.NewIdentityService(config.Backend),
+		samlIdPSessionCache:          local.NewIdentityService(config.Backend),
 		webSessionCache:              local.NewIdentityService(config.Backend).WebSessions(),
 		webTokenCache:                local.NewIdentityService(config.Backend).WebTokens(),
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
@@ -1976,6 +1984,19 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 	}
 	defer rg.Release()
 	return rg.snowflakeSession.GetSnowflakeSession(ctx, req)
+}
+
+// GetSAMLIdPSession gets a SAML IdP session.
+func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPSession")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.samlIdPSession.GetSAMLIdPSession(ctx, req)
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
