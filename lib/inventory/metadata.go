@@ -127,7 +127,7 @@ func (c *fetchConfig) fetchServices() []string {
 // fetchHostArchitecture computes the host architecture using the arch
 // command-line utility.
 func (c *fetchConfig) fetchHostArchitecture() string {
-	return c.cmd("arch", func(out string) (string, bool) {
+	return c.exec("arch", func(out string) (string, bool) {
 		if matchHostArchitecture.MatchString(out) {
 			return out, true
 		}
@@ -143,7 +143,7 @@ func (c *fetchConfig) fetchInstallMethods() []string {
 
 // fetchContainerRuntime returns "docker" if the file "/.dockerenv" exists.
 func (c *fetchConfig) fetchContainerRuntime() string {
-	return c.file("/.dockerenv", func(_ string) (string, bool) {
+	return c.read("/.dockerenv", func(_ string) (string, bool) {
 		// If the file exists, we should be running on Docker.
 		return "docker", true
 	})
@@ -161,8 +161,8 @@ func (c *fetchConfig) fetchCloudEnvironment() string {
 
 type parseFun func(string) (string, bool)
 
-// cmd runs a command and validates its output using the parse function.
-func (cfg fetchConfig) cmd(name string, parse parseFun) string {
+// exec runs a command and validates its output using the parse function.
+func (cfg fetchConfig) exec(name string, parse parseFun) string {
 	out, err := cfg.execCommand(name)
 	if err != nil {
 		log.Debugf("Failed to execute command '%s': %s", name, err)
@@ -171,8 +171,8 @@ func (cfg fetchConfig) cmd(name string, parse parseFun) string {
 	return validate(name, string(out), parse)
 }
 
-// file reads a file and validates its content using the parse function.
-func (cfg fetchConfig) file(name string, parse parseFun) string {
+// read reads a read and validates its content using the parse function.
+func (cfg fetchConfig) read(name string, parse parseFun) string {
 	out, err := cfg.readFile(name)
 	if err != nil {
 		log.Debugf("Failed to read file '%s': %s", name, err)

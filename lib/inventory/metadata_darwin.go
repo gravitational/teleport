@@ -29,7 +29,7 @@ var matchProductVersion = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 
 // fetchOSVersion combines the output of 'sw_vers' to be e.g. "macOS 13.2.1".
 func (c *fetchConfig) fetchOSVersion() string {
-	return c.cmd("sw_vers", func(out string) (string, bool) {
+	return c.exec("sw_vers", func(out string) (string, bool) {
 		var productName string
 		var productVersion string
 
