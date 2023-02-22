@@ -1136,6 +1136,16 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 		if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbUpdate); err != nil {
 			return trace.Wrap(err)
 		}
+	case constants.KeepAliveDatabaseService:
+		if serverName != handle.Name {
+			return trace.AccessDenied("access denied")
+		}
+		if !a.hasBuiltinRole(types.RoleDatabase) {
+			return trace.AccessDenied("access denied")
+		}
+		if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unknown keep alive type %q", handle.Type)
 	}
@@ -4270,6 +4280,24 @@ func (a *ServerWithRoles) GetSnowflakeSession(ctx context.Context, req types.Get
 	return session, nil
 }
 
+// GetSAMLIdPSession gets a SAML IdP session.
+func (a *ServerWithRoles) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
+	session, err := a.authServer.GetSAMLIdPSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if session.GetSubKind() != types.KindSAMLIdPSession {
+		return nil, trace.AccessDenied("GetSAMLIdPSession only allows reading sessions with SubKind SAMLIdpSession")
+	}
+	// Users can only fetch their own SAML IdP sessions.
+	if err := a.currentUserAction(session.GetUser()); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return session, nil
+}
+
 // GetAppSessions gets all application web sessions.
 func (a *ServerWithRoles) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
 	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
@@ -4306,6 +4334,16 @@ func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 	return sessions, nil
 }
 
+// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+func (a *ServerWithRoles) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	sessions, nextKey, err := a.authServer.ListSAMLIdPSessions(ctx, pageSize, pageToken, user)
+	return sessions, nextKey, trace.Wrap(err)
+}
+
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
@@ -4333,6 +4371,19 @@ func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.
 	return snowflakeSession, nil
 }
 
+// CreateSAMLIdPSession creates a SAML IdP session.
+func (a *ServerWithRoles) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	samlSession, err := a.authServer.CreateSAMLIdPSession(ctx, req, a.context.Identity.GetIdentity(), a.context.Checker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return samlSession, nil
+}
+
 // UpsertAppSession not implemented: can only be called locally.
 func (a *ServerWithRoles) UpsertAppSession(ctx context.Context, session types.WebSession) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -4340,6 +4391,11 @@ func (a *ServerWithRoles) UpsertAppSession(ctx context.Context, session types.We
 
 // UpsertSnowflakeSession not implemented: can only be called locally.
 func (a *ServerWithRoles) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertSAMLIdPSession not implemented: can only be called locally.
+func (a *ServerWithRoles) UpsertSAMLIdPSession(_ context.Context, _ types.WebSession) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -4370,6 +4426,22 @@ func (a *ServerWithRoles) DeleteSnowflakeSession(ctx context.Context, req types.
 		return trace.Wrap(err)
 	}
 	if err := a.authServer.DeleteSnowflakeSession(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteSAMLIdPSession removes a SAML IdP session.
+func (a *ServerWithRoles) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
+	samlSession, err := a.authServer.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest(req))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Check if user can delete this web session.
+	if err := a.canDeleteWebSession(samlSession.GetUser()); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.authServer.DeleteSAMLIdPSession(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -4407,6 +4479,32 @@ func (a *ServerWithRoles) DeleteUserAppSessions(ctx context.Context, req *proto.
 	}
 
 	if err := a.authServer.DeleteUserAppSessions(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+func (a *ServerWithRoles) DeleteAllSAMLIdPSessions(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.DeleteAllSAMLIdPSessions(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteUserSAMLIdPSessions deletes all of a user's SAML IdP sessions.
+func (a *ServerWithRoles) DeleteUserSAMLIdPSessions(ctx context.Context, username string) error {
+	// First, check if the current user can delete the request user sessions.
+	if err := a.canDeleteWebSession(username); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.DeleteUserSAMLIdPSessions(ctx, username); err != nil {
 		return trace.Wrap(err)
 	}
 
