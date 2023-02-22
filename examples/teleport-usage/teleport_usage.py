@@ -24,7 +24,7 @@ from boto3.dynamodb.conditions import Key, Attr
 
 # Check for AWS DynamoDB table name and region ENV, if none prompt
 table_name = os.getenv("TABLE_NAME")
-if not TABLE_NAME:
+if not table_name:
     TABLE_NAME = input("DynamoDB events table name: ")
 
 aws_region = os.getenv("AWS_REGION")
