@@ -29,9 +29,9 @@ import (
 
 // Resource is a wrapper around devicepb.Device that implements types.Resource.
 type Resource struct {
-	// ResourceHeader is embedded to implement types.Resource
+	// ResourceHeader is embedded to implement types.Resource.
 	types.ResourceHeader
-	// Spec is the device specification
+	// Spec is the device specification.
 	Spec ResourceSpec `json:"spec"`
 }
 
