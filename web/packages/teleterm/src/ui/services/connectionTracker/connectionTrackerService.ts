@@ -217,6 +217,11 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
           }
           // process tsh connections
           case 'doc.terminal_tsh_node': {
+            // DocumentTshNodeWithLoginHost is still in the process of resolving the hostname and
+            // doesn't have serverUri, so let's not create a connection for it.
+            if (!('serverUri' in doc)) {
+              break;
+            }
             const tshConn = draft.connections.find(
               getServerConnectionByDocument(doc)
             );
