@@ -64,7 +64,7 @@ func (r *Resource) checkAndSetDefaults() error {
 	}
 
 	if _, err := devicetrust.ResourceOSTypeFromString(r.Spec.OsType); err != nil {
-		trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	if r.Spec.AssetTag == "" {
