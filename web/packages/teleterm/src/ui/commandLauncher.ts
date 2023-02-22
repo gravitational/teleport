@@ -15,19 +15,9 @@ limitations under the License.
 */
 
 import { IAppContext } from 'teleterm/ui/types';
-import {
-  ClusterUri,
-  KubeUri,
-  RootClusterUri,
-  routing,
-  ServerUri,
-} from 'teleterm/ui/uri';
+import { ClusterUri, KubeUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 import { TrackedKubeConnection } from 'teleterm/ui/services/connectionTracker';
 import { Platform } from 'teleterm/mainProcess/types';
-import { AmbiguousHostnameError } from 'teleterm/ui/services/resources';
-import { retryWithRelogin } from 'teleterm/ui/utils';
-
-import type * as tsh from 'teleterm/services/tshd/types';
 
 const commands = {
   // For handling "tsh ssh" executed from the command bar.
@@ -42,61 +32,11 @@ const commands = {
       const rootClusterUri = routing.ensureRootClusterUri(localClusterUri);
       const documentsService =
         ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
-      let login: string | undefined, host: string;
-      const parts = loginHost.split('@');
 
-      if (parts.length > 1) {
-        host = parts.pop();
-        // If someone types in `foo@bar@baz` as input here, `parts` will have more than two
-        // elements. `foo@bar` is probably not a valid login, but we don't want to lose that
-        // input here.
-        //
-        // In any case, we're just repeating what `tsh ssh` is doing with inputs like these.
-        login = parts.join('@');
-      } else {
-        host = parts[0];
-      }
-
-      let server: tsh.Server | undefined;
-      let serverUri: ServerUri, serverHostname: string;
-
-      try {
-        // TODO(ravicious): Handle finding a server by more than just a name.
-        // Basically we have to replicate tsh ssh behavior here.
-        server = await retryWithRelogin(ctx, localClusterUri, () =>
-          ctx.resourcesService.getServerByHostname(localClusterUri, host)
-        );
-      } catch (error) {
-        // TODO(ravicious): Handle ambiguous host name. See `onSSH` in `tool/tsh/tsh.go`.
-        if (error instanceof AmbiguousHostnameError) {
-          // Log the ambiguity of the hostname but continue anyway. This will pass the ambiguous
-          // hostname to tsh ssh and show an appropriate error in the new tab.
-          console.error(error.message);
-        } else {
-          ctx.notificationsService.notifyError({
-            title: `Could not establish a connection to ${host}`,
-            description: error['message'],
-          });
-          return;
-        }
-      }
-
-      if (server) {
-        serverUri = server.uri;
-        serverHostname = server.hostname;
-      } else {
-        // If we can't find a server by the given hostname, we still want to create a document to
-        // handle the error further down the line.
-        const clusterParams = routing.parseClusterUri(localClusterUri).params;
-        serverUri = routing.getServerUri({
-          ...clusterParams,
-          serverId: host,
-        });
-        serverHostname = host;
-      }
-      const doc = documentsService.createTshNodeDocument(serverUri);
-      doc.title = login ? `${login}@${serverHostname}` : serverHostname;
-      doc.login = login;
+      const doc = documentsService.createTshNodeDocumentFromLoginHost(
+        localClusterUri,
+        loginHost
+      );
       documentsService.add(doc);
       documentsService.setLocation(doc.uri);
     },

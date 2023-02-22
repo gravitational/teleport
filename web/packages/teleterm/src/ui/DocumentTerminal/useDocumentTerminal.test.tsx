@@ -23,9 +23,15 @@ import Logger, { NullService } from 'teleterm/logger';
 import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { DocumentTshNode } from 'teleterm/ui/services/workspacesService';
+import {
+  DocumentTerminal,
+  DocumentTshNodeWithLoginHost,
+  DocumentTshNodeWithServerId,
+} from 'teleterm/ui/services/workspacesService';
 
 import { WorkspaceContextProvider } from '../Documents';
+
+import { AmbiguousHostnameError } from '../services/resources';
 
 import useDocumentTerminal from './useDocumentTerminal';
 
@@ -44,7 +50,7 @@ const rootClusterUri = '/clusters/test' as const;
 const leafClusterUri = `${rootClusterUri}/leaves/leaf` as const;
 const serverUUID = 'bed30649-3af5-40f1-a832-54ff4adcca41';
 
-const getDocTshNode: () => DocumentTshNode = () => ({
+const getDocTshNodeWithServerId: () => DocumentTshNodeWithServerId = () => ({
   kind: 'doc.terminal_tsh_node',
   uri: '/docs/123',
   title: '',
@@ -52,12 +58,22 @@ const getDocTshNode: () => DocumentTshNode = () => ({
   serverId: serverUUID,
   serverUri: `${rootClusterUri}/servers/${serverUUID}`,
   rootClusterId: 'test',
+  leafClusterId: undefined,
   login: 'user',
 });
 
+const getDocTshNodeWithLoginHost: () => DocumentTshNodeWithLoginHost = () => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { serverId, serverUri, login, ...rest } = getDocTshNodeWithServerId();
+  return {
+    ...rest,
+    loginHost: 'user@foo',
+  };
+};
+
 test('useDocumentTerminal calls TerminalsService during init', async () => {
-  const doc = getDocTshNode();
-  const { wrapper, appContext } = testSetup();
+  const doc = getDocTshNodeWithServerId();
+  const { wrapper, appContext } = testSetup(doc);
 
   const { result, waitForValueToChange } = renderHook(
     () => useDocumentTerminal(doc),
@@ -73,18 +89,19 @@ test('useDocumentTerminal calls TerminalsService during init', async () => {
     login: 'user',
     serverId: serverUUID,
     rootClusterId: 'test',
+    leafClusterId: undefined,
   };
 
   expect(result.current.statusText).toBeFalsy();
   expect(result.current.status).toBe('success');
   expect(appContext.terminalsService.createPtyProcess).toHaveBeenCalledWith(
-    expect.objectContaining(expectedPtyCommand)
+    expectedPtyCommand
   );
 });
 
 test('useDocumentTerminal calls TerminalsService only once', async () => {
-  const doc = getDocTshNode();
-  const { wrapper, appContext } = testSetup();
+  const doc = getDocTshNodeWithServerId();
+  const { wrapper, appContext } = testSetup(doc);
 
   const { result, waitForValueToChange, rerender } = renderHook(
     () => useDocumentTerminal(doc),
@@ -100,10 +117,10 @@ test('useDocumentTerminal calls TerminalsService only once', async () => {
 });
 
 test('useDocumentTerminal gets leaf cluster ID from ClustersService when the leaf cluster is in ClustersService', async () => {
-  const doc = getDocTshNode();
+  const doc = getDocTshNodeWithServerId();
   doc.leafClusterId = 'leaf';
   doc.serverUri = `${leafClusterUri}/servers/${doc.serverId}`;
-  const { wrapper, appContext } = testSetup(leafClusterUri);
+  const { wrapper, appContext } = testSetup(doc, leafClusterUri);
 
   const { result, waitForValueToChange } = renderHook(
     () => useDocumentTerminal(doc),
@@ -125,15 +142,15 @@ test('useDocumentTerminal gets leaf cluster ID from ClustersService when the lea
   expect(result.current.statusText).toBeFalsy();
   expect(result.current.status).toBe('success');
   expect(appContext.terminalsService.createPtyProcess).toHaveBeenCalledWith(
-    expect.objectContaining(expectedPtyCommand)
+    expectedPtyCommand
   );
 });
 
 test('useDocumentTerminal gets leaf cluster ID from doc.leafClusterId if the leaf cluster is not synced yet', async () => {
-  const doc = getDocTshNode();
+  const doc = getDocTshNodeWithServerId();
   doc.leafClusterId = 'leaf';
   doc.serverUri = `${leafClusterUri}/servers/${doc.serverId}`;
-  const { wrapper, appContext } = testSetup(leafClusterUri);
+  const { wrapper, appContext } = testSetup(doc, leafClusterUri);
   appContext.clustersService.setState(draft => {
     draft.clusters.delete(leafClusterUri);
   });
@@ -158,13 +175,13 @@ test('useDocumentTerminal gets leaf cluster ID from doc.leafClusterId if the lea
   expect(result.current.statusText).toBeFalsy();
   expect(result.current.status).toBe('success');
   expect(appContext.terminalsService.createPtyProcess).toHaveBeenCalledWith(
-    expect.objectContaining(expectedPtyCommand)
+    expectedPtyCommand
   );
 });
 
 test('useDocumentTerminal shows an error notification if the call to TerminalsService fails', async () => {
-  const doc = getDocTshNode();
-  const { wrapper, appContext } = testSetup();
+  const doc = getDocTshNodeWithServerId();
+  const { wrapper, appContext } = testSetup(doc);
   const { terminalsService, notificationsService } = appContext;
 
   (
@@ -191,8 +208,8 @@ test('useDocumentTerminal shows an error notification if the call to TerminalsSe
 });
 
 test('useDocumentTerminal shows a warning notification if the call to TerminalsService fails due to resolving env timeout', async () => {
-  const doc = getDocTshNode();
-  const { wrapper, appContext } = testSetup();
+  const doc = getDocTshNodeWithServerId();
+  const { wrapper, appContext } = testSetup(doc);
   const { terminalsService, notificationsService } = appContext;
 
   (
@@ -222,9 +239,384 @@ test('useDocumentTerminal shows a warning notification if the call to TerminalsS
   expect(notificationsService.notifyWarning).toHaveBeenCalledTimes(1);
 });
 
+describe('calling useDocumentTerminal with a doc without server URI', () => {
+  test('calls ResourcesService to resolve the hostname of a root cluster SSH server to a UUID', async () => {
+    const doc = getDocTshNodeWithLoginHost();
+    const { wrapper, appContext, documentsService } = testSetup(doc);
+    const { resourcesService, terminalsService } = appContext;
+    jest
+      .spyOn(resourcesService, 'getServerByHostname')
+      .mockResolvedValueOnce(server);
+    jest.spyOn(documentsService, 'update');
+
+    const { result, waitForValueToChange } = renderHook(
+      () => useDocumentTerminal(doc),
+      { wrapper }
+    );
+
+    await waitForValueToChange(() => useAsync.hasFinished(result.current));
+
+    const expectedPtyCommand: PtyCommand = {
+      kind: 'pty.tsh-login',
+      proxyHost: 'localhost:3080',
+      clusterName: 'Test',
+      login: 'user',
+      serverId: serverUUID,
+      rootClusterId: 'test',
+      leafClusterId: undefined,
+    };
+
+    expect(result.current.statusText).toBeFalsy();
+    expect(result.current.status).toBe('success');
+    expect(terminalsService.createPtyProcess).toHaveBeenCalledWith(
+      expectedPtyCommand
+    );
+    expect(resourcesService.getServerByHostname).toHaveBeenCalledWith(
+      rootClusterUri,
+      'foo'
+    );
+    expect(documentsService.update).toHaveBeenCalledWith(doc.uri, {
+      serverId: serverUUID,
+      serverUri: server.uri,
+      login: 'user',
+      loginHost: undefined,
+      title: 'user@foo',
+    });
+  });
+
+  test('calls ResourcesService to resolve the hostname of a leaf cluster SSH server to a UUID', async () => {
+    const doc = getDocTshNodeWithLoginHost();
+    doc.leafClusterId = 'leaf';
+    const { wrapper, appContext, documentsService } = testSetup(
+      doc,
+      leafClusterUri
+    );
+    const { resourcesService, terminalsService } = appContext;
+    const leafServer = { ...server };
+    leafServer.uri = `${leafClusterUri}/servers/${serverUUID}`;
+    jest
+      .spyOn(resourcesService, 'getServerByHostname')
+      .mockResolvedValueOnce(leafServer);
+    jest.spyOn(documentsService, 'update');
+
+    const { result, waitForValueToChange } = renderHook(
+      () => useDocumentTerminal(doc),
+      { wrapper }
+    );
+
+    await waitForValueToChange(() => useAsync.hasFinished(result.current));
+
+    const expectedPtyCommand: PtyCommand = {
+      kind: 'pty.tsh-login',
+      proxyHost: 'localhost:3080',
+      clusterName: 'leaf',
+      login: 'user',
+      serverId: serverUUID,
+      rootClusterId: 'test',
+      leafClusterId: 'leaf',
+    };
+
+    expect(result.current.statusText).toBeFalsy();
+    expect(result.current.status).toBe('success');
+    expect(terminalsService.createPtyProcess).toHaveBeenCalledWith(
+      expectedPtyCommand
+    );
+    expect(resourcesService.getServerByHostname).toHaveBeenCalledWith(
+      leafClusterUri,
+      'foo'
+    );
+    expect(documentsService.update).toHaveBeenCalledWith(doc.uri, {
+      serverId: serverUUID,
+      serverUri: leafServer.uri,
+      login: 'user',
+      loginHost: undefined,
+      title: 'user@foo',
+    });
+  });
+
+  test('starts the session even if the leaf cluster is not synced yet', async () => {
+    const doc = getDocTshNodeWithLoginHost();
+    doc.leafClusterId = 'leaf';
+    const { wrapper, appContext, documentsService } = testSetup(
+      doc,
+      leafClusterUri
+    );
+    appContext.clustersService.setState(draft => {
+      draft.clusters.delete(leafClusterUri);
+    });
+    const { resourcesService, terminalsService } = appContext;
+    const leafServer = { ...server };
+    leafServer.uri = `${leafClusterUri}/servers/${serverUUID}`;
+    jest
+      .spyOn(resourcesService, 'getServerByHostname')
+      .mockResolvedValueOnce(leafServer);
+    jest.spyOn(documentsService, 'update');
+
+    const { result, waitForValueToChange } = renderHook(
+      () => useDocumentTerminal(doc),
+      { wrapper }
+    );
+
+    await waitForValueToChange(() => useAsync.hasFinished(result.current));
+
+    const expectedPtyCommand: PtyCommand = {
+      kind: 'pty.tsh-login',
+      proxyHost: 'localhost:3080',
+      clusterName: 'leaf',
+      login: 'user',
+      serverId: serverUUID,
+      rootClusterId: 'test',
+      leafClusterId: 'leaf',
+    };
+
+    expect(result.current.statusText).toBeFalsy();
+    expect(result.current.status).toBe('success');
+    expect(terminalsService.createPtyProcess).toHaveBeenCalledWith(
+      expectedPtyCommand
+    );
+    expect(resourcesService.getServerByHostname).toHaveBeenCalledWith(
+      leafClusterUri,
+      'foo'
+    );
+    expect(documentsService.update).toHaveBeenCalledWith(doc.uri, {
+      serverId: serverUUID,
+      serverUri: leafServer.uri,
+      login: 'user',
+      loginHost: undefined,
+      title: 'user@foo',
+    });
+  });
+
+  test('maintains incorrect loginHost with too many parts', async () => {
+    const doc = getDocTshNodeWithLoginHost();
+    doc.loginHost = 'user@foo@baz';
+    const { wrapper, appContext, documentsService } = testSetup(doc);
+    const { terminalsService } = appContext;
+    jest
+      .spyOn(appContext.resourcesService, 'getServerByHostname')
+      .mockResolvedValueOnce(undefined);
+    jest.spyOn(documentsService, 'update');
+
+    const { result, waitForValueToChange } = renderHook(
+      () => useDocumentTerminal(doc),
+      { wrapper }
+    );
+
+    await waitForValueToChange(() => useAsync.hasFinished(result.current));
+
+    const expectedPtyCommand: PtyCommand = {
+      kind: 'pty.tsh-login',
+      proxyHost: 'localhost:3080',
+      clusterName: 'Test',
+      login: 'user@foo',
+      serverId: 'baz',
+      rootClusterId: 'test',
+      leafClusterId: undefined,
+    };
+
+    expect(result.current.statusText).toBeFalsy();
+    expect(result.current.status).toBe('success');
+    expect(terminalsService.createPtyProcess).toHaveBeenCalledWith(
+      expectedPtyCommand
+    );
+    expect(documentsService.update).toHaveBeenCalledWith(doc.uri, {
+      serverId: 'baz',
+      serverUri: `${rootClusterUri}/servers/baz`,
+      login: 'user@foo',
+      loginHost: undefined,
+      title: 'user@foo@baz',
+    });
+  });
+
+  // This is in order to call `tsh ssh user@foo` anyway and make tsh show an appropriate error.
+  test('uses hostname as serverId if no matching server was found', async () => {
+    const doc = getDocTshNodeWithLoginHost();
+    const { wrapper, appContext, documentsService } = testSetup(doc);
+    const { resourcesService, terminalsService } = appContext;
+    jest
+      .spyOn(resourcesService, 'getServerByHostname')
+      .mockResolvedValueOnce(undefined);
+    jest.spyOn(documentsService, 'update');
+
+    const { result, waitForValueToChange } = renderHook(
+      () => useDocumentTerminal(doc),
+      { wrapper }
+    );
+
+    await waitForValueToChange(() => useAsync.hasFinished(result.current));
+
+    const expectedPtyCommand: PtyCommand = {
+      kind: 'pty.tsh-login',
+      proxyHost: 'localhost:3080',
+      clusterName: 'Test',
+      login: 'user',
+      serverId: 'foo',
+      rootClusterId: 'test',
+      leafClusterId: undefined,
+    };
+
+    expect(result.current.statusText).toBeFalsy();
+    expect(result.current.status).toBe('success');
+    expect(terminalsService.createPtyProcess).toHaveBeenCalledWith(
+      expectedPtyCommand
+    );
+    expect(resourcesService.getServerByHostname).toHaveBeenCalledWith(
+      rootClusterUri,
+      'foo'
+    );
+    expect(documentsService.update).toHaveBeenCalledWith(doc.uri, {
+      serverId: 'foo',
+      serverUri: `${rootClusterUri}/servers/foo`,
+      login: 'user',
+      loginHost: undefined,
+      title: 'user@foo',
+    });
+  });
+
+  // This is the case when the user tries to execute `tsh ssh user`. We want to call `tsh ssh user`
+  // anyway and make tsh show an appropriate error.
+  //
+  // It might also be the case that the username of a Teleport user is equal to a user on the host,
+  // in which case explicitly providing the username is not necessary.
+  test('attempts to connect even if only the login was supplied', async () => {
+    const doc = getDocTshNodeWithLoginHost();
+    doc.loginHost = 'user';
+    const { wrapper, appContext, documentsService } = testSetup(doc);
+    const { resourcesService, terminalsService } = appContext;
+    jest
+      .spyOn(resourcesService, 'getServerByHostname')
+      .mockResolvedValueOnce(undefined);
+    jest.spyOn(documentsService, 'update');
+
+    const { result, waitForValueToChange } = renderHook(
+      () => useDocumentTerminal(doc),
+      { wrapper }
+    );
+
+    await waitForValueToChange(() => useAsync.hasFinished(result.current));
+
+    const expectedPtyCommand: PtyCommand = {
+      kind: 'pty.tsh-login',
+      proxyHost: 'localhost:3080',
+      clusterName: 'Test',
+      login: undefined,
+      serverId: 'user',
+      rootClusterId: 'test',
+      leafClusterId: undefined,
+    };
+
+    expect(result.current.statusText).toBeFalsy();
+    expect(result.current.status).toBe('success');
+    expect(terminalsService.createPtyProcess).toHaveBeenCalledWith(
+      expectedPtyCommand
+    );
+    expect(resourcesService.getServerByHostname).toHaveBeenCalledWith(
+      rootClusterUri,
+      'user'
+    );
+    expect(documentsService.update).toHaveBeenCalledWith(doc.uri, {
+      serverId: 'user',
+      serverUri: `${rootClusterUri}/servers/user`,
+      login: undefined,
+      loginHost: undefined,
+      title: 'user',
+    });
+  });
+
+  // As in other scenarios, we execute `tsh ssh user@ambiguous-host` anyway and let tsh show the
+  // error message.
+  test('silently ignores an error due to an ambiguous hostname', async () => {
+    const doc = getDocTshNodeWithLoginHost();
+    doc.loginHost = 'user@ambiguous-host';
+    const { wrapper, appContext, documentsService } = testSetup(doc);
+    const { resourcesService, terminalsService, notificationsService } =
+      appContext;
+    jest.spyOn(notificationsService, 'notifyError');
+    jest.spyOn(notificationsService, 'notifyWarning');
+    jest
+      .spyOn(resourcesService, 'getServerByHostname')
+      .mockRejectedValueOnce(new AmbiguousHostnameError('ambiguous-host'));
+    jest.spyOn(documentsService, 'update');
+
+    const { result, waitForValueToChange } = renderHook(
+      () => useDocumentTerminal(doc),
+      { wrapper }
+    );
+
+    await waitForValueToChange(() => useAsync.hasFinished(result.current));
+
+    const expectedPtyCommand: PtyCommand = {
+      kind: 'pty.tsh-login',
+      proxyHost: 'localhost:3080',
+      clusterName: 'Test',
+      login: 'user',
+      serverId: 'ambiguous-host',
+      rootClusterId: 'test',
+      leafClusterId: undefined,
+    };
+
+    expect(result.current.statusText).toBeFalsy();
+    expect(result.current.status).toBe('success');
+    expect(terminalsService.createPtyProcess).toHaveBeenCalledWith(
+      expectedPtyCommand
+    );
+    expect(resourcesService.getServerByHostname).toHaveBeenCalledWith(
+      rootClusterUri,
+      'ambiguous-host'
+    );
+    expect(notificationsService.notifyError).not.toHaveBeenCalled();
+    expect(notificationsService.notifyWarning).not.toHaveBeenCalled();
+    expect(documentsService.update).toHaveBeenCalledWith(doc.uri, {
+      serverId: 'ambiguous-host',
+      serverUri: `${rootClusterUri}/servers/ambiguous-host`,
+      login: 'user',
+      loginHost: undefined,
+      title: 'user@ambiguous-host',
+    });
+  });
+
+  test('shows an error notification and updates doc state if there was an error when resolving hostname', async () => {
+    const error = new Error('oops');
+    const doc = getDocTshNodeWithLoginHost();
+    const { wrapper, appContext, documentsService } = testSetup(doc);
+    const { resourcesService, terminalsService, notificationsService } =
+      appContext;
+    jest.spyOn(notificationsService, 'notifyError');
+    jest
+      .spyOn(resourcesService, 'getServerByHostname')
+      .mockRejectedValueOnce(error);
+    jest.spyOn(documentsService, 'update');
+
+    const { result, waitForValueToChange } = renderHook(
+      () => useDocumentTerminal(doc),
+      { wrapper }
+    );
+
+    await waitForValueToChange(() => useAsync.hasFinished(result.current));
+
+    expect(result.current.statusText).toBe(error.message);
+    expect(result.current.status).toBe('error');
+    expect(terminalsService.createPtyProcess).not.toHaveBeenCalled();
+    expect(resourcesService.getServerByHostname).toHaveBeenCalledWith(
+      rootClusterUri,
+      'foo'
+    );
+    expect(notificationsService.notifyError).toHaveBeenCalledWith({
+      title: expect.stringContaining('connection to user@foo'),
+      description: error.message,
+    });
+    expect(documentsService.update).toHaveBeenCalledWith(doc.uri, {
+      status: 'disconnected',
+    });
+  });
+});
+
 // testSetup adds a cluster to ClustersService and WorkspacesService.
 // It also makes TerminalsService.prototype.createPtyProcess a noop.
-const testSetup = (localClusterUri: uri.ClusterUri = clusterUri) => {
+const testSetup = (
+  doc: DocumentTerminal,
+  localClusterUri: uri.ClusterUri = rootClusterUri
+) => {
   const cluster: tsh.Cluster = {
     uri: rootClusterUri,
     name: 'Test',
@@ -294,7 +686,16 @@ const testSetup = (localClusterUri: uri.ClusterUri = clusterUri) => {
     </MockAppContextProvider>
   );
 
-  return { appContext, wrapper };
+  return { appContext, wrapper, documentsService };
+};
+
+const server: tsh.Server = {
+  uri: `${rootClusterUri}/servers/${serverUUID}`,
+  tunnel: false,
+  name: serverUUID,
+  hostname: 'foo',
+  addr: 'foo.localhost',
+  labelsList: [],
 };
 
 // TODO(ravicious): Add tests for the following cases:

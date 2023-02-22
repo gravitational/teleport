@@ -35,18 +35,39 @@ export interface DocumentBlank extends DocumentBase {
   kind: 'doc.blank';
 }
 
-export interface DocumentTshNode extends DocumentBase {
+export type DocumentTshNode =
+  | DocumentTshNodeWithServerId
+  | DocumentTshNodeWithLoginHost;
+
+interface DocumentTshNodeBase extends DocumentBase {
   kind: 'doc.terminal_tsh_node';
   status: '' | 'connecting' | 'connected' | 'disconnected';
-  serverId: string;
-  serverUri: uri.ServerUri;
   rootClusterId: string;
-  leafClusterId?: string;
+  leafClusterId: string | undefined;
+}
+
+export interface DocumentTshNodeWithServerId extends DocumentTshNodeBase {
+  // serverId is the UUID of the SSH server. If it's is present, we can immediately start an SSH
+  // session.
+  //
+  // serverId is available when connecting to a server from the resource table.
+  serverId: string;
+  // serverUri is used for file transfer and for identifying a specific server among different
+  // profiles and clusters.
+  serverUri: uri.ServerUri;
   // login is missing when the user executes `tsh ssh user` from the command bar without supplying
   // the hostname. In that case, login will be undefined and serverId will be equal to "user".
   //
   // We will execute `tsh ssh user` anyway and let tsh show an appropriate error message.
   login?: string;
+  loginHost?: string;
+}
+
+export interface DocumentTshNodeWithLoginHost extends DocumentTshNodeBase {
+  // serverId is missing, so we need to resolve loginHost to a server UUID.
+  loginHost: string;
+  // We don't provide types for other fields on purpose (such as serverId?: undefined) in order to
+  // force places which use DocumentTshNode to narrow down the type before using it.
 }
 
 export interface DocumentTshKube extends DocumentBase {
