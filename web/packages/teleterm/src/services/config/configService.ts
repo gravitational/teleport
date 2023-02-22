@@ -92,7 +92,7 @@ const createAppConfigSchema = (platform: Platform) => {
      * Read more https://frontarm.com/james-k-nelson/how-can-i-use-css-in-js-securely/.
      */
     'terminal.fontFamily': z.string().default(defaultTerminalFont),
-    'terminal.fontSize': z.number().int().min(5).max(100).default(15),
+    'terminal.fontSize': z.number().int().min(1).max(256).default(15),
   });
 };
 
