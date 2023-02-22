@@ -75,3 +75,31 @@ func ResourceOSTypeFromString(osType string) (devicepb.OSType, error) {
 		return devicepb.OSType_OS_TYPE_UNSPECIFIED, trace.BadParameter("unknown os type %q", osType)
 	}
 }
+
+// ResourceEnrollStatusToString converts DeviceEnrollStatus to a string representation suitable for use in resource fields.
+func ResourceEnrollStatusToString(enrollStatus devicepb.DeviceEnrollStatus) string {
+	switch enrollStatus {
+	case devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED:
+		return "enrolled"
+	case devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED:
+		return "not_enrolled"
+	case devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED:
+		return "unspecified"
+	default:
+		return enrollStatus.String()
+	}
+}
+
+// ResourceEnrollStatusFromString converts a string representation of DeviceEnrollStatus suitable for resource fields to DeviceEnrollStatus.
+func ResourceEnrollStatusFromString(enrollStatus string) (devicepb.DeviceEnrollStatus, error) {
+	switch enrollStatus {
+	case "enrolled":
+		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED, nil
+	case "not_enrolled":
+		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED, nil
+	case "unspecified":
+		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED, nil
+	default:
+		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED, trace.BadParameter("unknown enroll status %q", enrollStatus)
+	}
+}

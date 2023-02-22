@@ -45,8 +45,8 @@ metadata:
   name: xaa
 spec:
   asset_tag: mymachine
-  os_type: OS_TYPE_MACOS
-  enroll_status: DEVICE_ENROLL_STATUS_ENROLLED
+  os_type: macos
+  enroll_status: enrolled
 `,
 			expected: &devicepb.Device{
 				Id:           "xaa",
@@ -66,8 +66,8 @@ metadata:
   name: secretid
 spec:
   asset_tag: 4
-  os_type: OS_TYPE_MACOS
-  enroll_status: DEVICE_ENROLL_STATUS_NOT_ENROLLED
+  os_type: macos
+  enroll_status: enrolled
 `,
 		},
 	} {
