@@ -23,14 +23,20 @@ import type { AgentStepProps } from '../../types';
 
 export function useTestConnection(props: AgentStepProps) {
   const { runConnectionDiagnostic, ...connectionDiagnostic } =
-    useConnectionDiagnostic(props);
+    useConnectionDiagnostic();
 
-  function testConnection(impersonate: KubeImpersonation) {
-    runConnectionDiagnostic({
-      resourceKind: 'kube_cluster',
-      resourceName: props.agentMeta.resourceName,
-      kubeImpersonation: impersonate,
-    });
+  function testConnection(
+    impersonate: KubeImpersonation,
+    privilegeTokenId = ''
+  ) {
+    runConnectionDiagnostic(
+      {
+        resourceKind: 'kube_cluster',
+        resourceName: props.agentMeta.resourceName,
+        kubeImpersonation: impersonate,
+      },
+      privilegeTokenId
+    );
   }
 
   return {

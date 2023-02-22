@@ -23,17 +23,23 @@ import type { Database } from '../resources';
 
 export function useTestConnection(props: AgentStepProps) {
   const { runConnectionDiagnostic, ...connectionDiagnostic } =
-    useConnectionDiagnostic(props);
+    useConnectionDiagnostic();
 
-  function testConnection({ name, user }: { name: string; user: string }) {
-    runConnectionDiagnostic({
-      resourceKind: 'db',
-      resourceName: props.agentMeta.resourceName,
-      dbTester: {
-        name,
-        user,
+  function testConnection(
+    { name, user }: { name: string; user: string },
+    privilegeTokenId = ''
+  ) {
+    runConnectionDiagnostic(
+      {
+        resourceKind: 'db',
+        resourceName: props.agentMeta.resourceName,
+        dbTester: {
+          name,
+          user,
+        },
       },
-    });
+      privilegeTokenId
+    );
   }
 
   const { engine } = props.resourceState as Database;

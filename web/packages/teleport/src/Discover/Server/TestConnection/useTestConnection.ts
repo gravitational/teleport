@@ -24,7 +24,7 @@ import type { AgentStepProps } from '../../types';
 
 export function useTestConnection(props: AgentStepProps) {
   const { runConnectionDiagnostic, ...connectionDiagnostic } =
-    useConnectionDiagnostic(props);
+    useConnectionDiagnostic();
 
   function startSshSession(login: string) {
     const meta = props.agentMeta as NodeMeta;
@@ -37,12 +37,15 @@ export function useTestConnection(props: AgentStepProps) {
     openNewTab(url);
   }
 
-  function testConnection(login: string) {
-    runConnectionDiagnostic({
-      resourceKind: 'node',
-      resourceName: props.agentMeta.resourceName,
-      sshPrincipal: login,
-    });
+  function testConnection(login: string, privilegeTokenId = '') {
+    runConnectionDiagnostic(
+      {
+        resourceKind: 'node',
+        resourceName: props.agentMeta.resourceName,
+        sshPrincipal: login,
+      },
+      privilegeTokenId
+    );
   }
 
   return {
