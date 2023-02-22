@@ -18,9 +18,13 @@ package inventory
 
 import (
 	"context"
+	"os/exec"
+	"runtime"
 
-	"github.com/gravitational/teleport/api/types"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // fetchAgentMetadata fetches and calculates all agent metadata we are interested
@@ -42,10 +46,53 @@ func fetchAgentMetadata(ctx context.Context, hello proto.UpstreamInventoryHello)
 		}
 	}
 	metadata := proto.UpstreamInventoryAgentMetadata{
-		Version:  hello.Version,
-		HostID:   hello.ServerID,
-		Services: services,
+		Version:               hello.Version,
+		HostID:                hello.ServerID,
+		Services:              services,
+		OS:                    runtime.GOOS,
+		OSVersion:             fetchOSVersion(),
+		HostArchitecture:      fetchHostArchitecture(),
+		GLibCVersion:          fetchGlibcVersion(),
+		InstallMethods:        fetchInstallMethods(),
+		ContainerRuntime:      fetchContainerRuntime(),
+		ContainerOrchestrator: fetchContainerOrchestrator(),
+		CloudEnvironment:      fetchCloudEnvironment(),
 	}
 	// TODO(vitorenesduarte): fetch remaining metadata
 	return metadata
+}
+
+func fetchOSVersion() string {
+	return ""
+}
+
+// fetchHostArchitecture computes the host architecture using the arch
+// command-line utility.
+func fetchHostArchitecture() string {
+	out, err := exec.Command("arch").Output()
+	if err != nil {
+		log.Debugf("Failed to execute 'arch' command: %s", err)
+		return ""
+	}
+	return string(out)
+}
+
+func fetchGlibcVersion() string {
+	return ""
+}
+
+func fetchInstallMethods() []string {
+	return []string{}
+}
+
+func fetchContainerRuntime() string {
+	return ""
+}
+
+func fetchContainerOrchestrator() string {
+	return ""
+}
+
+func fetchCloudEnvironment() string {
+	return ""
 }

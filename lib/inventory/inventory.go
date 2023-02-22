@@ -207,7 +207,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 		case h.senderC <- sender:
 		case m := <-h.agentMetadataCh:
 			if err := stream.Send(h.closeContext, m); err != nil {
-				log.Warnf("failed to send agent metadata: %v", err)
+				log.Warnf("Failed to send agent metadata: %v", err)
 			}
 		case msg := <-stream.Recv():
 			switch m := msg.(type) {
