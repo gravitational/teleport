@@ -761,7 +761,7 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 
 func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	if rc.IsForced() {
-		fmt.Printf("warning: Devices cannot be overwritten with the --force flag.")
+		fmt.Printf("Warning: Devices cannot be overwritten with the --force flag.")
 	}
 
 	dev, err := device.UnmarshalDevice(raw.Raw)
