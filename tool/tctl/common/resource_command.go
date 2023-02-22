@@ -1622,7 +1622,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			resp, err := remote.FindDevices(ctx, &devicepb.FindDevicesRequest{
 				IdOrTag: rc.ref.Name,
 			})
-
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
