@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -71,8 +72,9 @@ func (r *Resource) checkAndSetDefaults() error {
 		return trace.BadParameter("missing asset tag")
 	}
 
-	if _, ok := devicepb.DeviceEnrollStatus_value[r.Spec.EnrollStatus]; !ok {
-		r.Spec.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED.String()
+	if _, err := devicetrust.ResourceEnrollStatusFromString(r.Spec.EnrollStatus); err != nil {
+		r.Spec.EnrollStatus = devicetrust.ResourceEnrollStatusToString(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED)
+		log.Debugf("enroll_status is not set, defaulting to %q", r.Spec.EnrollStatus)
 	}
 
 	return nil
@@ -108,7 +110,7 @@ func ProtoToResource(device *devicepb.Device) *Resource {
 			OsType:        devicetrust.ResourceOSTypeToString(device.OsType),
 			AssetTag:      device.AssetTag,
 			EnrollToken:   device.EnrollToken,
-			EnrollStatus:  devicepb.DeviceEnrollStatus_name[int32(device.EnrollStatus)],
+			EnrollStatus:  devicetrust.ResourceEnrollStatusToString(device.EnrollStatus),
 			Credential:    device.Credential,
 			CollectedData: device.CollectedData,
 		},
@@ -131,13 +133,18 @@ func resourceToProto(r *Resource) (*devicepb.Device, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	enrollStatus, err := devicetrust.ResourceEnrollStatusFromString(r.Spec.EnrollStatus)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	dev := &devicepb.Device{
 		ApiVersion:    r.Version,
 		Id:            r.Metadata.Name,
 		OsType:        osType,
 		AssetTag:      r.Spec.AssetTag,
 		EnrollToken:   r.Spec.EnrollToken,
-		EnrollStatus:  devicepb.DeviceEnrollStatus(devicepb.DeviceEnrollStatus_value[r.Spec.EnrollStatus]),
+		EnrollStatus:  enrollStatus,
 		Credential:    r.Spec.Credential,
 		CollectedData: r.Spec.CollectedData,
 	}
