@@ -305,10 +305,12 @@ type Desktop struct {
 	Labels []Label `json:"labels"`
 	// HostID is the ID of the Windows Desktop Service reporting the desktop.
 	HostID string `json:"host_id"`
+	// Logins is the list of logins this user can use on this desktop.
+	Logins []string `json:"logins"`
 }
 
 // MakeDesktop converts a desktop from its API form to a type the UI can display.
-func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
+func MakeDesktop(windowsDesktop types.WindowsDesktop, userRoles services.RoleSet) Desktop {
 	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
 	stripRdpPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
@@ -317,7 +319,10 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 		}
 		return addr
 	}
+
 	uiLabels := makeLabels(windowsDesktop.GetAllLabels())
+
+	logins := userRoles.GetWindowsDesktopLogins(windowsDesktop)
 
 	return Desktop{
 		OS:     constants.WindowsOS,
@@ -325,15 +330,16 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 		Addr:   stripRdpPort(windowsDesktop.GetAddr()),
 		Labels: uiLabels,
 		HostID: windowsDesktop.GetHostID(),
+		Logins: logins,
 	}
 }
 
 // MakeDesktops converts desktops from their API form to a type the UI can display.
-func MakeDesktops(windowsDesktops []types.WindowsDesktop) []Desktop {
+func MakeDesktops(windowsDesktops []types.WindowsDesktop, userRoles services.RoleSet) []Desktop {
 	uiDesktops := make([]Desktop, 0, len(windowsDesktops))
 
 	for _, windowsDesktop := range windowsDesktops {
-		uiDesktops = append(uiDesktops, MakeDesktop(windowsDesktop))
+		uiDesktops = append(uiDesktops, MakeDesktop(windowsDesktop, userRoles))
 	}
 
 	return uiDesktops

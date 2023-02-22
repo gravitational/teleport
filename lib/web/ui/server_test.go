@@ -448,7 +448,7 @@ func TestMakeDesktopHiddenLabel(t *testing.T) {
 		},
 	}
 
-	desktop := MakeDesktop(windowsDesktop)
+	desktop := MakeDesktop(windowsDesktop, services.NewRoleSet())
 	labels := []Label{
 		{
 			Name:  "label3",

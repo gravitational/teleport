@@ -1019,6 +1019,46 @@ func (set RoleSet) EnumerateServerLogins(server types.Server) EnumerationResult 
 	return result
 }
 
+// getAllAllowedWindowsDesktopLogins gets all the allowed windows desktop
+// logins for the RoleSet.
+func (set RoleSet) getAllAllowedWindowsDesktopLogins() []string {
+	allowed := []string{}
+	denied := []string{}
+	for _, role := range set {
+		denied = append(denied, role.GetWindowsLogins(types.Deny)...)
+		allowed = append(allowed, role.GetWindowsLogins(types.Allow)...)
+	}
+
+	allowed = apiutils.Deduplicate(allowed)
+	denied = apiutils.Deduplicate(denied)
+	desktopLogins := []string{}
+	for _, login := range allowed {
+		if isDenied := slices.Contains(denied, login); !isDenied {
+			desktopLogins = append(desktopLogins, login)
+		}
+	}
+
+	return desktopLogins
+}
+
+// GetWindowsDesktopLogins gets all the windows desktop logins allowed for a given
+// RoleSet-WindowsDesktop combo.
+func (set RoleSet) GetWindowsDesktopLogins(windowsDesktop types.WindowsDesktop) []string {
+	allLogins := set.getAllAllowedWindowsDesktopLogins()
+
+	// Filter out any logins that are allowed by a role in the role set,
+	// but for which that role does not apply to the given windowsDesktop.
+	var filteredLogins []string
+	for _, login := range allLogins {
+		err := set.checkAccess(windowsDesktop, AccessState{MFAVerified: true}, NewWindowsLoginMatcher(login))
+		if err == nil {
+			filteredLogins = append(filteredLogins, login)
+		}
+	}
+
+	return filteredLogins
+}
+
 // MatchNamespace returns true if given list of namespace matches
 // target namespace, wildcard matches everything.
 func MatchNamespace(selectors []string, namespace string) (bool, string) {

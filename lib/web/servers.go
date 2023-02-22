@@ -187,8 +187,13 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return listResourcesGetResponse{
-		Items:      ui.MakeDesktops(windowsDesktops),
+		Items:      ui.MakeDesktops(windowsDesktops, accessChecker.Roles()),
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
 	}, nil
@@ -235,12 +240,18 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 	if len(windowsDesktops) == 0 {
-		return nil, trace.NotFound("expected at least one desktop, got 0")
+		return nil, trace.NotFound("expected at least 1 desktop, got 0")
 	}
+
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// windowsDesktops may contain the same desktop multiple times
 	// if multiple Windows Desktop Services are in use. We only need
 	// to see the desktop once in the UI, so just take the first one.
-	return ui.MakeDesktop(windowsDesktops[0]), nil
+	return ui.MakeDesktop(windowsDesktops[0], accessChecker.Roles()), nil
 }
 
 // desktopIsActive checks if a desktop has an active session and returns a desktopIsActive.
