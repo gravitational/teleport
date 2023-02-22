@@ -282,7 +282,10 @@ leaf clusters.
 
 ## Optional: Role-based device enforcement
 
-Role-based configuration enforces trusted device access at role level. It can be configured with `device_trust_mode` (`required`, `optional`, `off`) option and applies to the resources in its `allow` rules. It works similar to [`require_session_mfa`](per-session-mfa.mdx).
+Role-based configuration enforces trusted device access at the role level. It
+can be configured with the `spec.options.device_trust_mode` (`required`,
+`optional`, `off`) option and applies to the resources in its `allow` rules. It
+works similar to [`require_session_mfa`](./per-session-mfa.mdx).
 
 To enforce authenticated device checks for a specific role, update the role as the following:
 
