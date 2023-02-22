@@ -402,7 +402,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 		// serve Web UI:
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
-			http.StripPrefix("/web", makeGzipHandler(http.FileServer(cfg.StaticFS))).ServeHTTP(w, r)
+			fs := http.FileServer(cfg.StaticFS)
+
+			fs = makeGzipHandler(fs)
+			fs = makeCacheHandler(fs)
+
+			http.StripPrefix("/web", fs).ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web/") || r.URL.Path == "/web" {
 			csrfToken, err := csrf.AddCSRFProtection(w, r)
 			if err != nil {
