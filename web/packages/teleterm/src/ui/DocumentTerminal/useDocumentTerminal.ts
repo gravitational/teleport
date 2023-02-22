@@ -157,9 +157,9 @@ async function resolveLoginHost(
   } else {
     // If we can't find a server by the given hostname, we still want to create a document to
     // handle the error further down the line.
-    const clusterParams = routing.parseClusterUri(clusterUri).params;
     serverUri = routing.getServerUri({
-      ...clusterParams,
+      rootClusterId: doc.rootClusterId,
+      leafClusterId: doc.leafClusterId,
       serverId: host,
     });
     serverHostname = host;
