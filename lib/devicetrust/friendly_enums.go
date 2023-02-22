@@ -15,8 +15,9 @@
 package devicetrust
 
 import (
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/trace"
+
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
 
 // FriendlyOSType returns a user-friendly OSType representation.
