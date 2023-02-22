@@ -193,7 +193,7 @@ $ tsh logout; tsh login --proxy=example.com --user=alice # fetch new certificate
 
 The device above is now a trusted device.
 
-## Optional: Cluster-wide device enforcement
+## Optional: Cluster-wide trusted device enforcement
 
 Cluster-wide configuration enforces trusted device access at the cluster level.
 It can be configured with the following three modes of operation, represented
@@ -284,7 +284,7 @@ cluster. Likewise, a root cluster will not enforce device trust on resources in
 leaf clusters.
 </Admonition>
 
-## Optional: Role-based device enforcement
+## Optional: Role-based trusted device enforcement
 
 Role-based configuration enforces trusted device access at the role level. It
 can be configured with the `spec.options.device_trust_mode` (`required`,
