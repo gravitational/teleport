@@ -349,6 +349,13 @@ func TestCreatePrivilegeToken(t *testing.T) {
 			require.Equal(t, tc.tokenType, token.GetSubKind())
 			require.Equal(t, username, token.GetUser())
 
+			// Test device ID is set.
+			if tc.tokenType == UserTokenTypePrivilege {
+				require.NotEmpty(t, token.GetVerifiedMFADeviceID())
+			} else {
+				require.Empty(t, token.GetVerifiedMFADeviceID())
+			}
+
 			// Test events emitted.
 			event := mockEmitter.LastEvent()
 			require.Equal(t, event.GetType(), events.PrivilegeTokenCreateEvent)

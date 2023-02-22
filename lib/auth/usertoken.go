@@ -72,6 +72,9 @@ type CreateUserTokenRequest struct {
 	TTL time.Duration `json:"ttl"`
 	// Type is the token type.
 	Type string `json:"type"`
+	// VerifiedMFADeviceID is an optional field for the ID
+	// of a validated MFA device.
+	VerifiedMFADeviceID string `json:"verified_mfa_device_id"`
 }
 
 // CheckAndSetDefaults checks and sets the defaults.
@@ -336,6 +339,7 @@ func (s *Server) newUserToken(req CreateUserTokenRequest) (types.UserToken, erro
 	token.SetUser(req.Name)
 	token.SetCreated(s.clock.Now().UTC())
 	token.SetURL(url)
+	token.SetVerifiedMFADeviceID(req.VerifiedMFADeviceID)
 
 	return token, nil
 }
@@ -466,6 +470,7 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	}
 
 	tokenKind := UserTokenTypePrivilege
+	var verifiedMFADeviceID string
 
 	switch {
 	case req.GetExistingMFAResponse() == nil:
@@ -482,8 +487,11 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 
 	default:
 		if err := s.WithUserLock(username, func() error {
-			_, _, err := s.validateMFAAuthResponse(
+			validatedDev, _, err := s.validateMFAAuthResponse(
 				ctx, req.GetExistingMFAResponse(), username, false /* passwordless */)
+			if err == nil {
+				verifiedMFADeviceID = validatedDev.Id
+			}
 			return err
 		}); err != nil {
 			return nil, trace.Wrap(err)
@@ -495,18 +503,19 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := s.createPrivilegeToken(ctx, username, tokenKind)
+	token, err := s.createPrivilegeToken(ctx, username, tokenKind, verifiedMFADeviceID)
 	return token, trace.Wrap(err)
 }
 
-func (s *Server) createPrivilegeToken(ctx context.Context, username, tokenKind string) (*types.UserTokenV3, error) {
+func (s *Server) createPrivilegeToken(ctx context.Context, username, tokenKind, deviceID string) (*types.UserTokenV3, error) {
 	if tokenKind != UserTokenTypePrivilege && tokenKind != UserTokenTypePrivilegeException {
 		return nil, trace.BadParameter("invalid privilege token type")
 	}
 
 	req := CreateUserTokenRequest{
-		Name: username,
-		Type: tokenKind,
+		Name:                username,
+		Type:                tokenKind,
+		VerifiedMFADeviceID: deviceID,
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {

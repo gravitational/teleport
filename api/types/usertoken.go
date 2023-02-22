@@ -43,6 +43,11 @@ type UserToken interface {
 	GetUsage() UserTokenUsage
 	// SetUsage sets usage type.
 	SetUsage(UserTokenUsage)
+
+	// SetVerifiedMFADeviceID sets the field for the ID of a validated MFA device.
+	SetVerifiedMFADeviceID(string)
+	// GetVerifiedMFADeviceID returns the ID of a validated MFA device.
+	GetVerifiedMFADeviceID() string
 }
 
 // NewUserToken creates an instance of UserToken.
@@ -96,6 +101,16 @@ func (u *UserTokenV3) GetURL() string {
 // SetURL sets URL
 func (u *UserTokenV3) SetURL(url string) {
 	u.Spec.URL = url
+}
+
+// SetVerifiedMFADeviceID sets the field for the ID of a validated MFA device.
+func (u *UserTokenV3) SetVerifiedMFADeviceID(deviceId string) {
+	u.Spec.VerifiedMFADeviceID = deviceId
+}
+
+// GetVerifiedMFADeviceID returns the ID of a validated MFA device.
+func (u *UserTokenV3) GetVerifiedMFADeviceID() string {
+	return u.Spec.VerifiedMFADeviceID
 }
 
 // Expiry returns object expiry setting

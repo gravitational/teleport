@@ -1756,6 +1756,9 @@ message UserTokenSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "created,omitempty"
   ];
+  // VerifiedMFADeviceID is an optional field for the ID of this
+  // users MFA device that has been successfully validated.
+  string VerifiedMFADeviceID = 5 [(gogoproto.jsontag) = "verified_mfa_device_id,omitempty"];
 }
 
 message UserTokenSecretsV3 {
