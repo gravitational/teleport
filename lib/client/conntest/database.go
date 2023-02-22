@@ -210,6 +210,7 @@ func (s *DatabaseConnectionTester) runALPNTunnel(ctx context.Context, req TestCo
 		ConnectionDiagnosticID: connectionDiagnosticID,
 		RouteToDatabase:        routeToDatabase,
 		InsecureSkipVerify:     req.InsecureSkipVerify,
+		PrivilegeTokenID:       req.PrivilegeTokenID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

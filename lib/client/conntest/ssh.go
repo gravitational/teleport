@@ -117,6 +117,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		Username:               currentUser.GetName(),
 		Expires:                time.Now().Add(time.Minute).UTC(),
 		ConnectionDiagnosticID: connectionDiagnosticID,
+		PrivilegeTokenID:       req.PrivilegeTokenID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

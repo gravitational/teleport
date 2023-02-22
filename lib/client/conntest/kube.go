@@ -109,7 +109,7 @@ func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConne
 		return nil, trace.Wrap(err)
 	}
 
-	tlsCfg, err := s.genKubeRestTLSClientConfig(ctx, connectionDiagnosticID, req.ResourceName, currentUser.GetName())
+	tlsCfg, err := s.genKubeRestTLSClientConfig(ctx, connectionDiagnosticID, req.ResourceName, currentUser.GetName(), req.PrivilegeTokenID)
 	diag, diagErr := s.handleUserGenCertsErr(ctx, req.ResourceName, connectionDiagnosticID, err)
 	if err != nil || diagErr != nil {
 		return diag, diagErr
@@ -147,7 +147,7 @@ func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConne
 
 // genKubeRestTLSClientConfig creates the Teleport user credentials to access
 // the given Kubernetes cluster name.
-func (s KubeConnectionTester) genKubeRestTLSClientConfig(ctx context.Context, connectionDiagnosticID string, clusterName, userName string) (rest.TLSClientConfig, error) {
+func (s KubeConnectionTester) genKubeRestTLSClientConfig(ctx context.Context, connectionDiagnosticID string, clusterName, userName, tokenID string) (rest.TLSClientConfig, error) {
 	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return rest.TLSClientConfig{}, trace.Wrap(err)
@@ -159,6 +159,7 @@ func (s KubeConnectionTester) genKubeRestTLSClientConfig(ctx context.Context, co
 		Expires:                time.Now().Add(time.Minute).UTC(),
 		ConnectionDiagnosticID: connectionDiagnosticID,
 		KubernetesCluster:      clusterName,
+		PrivilegeTokenID:       tokenID,
 	})
 	if err != nil {
 		return rest.TLSClientConfig{}, trace.Wrap(err)

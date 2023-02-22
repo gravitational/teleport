@@ -32,6 +32,9 @@ import (
 // - additional paramenters which depend on the actual kind of resource to test
 // As an example, for SSH Node it also includes the User/Principal that will be used to login.
 type TestConnectionRequest struct {
+	// PrivilegeTokenID is an optional field for ID of a privilege token that contains additional
+	// information of a user.
+	PrivilegeTokenID string `json:"privilege_token_id,omitempty"`
 	// ResourceKind describes the type of resource to test.
 	ResourceKind string `json:"resource_kind"`
 	// ResourceName is the identification of the resource's instance to test.

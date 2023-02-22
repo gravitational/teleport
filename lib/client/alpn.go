@@ -76,6 +76,10 @@ type ALPNAuthTunnelConfig struct {
 	// RouteToDatabase contains the destination server that must receive the connection.
 	// Specific for database proxying.
 	RouteToDatabase proto.RouteToDatabase
+
+	// PrivilegeTokenID is an optional field for ID of a privilege token that contains additional
+	// information of a user.
+	PrivilegeTokenID string
 }
 
 // RunALPNAuthTunnel runs a local authenticated ALPN proxy to another service.
@@ -107,7 +111,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 		return trace.Wrap(err)
 	}
 
-	tlsCert, err := getUserCerts(ctx, cfg.AuthClient, cfg.Expires, cfg.RouteToDatabase, cfg.ConnectionDiagnosticID)
+	tlsCert, err := getUserCerts(ctx, cfg.AuthClient, cfg.Expires, cfg.RouteToDatabase, cfg.ConnectionDiagnosticID, cfg.PrivilegeTokenID)
 	if err != nil {
 		return trace.BadParameter("failed to parse private key: %v", err)
 	}
@@ -137,7 +141,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 	return nil
 }
 
-func getUserCerts(ctx context.Context, client ALPNAuthClient, expires time.Time, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID string) (*tls.Certificate, error) {
+func getUserCerts(ctx context.Context, client ALPNAuthClient, expires time.Time, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID, tokenID string) (*tls.Certificate, error) {
 	key, err := GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -154,6 +158,7 @@ func getUserCerts(ctx context.Context, client ALPNAuthClient, expires time.Time,
 		Expires:                expires,
 		ConnectionDiagnosticID: connectionDiagnosticID,
 		RouteToDatabase:        routeToDatabase,
+		PrivilegeTokenID:       tokenID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -165,4 +170,7 @@ func getUserCerts(ctx context.Context, client ALPNAuthClient, expires time.Time,
 	}
 
 	return &tlsCert, nil
+}
+
+type UserCertConfig struct {
 }
