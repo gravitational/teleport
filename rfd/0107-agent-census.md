@@ -3,7 +3,7 @@ authors: Vitor Enes (vitor@goteleport.com)
 state: draft
 ---
 
-# RFD 106 - Agent Census
+# RFD 107 - Agent Census
 
 ## Required Approvals
 
@@ -92,8 +92,8 @@ However, this attempt only occurs after a successful hello exchange and thus it 
 message UpstreamInventoryAgentMetadata {
   // Version advertises the teleport version of the instance.
   string Version = 1;
-  // ServerID advertises the server ID of the instance.
-  string ServerID = 2;
+  // HostID advertises the ID of the instance.
+  string HostID = 2;
   // Services advertises the currently live services of the instance that represent
   // access protocols ("node", "kube", "app", "db" and "windows_desktop").
   repeated string Services = 3;
