@@ -16,6 +16,7 @@ func newLoginRuleWithTraitsMap(name string, priority int32, traitsMap map[string
 		Metadata: &types.Metadata{
 			Name: name,
 		},
+		Version:   types.V1,
 		Priority:  priority,
 		TraitsMap: make(map[string]*wrappers.StringValues),
 	}
@@ -32,6 +33,7 @@ func newLoginRuleWithTraitsExpression(name string, priority int32, expression st
 		Metadata: &types.Metadata{
 			Name: name,
 		},
+		Version:          types.V1,
 		Priority:         priority,
 		TraitsExpression: expression,
 	}
@@ -50,7 +52,7 @@ func TestEvaluate(t *testing.T) {
 		rules          []*loginrulepb.LoginRule
 		inputTraits    map[string][]string
 		expectedTraits map[string][]string
-		errorContains  string
+		errorContains  []string
 	}{
 		{
 			desc:           "no rules",
@@ -153,14 +155,18 @@ func TestEvaluate(t *testing.T) {
 					"groups": []string{"external"},
 				}),
 			},
-			errorContains: "traits_map expression must evaluate to type string or set, the following expression evaluates to loginrule.dict:",
+			errorContains: []string{
+				"traits_map expression must evaluate to type string or set, the following expression evaluates to loginrule.dict:",
+			},
 		},
 		{
 			desc: "wrong expression return type",
 			rules: []*loginrulepb.LoginRule{
 				newLoginRuleWithTraitsExpression("rule0", 0, "external.groups"),
 			},
-			errorContains: "traits_expression must evaluate to type dict, the following expression evaluates to loginrule.set:",
+			errorContains: []string{
+				"traits_expression must evaluate to type dict, the following expression evaluates to loginrule.set:",
+			},
 		},
 		{
 			desc: "ifelse",
@@ -230,8 +236,11 @@ func TestEvaluate(t *testing.T) {
 				// Cannot add a set to a set - should use union.
 				newLoginRuleWithTraitsExpression("rule", 0, `external.groups.add(external.username)`),
 			},
-			inputTraits:   baseInputTraits,
-			errorContains: "arguments to set.add must have type string, got loginrule.set",
+			inputTraits: baseInputTraits,
+			errorContains: []string{
+				"failed to evaluate argument to set.add method",
+				"expected value of type string, got loginrule.set",
+			},
 		},
 		{
 			desc: "dict creation",
@@ -361,7 +370,10 @@ func TestEvaluate(t *testing.T) {
 			rules: []*loginrulepb.LoginRule{
 				newLoginRuleWithTraitsExpression("rule", 0, `choose(external.groups.contains("devs"), external)`),
 			},
-			errorContains: "arguments to choose must have type option, got bool",
+			errorContains: []string{
+				"failed to evaluate argument to choose",
+				"expected value of type loginrule.option, got bool",
+			},
 		},
 		{
 			// Test that external traits dict can by indexed like
@@ -402,11 +414,63 @@ func TestEvaluate(t *testing.T) {
 				"groups": {"devs", "security", "admins"},
 			},
 		},
+		{
+			desc: "traits_map quoted or unquoted strings",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsMap("rule", 0, map[string][]string{
+					"test": {`a`, `"b"`},
+				}),
+			},
+			expectedTraits: map[string][]string{
+				"test": {"a", "b"},
+			},
+		},
+		{
+			desc: "invalid function",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsExpression("rule", 0, `replace(external, "groups", "roles")`),
+			},
+			errorContains: []string{
+				"unsupported function: replace",
+			},
+		},
+		{
+			desc: "invalid method",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsExpression("rule", 0, `external.replace("groups", "roles")`),
+			},
+			errorContains: []string{
+				"unsupported function: external.replace",
+			},
+		},
+		{
+			desc: "invalid namespace",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsExpression("rule", 0, `internal.groups`),
+			},
+			errorContains: []string{
+				`invalid namespace "internal"`,
+			},
+		},
+		{
+			desc: "unclosed parens",
+			rules: []*loginrulepb.LoginRule{
+				newLoginRuleWithTraitsExpression("rule", 0, `external.put("logins", set("operator")`),
+			},
+			errorContains: []string{
+				// The more specific error is "missing ',' before newline in
+				// argument list" but that comes from vulcand/predicate and it's
+				// not optimal so I don't want to assert it in a test.
+				`error parsing expression`,
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			result, err := Evaluate(tc.rules, &oss.EvaluationInput{Traits: tc.inputTraits})
-			if tc.errorContains != "" {
-				require.ErrorContains(t, err, tc.errorContains)
+			if len(tc.errorContains) > 0 {
+				for _, contains := range tc.errorContains {
+					require.ErrorContains(t, err, contains, "error string does not contain expected snippet")
+				}
 				return
 			}
 			require.NoError(t, err)

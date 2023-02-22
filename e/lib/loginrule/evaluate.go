@@ -5,7 +5,6 @@ import (
 	"sort"
 
 	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate"
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -60,26 +59,22 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 	traits := dictFromStringSliceMap(input.Traits)
 	for _, rule := range rules {
 		// Every rule gets the output of the previous rule as input.
-		env := &parseEnv{
+		env := &evaluationEnv{
 			external: traits,
-		}
-		// Parsers are cheap to create, make a new one with the new env rather
-		// than modifying the env on an existing parser.
-		parser, err := newParser(env)
-		if err != nil {
-			return nil, trace.Wrap(err)
 		}
 		// Each rule should only have one of TraitsMap or TraitsExpression set,
 		// this should be checked when the rule is parsed from a file or from
 		// storage, no need to check again here.
 		if len(rule.TraitsMap) > 0 {
-			traits, err = evaluateTraitsMap(parser, rule.TraitsMap)
+			var err error
+			traits, err = evaluateTraitsMap(env, rule.TraitsMap)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
 		if len(rule.TraitsExpression) > 0 {
-			traits, err = evaluateTraitsExpression(parser, rule.TraitsExpression)
+			var err error
+			traits, err = evaluateTraitsExpression(env, rule.TraitsExpression)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -101,16 +96,20 @@ func sortLoginRules(rules []*loginrulepb.LoginRule) {
 	})
 }
 
-func evaluateTraitsMap(p predicate.Parser, traitsMap map[string]*wrappers.StringValues) (dict, error) {
+func evaluateTraitsMap(env *evaluationEnv, traitsMap map[string]*wrappers.StringValues) (dict, error) {
 	d, err := newDict()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	for key, values := range traitsMap {
 		for _, expr := range values.Values {
-			result, err := p.Parse(expr)
+			e, err := parseExpr(expr)
 			if err != nil {
 				return nil, trace.Wrap(err, "error parsing expression: %q", expr)
+			}
+			result, err := e(env)
+			if err != nil {
+				return nil, trace.Wrap(err, "error evaluating expression: %q", expr)
 			}
 
 			s, err := traitsMapResultToSet(result, expr)
@@ -118,10 +117,7 @@ func evaluateTraitsMap(p predicate.Parser, traitsMap map[string]*wrappers.String
 				return nil, trace.Wrap(err)
 			}
 
-			d[key], err = union(d[key], s)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
+			d[key] = union(d[key], s)
 		}
 	}
 	return d, nil
@@ -145,10 +141,14 @@ func traitsMapResultToSet(result any, expr string) (set, error) {
 	}
 }
 
-func evaluateTraitsExpression(p predicate.Parser, traitsExpression string) (dict, error) {
-	result, err := p.Parse(traitsExpression)
+func evaluateTraitsExpression(env *evaluationEnv, traitsExpression string) (dict, error) {
+	expr, err := parseExpr(traitsExpression)
 	if err != nil {
 		return nil, trace.Wrap(err, "error parsing expression: %q", traitsExpression)
+	}
+	result, err := expr(env)
+	if err != nil {
+		return nil, trace.Wrap(err, "error evaluating expression: %q", traitsExpression)
 	}
 	d, ok := result.(dict)
 	if !ok {

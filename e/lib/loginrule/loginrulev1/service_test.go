@@ -98,6 +98,7 @@ func TestRBAC(t *testing.T) {
 		Metadata: &types.Metadata{
 			Name: "test_rule",
 		},
+		Version:          types.V1,
 		TraitsExpression: "test",
 	}
 

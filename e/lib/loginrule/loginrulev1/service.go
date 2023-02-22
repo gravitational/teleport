@@ -11,6 +11,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/e/lib/loginrule"
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
@@ -60,6 +61,10 @@ func (s *Service) CreateLoginRule(ctx context.Context, req *loginrulepb.CreateLo
 		return nil, trace.Wrap(err)
 	}
 
+	if err := loginrule.Validate(req.LoginRule); err != nil {
+		return nil, trace.Wrap(err, "failed to validate login rule")
+	}
+
 	if err := s.emitCreateEvent(ctx, req.LoginRule); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -73,6 +78,10 @@ func (s *Service) CreateLoginRule(ctx context.Context, req *loginrulepb.CreateLo
 func (s *Service) UpsertLoginRule(ctx context.Context, req *loginrulepb.UpsertLoginRuleRequest) (*loginrulepb.LoginRule, error) {
 	if err := s.authorizeVerbs(ctx, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := loginrule.Validate(req.LoginRule); err != nil {
+		return nil, trace.Wrap(err, "failed to validate login rule")
 	}
 
 	if err := s.emitCreateEvent(ctx, req.LoginRule); err != nil {

@@ -7,9 +7,9 @@ import (
 	"github.com/vulcand/predicate"
 )
 
-// parseEnv holds the "environment" including all identifiers which will be
+// evaluationEnv holds the "environment" including all identifiers which will be
 // available to predicate expressions.
-type parseEnv struct {
+type evaluationEnv struct {
 	// external holds the input traits which are referred to by the name
 	// "external", in keeping with the syntax from role templates. For the
 	// lowest priority login rule these will be the external traits coming from
@@ -18,293 +18,241 @@ type parseEnv struct {
 	external dict
 }
 
-func (p *parseEnv) getIdentifier(fields []string) (interface{}, error) {
-	switch len(fields) {
-	case 1:
-		switch fields[0] {
-		case "true":
-			return true, nil
-		case "false":
-			return false, nil
-		case "external":
-			return p.external, nil
-		default:
-			return unknownIdentifier(fields[0]), nil
-		}
-	case 2:
-		if fields[0] != "external" {
-			return nil, trace.NotFound("identifier %q not found in env", fields[0])
-		}
-		return p.external[fields[1]], nil
-	default:
-		return nil, trace.BadParameter("error parsing %v: unsupported fields length: %d", fields, len(fields))
-	}
-}
+type expr func(*evaluationEnv) (any, error)
 
-// newParser returns a predicate.Parser set up with the given environment and
-// the support functions and methods available to login rule predicate
-// expression.
-//
-// TODO(nklaassen): implement remaining predicate helper functions https://github.com/gravitational/teleport/blob/master/rfd/0078-login-rules.md#predicate-helper-functions
-func newParser(env *parseEnv) (predicate.Parser, error) {
+// parseExpr takes a login rule expression as a string and returns an [expr]
+// which can be evaluated with an [evaluationEnv] to get the final result.
+func parseExpr(input string) (expr, error) {
 	parser, err := predicate.NewParser(predicate.Def{
-		Operators: predicate.Operators{
-			AND: and,
-			OR:  or,
-			NOT: not,
-		},
-		GetIdentifier: env.getIdentifier,
+		GetIdentifier: getIdentifier,
 		GetProperty:   getProperty,
+		Operators: predicate.Operators{
+			AND: buildAndExpr,
+			OR:  buildOrExpr,
+			NOT: buildNotExpr,
+		},
 		Functions: map[string]any{
-			"set":                newSet,
-			"dict":               newDict,
-			"pair":               newPair,
-			"union":              union,
-			"ifelse":             ifelse,
-			"strings.upper":      upper,
-			"strings.lower":      lower,
-			"strings.replaceall": replaceAll,
-			"choose":             choose,
-			"option":             newOption,
+			"set":                buildNewSetExpr,
+			"dict":               buildNewDictExpr,
+			"pair":               buildNewPairExpr,
+			"union":              buildUnionExpr,
+			"ifelse":             buildIfElseExpr,
+			"strings.upper":      buildUpperExpr,
+			"strings.lower":      buildLowerExpr,
+			"strings.replaceall": buildReplaceAllExpr,
+			"choose":             buildChooseExpr,
+			"option":             buildOptionExpr,
 		},
 		Methods: map[string]any{
-			"add":        set.add,
-			"contains":   set.contains,
-			"put":        dict.put,
-			"add_values": dict.addValues,
-			"remove":     remover.remove,
+			"add":        buildSetAddExpr,
+			"contains":   buildSetContainsExpr,
+			"put":        buildDictPutExpr,
+			"add_values": buildDictAddValuesExpr,
+			"remove":     buildRemoveMethodExpr,
 		},
 	})
-	return parser, trace.Wrap(err)
-}
-
-func getProperty(mapVal, keyVal any) (any, error) {
-	k, ok := keyVal.(string)
-	if !ok {
-		return nil, trace.BadParameter("unsupported key type %T", k)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	d, ok := mapVal.(dict)
-	if !ok {
-		return nil, trace.BadParameter("unsupported type %T: cannot get property %q", mapVal, keyVal)
+
+	result, err := parser.Parse(input)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return d[k], nil
-}
 
-func and(a, b bool) bool {
-	return a && b
-}
+	var rootExpr expr
+	switch e := result.(type) {
+	case expr:
+		rootExpr = e
+	default:
+		// It's possible that the entire expression evaluated to a string, which
+		// is a valid expression within a traits_map.
+		rootExpr = buildLiteralExpr(e)
+	}
 
-func or(a, b bool) bool {
-	return a || b
-}
-
-func not(a bool) bool {
-	return !a
+	return rootExpr, nil
 }
 
 type unknownIdentifier string
 
-// remover is an interface used so that the parser can call the "remove" method
-// on both set and dict.
-type remover interface {
-	remove(items ...any) (any, error)
-}
-
-type set map[string]struct{}
-
-func newSet(values ...string) set {
-	s := make(set, len(values))
-	for _, value := range values {
-		s[value] = struct{}{}
+func getIdentifier(fields []string) (any, error) {
+	switch len(fields) {
+	case 1:
+		switch fields[0] {
+		case "true":
+			return buildLiteralExpr(true), nil
+		case "false":
+			return buildLiteralExpr(false), nil
+		case "external":
+			return expr(func(env *evaluationEnv) (any, error) { return env.external, nil }), nil
+		default:
+			return expr(func(*evaluationEnv) (any, error) { return unknownIdentifier(fields[0]), nil }), nil
+		}
+	case 2:
+		if fields[0] != "external" {
+			return nil, trace.BadParameter("failed to parse %q, invalid namespace %q",
+				strings.Join(fields, "."), fields[0])
+		}
+		return expr(func(env *evaluationEnv) (any, error) { return env.external[fields[1]], nil }), nil
+	default:
+		return nil, trace.BadParameter("failed to parse %q, found %d fields, max is 2",
+			strings.Join(fields, "."), len(fields))
 	}
-	return s
 }
 
-// clone returns a copy of [s].
-func (s set) clone() set {
-	copy := make(set, len(s))
-	for k := range s {
-		copy[k] = struct{}{}
+func getProperty(base, key any) (any, error) {
+	baseExpr, err := validateExpr[dict](base)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse base of index expression")
 	}
-	return copy
-}
 
-func (s set) items() []string {
-	out := make([]string, 0, len(s))
-	for k := range s {
-		out = append(out, k)
+	keyExpr, err := validateExpr[string](key)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse key of index expresion")
 	}
-	return out
+
+	return expr(func(env *evaluationEnv) (any, error) {
+		d, err := validateExprResult[dict](env, baseExpr)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to evaluate base of index expression")
+		}
+		k, err := validateExprResult[string](env, keyExpr)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to evaluate key of index expression")
+		}
+		return d[k], nil
+	}), nil
 }
 
-func (s set) contains(value any) (bool, error) {
-	str, ok := value.(string)
+func buildLiteralExpr(v any) expr {
+	return func(*evaluationEnv) (any, error) {
+		return v, nil
+	}
+}
+
+func buildIfElseExpr(cond, ifTrue, ifFalse any) (expr, error) {
+	condExpr, err := validateExpr[bool](cond)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse ifelse condition")
+	}
+	exprIfTrue, ok := ifTrue.(expr)
 	if !ok {
-		return false, trace.BadParameter("argument to set.contains must have type string, got %T", value)
+		exprIfTrue = buildLiteralExpr(ifTrue)
 	}
-	_, ok = s[str]
-	return ok, nil
-}
-
-// add returns a copy of the set with the given values added.
-func (s set) add(values ...any) (set, error) {
-	out := make(set)
-	for value := range s {
-		out[value] = struct{}{}
-	}
-	for _, value := range values {
-		str, ok := value.(string)
-		if !ok {
-			return nil, trace.BadParameter("arguments to set.add must have type string, got %T", value)
-		}
-		out[str] = struct{}{}
-	}
-	return out, nil
-}
-
-// remove returns a copy of the set with values added.
-func (s set) remove(values ...any) (any, error) {
-	out := make(set, len(s))
-	for value := range s {
-		out[value] = struct{}{}
-	}
-	for _, value := range values {
-		str, ok := value.(string)
-		if !ok {
-			return nil, trace.BadParameter("arguments to set.remove must have type string, got %T", value)
-		}
-		delete(out, str)
-	}
-	return out, nil
-}
-
-func union(sets ...any) (set, error) {
-	result := make(set)
-	for _, value := range sets {
-		s, ok := value.(set)
-		if !ok {
-			return nil, trace.BadParameter("arguments to union must have type set, got %T", value)
-
-		}
-		for v := range s {
-			result[v] = struct{}{}
-		}
-	}
-	return result, nil
-}
-
-type dict map[string]set
-
-// newDict returns a dict initialized with the key-value pairs as specified in
-// [pairs].
-func newDict(pairs ...any) (dict, error) {
-	d := make(dict, len(pairs))
-	for _, pairArg := range pairs {
-		p, ok := pairArg.(pair)
-		if !ok {
-			return nil, trace.BadParameter("arguments to dict must have type pair, got %T", pairArg)
-		}
-		d[p.first] = p.second
-	}
-	return d, nil
-}
-
-// clone returns a deep copy of [d].
-func (d dict) clone() dict {
-	copy := make(dict, len(d))
-	for key, set := range d {
-		copy[key] = set.clone()
-	}
-	return copy
-}
-
-// addValues returns a copy of [d] with [values] added at [key].
-func (d dict) addValues(key any, values ...any) (dict, error) {
-	keyStr, ok := key.(string)
+	exprIfFalse, ok := ifFalse.(expr)
 	if !ok {
-		return nil, trace.BadParameter("first argument (key) to dict.add_values must have type string, got %T", key)
+		exprIfFalse = buildLiteralExpr(ifFalse)
 	}
-
-	copy := d.clone()
-	for _, value := range values {
-		valueStr, ok := value.(string)
-		if !ok {
-			return nil, trace.BadParameter("variadic arguments (values) to dict.add_values must have type string, got %T", value)
+	return func(env *evaluationEnv) (any, error) {
+		cond, err := validateExprResult[bool](env, condExpr)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to evaluate ifelse condition")
 		}
-		s := copy[keyStr]
-		if s == nil {
-			copy[keyStr] = map[string]struct{}{
-				valueStr: struct{}{},
+		if cond {
+			return exprIfTrue(env)
+		}
+		return exprIfFalse(env)
+	}, nil
+}
+
+// buildStringTransformExprBuilder accepts a string transform function [f] and a
+// function name used for error messages.
+//
+// It returns a function which can build expressions that transform their input
+// (which may be a string or a set of strings) with [f].
+//
+// The return type of the expression will match the input type:
+//   - if the input is a string, it returns a string
+//   - if the input is a set, it returns a set
+func buildStringTransformExprBuilder(f func(string) string, name string) func(input any) (expr, error) {
+	return func(input any) (expr, error) {
+		inputExpr, err := validateStringOrSetExpr(input)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse first argument (input) to %s", name)
+		}
+		return func(env *evaluationEnv) (any, error) {
+			inputAny, err := inputExpr(env)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
-		} else {
-			copy[keyStr][valueStr] = struct{}{}
+			switch input := inputAny.(type) {
+			case string:
+				return f(input), nil
+			case set:
+				return input.transform(f), nil
+			default:
+				return nil, trace.BadParameter("failed to evaluate argument to %s: expected string or set, got value of type %T", name, input)
+			}
+		}, nil
+	}
+}
+
+var (
+	buildUpperExpr = buildStringTransformExprBuilder(strings.ToUpper, "strings.upper")
+	buildLowerExpr = buildStringTransformExprBuilder(strings.ToLower, "strings.lower")
+)
+
+func buildReplaceAllExpr(input, match, replacement any) (expr, error) {
+	inputExpr, err := validateStringOrSetExpr(input)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse first argument (input) to strings.replaceall")
+	}
+	matchExpr, err := validateExpr[string](match)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse second argument (match) to strings.replaceall")
+	}
+	replacementExpr, err := validateExpr[string](replacement)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse third argument (replacement) to strings.replaceall")
+	}
+	return func(env *evaluationEnv) (any, error) {
+		match, err := validateExprResult[string](env, matchExpr)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to evaluate second argument (match) to strings.replaceall")
 		}
-	}
-	return copy, nil
-}
-
-// remove returns a copy of [d] with [keys] removed.
-func (d dict) remove(keys ...any) (any, error) {
-	copy := d.clone()
-	for _, key := range keys {
-		keyStr, ok := key.(string)
-		if !ok {
-			return nil, trace.BadParameter("arguments (keys) to dict.remove must have type string, got %T", key)
+		replacement, err := validateExprResult[string](env, replacementExpr)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to evaluate third argument (replacement) to strings.replaceall")
 		}
-		delete(copy, keyStr)
-	}
-	return copy, nil
-}
 
-// put returns a copy of [d] with [key] set to [value].
-func (d dict) put(key, value any) (dict, error) {
-	keyStr, ok := key.(string)
-	if !ok {
-		return nil, trace.BadParameter("first argument (key) to dict.put must have type string, got %T", key)
-	}
-	valueSet, ok := value.(set)
-	if !ok {
-		return nil, trace.BadParameter("second argument (value) to dict.put must have type set, got %T", value)
-	}
-	copy := d.clone()
-	copy[keyStr] = valueSet
-	return copy, nil
-}
-
-type pair struct {
-	first  string
-	second set
-}
-
-func newPair(first string, second set) pair {
-	return pair{
-		first:  first,
-		second: second,
-	}
-}
-
-func ifelse(cond, valueIfTrue, valueIfFalse any) (any, error) {
-	b, ok := cond.(bool)
-	if !ok {
-		return nil, trace.BadParameter("first argument (cond) to ifelse must have type bool, got %T", cond)
-	}
-	if b {
-		return valueIfTrue, nil
-	}
-	return valueIfFalse, nil
-}
-
-func choose(options ...any) (any, error) {
-	for _, optionAny := range options {
-		opt, ok := optionAny.(*option)
-		if !ok {
-			return nil, trace.BadParameter("arguments to choose must have type option, got %T", optionAny)
+		inputAny, err := inputExpr(env)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+		switch input := inputAny.(type) {
+		case string:
+			return strings.ReplaceAll(input, match, replacement), nil
+		case set:
+			return input.transform(func(s string) string {
+				return strings.ReplaceAll(s, match, replacement)
+			}), nil
+		default:
+			return nil, trace.BadParameter("failed to evaluate first argument (input) to strings.replaceall: expected string or set, got value of type %T", input)
+		}
+	}, nil
+}
+
+func buildChooseExpr(options ...any) (expr, error) {
+	optionExprs, err := validateExprs[option](options...)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse argument to choose")
+	}
+	return func(env *evaluationEnv) (any, error) {
+		options, err := validateExprResults[option](env, optionExprs...)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to evaluate argument to choose")
+		}
+		return choose(options...)
+	}, nil
+}
+
+func choose(options ...option) (any, error) {
+	for _, opt := range options {
 		if opt.condition {
 			return opt.value, nil
 		}
 	}
-	return nil, trace.BadParameter(`parsing choose expression: no option could be selected, consider adding a default option by hardcoding the condition to "true"`)
+	return nil, trace.BadParameter(`evaluating choose expression: no option could be selected, consider adding a default option by hardcoding the condition to "true"`)
 }
 
 type option struct {
@@ -312,54 +260,176 @@ type option struct {
 	value     any
 }
 
-func newOption(cond, value any) (*option, error) {
-	b, ok := cond.(bool)
-	if !ok {
-		return nil, trace.BadParameter("first argument (cond) to option must have type bool, got %T", cond)
+func buildOptionExpr(cond, value any) (expr, error) {
+	condExpr, err := validateExpr[bool](cond)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse first argument (cond) to option constructor")
 	}
-	return &option{
-		condition: b,
-		value:     value,
+	valueExpr, err := validateExpr[any](value)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse second argument (value) to option constructor")
+	}
+	return func(env *evaluationEnv) (any, error) {
+		cond, err := validateExprResult[bool](env, condExpr)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to evaluate first argument (cond) to option constructor")
+		}
+		value, err := valueExpr(env)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to evaluate second argument (value) to option constructor")
+		}
+		return option{cond, value}, nil
 	}, nil
 }
 
-// stringTransform transforms [input], using [f].
-// It returns either a `string` or a `set`, depending on [input].
-func stringTransform(input any, f func(string) string) (any, error) {
-	switch v := input.(type) {
-	case string:
-		return f(v), nil
-	case set:
-		out := make(set, len(v))
-		for str := range v {
-			out[f(str)] = struct{}{}
+func buildBooleanExprBuilder(f func(bool, bool) bool, name string) func(lhs any, rhs any) (expr, error) {
+	return func(lhs, rhs any) (expr, error) {
+		aExpr, err := validateExpr[bool](lhs)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse left side of %s operator", name)
 		}
-		return out, nil
+		bExpr, err := validateExpr[bool](rhs)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse right side of %s operator", name)
+		}
+		return func(env *evaluationEnv) (any, error) {
+			lhs, err := validateExprResult[bool](env, aExpr)
+			if err != nil {
+				return nil, trace.Wrap(err, "failed to evaluate left side of %s operator", name)
+			}
+			rhs, err := validateExprResult[bool](env, bExpr)
+			if err != nil {
+				return nil, trace.Wrap(err, "failed to evaluate right side of %s operator", name)
+			}
+			return f(lhs, rhs), nil
+		}, nil
 	}
-	return nil, trace.BadParameter("expected string or set, got %T", input)
 }
 
-func upper(input any) (any, error) {
-	out, err := stringTransform(input, strings.ToUpper)
-	return out, trace.Wrap(err, "parsing upper")
+var (
+	buildAndExpr = buildBooleanExprBuilder(func(lhs, rhs bool) bool { return lhs && rhs }, "&&")
+	buildOrExpr  = buildBooleanExprBuilder(func(lhs, rhs bool) bool { return lhs || rhs }, "||")
+)
+
+func buildNotExpr(arg any) (expr, error) {
+	argExpr, err := validateExpr[bool](arg)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse operand to ! (NOT) operator")
+	}
+	return func(env *evaluationEnv) (any, error) {
+		arg, err := validateExprResult[bool](env, argExpr)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to evaluate operand to ! (NOT) operator")
+		}
+		return !arg, nil
+	}, nil
 }
 
-func lower(input any) (any, error) {
-	out, err := stringTransform(input, strings.ToLower)
-	return out, trace.Wrap(err, "parsing upper")
+// remover is an interface used so that the parser can call the "remove" method
+// on both set and dict.
+type remover interface {
+	remove(items ...string) any
 }
 
-func replaceAll(input, match, replacement any) (any, error) {
-	matchStr, ok := match.(string)
+func buildRemoveMethodExpr(recv expr, args ...any) (expr, error) {
+	argExprs, err := validateExprs[string](args...)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse arguments to remove method")
+	}
+	return func(env *evaluationEnv) (any, error) {
+		r, err := validateExprResult[remover](env, recv)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to evaluate receiver for remove method")
+		}
+		args, err := validateExprResults[string](env, argExprs...)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to evaluate argument to remove method")
+		}
+		return r.remove(args...), nil
+	}, nil
+}
+
+// validateStringOrSetExpr is meant to coerce an expression argument which must be
+// either a string or set into a subexpression rather than a string literal.
+func validateStringOrSetExpr(arg any) (expr, error) {
+	switch e := arg.(type) {
+	case expr:
+		// Can't validate expression result type at parse time, this must be
+		// checked during evaluation.
+		return e, nil
+	case string:
+		// The predicate parser may return a string literal rather than an expr.
+		// Convert it to an expr to avoid special cases during evaluation.
+		// Set literals are impossible, they must be returned from an expr.
+		return buildLiteralExpr(arg), nil
+	default:
+		return nil, trace.BadParameter("expected expression or value of type string, got %T", arg)
+	}
+}
+
+// validateExpr is a generic function meant to coerce expression arguments into
+// subexpressions instead of literal types which may be supplied when the
+// predicate parser encounters a string or int literal. The generic type T is
+// used to validate that any literals must have the expected type, and generates
+// a more specific error message when an unexpected type is encountered.
+func validateExpr[T any](arg any) (expr, error) {
+	switch e := arg.(type) {
+	case expr:
+		// Can't validate expression result type at parse time, this must be
+		// checked during evaluation (by validateExprResult).
+		return e, nil
+	case T:
+		// The predicate parser may return literal types like string or int
+		// rather than an expr. If it is the expected type, convert it to an
+		// expr to avoid special cases during evaluation.
+		return buildLiteralExpr(arg), nil
+	default:
+		// Catch cases where we expect a specific type (or any expression), but
+		// instead we got a literal of the wrong type.
+		return nil, trace.BadParameter("expected expression or value of type %T, got %T", *new(T), arg)
+	}
+}
+
+// validateExprs calls validateExpr for each argument and returns the results in
+// a slice, or a single error for the first argument which failed.
+func validateExprs[T any](args ...any) ([]expr, error) {
+	exprs := make([]expr, len(args))
+	for i, arg := range args {
+		e, err := validateExpr[T](arg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		exprs[i] = e
+	}
+	return exprs, nil
+}
+
+// validateExprResult is a generic function that evaluates a given expression
+// and then attempts to coerce the result to type T. It returns a non-nil error
+// if the evaluation fails or the result has the wrong type.
+func validateExprResult[T any](env *evaluationEnv, e expr) (T, error) {
+	var result T
+	resultAny, err := e(env)
+	if err != nil {
+		return result, trace.Wrap(err)
+	}
+	result, ok := resultAny.(T)
 	if !ok {
-		return nil, trace.BadParameter("second argument (match) to strings.replaceall must have type string, got %T", match)
+		return result, trace.BadParameter("expected value of type %T, got %T", *new(T), resultAny)
 	}
-	replacementStr, ok := replacement.(string)
-	if !ok {
-		return nil, trace.BadParameter("third argument (replacement) to strings.replaceall must have type string, got %T", replacement)
+	return result, nil
+}
+
+// validateExprResults calls validateExpr for each argument expr and returns the
+// results in a slice, or a single error for the first expr which failed.
+func validateExprResults[T any](env *evaluationEnv, exprs ...expr) ([]T, error) {
+	results := make([]T, len(exprs))
+	for i, e := range exprs {
+		result, err := validateExprResult[T](env, e)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		results[i] = result
 	}
-	out, err := stringTransform(input, func(inputStr string) string {
-		return strings.ReplaceAll(inputStr, matchStr, replacementStr)
-	})
-	return out, trace.Wrap(err, "parsing strings.replaceall")
+	return results, nil
 }

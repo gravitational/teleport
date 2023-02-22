@@ -8,7 +8,6 @@ import (
 	"github.com/gravitational/trace"
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -37,10 +36,6 @@ func New(getBackend GetBackendFunc) *S {
 // CreateLoginRule validates and creates a login rule in the backend if one with
 // the same name does not already exist, else it returns an error.
 func (s *S) CreateLoginRule(ctx context.Context, rule *loginrulepb.LoginRule) (*loginrulepb.LoginRule, error) {
-	if err := validateForCreate(rule); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	item, err := marshalToItem(rule)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -55,10 +50,6 @@ func (s *S) CreateLoginRule(ctx context.Context, rule *loginrulepb.LoginRule) (*
 
 // UpsertLoginRule validates and upserts a login rule in the backend.
 func (s *S) UpsertLoginRule(ctx context.Context, rule *loginrulepb.LoginRule) (*loginrulepb.LoginRule, error) {
-	if err := validateForCreate(rule); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	item, err := marshalToItem(rule)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -207,23 +198,4 @@ func ruleNameFromKey(key []byte) string {
 
 func loginRuleKey(name string) []byte {
 	return backend.Key("login_rules", name)
-}
-
-func validateForCreate(rule *loginrulepb.LoginRule) error {
-	if rule.Version == "" {
-		rule.Version = types.V1
-	}
-	switch {
-	case rule.Metadata == nil:
-		return trace.BadParameter("login rule resource must contain metadata")
-	case rule.Metadata.Name == "":
-		return trace.BadParameter("login rule resource must have non-empty metadata.name")
-	case rule.Version != types.V1:
-		return trace.BadParameter("unsupported login rule resource version %q, current supported version is %s", rule.Version, types.V1)
-	case len(rule.TraitsMap) > 0 && rule.TraitsExpression != "":
-		return trace.BadParameter("both traits_map and traits_expression are non-empty, exactly one must be set")
-	case len(rule.TraitsMap) == 0 && rule.TraitsExpression == "":
-		return trace.BadParameter("both traits_map and traits_expression are empty, exactly one must be set")
-	}
-	return nil
 }

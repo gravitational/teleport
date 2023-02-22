@@ -98,59 +98,6 @@ func TestCreateAndUpsertLoginRule(t *testing.T) {
 			errorContains: `login rule "map_rule" already exists`,
 			noUpsertError: true,
 		},
-		{
-			desc: "no metadata",
-			rule: &loginrulepb.LoginRule{
-				Version: "v1",
-				TraitsMap: map[string]*wrappers.StringValues{
-					"groups": &wrappers.StringValues{
-						Values: []string{"external.groups"},
-					},
-				},
-			},
-			errorContains: "must contain metadata",
-		},
-		{
-			desc: "no name",
-			rule: &loginrulepb.LoginRule{
-				Metadata: &types.Metadata{
-					Name: "",
-				},
-				Version: "v1",
-				TraitsMap: map[string]*wrappers.StringValues{
-					"groups": &wrappers.StringValues{
-						Values: []string{"external.groups"},
-					},
-				},
-			},
-			errorContains: "must have non-empty metadata.name",
-		},
-		{
-			desc: "no expressions",
-			rule: &loginrulepb.LoginRule{
-				Metadata: &types.Metadata{
-					Name: "expressionless_rule",
-				},
-				Version: "v1",
-			},
-			errorContains: "both traits_map and traits_expression are empty",
-		},
-		{
-			desc: "too many expressions",
-			rule: &loginrulepb.LoginRule{
-				Metadata: &types.Metadata{
-					Name: "expressionless_rule",
-				},
-				Version:          "v1",
-				TraitsExpression: "external",
-				TraitsMap: map[string]*wrappers.StringValues{
-					"groups": &wrappers.StringValues{
-						Values: []string{"external.groups"},
-					},
-				},
-			},
-			errorContains: "both traits_map and traits_expression are non-empty",
-		},
 	}
 
 	t.Run("create", func(t *testing.T) {
