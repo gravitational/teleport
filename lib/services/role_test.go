@@ -3616,26 +3616,21 @@ func TestGetAllowedServerAndWindowsDesktopLogins(t *testing.T) {
 	}
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			server := makeTestServer(tc.labels)
-			desktop := makeTestWindowsDesktop(tc.labels)
+			server := mustMakeTestServer(tc.labels)
+			desktop := mustMakeTestWindowsDesktop(tc.labels)
 
 			serverLogins := tc.roleSet.GetAllowedServerLogins(server)
 			desktopLogins := tc.roleSet.GetAllowedWindowsDesktopLogins(desktop)
 
-			// sort lists to prevent occasional flakiness caused by different list order
-			sort.Strings(tc.expectedLogins)
-			sort.Strings(serverLogins)
-			sort.Strings(desktopLogins)
-
-			require.Equal(t, tc.expectedLogins, serverLogins)
-			require.Equal(t, tc.expectedLogins, desktopLogins)
+			require.ElementsMatch(t, tc.expectedLogins, serverLogins)
+			require.ElementsMatch(t, tc.expectedLogins, desktopLogins)
 		})
 	}
 }
 
-// makeTestServer creates a server with labels and an empty spec.
+// mustMakeTestServer creates a server with labels and an empty spec.
 // It panics in case of an error. Used only for testing
-func makeTestServer(labels map[string]string) types.Server {
+func mustMakeTestServer(labels map[string]string) types.Server {
 	s, err := types.NewServerWithLabels("server", types.KindNode, types.ServerSpecV2{}, labels)
 	if err != nil {
 		panic(err)
@@ -3643,7 +3638,7 @@ func makeTestServer(labels map[string]string) types.Server {
 	return s
 }
 
-func makeTestWindowsDesktop(labels map[string]string) types.WindowsDesktop {
+func mustMakeTestWindowsDesktop(labels map[string]string) types.WindowsDesktop {
 	d, err := types.NewWindowsDesktopV3("desktop", labels, types.WindowsDesktopSpecV3{Addr: "addr"})
 	if err != nil {
 		panic(err)
