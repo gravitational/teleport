@@ -1032,8 +1032,8 @@ export class AgentMetadataEvent extends jspb.Message {
     getVersion(): string;
     setVersion(value: string): AgentMetadataEvent;
 
-    getServerId(): string;
-    setServerId(value: string): AgentMetadataEvent;
+    getHostId(): string;
+    setHostId(value: string): AgentMetadataEvent;
 
     clearServicesList(): void;
     getServicesList(): Array<string>;
@@ -1080,7 +1080,7 @@ export class AgentMetadataEvent extends jspb.Message {
 export namespace AgentMetadataEvent {
     export type AsObject = {
         version: string,
-        serverId: string,
+        hostId: string,
         servicesList: Array<string>,
         os: string,
         osVersion: string,

@@ -7570,7 +7570,7 @@ proto.prehog.v1alpha.AgentMetadataEvent.prototype.toObject = function(opt_includ
 proto.prehog.v1alpha.AgentMetadataEvent.toObject = function(includeInstance, msg) {
   var f, obj = {
     version: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    serverId: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    hostId: jspb.Message.getFieldWithDefault(msg, 2, ""),
     servicesList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
     os: jspb.Message.getFieldWithDefault(msg, 4, ""),
     osVersion: jspb.Message.getFieldWithDefault(msg, 5, ""),
@@ -7622,7 +7622,7 @@ proto.prehog.v1alpha.AgentMetadataEvent.deserializeBinaryFromReader = function(m
       break;
     case 2:
       var value = /** @type {string} */ (reader.readString());
-      msg.setServerId(value);
+      msg.setHostId(value);
       break;
     case 3:
       var value = /** @type {string} */ (reader.readString());
@@ -7696,7 +7696,7 @@ proto.prehog.v1alpha.AgentMetadataEvent.serializeBinaryToWriter = function(messa
       f
     );
   }
-  f = message.getServerId();
+  f = message.getHostId();
   if (f.length > 0) {
     writer.writeString(
       2,
@@ -7788,10 +7788,10 @@ proto.prehog.v1alpha.AgentMetadataEvent.prototype.setVersion = function(value) {
 
 
 /**
- * optional string server_id = 2;
+ * optional string host_id = 2;
  * @return {string}
  */
-proto.prehog.v1alpha.AgentMetadataEvent.prototype.getServerId = function() {
+proto.prehog.v1alpha.AgentMetadataEvent.prototype.getHostId = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -7800,7 +7800,7 @@ proto.prehog.v1alpha.AgentMetadataEvent.prototype.getServerId = function() {
  * @param {string} value
  * @return {!proto.prehog.v1alpha.AgentMetadataEvent} returns this
  */
-proto.prehog.v1alpha.AgentMetadataEvent.prototype.setServerId = function(value) {
+proto.prehog.v1alpha.AgentMetadataEvent.prototype.setHostId = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
 };
 

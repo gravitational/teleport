@@ -311,7 +311,7 @@ message SFTPEvent {
 
 message AgentMetadataEvent {
   string version = 1;
-  string server_id = 2;
+  string host_id = 2;
   repeated string services = 3;
   string os = 4;
   string os_version = 5;

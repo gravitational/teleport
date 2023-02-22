@@ -3065,7 +3065,7 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 				log.Debugf("Agent metadata received: %v", m)
 				if err := a.AnonymizeAndSubmit(&services.AgentMetadataEvent{
 					Version:               m.Version,
-					ServerId:              m.ServerID,
+					HostId:                m.HostID,
 					Services:              m.Services,
 					Os:                    m.OS,
 					OsVersion:             m.OSVersion,

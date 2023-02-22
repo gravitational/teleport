@@ -43,7 +43,7 @@ func fetchAgentMetadata(ctx context.Context, hello proto.UpstreamInventoryHello)
 	}
 	metadata := proto.UpstreamInventoryAgentMetadata{
 		Version:  hello.Version,
-		ServerID: hello.ServerID,
+		HostID:   hello.ServerID,
 		Services: services,
 	}
 	// TODO(vitorenesduarte): fetch remaining metadata
