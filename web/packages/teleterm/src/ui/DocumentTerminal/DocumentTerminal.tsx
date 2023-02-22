@@ -31,7 +31,11 @@ import useDocTerminal, { Props } from './useDocumentTerminal';
 import { useTshFileTransferHandlers } from './useTshFileTransferHandlers';
 
 export default function DocumentTerminalContainer({ doc, visible }: Props) {
-  if (doc.kind === 'doc.terminal_tsh_node' && doc.status === 'disconnected') {
+  if (
+    doc.kind === 'doc.terminal_tsh_node' &&
+    'serverUri' in doc &&
+    doc.status === 'disconnected'
+  ) {
     return <DocumentReconnect visible={visible} doc={doc} />;
   }
 

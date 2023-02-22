@@ -22,7 +22,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
-export function useReconnect(doc: types.DocumentTshNode) {
+export function useReconnect(doc: types.DocumentTshNodeWithServerId) {
   const ctx = useAppContext();
   const { documentsService: workspaceDocumentsService } = useWorkspaceContext();
   const { attempt, setAttempt } = useAttempt('');

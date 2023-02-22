@@ -50,6 +50,6 @@ export function DocumentReconnect(props: State & { visible: boolean }) {
 }
 
 type DocumentReconnectProps = {
-  doc: types.DocumentTshNode;
+  doc: types.DocumentTshNodeWithServerId;
   visible: boolean;
 };
