@@ -49,7 +49,8 @@ man-in-the-middle attacks.
 A **service provider** consumes assertions from an identity provider. Service providers need
 to be configured to point to the identity provider, which is often done by consuming the
 metadata produced by the identity provider. The metadata produced by the identity provider
-allows the service provider to verify the identity provider as well.
+allows the service provider to verify the identity provider as well. The metadata for the IdP
+is typically produced via a metadata endpoint.
 
 Web applications will serve as service providers to Teleport as an identity provider.
 
@@ -223,7 +224,8 @@ used.
 
 A new type of CA `saml-idp` will be rotatable along with the existing types. When the CA is
 rotated, it will be necessary to update service providers with the new metadata produced by
-the IdP.
+the IdP. The recommended rotation period for this CA is 5 years, modeled after Google IdP's
+rotation [process](https://support.google.com/a/answer/7394709).
 
 ##### Group based IdP access
 
@@ -280,11 +282,12 @@ Reasons for failures should be added into the metadata of any failure cases.
 ### Security
 
 * Registering service providers with the SAML IdP will prevent potential man-in-the-middle
-  attacks.
+  attacks by defining expected key signatures from service provider communication.
 * Teleport's built in authentication mechanism will be used to ensure users have valid,
   active sessions in the Teleport UI before allowing SAML IdP access.
 * Teleport should be unable to reference its own IdP for for access. This will reduce the
   likelihood of privilege escalation or unauthorized access to Teleport.
+* Service providers be required to use https endpoints and not just http endpoints.
 
 ### Implementation plan
 
