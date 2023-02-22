@@ -14,8 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
@@ -76,7 +74,7 @@ export default function useReAuthenticate({
 const defaultActionText = 'performing this action';
 
 export type Props = {
-  onAuthenticated: React.Dispatch<React.SetStateAction<string>>;
+  onAuthenticated(token: string): void;
   onClose: () => void;
   /**
    * The text that will be appended to the text in the re-authentication dialog.

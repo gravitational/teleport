@@ -186,7 +186,6 @@ export function DiscoverProvider<T = any>(
 
     // Only run it once on init or when resource selection
     // or resource state has changed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedResourceKind, resourceState]);
 
   function onSelectResource(kind: ResourceKind) {
