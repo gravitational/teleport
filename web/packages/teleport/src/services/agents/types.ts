@@ -99,6 +99,9 @@ export type ConnectionDiagnosticRequest = {
   sshPrincipal?: string; //`json:"ssh_principal"`
   kubeImpersonation?: KubeImpersonation; // `json:"kubernetes_impersonation`
   dbTester?: DatabaseTester;
+  // privilegeTokenId is a token obtained by user successfully re-authing with their
+  // MFA device. Only required if the target resource requires session MFA.
+  privilegeTokenId?: string;
 };
 
 export type KubeImpersonation = {

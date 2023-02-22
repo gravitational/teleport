@@ -40,6 +40,7 @@ export const agentService = {
         },
         database_name: req.dbTester?.name,
         database_user: req.dbTester?.user,
+        privilege_token_id: req.privilegeTokenId,
       })
       .then(makeConnectionDiagnostic);
   },
