@@ -35,7 +35,7 @@ type Resource struct {
 }
 
 // ResourceSpec is the device resource specification.
-// This spec is intended to closely mirror `devicepb.Device` but swaps some data around
+// This spec is intended to closely mirror [devicepb.Device] but swaps some data around
 // to get a UX that matches with our other resource types.
 type ResourceSpec struct {
 	// OsType is represented as a string here for user-friendly manipulation.
