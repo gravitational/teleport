@@ -141,9 +141,10 @@ message AgentMetadataEvent {
 Some of the fields above are `repeated`.
 In PostHog, instead of storing these field values as arrays, we will create one event property for each element in the array (which will likely help visualizing this information in PostHog).
 
-If, for example, `AgentMetadataEvent.services` contains both `node` and `kube`, in PostHog we'll have the following two properties:
-- `tp.agent.metadata.service.node = true`
-- `tp.agent.metadata.service.kube = true`
+If, for example, `AgentMetadataEvent.services` contains both `node` and `kube`, in PostHog we'll have the following three properties:
+- `tp.agent.services = [node, kube]`
+- `tp.agent.service.node = true`
+- `tp.agent.service.kube = true`
 
 The same applies for `AgentMetadataEvent.install_methods`.
 
