@@ -1619,7 +1619,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 	case types.KindDevice:
 		remote := client.DevicesClient()
 		if rc.ref.Name != "" {
-			devices, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name, true)
+			devices, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name, true /* allowMultiple */)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
