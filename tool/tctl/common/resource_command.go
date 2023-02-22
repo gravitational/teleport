@@ -1021,7 +1021,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		fmt.Printf("SAML IdP service provider %q has been deleted\n", rc.ref.Name)
 	case types.KindDevice:
 		remote := client.DevicesClient()
-		device, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name, false /* allowMultiple */)
+		device, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1619,11 +1619,15 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 	case types.KindDevice:
 		remote := client.DevicesClient()
 		if rc.ref.Name != "" {
-			devices, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name, true /* allowMultiple */)
+			resp, err := remote.FindDevices(ctx, &devicepb.FindDevicesRequest{
+				IdOrTag: rc.ref.Name,
+			})
+
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &deviceCollection{devices: devices}, nil
+
+			return &deviceCollection{resp.Devices}, nil
 		}
 
 		req := &devicepb.ListDevicesRequest{
@@ -1727,7 +1731,7 @@ If you would still like to proceed, re-run the command with both --force and --c
 
 const managedByStaticDeleteMsg = `This resource is managed by static configuration. In order to reset it to defaults, remove relevant configuration from teleport.yaml and restart the servers.`
 
-func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustServiceClient, idOrTag string, allowMultiple bool) ([]*devicepb.Device, error) {
+func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustServiceClient, idOrTag string) ([]*devicepb.Device, error) {
 	resp, err := remote.FindDevices(ctx, &devicepb.FindDevicesRequest{
 		IdOrTag: idOrTag,
 	})
@@ -1745,11 +1749,6 @@ func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustService
 		if dev.Id == idOrTag {
 			return []*devicepb.Device{dev}, nil
 		}
-	}
-
-	// If we allow multiple devices and don't have a matching ID, return all devices with a matching asset tag.
-	if allowMultiple {
-		return resp.Devices, nil
 	}
 
 	return nil, trace.BadParameter("found multiple devices for asset tag %q, please retry using the device ID instead", idOrTag)
