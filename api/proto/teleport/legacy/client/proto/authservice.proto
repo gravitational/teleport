@@ -304,6 +304,10 @@ message UserCertsRequest {
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];
+  // PrivilegeTokenID is the ID of a privilege token that when specified
+  // additional information can be obtained by retrieving this token
+  // eg: VerifiedMFADeviceID for the certificates mfaVerified field.
+  string PrivilegeTokenID = 18 [(gogoproto.jsontag) = "privilege_token_id"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.

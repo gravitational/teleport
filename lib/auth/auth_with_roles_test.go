@@ -49,6 +49,83 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+func TestGenerateUserCertsWithMFAVerifiedFieldSet(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	_, pub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	username := "llama"
+	deviceID := "some-device-id"
+	user, _, err := CreateUserAndRole(srv.Auth(), username, []string{"role"}, nil)
+	require.NoError(t, err)
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	for _, test := range []struct {
+		desc     string
+		getToken func() string
+		wantErr  bool
+	}{
+		{
+			desc: "valid token ID",
+			getToken: func() string {
+				token, err := srv.Auth().createPrivilegeToken(ctx, username, UserTokenTypePrivilege, deviceID)
+				require.NoError(t, err)
+				return token.GetName()
+			},
+		},
+		{
+			desc: "valid empty field",
+			getToken: func() string {
+				return ""
+			},
+		},
+		{
+			desc:    "invalid token ID",
+			wantErr: true,
+			getToken: func() string {
+				return "invalid-token-id"
+			},
+		},
+	} {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			token := test.getToken()
+			certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
+				PublicKey:        pub,
+				Username:         user.GetName(),
+				Expires:          time.Now().Add(time.Hour),
+				PrivilegeTokenID: token,
+			})
+
+			if test.wantErr {
+				require.True(t, trace.IsAccessDenied(err))
+				return
+			} else {
+				require.NoError(t, err)
+			}
+
+			sshCert, err := sshutils.ParseCertificate(certs.SSH)
+			require.NoError(t, err)
+			mfaVerified := sshCert.Permissions.Extensions[teleport.CertExtensionMFAVerified]
+
+			if token == "" {
+				require.Empty(t, mfaVerified)
+			} else {
+				require.Equal(t, deviceID, mfaVerified)
+				// Test used token has been deleted.
+				_, err := srv.Auth().GetUserToken(ctx, token)
+				require.True(t, trace.IsNotFound(err))
+			}
+
+		})
+	}
+}
+
 // TestLocalUserCanReissueCerts tests that local users can reissue
 // certificates for themselves with varying TTLs.
 func TestLocalUserCanReissueCerts(t *testing.T) {

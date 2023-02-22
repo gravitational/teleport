@@ -2737,9 +2737,28 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
+	var verifiedMFADeviceID string
+	if req.PrivilegeTokenID != "" {
+		token, err := a.authServer.GetUserToken(ctx, req.PrivilegeTokenID)
+		if err != nil {
+			return nil, trace.AccessDenied("invalid token")
+		}
+		if err := a.authServer.verifyUserToken(token, UserTokenTypePrivilege); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		verifiedMFADeviceID = token.GetVerifiedMFADeviceID()
+		// Delete this token since it served its purpose.
+		if err := a.authServer.DeleteUserToken(ctx, req.PrivilegeTokenID); err != nil {
+			// If for some reason there is error deleting, don't let it abort the rest
+			// since priviledge tokens have short TTL anyways (defaults.PrivilegeTokenTTL).
+			log.WithError(err).Warn("Failed to delete priviledge token whilst generating user certs.")
+		}
+	}
+
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
 	certReq := certRequest{
+		mfaVerified:       verifiedMFADeviceID,
 		user:              user,
 		ttl:               req.Expires.Sub(a.authServer.GetClock().Now()),
 		compatibility:     req.Format,
