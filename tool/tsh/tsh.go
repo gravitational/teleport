@@ -335,8 +335,10 @@ type CLIConf struct {
 	// LocalProxyPort is a port used by local proxy listener.
 	LocalProxyPort string
 	// LocalProxyCertFile is the client certificate used by local proxy.
+	// DEPRECATED DELETE IN 14.0
 	LocalProxyCertFile string
 	// LocalProxyKeyFile is the client key used by local proxy.
+	// DEPRECATED DELETE IN 14.0
 	LocalProxyKeyFile string
 	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
 	LocalProxyTunnel bool
@@ -713,8 +715,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode")
 	proxyDB.Arg("db", "The name of the database to start local proxy for").Required().StringVar(&cf.DatabaseService)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
-	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").StringVar(&cf.LocalProxyCertFile)
-	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").StringVar(&cf.LocalProxyKeyFile)
+	// --cert-file and --key-file are deprecated in favor of --tunnel flag.
+	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").Hidden().StringVar(&cf.LocalProxyCertFile)
+	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").Hidden().StringVar(&cf.LocalProxyKeyFile)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
 	proxyDB.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
 	proxyDB.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
