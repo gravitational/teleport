@@ -652,6 +652,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/mfa/token/:token/registerchallenge", httplib.MakeHandler(h.createRegisterChallengeWithTokenHandle))
 
 	// MFA private endpoints.
+	h.POST("/webapi/sites/:site/mfa/required", h.WithClusterAuth(h.isMfaRequired))
 	h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
 	h.POST("/webapi/mfa/authenticatechallenge", h.WithAuth(h.createAuthenticateChallengeHandle))
 	h.POST("/webapi/mfa/devices", h.WithAuth(h.addMFADeviceHandle))

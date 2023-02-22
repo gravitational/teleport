@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -210,4 +211,137 @@ func getDeviceUsage(reqUsage string) (proto.DeviceUsage, error) {
 	}
 
 	return deviceUsage, nil
+}
+
+type isMFARequiredDatabase struct {
+	// ServiceName is the database service name.
+	ServiceName string `json:"serviceName"`
+	// Protocol is the type of the database protocol.
+	Protocol string `json:"protocol"`
+	// Username is an optional database username.
+	Username string `json:"username,omitempty"`
+	// Name is an optional database name.
+	Name string `json:"name,omitempty"`
+}
+
+type isMFARequiredKube struct {
+	// Name is the name of the kube cluster.
+	Name string `json:"name"`
+}
+
+type isMFARequiredNode struct {
+	// Name can be node's hostname or UUID.
+	Name string `json:"name"`
+	// Login is the OS login name.
+	Login string `json:"login"`
+}
+
+type isMFARequiredWindowsDesktop struct {
+	// Name is the Windows Desktop server name.
+	Name string `json:"name"`
+	// Login is the Windows desktop user login.
+	Login string `json:"login"`
+}
+
+type isMfaRequiredRequest struct {
+	// Database contains fields required to check if target database
+	// requires MFA check.
+	Database *isMFARequiredDatabase `json:"database,omitempty"`
+	// Node contains fields required to check if target node
+	// requires MFA check.
+	Node *isMFARequiredNode `json:"node,omitempty"`
+	// WindowsDesktop contains fields required to check if target
+	// windows desktop requires MFA check.
+	WindowsDesktop *isMFARequiredWindowsDesktop `json:"windowsDesktop,omitempty"`
+	// KubeCluster is the name of the kube cluster to check if target cluster
+	// requires MFA check.
+	KubeCluster *isMFARequiredKube `json:"kube,omitempty"`
+}
+
+func (r *isMfaRequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRequest, error) {
+	if r.Database != nil {
+		if r.Database.ServiceName == "" {
+			return nil, trace.BadParameter("missing name for checking database target")
+		}
+		if r.Database.Protocol == "" {
+			return nil, trace.BadParameter("missing protocol for checking database target")
+		}
+		return &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_Database{Database: &proto.RouteToDatabase{
+				ServiceName: r.Database.ServiceName,
+				Protocol:    r.Database.Protocol,
+				Database:    r.Database.Name,
+				Username:    r.Database.Username,
+			}},
+		}, nil
+	}
+
+	if r.KubeCluster != nil {
+		if r.KubeCluster.Name == "" {
+			return nil, trace.BadParameter("missing name for checking kubernetes cluster target")
+		}
+		return &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: r.KubeCluster.Name},
+		}, nil
+	}
+
+	if r.WindowsDesktop != nil {
+		if r.WindowsDesktop.Name == "" {
+			return nil, trace.BadParameter("missing name for checking windows desktop target")
+		}
+		if r.WindowsDesktop.Login == "" {
+			return nil, trace.BadParameter("missing login for checking windows desktop target")
+		}
+		return &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_WindowsDesktop{WindowsDesktop: &proto.RouteToWindowsDesktop{
+				WindowsDesktop: r.WindowsDesktop.Name,
+				Login:          r.WindowsDesktop.Login,
+			}},
+		}, nil
+	}
+
+	if r.Node != nil {
+		if r.Node.Login == "" {
+			return nil, trace.BadParameter("missing login for checking node target")
+		}
+		if r.Node.Name == "" {
+			return nil, trace.BadParameter("missing name for checking node target")
+		}
+		return &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
+				Login: r.Node.Login,
+				Node:  r.Node.Name,
+			}},
+		}, nil
+	}
+
+	return nil, trace.BadParameter("missing parameteres for MFA check")
+}
+
+type isMfaRequiredResponse struct {
+	Required bool `json:"required"`
+}
+
+func (h *Handler) isMfaRequired(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	var httpReq *isMfaRequiredRequest
+	if err := httplib.ReadJSON(r, &httpReq); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	protoReq, err := httpReq.checkAndGetProtoRequest()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := clt.IsMFARequired(r.Context(), protoReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return isMfaRequiredResponse{Required: res.GetRequired()}, nil
 }
