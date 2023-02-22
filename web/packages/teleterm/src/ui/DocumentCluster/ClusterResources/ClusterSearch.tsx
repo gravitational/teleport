@@ -16,7 +16,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { debounce } from 'lodash';
+import { debounce } from 'shared/utils/highbar';
 import { space, width, color, height } from 'styled-system';
 
 export default function ClusterSearch(props: Props) {
