@@ -21,6 +21,7 @@ import {
   FileTransfer,
   FileTransferContextProvider,
 } from 'shared/components/FileTransfer';
+import { FileTransferActionBarStateless } from 'shared/components/FileTransfer/FileTransferActionBar';
 
 import Document from 'teleterm/ui/Document';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
@@ -54,6 +55,60 @@ export function DocumentTerminal(props: Props & { visible: boolean }) {
   ).value;
   const terminalFontSize = configService.get('terminal.fontSize').value;
 
+  let $fileTransfer;
+
+  if (doc.kind === 'doc.terminal_tsh_node') {
+    if ('serverUri' in doc) {
+      $fileTransfer = (
+        <FileTransferContextProvider>
+          <FileTransferActionBar isConnected={doc.status === 'connected'} />
+          <FileTransfer
+            beforeClose={() =>
+              // TODO (gzdunek): replace with a native dialog
+              window.confirm('Are you sure you want to cancel file transfers?')
+            }
+            transferHandlers={{
+              getDownloader: async (sourcePath, abortController) => {
+                const fileDialog =
+                  await ctx.mainProcessClient.showFileSaveDialog(sourcePath);
+                if (fileDialog.canceled) {
+                  return;
+                }
+                return download(
+                  {
+                    serverUri: doc.serverUri,
+                    login: doc.login,
+                    source: sourcePath,
+                    destination: fileDialog.filePath,
+                  },
+                  abortController
+                );
+              },
+              getUploader: async (destinationPath, file, abortController) =>
+                upload(
+                  {
+                    serverUri: doc.serverUri,
+                    login: doc.login,
+                    source: file.path,
+                    destination: destinationPath,
+                  },
+                  abortController
+                ),
+            }}
+          />
+        </FileTransferContextProvider>
+      );
+    } else {
+      $fileTransfer = (
+        <FileTransferActionBarStateless
+          disabled={true}
+          openDownloadDialog={() => {}}
+          openUploadDialog={() => {}}
+        />
+      );
+    }
+  }
+
   return (
     <Document
       visible={visible}
@@ -62,59 +117,15 @@ export function DocumentTerminal(props: Props & { visible: boolean }) {
       onContextMenu={state.data?.openContextMenu}
       autoFocusDisabled={true}
     >
+      {$fileTransfer}
       {ptyProcess && (
-        <>
-          {doc.kind === 'doc.terminal_tsh_node' && (
-            <FileTransferContextProvider>
-              <FileTransferActionBar isConnected={doc.status === 'connected'} />
-              <FileTransfer
-                beforeClose={() =>
-                  // TODO (gzdunek): replace with a native dialog
-                  window.confirm(
-                    'Are you sure you want to cancel file transfers?'
-                  )
-                }
-                transferHandlers={{
-                  getDownloader: async (sourcePath, abortController) => {
-                    const fileDialog =
-                      await ctx.mainProcessClient.showFileSaveDialog(
-                        sourcePath
-                      );
-                    if (fileDialog.canceled) {
-                      return;
-                    }
-                    return download(
-                      {
-                        serverUri: doc.serverUri,
-                        login: doc.login,
-                        source: sourcePath,
-                        destination: fileDialog.filePath,
-                      },
-                      abortController
-                    );
-                  },
-                  getUploader: async (destinationPath, file, abortController) =>
-                    upload(
-                      {
-                        serverUri: doc.serverUri,
-                        login: doc.login,
-                        source: file.path,
-                        destination: destinationPath,
-                      },
-                      abortController
-                    ),
-                }}
-              />
-            </FileTransferContextProvider>
-          )}
-          <Terminal
-            ptyProcess={ptyProcess}
-            visible={props.visible}
-            unsanitizedFontFamily={unsanitizedTerminalFontFamily}
-            fontSize={terminalFontSize}
-            onEnterKey={state.data.refreshTitle}
-          />
-        </>
+        <Terminal
+          ptyProcess={ptyProcess}
+          visible={props.visible}
+          unsanitizedFontFamily={unsanitizedTerminalFontFamily}
+          fontSize={terminalFontSize}
+          onEnterKey={state.data.refreshTitle}
+        />
       )}
     </Document>
   );

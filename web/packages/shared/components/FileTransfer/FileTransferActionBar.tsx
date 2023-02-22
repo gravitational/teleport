@@ -29,23 +29,41 @@ export function FileTransferActionBar({
 }: FileTransferActionBarProps) {
   const fileTransferContext = useFileTransferContext();
   const areFileTransferButtonsDisabled =
-    fileTransferContext.openedDialog || !isConnected;
+    !!fileTransferContext.openedDialog || !isConnected;
 
+  return (
+    <FileTransferActionBarStateless
+      disabled={areFileTransferButtonsDisabled}
+      openDownloadDialog={fileTransferContext.openDownloadDialog}
+      openUploadDialog={fileTransferContext.openUploadDialog}
+    />
+  );
+}
+
+export function FileTransferActionBarStateless({
+  disabled,
+  openDownloadDialog,
+  openUploadDialog,
+}: {
+  disabled: boolean;
+  openDownloadDialog: () => void;
+  openUploadDialog: () => void;
+}) {
   return (
     <Flex flex="none" alignItems="center" height="24px">
       <ButtonIcon
-        disabled={areFileTransferButtonsDisabled}
+        disabled={disabled}
         size={0}
         title="Download files"
-        onClick={fileTransferContext.openDownloadDialog}
+        onClick={openDownloadDialog}
       >
         <Icons.Download fontSize="16px" />
       </ButtonIcon>
       <ButtonIcon
-        disabled={areFileTransferButtonsDisabled}
+        disabled={disabled}
         size={0}
         title="Upload files"
-        onClick={fileTransferContext.openUploadDialog}
+        onClick={openUploadDialog}
       >
         <Icons.Upload fontSize="16px" />
       </ButtonIcon>
