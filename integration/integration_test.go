@@ -1948,7 +1948,7 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 
 	// httpproxy doesn't allow proxying when the target is localhost, so use
 	// this address instead.
-	addr, err := getLocalIP()
+	addr, err := GetLocalIP()
 	require.NoError(t, err)
 	a := suite.newNamedTeleportInstance(t, "site-A", WithNodeName(addr))
 	b := suite.newNamedTeleportInstance(t, "site-B", WithNodeName(addr))

@@ -1840,8 +1840,8 @@ func genUserKey() (*client.Key, error) {
 	}, nil
 }
 
-// getLocalIP gets the non-loopback IP address of this host.
-func getLocalIP() (string, error) {
+// GetLocalIP gets the non-loopback IP address of this host.
+func GetLocalIP() (string, error) {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return "", trace.Wrap(err)
