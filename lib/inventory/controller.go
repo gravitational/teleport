@@ -233,6 +233,10 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				log.Warnf("Unexpected upstream hello on control stream of server %q.", handle.Hello().ServerID)
 				handle.CloseWithError(trace.BadParameter("unexpected upstream hello"))
 				return
+			case proto.UpstreamInventoryAgentMetadata:
+				log.Warnf("Unexpected upstream agent metadata on control stream of server %q.", handle.Hello().ServerID)
+				handle.CloseWithError(trace.BadParameter("unexpected upstream agent metadata"))
+				return
 			case proto.InventoryHeartbeat:
 				if err := c.handleHeartbeatMsg(handle, m); err != nil {
 					handle.CloseWithError(err)
