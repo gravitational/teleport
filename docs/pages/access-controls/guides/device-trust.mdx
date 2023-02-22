@@ -341,7 +341,7 @@ $ tctl lock --device 9cdfc0ad-64b7-4d9c-9342-50e97f418ba0 --ttl=12h
 Created a lock with name "5444970a-39a0-4814-968d-e58b4a8fa686".
 ```
 
-Now if when user tries to access, say an SSH server, Teleport will deny access.
+Now, if a user on that device tries to access an SSH server for example, Teleport will deny access:
 
 ```code
 $ tsh ssh server1
