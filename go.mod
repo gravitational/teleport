@@ -5,7 +5,7 @@ go 1.19
 require (
 	cloud.google.com/go/container v1.13.1
 	cloud.google.com/go/firestore v1.9.0
-	cloud.google.com/go/iam v0.10.0
+	cloud.google.com/go/iam v0.12.0
 	cloud.google.com/go/kms v1.8.0
 	cloud.google.com/go/storage v1.28.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.3.1
@@ -27,16 +27,16 @@ require (
 	github.com/alicebob/miniredis/v2 v2.30.0
 	github.com/aquasecurity/libbpfgo v0.4.5-libbpf-1.0.1
 	github.com/armon/go-radix v1.0.0
-	github.com/aws/aws-sdk-go v1.44.199
+	github.com/aws/aws-sdk-go v1.44.204
 	github.com/aws/aws-sdk-go-v2 v1.17.4
 	github.com/aws/aws-sdk-go-v2/config v1.18.13
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.13
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.22
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.85.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.86.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.3
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
 	github.com/beevik/etree v1.1.0
-	github.com/bufbuild/connect-go v1.5.1
+	github.com/bufbuild/connect-go v1.5.2
 	github.com/coreos/go-oidc v2.1.0+incompatible // replaced
 	github.com/coreos/go-semver v0.3.1
 	github.com/creack/pty v1.1.18
@@ -136,7 +136,7 @@ require (
 	golang.org/x/term v0.5.0
 	golang.org/x/text v0.7.0
 	google.golang.org/api v0.110.0
-	google.golang.org/genproto v0.0.0-20230209215440-0dfe4f8abfcc
+	google.golang.org/genproto v0.0.0-20230216225411-c8e22ba71e44
 	google.golang.org/grpc v1.53.0
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
 	google.golang.org/protobuf v1.28.1
