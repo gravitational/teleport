@@ -71,6 +71,40 @@ func TestGenerateIAMTokenName(t *testing.T) {
 	require.NotEqual(t, hash1, hash2)
 }
 
+func TestGenerateAzureTokenName(t *testing.T) {
+	t.Parallel()
+	rule1 := types.ProvisionTokenSpecV2Azure_Rule{
+		Subscription: "abcd1234",
+	}
+	rule2 := types.ProvisionTokenSpecV2Azure_Rule{
+		Subscription: "efgh5678",
+	}
+
+	t.Run("hash algorithm hasn't changed", func(t *testing.T) {
+		rule1Name := "teleport-ui-azure-2091772181"
+		hash1, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule1})
+		require.NoError(t, err)
+		require.Equal(t, rule1Name, hash1)
+	})
+
+	t.Run("order doesn't matter", func(t *testing.T) {
+		hash1, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule1, &rule2})
+		require.NoError(t, err)
+		hash2, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule2, &rule1})
+		require.NoError(t, err)
+		require.Equal(t, hash1, hash2)
+	})
+
+	t.Run("different hashes for different rules", func(t *testing.T) {
+		hash1, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule1})
+		require.NoError(t, err)
+		hash2, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule2})
+		require.NoError(t, err)
+		require.NotEqual(t, hash1, hash2)
+	})
+
+}
+
 func TestSortRules(t *testing.T) {
 	t.Parallel()
 	tt := []struct {
@@ -261,6 +295,49 @@ func TestSortRules(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			sortRules(tc.rules)
+			require.Equal(t, tc.expected, tc.rules)
+		})
+	}
+}
+
+func TestSortAzureRules(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		rules    []*types.ProvisionTokenSpecV2Azure_Rule
+		expected []*types.ProvisionTokenSpecV2Azure_Rule
+	}{
+		{
+			name: "unordered",
+			rules: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "200000000000"},
+				{Subscription: "300000000000"},
+				{Subscription: "100000000000"},
+			},
+			expected: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "100000000000"},
+				{Subscription: "200000000000"},
+				{Subscription: "300000000000"},
+			},
+		},
+		{
+			name: "already ordered",
+			rules: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "100000000000"},
+				{Subscription: "200000000000"},
+				{Subscription: "300000000000"},
+			},
+			expected: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "100000000000"},
+				{Subscription: "200000000000"},
+				{Subscription: "300000000000"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sortAzureRules(tc.rules)
 			require.Equal(t, tc.expected, tc.rules)
 		})
 	}
@@ -812,31 +889,101 @@ func TestJoinScriptEnterprise(t *testing.T) {
 			}, nil
 		},
 	}
-	isTeleportOSSLinkRegex := regexp.MustCompile(`https://cdn\.teleport\.dev/teleport[-_]v?\${TELEPORT_VERSION}`)
-	isTeleportEntLinkRegex := regexp.MustCompile(`https://cdn\.teleport\.dev/teleport-ent[-_]v?\${TELEPORT_VERSION}`)
+
+	getGravitationalTeleportLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/\${TELEPORT_PACKAGE_NAME}[-_]v?\${TELEPORT_VERSION}`)
 
 	// Using the OSS Version, all the links must contain only teleport as package name.
 	script, err := getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
 	require.NoError(t, err)
 
-	matches := isTeleportOSSLinkRegex.FindAllString(script, -1)
+	matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
 	require.ElementsMatch(t, matches, []string{
-		"https://cdn.teleport.dev/teleport-v${TELEPORT_VERSION}",
-		"https://cdn.teleport.dev/teleport_${TELEPORT_VERSION}",
-		"https://cdn.teleport.dev/teleport-${TELEPORT_VERSION}",
+		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
+		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
+		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
 	})
+	require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport'")
 
-	// Using the Enterprise Version, all the links must contain teleport-ent as package name
+	// Using the Enterprise Version, the package name must be teleport-ent
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 	script, err = getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
 	require.NoError(t, err)
 
-	matches = isTeleportEntLinkRegex.FindAllString(script, -1)
+	matches = getGravitationalTeleportLinkRegex.FindAllString(script, -1)
 	require.ElementsMatch(t, matches, []string{
-		"https://cdn.teleport.dev/teleport-ent-v${TELEPORT_VERSION}",
-		"https://cdn.teleport.dev/teleport-ent_${TELEPORT_VERSION}",
-		"https://cdn.teleport.dev/teleport-ent-${TELEPORT_VERSION}",
+		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
+		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
+		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
 	})
+	require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport-ent'")
+}
+
+func TestIsSameAzureRuleSet(t *testing.T) {
+	tests := []struct {
+		name     string
+		r1       []*types.ProvisionTokenSpecV2Azure_Rule
+		r2       []*types.ProvisionTokenSpecV2Azure_Rule
+		expected bool
+	}{
+		{
+			name:     "empty slice",
+			expected: true,
+		},
+		{
+			name: "simple identical rules",
+			r1: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "123123123123",
+				},
+			},
+			r2: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "123123123123",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "different rules",
+			r1: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "123123123123",
+				},
+			},
+			r2: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "456456456456",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "same rules in different order",
+			r1: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "456456456456",
+				},
+				{
+					Subscription: "123123123123",
+				},
+			},
+			r2: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "123123123123",
+				},
+				{
+					Subscription: "456456456456",
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, isSameAzureRuleSet(tc.r1, tc.r2))
+		})
+	}
 }
 
 type mockedNodeAPIGetter struct {

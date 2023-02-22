@@ -3167,7 +3167,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
 				err := tc.roles.checkAccess(access.server, tc.state,
-					&DatabaseUserMatcher{User: access.dbUser},
+					NewDatabaseUserMatcher(access.server, access.dbUser),
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
 					require.NoError(t, err)
@@ -3221,6 +3221,32 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 			},
 		},
 	}
+
+	dbRequireAWSRoles, err := types.NewDatabaseV3(types.Metadata{
+		Name: "dynamodb",
+	}, types.DatabaseSpecV3{
+		Protocol: "dynamodb",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			Region:    "us-east-1",
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, dbRequireAWSRoles.RequireAWSIAMRolesAsUsers())
+	roleWithAWSRoles := &types.RoleV6{
+		Metadata: types.Metadata{Name: "aws-roles", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseUsers: []string{
+					"allow-role-with-short-name",
+					"arn:aws:iam::123456789012:role/allow-role-with-full-arn",
+				},
+			},
+		},
+	}
+
 	type access struct {
 		server types.Database
 		dbUser string
@@ -3248,11 +3274,25 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 				{server: dbProd, dbUser: "dev", access: true},
 			},
 		},
+		{
+			name:  "database types require AWS roles as database users",
+			roles: RoleSet{roleWithAWSRoles},
+			access: []access{
+				{server: dbRequireAWSRoles, dbUser: "allow-role-with-short-name", access: true},
+				{server: dbRequireAWSRoles, dbUser: "allow-role-with-full-arn", access: true},
+				{server: dbRequireAWSRoles, dbUser: "arn:aws:iam::123456789012:role/allow-role-with-full-arn", access: true},
+				{server: dbRequireAWSRoles, dbUser: "arn:aws:iam::123456789012:role/allow-role-with-short-name", access: true},
+				{server: dbRequireAWSRoles, dbUser: "unknown-role-name", access: false},
+				{server: dbRequireAWSRoles, dbUser: "arn:aws:iam::123456789012:role/unknown-role-name", access: false},
+				{server: dbRequireAWSRoles, dbUser: "arn:aws:iam::123456789012:user/username", access: false},
+				{server: dbRequireAWSRoles, dbUser: "arn:aws-cn:iam::123456789012:role/allow-role-with-short-name", access: false},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.checkAccess(access.server, AccessState{}, &DatabaseUserMatcher{User: access.dbUser})
+				err := tc.roles.checkAccess(access.server, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -4559,6 +4599,140 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 			accounts, err := tt.roles.CheckGCPServiceAccounts(tt.ttl, tt.overrideTTL)
 			require.Equal(t, tt.wantAccounts, accounts)
 			tt.wantError(t, err)
+		})
+	}
+}
+
+func TestCheckAccessToSAMLIdP(t *testing.T) {
+	roleNoSAMLOptions := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleNoSAMLOptions", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{MaxSessionTTL: types.Duration(time.Hour)},
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+			},
+		},
+	}
+	//nolint:revive // Because we want this to be IdP.
+	roleOnlyIdPBlock := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleOnlyIdPBlock", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(time.Hour),
+				IDP:           &types.IdPOptions{},
+			},
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+			},
+		},
+	}
+	roleOnlySAMLBlock := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleOnlySAMLBlock", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(time.Hour),
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{},
+				},
+			},
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+			},
+		},
+	}
+	roleSAMLAllowed := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleSAMLAllowed", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(2 * time.Hour),
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{
+						Enabled: types.NewBoolOption(true),
+					},
+				},
+			},
+		},
+	}
+	roleSAMLNotAllowed := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleSAMLNotAllowed", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(2 * time.Hour),
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{
+						Enabled: types.NewBoolOption(false),
+					},
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name                string
+		roles               RoleSet
+		authPrefSamlEnabled bool
+		errAssertionFunc    require.ErrorAssertionFunc
+	}{
+		{
+			name:                "role with no IdP block",
+			roles:               RoleSet{roleNoSAMLOptions},
+			authPrefSamlEnabled: true,
+			errAssertionFunc:    require.NoError,
+		},
+		{
+			name:                "role with only IdP block",
+			roles:               RoleSet{roleOnlyIdPBlock},
+			authPrefSamlEnabled: true,
+			errAssertionFunc:    require.NoError,
+		},
+		{
+			name:                "role with only SAML block",
+			roles:               RoleSet{roleOnlySAMLBlock},
+			authPrefSamlEnabled: true,
+			errAssertionFunc:    require.NoError,
+		},
+		{
+			name:                "only allowed role",
+			roles:               RoleSet{roleSAMLAllowed},
+			authPrefSamlEnabled: true,
+			errAssertionFunc:    require.NoError,
+		},
+		{
+			name:                "only denied role",
+			roles:               RoleSet{roleSAMLNotAllowed},
+			authPrefSamlEnabled: true,
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleSAMLNotAllowed"))
+			},
+		},
+		{
+			name:                "allowed and denied role",
+			roles:               RoleSet{roleSAMLAllowed, roleSAMLNotAllowed},
+			authPrefSamlEnabled: true,
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleSAMLNotAllowed"))
+			},
+		},
+		{
+			name:                "allowed role, but denied at cluster level",
+			roles:               RoleSet{roleSAMLAllowed},
+			authPrefSamlEnabled: false,
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("SAML IdP is disabled at the cluster level"))
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{
+						Enabled: types.NewBoolOption(tc.authPrefSamlEnabled),
+					},
+				},
+			})
+			require.NoError(t, err)
+			tc.errAssertionFunc(t, tc.roles.CheckAccessToSAMLIdP(authPref))
 		})
 	}
 }

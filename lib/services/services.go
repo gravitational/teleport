@@ -35,9 +35,11 @@ type Services interface {
 	Kubernetes
 	AppSession
 	SnowflakeSession
+	SAMLIdPSession
 	types.WebSessionsGetter
 	types.WebTokensGetter
 	WindowsDesktops
+	SAMLIdPServiceProviders
 }
 
 // RotationGetter returns the rotation state.

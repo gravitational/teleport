@@ -10,6 +10,7 @@ and how to upgrade existing releases from version 11 to version 12.
 
 The main changes in version 12 of the `teleport-cluster` chart are:
 
+- PodSecurityPolicy has been removed on Kubernetes 1.23 and 1.24
 - Teleport now deploys its auth and proxy services as separate pods.
   Running Teleport with this new topology allows it to be more resilient to
   disruptions and scale better.
@@ -33,7 +34,10 @@ v12 requires at least Teleport v12.
 
 ## How to upgrade
 
-The upgrade path mainly depends on the `chartMode` used. If you used a "managed"
+If you are running Kubernetes 1.23 and above, follow our
+[Kubernetes 1.25 PSP removal guide](./migration-kubernetes-1-25-psp.mdx).
+
+Then, the upgrade path mainly depends on the `chartMode` used. If you used a "managed"
 mode like `aws`, `gcp` or `standalone` it should be relatively straightforward.
 If you relied on the `custom` chart mode, you will have to perform configuration changes.
 

@@ -99,6 +99,13 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_APPLICATION_HTTP = 8;
   DISCOVER_RESOURCE_APPLICATION_TCP = 9;
   DISCOVER_RESOURCE_WINDOWS_DESKTOP = 10;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_RDS = 11;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT = 12;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_SELF_HOSTED = 13;
+  DISCOVER_RESOURCE_DATABASE_REDIS_SELF_HOSTED = 14;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_GCP = 15;
+  DISCOVER_RESOURCE_DATABASE_MYSQL_GCP = 16;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP = 17;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -226,6 +233,18 @@ message UIDiscoverCompletedEvent {
   DiscoverStepStatus status = 3;
 }
 
+// UICreateNewRoleClickEvent is an event that can be triggered during custom role creation
+message UICreateNewRoleClickEvent {}
+
+// UICreateNewRoleSaveClickEvent is an event that can be triggered during custom role creation
+message UICreateNewRoleSaveClickEvent {}
+
+// UICreateNewRoleCancelClickEvent is an event that can be triggered during custom role creation
+message UICreateNewRoleCancelClickEvent {}
+
+// UICreateNewRoleViewDocumentationClickEvent is an event that can be triggered during custom role creation
+message UICreateNewRoleViewDocumentationClickEvent {}
+
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
@@ -251,6 +270,10 @@ message UsageEventOneOf {
     UIDiscoverPrincipalsConfigureEvent ui_discover_principals_configure_event = 20;
     UIDiscoverTestConnectionEvent ui_discover_test_connection_event = 21;
     UIDiscoverCompletedEvent ui_discover_completed_event = 22;
+    UICreateNewRoleClickEvent ui_create_new_role_click = 23;
+    UICreateNewRoleSaveClickEvent ui_create_new_role_save_click = 24;
+    UICreateNewRoleCancelClickEvent ui_create_new_role_cancel_click = 25;
+    UICreateNewRoleViewDocumentationClickEvent ui_create_new_role_view_documentation_click = 26;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

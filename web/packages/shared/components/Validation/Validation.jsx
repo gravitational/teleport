@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 
-import { isObject } from 'lodash';
+import { isObject } from 'shared/utils/highbar';
 
 import Logger from '../../libs/logger';
 
