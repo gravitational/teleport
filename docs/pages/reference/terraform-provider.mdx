@@ -191,7 +191,7 @@ Metadata specifies a resource name, description, labels and optional expiry date
 
 **version**
 
-`version` is an optional string that specifies the role version (default `v3`).
+`version` is an optional string that specifies the role version (default `v6`).
 
 **spec**
 
@@ -205,6 +205,7 @@ Role specification consists of two sections: `allow` and `deny`. They are identi
 |                 `db_users`| string list | List of database users this role is allowed to connect as       |
 |        `kubernetes_groups`| string list | List of Kubernetes groups                                       |
 |         `kubernetes_users`| string list | List of Kubernetes users to impersonate                         |
+|     `kubernetes_resources`|         set | List of Kubernetes Resources the Role applies to                |
 |                   `logins`| string list | Logins is a list of *nix system logins                          |
 |               `app_labels`|         map | Application labels                                              |
 |           `app_labels.key`|      string | Application name                                                |
@@ -230,6 +231,15 @@ Role specification consists of two sections: `allow` and `deny`. They are identi
 |          `rules.resources`| string list | List of resources                                               |
 |              `rules.verbs`| string list | List of verbs                                                   |
 |              `rules.where`|      string | Additional advanced matcher                                     |
+
+
+**spec.allow.kubernetes_resources** and **spec.deny.kubernetes_resources**
+
+Kubernetes resources represents the resources the role allows/denies access to. The following fields are supported:
+
+|                `kind`|      string | Resource kind. Supported values: `pod`                                          |
+|                `name`|      string | Resource name in the Kubernetes cluster. Supports regex expressions and wildcards `*`       |
+|           `namespace`|      string | Resource namespace in the Kubernetes cluster. Supports regex expressions and wildcards `*`  |
 
 **spec.allow.request and spec.deny.request**
 
@@ -291,7 +301,7 @@ resource "teleport_role" "example" {
   metadata = {
     name = "example"
   }
-  
+
   spec = {
     options = {
       forward_agent           = false
@@ -324,6 +334,14 @@ resource "teleport_role" "example" {
         env = ["prod"]
         example = ["a", "b"]
       }
+
+      kubernetes_resources = [
+        {
+          kind      = "pod"
+          name      = "*"
+          namespace = "myns"
+        }
+      ]
     }
 
     deny = {
