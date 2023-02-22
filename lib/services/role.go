@@ -998,45 +998,47 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 // getAllAllowedServerLogins gets all the allowed server
 // logins for the RoleSet.
 func (set RoleSet) getAllAllowedServerLogins() []string {
-	allowed := []string{}
-	denied := []string{}
+	mapped := make(map[string]bool)
 	for _, role := range set {
-		denied = append(denied, role.GetLogins(types.Deny)...)
-		allowed = append(allowed, role.GetLogins(types.Allow)...)
-	}
-
-	allowed = apiutils.Deduplicate(allowed)
-	denied = apiutils.Deduplicate(denied)
-	serverLogins := []string{}
-	for _, login := range allowed {
-		if isDenied := slices.Contains(denied, login); !isDenied {
-			serverLogins = append(serverLogins, login)
+		for _, login := range role.GetLogins(types.Allow) {
+			mapped[login] = true
+		}
+		for _, login := range role.GetLogins(types.Deny) {
+			mapped[login] = false
 		}
 	}
 
-	return serverLogins
+	var filtered []string
+	for login, isAllowed := range mapped {
+		if isAllowed {
+			filtered = append(filtered, login)
+		}
+	}
+
+	return filtered
 }
 
-// getAllAllowedWindowsDesktopLogins gets all the allowed windows desktop
+// getAllAllowedServerLogins gets all the allowed server
 // logins for the RoleSet.
 func (set RoleSet) getAllAllowedWindowsDesktopLogins() []string {
-	allowed := []string{}
-	denied := []string{}
+	mapped := make(map[string]bool)
 	for _, role := range set {
-		denied = append(denied, role.GetWindowsLogins(types.Deny)...)
-		allowed = append(allowed, role.GetWindowsLogins(types.Allow)...)
-	}
-
-	allowed = apiutils.Deduplicate(allowed)
-	denied = apiutils.Deduplicate(denied)
-	desktopLogins := []string{}
-	for _, login := range allowed {
-		if isDenied := slices.Contains(denied, login); !isDenied {
-			desktopLogins = append(desktopLogins, login)
+		for _, login := range role.GetWindowsLogins(types.Allow) {
+			mapped[login] = true
+		}
+		for _, login := range role.GetWindowsLogins(types.Deny) {
+			mapped[login] = false
 		}
 	}
 
-	return desktopLogins
+	var filtered []string
+	for login, isAllowed := range mapped {
+		if isAllowed {
+			filtered = append(filtered, login)
+		}
+	}
+
+	return filtered
 }
 
 // filterAllowedLoginsByResource takes all the allowed logins for a given resource type (allLogins),
