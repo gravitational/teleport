@@ -35,9 +35,7 @@ type UIConfig interface {
 
 func NewUIConfigV1() (*UIConfigV1, error) {
 	uiconfig := &UIConfigV1{
-		Metadata: Metadata{
-			Name: MetaNameUIConfig,
-		},
+		ResourceHeader: ResourceHeader{},
 	}
 	if err := uiconfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

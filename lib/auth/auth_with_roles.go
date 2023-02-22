@@ -3604,7 +3604,8 @@ func (a *ServerWithRoles) GetUIConfig(ctx context.Context) (types.UIConfig, erro
 	if err := a.action(apidefaults.Namespace, types.KindUIConfig, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetUIConfig(ctx)
+	cfg, err := a.authServer.GetUIConfig(ctx)
+	return cfg, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) SetUIConfig(ctx context.Context, uic types.UIConfig) error {

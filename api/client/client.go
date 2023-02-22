@@ -2267,10 +2267,7 @@ func (c *Client) GetInstallers(ctx context.Context) ([]types.Installer, error) {
 // GetUIConfig gets the configuration for the UI served by the proxy service
 func (c *Client) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
 	resp, err := c.grpc.GetUIConfig(ctx, &emptypb.Empty{}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return resp, nil
+	return resp, trail.FromGRPC(err)
 }
 
 // SetUIConfig sets the configuration for the UI served by the proxy service

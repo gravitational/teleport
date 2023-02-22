@@ -43,8 +43,11 @@ type ClusterConfiguration interface {
 	// DeleteStaticTokens deletes static tokens resource
 	DeleteStaticTokens() error
 
+	// GetUIConfig gets the proxy service UI config from the backend
 	GetUIConfig(context.Context) (types.UIConfig, error)
+	// SetUIConfig sets the proxy service UI config from the backend
 	SetUIConfig(context.Context, types.UIConfig) error
+	// DeleteUIConfig deletes the proxy service UI config from the backend
 	DeleteUIConfig(ctx context.Context) error
 
 	// GetAuthPreference gets types.AuthPreference from the backend.
