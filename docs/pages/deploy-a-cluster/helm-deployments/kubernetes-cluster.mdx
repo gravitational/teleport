@@ -405,8 +405,7 @@ the default one in case there is a problem.
 
 ## Troubleshooting
 
-If you are experiencing errors connecting with the Teleport Cluster check the proxy
-and auth pods status. A successful state should be both pods running as below:
+If you are experiencing errors connecting to the Teleport cluster, check the status of the Auth Service and Proxy Service pods. A successful state should show both pods running as below:
 
 ```code
 $ kubectl get pods -n teleport-cluster
