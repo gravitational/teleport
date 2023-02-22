@@ -123,7 +123,7 @@ For this, a new PreHog `AgentMetadataEvent` message will be added (note that onl
 ```protobuf
 message AgentMetadataEvent {
   string version = 1;
-  string server_id = 2;
+  string host_id = 2;
   repeated string services = 3;
   string os = 4;
   string os_version = 5;
