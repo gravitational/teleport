@@ -22,6 +22,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -37,11 +38,13 @@ type Resource struct {
 // This spec is intended to closely mirror `devicepb.Device` but swaps some data around
 // to get a UX that matches with our other resource types.
 type ResourceSpec struct {
-	OsType        string                          `json:"os_type"`
-	AssetTag      string                          `json:"asset_tag"`
-	CreateTime    time.Time                       `json:"create_time,omitempty"`
-	UpdateTime    time.Time                       `json:"update_time,omitempty"`
-	EnrollToken   *devicepb.DeviceEnrollToken     `json:"enroll_token,omitempty"`
+	// OsType is represented as a string here for user-friendly manipulation.
+	OsType      string                      `json:"os_type"`
+	AssetTag    string                      `json:"asset_tag"`
+	CreateTime  time.Time                   `json:"create_time,omitempty"`
+	UpdateTime  time.Time                   `json:"update_time,omitempty"`
+	EnrollToken *devicepb.DeviceEnrollToken `json:"enroll_token,omitempty"`
+	// OsType is represented as a string here for user-friendly manipulation.
 	EnrollStatus  string                          `json:"enroll_status"`
 	Credential    *devicepb.DeviceCredential      `json:"credential,omitempty"`
 	CollectedData []*devicepb.DeviceCollectedData `json:"collected_data,omitempty"`
@@ -60,8 +63,8 @@ func (r *Resource) checkAndSetDefaults() error {
 		return trace.BadParameter("unexpected resource kind %q, must be %q", r.Kind, types.KindDevice)
 	}
 
-	if _, ok := devicepb.OSType_value[r.Spec.OsType]; !ok {
-		return trace.BadParameter("invalid OS type: %q", r.Spec.OsType)
+	if _, err := devicetrust.ResourceOSTypeFromString(r.Spec.OsType); err != nil {
+		trace.Wrap(err)
 	}
 
 	if r.Spec.AssetTag == "" {
@@ -86,7 +89,7 @@ func UnmarshalDevice(raw []byte) (*devicepb.Device, error) {
 	if err := resource.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return resourceToProto(&resource), nil
+	return resourceToProto(&resource)
 }
 
 // ProtoToResource converts a *devicepb.Device into a *Resource which
@@ -98,11 +101,11 @@ func ProtoToResource(device *devicepb.Device) *Resource {
 			Kind:    types.KindDevice,
 			Version: device.ApiVersion,
 			Metadata: types.Metadata{
-				Name: device.ID,
+				Name: device.Id,
 			},
 		},
 		Spec: ResourceSpec{
-			OsType:        devicepb.OSType_name[int32(device.OsType)],
+			OsType:        devicetrust.ResourceOSTypeToString(device.OsType),
 			AssetTag:      device.AssetTag,
 			EnrollToken:   device.EnrollToken,
 			EnrollStatus:  devicepb.DeviceEnrollStatus_name[int32(device.EnrollStatus)],
@@ -122,11 +125,16 @@ func ProtoToResource(device *devicepb.Device) *Resource {
 	return r
 }
 
-func resourceToProto(r *Resource) *devicepb.Device {
+func resourceToProto(r *Resource) (*devicepb.Device, error) {
+	osType, err := devicetrust.ResourceOSTypeFromString(r.Spec.OsType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	dev := &devicepb.Device{
 		ApiVersion:    r.Version,
 		Id:            r.Metadata.Name,
-		OsType:        devicepb.OSType(devicepb.OSType_value[r.Spec.OsType]),
+		OsType:        osType,
 		AssetTag:      r.Spec.AssetTag,
 		EnrollToken:   r.Spec.EnrollToken,
 		EnrollStatus:  devicepb.DeviceEnrollStatus(devicepb.DeviceEnrollStatus_value[r.Spec.EnrollStatus]),
@@ -142,5 +150,5 @@ func resourceToProto(r *Resource) *devicepb.Device {
 		dev.UpdateTime = timestamppb.New(r.Spec.UpdateTime)
 	}
 
-	return dev
+	return dev, nil
 }

@@ -14,7 +14,10 @@
 
 package devicetrust
 
-import devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+import (
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/trace"
+)
 
 // FriendlyOSType returns a user-friendly OSType representation.
 // Recommended for user-facing messages.
@@ -41,5 +44,31 @@ func FriendlyDeviceEnrollStatus(enrollStatus devicepb.DeviceEnrollStatus) string
 		return "not enrolled"
 	default:
 		return enrollStatus.String()
+	}
+}
+
+func ResourceOSTypeToString(osType devicepb.OSType) string {
+	switch osType {
+	case devicepb.OSType_OS_TYPE_LINUX:
+		return "linux"
+	case devicepb.OSType_OS_TYPE_MACOS:
+		return "macos"
+	case devicepb.OSType_OS_TYPE_WINDOWS:
+		return "windows"
+	default:
+		return osType.String()
+	}
+}
+
+func ResourceOSTypeFromString(osType string) (devicepb.OSType, error) {
+	switch osType {
+	case "linux":
+		return devicepb.OSType_OS_TYPE_LINUX, nil
+	case "macos":
+		return devicepb.OSType_OS_TYPE_MACOS, nil
+	case "windows":
+		return devicepb.OSType_OS_TYPE_WINDOWS, nil
+	default:
+		return devicepb.OSType_OS_TYPE_UNSPECIFIED, trace.BadParameter("unknown os type %q", osType)
 	}
 }
