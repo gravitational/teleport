@@ -17,7 +17,7 @@ limitations under the License.
 import 'xterm/css/xterm.css';
 import { IDisposable, Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
-import { debounce } from 'lodash';
+import { debounce } from 'shared/utils/highbar';
 
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import Logger from 'teleterm/logger';

@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { debounce } from 'lodash';
 import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { Box, Flex } from 'design';
+import { debounce } from 'shared/utils/highbar';
 
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 

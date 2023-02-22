@@ -17,9 +17,12 @@ package stream
 import (
 	"errors"
 	"io"
+	"net"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc"
 )
 
@@ -73,7 +76,7 @@ func (c *ReadWriter) Read(b []byte) (n int, err error) {
 			return 0, io.EOF
 		}
 		if err != nil {
-			return 0, trace.ConnectionProblem(err, "failed to receive from source")
+			return 0, trace.ConnectionProblem(trail.FromGRPC(err), "failed to receive from source")
 		}
 
 		if data == nil {
@@ -111,7 +114,7 @@ func (c *ReadWriter) Write(b []byte) (int, error) {
 		}
 
 		if err := c.source.Send(chunk); err != nil {
-			return sent, trace.ConnectionProblem(err, "failed to send on source")
+			return sent, trace.ConnectionProblem(trail.FromGRPC(err), "failed to send on source")
 		}
 
 		sent += len(chunk)
@@ -131,4 +134,43 @@ func (c *ReadWriter) Close() error {
 	}
 
 	return trace.Wrap(err)
+}
+
+// Conn wraps [ReadWriter] in a [net.Conn] interface.
+type Conn struct {
+	*ReadWriter
+
+	src net.Addr
+	dst net.Addr
+}
+
+// NewConn creates a new Conn which transfers data via the provided ReadWriter.
+func NewConn(rw *ReadWriter, src net.Addr, dst net.Addr) *Conn {
+	return &Conn{
+		ReadWriter: rw,
+		src:        src,
+		dst:        dst,
+	}
+}
+
+// LocalAddr is the original source address of the client.
+func (c *Conn) LocalAddr() net.Addr {
+	return c.src
+}
+
+// RemoteAddr is the address of the reverse tunnel node.
+func (c *Conn) RemoteAddr() net.Addr {
+	return c.dst
+}
+
+func (c *Conn) SetDeadline(t time.Time) error {
+	return nil
+}
+
+func (c *Conn) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (c *Conn) SetWriteDeadline(t time.Time) error {
+	return nil
 }
