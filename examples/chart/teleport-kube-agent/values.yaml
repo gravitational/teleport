@@ -118,6 +118,9 @@ caPin: []
 # certificate.
 insecureSkipProxyTLSVerify: false
 
+# Set enterprise to true to use enterprise image.
+enterprise: false
+
 # teleportConfig contains additional teleport configuration
 # The configuration will be merged with the chart-generated configuration
 # and will take precedence in case of conflict
@@ -184,9 +187,10 @@ storage:
 # Values that you shouldn't need to change.
 ################################################################
 
-# Container image for the agent. Since this runs without the auth_service, we
-# don't need the enterprise version.
+# Container image for the cluster.
 image: public.ecr.aws/gravitational/teleport
+# Enterprise version of the image
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent
 # Optional array of imagePullSecrets, to use when pulling from a private registry
 imagePullSecrets: []
 # - name: myRegistryKeySecretName
