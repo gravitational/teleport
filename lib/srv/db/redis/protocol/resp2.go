@@ -43,12 +43,7 @@ func WriteCmd(wr *redis.Writer, vals interface{}) error {
 	case redis.Error:
 		if val == redis.Nil {
 			// go-redis returns nil value as errors, but Redis Wire protocol decodes them differently.
-			// Note: RESP3 has different sequence for nil, current nil is RESP2 compatible as the rest
-			// of our implementation.
-			if _, err := wr.WriteString("$-1\r\n"); err != nil {
-				return trace.Wrap(err)
-			}
-			return nil
+			return trace.Wrap(WriteCmd(wr, nil))
 		}
 
 		if err := writeError(wr, "-", val); err != nil {
@@ -117,6 +112,12 @@ func WriteCmd(wr *redis.Writer, vals interface{}) error {
 		}
 
 		if err != nil {
+			return trace.Wrap(err)
+		}
+	case nil:
+		// Note: RESP3 has different sequence for nil, current nil is RESP2 compatible as the rest
+		// of our implementation.
+		if _, err := wr.WriteString("$-1\r\n"); err != nil {
 			return trace.Wrap(err)
 		}
 	}
