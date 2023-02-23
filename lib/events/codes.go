@@ -404,6 +404,18 @@ const (
 	// LoginRuleDeleteCode is the login rule delete code.
 	LoginRuleDeleteCode = "TLR01I"
 
+	// SAMLIdPAuthEventCode is the SAML IdP auth code.
+	SAMLIdPAuthCode = "TSI000I"
+
+	// SAMLIdPServiceProviderCreatedCode is the SAML IdP service provider created code.
+	SAMLIdPServiceProviderCreatedCode = "TSI001I"
+
+	// SAMLIdPServiceProviderUpdatedCode is the SAML IdP service provider updated code.
+	SAMLIdPServiceProviderUpdatedCode = "TSI002I"
+
+	// SAMLIdPServiceProviderDeletedCode is the SAML IdP service provider deleted code.
+	SAMLIdPServiceProviderDeletedCode = "TSI003I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

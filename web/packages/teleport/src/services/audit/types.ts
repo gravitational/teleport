@@ -218,6 +218,10 @@ export const eventCodes = {
   INSTANCE_JOIN: 'TJ002I',
   LOGIN_RULE_CREATE: 'TLR00I',
   LOGIN_RULE_DELETE: 'TLR01I',
+  SAML_IDP_AUTH: 'TSI000I',
+  SAML_IDP_SERVICE_PROVIDER_CREATED: 'TSI001I',
+  SAML_IDP_SERVICE_PROVIDER_UPDATED: 'TSI002I',
+  SAML_IDP_SERVICE_PROVIDER_DELETED: 'TSI003I',
 } as const;
 
 /**
@@ -1122,6 +1126,36 @@ export type RawEvents = {
   [eventCodes.LOGIN_RULE_DELETE]: RawEvent<
     typeof eventCodes.LOGIN_RULE_DELETE,
     HasName
+  >;
+  [eventCodes.SAML_IDP_AUTH]: RawEvent<
+    typeof eventCodes.SAML_IDP_AUTH,
+    {
+      success: boolean;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATED]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATED,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATED]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATED,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETED]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETED,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
   >;
 };
 

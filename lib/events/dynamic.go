@@ -281,6 +281,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.LoginRuleCreate{}
 	case LoginRuleDeleteEvent:
 		e = &events.LoginRuleDelete{}
+	case SAMLIdPAuthEvent:
+		e = &events.SAMLIdPAuth{}
+	case SAMLIdPServiceProviderCreatedEvent:
+		e = &events.SAMLIdPServiceProviderCreated{}
+	case SAMLIdPServiceProviderUpdatedEvent:
+		e = &events.SAMLIdPServiceProviderUpdated{}
+	case SAMLIdPServiceProviderDeletedEvent:
+		e = &events.SAMLIdPServiceProviderDeleted{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 
