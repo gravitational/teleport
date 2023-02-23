@@ -636,7 +636,13 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn utils.TLSConn
 			return nil, trace.ConvertSystemError(err)
 		}
 	}
-	tlsState := conn.ConnectionState()
+
+	return a.WrapContextWithUserFromTLSConnState(ctx, conn.ConnectionState())
+}
+
+// WrapContextWithUserFromTLSConnState enriches the provided context with the identity information
+// extracted from the provided TLS connection state.
+func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tlsState tls.ConnectionState) (context.Context, error) {
 	user, err := a.GetUser(tlsState)
 	if err != nil {
 		return nil, trace.Wrap(err)
