@@ -144,40 +144,24 @@ jobs:
           ref: ${{ env.TELEPORT_E_REF }}
           path: e
 
-      # We are not guaranteed to have an available `make` at this point, (e.g.
-      # when using the self-hosted ARM runners) so for now we will scrape the
-      # info we need directly out of the makefile using grep. This is not
-      # ideal, and should be replaced with a call to make as soon as we can
-      # guarantee the runner image has `make` baked in.
-      - name: Determine toolchain versions
-        run: |
-          echo NODE_VERSION=$(grep -Po 'NODE_VERSION \?\= \K\S*' build.assets/Makefile) >> $GITHUB_ENV
-          echo GOLANG_VERSION=$(grep -Po 'GOLANG_VERSION \?\= \Kgo\S*' build.assets/Makefile) >> $GITHUB_ENV
-          echo RUST_VERSION=$(grep -Po 'RUST_VERSION \?\= \K\S*' build.assets/Makefile) >> $GITHUB_ENV
-
       - name: Build Buildbox
-        uses: docker/build-push-action@v3
-        with:
-          push: false
-          load: true
-          context: build.assets
-          file: ./build.assets/Dockerfile-multiarch
-          platforms: linux/${{ inputs.arch }}
-          tags: teleport-buildbox-${{ inputs.arch }}:latest
-          build-args: |
-            BUILD_ARCH=${{ inputs.arch }}
-            NODE_VERSION=${{ env.NODE_VERSION }}
-            RUST_VERSION=${{ env.RUST_VERSION }}
-            GOLANG_VERSION=${{ env.GOLANG_VERSION }}
-            UID=1000
-            GID=1000
+        run: |
+          make -C build.assets                                               \
+            buildbox-centos7                                                 \
+            ARCH=${{ inputs.arch }}                                          \
+            BUILDBOX_CENTOS7=teleport-buildbox-${{ inputs.arch }}:latest     \
+
+      - name: Fix cache permissions
+        run: |
+          mkdir -p ${{ env.GOMODCACHE }} ${{ env.GOCACHE }} 
+          chown -Rf $(id -u):$(id -g) ${{ env.GOMODCACHE }} ${{ env.GOCACHE }}
 
       - name: Build Release
         run: |
             make -C build.assets                                           \
-              release-${{ inputs.release }}                                \
+              release-centos7                                              \
               ARCH=${{ inputs.arch }}                                      \
-              BUILDBOX=teleport-buildbox-${{ inputs.arch }}:latest         \
+              BUILDBOX_CENTOS7=teleport-buildbox-${{ inputs.arch }}:latest \
               GOMODCACHE=${{ env.GOMODCACHE }}                             \
               GOCACHE=${{ env.GOCACHE }}                                   \
               WORKSPACE=${{ github.workspace  }}
