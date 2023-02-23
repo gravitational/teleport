@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Generates protos for Teleport and Teleport API.
 set -eu
