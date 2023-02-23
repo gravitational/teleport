@@ -199,6 +199,8 @@ type ReissueParams struct {
 	MFACheck *proto.IsMFARequiredResponse
 	// AuthClient is the client used for the MFACheck that can be reused
 	AuthClient auth.ClientI
+	// RequesterName identifies who is sending the cert reissue request.
+	RequesterName proto.UserCertsRequest_Requester
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
@@ -595,6 +597,7 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		NodeName:              params.NodeName,
 		Usage:                 params.usage(),
 		Format:                proxy.teleportClient.CertificateFormat,
+		RequesterName:         params.RequesterName,
 	}, nil
 }
 
