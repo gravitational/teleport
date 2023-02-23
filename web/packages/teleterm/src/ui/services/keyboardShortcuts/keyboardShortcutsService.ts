@@ -28,7 +28,12 @@ import {
 
 export class KeyboardShortcutsService {
   private eventsSubscribers = new Set<KeyboardShortcutEventSubscriber>();
-  private acceleratorsToActions = new Map<string, KeyboardShortcutAction>();
+  private acceleratorsToActions = new Map<string, KeyboardShortcutAction[]>();
+  /**
+   * Modifier keys must be defined in the following order:
+   * Command-Control-Option-Shift for macOS
+   * Ctrl-Alt-Shift for other platforms
+   */
   private readonly shortcutsConfig: Record<KeyboardShortcutAction, string>;
 
   constructor(
