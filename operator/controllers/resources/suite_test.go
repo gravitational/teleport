@@ -153,11 +153,7 @@ func (s *testSetup) startKubernetesOperator(t *testing.T) {
 	}).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = (&UserReconciler{
-		Client:                 s.k8sClient,
-		Scheme:                 k8sManager.GetScheme(),
-		TeleportClientAccessor: clientAccessor,
-	}).SetupWithManager(k8sManager)
+	err = NewUserReconciler(s.k8sClient, clientAccessor).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
 	err = NewGithubConnectorReconciler(s.k8sClient, clientAccessor).SetupWithManager(k8sManager)
