@@ -144,10 +144,10 @@ type grpcDummyClientConnection struct {
 
 // Invoke implements grpc.ClientConnInterface
 func (g *grpcDummyClientConnection) Invoke(ctx context.Context, method string, args interface{}, reply interface{}, opts ...grpc.CallOption) error {
-	return trace.NotImplemented(g.message)
+	return trace.NotImplemented("%s: %s", method, g.message)
 }
 
 // NewStream implements grpc.ClientConnInterface
 func (g *grpcDummyClientConnection) NewStream(ctx context.Context, desc *grpc.StreamDesc, method string, opts ...grpc.CallOption) (grpc.ClientStream, error) {
-	return nil, trace.NotImplemented(g.message)
+	return nil, trace.NotImplemented("%s: %s", method, g.message)
 }
