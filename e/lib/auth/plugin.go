@@ -11,6 +11,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
@@ -18,11 +19,14 @@ import (
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	"github.com/gravitational/teleport/e/lib/loginrule/loginrulev1"
 	lrstorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
+	"github.com/gravitational/teleport/e/lib/plugins"
+	"github.com/gravitational/teleport/e/lib/plugins/pluginsv1"
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/release"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 const (
@@ -186,6 +190,11 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 		authServer.AuthServer.SetReleaseService(*releaseClient)
 	}
 
+	// Create plugins service
+	if err := p.registerPluginsService(authServer); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -209,6 +218,28 @@ func (p *Plugin) registerLoginRuleService(server *auth.GRPCServer) error {
 	}
 	loginrulepb.RegisterLoginRuleServiceServer(grpcServer, service)
 
+	return nil
+}
+
+func (p *Plugin) registerPluginsService(server *auth.GRPCServer) error {
+	grpcServer, err := server.GetServer()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	backendService := local.NewPluginsService(p.GetBackend)
+	service, err := pluginsv1.NewService(pluginsv1.ServiceConfig{
+		Authorizer:     p.authorizer,
+		BackendService: backendService,
+		Exchangers:     &plugins.ExchangerSet{
+			// TODO(justinas): intentionally left blank. Pending config boilerplate.
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	pluginspb.RegisterPluginServiceServer(grpcServer, service)
 	return nil
 }
 
