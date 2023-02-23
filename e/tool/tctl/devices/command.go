@@ -2,14 +2,16 @@ package devices
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -64,9 +66,12 @@ func (c *Command) Initialize(app *kingpin.Application, cfg *service.Config) {
 	enrollCmd.Flag("device-id", "Device identifier").StringVar(&c.enroll.deviceID)
 	enrollCmd.Flag("asset-tag", "Inventory identifier for the device").StringVar(&c.enroll.assetTag)
 
-	lockCmd := devicesCmd.Command("lock", "Locks a device").Hidden()
+	lockCmd := devicesCmd.Command("lock", "Locks a device")
 	lockCmd.Flag("device-id", "Device identifier").StringVar(&c.lock.deviceID)
 	lockCmd.Flag("asset-tag", "Inventory identifier for the device").StringVar(&c.lock.assetTag)
+	lockCmd.Flag("message", "Message to display to locked-out users").StringVar(&c.lock.message)
+	lockCmd.Flag("expires", "Time point (RFC3339) when the lock expires").StringVar(&c.lock.expires)
+	lockCmd.Flag("ttl", "Time duration after which the lock expires").DurationVar(&c.lock.ttl)
 }
 
 // runner is used as a simple interface for subcommands.
@@ -247,17 +252,55 @@ func (c *enrollCommand) Run(ctx context.Context, authClient auth.ClientI) error 
 
 type lockCommand struct {
 	deviceID, assetTag string
+	message            string
+	expires            string
+	ttl                time.Duration
 }
 
-func (c *lockCommand) Run(context.Context, auth.ClientI) error {
+func (c *lockCommand) Run(ctx context.Context, authClient auth.ClientI) error {
 	switch {
 	case c.deviceID == "" && c.assetTag == "":
 		return trace.BadParameter("either --device-id or --asset-tag must be set")
 	case c.deviceID != "" && c.assetTag != "":
 		return trace.BadParameter("only one of --device-id or --asset-tag must be set")
+	case c.expires != "" && c.ttl != 0:
+		return trace.BadParameter("use only one of --expires and --ttl")
 	}
 
-	return errors.New("not implemented")
+	var expires *time.Time
+	switch {
+	case c.expires != "":
+		t, err := time.Parse(time.RFC3339, c.expires)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		expires = &t
+	case c.ttl != 0:
+		t := time.Now().UTC().Add(c.ttl)
+		expires = &t
+	}
+
+	deviceID, _, err := findDeviceID(ctx, authClient.DevicesClient(), c.deviceID, c.assetTag)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	lock, err := types.NewLock(uuid.NewString(), types.LockSpecV2{
+		Target: types.LockTarget{
+			Device: deviceID,
+		},
+		Message: c.message,
+		Expires: expires,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := authClient.UpsertLock(ctx, lock); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("Created a lock with name %q.\n", lock.GetName())
+	return nil
 }
 
 // findDeviceID finds the device ID when supplied with either a deviceID or
