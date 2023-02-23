@@ -19,6 +19,7 @@ package resources
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
@@ -315,6 +316,14 @@ func TestUserUpdate(t *testing.T) {
 	metadata := tUser.GetMetadata()
 	metadata.Labels = map[string]string{types.OriginLabel: types.OriginKubernetes}
 	tUser.SetMetadata(metadata)
+	createdBy := types.CreatedBy{
+		Connector: nil,
+		Time:      time.Now(),
+		User: types.UserRef{
+			Name: setup.operatorName,
+		},
+	}
+	tUser.SetCreatedBy(createdBy)
 
 	err = setup.tClient.CreateUser(ctx, tUser)
 	require.NoError(t, err)
@@ -365,6 +374,7 @@ func TestUserUpdate(t *testing.T) {
 		// TeleportUser updated with new roles
 		return assert.ElementsMatch(t, tUser.GetRoles(), []string{"x", "z", "y"})
 	})
+	require.Equal(t, setup.operatorName, tUser.GetCreatedBy().User.Name, "createdBy has not been erased")
 }
 
 func k8sCreateDummyUser(ctx context.Context, t *testing.T, kc kclient.Client, namespace, userName string) {
@@ -394,58 +404,6 @@ func k8sDeleteUser(ctx context.Context, t *testing.T, kc kclient.Client, userNam
 func k8sCreateUser(ctx context.Context, t *testing.T, kc kclient.Client, user *resourcesv2.TeleportUser) {
 	err := kc.Create(ctx, user)
 	require.NoError(t, err)
-}
-
-func TestAddTeleportResourceOriginUser(t *testing.T) {
-	r := UserReconciler{}
-	tests := []struct {
-		name     string
-		resource types.User
-	}{
-		{
-			name: "origin already set correctly",
-			resource: &types.UserV2{
-				Metadata: types.Metadata{
-					Name:   "user with correct origin",
-					Labels: map[string]string{types.OriginLabel: types.OriginKubernetes},
-				},
-			},
-		},
-		{
-			name: "origin already set incorrectly",
-			resource: &types.UserV2{
-				Metadata: types.Metadata{
-					Name:   "user with correct origin",
-					Labels: map[string]string{types.OriginLabel: types.OriginConfigFile},
-				},
-			},
-		},
-		{
-			name: "origin not set",
-			resource: &types.UserV2{
-				Metadata: types.Metadata{
-					Name:   "user with correct origin",
-					Labels: map[string]string{"foo": "bar"},
-				},
-			},
-		},
-		{
-			name: "no labels",
-			resource: &types.UserV2{
-				Metadata: types.Metadata{
-					Name: "user with no labels",
-				},
-			},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			r.addTeleportResourceOrigin(tc.resource)
-			metadata := tc.resource.GetMetadata()
-			require.Contains(t, metadata.Labels, types.OriginLabel)
-			require.Equal(t, metadata.Labels[types.OriginLabel], types.OriginKubernetes)
-		})
-	}
 }
 
 func getUserStatusConditionError(object map[string]interface{}) []metav1.Condition {

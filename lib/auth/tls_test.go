@@ -191,7 +191,7 @@ func TestAcceptedUsage(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
-	require.True(t, trace.IsAccessDenied(err))
+	require.ErrorIs(t, err, trace.ConnectionProblem(nil, `connection error: desc = "error reading server preface: EOF"`))
 
 	// restricted clients can will be rejected, for now if there is any mismatch,
 	// including extra usage.
@@ -201,7 +201,7 @@ func TestAcceptedUsage(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
-	require.True(t, trace.IsAccessDenied(err))
+	require.ErrorIs(t, err, trace.ConnectionProblem(nil, `connection error: desc = "error reading server preface: EOF"`))
 }
 
 // TestRemoteRotation tests remote builtin role

@@ -57,6 +57,10 @@ type WebConfig struct {
 	RecoveryCodesEnabled bool `json:"recoveryCodesEnabled,omitempty"`
 
 	UI UIConfig `json:"ui,omitempty"`
+	// IsDashboard is a flag that determines if the cluster is running as a "dashboard".
+	// The web UI for dashboards provides functionality for downloading self-hosted licenses and
+	// Teleport Enterprise binaries.
+	IsDashboard bool `json:"isDashboard,omitempty"`
 }
 
 type UIConfig struct {
