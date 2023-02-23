@@ -95,8 +95,8 @@ Since we no longer send every bitmap over the wire and to keep session recording
 
 
 ### Process bitmaps in Rust library
+While interacting with the remote desktop using the RDP protocol, most of the protocol messages exchanged between the server and a client are related to rendering bitmaps. Messages almost always contain compressed data to reduce bandwidth usage and latency. Rendering compressed bitmaps on the screen requires uncompressing data first using decompress algorithm and encoding bitmaps into PNG.
+While decompression is already done in the Rust library, the encoding of bitmaps is done in the Go client.
 
-While interacting with the remote desktop using the RDP protocol, most of the protocol messages exchanged between the server and a client are related to rendering bitmaps. Messages almost always contain compressed data to reduce bandwidth usage and latency. Rendering compressed bitmaps on the screen requires uncompressing data first using decompress algorithm.
- It is the most common operation while using the protocol, so it must execute extermaly fast to provide good user experience.
-The best performance can be achived be moving the bitmap decompression procdure from the Go client to the faster compiled library written in the Rust language. It'll also allow to simplyfy the way we encode and decode PNG tdp messages.
-During the tests average time it took to process message (read, process and decompress) when the decompression took place in Go side was around 500μs. After moving decompression alogirhm to the Rust library, time it took process message went down to 50μs.
+The best performance can be achieved by moving the PNG encoding procedure from the Go client to the Rust library. It'll also simplify the way we encode and decode PNG TDP messages.
+During the tests, the average time it took to process messages (read, process, decompress, and encode) when the encoding took place in the Go side was around 500μs. After moving the encoding of bitmaps into PNGs to the Rust library, the time it took to process a message went down to 50μs.
