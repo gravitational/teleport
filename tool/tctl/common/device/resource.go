@@ -40,15 +40,24 @@ type Resource struct {
 // to get a UX that matches with our other resource types.
 type ResourceSpec struct {
 	// OsType is represented as a string here for user-friendly manipulation.
-	OsType      string                      `json:"os_type"`
+	OSType      string                      `json:"os_type"`
 	AssetTag    string                      `json:"asset_tag"`
 	CreateTime  time.Time                   `json:"create_time,omitempty"`
 	UpdateTime  time.Time                   `json:"update_time,omitempty"`
 	EnrollToken *devicepb.DeviceEnrollToken `json:"enroll_token,omitempty"`
 	// EnrollStatus is represented as a string here for user-friendly manipulation.
-	EnrollStatus  string                          `json:"enroll_status"`
-	Credential    *devicepb.DeviceCredential      `json:"credential,omitempty"`
-	CollectedData []*devicepb.DeviceCollectedData `json:"collected_data,omitempty"`
+	EnrollStatus  string                     `json:"enroll_status"`
+	Credential    *devicepb.DeviceCredential `json:"credential,omitempty"`
+	CollectedData []DeviceCollectedData      `json:"collected_data,omitempty"`
+}
+
+// DeviceCollectedData mirrors [devicepb.DeviceCollectedData] but with a different
+// timestamp type to achieve consistent serialization output.
+type DeviceCollectedData struct {
+	CollectTime  time.Time `json:"collect_time"`
+	RecordTime   time.Time `json:"record_time"`
+	OSType       string    `json:"os_type"`
+	SerialNumber string    `json:"serial_number"`
 }
 
 // checkAndSetDefaults sanity checks Resource fields to catch simple errors, and
@@ -64,7 +73,7 @@ func (r *Resource) checkAndSetDefaults() error {
 		return trace.BadParameter("unexpected resource kind %q, must be %q", r.Kind, types.KindDevice)
 	}
 
-	if _, err := devicetrust.ResourceOSTypeFromString(r.Spec.OsType); err != nil {
+	if _, err := devicetrust.ResourceOSTypeFromString(r.Spec.OSType); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -98,6 +107,16 @@ func UnmarshalDevice(raw []byte) (*devicepb.Device, error) {
 // implements types.Resource and can be marshaled to YAML or JSON in a
 // human-friendly format.
 func ProtoToResource(device *devicepb.Device) *Resource {
+	collectedData := make([]DeviceCollectedData, 0, len(device.CollectedData))
+	for _, d := range device.CollectedData {
+		collectedData = append(collectedData, DeviceCollectedData{
+			CollectTime:  d.CollectTime.AsTime(),
+			RecordTime:   d.RecordTime.AsTime(),
+			OSType:       devicetrust.ResourceOSTypeToString(d.OsType),
+			SerialNumber: d.SerialNumber,
+		})
+	}
+
 	r := &Resource{
 		ResourceHeader: types.ResourceHeader{
 			Kind:    types.KindDevice,
@@ -107,12 +126,12 @@ func ProtoToResource(device *devicepb.Device) *Resource {
 			},
 		},
 		Spec: ResourceSpec{
-			OsType:        devicetrust.ResourceOSTypeToString(device.OsType),
+			OSType:        devicetrust.ResourceOSTypeToString(device.OsType),
 			AssetTag:      device.AssetTag,
 			EnrollToken:   device.EnrollToken,
 			EnrollStatus:  devicetrust.ResourceEnrollStatusToString(device.EnrollStatus),
 			Credential:    device.Credential,
-			CollectedData: device.CollectedData,
+			CollectedData: collectedData,
 		},
 	}
 
@@ -128,7 +147,7 @@ func ProtoToResource(device *devicepb.Device) *Resource {
 }
 
 func resourceToProto(r *Resource) (*devicepb.Device, error) {
-	osType, err := devicetrust.ResourceOSTypeFromString(r.Spec.OsType)
+	osType, err := devicetrust.ResourceOSTypeFromString(r.Spec.OSType)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -136,6 +155,21 @@ func resourceToProto(r *Resource) (*devicepb.Device, error) {
 	enrollStatus, err := devicetrust.ResourceEnrollStatusFromString(r.Spec.EnrollStatus)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	collectedData := make([]*devicepb.DeviceCollectedData, 0, len(r.Spec.CollectedData))
+	for _, d := range r.Spec.CollectedData {
+		osType, err := devicetrust.ResourceOSTypeFromString(d.OSType)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		collectedData = append(collectedData, &devicepb.DeviceCollectedData{
+			CollectTime:  timestamppb.New(d.CollectTime),
+			RecordTime:   timestamppb.New(d.RecordTime),
+			OsType:       osType,
+			SerialNumber: d.SerialNumber,
+		})
 	}
 
 	dev := &devicepb.Device{
@@ -146,7 +180,7 @@ func resourceToProto(r *Resource) (*devicepb.Device, error) {
 		EnrollToken:   r.Spec.EnrollToken,
 		EnrollStatus:  enrollStatus,
 		Credential:    r.Spec.Credential,
-		CollectedData: r.Spec.CollectedData,
+		CollectedData: collectedData,
 	}
 
 	if !r.Spec.CreateTime.IsZero() {
