@@ -18,17 +18,19 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import Dialog, { DialogHeader, DialogTitle } from 'design/Dialog';
 import {
+  Box,
+  ButtonOutlined,
   ButtonPrimary,
   ButtonSecondary,
-  ButtonOutlined,
   Flex,
-  Text,
-  Box,
   LabelInput,
+  Text,
 } from 'design';
 import TextEditor from 'shared/components/TextEditor';
 import * as Alerts from 'design/Alert';
 import { useAttempt, useState } from 'shared/hooks';
+
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 export default function ResourceEditor(props) {
   const {
@@ -39,13 +41,35 @@ export default function ResourceEditor(props) {
     docsURL = null,
     onClose,
     isNew,
+    kind = '',
   } = props;
 
   const { attempt, attemptActions, content, isDirty, setContent } =
     useEditor(text);
 
+  const roleResource = kind === 'role';
+
   const onSave = () => {
-    attemptActions.do(() => props.onSave(content)).then(() => onClose());
+    attemptActions
+      .do(() => props.onSave(content))
+      .then(() => {
+        if (roleResource) {
+          userEventService.captureUserEvent({
+            event: CaptureEvent.CreateNewRoleSaveClickEvent,
+          });
+        }
+        onClose();
+      });
+  };
+
+  const handleClose = () => {
+    if (roleResource) {
+      userEventService.captureUserEvent({
+        event: CaptureEvent.CreateNewRoleCancelClickEvent,
+      });
+    }
+
+    onClose();
   };
 
   const isSaveDisabled = attempt.isProcessing || (!isDirty && !isNew);
@@ -78,7 +102,10 @@ export default function ResourceEditor(props) {
             <ButtonPrimary disabled={isSaveDisabled} onClick={onSave} mr="3">
               Save changes
             </ButtonPrimary>
-            <ButtonSecondary disabled={attempt.isProcessing} onClick={onClose}>
+            <ButtonSecondary
+              disabled={attempt.isProcessing}
+              onClick={handleClose}
+            >
               CANCEL
             </ButtonSecondary>
           </Box>
@@ -108,6 +135,14 @@ export default function ResourceEditor(props) {
               target="_blank"
               width="100%"
               rel="noreferrer"
+              onClick={() => {
+                if (roleResource) {
+                  userEventService.captureUserEvent({
+                    event:
+                      CaptureEvent.CreateNewRoleViewDocumentationClickEvent,
+                  });
+                }
+              }}
             >
               VIEW DOCUMENTATION
             </ButtonOutlined>
@@ -128,6 +163,7 @@ ResourceEditor.propTypes = {
   onClose: PropTypes.func.isRequired,
   isNew: PropTypes.bool.isRequired,
   directions: PropTypes.element,
+  kind: PropTypes.string,
 };
 
 const dialogCss = () => `

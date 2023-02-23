@@ -19,7 +19,7 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-GOLANG_VERSION ?= go1.19.5
+GOLANG_VERSION ?= go1.20.1
 
 NODE_VERSION ?= 16.18.1
 
@@ -73,13 +73,6 @@ endif
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
 endif
 
-ifeq ("$(RUNTIME_ARCH)","arm64")
-	GRPC_NODE_PLUGIN_BINARY_TYPE := compiled
-else
-	GRPC_NODE_PLUGIN_BINARY_TYPE := prebuilt
-endif
-export
-
 
 #
 # Build 'teleport' release inside a docker container
@@ -132,7 +125,6 @@ buildbox:
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg NODE_VERSION=$(NODE_VERSION) \
-			--build-arg GRPC_NODE_PLUGIN_BINARY_TYPE=$(GRPC_NODE_PLUGIN_BINARY_TYPE) \
 			--build-arg PROTOC_VER=$(PROTOC_VER) \
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
@@ -186,6 +178,7 @@ buildbox-centos7-fips:
 	docker build \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
+		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
@@ -538,9 +531,10 @@ print-buildbox-version:
 	@echo $(BUILDBOX_VERSION)
 
 #
-# Build CentOS 7 assets such as clang.
+# Build CentOS 7 assets - clang.
 #
 .PHONY:build-centos7-assets
 build-centos7-assets:
-	docker build --build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) -t buildbox-centos7-assets -f Dockerfile-centos7-assets .
-	docker run -v $$(pwd):/centos7.assets -it buildbox-centos7-assets cp /centos7-assets.tar.gz /centos7.assets
+	docker build \
+		--tag $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
+		-f Dockerfile-centos7-assets .

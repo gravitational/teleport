@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
@@ -1908,6 +1909,88 @@ func onListNodes(cf *CLIConf) error {
 	return nil
 }
 
+// clusterClient is a client for a particular cluster
+type clusterClient struct {
+	name            string
+	connectionError error
+	proxy           *client.ProxyClient
+	profile         *client.ProfileStatus
+	req             proto.ListResourcesRequest
+}
+
+func (c *clusterClient) Close() error {
+	if c.connectionError != nil {
+		return nil
+	}
+
+	return c.proxy.Close()
+}
+
+// getClusterClients establishes a ProxyClient to every cluster
+// that the user has valid credentials for
+func getClusterClients(cf *CLIConf) ([]*clusterClient, error) {
+	tracer := cf.TracingProvider.Tracer(teleport.ComponentTSH)
+
+	// mu guards access to clusters
+	var (
+		mu       sync.Mutex
+		clusters []*clusterClient
+	)
+
+	err := forEachProfileParallel(cf, func(ctx context.Context, tc *client.TeleportClient, profile *client.ProfileStatus) error {
+		ctx, span := tracer.Start(
+			ctx,
+			"getClusterClient",
+			oteltrace.WithAttributes(attribute.String("cluster", profile.Cluster)),
+		)
+		defer span.End()
+
+		logger := log.WithField("cluster", profile.Cluster)
+
+		logger.Debug("Creating client...")
+		proxy, err := tc.ConnectToProxy(ctx)
+		if err != nil {
+			// log error and return nil so that results may still be retrieved
+			// for other clusters.
+			logger.Errorf("Failed connecting to proxy: %v", err)
+
+			mu.Lock()
+			clusters = append(clusters, &clusterClient{
+				name:            profile.Cluster,
+				connectionError: trace.ConnectionProblem(err, "failed to connect to cluster %s: %v", profile.Cluster, err),
+			})
+			mu.Unlock()
+			return nil
+		}
+
+		sites, err := proxy.GetSites(ctx)
+		if err != nil {
+			// log error and create a site for the proxy we were able to
+			// connect to so that results are still retrieved.
+			logger.Errorf("Failed to lookup leaf clusters: %v", err)
+			sites = []types.Site{{Name: profile.Cluster}}
+		}
+
+		localClusters := make([]*clusterClient, 0, len(sites))
+		for _, site := range sites {
+			localClusters = append(localClusters, &clusterClient{
+				proxy:   proxy,
+				profile: profile,
+				name:    site.Name,
+				req:     *tc.DefaultResourceFilter(),
+			})
+		}
+
+		mu.Lock()
+		clusters = append(clusters, localClusters...)
+		mu.Unlock()
+
+		return nil
+	})
+
+	return clusters, trace.Wrap(err)
+}
+
 type nodeListing struct {
 	Proxy   string       `json:"proxy"`
 	Cluster string       `json:"cluster"`
@@ -1935,58 +2018,79 @@ func (l nodeListings) Swap(i, j int) {
 }
 
 func listNodesAllClusters(cf *CLIConf) error {
-	// Fetch database listings for profiles in parallel. Set an arbitrary limit
-	// just in case.
-	group, groupCtx := errgroup.WithContext(cf.Context)
-	group.SetLimit(4)
-
-	// mu guards access to listings
-	var mu sync.Mutex
-	var listings nodeListings
-
-	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
-		group.Go(func() error {
-			proxy, err := tc.ConnectToProxy(groupCtx)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			defer proxy.Close()
-
-			sites, err := proxy.GetSites(groupCtx)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			for _, site := range sites {
-				nodes, err := proxy.FindNodesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				localListings := make(nodeListings, 0, len(nodes))
-				for _, node := range nodes {
-					localListings = append(localListings, nodeListing{
-						Proxy:   profile.ProxyURL.Host,
-						Cluster: site.Name,
-						Node:    node,
-					})
-				}
-				mu.Lock()
-				listings = append(listings, localListings...)
-				mu.Unlock()
-			}
-
-			return nil
-		})
-
-		return nil
-	})
+	tracer := cf.TracingProvider.Tracer(teleport.ComponentTSH)
+	clusters, err := getClusterClients(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	defer func() {
+		// close all clients
+		for _, cluster := range clusters {
+			_ = cluster.Close()
+		}
+	}()
+
+	// Fetch node listings for all clusters in parallel with an upper limit
+	group, groupCtx := errgroup.WithContext(cf.Context)
+	group.SetLimit(10)
+
+	var (
+		mu       sync.Mutex
+		listings nodeListings
+		errors   []error
+	)
+
+	for _, cluster := range clusters {
+		cluster := cluster
+		if cluster.connectionError != nil {
+			mu.Lock()
+			errors = append(errors, cluster.connectionError)
+			mu.Unlock()
+			continue
+		}
+
+		group.Go(func() error {
+			ctx, span := tracer.Start(
+				groupCtx,
+				"ListNodes",
+				oteltrace.WithAttributes(attribute.String("cluster", cluster.name)))
+			defer span.End()
+
+			logger := log.WithField("cluster", cluster.name)
+			nodes, err := cluster.proxy.FindNodesByFiltersForCluster(ctx, cluster.req, cluster.name)
+			if err != nil {
+				logger.Errorf("Failed to get nodes: %v.", err)
+
+				mu.Lock()
+				errors = append(errors, trace.ConnectionProblem(err, "failed to list nodes for cluster %s: %v", cluster.name, err))
+				mu.Unlock()
+				return nil
+			}
+
+			localListings := make(nodeListings, 0, len(nodes))
+			for _, node := range nodes {
+				localListings = append(localListings, nodeListing{
+					Proxy:   cluster.profile.ProxyURL.Host,
+					Cluster: cluster.name,
+					Node:    node,
+				})
+			}
+			mu.Lock()
+			listings = append(listings, localListings...)
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	// wait for all nodes to be retrieved
 	if err := group.Wait(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if len(listings) == 0 && len(errors) > 0 {
+		return trace.NewAggregate(errors...)
 	}
 
 	sort.Sort(listings)
@@ -2017,7 +2121,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 		}
 	}
 
-	return nil
+	return trace.NewAggregate(errors...)
 }
 
 func printNodesWithClusters(nodes []nodeListing, verbose bool, output io.Writer) error {
@@ -2793,9 +2897,11 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 	// Try to construct an access request for this node.
 	req, err := accessRequestForSSH(cf.Context, tc)
 	if err != nil {
-		// We can't request access to the node or it doesn't exist, return the
-		// original error but put this one in the debug log.
-		log.WithError(err).Debug("unable to request access to node")
+		// We can't request access to the node or we couldn't query the ID. Log
+		// a short debug message in case this is unexpected, but return the
+		// original AccessDenied error from the ssh attempt which is likely to
+		// be far more relevant to the user.
+		log.Debugf("Not attempting to automatically request access, reason: %v", err)
 		return trace.Wrap(origErr)
 	}
 	cf.RequestID = req.GetName()
@@ -3341,6 +3447,31 @@ func (c *CLIConf) FullProfileStatus() (*client.ProfileStatus, []*client.ProfileS
 		return nil, nil, trace.Wrap(err)
 	}
 	return currentProfile, profiles, nil
+}
+
+// ListProfiles returns a list of profiles the current user has
+// credentials for.
+func (c *CLIConf) ListProfiles() ([]*client.ProfileStatus, error) {
+	clientStore, err := initClientStore(c, c.Proxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	profileNames, err := clientStore.ListProfiles()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	profiles := make([]*client.ProfileStatus, 0, len(profileNames))
+	for _, profileName := range profileNames {
+		status, err := clientStore.ReadProfileStatus(profileName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		profiles = append(profiles, status)
+	}
+
+	return profiles, nil
 }
 
 type mfaModeOpts struct {
@@ -4274,12 +4405,9 @@ func validateParticipantMode(mode types.SessionParticipantMode) error {
 
 // forEachProfile performs an action for each profile a user is currently logged in to.
 func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *client.ProfileStatus) error) error {
-	profile, profiles, err := cf.FullProfileStatus()
+	profiles, err := cf.ListProfiles()
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	if profile != nil {
-		profiles = append(profiles, profile)
 	}
 
 	clock := clockwork.NewRealClock()
@@ -4301,6 +4429,42 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 	}
 
 	return trace.NewAggregate(errors...)
+}
+
+// forEachProfileParallel performs an action for each profile a user is currently logged in to in
+// parallel.
+func forEachProfileParallel(cf *CLIConf, fn func(ctx context.Context, tc *client.TeleportClient, profile *client.ProfileStatus) error) error {
+	group, groupCtx := errgroup.WithContext(cf.Context)
+	group.SetLimit(6)
+
+	profiles, err := cf.ListProfiles()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clock := clockwork.NewRealClock()
+	for _, p := range profiles {
+		p := p
+		proxyAddr := p.ProxyURL.Host
+		if p.IsExpired(clock) {
+			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", proxyAddr)
+			continue
+		}
+
+		group.Go(func() error {
+			tc, err := makeClientForProxy(cf, proxyAddr, true)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := fn(groupCtx, tc, p); err != nil {
+				return trace.Wrap(err)
+			}
+
+			return nil
+		})
+	}
+
+	return trace.Wrap(group.Wait())
 }
 
 // updateKubeConfigOnLogin checks if the `--kube-cluster` flag was provided to

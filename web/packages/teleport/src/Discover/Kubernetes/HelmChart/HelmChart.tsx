@@ -302,6 +302,7 @@ const generateCmd = (data: {
   tokenId: string;
   clusterVersion: string;
   resourceId: string;
+  isEnterprise: boolean;
 }) => {
   return `cat << EOF > prod-cluster-values.yaml
 roles: kube
@@ -309,6 +310,7 @@ authToken: ${data.tokenId}
 proxyAddr: ${data.proxyAddr}
 kubeClusterName: ${data.clusterName}
 teleportVersionOverride: ${data.clusterVersion}
+enterprise: ${data.isEnterprise}
 labels:
     teleport.internal/resource-id: ${data.resourceId}
 EOF
@@ -403,6 +405,7 @@ const InstallHelmChart = ({
     tokenId: joinToken.id,
     clusterVersion: version,
     resourceId: joinToken.internalResourceId,
+    isEnterprise: ctx.isEnterprise,
   });
 
   return (

@@ -12,10 +12,28 @@ The Teleport team delivers a new major release roughly every 3 months.
 
 Teleport 12.1 will deliver the following features and improvements.
 
-- Teleport as SAML IdP (Preview)
-- Improved support of OpenSSH nodes
-- Hardened container images
-- IP-based validation for Kubernetes and Database Access
+### Teleport as SAML IdP (Preview)
+
+Teleport becomes a IdP for applications that support SAML authentication. This
+allows Teleport to automatically log users into a wider range of applications.
+
+Works in proxy mode as well allowing Teleport to proxy and enrich authentication
+to an upstream IdP.
+
+### Device Trust (Preview)
+
+Device Trust Preview has been expanded to support enforcement of device enforcement
+on a per-role basis as well as the ability to lock devices.
+
+### IP-based validation for Kubernetes and Database Access (Preview)
+
+Teleport will be able to pin Kubernetes and database credentials to a particular IP
+to prevent exfiltrated credentials from being used in a different environment.
+
+### New hardened container images
+
+New signed and hardened container images built on a distroless base which results
+in a reduced attack surface and smaller footprint.
 
 | Version          | Date               | Description                      |
 |------------------|--------------------|----------------------------------|

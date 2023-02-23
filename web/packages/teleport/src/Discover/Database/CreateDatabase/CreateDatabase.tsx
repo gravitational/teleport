@@ -337,14 +337,15 @@ const CreateDatabaseDialog = ({
   );
 };
 
-// PORT_REGEXP only allows digits with length 4.
-export const PORT_REGEX = /^\d{4}$/;
-const requirePort = value => () => {
-  const isValidId = value.match(PORT_REGEX);
-  if (!isValidId) {
+// Only allows digits with valid port range 1-65535.
+const requirePort = (value: string) => () => {
+  const numberValue = parseInt(value);
+  const isValidPort =
+    Number.isInteger(numberValue) && numberValue >= 1 && numberValue <= 65535;
+  if (!isValidPort) {
     return {
       valid: false,
-      message: 'port must be 4 digits',
+      message: 'invalid port (1-65535)',
     };
   }
   return {

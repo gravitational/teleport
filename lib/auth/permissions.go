@@ -159,7 +159,8 @@ Loop:
 	if r, ok := c.Identity.(BuiltinRole); ok && r.Role == types.RoleNode {
 		lockTargets = append(lockTargets,
 			types.LockTarget{Node: r.GetServerID()},
-			types.LockTarget{Node: r.Identity.Username})
+			types.LockTarget{Node: r.Identity.Username},
+		)
 	}
 	return lockTargets
 }
@@ -346,7 +347,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		RouteToApp:        u.Identity.RouteToApp,
 		RouteToDatabase:   u.Identity.RouteToDatabase,
 		MFAVerified:       u.Identity.MFAVerified,
-		ClientIP:          u.Identity.ClientIP,
+		LoginIP:           u.Identity.LoginIP,
 		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
 	}
 
@@ -509,6 +510,18 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 								services.ResourceNameExpr,
 								builder.String(clusterName),
 							),
+						),
+					).String(),
+				},
+				// this rule allows the local proxy to read the local SAML IdP CA.
+				{
+					Resources: []string{types.KindCertAuthority},
+					Verbs:     []string{types.VerbRead},
+					Where: builder.And(
+						builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(types.SAMLIDPCA))),
+						builder.Equals(
+							services.ResourceNameExpr,
+							builder.String(clusterName),
 						),
 					).String(),
 				},

@@ -112,6 +112,9 @@ const (
 	// KindSnowflakeSession represents a Snowflake specific web session.
 	KindSnowflakeSession = "snowflake_session"
 
+	// KindSAMLIdPSession represents a SAML IdP session.
+	KindSAMLIdPSession = "saml_idp_session"
+
 	// KindEvent is structured audit logging event
 	KindEvent = "event"
 
@@ -306,8 +309,14 @@ const (
 	// KindLoginRule is a login rule resource.
 	KindLoginRule = "login_rule"
 
+	// KindPlugin represents a plugin instance
+	KindPlugin = "plugin"
+
 	// KindSAMLIdPServiceProvider is a SAML service provider for the built in Teleport IdP.
 	KindSAMLIdPServiceProvider = "saml_idp_service_provider"
+
+	// KindUserGroup is an externally sourced user group.
+	KindUserGroup = "user_group"
 
 	// V6 is the sixth version of resources.
 	V6 = "v6"

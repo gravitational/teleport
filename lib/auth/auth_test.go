@@ -1105,8 +1105,13 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 	const username = "llama"
 	const pass = "secret!!1!"
 
+	// Use a >1 list of principals.
+	// This is enough to cause ordering issues between the TLS and SSH principal
+	// lists, which caused a bug in the device trust preview.
+	principals := []string{"login0", username, "-teleport-internal-join"}
+
 	// Prepare the user to test with.
-	_, _, err := CreateUserAndRole(authServer, username, []string{username})
+	_, _, err := CreateUserAndRole(authServer, username, principals)
 	require.NoError(t, err, "CreateUserAndRole failed")
 	require.NoError(t,
 		authServer.UpsertPassword(username, []byte(pass)),
@@ -1296,7 +1301,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	// Authenticate.
 	// user1 covers most of the tests.
 	// user2 is mainly used to test mismatched certificates against user1.
-	// user3 is used to test locking.
+	// user3 is used to test user locks.
 	_, sshRaw1, xCert1, sshCert1, identity1 := authenticate(t, user1.GetName(), pass1)
 	_, sshRaw2, xCert2, _, _ := authenticate(t, user2.GetName(), pass2)
 	_, _, xCert3, _, identity3 := authenticate(t, user3.GetName(), pass3)
@@ -1582,7 +1587,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 		{
 			name:     "locked user",
 			x509Cert: xCert3,
-			identity: identity3, // user3 is locked!
+			identity: identity3, // user3 locked below.
 			createAuthCtx: func(ctx context.Context) (*Context, error) {
 				// Authorize user3...
 				authCtx, err := ctxFromAuthorize(ctx)
@@ -1602,7 +1607,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 				// ...and lock them right after.
 				user3Lock, err := types.NewLock("user3-lock", types.LockSpecV2{
 					Target:  lockTarget,
-					Message: "locked for testing",
+					Message: "user locked",
 				})
 				if err != nil {
 					return nil, err
@@ -1611,10 +1616,48 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 					return nil, err
 				}
 
-				<-watcher.Events() // Wait for the lock to go through.
+				// Wait for the lock to propagate.
+				<-watcher.Events()
 				return authCtx, nil
 			},
-			wantErr: "locked for testing",
+			wantErr: "user locked",
+		},
+		{
+			name:     "locked device",
+			x509Cert: xCert1,
+			identity: identity1, // device locked below.
+			createOpts: func(t *testing.T) *AugmentUserCertificateOpts {
+				opts := &AugmentUserCertificateOpts{
+					DeviceExtensions: &DeviceExtensions{
+						DeviceID:     "bad-device-1",
+						AssetTag:     "bad-device-tag",
+						CredentialID: "bad-device-credential",
+					},
+				}
+
+				// Create a target matching the device device.
+				lockTarget := types.LockTarget{
+					Device: opts.DeviceExtensions.DeviceID,
+				}
+				watcher, err := authServer.lockWatcher.Subscribe(ctx, lockTarget)
+				require.NoError(t, err, "Subscribe failed")
+				defer watcher.Close()
+
+				// Lock the device before returning opts.
+				lock, err := types.NewLock("bad-device-lock", types.LockSpecV2{
+					Target:  lockTarget,
+					Message: "device locked",
+				})
+				require.NoError(t, err, "NewLock failed")
+				require.NoError(t,
+					authServer.UpsertLock(ctx, lock),
+					"NewLock failed")
+
+				// Wait for the lock to propagate.
+				<-watcher.Events()
+				return opts
+			},
+			wantErr: "device locked",
 		},
 	}
 	for _, test := range tests {
@@ -1675,9 +1718,18 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 	err = s.a.UpsertRole(ctx, pinnedRole)
 	require.NoError(t, err)
 
-	findTLSClientIP := func(names []pkix.AttributeTypeAndValue) any {
+	findTLSLoginIP := func(names []pkix.AttributeTypeAndValue) any {
 		for _, name := range names {
-			if name.Type.Equal(tlsca.ClientIPASN1ExtensionOID) {
+			if name.Type.Equal(tlsca.LoginIPASN1ExtensionOID) {
+				return name.Value
+			}
+		}
+		return nil
+	}
+
+	findTLSPinnedIP := func(names []pkix.AttributeTypeAndValue) any {
+		for _, name := range names {
+			if name.Type.Equal(tlsca.PinnedIPASN1ExtensionOID) {
 				return name.Value
 			}
 		}
@@ -1687,13 +1739,13 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 	testCases := []struct {
 		desc       string
 		user       string
-		clientIP   string
+		loginIP    string
 		wantPinned bool
 	}{
-		{desc: "no client ip, not pinned", user: unpinnedUser, clientIP: "", wantPinned: false},
-		{desc: "client ip, not  pinned", user: unpinnedUser, clientIP: "1.2.3.4", wantPinned: false},
-		{desc: "client ip, pinned", user: pinnedUser, clientIP: "1.2.3.4", wantPinned: true},
-		{desc: "no client ip, pinned", user: pinnedUser, clientIP: "", wantPinned: true},
+		{desc: "no client ip, not pinned", user: unpinnedUser, loginIP: "", wantPinned: false},
+		{desc: "client ip, not  pinned", user: unpinnedUser, loginIP: "1.2.3.4", wantPinned: false},
+		{desc: "client ip, pinned", user: pinnedUser, loginIP: "1.2.3.4", wantPinned: true},
+		{desc: "no client ip, pinned", user: pinnedUser, loginIP: "", wantPinned: true},
 	}
 
 	baseAuthRequest := AuthenticateSSHRequest{
@@ -1709,13 +1761,13 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			authRequest := baseAuthRequest
 			authRequest.AuthenticateUserRequest.Username = tt.user
-			if tt.clientIP != "" {
+			if tt.loginIP != "" {
 				authRequest.ClientMetadata = &ForwardedClientMetadata{
-					RemoteAddr: tt.clientIP,
+					RemoteAddr: tt.loginIP,
 				}
 			}
 			resp, err := s.a.AuthenticateSSHUser(ctx, authRequest)
-			if tt.wantPinned && tt.clientIP == "" {
+			if tt.wantPinned && tt.loginIP == "" {
 				require.ErrorContains(t, err, "source IP pinning is enabled but client IP is unknown")
 				return
 			}
@@ -1728,26 +1780,32 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 			tlsCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
 			require.NoError(t, err)
 
-			tlsClientIP := findTLSClientIP(tlsCert.Subject.Names)
-			sshClientIP, sshClientIPOK := sshCert.Extensions[teleport.CertExtensionClientIP]
+			tlsLoginIP := findTLSLoginIP(tlsCert.Subject.Names)
+			tlsPinnedIP := findTLSPinnedIP(tlsCert.Subject.Names)
+			sshLoginIP, sshLoginIPOK := sshCert.Extensions[teleport.CertExtensionLoginIP]
 			sshCriticalAddress, sshCriticalAddressOK := sshCert.CriticalOptions["source-address"]
 
-			if tt.clientIP != "" {
-				require.NotNil(t, tlsClientIP, "client IP not found on TLS cert")
-				require.Equal(t, tlsClientIP, tt.clientIP, "TLS ClientIP mismatch")
+			if tt.loginIP != "" {
+				require.NotNil(t, tlsLoginIP, "client IP not found on TLS cert")
+				require.Equal(t, tlsLoginIP, tt.loginIP, "TLS LoginIP mismatch")
 
-				require.True(t, sshClientIPOK, "SSH ClientIP extension not present")
-				require.Equal(t, tt.clientIP, sshClientIP, "SSH ClientIP mismatch")
+				require.True(t, sshLoginIPOK, "SSH LoginIP extension not present")
+				require.Equal(t, tt.loginIP, sshLoginIP, "SSH LoginIP mismatch")
 			} else {
-				require.Nil(t, tlsClientIP, "client IP unexpectedly found on TLS cert")
+				require.Nil(t, tlsLoginIP, "client IP unexpectedly found on TLS cert")
 
-				require.False(t, sshClientIPOK, "client IP unexpectedly found on SSH cert")
+				require.False(t, sshLoginIPOK, "client IP unexpectedly found on SSH cert")
 			}
 
 			if tt.wantPinned {
+				require.NotNil(t, tlsPinnedIP, "pinned IP not found on TLS cert")
+				require.Equal(t, tt.loginIP, tlsPinnedIP, "pinned IP on TLS cert mismatch")
+
 				require.True(t, sshCriticalAddressOK, "source address not found on SSH cert")
-				require.Equal(t, tt.clientIP+"/32", sshCriticalAddress, "SSH source address mismatch")
+				require.Equal(t, tt.loginIP+"/32", sshCriticalAddress, "SSH source address mismatch")
 			} else {
+				require.Nil(t, tlsPinnedIP, "pinned IP unexpectedly found on TLS cert")
+
 				require.False(t, sshCriticalAddressOK, "source address unexpectedly found on SSH cert")
 			}
 		})
@@ -1822,8 +1880,9 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 	accessInfo := services.AccessInfoFromUser(user)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
-	mfaID := "test-mfa-id"
-	requestID := "test-access-request"
+	const mfaID = "test-mfa-id"
+	const requestID = "test-access-request"
+	const deviceID = "deviceid1"
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
@@ -1833,12 +1892,22 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 		mfaVerified:    mfaID,
 		publicKey:      pub,
 		activeRequests: services.RequestIDs{AccessRequests: []string{requestID}},
+		deviceExtensions: DeviceExtensions{
+			DeviceID:     deviceID,
+			AssetTag:     "assettag1",
+			CredentialID: "credentialid1",
+		},
 	}
 	_, err = p.a.generateUserCert(certReq)
 	require.NoError(t, err)
 
 	testTargets := append(
-		[]types.LockTarget{{User: user.GetName()}, {MFADevice: mfaID}, {AccessRequest: requestID}},
+		[]types.LockTarget{
+			{User: user.GetName()},
+			{MFADevice: mfaID},
+			{AccessRequest: requestID},
+			{Device: deviceID},
+		},
 		services.RolesToLockTargets(user.GetRoles())...,
 	)
 	for _, target := range testTargets {

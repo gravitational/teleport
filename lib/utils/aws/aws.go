@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/textproto"
 	"sort"
@@ -30,9 +29,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/utils"
@@ -138,39 +137,6 @@ func IsSignedByAWSSigV4(r *http.Request) bool {
 	return strings.HasPrefix(r.Header.Get(AuthorizationHeader), AmazonSigV4AuthorizationPrefix)
 }
 
-// GetAndReplaceReqBody returns the request and replace the drained body reader with io.NopCloser
-// allowing for further body processing by http transport.
-func GetAndReplaceReqBody(req *http.Request) ([]byte, error) {
-	if req.Body == nil || req.Body == http.NoBody {
-		return []byte{}, nil
-	}
-	// req.Body is closed during tryDrainBody call.
-	payload, err := tryDrainBody(req.Body)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Replace the drained body with io.NopCloser reader allowing for further request processing by HTTP transport.
-	req.Body = io.NopCloser(bytes.NewReader(payload))
-	return payload, nil
-}
-
-// tryDrainBody tries to drain and close the body, returning the read bytes.
-// It may fail to completely drain the body if the size of the body exceeds MaxHTTPRequestSize.
-func tryDrainBody(b io.ReadCloser) (payload []byte, err error) {
-	defer func() {
-		if closeErr := b.Close(); closeErr != nil {
-			err = trace.NewAggregate(err, closeErr)
-		}
-	}()
-	payload, err = utils.ReadAtMost(b, teleport.MaxHTTPRequestSize)
-	if err != nil {
-		err = trace.Wrap(err)
-		return
-	}
-	return
-}
-
 // VerifyAWSSignature verifies the request signature ensuring that the request originates from tsh aws command execution
 // AWS CLI signs the request with random generated credentials that are passed to LocalProxy by
 // the AWSCredentials LocalProxyConfig configuration.
@@ -192,7 +158,7 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 
 	// Read the request body and replace the body ready with a new reader that will allow reading the body again
 	// by HTTP Transport.
-	payload, err := GetAndReplaceReqBody(req)
+	payload, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -349,7 +315,7 @@ func UnmarshalRequestBody(req *http.Request) (*apievents.Struct, error) {
 	if !isJSON(contentType) {
 		return nil, trace.BadParameter("invalid JSON request Content-Type: %q", contentType)
 	}
-	jsonBody, err := GetAndReplaceReqBody(req)
+	jsonBody, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -382,8 +348,27 @@ func BuildRoleARN(username, region, accountID string) string {
 	}
 	return arn.ARN{
 		Partition: apiawsutils.GetPartitionFromRegion(region),
-		Service:   "iam",
+		Service:   iam.ServiceName,
 		AccountID: accountID,
 		Resource:  resource,
 	}.String()
+}
+
+// ValidateRoleARNAndExtractRoleName validates the role ARN and extracts the
+// short role name from it.
+func ValidateRoleARNAndExtractRoleName(roleARN, wantPartition, wantAccountID string) (string, error) {
+	role, err := arn.Parse(roleARN)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if !strings.HasPrefix(role.Resource, "role/") || role.Service != iam.ServiceName {
+		return "", trace.BadParameter("%q is not an IAM role", roleARN)
+	}
+	if role.Partition != wantPartition {
+		return "", trace.BadParameter("expecting AWS partition %q but got %q", wantPartition, role.Partition)
+	}
+	if role.AccountID != wantAccountID {
+		return "", trace.BadParameter("expecting AWS account ID %q but got %q", wantAccountID, role.AccountID)
+	}
+	return strings.TrimPrefix(role.Resource, "role/"), nil
 }

@@ -171,7 +171,7 @@ func (s *Server) onUpdate(ctx context.Context, resource types.ResourceWithLabels
 }
 
 func (s *Server) onDelete(ctx context.Context, resource types.ResourceWithLabels) error {
-	return s.unregisterApp(ctx, resource.GetName())
+	return s.unregisterAndRemoveApp(ctx, resource.GetName())
 }
 
 func (s *Server) matcher(resource types.ResourceWithLabels) bool {
