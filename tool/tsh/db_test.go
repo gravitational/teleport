@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -213,6 +214,93 @@ func TestDatabaseLogin(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestLocalProxyRequirement(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice),
+		withAuthConfig(func(cfg *service.AuthConfig) {
+			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}))
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Log into Teleport cluster.
+	err = Run(context.Background(), []string{
+		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	defaultAuthPref, err := authServer.GetAuthPreference(ctx)
+	require.NoError(t, err)
+	tests := map[string]struct {
+		clusterAuthPref types.AuthPreference
+		route           *tlsca.RouteToDatabase
+		wantLocalProxy  bool
+		wantTunnel      bool
+	}{
+		"tunnel not required": {
+			clusterAuthPref: defaultAuthPref,
+			wantLocalProxy:  true,
+			wantTunnel:      false,
+		},
+		"tunnel required for MFA DB session": {
+			clusterAuthPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "127.0.0.1",
+					},
+					RequireMFAType: types.RequireMFAType_SESSION,
+				},
+			},
+			wantLocalProxy: true,
+			wantTunnel:     true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			require.NoError(t, authServer.SetAuthPreference(ctx, tt.clusterAuthPref))
+			t.Cleanup(func() {
+				require.NoError(t, authServer.SetAuthPreference(ctx, defaultAuthPref))
+			})
+			cf := &CLIConf{
+				Context:         ctx,
+				TracingProvider: tracing.NoopProvider(),
+				HomePath:        tmpHomePath,
+			}
+			tc, err := makeClient(cf, false)
+			require.NoError(t, err)
+			route := &tlsca.RouteToDatabase{
+				ServiceName: "foo-db",
+				Protocol:    "postgres",
+				Username:    "alice",
+				Database:    "postgres",
+			}
+			requires := getDBLocalProxyRequirement(tc, route, withConnectRequirements(ctx, tc, route))
+			require.Equal(t, tt.wantLocalProxy, requires.localProxy)
+			require.Equal(t, tt.wantTunnel, requires.tunnel)
+			if requires.tunnel {
+				require.Len(t, requires.tunnelReasons, 1)
+				require.Contains(t, requires.tunnelReasons[0], "MFA is required")
 			}
 		})
 	}

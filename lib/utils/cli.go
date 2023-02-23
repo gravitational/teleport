@@ -57,7 +57,9 @@ func InitLogger(purpose LoggingPurpose, level logrus.Level, verbose ...bool) {
 		// If debug logging was asked for on the CLI, then write logs to stderr.
 		// Otherwise, discard all logs.
 		if level == logrus.DebugLevel {
-			logrus.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
+			debugFormatter := NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
+			debugFormatter.timestampEnabled = true
+			logrus.SetFormatter(debugFormatter)
 			logrus.SetOutput(os.Stderr)
 		} else {
 			logrus.SetOutput(io.Discard)

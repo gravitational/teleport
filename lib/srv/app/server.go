@@ -839,11 +839,14 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	identity := authCtx.Identity.GetIdentity()
 	switch {
 	case app.IsAWSConsole():
-		//  Requests from AWS applications are signed by AWS Signature Version
-		//  4 algorithm. AWS CLI and AWS SDKs automatically use SigV4 for all
-		//  services that support it (All services expect Amazon SimpleDB but
-		//  this AWS service has been deprecated)
-		if awsutils.IsSignedByAWSSigV4(r) {
+		// Requests from AWS applications are signed by AWS Signature Version 4
+		// algorithm. AWS CLI and AWS SDKs automatically use SigV4 for all
+		// services that support it (All services expect Amazon SimpleDB but
+		// this AWS service has been deprecated)
+		//
+		// Also check header common.TeleportAWSAssumedRole which is added by
+		// the local proxy for AWS requests signed by assumed roles.
+		if awsutils.IsSignedByAWSSigV4(r) || r.Header.Get(common.TeleportAWSAssumedRole) != "" {
 			return s.serveSession(w, r, &identity, app, s.withAWSSigner)
 		}
 
