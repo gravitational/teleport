@@ -1305,7 +1305,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		IsCloud:              h.ClusterFeatures.GetCloud(),
 		TunnelPublicAddress:  tunnelPublicAddr,
 		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
-		UI:                   h.cfg.UI,
+		UI:                   h.getUIConfig(r.Context()),
 		IsDashboard:          isDashboard(h.ClusterFeatures),
 	}
 
