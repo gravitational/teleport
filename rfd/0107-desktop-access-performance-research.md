@@ -29,6 +29,16 @@ The way it works is both the server and the client has a bitmap cache, and it's 
 There are two types of caches specified in the extension. The first one, called `Revision 1`, only supports memory-based caching and defaults to 6MB of cache storage for 32bpp bitmaps. The other one, called `Revision 2`, supports persistent disk caching in addition to memory caching and defaults to 40MB of cache storage for 32bpp bitmaps.
 Given that our clients can afford a 40MB cache, the obvious choice is to support `Revision 2` cache since it allows to store more data inside its cache, and thus lower bandwidth overall.
 
+Depending on the number of bits per pixel in bitmaps, the cache limits vary. Here's a full breakdown of the cache types and their sizes:
+
+| bpp | revision 1 | revision 2 |
+| --- |:----------:| ----------:|
+| 8   | 1.5 MB     |     10MB   |
+| 16  | 3.0 MB     |     20MB   |
+| 24  | 4.5 MB     |     30MB   |
+| 32  | 6.0 MB     |     40MB   |
+
+
 #### How it works on the protocol level?
 
 Two new types of messages need to be handled by our RDP library in order to enable support for bitmap caching. One that stores bitmap data inside a bitmap cache, called `Cache Bitmap - Revision 2`, and another that renders a previously stored bitmap, called `MemBlt`.
