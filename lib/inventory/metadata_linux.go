@@ -30,7 +30,12 @@ var matchOSVersion = regexp.MustCompile(`^[\w\s\.\/]+$`)
 // fetchOSVersion combines the content of '/etc/os-release' to be e.g.
 // "Ubuntu 22.04".
 func (c *fetchConfig) fetchOSVersion() string {
-	return c.read("/etc/os-release", func(out string) (string, bool) {
+	out, err := c.read("/etc/os-release")
+	if err != nil {
+		return ""
+	}
+
+	return validate(out, func(out string) (string, bool) {
 		var name string
 		var versionID string
 

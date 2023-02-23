@@ -43,12 +43,12 @@ BuildVersion:           22D68
 
 	testCases := []struct {
 		desc        string
-		execCommand func(string) ([]byte, error)
+		execCommand func(string, ...string) ([]byte, error)
 		expected    string
 	}{
 		{
 			desc: "set correctly if expected format",
-			execCommand: func(name string) ([]byte, error) {
+			execCommand: func(name string, args ...string) ([]byte, error) {
 				if name != "sw_vers" {
 					return nil, trace.NotFound("command does not exist")
 				}
@@ -58,7 +58,7 @@ BuildVersion:           22D68
 		},
 		{
 			desc: "full output if unexpected format",
-			execCommand: func(name string) ([]byte, error) {
+			execCommand: func(name string, args ...string) ([]byte, error) {
 				if name != "sw_vers" {
 					return nil, trace.NotFound("command does not exist")
 				}
@@ -68,7 +68,7 @@ BuildVersion:           22D68
 		},
 		{
 			desc: "empty if sw_vers does not exist",
-			execCommand: func(name string) ([]byte, error) {
+			execCommand: func(name string, args ...string) ([]byte, error) {
 				return nil, trace.NotFound("command does not exist")
 			},
 			expected: "",

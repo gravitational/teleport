@@ -69,9 +69,9 @@ BUG_REPORT_URL="https://bugs.debian.org/"
 `
 
 	testCases := []struct {
-		desc        string
+		desc     string
 		readFile func(string) ([]byte, error)
-		expected    string
+		expected string
 	}{
 		{
 			desc: "set correctly if expected format 0",

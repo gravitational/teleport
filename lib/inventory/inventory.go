@@ -118,12 +118,12 @@ func SendHeartbeat(ctx context.Context, handle DownstreamHandle, hb proto.Invent
 }
 
 type downstreamHandle struct {
-	mu              sync.Mutex
-	handlerNonce    uint64
-	pingHandlers    map[uint64]DownstreamPingHandler
-	senderC         chan DownstreamSender
-	closeContext    context.Context
-	cancel          context.CancelFunc
+	mu           sync.Mutex
+	handlerNonce uint64
+	pingHandlers map[uint64]DownstreamPingHandler
+	senderC      chan DownstreamSender
+	closeContext context.Context
+	cancel       context.CancelFunc
 	// agentMetadataCh is the buffered channel (size 1) where the agent metadata
 	// will be sent to at most once (once it is calculated). For this reason, if
 	// the agent metadata is taken out of the channel and we fail to send it

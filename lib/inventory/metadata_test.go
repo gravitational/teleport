@@ -122,12 +122,12 @@ func TestFetchHostArchitecture(t *testing.T) {
 
 	testCases := []struct {
 		desc        string
-		execCommand func(string) ([]byte, error)
+		execCommand func(string, ...string) ([]byte, error)
 		expected    string
 	}{
 		{
 			desc: "set correctly if expected format",
-			execCommand: func(name string) ([]byte, error) {
+			execCommand: func(name string, args ...string) ([]byte, error) {
 				if name != "arch" {
 					return nil, trace.NotFound("command does not exist")
 				}
@@ -137,7 +137,7 @@ func TestFetchHostArchitecture(t *testing.T) {
 		},
 		{
 			desc: "full output if unexpected format",
-			execCommand: func(name string) ([]byte, error) {
+			execCommand: func(name string, args ...string) ([]byte, error) {
 				if name != "arch" {
 					return nil, trace.NotFound("command does not exist")
 				}
@@ -147,7 +147,7 @@ func TestFetchHostArchitecture(t *testing.T) {
 		},
 		{
 			desc: "empty if arch does not exist",
-			execCommand: func(name string) ([]byte, error) {
+			execCommand: func(name string, args ...string) ([]byte, error) {
 				return nil, trace.NotFound("command does not exist")
 			},
 			expected: "",

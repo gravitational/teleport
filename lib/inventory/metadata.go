@@ -52,7 +52,7 @@ type fetchConfig struct {
 	readFile func(name string) ([]byte, error)
 	// execCommand is the method called to execute a command.
 	// It is configurable so that it can be mocked in tests.
-	execCommand func(name string) ([]byte, error)
+	execCommand func(name string, args ...string) ([]byte, error)
 }
 
 // setDefaults sets the values of readFile and execCommand to the ones in the
@@ -63,8 +63,8 @@ func (cfg *fetchConfig) setDefaults() {
 		cfg.readFile = os.ReadFile
 	}
 	if cfg.execCommand == nil {
-		cfg.execCommand = func(name string) ([]byte, error) {
-			return exec.Command(name).Output()
+		cfg.execCommand = func(name string, args ...string) ([]byte, error) {
+			return exec.Command(name, args...).Output()
 		}
 	}
 }
@@ -127,7 +127,12 @@ func (c *fetchConfig) fetchServices() []string {
 // fetchHostArchitecture computes the host architecture using the arch
 // command-line utility.
 func (c *fetchConfig) fetchHostArchitecture() string {
-	return c.exec("arch", func(out string) (string, bool) {
+	out, err := c.exec("arch")
+	if err != nil {
+		return ""
+	}
+
+	return validate(out, func(out string) (string, bool) {
 		if matchHostArchitecture.MatchString(out) {
 			return out, true
 		}
@@ -143,7 +148,12 @@ func (c *fetchConfig) fetchInstallMethods() []string {
 
 // fetchContainerRuntime returns "docker" if the file "/.dockerenv" exists.
 func (c *fetchConfig) fetchContainerRuntime() string {
-	return c.read("/.dockerenv", func(_ string) (string, bool) {
+	out, err := c.read("/.dockerenv")
+	if err != nil {
+		return ""
+	}
+
+	return validate(out, func(_ string) (string, bool) {
 		// If the file exists, we should be running on Docker.
 		return "docker", true
 	})
@@ -162,31 +172,31 @@ func (c *fetchConfig) fetchCloudEnvironment() string {
 type parseFun func(string) (string, bool)
 
 // exec runs a command and validates its output using the parse function.
-func (cfg fetchConfig) exec(name string, parse parseFun) string {
-	out, err := cfg.execCommand(name)
+func (cfg fetchConfig) exec(name string, args ...string) (string, error) {
+	out, err := cfg.execCommand(name, args...)
 	if err != nil {
 		log.Debugf("Failed to execute command '%s': %s", name, err)
-		return ""
+		return "", err
 	}
-	return validate(name, string(out), parse)
+	return string(out), nil
 }
 
 // read reads a read and validates its content using the parse function.
-func (cfg fetchConfig) read(name string, parse parseFun) string {
+func (cfg fetchConfig) read(name string) (string, error) {
 	out, err := cfg.readFile(name)
 	if err != nil {
 		log.Debugf("Failed to read file '%s': %s", name, err)
-		return ""
+		return "", err
 	}
-	return validate(name, string(out), parse)
+	return string(out), nil
 }
 
 // validate validates some output/content using the parse function.
 // If the output/content is not valid, it is sanitized and returned.
-func validate(in, out string, parse parseFun) string {
+func validate(out string, parse parseFun) string {
 	parsed, ok := parse(out)
 	if !ok {
-		log.Debugf("Unexpected '%s' format: %s", in, out)
+		log.Debugf("Unexpected format: %s", out)
 		return sanitize(out)
 	}
 	return parsed
