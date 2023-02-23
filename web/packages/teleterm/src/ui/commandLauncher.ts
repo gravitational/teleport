@@ -24,7 +24,7 @@ const commands = {
   'tsh-ssh': {
     displayName: '',
     description: '',
-    async run(
+    run(
       ctx: IAppContext,
       args: { loginHost: string; localClusterUri: ClusterUri }
     ) {
