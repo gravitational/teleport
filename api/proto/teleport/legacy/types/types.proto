@@ -48,6 +48,7 @@ message KeepAlive {
     DATABASE = 3;
     WINDOWS_DESKTOP = 4;
     KUBERNETES = 5;
+    DATABASE_SERVICE = 6;
   }
   KeepAliveType Type = 9 [(gogoproto.jsontag) = "type"];
   // HostID is an optional UUID of the host the resource belongs to.
@@ -4906,7 +4907,7 @@ message PluginSlackAccessSettings {
   string fallback_channel = 1;
 }
 
-message PluginInitialCredentialsV1 {
+message PluginBootstrapCredentialsV1 {
   oneof credentials {
     PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
   }

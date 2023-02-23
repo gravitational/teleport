@@ -1523,6 +1523,32 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 	return utils.StringsSliceFromSet(accounts), nil
 }
 
+// CheckAccessToSAMLIdP checks access to the SAML IdP.
+//
+//nolint:revive // Because we want this to be IdP.
+func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference) error {
+	if authPref != nil {
+		if !authPref.IsSAMLIdPEnabled() {
+			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
+		}
+	}
+	for _, role := range set {
+		options := role.GetOptions()
+
+		// This should never happen, but we should make sure that we don't get a nil pointer error here.
+		if options.IDP == nil || options.IDP.SAML == nil || options.IDP.SAML.Enabled == nil {
+			continue
+		}
+
+		// If any role specifically denies access to the IdP, we'll return AccessDenied.
+		if !options.IDP.SAML.Enabled.Value {
+			return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
+		}
+	}
+
+	return nil
+}
+
 // CheckLoginDuration checks if role set can login up to given duration and
 // returns a combined list of allowed logins.
 func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {

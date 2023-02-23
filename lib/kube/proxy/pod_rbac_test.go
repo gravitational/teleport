@@ -18,6 +18,7 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -143,6 +144,7 @@ func TestListPodRBAC(t *testing.T) {
 	type args struct {
 		user      types.User
 		namespace string
+		opts      []GenTestKubeClientTLSCertOptions
 	}
 	type want struct {
 		listPodsResult   []string
@@ -232,6 +234,66 @@ func TestListPodRBAC(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "list default namespace pods for user with limited access and a resource access request",
+			args: args{
+				user:      userWithNamespaceAccess,
+				namespace: metav1.NamespaceDefault,
+				opts: []GenTestKubeClientTLSCertOptions{
+					WithResourceAccessRequests(
+						types.ResourceID{
+							ClusterName:     testCtx.ClusterName,
+							Kind:            types.KindKubePod,
+							Name:            kubeCluster,
+							SubResourceName: "default/nginx-1",
+						},
+					),
+				},
+			},
+			want: want{
+				listPodsResult: []string{
+					// Users roles allow access to all pods in default namespace
+					// but the access request only allows access to default/nginx-1.
+					"default/nginx-1",
+				},
+				getTestPodResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "pods \"test\" is forbidden: User \"default_user\" cannot get resource \"pods\" in API group \"\" in the namespace \"default\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
+		},
+		{
+			name: "user with pod access request that no longer fullfils the role requirements",
+			args: args{
+				user:      userWithLimitedAccess,
+				namespace: metav1.NamespaceDefault,
+				opts: []GenTestKubeClientTLSCertOptions{
+					WithResourceAccessRequests(
+						types.ResourceID{
+							ClusterName:     testCtx.ClusterName,
+							Kind:            types.KindKubePod,
+							Name:            kubeCluster,
+							SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testPodName),
+						},
+					),
+				},
+			},
+			want: want{
+				listPodsResult: []string{},
+				getTestPodResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "pods \"test\" is forbidden: User \"limited_user\" cannot get resource \"pods\" in API group \"\" in the namespace \"default\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -243,6 +305,7 @@ func TestListPodRBAC(t *testing.T) {
 				t,
 				tt.args.user.GetName(),
 				kubeCluster,
+				tt.args.opts...,
 			)
 
 			rsp, err := client.CoreV1().Pods(tt.args.namespace).List(

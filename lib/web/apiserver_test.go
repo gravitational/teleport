@@ -7985,10 +7985,17 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		AccessPoint:   proxyAuthClient,
+		ClusterName:   clusterName,
 		Limiter:       limiter,
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}
+
+	tlsConf := copyAndConfigureTLS(tlsConfig, logrus.New(), proxyAuthClient, clusterName)
+	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
+		TransportCredentials: credentials.NewTLS(tlsConf),
+		UserGetter:           authMiddleware,
+	})
+	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
@@ -7997,9 +8004,7 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 		grpc.ChainStreamInterceptor(
 			authMiddleware.StreamInterceptor(),
 		),
-		grpc.Creds(credentials.NewTLS(
-			copyAndConfigureTLS(tlsConfig, logrus.New(), proxyAuthClient, clusterName),
-		)),
+		grpc.Creds(creds),
 	)
 
 	kubeproto.RegisterKubeServiceServer(grpcServer, &fakeKubeService{})

@@ -402,7 +402,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 		// serve Web UI:
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
-			http.StripPrefix("/web", makeGzipHandler(http.FileServer(cfg.StaticFS))).ServeHTTP(w, r)
+			fs := http.FileServer(cfg.StaticFS)
+
+			fs = makeGzipHandler(fs)
+			fs = makeCacheHandler(fs)
+
+			http.StripPrefix("/web", fs).ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web/") || r.URL.Path == "/web" {
 			csrfToken, err := csrf.AddCSRFProtection(w, r)
 			if err != nil {
@@ -708,6 +713,11 @@ func (h *Handler) bindDefaultEndpoints() {
 // GetProxyClient returns authenticated auth server client
 func (h *Handler) GetProxyClient() auth.ClientI {
 	return h.cfg.ProxyClient
+}
+
+// GetAccessPoint returns the caching access point.
+func (h *Handler) GetAccessPoint() auth.ProxyAccessPoint {
+	return h.cfg.AccessPoint
 }
 
 // Close closes associated session cache operations

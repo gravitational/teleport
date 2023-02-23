@@ -23,8 +23,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/utils"
-	streamutils "github.com/gravitational/teleport/lib/utils/grpc/stream"
 )
 
 // proxyService implements the grpc ProxyService.

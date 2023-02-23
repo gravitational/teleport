@@ -40,6 +40,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1275,6 +1276,11 @@ func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) e
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpsertSAMLIdPSession not implemented: can only be called locally.
+func (c *Client) UpsertSAMLIdPSession(_ context.Context, _ types.WebSession) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // ResumeAuditStream resumes existing audit stream.
 func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	return c.APIClient.ResumeAuditStream(ctx, string(sid), uploadID)
@@ -1579,11 +1585,13 @@ type ClientI interface {
 	services.Kubernetes
 	services.WindowsDesktops
 	services.SAMLIdPServiceProviders
+	services.UserGroups
 	WebService
 	services.Status
 	services.ClusterConfiguration
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
+	services.SAMLIdPSession
 	types.Events
 
 	types.WebSessionsGetter
@@ -1649,6 +1657,10 @@ type ClientI interface {
 	// sessions represent Database Access Snowflake session the client holds.
 	CreateSnowflakeSession(context.Context, types.CreateSnowflakeSessionRequest) (types.WebSession, error)
 
+	// CreateSAMLIdPSession creates a SAML IdP. SAML IdP sessions represent
+	// sessions created by the SAML identity provider.
+	CreateSAMLIdPSession(context.Context, types.CreateSAMLIdPSessionRequest) (types.WebSession, error)
+
 	// GenerateDatabaseCert generates client certificate used by a database
 	// service to authenticate with the database instance.
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
@@ -1690,4 +1702,10 @@ type ClientI interface {
 
 	// ListReleases returns a list of Teleport Enterprise releases
 	ListReleases(ctx context.Context) ([]*types.Release, error)
+
+	// PluginsClient returns a Plugins client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a plugins client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	PluginsClient() pluginspb.PluginServiceClient
 }

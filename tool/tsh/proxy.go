@@ -386,8 +386,8 @@ func onProxyCommandDB(cf *CLIConf) error {
 	// These steps are not needed with `--tunnel`, because the local proxy tunnel
 	// will manage database certificates itself and reissue them as needed.
 	requires := getDBLocalProxyRequirement(client, route)
-	if requires.tunnel && !cf.LocalProxyTunnel {
-		// Some scenarios require the --tunnel flag, e.g.:
+	if requires.tunnel && !isLocalProxyTunnelRequested(cf) {
+		// Some scenarios require a local proxy tunnel, e.g.:
 		// - Snowflake, DynamoDB protocol
 		// - Hardware-backed private key policy
 		return trace.BadParameter(formatDbCmdUnsupported(cf, route, requires.tunnelReasons...))
@@ -422,6 +422,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		teleportClient:   client,
 		profile:          profile,
 		routeToDatabase:  route,
+		database:         db,
 		listener:         listener,
 		localProxyTunnel: cf.LocalProxyTunnel,
 		rootClusterName:  rootCluster,
@@ -439,7 +440,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		lp.Close()
 	}()
 
-	if cf.LocalProxyTunnel {
+	if isLocalProxyTunnelRequested(cf) {
 		addr, err := utils.ParseAddr(lp.GetAddr())
 		if err != nil {
 			return trace.Wrap(err)
@@ -696,32 +697,55 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	proxyHost, proxyPort, err := net.SplitHostPort(awsApp.GetForwardProxyAddr())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	templateData := map[string]interface{}{
 		"envVars":     envVars,
 		"address":     awsApp.GetForwardProxyAddr(),
 		"endpointURL": awsApp.GetEndpointURL(),
 		"format":      cf.Format,
 		"randomPort":  cf.LocalProxyPort == "",
+		"appName":     awsApp.appName,
+		"proxyScheme": "http",
+		"proxyHost":   proxyHost,
+		"proxyPort":   proxyPort,
+		"region":      getEnvOrDefault(awsRegionEnvVar, "<region>"),
+		"keystore":    getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
+		"workgroup":   getEnvOrDefault(awsWorkgroupEnvVar, "<workgroup>"),
 	}
 
-	var template *template.Template
+	templates := []string{awsProxyHeaderTemplate}
 	switch {
 	case cf.Format == awsProxyFormatAthenaODBC:
 		if cf.AWSEndpointURLMode {
 			return trace.BadParameter("format %q is not supported in --endpoint-url mode", cf.Format)
 		}
+		templates = append(templates, awsProxyAthenaODBCTemplate)
 
-		templateData["proxyHost"], templateData["proxyPort"], _ = net.SplitHostPort(awsApp.GetForwardProxyAddr())
-		templateData["proxyScheme"] = "http"
-		template = awsProxyAthenaODBCTemplate
+	case cf.Format == awsProxyFormatAthenaJDBC:
+		if cf.AWSEndpointURLMode {
+			return trace.BadParameter("format %q is not supported in --endpoint-url mode", cf.Format)
+		}
+		templates = append(templates, awsProxyJDBCHeaderFooterTemplate, awsProxyAthenaJDBCTemplate)
 
 	case cf.AWSEndpointURLMode:
-		template = awsEndpointURLProxyTemplate
+		templates = append(templates, awsEndpointURLProxyTemplate)
 	default:
-		template = awsHTTPSProxyTemplate
+		templates = append(templates, awsHTTPSProxyTemplate)
 	}
 
-	if err = template.Execute(os.Stdout, templateData); err != nil {
+	template := template.New("").Funcs(cloudTemplateFuncs)
+	for _, text := range templates {
+		template, err = template.Parse(text)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if err = template.Execute(cf.Stdout(), templateData); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -828,6 +852,22 @@ func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
 	return x509cert.NotAfter, nil
 }
 
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// isLocalProxyTunnelRequested is a helper function that returns whether the user
+// requested a local proxy tunnel, either via --tunnel or equivalently by specifying
+// --cert-file/--key-file.
+func isLocalProxyTunnelRequested(cf *CLIConf) bool {
+	return cf.LocalProxyTunnel ||
+		cf.LocalProxyCertFile != "" ||
+		cf.LocalProxyKeyFile != ""
+}
+
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.
 var dbProxyTpl = template.Must(template.New("").Parse(`Started DB proxy on {{.address}}
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
@@ -867,6 +907,7 @@ const (
 	envVarFormatWindowsPowershell    = "powershell"
 
 	awsProxyFormatAthenaODBC = "athena-odbc"
+	awsProxyFormatAthenaJDBC = "athena-jdbc"
 )
 
 var (
@@ -877,7 +918,10 @@ var (
 		envVarFormatText,
 	}
 
-	awsProxyServiceFormats = []string{awsProxyFormatAthenaODBC}
+	awsProxyServiceFormats = []string{
+		awsProxyFormatAthenaODBC,
+		awsProxyFormatAthenaJDBC,
+	}
 
 	awsProxyFormats = append(envVarFormats, awsProxyServiceFormats...)
 )
@@ -932,37 +976,62 @@ var cloudTemplateFuncs = template.FuncMap{
 	"envVarCommand": envVarCommand,
 }
 
-// awsHTTPSProxyTemplate is the message that gets printed to a user when an
-// HTTPS proxy is started.
-var awsHTTPSProxyTemplate = template.Must(template.New("").Funcs(cloudTemplateFuncs).Parse(
-	`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
+// awsProxyHeaderTemplate contains common header used for AWS proxy.
+const awsProxyHeaderTemplate = `
+{{define "header"}}
+{{- if .envVars.HTTPS_PROXY -}}
+Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
+{{- else -}}
+Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
+{{- end }}
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
+{{end}}
+`
+
+// awsProxyJDBCHeaderFooterTemplate contains common header and footer for AWS
+// proxy in JDBC formats.
+const awsProxyJDBCHeaderFooterTemplate = `
+{{define "jdbc-header" }}
+{{- template "header" . -}}
+First, add the following certificate to your keystore:
+{{.envVars.AWS_CA_BUNDLE}}
+
+For example, to import the certificate using "keytool":
+keytool -noprompt -importcert -alias teleport-{{.appName}} -file {{.envVars.AWS_CA_BUNDLE}} -keystore {{.keystore}}
+
+{{end}}
+{{define "jdbc-footer" }}
+
+Note that a new certificate might be generated for a new app session. If you
+encounter the "remote error: tls: unknown certificate" error, make sure your
+keystore is up-to-date.
+
+{{end}}
+`
+
+// awsHTTPSProxyTemplate is the message that gets printed to a user when an
+// HTTPS proxy is started.
+var awsHTTPSProxyTemplate = `{{- template "header" . -}}
 Use the following credentials and HTTPS proxy setting to connect to the proxy:
   {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
   {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
   {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
   {{ envVarCommand .format "HTTPS_PROXY" .envVars.HTTPS_PROXY}}
-`))
+`
 
 // awsEndpointURLProxyTemplate is the message that gets printed to a user when an
 // AWS endpoint URL proxy is started.
-var awsEndpointURLProxyTemplate = template.Must(template.New("").Funcs(cloudTemplateFuncs).Parse(
-	`Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
-{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
-{{end}}
+var awsEndpointURLProxyTemplate = `{{- template "header" . -}}
 In addition to the endpoint URL, use the following credentials to connect to the proxy:
   {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
   {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
   {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
-`))
+`
 
 // awsProxyAthenaODBCTemplate is the message that gets printed to a user when an
 // AWS proxy is used for Athena ODBC driver.
-var awsProxyAthenaODBCTemplate = template.Must(template.New("").Funcs(cloudTemplateFuncs).Parse(
-	`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
-{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
-{{end}}
+var awsProxyAthenaODBCTemplate = `{{- template "header" . -}}
 Set the following properties for the Athena ODBC data source:
 [Teleport AWS Athena Access]
 AuthenticationType = IAM Credentials
@@ -975,8 +1044,23 @@ ProxyPort = {{.proxyPort}};
 TrustedCerts = {{.envVars.AWS_CA_BUNDLE}}
 
 Here is a sample connection string using the above credentials and proxy settings:
-DRIVER=Simba Amazon Athena ODBC Connector;AwsRegion=us-east-1;S3OutputLocation=s3://example-bucket/athena/output/;Workgroup=example-workgroup;AuthenticationType=IAM Credentials;UID={{.envVars.AWS_ACCESS_KEY_ID}};PWD={{.envVars.AWS_SECRET_ACCESS_KEY}};UseProxy=1;ProxyScheme={{.proxyScheme}};ProxyHost={{.proxyHost}};ProxyPort={{.proxyPort}};TrustedCerts={{.envVars.AWS_CA_BUNDLE}}
-`))
+DRIVER=Simba Amazon Athena ODBC Connector;AuthenticationType=IAM Credentials;UID={{.envVars.AWS_ACCESS_KEY_ID}};PWD={{.envVars.AWS_SECRET_ACCESS_KEY}};UseProxy=1;ProxyScheme={{.proxyScheme}};ProxyHost={{.proxyHost}};ProxyPort={{.proxyPort}};TrustedCerts={{.envVars.AWS_CA_BUNDLE}};AWSRegion={{.region}};Workgroup={{.workgroup}}
+`
+
+// awsProxyAthenaJDBCTemplate is the message that gets printed to a user when
+// an AWS proxy is used for Athena JDBC driver.
+var awsProxyAthenaJDBCTemplate = `{{- template "jdbc-header" . -}}
+Then, set the following properties in the JDBC connection URL:
+User = {{.envVars.AWS_ACCESS_KEY_ID}}
+Password = {{.envVars.AWS_SECRET_ACCESS_KEY}}
+ProxyHost = {{.proxyHost}};
+ProxyPort = {{.proxyPort}};
+
+Here is a sample JDBC connection URL using the above credentials and proxy settings:
+jdbc:awsathena://User={{.envVars.AWS_ACCESS_KEY_ID}};Password={{.envVars.AWS_SECRET_ACCESS_KEY}};ProxyHost={{.proxyHost}};ProxyPort={{.proxyPort}};AwsRegion={{.region}};Workgroup={{.workgroup}}
+
+{{- template "jdbc-footer" -}}
+`
 
 func printCloudTemplate(envVars map[string]string, format string, randomPort bool, cloudName string) error {
 	templateData := map[string]interface{}{

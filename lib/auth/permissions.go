@@ -496,6 +496,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindConnectionDiagnostic, services.RW()),
 				types.NewRule(types.KindDatabaseService, services.RO()),
 				types.NewRule(types.KindSAMLIdPServiceProvider, services.RO()),
+				types.NewRule(types.KindUserGroup, services.RO()),
 				// this rule allows local proxy to update the remote cluster's host certificate authorities
 				// during certificates renewal
 				{
@@ -510,6 +511,18 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 								services.ResourceNameExpr,
 								builder.String(clusterName),
 							),
+						),
+					).String(),
+				},
+				// this rule allows the local proxy to read the local SAML IdP CA.
+				{
+					Resources: []string{types.KindCertAuthority},
+					Verbs:     []string{types.VerbRead},
+					Where: builder.And(
+						builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(types.SAMLIDPCA))),
+						builder.Equals(
+							services.ResourceNameExpr,
+							builder.String(clusterName),
 						),
 					).String(),
 				},
