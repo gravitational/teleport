@@ -40,6 +40,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1701,4 +1702,10 @@ type ClientI interface {
 
 	// ListReleases returns a list of Teleport Enterprise releases
 	ListReleases(ctx context.Context) ([]*types.Release, error)
+
+	// PluginsClient returns a Plugins client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a plugins client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	PluginsClient() pluginspb.PluginServiceClient
 }
