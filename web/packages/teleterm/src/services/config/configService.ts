@@ -106,7 +106,7 @@ export type AppConfig = z.infer<ReturnType<typeof createAppConfigSchema>>;
  * Command-Control-Option-Shift for macOS
  * Ctrl-Alt-Shift for other platforms
  */
-export type KeyboardShortcutType =
+export type KeyboardShortcutAction =
   | 'tab-1'
   | 'tab-2'
   | 'tab-3'
@@ -125,7 +125,6 @@ export type KeyboardShortcutType =
   | 'toggle-clusters'
   | 'toggle-identity';
 
-export type KeyboardShortcutsConfig = Record<KeyboardShortcutType, string>;
 const getDefaultKeymap = (platform: Platform) => {
   switch (platform) {
     case 'win32':

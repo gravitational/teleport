@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-import { KeyboardShortcutType } from '../../../services/config';
+import { KeyboardShortcutAction } from '../../../services/config';
 import { useAppContext } from '../../appContextProvider';
 import { Platform } from '../../../mainProcess/types';
 
 interface KeyboardShortcutFormatters {
   getLabelWithShortcut(
     label: string,
-    shortcutKey: KeyboardShortcutType,
+    shortcutAction: KeyboardShortcutAction,
     options?: KeyboardShortcutFormattingOptions
   ): string;
 
   getShortcut(
-    shortcutKey: KeyboardShortcutType,
+    shortcutAction: KeyboardShortcutAction,
     options?: KeyboardShortcutFormattingOptions
   ): string;
 }
@@ -41,10 +41,10 @@ export function useKeyboardShortcutFormatters(): KeyboardShortcutFormatters {
   const keyboardShortcuts = keyboardShortcutsService.getShortcutsConfig();
 
   return {
-    getLabelWithShortcut(label, shortcutKey, options) {
+    getLabelWithShortcut(label, shortcutAction, options) {
       const formattedShortcut = formatKeyboardShortcut({
         platform,
-        shortcutValue: keyboardShortcuts[shortcutKey],
+        accelerator: keyboardShortcuts[shortcutAction],
         ...options,
       });
       return `${label} (${formattedShortcut})`;
@@ -52,7 +52,7 @@ export function useKeyboardShortcutFormatters(): KeyboardShortcutFormatters {
     getShortcut(shortcutKey, options) {
       return formatKeyboardShortcut({
         platform,
-        shortcutValue: keyboardShortcuts[shortcutKey],
+        accelerator: keyboardShortcuts[shortcutKey],
         ...options,
       });
     },
@@ -61,19 +61,19 @@ export function useKeyboardShortcutFormatters(): KeyboardShortcutFormatters {
 
 function formatKeyboardShortcut(options: {
   platform: Platform;
-  shortcutValue: string;
+  accelerator: string;
   useWhitespaceSeparator?: boolean;
 }): string {
   switch (options.platform) {
     case 'darwin':
-      return options.shortcutValue
+      return options.accelerator
         .replace('-', options.useWhitespaceSeparator ? ' ' : '')
         .replace('Command', '⌘')
         .replace('Control', '⌃')
         .replace('Option', '⌥')
         .replace('Shift', '⇧');
     default:
-      return options.shortcutValue.replace(
+      return options.accelerator.replace(
         '-',
         options.useWhitespaceSeparator ? ' + ' : '+'
       );

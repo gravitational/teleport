@@ -29,7 +29,7 @@ import {
   Suggestion,
 } from 'teleterm/ui/services/quickInput/types';
 import { routing } from 'teleterm/ui/uri';
-import { KeyboardShortcutType } from 'teleterm/services/config';
+import { KeyboardShortcutAction } from 'teleterm/services/config';
 
 import { assertUnreachable, retryWithRelogin } from '../utils';
 
@@ -67,13 +67,15 @@ export default function useQuickInput() {
         });
       }
     }
+
     get();
   }, [parseResult]);
 
   const hasSuggestions =
     suggestionsAttempt.status === 'success' &&
     suggestionsAttempt.data.length > 0;
-  const openQuickInputShortcutKey: KeyboardShortcutType = 'open-quick-input';
+  const openQuickInputShortcutAction: KeyboardShortcutAction =
+    'open-quick-input';
   const { getShortcut } = useKeyboardShortcutFormatters();
 
   const onFocus = (e: any) => {
@@ -162,7 +164,7 @@ export default function useQuickInput() {
   };
 
   useKeyboardShortcuts({
-    [openQuickInputShortcutKey]: () => {
+    [openQuickInputShortcutAction]: () => {
       quickInputService.show();
     },
   });
@@ -193,7 +195,7 @@ export default function useQuickInput() {
     onInputChange: quickInputService.setInputValue,
     onHide: quickInputService.hide,
     onShow: quickInputService.show,
-    keyboardShortcut: getShortcut(openQuickInputShortcutKey),
+    keyboardShortcut: getShortcut(openQuickInputShortcutAction),
   };
 }
 

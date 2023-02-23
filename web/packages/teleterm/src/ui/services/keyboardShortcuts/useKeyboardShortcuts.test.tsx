@@ -32,7 +32,7 @@ test('call handler on its event type', () => {
 
   renderHook(() => useKeyboardShortcuts({ 'tab-1': handler }), { wrapper });
   const emitEvent = getEventEmitter();
-  emitEvent({ type: 'tab-1' });
+  emitEvent({ action: 'tab-1' });
 
   expect(handler).toHaveBeenCalled();
 });
@@ -42,7 +42,7 @@ test('do not call handler on other event type', () => {
 
   renderHook(() => useKeyboardShortcuts({ 'tab-1': handler }), { wrapper });
   const emitEvent = getEventEmitter();
-  emitEvent({ type: 'tab-2' });
+  emitEvent({ action: 'tab-2' });
 
   expect(handler).not.toHaveBeenCalled();
 });

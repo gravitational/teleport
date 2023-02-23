@@ -16,8 +16,7 @@
 
 import { Platform } from 'teleterm/mainProcess/types';
 import {
-  KeyboardShortcutsConfig,
-  KeyboardShortcutType,
+  KeyboardShortcutAction,
   ConfigService,
 } from 'teleterm/services/config';
 
@@ -28,8 +27,8 @@ import {
 
 export class KeyboardShortcutsService {
   private eventsSubscribers = new Set<KeyboardShortcutEventSubscriber>();
-  private keysToShortcuts = new Map<string, KeyboardShortcutType>();
-  private readonly shortcutsConfig: Record<KeyboardShortcutType, string>;
+  private acceleratorsToActions = new Map<string, KeyboardShortcutAction>();
+  private readonly shortcutsConfig: Record<KeyboardShortcutAction, string>;
 
   constructor(
     private platform: Platform,
@@ -55,7 +54,7 @@ export class KeyboardShortcutsService {
       'toggle-clusters': this.configService.get('keymap.toggleClusters').value,
       'toggle-identity': this.configService.get('keymap.toggleIdentity').value,
     };
-    this.recalculateKeysToShortcuts(this.shortcutsConfig);
+    this.mapAcceleratorsToActions();
     this.attachKeydownHandler();
   }
 
@@ -73,14 +72,14 @@ export class KeyboardShortcutsService {
 
   private attachKeydownHandler(): void {
     const handleKeydown = (event: KeyboardEvent): void => {
-      const shortcutType = this.getShortcut(event);
-      if (!shortcutType) {
+      const shortcutAction = this.getShortcutAction(event);
+      if (!shortcutAction) {
         return;
       }
 
       event.preventDefault();
       event.stopPropagation();
-      this.notifyEventsSubscribers({ type: shortcutType });
+      this.notifyEventsSubscribers({ action: shortcutAction });
     };
 
     window.addEventListener('keydown', handleKeydown, {
@@ -88,15 +87,17 @@ export class KeyboardShortcutsService {
     });
   }
 
-  private getShortcut(event: KeyboardEvent): KeyboardShortcutType | undefined {
+  private getShortcutAction(
+    event: KeyboardEvent
+  ): KeyboardShortcutAction | undefined {
     const getEventKey = () =>
       event.key.length === 1 ? event.key.toUpperCase() : event.key;
 
-    const key = [...this.getPlatformModifierKeys(event), getEventKey()]
+    const accelerator = [...this.getPlatformModifierKeys(event), getEventKey()]
       .filter(Boolean)
       .join('-');
 
-    return this.keysToShortcuts.get(key);
+    return this.acceleratorsToActions.get(accelerator);
   }
 
   private getPlatformModifierKeys(event: KeyboardEvent): string[] {
@@ -117,15 +118,14 @@ export class KeyboardShortcutsService {
     }
   }
 
-  /**
-   * Inverts shortcuts-keys pairs to allow accessing shortcut by a key
-   */
-  private recalculateKeysToShortcuts(
-    toInvert: Partial<KeyboardShortcutsConfig>
-  ): void {
-    this.keysToShortcuts.clear();
-    Object.entries(toInvert).forEach(([shortcutType, key]) => {
-      this.keysToShortcuts.set(key, shortcutType as KeyboardShortcutType);
+  /** Inverts shortcuts-keys pairs to allow accessing shortcut by an accelerator. */
+  private mapAcceleratorsToActions(): void {
+    this.acceleratorsToActions.clear();
+    Object.entries(this.shortcutsConfig).forEach(([action, accelerator]) => {
+      this.acceleratorsToActions.set(
+        accelerator,
+        action as KeyboardShortcutAction
+      );
     });
   }
 

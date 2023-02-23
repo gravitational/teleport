@@ -21,31 +21,31 @@ import styled from 'styled-components';
 
 import Document from 'teleterm/ui/Document';
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
-import { KeyboardShortcutType } from 'teleterm/services/config';
+import { KeyboardShortcutAction } from 'teleterm/services/config';
 
 export function KeyboardShortcutsPanel() {
   const { getShortcut } = useKeyboardShortcutFormatters();
 
-  const items: { title: string; shortcutKey: KeyboardShortcutType }[] = [
+  const items: { title: string; shortcutAction: KeyboardShortcutAction }[] = [
     {
       title: 'Open New Tab',
-      shortcutKey: 'tab-new',
+      shortcutAction: 'tab-new',
     },
     {
       title: 'Go To Next Tab',
-      shortcutKey: 'tab-next',
+      shortcutAction: 'tab-next',
     },
     {
       title: 'Open Connections',
-      shortcutKey: 'toggle-connections',
+      shortcutAction: 'toggle-connections',
     },
     {
       title: 'Open Clusters',
-      shortcutKey: 'toggle-clusters',
+      shortcutAction: 'toggle-clusters',
     },
     {
       title: 'Open Profiles',
-      shortcutKey: 'toggle-identity',
+      shortcutAction: 'toggle-identity',
     },
   ];
 
@@ -55,10 +55,10 @@ export function KeyboardShortcutsPanel() {
         {items.map(item => (
           <Entry
             title={item.title}
-            shortcut={getShortcut(item.shortcutKey, {
+            shortcut={getShortcut(item.shortcutAction, {
               useWhitespaceSeparator: true,
             })}
-            key={item.shortcutKey}
+            key={item.shortcutAction}
           />
         ))}
       </Grid>
