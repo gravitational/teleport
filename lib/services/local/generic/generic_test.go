@@ -19,6 +19,7 @@ package generic
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -27,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -95,20 +97,21 @@ func unmarshalResource(data []byte, opts ...services.MarshalOption) (*testResour
 func TestGenericCRUD(t *testing.T) {
 	ctx := context.Background()
 
-	backend, err := memory.New(memory.Config{
+	memBackend, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
 
-	service := NewService(&ServiceConfig[*testResource]{
-		Backend:       backend,
+	service, err := NewService(&ServiceConfig[*testResource]{
+		Backend:       memBackend,
 		ResourceKind:  "generic resource",
-		Limit:         200,
+		PageLimit:     200,
 		BackendPrefix: "generic_prefix",
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
 	})
+	require.NoError(t, err)
 
 	// Create a couple test resources.
 	r1 := newTestResource("r1")
@@ -236,6 +239,21 @@ func TestGenericCRUD(t *testing.T) {
 	// Try to delete a resource that doesn't exist.
 	err = service.DeleteResource(ctx, "doesnotexist")
 	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
+
+	// Test running while locked.
+	err = service.RunWhileLocked(ctx, "test-lock", time.Second*5, func(ctx context.Context, backend backend.Backend) error {
+		item, err := backend.Get(ctx, service.MakeKey(r1.GetName()))
+		require.NoError(t, err)
+
+		r, err = unmarshalResource(item.Value)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(r1, r,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		))
+
+		return nil
+	})
+	require.NoError(t, err)
 
 	// Delete all resources.
 	err = service.DeleteAllResources(ctx)

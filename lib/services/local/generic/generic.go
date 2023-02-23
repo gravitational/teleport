@@ -18,7 +18,6 @@ package generic
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -28,17 +27,17 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// marshalFunc is a type signature for a marshaling function.
+// MarshalFunc is a type signature for a marshaling function.
 type MarshalFunc[T types.Resource] func(T, ...services.MarshalOption) ([]byte, error)
 
 // UnmarshalFunc is a type signature for an unmarshaling function.
 type UnmarshalFunc[T types.Resource] func([]byte, ...services.MarshalOption) (T, error)
 
-// Config is the configuration for the service configuration.
+// ServiceConfig is the configuration for the service configuration.
 type ServiceConfig[T types.Resource] struct {
 	Backend       backend.Backend
 	ResourceKind  string
-	Limit         int
+	PageLimit     uint
 	BackendPrefix string
 	MarshalFunc   MarshalFunc[T]
 	UnmarshalFunc UnmarshalFunc[T]
@@ -50,9 +49,6 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 	}
 	if c.ResourceKind == "" {
 		return trace.BadParameter("resource kind is missing")
-	}
-	if c.Limit < 0 {
-		return trace.BadParameter("limit must be 0 or greater")
 	}
 	if c.BackendPrefix == "" {
 		return trace.BadParameter("backend prefix is missing")
@@ -71,7 +67,7 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 type Service[T types.Resource] struct {
 	backend       backend.Backend
 	resourceKind  string
-	limit         int
+	pageLimit     uint
 	backendPrefix string
 	marshalFunc   MarshalFunc[T]
 	unmarshalFunc UnmarshalFunc[T]
@@ -79,25 +75,25 @@ type Service[T types.Resource] struct {
 
 // NewService will return a new generic service with the given config. This will
 // panic if the configuration is invalid.
-func NewService[T types.Resource](cfg *ServiceConfig[T]) *Service[T] {
+func NewService[T types.Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
-		panic(fmt.Sprintf("Developer misconfiguration of generic service: %v", err))
+		return nil, trace.Wrap(err)
 	}
 
 	return &Service[T]{
 		backend:       cfg.Backend,
 		resourceKind:  cfg.ResourceKind,
-		limit:         cfg.Limit,
+		pageLimit:     cfg.PageLimit,
 		backendPrefix: cfg.BackendPrefix,
 		marshalFunc:   cfg.MarshalFunc,
 		unmarshalFunc: cfg.UnmarshalFunc,
-	}
+	}, nil
 }
 
 // GetResources returns a list of all resources.
 func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
-	rangeStart := backend.Key(s.backendPrefix)
-	rangeEnd := backend.RangeEnd(backend.Key(s.backendPrefix, ""))
+	rangeStart := backend.Key(s.backendPrefix, "")
+	rangeEnd := backend.RangeEnd(rangeStart)
 
 	// no filter provided get the range directly
 	result, err := s.backend.GetRange(ctx, rangeStart, rangeEnd, backend.NoLimit)
@@ -123,11 +119,10 @@ func (s *Service[T]) ListResources(ctx context.Context, pageSize int, pageToken 
 	rangeEnd := backend.RangeEnd(backend.Key(s.backendPrefix, ""))
 
 	// Adjust page size, so it can't be too large.
-	if pageSize <= 0 || pageSize > s.limit {
-		pageSize = s.limit
+	if pageSize <= 0 || pageSize > int(s.pageLimit) {
+		pageSize = int(s.pageLimit)
 	}
 
-	// If backend.NoLimit is requested and the service permits it, set the limit to NoLimit.
 	limit := pageSize + 1
 
 	// no filter provided get the range directly
@@ -155,9 +150,9 @@ func (s *Service[T]) ListResources(ctx context.Context, pageSize int, pageToken 
 	return out, nextKey, nil
 }
 
-// getResource returns the specified resource.
+// GetResource returns the specified resource.
 func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, err error) {
-	item, err := s.backend.Get(ctx, backend.Key(s.backendPrefix, name))
+	item, err := s.backend.Get(ctx, s.MakeKey(name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return resource, trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
@@ -212,7 +207,7 @@ func (s *Service[T]) UpsertResource(ctx context.Context, resource T, name string
 
 // DeleteResource removes the specified resource.
 func (s *Service[T]) DeleteResource(ctx context.Context, name string) error {
-	err := s.backend.Delete(ctx, backend.Key(s.backendPrefix, name))
+	err := s.backend.Delete(ctx, s.MakeKey(name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
@@ -230,8 +225,7 @@ func (s *Service[T]) DeleteAllResources(ctx context.Context) error {
 
 // UpdateAndSwapResource will get the resource from the backend, modify it, and swap the new value into the backend.
 func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, modify func(T) error) error {
-	key := backend.Key(s.backendPrefix, name)
-	item, err := s.backend.Get(ctx, key)
+	existingItem, err := s.backend.Get(ctx, s.MakeKey(name))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
@@ -239,8 +233,8 @@ func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, mod
 		return trace.Wrap(err)
 	}
 
-	resource, err := s.unmarshalFunc(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	resource, err := s.unmarshalFunc(existingItem.Value,
+		services.WithResourceID(existingItem.ID), services.WithExpires(existingItem.Expires))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -250,17 +244,12 @@ func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, mod
 		return trace.Wrap(err)
 	}
 
-	value, err := s.marshalFunc(resource)
+	replacementItem, err := s.MakeBackendItem(resource, name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	_, err = s.backend.CompareAndSwap(ctx, *item, backend.Item{
-		Key:     backend.Key(s.backendPrefix, name),
-		Value:   value,
-		Expires: resource.Expiry(),
-		ID:      resource.GetResourceID(),
-	})
+	_, err = s.backend.CompareAndSwap(ctx, *existingItem, replacementItem)
 
 	return trace.Wrap(err)
 }
@@ -275,7 +264,7 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 		return backend.Item{}, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(s.backendPrefix, name),
+		Key:     s.MakeKey(name),
 		Value:   value,
 		Expires: resource.Expiry(),
 		ID:      resource.GetResourceID(),
@@ -284,7 +273,14 @@ func (s *Service[T]) MakeBackendItem(resource T, name string) (backend.Item, err
 	return item, nil
 }
 
+// MakeKey will make a key for the service given a name.
+func (s *Service[T]) MakeKey(name string) []byte {
+	return backend.Key(s.backendPrefix, name)
+}
+
 // RunWhileLocked will run the given function in a backend lock. This is a wrapper around the backend.RunWhileLocked function.
-func (s *Service[T]) RunWhileLocked(ctx context.Context, lockName string, ttl time.Duration, fn func(ctx context.Context) error) error {
-	return trace.Wrap(backend.RunWhileLocked(ctx, s.backend, lockName, ttl, fn))
+func (s *Service[T]) RunWhileLocked(ctx context.Context, lockName string, ttl time.Duration, fn func(context.Context, backend.Backend) error) error {
+	return trace.Wrap(backend.RunWhileLocked(ctx, s.backend, lockName, ttl, func(ctx context.Context) error {
+		return fn(ctx, s.backend)
+	}))
 }
