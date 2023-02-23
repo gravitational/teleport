@@ -124,6 +124,13 @@ type downstreamHandle struct {
 	senderC         chan DownstreamSender
 	closeContext    context.Context
 	cancel          context.CancelFunc
+	// agentMetadataCh is the buffered channel (size 1) where the agent metadata
+	// will be sent to at most once (once it is calculated). For this reason, if
+	// the agent metadata is taken out of the channel and we fail to send it
+	// upstream, then the metadata will never be sent upstream as there is no
+	// retry mechanism. However, since the agent metadata is sent after the
+	// hello exchange succeeds, it is unlikely that the sending of the metadata
+	// will fail.
 	agentMetadataCh chan proto.UpstreamInventoryAgentMetadata
 }
 
@@ -200,8 +207,6 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 
 	// handle incoming messages, distribute sender references and
 	// send agent metadata to the auth server.
-	// note that the metadata is sent at most once: if the first
-	// attempt does not succeed, the ICS won't try to send it again.
 	for {
 		select {
 		case h.senderC <- sender:
