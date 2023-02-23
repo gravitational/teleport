@@ -344,6 +344,11 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	clustername, err := config.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	server := &Server{
 		cfg:              config,
@@ -358,7 +363,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		},
 		reconcileCh: make(chan struct{}),
 		middleware: &auth.Middleware{
-			AccessPoint:   config.AccessPoint,
+			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
 	}
