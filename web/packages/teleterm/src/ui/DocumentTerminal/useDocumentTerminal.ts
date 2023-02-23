@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { CanceledError, useAsync } from 'shared/hooks/useAsync';
 import { runOnce } from 'shared/utils/highbar';
 
@@ -37,44 +37,36 @@ export default function useDocumentTerminal(doc: types.DocumentTerminal) {
   const logger = useRef(new Logger('useDocumentTerminal'));
   const ctx = useAppContext();
   const { documentsService } = useWorkspaceContext();
-  const [state, startTerminal] = useAsync(async () =>
+  const [attempt, startTerminal] = useAsync(async () =>
     startTerminalSession(ctx, logger.current, documentsService, doc)
   );
 
   useEffect(() => {
     (async () => {
-      if (state.status === '') {
+      if (attempt.status === '') {
         const [, err] = await startTerminal();
 
-        if (err && !(err instanceof CanceledError)) {
-          if (doc.kind === 'doc.terminal_tsh_node') {
-            // This whole error handling branch should be triggered only when the call to
-            // resourcesService.getServerByHostname fails with some kind of a network error.
-            const targetDesc =
-              'serverUri' in doc ? doc.serverUri : doc.loginHost;
-
-            ctx.notificationsService.notifyError({
-              title: `Could not establish a connection to ${targetDesc}`,
-              description: err['message'],
-            });
-          } else {
-            ctx.notificationsService.notifyError({
-              title: 'Could not open a terminal',
-              description: err['message'],
-            });
-          }
+        if (err && !(err instanceof CanceledError) && 'status' in doc) {
+          documentsService.update(doc.uri, { status: 'error' });
         }
       }
     })();
 
     return () => {
-      if (state.status === 'success') {
-        state.data.ptyProcess.dispose();
+      if (attempt.status === 'success') {
+        attempt.data.ptyProcess.dispose();
       }
     };
-  }, [state]);
+  }, [attempt]);
 
-  return state;
+  const reconnect = useCallback(() => {
+    if ('status' in doc) {
+      documentsService.update(doc.uri, { status: 'connecting' });
+    }
+    startTerminal();
+  }, [documentsService, doc.uri, startTerminal]);
+
+  return { attempt, reconnect };
 }
 
 async function startTerminalSession(
@@ -84,12 +76,7 @@ async function startTerminalSession(
   doc: types.DocumentTerminal
 ) {
   if (doc.kind === 'doc.terminal_tsh_node' && !('serverId' in doc)) {
-    try {
-      doc = await resolveLoginHost(ctx, logger, documentsService, doc);
-    } catch (error) {
-      documentsService.update(doc.uri, { status: 'disconnected' });
-      throw error;
-    }
+    doc = await resolveLoginHost(ctx, logger, documentsService, doc);
   }
 
   return setUpPtyProcess(ctx, documentsService, doc);
@@ -218,9 +205,7 @@ async function setUpPtyProcess(
   const rootCluster = ctx.clustersService.findRootClusterByResource(clusterUri);
   const cmd = createCmd(doc, rootCluster.proxyHost, getClusterName());
   const ptyProcess = await createPtyProcess(ctx, cmd);
-  if (!ptyProcess) {
-    return;
-  }
+
   if (cmd.kind === 'pty.tsh-login') {
     ctx.usageService.captureProtocolUse(clusterUri, 'ssh');
   }
@@ -261,7 +246,9 @@ async function setUpPtyProcess(
   });
 
   const markDocumentAsConnectedOnce = runOnce(() => {
-    documentsService.update(doc.uri, { status: 'connected' });
+    if ('status' in doc) {
+      documentsService.update(doc.uri, { status: 'connected' });
+    }
   });
 
   // mark document as connected when first data arrives
@@ -293,22 +280,19 @@ async function createPtyProcess(
   ctx: IAppContext,
   cmd: PtyCommand
 ): Promise<IPtyProcess> {
-  try {
-    const { process, creationStatus } =
-      await ctx.terminalsService.createPtyProcess(cmd);
+  const { process, creationStatus } =
+    await ctx.terminalsService.createPtyProcess(cmd);
 
-    if (creationStatus === PtyProcessCreationStatus.ResolveShellEnvTimeout) {
-      ctx.notificationsService.notifyWarning({
-        title: 'Could not source environment variables for shell session',
-        description:
-          "In order to source the environment variables, a new temporary shell session is opened and then immediately closed, but it didn't close within 10 seconds. " +
-          'This most likely means that your shell startup took longer to execute or that your shell waits for an input during startup. \nPlease check your startup files.',
-      });
-    }
-    return process;
-  } catch (e) {
-    ctx.notificationsService.notifyError(e.message);
+  if (creationStatus === PtyProcessCreationStatus.ResolveShellEnvTimeout) {
+    ctx.notificationsService.notifyWarning({
+      title: 'Could not source environment variables for shell session',
+      description:
+        "In order to source the environment variables, a new temporary shell session is opened and then immediately closed, but it didn't close within 10 seconds. " +
+        'This most likely means that your shell startup took longer to execute or that your shell waits for an input during startup. \nPlease check your startup files.',
+    });
   }
+
+  return process;
 }
 
 function createCmd(
@@ -318,7 +302,9 @@ function createCmd(
 ): PtyCommand {
   if (doc.kind === 'doc.terminal_tsh_node') {
     if (!('serverId' in doc)) {
-      return;
+      throw new Error(
+        'Cannot create a PTY for doc.terminal_tsh_node without serverId'
+      );
     }
 
     return {

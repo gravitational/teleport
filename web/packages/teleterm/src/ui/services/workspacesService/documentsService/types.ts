@@ -41,7 +41,8 @@ export type DocumentTshNode =
 
 interface DocumentTshNodeBase extends DocumentBase {
   kind: 'doc.terminal_tsh_node';
-  status: '' | 'connecting' | 'connected' | 'disconnected';
+  // status is used merely to show a progress bar when the document is being set up.
+  status: '' | 'connecting' | 'connected' | 'error';
   rootClusterId: string;
   leafClusterId: string | undefined;
 }
@@ -72,7 +73,8 @@ export interface DocumentTshNodeWithLoginHost extends DocumentTshNodeBase {
 
 export interface DocumentTshKube extends DocumentBase {
   kind: 'doc.terminal_tsh_kube';
-  status: 'connecting' | 'connected' | 'disconnected';
+  // status is used merely to show a progress bar when the document is being set up.
+  status: '' | 'connecting' | 'connected' | 'error';
   kubeId: string;
   kubeUri: uri.KubeUri;
   kubeConfigRelativePath: string;

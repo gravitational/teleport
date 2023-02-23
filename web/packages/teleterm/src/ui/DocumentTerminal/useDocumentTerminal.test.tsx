@@ -33,7 +33,6 @@ import {
   ResourcesService,
   AmbiguousHostnameError,
 } from 'teleterm/ui/services/resources';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
 
 import { WorkspaceContextProvider } from '../Documents';
 
@@ -42,6 +41,12 @@ import useDocumentTerminal from './useDocumentTerminal';
 import type { IAppContext } from 'teleterm/ui/types';
 import type * as tsh from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
+
+jest.mock('teleterm/staticConfig', () => ({
+  staticConfig: {
+    prehogAddress: undefined,
+  },
+}));
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -86,6 +91,17 @@ const getDocTshNodeWithLoginHost: () => DocumentTshNodeWithLoginHost = () => {
   };
 };
 
+const getPtyProcessMock = () => ({
+  onOpen: jest.fn(),
+  write: jest.fn(),
+  resize: jest.fn(),
+  dispose: jest.fn(),
+  onData: jest.fn(),
+  start: jest.fn(),
+  onExit: jest.fn(),
+  getCwd: jest.fn(),
+});
+
 test('useDocumentTerminal calls TerminalsService during init', async () => {
   const doc = getDocTshNodeWithServerId();
   const { wrapper, appContext } = testSetup(doc);
@@ -95,7 +111,9 @@ test('useDocumentTerminal calls TerminalsService during init', async () => {
     { wrapper }
   );
 
-  await waitForValueToChange(() => useAsync.hasFinished(result.current));
+  await waitForValueToChange(() =>
+    useAsync.hasFinished(result.current.attempt)
+  );
 
   const expectedPtyCommand: PtyCommand = {
     kind: 'pty.tsh-login',
@@ -107,8 +125,8 @@ test('useDocumentTerminal calls TerminalsService during init', async () => {
     leafClusterId: undefined,
   };
 
-  expect(result.current.statusText).toBeFalsy();
-  expect(result.current.status).toBe('success');
+  expect(result.current.attempt.statusText).toBeFalsy();
+  expect(result.current.attempt.status).toBe('success');
   expect(appContext.terminalsService.createPtyProcess).toHaveBeenCalledWith(
     expectedPtyCommand
   );
@@ -123,9 +141,11 @@ test('useDocumentTerminal calls TerminalsService only once', async () => {
     { wrapper }
   );
 
-  await waitForValueToChange(() => useAsync.hasFinished(result.current));
-  expect(result.current.statusText).toBeFalsy();
-  expect(result.current.status).toBe('success');
+  await waitForValueToChange(() =>
+    useAsync.hasFinished(result.current.attempt)
+  );
+  expect(result.current.attempt.statusText).toBeFalsy();
+  expect(result.current.attempt.status).toBe('success');
   rerender();
 
   expect(appContext.terminalsService.createPtyProcess).toHaveBeenCalledTimes(1);
@@ -142,7 +162,9 @@ test('useDocumentTerminal gets leaf cluster ID from ClustersService when the lea
     { wrapper }
   );
 
-  await waitForValueToChange(() => useAsync.hasFinished(result.current));
+  await waitForValueToChange(() =>
+    useAsync.hasFinished(result.current.attempt)
+  );
 
   const expectedPtyCommand: PtyCommand = {
     kind: 'pty.tsh-login',
@@ -154,8 +176,8 @@ test('useDocumentTerminal gets leaf cluster ID from ClustersService when the lea
     leafClusterId: 'leaf',
   };
 
-  expect(result.current.statusText).toBeFalsy();
-  expect(result.current.status).toBe('success');
+  expect(result.current.attempt.statusText).toBeFalsy();
+  expect(result.current.attempt.status).toBe('success');
   expect(appContext.terminalsService.createPtyProcess).toHaveBeenCalledWith(
     expectedPtyCommand
   );
@@ -175,7 +197,9 @@ test('useDocumentTerminal gets leaf cluster ID from doc.leafClusterId if the lea
     { wrapper }
   );
 
-  await waitForValueToChange(() => useAsync.hasFinished(result.current));
+  await waitForValueToChange(() =>
+    useAsync.hasFinished(result.current.attempt)
+  );
 
   const expectedPtyCommand: PtyCommand = {
     kind: 'pty.tsh-login',
@@ -187,17 +211,17 @@ test('useDocumentTerminal gets leaf cluster ID from doc.leafClusterId if the lea
     leafClusterId: 'leaf',
   };
 
-  expect(result.current.statusText).toBeFalsy();
-  expect(result.current.status).toBe('success');
+  expect(result.current.attempt.statusText).toBeFalsy();
+  expect(result.current.attempt.status).toBe('success');
   expect(appContext.terminalsService.createPtyProcess).toHaveBeenCalledWith(
     expectedPtyCommand
   );
 });
 
-test('useDocumentTerminal shows an error notification if the call to TerminalsService fails', async () => {
+test('useDocumentTerminal returns a failed attempt if the call to TerminalsService fails', async () => {
   const doc = getDocTshNodeWithServerId();
   const { wrapper, appContext } = testSetup(doc);
-  const { terminalsService, notificationsService } = appContext;
+  const { terminalsService } = appContext;
 
   (
     terminalsService.createPtyProcess as jest.MockedFunction<
@@ -207,19 +231,18 @@ test('useDocumentTerminal shows an error notification if the call to TerminalsSe
   jest
     .spyOn(terminalsService, 'createPtyProcess')
     .mockRejectedValue(new Error('whoops'));
-  jest.spyOn(notificationsService, 'notifyError');
 
   const { result, waitForValueToChange } = renderHook(
     () => useDocumentTerminal(doc),
     { wrapper }
   );
 
-  await waitForValueToChange(() => useAsync.hasFinished(result.current));
-  expect(result.current.statusText).toBeFalsy();
-  expect(result.current.status).toBe('success');
-
-  expect(notificationsService.notifyError).toHaveBeenCalledWith('whoops');
-  expect(notificationsService.notifyError).toHaveBeenCalledTimes(1);
+  await waitForValueToChange(() =>
+    useAsync.hasFinished(result.current.attempt)
+  );
+  const { attempt } = result.current;
+  expect(attempt.statusText).toBe('whoops');
+  expect(attempt.status).toBe('error');
 });
 
 test('useDocumentTerminal shows a warning notification if the call to TerminalsService fails due to resolving env timeout', async () => {
@@ -233,7 +256,7 @@ test('useDocumentTerminal shows a warning notification if the call to TerminalsS
     >
   ).mockReset();
   jest.spyOn(terminalsService, 'createPtyProcess').mockResolvedValue({
-    process: undefined,
+    process: getPtyProcessMock(),
     creationStatus: PtyProcessCreationStatus.ResolveShellEnvTimeout,
   });
   jest.spyOn(notificationsService, 'notifyWarning');
@@ -243,9 +266,11 @@ test('useDocumentTerminal shows a warning notification if the call to TerminalsS
     { wrapper }
   );
 
-  await waitForValueToChange(() => useAsync.hasFinished(result.current));
-  expect(result.current.statusText).toBeFalsy();
-  expect(result.current.status).toBe('success');
+  await waitForValueToChange(() =>
+    useAsync.hasFinished(result.current.attempt)
+  );
+  expect(result.current.attempt.statusText).toBeFalsy();
+  expect(result.current.attempt.status).toBe('success');
 
   expect(notificationsService.notifyWarning).toHaveBeenCalledWith({
     title: expect.stringContaining('Could not source environment variables'),
@@ -268,9 +293,6 @@ describe('calling useDocumentTerminal with a doc with a loginHost', () => {
       expectedArgsOfGetServerByHostname: Parameters<
         ResourcesService['getServerByHostname']
       >;
-      expectedErrorNotification?: Parameters<
-        NotificationsService['notifyError']
-      >[0];
     } & (
       | { expectedPtyCommand: PtyCommand; expectedError?: never }
       | { expectedPtyCommand?: never; expectedError: string }
@@ -475,17 +497,11 @@ describe('calling useDocumentTerminal with a doc with a loginHost', () => {
       expectedArgsOfGetServerByHostname: [rootClusterUri, 'ambiguous-host'],
     },
     {
-      name: 'shows an error notification and updates doc state if there was an error when resolving hostname',
+      name: 'returns a failed attempt if there was an error when resolving hostname',
       mockGetServerByHostname: new Error('oops'),
       expectedError: 'oops',
-      expectedDocumentUpdate: {
-        status: 'disconnected',
-      },
+      expectedDocumentUpdate: { status: 'error' },
       expectedArgsOfGetServerByHostname: [rootClusterUri, 'foo'],
-      expectedErrorNotification: {
-        title: expect.stringContaining('connection to user@foo'),
-        description: 'oops',
-      },
     },
   ];
 
@@ -499,17 +515,14 @@ describe('calling useDocumentTerminal with a doc with a loginHost', () => {
       expectedDocumentUpdate,
       expectedArgsOfGetServerByHostname,
       expectedError,
-      expectedErrorNotification,
     }) => {
       const doc = getDocTshNodeWithLoginHost();
       prepareDoc?.(doc);
       const { wrapper, appContext, documentsService } = testSetup(doc);
       prepareContext?.(appContext);
-      const { resourcesService, terminalsService, notificationsService } =
-        appContext;
+      const { resourcesService, terminalsService } = appContext;
 
       jest.spyOn(documentsService, 'update');
-      jest.spyOn(notificationsService, 'notifyError');
 
       if (mockGetServerByHostname instanceof Error) {
         jest
@@ -526,16 +539,19 @@ describe('calling useDocumentTerminal with a doc with a loginHost', () => {
         { wrapper }
       );
 
-      await waitForValueToChange(() => useAsync.hasFinished(result.current));
+      await waitForValueToChange(() =>
+        useAsync.hasFinished(result.current.attempt)
+      );
 
+      const { attempt } = result.current;
       /* eslint-disable jest/no-conditional-expect */
       if (expectedError) {
-        expect(result.current.statusText).toEqual(expectedError);
-        expect(result.current.status).toBe('error');
+        expect(attempt.statusText).toBe(expectedError);
+        expect(attempt.status).toBe('error');
         expect(terminalsService.createPtyProcess).not.toHaveBeenCalled();
       } else {
-        expect(result.current.statusText).toBeFalsy();
-        expect(result.current.status).toBe('success');
+        expect(attempt.statusText).toBeFalsy();
+        expect(attempt.status).toBe('success');
         expect(terminalsService.createPtyProcess).toHaveBeenCalledWith(
           expectedPtyCommand
         );
@@ -549,13 +565,6 @@ describe('calling useDocumentTerminal with a doc with a loginHost', () => {
         doc.uri,
         expectedDocumentUpdate
       );
-
-      if (expectedErrorNotification) {
-        // eslint-disable-next-line jest/no-conditional-expect
-        expect(notificationsService.notifyError).toHaveBeenCalledWith(
-          expectedErrorNotification
-        );
-      }
     }
   );
 });
@@ -615,7 +624,7 @@ const testSetup = (
     .spyOn(appContext.terminalsService, 'createPtyProcess')
     .mockImplementationOnce(async () => {
       return {
-        process: undefined,
+        process: getPtyProcessMock(),
         creationStatus: PtyProcessCreationStatus.Ok,
       };
     });
