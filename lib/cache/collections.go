@@ -245,6 +245,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter SAMLIdPServiceProviders")
 			}
 			collections[resourceKind] = &samlIDPServiceProviders{watch: watch, Cache: c}
+		case types.KindUserGroup:
+			if c.UserGroups == nil {
+				return nil, trace.BadParameter("missing parameter UserGroups")
+			}
+			collections[resourceKind] = &userGroups{watch: watch, Cache: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -2871,5 +2876,83 @@ func (s *samlIDPServiceProviders) processEvent(ctx context.Context, event types.
 }
 
 func (s *samlIDPServiceProviders) watchKind() types.WatchKind {
+	return s.watch
+}
+
+type userGroups struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (s *userGroups) erase(ctx context.Context) error {
+	if err := s.userGroupsCache.DeleteAllUserGroups(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (s *userGroups) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	var resources []types.UserGroup
+
+	nextKey := ""
+	for {
+		var userGroups []types.UserGroup
+		var err error
+		userGroups, nextKey, err = s.UserGroups.ListUserGroups(ctx, 0, nextKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, userGroups...)
+		if nextKey == "" {
+			break
+		}
+	}
+
+	return func(ctx context.Context) error {
+		if err := s.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			err = s.userGroupsCache.CreateUserGroup(ctx, resource)
+			if trace.IsAlreadyExists(err) {
+				err = s.userGroupsCache.UpdateUserGroup(ctx, resource)
+			}
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (s *userGroups) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := s.userGroupsCache.DeleteUserGroup(ctx, event.Resource.GetName())
+		if err != nil && !trace.IsNotFound(err) {
+			s.Logger.WithError(err).Warn("Failed to delete resource.")
+			return trace.Wrap(err)
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.UserGroup)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		err := s.userGroupsCache.CreateUserGroup(ctx, resource)
+		if trace.IsAlreadyExists(err) {
+			err = s.userGroupsCache.UpdateUserGroup(ctx, resource)
+		}
+		return trace.Wrap(err)
+	default:
+		s.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (s *userGroups) watchKind() types.WatchKind {
 	return s.watch
 }

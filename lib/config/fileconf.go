@@ -652,7 +652,7 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 type JoinParams struct {
 	TokenName string           `yaml:"token_name"`
 	Method    types.JoinMethod `yaml:"method"`
-	Azure     AzureJoinParams  `yaml:"azure"`
+	Azure     AzureJoinParams  `yaml:"azure,omitempty"`
 }
 
 // AzureJoinParams configures the parameters specific to the Azure join method.
@@ -1874,10 +1874,13 @@ type Proxy struct {
 	//nolint:revive // Because we want this to be IdP.
 	IdP IdP `yaml:"idp,omitempty"`
 
+	// UI provides config options for the web UI
 	UI *UIConfig `yaml:"ui,omitempty"`
 }
 
+// UIConfig provides config options for the web UI served by the proxy service.
 type UIConfig struct {
+	// ScrollbackLines is the max number of lines the UI terminal can display in its history
 	ScrollbackLines int `yaml:"scrollback_lines,omitempty"`
 }
 
