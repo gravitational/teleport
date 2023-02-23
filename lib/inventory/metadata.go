@@ -65,17 +65,17 @@ type fetchConfig struct {
 // setDefaults sets the values of readFile and execCommand to the ones in the
 // standard library. Having these two methods configurable allows us to mock
 // them in tests.
-func (cfg *fetchConfig) setDefaults() {
-	if cfg.readFile == nil {
-		cfg.readFile = os.ReadFile
+func (c *fetchConfig) setDefaults() {
+	if c.readFile == nil {
+		c.readFile = os.ReadFile
 	}
-	if cfg.execCommand == nil {
-		cfg.execCommand = func(name string, args ...string) ([]byte, error) {
+	if c.execCommand == nil {
+		c.execCommand = func(name string, args ...string) ([]byte, error) {
 			return exec.Command(name, args...).Output()
 		}
 	}
-	if cfg.kubeClient == nil {
-		cfg.kubeClient = getKubeClient()
+	if c.kubeClient == nil {
+		c.kubeClient = getKubeClient()
 	}
 }
 
@@ -203,8 +203,8 @@ func (c *fetchConfig) fetchCloudEnvironment() string {
 }
 
 // exec runs a command and validates its output using the parse function.
-func (cfg fetchConfig) exec(name string, args ...string) (string, error) {
-	out, err := cfg.execCommand(name, args...)
+func (c *fetchConfig) exec(name string, args ...string) (string, error) {
+	out, err := c.execCommand(name, args...)
 	if err != nil {
 		log.Debugf("Failed to execute command '%s': %s", name, err)
 		return "", err
@@ -213,8 +213,8 @@ func (cfg fetchConfig) exec(name string, args ...string) (string, error) {
 }
 
 // read reads a read and validates its content using the parse function.
-func (cfg fetchConfig) read(name string) (string, error) {
-	out, err := cfg.readFile(name)
+func (c *fetchConfig) read(name string) (string, error) {
+	out, err := c.readFile(name)
 	if err != nil {
 		log.Debugf("Failed to read file '%s': %s", name, err)
 		return "", err
