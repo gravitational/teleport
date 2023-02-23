@@ -42,7 +42,7 @@ test('do not call subscriber after it has been unsubscribed', () => {
 function getTestSetup() {
   const service = new KeyboardShortcutsService(
     'darwin',
-    createMockConfigService({ 'keymap.tab1': 'Command-1' })
+    createMockConfigService({ 'keymap.tab1': 'Command+1' })
   );
   const subscriber = jest.fn();
   service.subscribeToEvents(subscriber);

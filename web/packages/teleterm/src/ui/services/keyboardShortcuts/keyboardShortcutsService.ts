@@ -95,7 +95,7 @@ export class KeyboardShortcutsService {
 
     const accelerator = [...this.getPlatformModifierKeys(event), getEventKey()]
       .filter(Boolean)
-      .join('-');
+      .join('+');
 
     return this.acceleratorsToActions.get(accelerator);
   }

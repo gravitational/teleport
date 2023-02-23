@@ -67,15 +67,14 @@ function formatKeyboardShortcut(options: {
   switch (options.platform) {
     case 'darwin':
       return options.accelerator
-        .replace('-', options.useWhitespaceSeparator ? ' ' : '')
+        .replaceAll('+', options.useWhitespaceSeparator ? ' ' : '')
         .replace('Command', '⌘')
         .replace('Control', '⌃')
         .replace('Option', '⌥')
         .replace('Shift', '⇧');
     default:
-      return options.accelerator.replace(
-        '-',
-        options.useWhitespaceSeparator ? ' + ' : '+'
-      );
+      return options.useWhitespaceSeparator
+        ? options.accelerator.replaceAll('+', ' + ')
+        : options.accelerator;
   }
 }
