@@ -40,6 +40,7 @@ type Services interface {
 	types.WebTokensGetter
 	WindowsDesktops
 	SAMLIdPServiceProviders
+	UserGroups
 }
 
 // RotationGetter returns the rotation state.

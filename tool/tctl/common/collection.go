@@ -27,13 +27,16 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/tctl/common/device"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
@@ -1020,6 +1023,34 @@ func (c *samlIDPServiceProviderCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Name"})
 	for _, serviceProvider := range c.serviceProviders {
 		t.AddRow([]string{serviceProvider.GetName()})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type deviceCollection struct {
+	devices []*devicepb.Device
+}
+
+func (c *deviceCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.devices))
+	for i, resource := range c.devices {
+		r[i] = device.ProtoToResource(resource)
+	}
+	return r
+}
+
+func (c *deviceCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"ID", "OS Type", "Asset Tag", "Enrollment Status", "Creation Time", "Last Updated"})
+	for _, device := range c.devices {
+		t.AddRow([]string{
+			device.Id,
+			devicetrust.FriendlyOSType(device.OsType),
+			device.AssetTag,
+			devicetrust.FriendlyDeviceEnrollStatus(device.EnrollStatus),
+			device.CreateTime.AsTime().Format(time.RFC3339),
+			device.UpdateTime.AsTime().Format(time.RFC3339),
+		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

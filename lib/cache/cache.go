@@ -110,6 +110,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
+		{Kind: types.KindUserGroup},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -152,6 +153,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
+		{Kind: types.KindUserGroup},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -438,6 +440,7 @@ type Cache struct {
 	webTokenCache                types.WebTokenInterface
 	windowsDesktopsCache         services.WindowsDesktops
 	samlIdpServiceProvidersCache services.SAMLIdPServiceProviders
+	userGroupsCache              services.UserGroups
 	eventsFanout                 *services.FanoutSet
 
 	// closed indicates that the cache has been closed
@@ -503,6 +506,7 @@ func (c *Cache) read() (readGuard, error) {
 			release:                 c.rw.RUnlock,
 			windowsDesktops:         c.windowsDesktopsCache,
 			samlIdpServiceProviders: c.samlIdpServiceProvidersCache,
+			userGroups:              c.userGroupsCache,
 		}, nil
 	}
 	c.rw.RUnlock()
@@ -526,6 +530,7 @@ func (c *Cache) read() (readGuard, error) {
 		webToken:                c.Config.WebToken,
 		windowsDesktops:         c.Config.WindowsDesktops,
 		samlIdpServiceProviders: c.Config.SAMLIdPServiceProviders,
+		userGroups:              c.Config.UserGroups,
 		release:                 nil,
 	}, nil
 }
@@ -554,6 +559,7 @@ type readGuard struct {
 	webToken                types.WebTokenInterface
 	windowsDesktops         services.WindowsDesktops
 	samlIdpServiceProviders services.SAMLIdPServiceProviders
+	userGroups              services.UserGroups
 	release                 func()
 	released                bool
 }
@@ -623,6 +629,8 @@ type Config struct {
 	WindowsDesktops services.WindowsDesktops
 	// SAMLIdPServiceProviders is a SAML IdP service providers service.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
+	// UserGroups is a user groups service.
+	UserGroups services.UserGroups
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -775,6 +783,7 @@ func New(config Config) (*Cache, error) {
 		webTokenCache:                local.NewIdentityService(config.Backend).WebTokens(),
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
 		samlIdpServiceProvidersCache: local.NewSAMLIdPServiceProviderService(config.Backend),
+		userGroupsCache:              local.NewUserGroupService(config.Backend),
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -2234,6 +2243,32 @@ func (c *Cache) GetSAMLIdPServiceProvider(ctx context.Context, name string) (typ
 	}
 	defer rg.Release()
 	return rg.samlIdpServiceProviders.GetSAMLIdPServiceProvider(ctx, name)
+}
+
+// ListUserGroups returns a paginated list of user group resources.
+func (c *Cache) ListUserGroups(ctx context.Context, pageSize int, nextKey string) ([]types.UserGroup, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListUserGroups")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.userGroups.ListUserGroups(ctx, pageSize, nextKey)
+}
+
+// GetUserGroup returns the specified user group resources.
+func (c *Cache) GetUserGroup(ctx context.Context, name string) (types.UserGroup, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetUserGroup")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.userGroups.GetUserGroup(ctx, name)
 }
 
 // ListResources is a part of auth.Cache implementation
