@@ -26,6 +26,7 @@ import (
 )
 
 var matchOSVersion = regexp.MustCompile(`^[\w\s\.\/]+$`)
+var matchGlibcVersion = regexp.MustCompile(`^\d+\.\d+$`)
 
 // fetchOSVersion combines the content of '/etc/os-release' to be e.g.
 // "Ubuntu 22.04".
@@ -66,5 +67,22 @@ func (c *fetchConfig) fetchOSVersion() string {
 
 // fetchGlibcVersion TODO
 func (c *fetchConfig) fetchGlibcVersion() string {
-	return ""
+	cmd := "ldd"
+	out, err := c.exec(cmd, "--version")
+	if err != nil {
+		return ""
+	}
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) == 0 {
+		return invalid(cmd, out)
+	}
+
+	parts := strings.Fields(lines[0])
+	glibcVersion := parts[len(parts)-1]
+	if !matchGlibcVersion.MatchString(glibcVersion) {
+		return invalid(cmd, out)
+	}
+
+	return glibcVersion
 }

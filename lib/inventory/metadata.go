@@ -128,16 +128,16 @@ func (c *fetchConfig) fetchServices() []string {
 // command-line utility.
 func (c *fetchConfig) fetchHostArchitecture() string {
 	cmd := "arch"
-	arch, err := c.exec(cmd)
+	out, err := c.exec(cmd)
 	if err != nil {
 		return ""
 	}
 
-	if !matchHostArchitecture.MatchString(arch) {
-		return invalid(cmd, arch)
+	if !matchHostArchitecture.MatchString(out) {
+		return invalid(cmd, out)
 	}
 
-	return arch
+	return out
 }
 
 func (c *fetchConfig) fetchInstallMethods() []string {
