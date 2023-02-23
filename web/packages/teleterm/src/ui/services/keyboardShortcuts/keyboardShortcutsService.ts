@@ -32,6 +32,11 @@ export class KeyboardShortcutsService {
     string,
     KeyboardShortcutAction
   >();
+  /**
+   * Modifier keys must be defined in the following order:
+   * Command-Control-Option-Shift for macOS
+   * Ctrl-Alt-Shift for other platforms
+   */
   private readonly shortcutsConfig: Record<KeyboardShortcutAction, string>;
 
   constructor(

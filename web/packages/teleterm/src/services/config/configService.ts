@@ -20,6 +20,7 @@ import { FileStorage } from 'teleterm/services/fileStorage';
 import { Platform } from 'teleterm/mainProcess/types';
 
 import { createConfigStore } from './configStore';
+import { getKeyboardShortcutSchema } from './getKeyboardShortcutSchema';
 
 const createAppConfigSchema = (platform: Platform) => {
   const defaultKeymap = getDefaultKeymap(platform);
@@ -34,56 +35,56 @@ const createAppConfigSchema = (platform: Platform) => {
   // them here, but we do not read their value from the stored config.
   return z.object({
     'usageReporting.enabled': z.boolean().default(false),
-    'keymap.tab1': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab1'])
+    'keymap.tab1': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['tab1']
     ),
-    'keymap.tab2': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab2'])
+    'keymap.tab2': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['tab2']
     ),
-    'keymap.tab3': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab3'])
+    'keymap.tab3': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['tab3']
     ),
-    'keymap.tab4': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab4'])
+    'keymap.tab4': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['tab4']
     ),
-    'keymap.tab5': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab5'])
+    'keymap.tab5': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['tab5']
     ),
-    'keymap.tab6': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab6'])
+    'keymap.tab6': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['tab6']
     ),
-    'keymap.tab7': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab7'])
+    'keymap.tab7': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['tab7']
     ),
-    'keymap.tab8': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab8'])
+    'keymap.tab8': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['tab8']
     ),
-    'keymap.tab9': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab9'])
+    'keymap.tab9': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['tab9']
     ),
-    'keymap.closeTab': omitStoredConfigValue(
-      z.string().default(defaultKeymap['closeTab'])
+    'keymap.closeTab': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['closeTab']
     ),
-    'keymap.newTab': omitStoredConfigValue(
-      z.string().default(defaultKeymap['newTab'])
+    'keymap.newTab': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['newTab']
     ),
-    'keymap.previousTab': omitStoredConfigValue(
-      z.string().default(defaultKeymap['previousTab'])
+    'keymap.previousTab': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['previousTab']
     ),
-    'keymap.nextTab': omitStoredConfigValue(
-      z.string().default(defaultKeymap['nextTab'])
+    'keymap.nextTab': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['nextTab']
     ),
-    'keymap.openConnections': omitStoredConfigValue(
-      z.string().default(defaultKeymap['openConnections'])
+    'keymap.openConnections': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['openConnections']
     ),
-    'keymap.openClusters': omitStoredConfigValue(
-      z.string().default(defaultKeymap['openClusters'])
+    'keymap.openClusters': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['openClusters']
     ),
-    'keymap.openProfiles': omitStoredConfigValue(
-      z.string().default(defaultKeymap['openProfiles'])
+    'keymap.openProfiles': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['openProfiles']
     ),
-    'keymap.openQuickInput': omitStoredConfigValue(
-      z.string().default(defaultKeymap['openQuickInput'])
+    'keymap.openQuickInput': getKeyboardShortcutSchema(platform).default(
+      defaultKeymap['openQuickInput']
     ),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
@@ -96,16 +97,8 @@ const createAppConfigSchema = (platform: Platform) => {
   });
 };
 
-const omitStoredConfigValue = <T>(schema: z.ZodType<T>) =>
-  z.preprocess(() => undefined, schema);
-
 export type AppConfig = z.infer<ReturnType<typeof createAppConfigSchema>>;
 
-/**
- * Modifier keys must be defined in the following order:
- * Command-Control-Option-Shift for macOS
- * Ctrl-Alt-Shift for other platforms
- */
 export type KeyboardShortcutAction =
   | 'tab1'
   | 'tab2'
