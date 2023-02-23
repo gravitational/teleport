@@ -18,6 +18,7 @@ package inventory
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
@@ -25,6 +26,8 @@ import (
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -53,6 +56,10 @@ type fetchConfig struct {
 	// execCommand is the method called to execute a command.
 	// It is configurable so that it can be mocked in tests.
 	execCommand func(name string, args ...string) ([]byte, error)
+	// kubeClient is a kubernetes client used to retrieve the
+	// server version.
+	// It is configurable so that it can be mocked in tests.
+	kubeClient kubernetes.Interface
 }
 
 // setDefaults sets the values of readFile and execCommand to the ones in the
@@ -67,6 +74,25 @@ func (cfg *fetchConfig) setDefaults() {
 			return exec.Command(name, args...).Output()
 		}
 	}
+	if cfg.kubeClient == nil {
+		cfg.kubeClient = getKubeClient()
+	}
+}
+
+// getKubeClient returns a kubernetes client in case the agent is running on
+// kubernetes. It returns nil otherwise.
+func getKubeClient() kubernetes.Interface {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		log.Debugf("Failed to get kubernetes cluster config: %s", err)
+		return nil
+	}
+	client, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Debugf("Failed to create kubernetes client: %s", err)
+		return nil
+	}
+	return client
 }
 
 // fetchAgentMetadata fetches and calculates all agent metadata we are interested
@@ -157,9 +183,18 @@ func (c *fetchConfig) fetchContainerRuntime() string {
 	return "docker"
 }
 
+// fetchContainerOrchestrator returns kubernetes-${GIT_VERSION} if the agent is
+// running on kubernetes.
 func (c *fetchConfig) fetchContainerOrchestrator() string {
-	// TODO(vitorenesduarte): fetch container orchestrator
-	return ""
+	if c.kubeClient == nil {
+		// Return empty if not running on kubernetes.
+		return ""
+	}
+	version, err := c.kubeClient.Discovery().ServerVersion()
+	if err != nil {
+		log.Debugf("Failed to retrieve kubernetes server version: %s", err)
+	}
+	return fmt.Sprintf("kubernetes-%s", version.GitVersion)
 }
 
 func (c *fetchConfig) fetchCloudEnvironment() string {

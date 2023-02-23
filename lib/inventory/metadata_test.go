@@ -21,6 +21,11 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/version"
+	"k8s.io/client-go/discovery"
+	fakediscovery "k8s.io/client-go/discovery/fake"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -197,6 +202,65 @@ func TestFetchContainerRuntime(t *testing.T) {
 				readFile: tc.readFile,
 			}
 			require.Equal(t, tc.expected, c.fetchContainerRuntime())
+		})
+	}
+}
+
+// newFakeClientSet builds a fake clientSet reporting a specific kubernetes
+// version.  This is used to test version-specific behaviors.
+func newFakeClientSet(gitVersion string) *fakeClientSet {
+	cs := fakeClientSet{}
+	cs.discovery = fakediscovery.FakeDiscovery{
+		Fake: &cs.Fake,
+		FakedServerVersion: &version.Info{
+			GitVersion: gitVersion,
+		},
+	}
+	return &cs
+}
+
+type fakeClientSet struct {
+	fake.Clientset
+	discovery fakediscovery.FakeDiscovery
+}
+
+// Discovery overrides the default fake.Clientset Discovery method and returns
+// our custom discovery mock instead.
+func (c *fakeClientSet) Discovery() discovery.DiscoveryInterface {
+	return &c.discovery
+}
+
+func TestFetchContainerOrchestrator(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		desc       string
+		kubeClient kubernetes.Interface
+		expected   string
+	}{
+		{
+			desc:       "kubernetes with version X",
+			kubeClient: newFakeClientSet("X"),
+			expected:   "kubernetes-X",
+		},
+		{
+			desc:       "kubernetes with version Y",
+			kubeClient: newFakeClientSet("Y"),
+			expected:   "kubernetes-Y",
+		},
+		{
+			desc:       "empty if not on kubernetes",
+			kubeClient: nil,
+			expected:   "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			c := &fetchConfig{
+				kubeClient: tc.kubeClient,
+			}
+			require.Equal(t, tc.expected, c.fetchContainerOrchestrator())
 		})
 	}
 }
