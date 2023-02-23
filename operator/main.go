@@ -141,11 +141,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&resourcescontrollers.UserReconciler{
-		Client:                 mgr.GetClient(),
-		Scheme:                 mgr.GetScheme(),
-		TeleportClientAccessor: bot.GetClient,
-	}).SetupWithManager(mgr); err != nil {
+	if err = resourcescontrollers.NewUserReconciler(mgr.GetClient(), bot.GetClient).
+		SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TeleportUser")
 		os.Exit(1)
 	}
