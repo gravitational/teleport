@@ -111,6 +111,9 @@ int tracepoint__syscalls__sys_exit_creat(struct trace_event_raw_sys_exit *tp)
     return exit_open(tp->ret);
 }
 
+// ARM64 does not implement sys_enter_open only sys_enter_openat. x86 implements it for legacy reasons.
+#ifndef __TARGET_ARCH_arm64
+
 SEC("tp/syscalls/sys_enter_open")
 int tracepoint__syscalls__sys_enter_open(struct trace_event_raw_sys_enter *tp)
 {
@@ -119,6 +122,8 @@ int tracepoint__syscalls__sys_enter_open(struct trace_event_raw_sys_enter *tp)
 
     return enter_open(filename, flags);
 };
+
+#endif // __aarch64__
 
 SEC("tp/syscalls/sys_exit_open")
 int tracepoint__syscalls__sys_exit_open(struct trace_event_raw_sys_exit *tp)

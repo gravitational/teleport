@@ -79,14 +79,15 @@ BPF_MESSAGE := without-BPF-support
 # have compilation issues that require fixing.
 with_bpf := no
 ifeq ("$(OS)","linux")
-ifeq ("$(ARCH)","amd64")
+# True if $ARCH == amd64 || $ARCH == arm64
+ifneq (,$(filter "$(ARCH)","amd64" "arm64"))
 ifneq ("$(wildcard /usr/libbpf-${LIBBPF_VER}/include/bpf/bpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
 BPF_MESSAGE := with-BPF-support
 CLANG ?= $(shell which clang || which clang-10)
 LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-10)
-KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/')
+KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/g; s/aarch64/arm64/g')
 INCLUDES :=
 ER_BPF_BUILDDIR := lib/bpf/bytecode
 RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
@@ -238,7 +239,8 @@ IS_NATIVE_BUILD ?= $(if $(filter $(ARCH), $(shell go env GOARCH)),"yes","no")
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
-ifeq ("$(ARCH)","amd64")
+# True if $ARCH == amd64 || $ARCH == arm64
+ifneq (,$(filter "$(ARCH)","amd64" "arm64"))
 # Link static version of libraries required by Teleport (bpf, pcsc) to reduce system dependencies. Avoid dependencies on dynamic libraries if we already link the static version using --as-needed.
 CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS="-I/usr/libbpf-${LIBBPF_VER}/include" CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
 CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"
@@ -247,12 +249,6 @@ else ifeq ("$(ARCH)","arm")
 CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
-else ifeq ("$(ARCH)","arm64")
-# ARM64 requires CGO but does not need to do any special linkage due to its reduced featureset
-CGOFLAG = CGO_ENABLED=1
-
-# If we 're not guaranteed to be building natively on an arm64 system, then we'll
-# need to configure the cross compiler.
 ifeq ($(IS_NATIVE_BUILD),"no")
 CGOFLAG += CC=aarch64-linux-gnu-gcc
 endif
