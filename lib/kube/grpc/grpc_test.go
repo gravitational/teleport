@@ -20,12 +20,14 @@ import (
 	"net"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/testing/protocmp"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
@@ -368,7 +370,7 @@ func TestListKubernetesResources(t *testing.T) {
 					require.NoError(t, err)
 				}
 			}
-			require.Equal(t, tt.want, rsp)
+			require.Empty(t, cmp.Diff(rsp, tt.want, protocmp.Transform()))
 		})
 	}
 }
