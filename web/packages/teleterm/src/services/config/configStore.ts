@@ -77,7 +77,9 @@ export function createConfigStore<
     const reParsed = parse(withoutInvalidKeys);
     if (reParsed.success === false) {
       // it should not occur after removing invalid keys, but just in case
-      throw new Error('Re-parsing config file failed', reParsed.error.cause);
+      throw new Error(
+        `Re-parsing config file failed \n${reParsed.error.message}`
+      );
     }
     return {
       storedConfig: withoutInvalidKeys,
