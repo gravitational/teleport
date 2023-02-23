@@ -124,9 +124,9 @@ func TestGenericCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	// Create both resources.
-	err = service.CreateResource(ctx, r1, r1.GetName())
+	err = service.CreateResource(ctx, r1)
 	require.NoError(t, err)
-	err = service.CreateResource(ctx, r2, r2.GetName())
+	err = service.CreateResource(ctx, r2)
 	require.NoError(t, err)
 
 	// Fetch all resources using paging default.
@@ -175,12 +175,12 @@ func TestGenericCRUD(t *testing.T) {
 	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
 
 	// Try to create the same resource.
-	err = service.CreateResource(ctx, r1, r1.GetName())
+	err = service.CreateResource(ctx, r1)
 	require.ErrorIs(t, err, trace.AlreadyExists(`generic resource "r1" already exists`))
 
 	// Update a resource.
 	r1.SetStaticLabels(map[string]string{"newlabel": "newvalue"})
-	err = service.UpdateResource(ctx, r1, r1.GetName())
+	err = service.UpdateResource(ctx, r1)
 	require.NoError(t, err)
 	r, err = service.GetResource(ctx, r1.GetName())
 	require.NoError(t, err)
@@ -189,7 +189,8 @@ func TestGenericCRUD(t *testing.T) {
 	))
 
 	// Update a resource that doesn't exist.
-	err = service.UpdateResource(ctx, r1, "doesnotexist")
+	doesNotExist := newTestResource("doesnotexist")
+	err = service.UpdateResource(ctx, doesNotExist)
 	require.ErrorIs(t, err, trace.NotFound(`generic resource "doesnotexist" doesn't exist`))
 
 	// Delete a resource.
@@ -203,7 +204,7 @@ func TestGenericCRUD(t *testing.T) {
 	))
 
 	// Upsert a resource (create).
-	err = service.UpsertResource(ctx, r1, r1.GetName())
+	err = service.UpsertResource(ctx, r1)
 	require.NoError(t, err)
 	out, nextToken, err = service.ListResources(ctx, 200, "")
 	require.NoError(t, err)
@@ -214,7 +215,7 @@ func TestGenericCRUD(t *testing.T) {
 
 	// Upsert a resource (update).
 	r1.SetStaticLabels(map[string]string{"newerlabel": "newervalue"})
-	err = service.UpsertResource(ctx, r1, r1.GetName())
+	err = service.UpsertResource(ctx, r1)
 	require.NoError(t, err)
 	out, nextToken, err = service.ListResources(ctx, 200, "")
 	require.NoError(t, err)

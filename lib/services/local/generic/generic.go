@@ -171,38 +171,38 @@ func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, 
 }
 
 // CreateResource creates a new resource.
-func (s *Service[T]) CreateResource(ctx context.Context, resource T, name string) error {
-	item, err := s.MakeBackendItem(resource, name)
+func (s *Service[T]) CreateResource(ctx context.Context, resource T) error {
+	item, err := s.MakeBackendItem(resource, resource.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = s.backend.Create(ctx, item)
 	if trace.IsAlreadyExists(err) {
-		return trace.AlreadyExists("%s %q already exists", s.resourceKind, name)
+		return trace.AlreadyExists("%s %q already exists", s.resourceKind, resource.GetName())
 	}
 
 	return trace.Wrap(err)
 }
 
 // UpdateResource updates an existing resource.
-func (s *Service[T]) UpdateResource(ctx context.Context, resource T, name string) error {
-	item, err := s.MakeBackendItem(resource, name)
+func (s *Service[T]) UpdateResource(ctx context.Context, resource T) error {
+	item, err := s.MakeBackendItem(resource, resource.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	_, err = s.backend.Update(ctx, item)
 	if trace.IsNotFound(err) {
-		return trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
+		return trace.NotFound("%s %q doesn't exist", s.resourceKind, resource.GetName())
 	}
 
 	return trace.Wrap(err)
 }
 
 // Upsert upserts a resource.
-func (s *Service[T]) UpsertResource(ctx context.Context, resource T, name string) error {
-	item, err := s.MakeBackendItem(resource, name)
+func (s *Service[T]) UpsertResource(ctx context.Context, resource T) error {
+	item, err := s.MakeBackendItem(resource, resource.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}

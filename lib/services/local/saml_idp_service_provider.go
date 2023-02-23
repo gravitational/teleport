@@ -18,7 +18,6 @@ package local
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/crewjam/saml/samlsp"
@@ -26,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -37,9 +37,11 @@ const (
 	samlIDPServiceProviderMaxPageSize   = 200
 )
 
+var _ = NewSAMLIdPServiceProviderService((*memory.Memory)(nil))
+
 // SAMLIdPServiceProviderService manages IdP service providers in the Backend.
 type SAMLIdPServiceProviderService struct {
-	svc *generic.Service[types.SAMLIdPServiceProvider]
+	svc generic.Service[types.SAMLIdPServiceProvider]
 }
 
 // NewSAMLIdPServiceProviderService creates a new SAMLIdPServiceProviderService.
@@ -53,11 +55,11 @@ func NewSAMLIdPServiceProviderService(backend backend.Backend) *SAMLIdPServicePr
 		UnmarshalFunc: services.UnmarshalSAMLIdPServiceProvider,
 	})
 	if err != nil {
-		panic(fmt.Sprintf("SAML IdP service provider local service is not configured properly: %v", err))
+		panic(err)
 	}
 
 	return &SAMLIdPServiceProviderService{
-		svc: svc,
+		svc: *svc,
 	}
 }
 
