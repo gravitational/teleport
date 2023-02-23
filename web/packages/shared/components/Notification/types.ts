@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { ReactNode } from 'react';
+
 export interface NotificationItem {
   content: NotificationItemContent;
   severity: 'info' | 'warn' | 'error';
@@ -22,4 +24,10 @@ export interface NotificationItem {
 
 export type NotificationItemContent =
   | string
-  | { title: string; description: string };
+  | ReactNode
+  | NotificationItemObjectContent;
+
+export type NotificationItemObjectContent = {
+  title: string;
+  description: string | ReactNode;
+};

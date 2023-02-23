@@ -14,12 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, isValidElement } from 'react';
 import styled, { css, useTheme } from 'styled-components';
 import { ButtonIcon, Flex, Text } from 'design';
 import { Close } from 'design/Icon';
 
-import type { NotificationItem, NotificationItemContent } from './types';
+import type {
+  NotificationItem,
+  NotificationItemContent,
+  NotificationItemObjectContent,
+} from './types';
 
 interface NotificationProps {
   item: NotificationItem;
@@ -122,7 +126,7 @@ function getRenderedContent(
 ) {
   const longerTextCss = isExpanded ? textCss : shortTextCss;
 
-  if (typeof content === 'string') {
+  if (typeof content === 'string' || isValidElement(content)) {
     return (
       <Flex alignItems="center" justifyContent="space-between" width="100%">
         <Text
@@ -137,7 +141,7 @@ function getRenderedContent(
       </Flex>
     );
   }
-  if (typeof content === 'object') {
+  if (isContentAnObject(content)) {
     return (
       <Flex flexDirection="column" minWidth="0" width="100%">
         <div
@@ -176,6 +180,16 @@ function getRenderedContent(
       </Flex>
     );
   }
+}
+
+function isContentAnObject(
+  content: NotificationItemContent
+): content is NotificationItemObjectContent {
+  return (
+    typeof content === 'object' &&
+    (content as NotificationItemObjectContent).title !== undefined &&
+    (content as NotificationItemObjectContent).description !== undefined
+  );
 }
 
 const textCss = css`
