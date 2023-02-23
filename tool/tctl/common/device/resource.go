@@ -48,12 +48,12 @@ type ResourceSpec struct {
 	// EnrollStatus is represented as a string here for user-friendly manipulation.
 	EnrollStatus  string                     `json:"enroll_status"`
 	Credential    *devicepb.DeviceCredential `json:"credential,omitempty"`
-	CollectedData []DeviceCollectedData      `json:"collected_data,omitempty"`
+	CollectedData []CollectedData            `json:"collected_data,omitempty"`
 }
 
-// DeviceCollectedData mirrors [devicepb.DeviceCollectedData] but with a different
+// CollectedData mirrors [devicepb.DeviceCollectedData] but with a different
 // timestamp type to achieve consistent serialization output.
-type DeviceCollectedData struct {
+type CollectedData struct {
 	CollectTime  time.Time `json:"collect_time"`
 	RecordTime   time.Time `json:"record_time"`
 	OSType       string    `json:"os_type"`
@@ -107,9 +107,9 @@ func UnmarshalDevice(raw []byte) (*devicepb.Device, error) {
 // implements types.Resource and can be marshaled to YAML or JSON in a
 // human-friendly format.
 func ProtoToResource(device *devicepb.Device) *Resource {
-	collectedData := make([]DeviceCollectedData, 0, len(device.CollectedData))
+	collectedData := make([]CollectedData, 0, len(device.CollectedData))
 	for _, d := range device.CollectedData {
-		collectedData = append(collectedData, DeviceCollectedData{
+		collectedData = append(collectedData, CollectedData{
 			CollectTime:  d.CollectTime.AsTime(),
 			RecordTime:   d.RecordTime.AsTime(),
 			OSType:       devicetrust.ResourceOSTypeToString(d.OsType),
