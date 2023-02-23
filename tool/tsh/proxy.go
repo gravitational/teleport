@@ -697,11 +697,6 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyHost, proxyPort, err := net.SplitHostPort(awsApp.GetForwardProxyAddr())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	templateData := map[string]interface{}{
 		"envVars":     envVars,
 		"address":     awsApp.GetForwardProxyAddr(),
@@ -710,11 +705,18 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		"randomPort":  cf.LocalProxyPort == "",
 		"appName":     awsApp.appName,
 		"proxyScheme": "http",
-		"proxyHost":   proxyHost,
-		"proxyPort":   proxyPort,
 		"region":      getEnvOrDefault(awsRegionEnvVar, "<region>"),
 		"keystore":    getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
 		"workgroup":   getEnvOrDefault(awsWorkgroupEnvVar, "<workgroup>"),
+	}
+
+	if !cf.AWSEndpointURLMode {
+		proxyHost, proxyPort, err := net.SplitHostPort(awsApp.GetForwardProxyAddr())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		templateData["proxyHost"] = proxyHost
+		templateData["proxyPort"] = proxyPort
 	}
 
 	templates := []string{awsProxyHeaderTemplate}
