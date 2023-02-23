@@ -40,7 +40,6 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
@@ -873,7 +872,8 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.PeerAddr = *addr
 	}
 	if fc.Proxy.UI != nil {
-		cfg.Proxy.UI = webclient.UIConfig(*fc.Proxy.UI)
+		// cfg.Proxy.UI = webclient.UIConfig(*fc.Proxy.UI)
+		cfg.Proxy.UI.ScrollbackLines = fc.Proxy.UI.ScrollbackLines
 	}
 
 	// This is the legacy format. Continue to support it forever, but ideally
