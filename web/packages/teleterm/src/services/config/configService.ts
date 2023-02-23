@@ -35,55 +35,55 @@ const createAppConfigSchema = (platform: Platform) => {
   return z.object({
     'usageReporting.enabled': z.boolean().default(false),
     'keymap.tab1': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-1'])
+      z.string().default(defaultKeymap['tab1'])
     ),
     'keymap.tab2': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-2'])
+      z.string().default(defaultKeymap['tab2'])
     ),
     'keymap.tab3': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-3'])
+      z.string().default(defaultKeymap['tab3'])
     ),
     'keymap.tab4': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-4'])
+      z.string().default(defaultKeymap['tab4'])
     ),
     'keymap.tab5': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-5'])
+      z.string().default(defaultKeymap['tab5'])
     ),
     'keymap.tab6': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-6'])
+      z.string().default(defaultKeymap['tab6'])
     ),
     'keymap.tab7': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-7'])
+      z.string().default(defaultKeymap['tab7'])
     ),
     'keymap.tab8': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-8'])
+      z.string().default(defaultKeymap['tab8'])
     ),
     'keymap.tab9': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-9'])
+      z.string().default(defaultKeymap['tab9'])
     ),
     'keymap.closeTab': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-close'])
+      z.string().default(defaultKeymap['closeTab'])
     ),
     'keymap.newTab': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-new'])
+      z.string().default(defaultKeymap['newTab'])
     ),
     'keymap.previousTab': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-previous'])
+      z.string().default(defaultKeymap['previousTab'])
     ),
     'keymap.nextTab': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-next'])
+      z.string().default(defaultKeymap['nextTab'])
     ),
     'keymap.openConnections': omitStoredConfigValue(
-      z.string().default(defaultKeymap['toggle-connections'])
+      z.string().default(defaultKeymap['openConnections'])
     ),
     'keymap.openClusters': omitStoredConfigValue(
-      z.string().default(defaultKeymap['toggle-clusters'])
+      z.string().default(defaultKeymap['openClusters'])
     ),
     'keymap.openProfiles': omitStoredConfigValue(
-      z.string().default(defaultKeymap['toggle-identity'])
+      z.string().default(defaultKeymap['openProfiles'])
     ),
     'keymap.openQuickInput': omitStoredConfigValue(
-      z.string().default(defaultKeymap['open-quick-input'])
+      z.string().default(defaultKeymap['openQuickInput'])
     ),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
@@ -107,85 +107,85 @@ export type AppConfig = z.infer<ReturnType<typeof createAppConfigSchema>>;
  * Ctrl-Alt-Shift for other platforms
  */
 export type KeyboardShortcutAction =
-  | 'tab-1'
-  | 'tab-2'
-  | 'tab-3'
-  | 'tab-4'
-  | 'tab-5'
-  | 'tab-6'
-  | 'tab-7'
-  | 'tab-8'
-  | 'tab-9'
-  | 'tab-close'
-  | 'tab-new'
-  | 'tab-previous'
-  | 'tab-next'
-  | 'open-quick-input'
-  | 'toggle-connections'
-  | 'toggle-clusters'
-  | 'toggle-identity';
+  | 'tab1'
+  | 'tab2'
+  | 'tab3'
+  | 'tab4'
+  | 'tab5'
+  | 'tab6'
+  | 'tab7'
+  | 'tab8'
+  | 'tab9'
+  | 'closeTab'
+  | 'newTab'
+  | 'previousTab'
+  | 'nextTab'
+  | 'openQuickInput'
+  | 'openConnections'
+  | 'openClusters'
+  | 'openProfiles';
 
 const getDefaultKeymap = (platform: Platform) => {
   switch (platform) {
     case 'win32':
       return {
-        'tab-1': 'Ctrl+1',
-        'tab-2': 'Ctrl+2',
-        'tab-3': 'Ctrl+3',
-        'tab-4': 'Ctrl+4',
-        'tab-5': 'Ctrl+5',
-        'tab-6': 'Ctrl+6',
-        'tab-7': 'Ctrl+7',
-        'tab-8': 'Ctrl+8',
-        'tab-9': 'Ctrl+9',
-        'tab-close': 'Ctrl+W',
-        'tab-new': 'Ctrl+T',
-        'tab-previous': 'Ctrl+Shift+Tab',
-        'tab-next': 'Ctrl+Tab',
-        'open-quick-input': 'Ctrl+K',
-        'toggle-connections': 'Ctrl+P',
-        'toggle-clusters': 'Ctrl+E',
-        'toggle-identity': 'Ctrl+I',
+        tab1: 'Ctrl+1',
+        tab2: 'Ctrl+2',
+        tab3: 'Ctrl+3',
+        tab4: 'Ctrl+4',
+        tab5: 'Ctrl+5',
+        tab6: 'Ctrl+6',
+        tab7: 'Ctrl+7',
+        tab8: 'Ctrl+8',
+        tab9: 'Ctrl+9',
+        closeTab: 'Ctrl+W',
+        newTab: 'Ctrl+T',
+        previousTab: 'Ctrl+Shift+Tab',
+        nextTab: 'Ctrl+Tab',
+        openQuickInput: 'Ctrl+K',
+        openConnections: 'Ctrl+P',
+        openClusters: 'Ctrl+E',
+        openProfiles: 'Ctrl+I',
       };
     case 'linux':
       return {
-        'tab-1': 'Alt+1',
-        'tab-2': 'Alt+2',
-        'tab-3': 'Alt+3',
-        'tab-4': 'Alt+4',
-        'tab-5': 'Alt+5',
-        'tab-6': 'Alt+6',
-        'tab-7': 'Alt+7',
-        'tab-8': 'Alt+8',
-        'tab-9': 'Alt+9',
-        'tab-close': 'Ctrl+W',
-        'tab-new': 'Ctrl+T',
-        'tab-previous': 'Ctrl+Shift+Tab',
-        'tab-next': 'Ctrl+Tab',
-        'open-quick-input': 'Ctrl+K',
-        'toggle-connections': 'Ctrl+P',
-        'toggle-clusters': 'Ctrl+E',
-        'toggle-identity': 'Ctrl+I',
+        tab1: 'Alt+1',
+        tab2: 'Alt+2',
+        tab3: 'Alt+3',
+        tab4: 'Alt+4',
+        tab5: 'Alt+5',
+        tab6: 'Alt+6',
+        tab7: 'Alt+7',
+        tab8: 'Alt+8',
+        tab9: 'Alt+9',
+        closeTab: 'Ctrl+W',
+        newTab: 'Ctrl+T',
+        previousTab: 'Ctrl+Shift+Tab',
+        nextTab: 'Ctrl+Tab',
+        openQuickInput: 'Ctrl+K',
+        openConnections: 'Ctrl+P',
+        openClusters: 'Ctrl+E',
+        openProfiles: 'Ctrl+I',
       };
     case 'darwin':
       return {
-        'tab-1': 'Command+1',
-        'tab-2': 'Command+2',
-        'tab-3': 'Command+3',
-        'tab-4': 'Command+4',
-        'tab-5': 'Command+5',
-        'tab-6': 'Command+6',
-        'tab-7': 'Command+7',
-        'tab-8': 'Command+8',
-        'tab-9': 'Command+9',
-        'tab-close': 'Command+W',
-        'tab-new': 'Command+T',
-        'tab-previous': 'Control+Shift+Tab',
-        'tab-next': 'Control+Tab',
-        'open-quick-input': 'Command+K',
-        'toggle-connections': 'Command+P',
-        'toggle-clusters': 'Command+E',
-        'toggle-identity': 'Command+I',
+        tab1: 'Command+1',
+        tab2: 'Command+2',
+        tab3: 'Command+3',
+        tab4: 'Command+4',
+        tab5: 'Command+5',
+        tab6: 'Command+6',
+        tab7: 'Command+7',
+        tab8: 'Command+8',
+        tab9: 'Command+9',
+        closeTab: 'Command+W',
+        newTab: 'Command+T',
+        previousTab: 'Control+Shift+Tab',
+        nextTab: 'Control+Tab',
+        openQuickInput: 'Command+K',
+        openConnections: 'Command+P',
+        openClusters: 'Command+E',
+        openProfiles: 'Command+I',
       };
   }
 };

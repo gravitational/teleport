@@ -177,15 +177,15 @@ function getTestSetup({ documents }: { documents: Document[] }) {
 }
 
 test.each([
-  { action: 'tab-1', value: 0 },
-  { action: 'tab-2', value: 1 },
-  { action: 'tab-3', value: 2 },
-  { action: 'tab-4', value: 3 },
-  { action: 'tab-5', value: 4 },
-  { action: 'tab-6', value: 5 },
-  { action: 'tab-7', value: 6 },
-  { action: 'tab-8', value: 7 },
-  { action: 'tab-9', value: 8 },
+  { action: 'tab1', value: 0 },
+  { action: 'tab2', value: 1 },
+  { action: 'tab3', value: 2 },
+  { action: 'tab4', value: 3 },
+  { action: 'tab5', value: 4 },
+  { action: 'tab6', value: 5 },
+  { action: 'tab7', value: 6 },
+  { action: 'tab8', value: 7 },
+  { action: 'tab9', value: 8 },
 ])('open tab using $type shortcut', ({ action, value }) => {
   const { emitKeyboardShortcutEvent, docsService } = getTestSetup({
     documents: getMockDocuments(),
@@ -205,7 +205,7 @@ test('close active tab', () => {
   const documentToClose = docsService.getDocuments()[0];
   docsService.getActive = () => documentToClose;
 
-  emitKeyboardShortcutEvent({ action: 'tab-close' });
+  emitKeyboardShortcutEvent({ action: 'closeTab' });
 
   expect(docsService.close).toHaveBeenCalledWith(documentToClose.uri);
 });
@@ -215,7 +215,7 @@ test('should ignore close command if no tabs are open', () => {
     documents: [],
   });
 
-  emitKeyboardShortcutEvent({ action: 'tab-close' });
+  emitKeyboardShortcutEvent({ action: 'closeTab' });
 
   expect(docsService.close).not.toHaveBeenCalled();
 });
@@ -231,7 +231,7 @@ test('open new tab', () => {
     kind: 'doc.cluster',
   };
   docsService.createClusterDocument = () => mockedClusterDocument;
-  emitKeyboardShortcutEvent({ action: 'tab-new' });
+  emitKeyboardShortcutEvent({ action: 'newTab' });
 
   expect(docsService.add).toHaveBeenCalledWith(mockedClusterDocument);
   expect(docsService.open).toHaveBeenCalledWith(mockedClusterDocument.uri);
@@ -245,7 +245,7 @@ describe('open next/previous tab', () => {
     const activeTabIndex = 2;
     docsService.getActive = () => docsService.getDocuments()[activeTabIndex];
 
-    emitKeyboardShortcutEvent({ action: 'tab-next' });
+    emitKeyboardShortcutEvent({ action: 'nextTab' });
 
     expect(docsService.open).toHaveBeenCalledWith(
       docsService.getDocuments()[activeTabIndex + 1].uri
@@ -259,7 +259,7 @@ describe('open next/previous tab', () => {
     const activeTabIndex = docsService.getDocuments().length - 1;
     docsService.getActive = () => docsService.getDocuments()[activeTabIndex];
 
-    emitKeyboardShortcutEvent({ action: 'tab-next' });
+    emitKeyboardShortcutEvent({ action: 'nextTab' });
 
     expect(docsService.open).toHaveBeenCalledWith(
       docsService.getDocuments()[0].uri
@@ -273,7 +273,7 @@ describe('open next/previous tab', () => {
     const activeTabIndex = 2;
     docsService.getActive = () => docsService.getDocuments()[activeTabIndex];
 
-    emitKeyboardShortcutEvent({ action: 'tab-previous' });
+    emitKeyboardShortcutEvent({ action: 'previousTab' });
 
     expect(docsService.open).toHaveBeenCalledWith(
       docsService.getDocuments()[activeTabIndex - 1].uri
@@ -287,7 +287,7 @@ describe('open next/previous tab', () => {
     const activeTabIndex = 0;
     docsService.getActive = () => docsService.getDocuments()[activeTabIndex];
 
-    emitKeyboardShortcutEvent({ action: 'tab-previous' });
+    emitKeyboardShortcutEvent({ action: 'previousTab' });
 
     expect(docsService.open).toHaveBeenCalledWith(
       docsService.getDocuments()[docsService.getDocuments().length - 1].uri
@@ -298,7 +298,7 @@ describe('open next/previous tab', () => {
     const { emitKeyboardShortcutEvent, docsService } = getTestSetup({
       documents: [],
     });
-    emitKeyboardShortcutEvent({ action: 'tab-next' });
+    emitKeyboardShortcutEvent({ action: 'nextTab' });
 
     expect(docsService.open).not.toHaveBeenCalled();
   });

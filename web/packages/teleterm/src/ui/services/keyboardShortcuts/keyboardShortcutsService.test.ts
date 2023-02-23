@@ -21,7 +21,7 @@ import { KeyboardShortcutsService } from './keyboardShortcutsService';
 test('call subscriber on event', () => {
   const { subscriber } = getTestSetup();
   dispatchEventCommand1();
-  expect(subscriber).toHaveBeenCalledWith({ action: 'tab-1' });
+  expect(subscriber).toHaveBeenCalledWith({ action: 'tab1' });
 });
 
 test('do not call subscriber on unknown event', () => {

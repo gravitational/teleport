@@ -42,7 +42,7 @@ export const ConnectionsIcon = forwardRef<HTMLDivElement, ConnectionsIconProps>(
           kind="secondary"
           size="small"
           m="auto"
-          title={getLabelWithShortcut('Open Connections', 'toggle-connections')}
+          title={getLabelWithShortcut('Open Connections', 'openConnections')}
         >
           <Cluster fontSize={16} />
         </StyledButton>

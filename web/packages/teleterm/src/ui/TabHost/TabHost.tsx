@@ -108,8 +108,8 @@ export function TabHost({ ctx }: { ctx: IAppContext }) {
           onMoved={handleTabMoved}
           disableNew={false}
           onNew={openClusterTab}
-          newTabTooltip={getLabelWithShortcut('New Tab', 'tab-new')}
-          closeTabTooltip={getLabelWithShortcut('Close', 'tab-close')}
+          newTabTooltip={getLabelWithShortcut('New Tab', 'newTab')}
+          closeTabTooltip={getLabelWithShortcut('Close', 'closeTab')}
         />
       </Flex>
       <DocumentsRenderer />

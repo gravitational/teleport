@@ -42,7 +42,7 @@ export const ClusterSelector = forwardRef<HTMLDivElement, ClusterSelectorProps>(
         isClusterSelected={!!props.clusterName}
         title={getLabelWithShortcut(
           [props.clusterName, 'Open Clusters'].filter(Boolean).join('\n'),
-          'toggle-clusters'
+          'openClusters'
         )}
       >
         <Text

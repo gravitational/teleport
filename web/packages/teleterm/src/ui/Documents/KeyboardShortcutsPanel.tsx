@@ -29,23 +29,23 @@ export function KeyboardShortcutsPanel() {
   const items: { title: string; shortcutAction: KeyboardShortcutAction }[] = [
     {
       title: 'Open New Tab',
-      shortcutAction: 'tab-new',
+      shortcutAction: 'newTab',
     },
     {
       title: 'Go To Next Tab',
-      shortcutAction: 'tab-next',
+      shortcutAction: 'nextTab',
     },
     {
       title: 'Open Connections',
-      shortcutAction: 'toggle-connections',
+      shortcutAction: 'openConnections',
     },
     {
       title: 'Open Clusters',
-      shortcutAction: 'toggle-clusters',
+      shortcutAction: 'openClusters',
     },
     {
       title: 'Open Profiles',
-      shortcutAction: 'toggle-identity',
+      shortcutAction: 'openProfiles',
     },
   ];
 

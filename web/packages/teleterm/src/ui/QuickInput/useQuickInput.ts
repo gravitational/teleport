@@ -74,8 +74,7 @@ export default function useQuickInput() {
   const hasSuggestions =
     suggestionsAttempt.status === 'success' &&
     suggestionsAttempt.data.length > 0;
-  const openQuickInputShortcutAction: KeyboardShortcutAction =
-    'open-quick-input';
+  const openQuickInputShortcutAction: KeyboardShortcutAction = 'openQuickInput';
   const { getShortcut } = useKeyboardShortcutFormatters();
 
   const onFocus = (e: any) => {

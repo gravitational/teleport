@@ -52,7 +52,7 @@ export function IdentityContainer() {
   useKeyboardShortcuts(
     useMemo(
       () => ({
-        'toggle-identity': presenterRef.current?.togglePopover,
+        openProfiles: presenterRef.current?.togglePopover,
       }),
       [presenterRef.current?.togglePopover]
     )
@@ -61,7 +61,7 @@ export function IdentityContainer() {
   const makeTitle = (userWithClusterName: string | undefined) =>
     getLabelWithShortcut(
       [userWithClusterName, 'Open Profiles'].filter(Boolean).join('\n'),
-      'toggle-identity'
+      'openProfiles'
     );
 
   return (

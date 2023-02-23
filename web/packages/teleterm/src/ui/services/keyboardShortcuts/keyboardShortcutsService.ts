@@ -35,24 +35,23 @@ export class KeyboardShortcutsService {
     private configService: ConfigService
   ) {
     this.shortcutsConfig = {
-      'tab-1': this.configService.get('keymap.tab1').value,
-      'tab-2': this.configService.get('keymap.tab2').value,
-      'tab-3': this.configService.get('keymap.tab3').value,
-      'tab-4': this.configService.get('keymap.tab4').value,
-      'tab-5': this.configService.get('keymap.tab5').value,
-      'tab-6': this.configService.get('keymap.tab6').value,
-      'tab-7': this.configService.get('keymap.tab7').value,
-      'tab-8': this.configService.get('keymap.tab8').value,
-      'tab-9': this.configService.get('keymap.tab9').value,
-      'tab-close': this.configService.get('keymap.closeTab').value,
-      'tab-previous': this.configService.get('keymap.previousTab').value,
-      'tab-next': this.configService.get('keymap.nextTab').value,
-      'tab-new': this.configService.get('keymap.newTab').value,
-      'open-quick-input': this.configService.get('keymap.openQuickInput').value,
-      'toggle-connections': this.configService.get('keymap.openConnections')
-        .value,
-      'toggle-clusters': this.configService.get('keymap.openClusters').value,
-      'toggle-identity': this.configService.get('keymap.openProfiles').value,
+      tab1: this.configService.get('keymap.tab1').value,
+      tab2: this.configService.get('keymap.tab2').value,
+      tab3: this.configService.get('keymap.tab3').value,
+      tab4: this.configService.get('keymap.tab4').value,
+      tab5: this.configService.get('keymap.tab5').value,
+      tab6: this.configService.get('keymap.tab6').value,
+      tab7: this.configService.get('keymap.tab7').value,
+      tab8: this.configService.get('keymap.tab8').value,
+      tab9: this.configService.get('keymap.tab9').value,
+      closeTab: this.configService.get('keymap.closeTab').value,
+      previousTab: this.configService.get('keymap.previousTab').value,
+      nextTab: this.configService.get('keymap.nextTab').value,
+      newTab: this.configService.get('keymap.newTab').value,
+      openQuickInput: this.configService.get('keymap.openQuickInput').value,
+      openConnections: this.configService.get('keymap.openConnections').value,
+      openClusters: this.configService.get('keymap.openClusters').value,
+      openProfiles: this.configService.get('keymap.openProfiles').value,
     };
     this.mapAcceleratorsToActions();
     this.attachKeydownHandler();
