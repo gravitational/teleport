@@ -526,6 +526,7 @@ type ProxyConfig struct {
 	// DisableALPNSNIListener allows turning off the ALPN Proxy listener. Used in tests.
 	DisableALPNSNIListener bool
 
+	// UI provides config options for the web UI
 	UI webclient.UIConfig
 }
 

@@ -244,6 +244,7 @@ type Config struct {
 	// application requests.
 	HealthCheckAppServer healthCheckAppServerFunc
 
+	// UI provides config options for the web UI
 	UI webclient.UIConfig
 }
 
