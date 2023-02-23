@@ -29,17 +29,9 @@ import (
 func TestFetchOSVersion(t *testing.T) {
 	t.Parallel()
 
-	expectedFormat := `
-ProductName:            macOS
-ProductVersion:         13.2.1
-BuildVersion:           22D68
-`
-
-	unexpectedFormat := `
-Productname:            macOS
-ProductVersion:         13.2.1
-BuildVersion:           22D68
-`
+	expectedProductName := `macOS`
+	expectedProductVersion := `13.2.1`
+	unexpectedProductVersion := `v13.2.1`
 
 	testCases := []struct {
 		desc        string
@@ -52,7 +44,18 @@ BuildVersion:           22D68
 				if name != "sw_vers" {
 					return nil, trace.NotFound("command does not exist")
 				}
-				return []byte(expectedFormat), nil
+				if len(args) != 1 {
+					return nil, trace.Errorf("invalid command argument")
+				}
+
+				switch args[0] {
+				case "-productName":
+					return []byte(expectedProductName), nil
+				case "-productVersion":
+					return []byte(expectedProductVersion), nil
+				default:
+					return nil, trace.Errorf("invalid command argument")
+				}
 			},
 			expected: "macOS 13.2.1",
 		},
@@ -62,9 +65,20 @@ BuildVersion:           22D68
 				if name != "sw_vers" {
 					return nil, trace.NotFound("command does not exist")
 				}
-				return []byte(unexpectedFormat), nil
+				if len(args) != 1 {
+					return nil, trace.Errorf("invalid command argument")
+				}
+
+				switch args[0] {
+				case "-productName":
+					return []byte(expectedProductName), nil
+				case "-productVersion":
+					return []byte(unexpectedProductVersion), nil
+				default:
+					return nil, trace.Errorf("invalid command argument")
+				}
 			},
-			expected: sanitize(unexpectedFormat),
+			expected: sanitize("macOS v13.2.1"),
 		},
 		{
 			desc: "empty if sw_vers does not exist",

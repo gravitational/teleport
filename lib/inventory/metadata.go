@@ -127,17 +127,17 @@ func (c *fetchConfig) fetchServices() []string {
 // fetchHostArchitecture computes the host architecture using the arch
 // command-line utility.
 func (c *fetchConfig) fetchHostArchitecture() string {
-	out, err := c.exec("arch")
+	cmd := "arch"
+	arch, err := c.exec(cmd)
 	if err != nil {
 		return ""
 	}
 
-	return validate(out, func(out string) (string, bool) {
-		if matchHostArchitecture.MatchString(out) {
-			return out, true
-		}
-		return "", false
-	})
+	if !matchHostArchitecture.MatchString(arch) {
+		return invalid(cmd, arch)
+	}
+
+	return arch
 }
 
 func (c *fetchConfig) fetchInstallMethods() []string {
@@ -148,15 +148,13 @@ func (c *fetchConfig) fetchInstallMethods() []string {
 
 // fetchContainerRuntime returns "docker" if the file "/.dockerenv" exists.
 func (c *fetchConfig) fetchContainerRuntime() string {
-	out, err := c.read("/.dockerenv")
+	_, err := c.read("/.dockerenv")
 	if err != nil {
 		return ""
 	}
 
-	return validate(out, func(_ string) (string, bool) {
-		// If the file exists, we should be running on Docker.
-		return "docker", true
-	})
+	// If the file exists, we should be running on Docker.
+	return "docker"
 }
 
 func (c *fetchConfig) fetchContainerOrchestrator() string {
@@ -168,8 +166,6 @@ func (c *fetchConfig) fetchCloudEnvironment() string {
 	// TODO(vitorenesduarte): fetch cloud environment
 	return ""
 }
-
-type parseFun func(string) (string, bool)
 
 // exec runs a command and validates its output using the parse function.
 func (cfg fetchConfig) exec(name string, args ...string) (string, error) {
@@ -191,15 +187,10 @@ func (cfg fetchConfig) read(name string) (string, error) {
 	return string(out), nil
 }
 
-// validate validates some output/content using the parse function.
-// If the output/content is not valid, it is sanitized and returned.
-func validate(out string, parse parseFun) string {
-	parsed, ok := parse(out)
-	if !ok {
-		log.Debugf("Unexpected format: %s", out)
-		return sanitize(out)
-	}
-	return parsed
+// invalid logs the unexpected output/content and sanitizes it by quoting it.
+func invalid(in string, out string) string {
+	log.Debugf("Unexpected '%q' format: %s", in, out)
+	return sanitize(out)
 }
 
 // sanitize sanitizes some output/content by quoting it.

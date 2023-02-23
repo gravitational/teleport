@@ -22,42 +22,29 @@ package inventory
 import (
 	"fmt"
 	"regexp"
-	"strings"
 )
 
-var matchProductVersion = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+var matchOSVersion = regexp.MustCompile(`^macOS \d+\.\d+\.\d+$`)
 
 // fetchOSVersion combines the output of 'sw_vers' to be e.g. "macOS 13.2.1".
 func (c *fetchConfig) fetchOSVersion() string {
-	out, err := c.exec("sw_vers")
+	cmd := "sw_vers"
+	productName, err := c.exec(cmd, "-productName")
 	if err != nil {
 		return ""
 	}
 
-	return validate(out, func(out string) (string, bool) {
-		var productName string
-		var productVersion string
+	productVersion, err := c.exec(cmd, "-productVersion")
+	if err != nil {
+		return ""
+	}
 
-		for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-			parts := strings.Split(line, ":")
-			if len(parts) != 2 {
-				return "", false
-			}
+	osVersion := fmt.Sprintf("%s %s", productName, productVersion)
+	if !matchOSVersion.MatchString(osVersion) {
+		return invalid(cmd, osVersion)
+	}
 
-			switch parts[0] {
-			case "ProductName":
-				productName = strings.TrimSpace(parts[1])
-			case "ProductVersion":
-				productVersion = strings.TrimSpace(parts[1])
-			}
-		}
-
-		if productName != "macOS" || !matchProductVersion.MatchString(productVersion) {
-			return "", false
-		}
-
-		return fmt.Sprintf("%s %s", productName, productVersion), true
-	})
+	return osVersion
 }
 
 // fetchGlibcVersion returns "" on darwin.
