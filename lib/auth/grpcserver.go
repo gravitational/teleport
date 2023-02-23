@@ -2622,11 +2622,26 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
 
+	if isDBLocalProxyTunnelCertReq(req) {
+		// don't limit the cert expiry to 1 minute for db local proxy tunnel,
+		// because the certs will be kept in-memory by the client to protect
+		// against cert/key exfiltration. When MFA is required, cert expiration
+		// time is bounded by the lifetime of the local proxy tunnel process.
+		return nil
+	}
+
 	maxExpiry := actx.authServer.GetClock().Now().Add(teleport.UserSingleUseCertTTL)
 	if req.Expires.After(maxExpiry) {
 		req.Expires = maxExpiry
 	}
 	return nil
+}
+
+// isDBLocalProxyTunnelCertReq returns whether a cert request is for
+// a database cert and the requester is a local proxy tunnel.
+func isDBLocalProxyTunnelCertReq(req *proto.UserCertsRequest) bool {
+	return req.Usage == proto.UserCertsRequest_Database &&
+		req.RequesterName == proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL
 }
 
 func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService_GenerateUserSingleUseCertsServer) (*types.MFADevice, error) {
