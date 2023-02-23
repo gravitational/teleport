@@ -4523,7 +4523,7 @@ func (g *GRPCServer) GetUIConfig(ctx context.Context, _ *emptypb.Empty) (*types.
 	}
 	uiconfigv1, ok := uiconfig.(*types.UIConfigV1)
 	if !ok {
-		return nil, trace.Wrap(trace.BadParameter("unexpected type %T", uiconfig))
+		return nil, trace.BadParameter("unexpected type %T", uiconfig)
 	}
 	return uiconfigv1, nil
 }
