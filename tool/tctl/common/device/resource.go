@@ -58,7 +58,7 @@ type CollectedData struct {
 	RecordTime  time.Time `json:"record_time"`
 	// OSType is represented as a string here for user-friendly manipulation.
 	OSType       string `json:"os_type"`
-	SerialNumber string `json:"serial_number"`
+	SerialNumber string `json:"serial_number,omitempty"`
 }
 
 // checkAndSetDefaults sanity checks Resource fields to catch simple errors, and
