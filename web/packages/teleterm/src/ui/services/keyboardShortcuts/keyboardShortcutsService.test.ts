@@ -50,5 +50,5 @@ function getTestSetup() {
 }
 
 function dispatchEventCommand1() {
-  dispatchEvent(new KeyboardEvent('keydown', { metaKey: true, key: '1' }));
+  dispatchEvent(new KeyboardEvent('keydown', { metaKey: true, code: '1' }));
 }

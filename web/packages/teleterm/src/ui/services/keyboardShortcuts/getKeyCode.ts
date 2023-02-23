@@ -1,0 +1,61 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * Based on tabby https://github.com/Eugeny/tabby/blob/7a8108b20d9cbaab636c932ceaf4bacc710d6a40/tabby-core/src/services/hotkeys.util.ts
+ *
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2017 Eugene Pankov
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ */
+
+const REGEX_LATIN_KEYNAME = /^[A-Za-z]$/;
+
+export function getKeyCode(event: KeyboardEvent): string {
+  if (REGEX_LATIN_KEYNAME.test(event.key)) {
+    // Handle Dvorak etc. via the reported "character" instead of the scancode
+    return event.key.toUpperCase();
+  }
+  let key = event.code;
+  key = key.replace('Key', '');
+  key = key.replace('Arrow', '');
+  key = key.replace('Digit', '');
+  key =
+    {
+      Comma: ',',
+      Period: '.',
+      Slash: '/',
+      Backslash: '\\',
+      IntlBackslash: '`',
+      Minus: '-',
+      Equal: '=',
+      Semicolon: ';',
+      Quote: "'",
+      BracketLeft: '[',
+      BracketRight: ']',
+    }[key] ?? key;
+  return key;
+}

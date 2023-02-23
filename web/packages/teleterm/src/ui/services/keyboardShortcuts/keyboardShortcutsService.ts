@@ -20,6 +20,7 @@ import {
   ConfigService,
 } from 'teleterm/services/config';
 
+import { getKeyCode } from './getKeyCode';
 import {
   KeyboardShortcutEvent,
   KeyboardShortcutEventSubscriber,
@@ -89,10 +90,19 @@ export class KeyboardShortcutsService {
   private getShortcutAction(
     event: KeyboardEvent
   ): KeyboardShortcutAction | undefined {
-    const getEventKey = () =>
-      event.key.length === 1 ? event.key.toUpperCase() : event.key;
-
-    const accelerator = [...this.getPlatformModifierKeys(event), getEventKey()]
+    // skip modifier-only events
+    if (
+      event.code.includes('Shift') ||
+      event.code.includes('Meta') ||
+      event.code.includes('Alt') ||
+      event.code.includes('Control')
+    ) {
+      return;
+    }
+    const accelerator = [
+      ...this.getPlatformModifierKeys(event),
+      getKeyCode(event),
+    ]
       .filter(Boolean)
       .join('+');
 
