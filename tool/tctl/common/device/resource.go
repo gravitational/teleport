@@ -39,7 +39,7 @@ type Resource struct {
 // This spec is intended to closely mirror [devicepb.Device] but swaps some data around
 // to get a UX that matches with our other resource types.
 type ResourceSpec struct {
-	// OsType is represented as a string here for user-friendly manipulation.
+	// OSType is represented as a string here for user-friendly manipulation.
 	OSType      string                      `json:"os_type"`
 	AssetTag    string                      `json:"asset_tag"`
 	CreateTime  time.Time                   `json:"create_time,omitempty"`
@@ -54,10 +54,11 @@ type ResourceSpec struct {
 // CollectedData mirrors [devicepb.DeviceCollectedData] but with a different
 // timestamp type to achieve consistent serialization output.
 type CollectedData struct {
-	CollectTime  time.Time `json:"collect_time"`
-	RecordTime   time.Time `json:"record_time"`
-	OSType       string    `json:"os_type"`
-	SerialNumber string    `json:"serial_number"`
+	CollectTime time.Time `json:"collect_time"`
+	RecordTime  time.Time `json:"record_time"`
+	// OSType is represented as a string here for user-friendly manipulation.
+	OSType       string `json:"os_type"`
+	SerialNumber string `json:"serial_number"`
 }
 
 // checkAndSetDefaults sanity checks Resource fields to catch simple errors, and
