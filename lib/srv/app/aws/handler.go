@@ -44,6 +44,8 @@ import (
 
 // signerHandler is an http.Handler for signing and forwarding requests to AWS API.
 type signerHandler struct {
+	// SigningService is used to sign requests before forwarding them.
+	*awsutils.SigningService
 	// fwd is a Forwarder used to forward signed requests to AWS API.
 	fwd *forward.Forwarder
 	// SignerHandlerConfig is the configuration for the handler.
@@ -60,8 +62,6 @@ type SignerHandlerConfig struct {
 	Log logrus.FieldLogger
 	// RoundTripper is an http.RoundTripper instance used for requests.
 	RoundTripper http.RoundTripper
-	// SigningService is used to sign requests before forwarding them.
-	*awsutils.SigningService
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 	// CredentialsGetter is used to obtain STS credentials.
@@ -99,22 +99,21 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	}
-
-	if cfg.SigningService == nil {
-		cfg.SigningService, err = awsutils.NewSigningService(awsutils.SigningServiceConfig{
-			CredentialsGetter: cfg.CredentialsGetter,
-			Session:           cfg.Session,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	return nil
 }
 
 // NewAWSSignerHandler creates a new request handler for signing and forwarding requests to AWS API.
 func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.Handler, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signingService, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
+		CredentialsGetter: config.CredentialsGetter,
+		Session:           config.Session,
+		Clock:             config.Clock,
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -127,6 +126,7 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 	}
 
 	handler := &signerHandler{
+		SigningService:      signingService,
 		SignerHandlerConfig: config,
 		closeContext:        ctx,
 		cache:               cache,

@@ -496,13 +496,6 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, clock clockwork.
 		awsAPIMock.Close()
 	})
 
-	svc, err := awsutils.NewSigningService(awsutils.SigningServiceConfig{
-		Session:           hostSession,
-		CredentialsGetter: &fakeCredentialsGetter{},
-		Clock:             clock,
-	})
-	require.NoError(t, err)
-
 	audit, err := common.NewAudit(common.AuditConfig{
 		Emitter: emitter,
 	})
@@ -510,7 +503,6 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, clock clockwork.
 	handler, err := NewAWSSignerHandler(context.Background(),
 		SignerHandlerConfig{
 			Session:           hostSession,
-			SigningService:    svc,
 			CredentialsGetter: &fakeCredentialsGetter{},
 			RoundTripper: &http.Transport{
 				TLSClientConfig: &tls.Config{

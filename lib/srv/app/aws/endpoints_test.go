@@ -72,9 +72,9 @@ func TestResolveEndpoints(t *testing.T) {
 			context.Background(),
 			suite.handler.cache,
 			resolveTimestreamEndpointCacheKey{
-				credentials:               staticAWSCredentials,
-				region:                    region,
-				isTimemstreamWriteRequest: true,
+				credentials:              staticAWSCredentials,
+				region:                   region,
+				isTimestreamWriteRequest: true,
 			},
 			func(context.Context) (*endpoints.ResolvedEndpoint, error) {
 				return &endpoints.ResolvedEndpoint{
@@ -89,9 +89,9 @@ func TestResolveEndpoints(t *testing.T) {
 			context.Background(),
 			suite.handler.cache,
 			resolveTimestreamEndpointCacheKey{
-				credentials:               staticAWSCredentials,
-				region:                    region,
-				isTimemstreamWriteRequest: false,
+				credentials:              staticAWSCredentials,
+				region:                   region,
+				isTimestreamWriteRequest: false,
 			},
 			func(context.Context) (*endpoints.ResolvedEndpoint, error) {
 				return &endpoints.ResolvedEndpoint{

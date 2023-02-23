@@ -90,8 +90,7 @@ func (c *CachedCredentialsGetterConfig) SetDefaults() {
 		c.Getter = NewCredentialsGetter()
 	}
 	if c.CacheTTL <= 0 {
-		// Minimum AssumeRole duration is 900 seconds. And leave some room for overhead.
-		c.CacheTTL = 800 * time.Second
+		c.CacheTTL = time.Minute
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()

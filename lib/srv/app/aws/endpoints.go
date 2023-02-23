@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -56,6 +57,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/timestreamquery"
 	"github.com/aws/aws-sdk-go/service/timestreamwrite"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -73,12 +75,12 @@ func (s *signerHandler) resolveEndpoint(r *http.Request) (*endpoints.ResolvedEnd
 		re, err := resolveEndpointByXForwardedHost(r, awsutils.AuthorizationHeader)
 		return re, trace.Wrap(err)
 
-	// Special handling for Timestream in legacy Endpoint mode.
+	// Special handling for Timestream when tsh local proxy is in Endpoint mode.
 	case shouldDiscoverTimestreamEndpoint(r):
 		re, err := s.resolveTimestreamEndpoint(r)
 		return re, trace.Wrap(err)
 
-	// Legacy Endpoint mode.
+	// tsh local proxy in Endpoint mode.
 	default:
 		re, err := resolveEndpointBySDKResolver(r)
 		return re, trace.Wrap(err)
@@ -192,27 +194,44 @@ func (s *signerHandler) resolveTimestreamEndpoint(r *http.Request) (*endpoints.R
 	}
 
 	key := resolveTimestreamEndpointCacheKey{
-		credentials:               credentials,
-		region:                    awsAuthHeader.Region,
-		isTimemstreamWriteRequest: isTimestreamWriteRequest(r),
+		credentials:              credentials,
+		region:                   awsAuthHeader.Region,
+		isTimestreamWriteRequest: isTimestreamWriteRequest(r),
 	}
 	re, err := utils.FnCacheGet(s.closeContext, s.cache, key, func(ctx context.Context) (*endpoints.ResolvedEndpoint, error) {
-		if key.isTimemstreamWriteRequest {
-			return resolveTimestreamWriteEndpoint(ctx, key.credentials, key.region)
+		session, err := session.NewSession(aws.NewConfig().WithCredentials(key.credentials).WithRegion(key.region))
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return resolveTimestreamQueryEndpoint(ctx, key.credentials, key.region)
+
+		getEndpoint := getTimestreamQueryEndpoint
+		if key.isTimestreamWriteRequest {
+			getEndpoint = getTimestreamWriteEndpoint
+		}
+		endpoint, err := getEndpoint(ctx, session)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &endpoints.ResolvedEndpoint{
+			URL:           "https://" + endpoint,
+			SigningRegion: key.region,
+			SigningName:   "timestream",
+		}, nil
 	})
 	return re, trace.Wrap(err)
 }
 
 type resolveTimestreamEndpointCacheKey struct {
-	credentials               *credentials.Credentials
-	region                    string
-	isTimemstreamWriteRequest bool
+	credentials              *credentials.Credentials
+	region                   string
+	isTimestreamWriteRequest bool
 }
 
 func isTimestreamWriteRequest(r *http.Request) bool {
 	switch strings.TrimPrefix(r.Header.Get("X-Amz-Target"), timestreamOpPrefix) {
+	// AWS SDK reference:
+	// https://github.com/aws/aws-sdk-go/blob/main/service/timestreamwrite/api.go
 	case "CreateDatabase", "CreateTable",
 		"DeleteDatabase", "DeleteTable",
 		"DescribeDatabase", "DescribeTable",
@@ -220,50 +239,41 @@ func isTimestreamWriteRequest(r *http.Request) bool {
 		"UpdateDatabase", "UpdateTable",
 		"WriteRecords":
 		return true
+	// AWS SDK reference:
+	// https://github.com/aws/aws-sdk-go/blob/main/service/timestreamquery/api.go
+	case "CancelQuery", "CreateScheduledQuery", "DeleteScheduledQuery",
+		"DescribeEndpoints", "DescribeScheduledQuery", "ExecuteScheduledQuery",
+		"ListScheduledQueries", "PrepareQuery", "Query", "UpdateScheduledQuery":
+		return false
 	// Note that both timestream-query and timestream-write support these tag operations.
 	// For now, we assume they are used for timestream-query.
 	case "ListTagsForResource", "TagResource", "UntagResource":
 		return false
 	default:
+		logrus.Warnf("Unknown Timestream operation %q. Assuming the request is a Timestream Query request.", r.Header.Get("X-Amz-Target"))
 		return false
 	}
 }
 
-func resolveTimestreamWriteEndpoint(ctx context.Context, credentials *credentials.Credentials, region string) (*endpoints.ResolvedEndpoint, error) {
-	session, err := session.NewSession(aws.NewConfig().WithCredentials(credentials).WithRegion(region))
+func getTimestreamWriteEndpoint(ctx context.Context, session client.ConfigProvider) (string, error) {
+	output, err := timestreamwrite.New(session).DescribeEndpointsWithContext(ctx, nil)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	output, err := timestreamwrite.New(session).DescribeEndpointsWithContext(ctx, &timestreamwrite.DescribeEndpointsInput{})
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 	if output == nil || len(output.Endpoints) == 0 {
-		return nil, trace.NotFound("no timestream-write endpoints found")
+		return "", trace.NotFound("no timestream-write endpoints found")
 	}
-	return &endpoints.ResolvedEndpoint{
-		URL:           "https://" + aws.StringValue(output.Endpoints[0].Address),
-		SigningRegion: region,
-		SigningName:   "timestream",
-	}, nil
+	return aws.StringValue(output.Endpoints[0].Address), nil
 }
-func resolveTimestreamQueryEndpoint(ctx context.Context, credentials *credentials.Credentials, region string) (*endpoints.ResolvedEndpoint, error) {
-	session, err := session.NewSession(aws.NewConfig().WithCredentials(credentials).WithRegion(region))
+func getTimestreamQueryEndpoint(ctx context.Context, session client.ConfigProvider) (string, error) {
+	output, err := timestreamquery.New(session).DescribeEndpointsWithContext(ctx, nil)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	output, err := timestreamquery.New(session).DescribeEndpointsWithContext(ctx, &timestreamquery.DescribeEndpointsInput{})
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 	if output == nil || len(output.Endpoints) == 0 {
-		return nil, trace.NotFound("no timestream-query endpoints found")
+		return "", trace.NotFound("no timestream-query endpoints found")
 	}
-	return &endpoints.ResolvedEndpoint{
-		URL:           "https://" + aws.StringValue(output.Endpoints[0].Address),
-		SigningRegion: region,
-		SigningName:   "timestream",
-	}, nil
+	return aws.StringValue(output.Endpoints[0].Address), nil
 }
 
 // endpointsIDFromSigningName returns the endpoints ID used for endpoint
@@ -343,4 +353,6 @@ var signingNameToEndpointsID = map[string]string{
 	"timestream":                            timestreamquery.EndpointsID,
 }
 
+// timestreamOpPrefix is the prefix used for all timestream-write and
+// timestream-query operations in the header "X-Amz-Target".
 const timestreamOpPrefix = "Timestream_20181101."
