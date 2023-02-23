@@ -30,6 +30,7 @@ import (
 	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/exp/slices"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
@@ -143,11 +144,17 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	localClusterName, err := cfg.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &Middleware{
-		AccessPoint:   cfg.AccessPoint,
+		ClusterName:   localClusterName.GetClusterName(),
 		AcceptedUsage: cfg.AcceptedUsage,
 		Limiter:       limiter,
 		GRPCMetrics:   grpcMetrics,
@@ -182,6 +189,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 
 	server.grpcServer, err = NewGRPCServer(GRPCServerConfig{
 		TLS:               server.cfg.TLS,
+		Middleware:        authMiddleware,
 		APIConfig:         cfg.APIConfig,
 		UnaryInterceptor:  authMiddleware.UnaryInterceptor(),
 		StreamInterceptor: authMiddleware.StreamInterceptor(),
@@ -320,8 +328,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 
 // Middleware is authentication middleware checking every request
 type Middleware struct {
-	// AccessPoint is a caching access point for auth server
-	AccessPoint AccessCache
+	ClusterName string
 	// Handler is HTTP handler called after the middleware checks requests
 	Handler http.Handler
 	// AcceptedUsage restricts authentication
@@ -380,19 +387,38 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 	if !ok {
 		return nil, trace.AccessDenied("missing authentication")
 	}
-	tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
-	if !ok {
+
+	var (
+		connState      *tls.ConnectionState
+		identityGetter IdentityGetter
+	)
+
+	switch info := peerInfo.AuthInfo.(type) {
+	// IdentityInfo is provided if the grpc server is configured with the
+	// TransportCredentials provided in this package.
+	case IdentityInfo:
+		connState = &info.TLSInfo.State
+		identityGetter = info.IdentityGetter
+	// credentials.TLSInfo is provided if the grpc server is configured with
+	// credentials.NewTLS.
+	case credentials.TLSInfo:
+		user, err := a.GetUser(info.State)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		connState = &info.State
+		identityGetter = user
+	default:
 		return nil, trace.AccessDenied("missing authentication")
 	}
-	user, err := a.GetUser(tlsInfo.State)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(&tlsInfo.State))
+	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(connState))
 	ctx = context.WithValue(ctx, ContextClientAddr, peerInfo.Addr)
-	ctx = context.WithValue(ctx, ContextUser, user)
+	ctx = context.WithValue(ctx, ContextUser, identityGetter)
+
 	return ctx, nil
+
 }
 
 func certFromConnState(state *tls.ConnectionState) *x509.Certificate {
@@ -430,15 +456,19 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
 	if a.GRPCMetrics != nil {
 		return utils.ChainUnaryServerInterceptors(
+			otelgrpc.UnaryServerInterceptor(),
 			om.UnaryServerInterceptor(a.GRPCMetrics),
 			utils.GRPCServerUnaryErrorInterceptor,
 			a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
-			a.withAuthenticatedUserUnaryInterceptor)
+			a.withAuthenticatedUserUnaryInterceptor,
+		)
 	}
 	return utils.ChainUnaryServerInterceptors(
+		otelgrpc.UnaryServerInterceptor(),
 		utils.GRPCServerUnaryErrorInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
-		a.withAuthenticatedUserUnaryInterceptor)
+		a.withAuthenticatedUserUnaryInterceptor,
+	)
 }
 
 // StreamInterceptor returns a gPRC stream interceptor which performs rate
@@ -447,15 +477,19 @@ func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
 func (a *Middleware) StreamInterceptor() grpc.StreamServerInterceptor {
 	if a.GRPCMetrics != nil {
 		return utils.ChainStreamServerInterceptors(
+			otelgrpc.StreamServerInterceptor(),
 			om.StreamServerInterceptor(a.GRPCMetrics),
 			utils.GRPCServerStreamErrorInterceptor,
 			a.Limiter.StreamServerInterceptor,
-			a.withAuthenticatedUserStreamInterceptor)
+			a.withAuthenticatedUserStreamInterceptor,
+		)
 	}
 	return utils.ChainStreamServerInterceptors(
+		otelgrpc.StreamServerInterceptor(),
 		utils.GRPCServerStreamErrorInterceptor,
 		a.Limiter.StreamServerInterceptor,
-		a.withAuthenticatedUserStreamInterceptor)
+		a.withAuthenticatedUserStreamInterceptor,
+	)
 }
 
 // authenticatedStream wraps around the embedded grpc.ServerStream
@@ -470,7 +504,7 @@ func (a *authenticatedStream) Context() context.Context {
 	return a.ctx
 }
 
-// GetUser returns authenticated user based on request metadata set by HTTP server
+// GetUser returns authenticated user based on request TLS metadata
 func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, error) {
 	peers := connState.PeerCertificates
 	if len(peers) > 1 {
@@ -478,10 +512,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 		// https://github.com/kubernetes/kubernetes/pull/34524/files#diff-2b283dde198c92424df5355f39544aa4R59
 		return nil, trace.AccessDenied("access denied: intermediaries are not supported")
 	}
-	localClusterName, err := a.AccessPoint.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	// with no client authentication in place, middleware
 	// assumes not-privileged Nop role.
 	// it theoretically possible to use bearer token auth even
@@ -491,7 +522,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 		return BuiltinRole{
 			Role:        types.RoleNop,
 			Username:    string(types.RoleNop),
-			ClusterName: localClusterName.GetClusterName(),
+			ClusterName: a.ClusterName,
 			Identity:    tlsca.Identity{},
 		}, nil
 	}
@@ -531,7 +562,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// by creating a cert pool constructed of trusted certificate authorities
 	// 2. Remote CAs are not allowed to have the same cluster name
 	// as the local certificate authority
-	if certClusterName != localClusterName.GetClusterName() {
+	if certClusterName != a.ClusterName {
 		// make sure that this user does not have system role
 		// the local auth server can not truste remote servers
 		// to issue certificates with system roles (e.g. Admin),
@@ -568,7 +599,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 			Role:                  *systemRole,
 			AdditionalSystemRoles: extractAdditionalSystemRoles(identity.SystemRoles),
 			Username:              identity.Username,
-			ClusterName:           localClusterName.GetClusterName(),
+			ClusterName:           a.ClusterName,
 			Identity:              *identity,
 		}, nil
 	}
