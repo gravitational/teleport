@@ -998,8 +998,15 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		// the kubeResource.
 		// This is required because CheckAccess does not validate the subresource type.
 		if actx.kubeResource != nil && len(actx.Checker.GetAllowedResourceIDs()) > 0 {
-			kubeResources := getKubeResourcesFromAllowedRequestIds(ks, actx.Checker.GetAllowedResourceIDs())
-			if err := matchKubernetesResource(*actx.kubeResource, kubeResources, nil /*denied branch is empty*/); err != nil {
+			// GetKubeResources returns the allowed and denied Kubernetes resources
+			// for the user. Since we have active access requests, the allowed
+			// resources will be the list of pods that the user requested access to if he
+			// requested access to specific pods or the list of pods that his roles
+			// allow if the user requested access a kubernetes cluster. If the user
+			// did not request access to any Kubernetes resource type, the allowed
+			// list will be empty.
+			allowed, denied := actx.Checker.GetKubeResources(ks)
+			if err := matchKubernetesResource(*actx.kubeResource, allowed, denied); err != nil {
 				return trace.AccessDenied(notFoundMessage)
 			}
 		}
@@ -1012,27 +1019,6 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		return nil
 	}
 	return trace.AccessDenied(notFoundMessage)
-}
-
-func getKubeResourcesFromAllowedRequestIds(ks types.KubeCluster, resourceIDs []types.ResourceID) []types.KubernetesResource {
-	kubeResources := make([]types.KubernetesResource, 0, len(resourceIDs))
-	for _, resourceID := range resourceIDs {
-		if !slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) || resourceID.Name != ks.GetName() {
-			continue
-		}
-		split := strings.SplitN(resourceID.SubResourceName, "/", 3)
-		if len(split) != 2 {
-			continue
-		}
-		kubeResources = append(kubeResources,
-			types.KubernetesResource{
-				Kind:      resourceID.Kind,
-				Namespace: split[0],
-				Name:      split[1],
-			},
-		)
-	}
-	return kubeResources
 }
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any

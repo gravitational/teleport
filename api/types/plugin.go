@@ -29,6 +29,7 @@ type Plugin interface {
 	ResourceWithSecrets
 	Clone() Plugin
 	GetCredentials() PluginCredentials
+	GetStatus() PluginStatus
 	SetCredentials(PluginCredentials) error
 	SetStatus(PluginStatus) error
 }
@@ -44,12 +45,10 @@ type PluginStatus interface {
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
-func NewPluginV1(name string, spec PluginSpecV1, creds *PluginCredentialsV1) *PluginV1 {
+func NewPluginV1(metadata Metadata, spec PluginSpecV1, creds *PluginCredentialsV1) *PluginV1 {
 	p := &PluginV1{
-		Metadata: Metadata{
-			Name: name,
-		},
-		Spec: spec,
+		Metadata: metadata,
+		Spec:     spec,
 	}
 	if creds != nil {
 		p.SetCredentials(creds)
@@ -175,12 +174,12 @@ func (p *PluginV1) SetName(e string) {
 	p.Metadata.Name = e
 }
 
-// GetPluginCredentials implements Plugin
+// GetCredentials implements Plugin
 func (p *PluginV1) GetCredentials() PluginCredentials {
 	return p.Credentials
 }
 
-// SetPluginCredentials implements Plugin
+// SetCredentials implements Plugin
 func (p *PluginV1) SetCredentials(creds PluginCredentials) error {
 	if creds == nil {
 		p.Credentials = nil
@@ -193,6 +192,11 @@ func (p *PluginV1) SetCredentials(creds PluginCredentials) error {
 		return trace.BadParameter("unsupported plugin credential type %T", creds)
 	}
 	return nil
+}
+
+// GetStatus implements Plugin
+func (p *PluginV1) GetStatus() PluginStatus {
+	return p.Status
 }
 
 // SetStatus implements Plugin
