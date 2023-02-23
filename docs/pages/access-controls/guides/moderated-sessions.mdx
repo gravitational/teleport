@@ -71,9 +71,10 @@ The policy below specifies that the `prod-access` role must have a minimum of
 two users with the role `auditor` and the mode `moderator` present in the
 session to start it. The policy applies to SSH and Kubernetes sessions only.
 
-When a user with this require policy starts a session, it will be pending until
-the policy is fulfilled. The role matches to `env: prod` labeled `ssh` and `k8s`
-resources. 
+This policy requires that at least one user with the `auditor` role is present
+as a moderator for SSH or Kubernetes sessions to start. That is applied for
+Servers and Kubernetes resources labeled `env: prod`. The session will pend starting
+until the policy is fulfilled.
 
 ```yaml
 kind: role
@@ -119,8 +120,7 @@ The following are required options for `join_sessions`:
 |`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
 
 <Admonition type="note">
-Moderator or observers can only join via CLI currently with `tsh join --mode=observer|moderator <session id>`.  Web joining is 
-not currently supported.
+Joining from the UI is available for Server for SSH sessions.  Kubernetes are only joinable by CLI currently.
 </Admonition>
 
 
@@ -177,6 +177,16 @@ Teleport > Connecting to prod.teleport.example.com over SSH
 
 ubuntu@prod.teleport.example.com % 
 ```
+
+Here is an example of joining from the UI that is available for Server sessions.
+
+![Join Server Session from UI](../../../img/access-controls/joinsession.png)
+
+<Admonition title="Note" type="tip">
+
+Joining as a moderator and observer is available for Servers in the UI Console.
+
+</Admonition>
 
 
 ### Filters
