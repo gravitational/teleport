@@ -28,20 +28,20 @@ var matchOSVersion = regexp.MustCompile(`^macOS \d+\.\d+\.\d+$`)
 
 // fetchOSVersion combines the output of 'sw_vers' to be e.g. "macOS 13.2.1".
 func (c *fetchConfig) fetchOSVersion() string {
-	cmd := "sw_vers"
-	productName, err := c.exec(cmd, "-productName")
+	command := "sw_vers"
+	productName, err := c.exec(command, "-productName")
 	if err != nil {
 		return ""
 	}
 
-	productVersion, err := c.exec(cmd, "-productVersion")
+	productVersion, err := c.exec(command, "-productVersion")
 	if err != nil {
 		return ""
 	}
 
 	osVersion := fmt.Sprintf("%s %s", productName, productVersion)
 	if !matchOSVersion.MatchString(osVersion) {
-		return invalid(cmd, osVersion)
+		return invalid(command, osVersion)
 	}
 
 	return osVersion

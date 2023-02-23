@@ -153,14 +153,14 @@ func (c *fetchConfig) fetchServices() []string {
 // fetchHostArchitecture computes the host architecture using the arch
 // command-line utility.
 func (c *fetchConfig) fetchHostArchitecture() string {
-	cmd := "arch"
-	out, err := c.exec(cmd)
+	command := "arch"
+	out, err := c.exec(command)
 	if err != nil {
 		return ""
 	}
 
 	if !matchHostArchitecture.MatchString(out) {
-		return invalid(cmd, out)
+		return invalid(command, out)
 	}
 
 	return out

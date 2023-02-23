@@ -68,22 +68,22 @@ func (c *fetchConfig) fetchOSVersion() string {
 // fetchGlibcVersion parses the output of 'ldd --version' and returns e.g.
 // "2.31".
 func (c *fetchConfig) fetchGlibcVersion() string {
-	cmd := "ldd"
-	out, err := c.exec(cmd, "--version")
+	command := "ldd"
+	out, err := c.exec(command, "--version")
 	if err != nil {
 		return ""
 	}
 
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	if len(lines) == 0 {
-		return invalid(cmd, out)
+		return invalid(command, out)
 	}
 
 	// The glibc version is the last word on the first line.
 	parts := strings.Fields(lines[0])
 	glibcVersion := parts[len(parts)-1]
 	if !matchGlibcVersion.MatchString(glibcVersion) {
-		return invalid(cmd, out)
+		return invalid(command, out)
 	}
 
 	return glibcVersion
