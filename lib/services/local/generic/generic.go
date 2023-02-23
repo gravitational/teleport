@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -49,6 +50,11 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 	}
 	if c.ResourceKind == "" {
 		return trace.BadParameter("resource kind is missing")
+	}
+	// We should allow page limit to be 0 for services that don't use pagination. Some services are
+	// intended to be internally facing only, and those services may not need to set this limit.
+	if c.PageLimit == 0 {
+		c.PageLimit = defaults.DefaultChunkSize
 	}
 	if c.BackendPrefix == "" {
 		return trace.BadParameter("backend prefix is missing")
