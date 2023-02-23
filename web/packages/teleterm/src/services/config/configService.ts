@@ -61,25 +61,25 @@ const createAppConfigSchema = (platform: Platform) => {
     'keymap.tab9': omitStoredConfigValue(
       z.string().default(defaultKeymap['tab-9'])
     ),
-    'keymap.tabClose': omitStoredConfigValue(
+    'keymap.closeTab': omitStoredConfigValue(
       z.string().default(defaultKeymap['tab-close'])
     ),
-    'keymap.tabNew': omitStoredConfigValue(
+    'keymap.newTab': omitStoredConfigValue(
       z.string().default(defaultKeymap['tab-new'])
     ),
-    'keymap.tabPrevious': omitStoredConfigValue(
+    'keymap.previousTab': omitStoredConfigValue(
       z.string().default(defaultKeymap['tab-previous'])
     ),
-    'keymap.tabNext': omitStoredConfigValue(
+    'keymap.nextTab': omitStoredConfigValue(
       z.string().default(defaultKeymap['tab-next'])
     ),
-    'keymap.toggleConnections': omitStoredConfigValue(
+    'keymap.openConnections': omitStoredConfigValue(
       z.string().default(defaultKeymap['toggle-connections'])
     ),
-    'keymap.toggleClusters': omitStoredConfigValue(
+    'keymap.openClusters': omitStoredConfigValue(
       z.string().default(defaultKeymap['toggle-clusters'])
     ),
-    'keymap.toggleIdentity': omitStoredConfigValue(
+    'keymap.openProfiles': omitStoredConfigValue(
       z.string().default(defaultKeymap['toggle-identity'])
     ),
     'keymap.openQuickInput': omitStoredConfigValue(

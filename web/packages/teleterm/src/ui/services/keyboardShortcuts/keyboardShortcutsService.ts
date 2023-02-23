@@ -44,15 +44,15 @@ export class KeyboardShortcutsService {
       'tab-7': this.configService.get('keymap.tab7').value,
       'tab-8': this.configService.get('keymap.tab8').value,
       'tab-9': this.configService.get('keymap.tab9').value,
-      'tab-close': this.configService.get('keymap.tabClose').value,
-      'tab-previous': this.configService.get('keymap.tabPrevious').value,
-      'tab-next': this.configService.get('keymap.tabNext').value,
-      'tab-new': this.configService.get('keymap.tabNew').value,
+      'tab-close': this.configService.get('keymap.closeTab').value,
+      'tab-previous': this.configService.get('keymap.previousTab').value,
+      'tab-next': this.configService.get('keymap.nextTab').value,
+      'tab-new': this.configService.get('keymap.newTab').value,
       'open-quick-input': this.configService.get('keymap.openQuickInput').value,
-      'toggle-connections': this.configService.get('keymap.toggleConnections')
+      'toggle-connections': this.configService.get('keymap.openConnections')
         .value,
-      'toggle-clusters': this.configService.get('keymap.toggleClusters').value,
-      'toggle-identity': this.configService.get('keymap.toggleIdentity').value,
+      'toggle-clusters': this.configService.get('keymap.openClusters').value,
+      'toggle-identity': this.configService.get('keymap.openProfiles').value,
     };
     this.mapAcceleratorsToActions();
     this.attachKeydownHandler();
