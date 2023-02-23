@@ -410,7 +410,7 @@ func onRequestSearch(cf *CLIConf) error {
 			TeleportCluster:     tc.SiteName,
 		}
 
-		resources, err = client.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, req)
+		resources, err = client.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, &req)
 		if err != nil {
 			return trace.Wrap(err)
 		}

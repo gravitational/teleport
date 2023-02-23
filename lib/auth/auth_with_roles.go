@@ -37,6 +37,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -257,15 +258,30 @@ func hasLocalUserRole(authContext authz.Context) bool {
 }
 
 // DevicesClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles and will always panic.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
 func (a *ServerWithRoles) DevicesClient() devicepb.DeviceTrustServiceClient {
-	panic("DevicesClient not implemented by ServerWithRoles")
+	return devicepb.NewDeviceTrustServiceClient(
+		utils.NewGRPCDummyClientConnection("DevicesClient() should not be called on ServerWithRoles"),
+	)
 }
 
 // LoginRuleClient allows ServerWithRoles to implement ClientI.
-// It should not be called through ServerWithRoles and will always panic.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
 func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
-	panic("LoginRuleClient not implemented by ServerWithRoles")
+	return loginrulepb.NewLoginRuleServiceClient(
+		utils.NewGRPCDummyClientConnection("LoginRuleClient() should not be called on ServerWithRoles"),
+	)
+}
+
+// PluginsClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) PluginsClient() pluginspb.PluginServiceClient {
+	return pluginspb.NewPluginServiceClient(
+		utils.NewGRPCDummyClientConnection("PluginsClient() should not be called on ServerWithRoles"),
+	)
 }
 
 // OktaClient allows ServerWithRoles to implement ClientI.
