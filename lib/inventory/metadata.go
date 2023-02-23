@@ -169,7 +169,6 @@ func (c *fetchConfig) fetchHostArchitecture() string {
 func (c *fetchConfig) fetchInstallMethods() []string {
 	// TODO(vitorenesduarte): fetch install methods
 	return []string{}
-
 }
 
 // fetchContainerRuntime returns "docker" if the file "/.dockerenv" exists.

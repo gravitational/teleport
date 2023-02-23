@@ -79,6 +79,7 @@ func (c *fetchConfig) fetchGlibcVersion() string {
 		return invalid(cmd, out)
 	}
 
+	// The glibc version is the last word on the first line.
 	parts := strings.Fields(lines[0])
 	glibcVersion := parts[len(parts)-1]
 	if !matchGlibcVersion.MatchString(glibcVersion) {
