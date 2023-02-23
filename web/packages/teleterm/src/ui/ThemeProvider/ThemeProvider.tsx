@@ -15,34 +15,21 @@ limitations under the License.
 */
 
 import React from 'react';
-import { ThemeProvider, StyleSheetManager } from 'styled-components';
+import {
+  ThemeProvider as StyledThemeProvider,
+  StyleSheetManager,
+} from 'styled-components';
 
 import { GlobalStyle } from './globals';
 import theme from './theme';
 
-type TeletermThemeProvider = {
-  fonts: {
-    mono: string;
-    sansSerif: string;
-  };
-};
-
-const TeletermThemeProvider: React.FC<TeletermThemeProvider> = props => {
-  if (props?.fonts) {
-    theme.font = props.fonts.sansSerif;
-    theme.fonts = props.fonts;
-  }
-
-  return (
-    <ThemeProvider theme={theme}>
-      <StyleSheetManager disableVendorPrefixes>
-        <React.Fragment>
-          <GlobalStyle />
-          {props.children}
-        </React.Fragment>
-      </StyleSheetManager>
-    </ThemeProvider>
-  );
-};
-
-export default TeletermThemeProvider;
+export const ThemeProvider: React.FC = props => (
+  <StyledThemeProvider theme={theme}>
+    <StyleSheetManager disableVendorPrefixes>
+      <React.Fragment>
+        <GlobalStyle />
+        {props.children}
+      </React.Fragment>
+    </StyleSheetManager>
+  </StyledThemeProvider>
+);
