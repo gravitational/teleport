@@ -73,7 +73,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			Apps:              apps,
 		}),
 		StartKey:   resp.NextKey,
-		TotalCount: len(apps),
+		TotalCount: resp.TotalCount,
 	}, nil
 }
 
