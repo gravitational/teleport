@@ -242,8 +242,8 @@ func isTimestreamWriteRequest(r *http.Request) bool {
 	// AWS SDK reference:
 	// https://github.com/aws/aws-sdk-go/blob/main/service/timestreamquery/api.go
 	case "CancelQuery", "CreateScheduledQuery", "DeleteScheduledQuery",
-		"DescribeEndpoints", "DescribeScheduledQuery", "ExecuteScheduledQuery",
-		"ListScheduledQueries", "PrepareQuery", "Query", "UpdateScheduledQuery":
+		"DescribeScheduledQuery", "ExecuteScheduledQuery", "ListScheduledQueries",
+		"PrepareQuery", "Query", "UpdateScheduledQuery":
 		return false
 	// Note that both timestream-query and timestream-write support these tag operations.
 	// For now, we assume they are used for timestream-query.
