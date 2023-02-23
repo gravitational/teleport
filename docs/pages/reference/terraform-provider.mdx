@@ -238,7 +238,7 @@ Role specification consists of two sections: `allow` and `deny`. They are identi
 Kubernetes resources represents the resources the role allows/denies access to. The following fields are supported:
 
 |                `kind`|      string | Resource kind. Supported values: `pod`                                          |
-|                `name`|      string | Resource name in the Kubernetes cluster. Supports regex expressions and wildcards `*`       |
+|                `name`|      string | Resource name in the Kubernetes cluster. Supports regular expressions and wildcards (`*`)       |
 |           `namespace`|      string | Resource namespace in the Kubernetes cluster. Supports regex expressions and wildcards `*`  |
 
 **spec.allow.request and spec.deny.request**
