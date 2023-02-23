@@ -132,11 +132,16 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		}
 
 		// Realistically, this would happen too.
-		if err := prompt.PromptTouch(); err != nil {
+		ackTouch, err := prompt.PromptTouch()
+		if err != nil {
 			return nil, err
 		}
 
-		return solveWebauthn(ctx, origin, assertion, prompt)
+		resp, err := solveWebauthn(ctx, origin, assertion, prompt)
+		if err != nil {
+			return nil, err
+		}
+		return resp, ackTouch()
 	}
 
 	ctx := context.Background()

@@ -375,17 +375,24 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routeToDatabase, _, err := getDatabaseInfo(cf, client, cf.DatabaseService)
+	route, _, err := getDatabaseInfo(cf, client, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Some protocols require the --tunnel flag, e.g. Snowflake.
-	if !cf.LocalProxyTunnel && requiresLocalProxyTunnel(routeToDatabase.Protocol) {
-		return trace.BadParameter(formatDbCmdUnsupportedWithCondition(cf, routeToDatabase, "without the --tunnel flag"))
+	// When proxying without the `--tunnel` flag, we need to:
+	// 1. check if --tunnel is required.
+	// 2. check if db login is required.
+	// These steps are not needed with `--tunnel`, because the local proxy tunnel
+	// will manage database certificates itself and reissue them as needed.
+	requires := getDBLocalProxyRequirement(client, route)
+	if requires.tunnel && !cf.LocalProxyTunnel {
+		// Some scenarios require the --tunnel flag, e.g.:
+		// - Snowflake, DynamoDB protocol
+		// - Hardware-backed private key policy
+		return trace.BadParameter(formatDbCmdUnsupported(cf, route, requires.tunnelReasons...))
 	}
-
-	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase); err != nil {
+	if err := maybeDatabaseLogin(cf, client, profile, route, requires); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -414,7 +421,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		cliConf:          cf,
 		teleportClient:   client,
 		profile:          profile,
-		routeToDatabase:  routeToDatabase,
+		routeToDatabase:  route,
 		listener:         listener,
 		localProxyTunnel: cf.LocalProxyTunnel,
 		rootClusterName:  rootCluster,
@@ -437,7 +444,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		commands, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
+		commands, err := dbcmd.NewCmdBuilder(client, profile, route, rootCluster,
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
@@ -450,8 +457,8 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 		// shared template arguments
 		templateArgs := map[string]any{
-			"database":   routeToDatabase.ServiceName,
-			"type":       defaults.ReadableDatabaseProtocol(routeToDatabase.Protocol),
+			"database":   route.ServiceName,
+			"type":       defaults.ReadableDatabaseProtocol(route.Protocol),
 			"cluster":    client.SiteName,
 			"address":    listener.Addr().String(),
 			"randomPort": randomPort,
@@ -465,10 +472,10 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 	} else {
 		err = dbProxyTpl.Execute(os.Stdout, map[string]any{
-			"database":   routeToDatabase.ServiceName,
+			"database":   route.ServiceName,
 			"address":    listener.Addr().String(),
 			"ca":         profile.CACertPathForCluster(rootCluster),
-			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, routeToDatabase.ServiceName),
+			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, route.ServiceName),
 			"key":        profile.KeyPath(),
 			"randomPort": randomPort,
 		})
@@ -700,7 +707,7 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 	}
 	cert, ok := key.AppTLSCerts[appName]
 	if !ok {
-		return tls.Certificate{}, trace.NotFound("please login into the application first. 'tsh app login'")
+		return tls.Certificate{}, trace.NotFound("please login into the application first. 'tsh apps login'")
 	}
 
 	tlsCert, err := key.TLSCertificate(cert)
@@ -710,11 +717,11 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 
 	expiresAt, err := getTLSCertExpireTime(tlsCert)
 	if err != nil {
-		return tls.Certificate{}, trace.WrapWithMessage(err, "invalid certificate - please login to the application again. 'tsh app login'")
+		return tls.Certificate{}, trace.WrapWithMessage(err, "invalid certificate - please login to the application again. 'tsh apps login'")
 	}
 	if time.Until(expiresAt) < 5*time.Second {
 		return tls.Certificate{}, trace.BadParameter(
-			"application %s certificate has expired, please re-login to the app using 'tsh app login'",
+			"application %s certificate has expired, please re-login to the app using 'tsh apps login'",
 			appName)
 	}
 	return tlsCert, nil
@@ -758,7 +765,7 @@ var dbProxyAuthMultiTpl = template.Must(template.New("").Parse(
 {{end}}
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 {{range $item := .commands}}
-  * {{$item.Description}}: 
+  * {{$item.Description}}:
 
   $ {{$item.Command}}
 {{end}}
@@ -812,16 +819,6 @@ func envVarCommand(format, key, value string) (string, error) {
 
 	default:
 		return "", trace.BadParameter("unsupported format %q", format)
-	}
-}
-
-// requiresLocalProxyTunnel returns whether the given protocol requires a local proxy with the --tunnel flag.
-func requiresLocalProxyTunnel(protocol string) bool {
-	switch protocol {
-	case defaults.ProtocolSnowflake:
-		return true
-	default:
-		return false
 	}
 }
 

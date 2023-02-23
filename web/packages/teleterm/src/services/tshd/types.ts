@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-import apiCluster from './v1/cluster_pb';
-import apiDb from './v1/database_pb';
-import apigateway from './v1/gateway_pb';
-import apiServer from './v1/server_pb';
-import apiKube from './v1/kube_pb';
-import apiApp from './v1/app_pb';
-import apiService from './v1/service_pb';
-import apiAuthSettings from './v1/auth_settings_pb';
+import apiCluster from 'gen-proto-js/teleport/lib/teleterm/v1/cluster_pb';
+import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
+import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
+import apiServer from 'gen-proto-js/teleport/lib/teleterm/v1/server_pb';
+import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
+import apiApp from 'gen-proto-js/teleport/lib/teleterm/v1/app_pb';
+import apiService from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
+import apiAuthSettings from 'gen-proto-js/teleport/lib/teleterm/v1/auth_settings_pb';
 
 export type Application = apiApp.App.AsObject;
 export type Kube = apiKube.Kube.AsObject;
 export type Server = apiServer.Server.AsObject;
-export type Gateway = apigateway.Gateway.AsObject;
+export type Gateway = apiGateway.Gateway.AsObject;
 // Available types are listed here:
 // https://github.com/gravitational/teleport/blob/v9.0.3/lib/defaults/defaults.go#L513-L530
 //

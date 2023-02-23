@@ -12,7 +12,7 @@ This guide will explain how to:
 
 - Access AWS Management Console through Teleport.
 - View Teleport users' AWS console activity in CloudTrail.
-- Access the AWS Command Line Interface (CLI) through Teleport. 
+- Access the AWS Command Line Interface (CLI) through Teleport.
 - Access applications using AWS SDKs through Teleport.
 
 ## Prerequisites
@@ -75,7 +75,7 @@ This step is only required if you are allowing access from another account. The 
 </Admonition>
 
 Teleport uses AWS [federation](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_enable-console-custom-url.html) to generate sign-in URLs for users, which relies on the `AssumeRole` API
-for getting temporary security credentials. 
+for getting temporary security credentials.
 You will need to update your IAM roles' "Trusted entities" to include your AWS account ID.
 
 Go to the [Roles](https://console.aws.amazon.com/iamv2/home#/roles) list, pick
@@ -275,7 +275,7 @@ Before beginning this step, make sure that the `aws` command line interface (CLI
 First, log into the previously configured AWS console app on your desktop:
 
 ```code
-$ tsh app login --aws-role ExamplePowerUser awsconsole-test
+$ tsh apps login --aws-role ExamplePowerUser awsconsole-test
 Logged into AWS app awsconsole-test. Example AWS CLI command:
 
 $ tsh aws s3 ls
@@ -293,7 +293,7 @@ $ tsh aws s3 ls
 To log out of the aws application and remove credentials:
 
 ```code
-$ tsh app logout awsconsole-test
+$ tsh apps logout awsconsole-test
 ```
 
 ## Step 9/9. Access applications using AWS SDKs
@@ -302,7 +302,7 @@ First, log into the previously configured console app if you haven't already
 done so:
 
 ```code
-$ tsh app login --aws-role ExamplePowerUser awsconsole-test
+$ tsh apps login --aws-role ExamplePowerUser awsconsole-test
 ```
 
 Now, use the following command to start a local HTTPS proxy server your
@@ -343,7 +343,7 @@ SDK for JavaScript).
 To log out of the AWS application and remove credentials:
 
 ```code
-$ tsh app logout awsconsole-test
+$ tsh apps logout awsconsole-test
 ```
 
 ## Next steps

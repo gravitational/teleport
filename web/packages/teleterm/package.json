@@ -18,7 +18,7 @@
     "build-renderer": "webpack build --config webpack.renderer.prod.config.js --progress",
     "build-native-deps": "electron-builder install-app-deps",
     "package": "electron-builder build --config electron-builder-config.js --publish never -c.extraMetadata.name=teleport-connect",
-    "generate-grpc-shared": "npx -y --target_arch=x64 --package=grpc_tools_node_protoc_ts@5.3.2 --package=grpc-tools@1.11.2 -- grpc_tools_node_protoc -I=src/sharedProcess/api/proto --ts_out=service=grpc-node,mode=grpc-js:src/sharedProcess/api/protogen --grpc_out=grpc_js:src/sharedProcess/api/protogen --js_out=import_style=commonjs,binary:src/sharedProcess/api/protogen src/sharedProcess/api/proto/*.proto"
+    "generate-grpc-shared": "npx -y --target_arch=x64 --package=grpc_tools_node_protoc_ts@5.3.2 --package=grpc-tools@1.12.4 -- grpc_tools_node_protoc -I=src/sharedProcess/api/proto --ts_out=service=grpc-node,mode=grpc-js:src/sharedProcess/api/protogen --grpc_out=grpc_js:src/sharedProcess/api/protogen --js_out=import_style=commonjs,binary:src/sharedProcess/api/protogen src/sharedProcess/api/proto/*.proto"
   },
   "repository": {
     "type": "git",
@@ -52,8 +52,8 @@
     "split2": "4.1.0",
     "ts-loader": "^9.3.1",
     "winston": "^3.3.3",
-    "xterm": "^4.15.0",
-    "xterm-addon-fit": "^0.5.0"
+    "xterm": "^5.1.0",
+    "xterm-addon-fit": "^0.7.0"
   },
   "productName": "Teleport Connect"
 }

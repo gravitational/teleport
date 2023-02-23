@@ -17,7 +17,7 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-GOLANG_VERSION ?= go1.19.5
+GOLANG_VERSION ?= go1.19.6
 # run lint-rust check locally before merging code after you bump this
 RUST_VERSION ?= 1.67.0
 NODE_VERSION ?= 16.13.2
@@ -67,13 +67,6 @@ endif
 # pass external gocache path through to docker containers
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
 endif
-
-ifeq ("$(RUNTIME_ARCH)","arm64")
-	GRPC_NODE_PLUGIN_BINARY_TYPE := compiled
-else
-	GRPC_NODE_PLUGIN_BINARY_TYPE := prebuilt
-endif
-export
 
 
 #
@@ -127,7 +120,6 @@ buildbox:
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg NODE_VERSION=$(NODE_VERSION) \
-			--build-arg GRPC_NODE_PLUGIN_BINARY_TYPE=$(GRPC_NODE_PLUGIN_BINARY_TYPE) \
 			--build-arg PROTOC_VER=$(PROTOC_VER) \
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \

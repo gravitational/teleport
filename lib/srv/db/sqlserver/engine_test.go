@@ -24,8 +24,8 @@ import (
 	"sync"
 	"testing"
 
-	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/google/go-cmp/cmp"
+	mssql "github.com/microsoft/go-mssqldb"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 

@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.3.12
+VERSION=10.3.13
 
 DOCKER_IMAGE ?= teleport
 
@@ -528,7 +528,7 @@ $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-helm test-sh test-ci test-api test-go test-rust test-operator
+test: test-helm test-sh test-api test-go test-rust test-operator
 
 $(TEST_LOG_DIR):
 	mkdir $(TEST_LOG_DIR)
@@ -584,13 +584,6 @@ endif
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| tee $(TEST_LOG_DIR)/chaos.json \
 		| ${RENDER_TESTS}
-
-.PHONY: test-ci
-test-ci: $(TEST_LOG_DIR) $(RENDER_TESTS)
-	(cd .cloudbuild/scripts && \
-		go test -cover -json ./... \
-		| tee $(TEST_LOG_DIR)/ci.json \
-		| ${RENDER_TESTS})
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
@@ -689,7 +682,7 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools lint-protos
 
 .PHONY: lint-tools
-lint-tools: lint-build-tooling lint-ci-scripts lint-backport
+lint-tools: lint-build-tooling lint-backport
 
 #
 # Runs the clippy linter on our rust modules
@@ -733,11 +726,6 @@ lint-build-tooling:
 lint-backport: GO_LINT_FLAGS ?=
 lint-backport:
 	cd assets/backport && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
-
-.PHONY: lint-ci-scripts
-lint-ci-scripts: GO_LINT_FLAGS ?=
-lint-ci-scripts:
-	cd .cloudbuild/scripts/ && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
 
 # api is no longer part of the teleport package, so golangci-lint skips it by default
 .PHONY: lint-api
@@ -808,9 +796,9 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore 'api/version.go' \
 		-ignore 'docs/pages/includes/**/*.go' \
 		-ignore 'e/**' \
+		-ignore 'gen/**' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
-		-ignore 'lib/teleterm/api/protogen/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'version.go' \
 		-ignore 'webassets/**' \
@@ -1134,7 +1122,7 @@ init-submodules-e:
 #    - install drone cli
 #    - set $DRONE_TOKEN
 #    - tsh login --proxy=platform.teleport.sh
-#    - tsh app login drone
+#    - tsh apps login drone
 #    - tsh proxy app drone
 #    - export DRONE_SERVER=https://localhost:$TSH_PROXY_PORT
 #    - make dronegen
