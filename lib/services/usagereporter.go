@@ -219,7 +219,9 @@ func (u *UsageUIOnboardRegisterChallengeSubmit) Anonymize(a utils.Anonymizer) pr
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiOnboardRegisterChallengeSubmit{
 			UiOnboardRegisterChallengeSubmit: &prehogv1.UIOnboardRegisterChallengeSubmitEvent{
-				UserName: a.AnonymizeString(u.UserName),
+				UserName:  a.AnonymizeString(u.UserName),
+				MfaType:   u.MfaType,
+				LoginFlow: u.LoginFlow,
 			},
 		},
 	}

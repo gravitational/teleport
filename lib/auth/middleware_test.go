@@ -193,7 +193,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 
 			m := &Middleware{
-				AccessPoint: s,
+				ClusterName: localClusterName,
 			}
 
 			id, err := m.GetUser(tls.ConnectionState{PeerCertificates: tt.peers})
@@ -271,10 +271,12 @@ func TestWrapContextWithUser(t *testing.T) {
 		},
 	}
 
+	clusterName, err := s.GetClusterName()
+	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			m := &Middleware{
-				AccessPoint: s,
+				ClusterName: clusterName.GetClusterName(),
 			}
 
 			conn := &testConn{
