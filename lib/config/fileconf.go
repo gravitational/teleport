@@ -652,6 +652,12 @@ func checkAndSetDefaultsForGCPMatchers(matcherInput []GCPMatcher) error {
 type JoinParams struct {
 	TokenName string           `yaml:"token_name"`
 	Method    types.JoinMethod `yaml:"method"`
+	Azure     AzureJoinParams  `yaml:"azure,omitempty"`
+}
+
+// AzureJoinParams configures the parameters specific to the Azure join method.
+type AzureJoinParams struct {
+	ClientID string `yaml:"client_id"`
 }
 
 // ConnectionRate configures rate limiter
@@ -1862,6 +1868,11 @@ type Proxy struct {
 	// MongoPublicAddr is the hostport the proxy advertises for Mongo
 	// client connections.
 	MongoPublicAddr apiutils.Strings `yaml:"mongo_public_addr,omitempty"`
+
+	// IdP is configuration for identity providers.
+	//
+	//nolint:revive // Because we want this to be IdP.
+	IdP IdP `yaml:"idp,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
@@ -1897,6 +1908,36 @@ func (a ACME) Parse() (*service.ACME, error) {
 	out.URI = a.URI
 
 	return &out, nil
+}
+
+// IdP represents the configuration for identity providers running within the
+// proxy.
+//
+//nolint:revive // Because we want this to be IdP.
+type IdP struct {
+	// SAMLIdP represents configuratino options for the SAML identity provider.
+	SAMLIdP SAMLIdP `yaml:"saml,omitempty"`
+}
+
+// SAMLIdP represents the configuration for the SAML identity provider.
+type SAMLIdP struct {
+	// Enabled turns the SAML IdP on or off for this process.
+	EnabledFlag string `yaml:"enabled,omitempty"`
+
+	// BaseURL is the base URL to provide to the SAML IdP.
+	BaseURL string `yaml:"base_url,omitempty"`
+}
+
+// Enabled returns true if the SAML IdP is enabled or if the enabled flag is unset.
+func (s *SAMLIdP) Enabled() bool {
+	if s.EnabledFlag == "" {
+		return true
+	}
+	v, err := apiutils.ParseBool(s.EnabledFlag)
+	if err != nil {
+		return false
+	}
+	return v
 }
 
 // KeyPair represents a path on disk to a private key and certificate.

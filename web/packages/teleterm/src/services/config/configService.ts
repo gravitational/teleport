@@ -1,3 +1,19 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { z } from 'zod';
 
 import { FileStorage } from 'teleterm/services/fileStorage';
@@ -7,7 +23,7 @@ import { createConfigStore } from './configStore';
 
 const createAppConfigSchema = (platform: Platform) => {
   const defaultKeymap = getDefaultKeymap(platform);
-  const defaultFonts = getDefaultFonts(platform);
+  const defaultTerminalFont = getDefaultTerminalFont(platform);
 
   // Important: all keys except 'usageReporting.enabled' are currently not
   // configurable by the user. Before we let the user configure them,
@@ -69,12 +85,14 @@ const createAppConfigSchema = (platform: Platform) => {
     'keymap.openQuickInput': omitStoredConfigValue(
       z.string().default(defaultKeymap['open-quick-input'])
     ),
-    'fonts.sansSerifFamily': omitStoredConfigValue(
-      z.string().default(defaultFonts['sansSerif'])
-    ),
-    'fonts.monoFamily': omitStoredConfigValue(
-      z.string().default(defaultFonts['mono'])
-    ),
+    /**
+     * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
+     * in a styled component or used in CSS, as it may inject malicious CSS code.
+     * Before using it, sanitize it with `CSS.escape` or pass it as a `style` prop.
+     * Read more https://frontarm.com/james-k-nelson/how-can-i-use-css-in-js-securely/.
+     */
+    'terminal.fontFamily': z.string().default(defaultTerminalFont),
+    'terminal.fontSize': z.number().int().min(1).max(256).default(15),
   });
 };
 
@@ -173,23 +191,14 @@ const getDefaultKeymap = (platform: Platform) => {
   }
 };
 
-function getDefaultFonts(platform: Platform) {
+function getDefaultTerminalFont(platform: Platform) {
   switch (platform) {
     case 'win32':
-      return {
-        sansSerif: "system-ui, 'Segoe WPC', 'Segoe UI', sans-serif",
-        mono: "'Consolas', 'Courier New', monospace",
-      };
+      return "'Consolas', 'Courier New', monospace";
     case 'linux':
-      return {
-        sansSerif: "system-ui, 'Ubuntu', 'Droid Sans', sans-serif",
-        mono: "'Droid Sans Mono', 'Courier New', monospace, 'Droid Sans Fallback'",
-      };
+      return "'Droid Sans Mono', 'Courier New', monospace, 'Droid Sans Fallback'";
     case 'darwin':
-      return {
-        sansSerif: '-apple-system, BlinkMacSystemFont, sans-serif',
-        mono: "Menlo, Monaco, 'Courier New', monospace",
-      };
+      return "Menlo, Monaco, 'Courier New', monospace";
   }
 }
 

@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -606,13 +607,62 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	// Make sure the cert is allowed to access the cluster.
+	// At this point we already know that the user has access to the cluster
+	// via the RBAC rules, but we also need to make sure that the user has
+	// access to the cluster with at least one kubernetes_user or kubernetes_group
+	// defined.
+	if err := checkIfCertsAreAllowedToAccessCluster(k, c.kubeCluster); err != nil {
+		return trace.Wrap(err)
+	}
 	// Cache the new cert on disk for reuse.
 	if err := tc.LocalAgent().AddKey(k); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return c.writeResponse(cf.Stdout(), k, c.kubeCluster)
+}
+
+// checkIfCertsAreAllowedToAccessCluster evaluates if the new cert created by the user
+// to access kubeCluster has at least one kubernetes_user or kubernetes_group
+// defined. If not, it returns an error.
+// This is a safety check in order to print a better message to the user even
+// before hitting Teleport Kubernetes Proxy.
+func checkIfCertsAreAllowedToAccessCluster(k *client.Key, kubeCluster string) error {
+	for k8sCluster, cert := range k.KubeTLSCerts {
+		if k8sCluster != kubeCluster {
+			continue
+		}
+		log.Debugf("Got TLS cert for Kubernetes cluster %q", k8sCluster)
+		exist, err := checkIfCertHasKubeGroupsAndUsers(cert)
+		if err != nil {
+			return trace.Wrap(err)
+		} else if exist {
+			return nil
+		}
+	}
+	errMsg := "Your user's Teleport role does not allow Kubernetes access." +
+		" Please ask cluster administrator to ensure your role has appropriate kubernetes_groups and kubernetes_users set."
+	return trace.AccessDenied(errMsg)
+}
+
+// checkIfCertHasKubeGroupsAndUsers checks if the certificate has Kubernetes groups or users
+// in the Subject Name. If it does, it returns true, otherwise false.
+// Having no Kubernetes groups or users in the certificate means that the user
+// is not allowed to access the Kubernetes cluster since Kubernetes Access enforces
+// the presence of at least one of Kubernetes groups or users in the certificate.
+// If the certificate does not have any Kubernetes groups or users, the
+func checkIfCertHasKubeGroupsAndUsers(certB []byte) (bool, error) {
+	cert, err := tlsca.ParseCertificatePEM(certB)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, name := range cert.Subject.Names {
+		if name.Type.Equal(tlsca.KubeGroupsASN1ExtensionOID) || name.Type.Equal(tlsca.KubeUsersASN1ExtensionOID) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (c *kubeCredentialsCommand) writeResponse(output io.Writer, key *client.Key, kubeClusterName string) error {
@@ -895,7 +945,7 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 		CmdClause: parent.Command("login", "Login to a Kubernetes cluster"),
 	}
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
-	c.Arg("kube-cluster", "Name of the Kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
+	c.Arg("kube-cluster", "Name of the Kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").StringVar(&c.kubeCluster)
 	c.Flag("as", "Configure custom Kubernetes user impersonation.").StringVar(&c.impersonateUser)
 	c.Flag("as-groups", "Configure custom Kubernetes group impersonation.").StringsVar(&c.impersonateGroups)
 	// TODO (tigrato): move this back to namespace once teleport drops the namespace flag.
@@ -905,6 +955,9 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 }
 
 func (c *kubeLoginCommand) run(cf *CLIConf) error {
+	if c.kubeCluster == "" && !c.all {
+		return trace.BadParameter("kube-cluster name is required. Check 'tsh kube ls' for a list of available clusters.")
+	}
 	// Set CLIConf.KubernetesCluster so that the kube cluster's context is automatically selected.
 	cf.KubernetesCluster = c.kubeCluster
 	cf.SiteName = c.siteName
@@ -925,7 +978,8 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	clusterNames := kubeClustersToStrings(kubeClusters)
-	if !slices.Contains(clusterNames, c.kubeCluster) {
+	// If the user is trying to login to a specific cluster, check that it exists.
+	if c.kubeCluster != "" && !slices.Contains(clusterNames, c.kubeCluster) {
 		return trace.NotFound("kubernetes cluster %q not found, check 'tsh kube ls' for a list of known clusters", c.kubeCluster)
 	}
 
@@ -943,8 +997,11 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	if err := updateKubeConfig(cf, tc, profileKubeconfigPath); err != nil {
 		return trace.Wrap(err)
 	}
-
-	fmt.Printf("Logged into Kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
+	if c.kubeCluster != "" {
+		fmt.Printf("Logged into Kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
+	} else {
+		fmt.Printf("Created kubeconfig with every Kubernetes cluster available. Select a context and try 'kubectl version' to test the connection.\n")
+	}
 	return nil
 }
 
@@ -1103,13 +1160,7 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 		return trace.Wrap(err)
 	}
 
-	// cf.kubeConfigPath is used in tests to allow Teleport to run tsh login commands
-	// in parallel. If defined, it should take precedence over kubeconfig.PathFromEnv().
-	if path == "" && cf.kubeConfigPath != "" {
-		path = cf.kubeConfigPath
-	} else if path == "" {
-		path = kubeconfig.PathFromEnv()
-	}
+	path = getKubeConfigPath(cf, path)
 
 	// If this is a profile specific kubeconfig, we only need
 	// to put the selected kube cluster into the kubeconfig.
@@ -1125,6 +1176,17 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 	}
 
 	return trace.Wrap(kubeconfig.Update(path, *values, tc.LoadAllCAs))
+}
+
+func getKubeConfigPath(cf *CLIConf, path string) string {
+	// cf.kubeConfigPath is used in tests to allow Teleport to run tsh login commands
+	// in parallel. If defined, it should take precedence over kubeconfig.PathFromEnv().
+	if path == "" && cf.kubeConfigPath != "" {
+		path = cf.kubeConfigPath
+	} else if path == "" {
+		path = kubeconfig.PathFromEnv()
+	}
+	return path
 }
 
 // Required magic boilerplate to use the k8s encoder.

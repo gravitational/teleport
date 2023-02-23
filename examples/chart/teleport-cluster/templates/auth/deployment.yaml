@@ -1,4 +1,4 @@
-{{- $auth := mustMergeOverwrite .Values .Values.auth -}}
+{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 {{- $replicated := gt (int $auth.highAvailability.replicaCount) 1 -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -144,6 +144,12 @@ spec:
         ports:
         - name: diag
           containerPort: 3000
+          protocol: TCP
+        - name: auth
+          containerPort: 3025
+          protocol: TCP
+        - name: kube
+          containerPort: 3026
           protocol: TCP
         livenessProbe:
           httpGet:

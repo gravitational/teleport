@@ -33,6 +33,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -103,6 +104,11 @@ const (
 
 var metaRedirectTemplate = template.Must(template.New("meta-redirect").Parse(metaRedirectHTML))
 
+// healthCheckAppServerFunc defines a function used to perform a health check
+// to AppServer that can handle application requests (based on cluster name and
+// public address).
+type healthCheckAppServerFunc func(ctx context.Context, publicAddr string, clusterName string) error
+
 // Handler is HTTP web proxy handler
 type Handler struct {
 	log logrus.FieldLogger
@@ -114,9 +120,13 @@ type Handler struct {
 	sessionStreamPollPeriod time.Duration
 	clock                   clockwork.Clock
 	limiter                 *limiter.RateLimiter
+	healthCheckAppServer    healthCheckAppServerFunc
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
+
+	// userConns tracks amount of current active connections with user certificates.
+	userConns atomic.Int32
 
 	// ClusterFeatures contain flags for supported and unsupported features.
 	ClusterFeatures proto.Features
@@ -229,6 +239,10 @@ type Config struct {
 
 	// TracerProvider generates tracers to create spans with
 	TracerProvider oteltrace.TracerProvider
+
+	// HealthCheckAppServer is a function that checks if the proxy can handle
+	// application requests.
+	HealthCheckAppServer healthCheckAppServerFunc
 }
 
 type APIHandler struct {
@@ -277,10 +291,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
 	cfg.ProxyClient = auth.WithGithubConnectorConversions(cfg.ProxyClient)
 	h := &Handler{
-		cfg:             cfg,
-		log:             newPackageLogger(),
-		clock:           clockwork.NewRealClock(),
-		ClusterFeatures: cfg.ClusterFeatures,
+		cfg:                  cfg,
+		log:                  newPackageLogger(),
+		clock:                clockwork.NewRealClock(),
+		ClusterFeatures:      cfg.ClusterFeatures,
+		healthCheckAppServer: cfg.HealthCheckAppServer,
 	}
 
 	// for properly handling url-encoded parameter values.
@@ -387,7 +402,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 		// serve Web UI:
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
-			http.StripPrefix("/web", makeGzipHandler(http.FileServer(cfg.StaticFS))).ServeHTTP(w, r)
+			fs := http.FileServer(cfg.StaticFS)
+
+			fs = makeGzipHandler(fs)
+			fs = makeCacheHandler(fs)
+
+			http.StripPrefix("/web", fs).ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web/") || r.URL.Path == "/web" {
 			csrfToken, err := csrf.AddCSRFProtection(w, r)
 			if err != nil {
@@ -448,6 +468,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		if h.healthCheckAppServer == nil {
+			h.healthCheckAppServer = appHandler.HealthCheckAppServer
 		}
 	}
 
@@ -596,9 +620,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	// token generation
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
 
-	// add Node token generation
-	// DELETE IN 11.0. Deprecated, use /webapi/token for generating tokens of any role.
-	h.POST("/webapi/nodes/token", h.WithAuth(h.createNodeTokenHandle))
 	// join scripts
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
@@ -619,6 +640,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Kube access handlers.
 	h.GET("/webapi/sites/:site/kubernetes", h.WithClusterAuth(h.clusterKubesGet))
+	h.GET("/webapi/sites/:site/pods", h.WithClusterAuth(h.clusterKubePodsGet))
 
 	// Github connector handlers
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
@@ -647,18 +669,18 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
 
 	h.GET("/webapi/roles", h.WithAuth(h.getRolesHandle))
-	h.PUT("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
 	h.POST("/webapi/roles", h.WithAuth(h.upsertRoleHandle))
+	h.PUT("/webapi/roles/:name", h.WithAuth(h.upsertRoleHandle))
 	h.DELETE("/webapi/roles/:name", h.WithAuth(h.deleteRole))
 
 	h.GET("/webapi/github", h.WithAuth(h.getGithubConnectorsHandle))
-	h.PUT("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
 	h.POST("/webapi/github", h.WithAuth(h.upsertGithubConnectorHandle))
+	h.PUT("/webapi/github/:name", h.WithAuth(h.upsertGithubConnectorHandle))
 	h.DELETE("/webapi/github/:name", h.WithAuth(h.deleteGithubConnector))
 
 	h.GET("/webapi/trustedcluster", h.WithAuth(h.getTrustedClustersHandle))
-	h.PUT("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
 	h.POST("/webapi/trustedcluster", h.WithAuth(h.upsertTrustedClusterHandle))
+	h.PUT("/webapi/trustedcluster/:name", h.WithAuth(h.upsertTrustedClusterHandle))
 	h.DELETE("/webapi/trustedcluster/:name", h.WithAuth(h.deleteTrustedCluster))
 
 	h.GET("/webapi/apps/:fqdnHint", h.WithAuth(h.getAppFQDN))
@@ -691,6 +713,11 @@ func (h *Handler) bindDefaultEndpoints() {
 // GetProxyClient returns authenticated auth server client
 func (h *Handler) GetProxyClient() auth.ClientI {
 	return h.cfg.ProxyClient
+}
+
+// GetAccessPoint returns the caching access point.
+func (h *Handler) GetAccessPoint() auth.ProxyAccessPoint {
+	return h.cfg.AccessPoint
 }
 
 // Close closes associated session cache operations
@@ -1740,7 +1767,13 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("need auth")
 	}
 
-	return newSessionResponse(ctx)
+	res, err := newSessionResponse(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	res.SessionExpires = webSession.GetExpiryTime()
+
+	return res, nil
 }
 
 func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
@@ -1983,7 +2016,7 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) getResetPasswordTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	result, err := h.getResetPasswordToken(context.TODO(), p.ByName("token"))
+	result, err := h.getResetPasswordToken(r.Context(), p.ByName("token"))
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to fetch a reset password token.")
 		// We hide the error from the remote user to avoid giving any hints.
@@ -2387,6 +2420,9 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
+	h.userConns.Add(1)
+	defer h.userConns.Add(-1)
+
 	// start the websocket session with a web-based terminal:
 	h.log.Infof("Getting terminal to %#v.", req)
 	httplib.MakeTracingHandler(term, teleport.ComponentProxy).ServeHTTP(w, r)
@@ -2415,7 +2451,13 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		}
 
 		if len(resources) == 0 {
-			return session.Session{}, trace.NotFound("no matching servers")
+			// If we didn't find the resource set host and port,
+			// so we can try direct dial.
+			host, port, err = serverHostPort(req.Server)
+			if err != nil {
+				return session.Session{}, trace.Wrap(err)
+			}
+			id = host
 		}
 
 		matches := 0

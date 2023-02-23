@@ -602,15 +602,14 @@ func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc types.Remo
 	if err := rc.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	existingItem, update, err := s.getRemoteCluster(rc.GetName())
+	existingItem, update, err := s.getRemoteCluster(ctx, rc.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	update.SetExpiry(rc.Expiry())
 	update.SetLastHeartbeat(rc.GetLastHeartbeat())
-	meta := rc.GetMetadata()
-	meta.Labels = rc.GetMetadata().Labels
-	update.SetMetadata(meta)
+	update.SetConnectionStatus(rc.GetConnectionStatus())
+	update.SetMetadata(rc.GetMetadata())
 
 	updateValue, err := services.MarshalRemoteCluster(update)
 	if err != nil {
@@ -653,11 +652,11 @@ func (s *PresenceService) GetRemoteClusters(opts ...services.MarshalOption) ([]t
 }
 
 // getRemoteCluster returns a remote cluster in raw form and unmarshaled
-func (s *PresenceService) getRemoteCluster(clusterName string) (*backend.Item, types.RemoteCluster, error) {
+func (s *PresenceService) getRemoteCluster(ctx context.Context, clusterName string) (*backend.Item, types.RemoteCluster, error) {
 	if clusterName == "" {
 		return nil, nil, trace.BadParameter("missing parameter cluster name")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(remoteClustersPrefix, clusterName))
+	item, err := s.Get(ctx, backend.Key(remoteClustersPrefix, clusterName))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, nil, trace.NotFound("remote cluster %q is not found", clusterName)
@@ -674,7 +673,7 @@ func (s *PresenceService) getRemoteCluster(clusterName string) (*backend.Item, t
 
 // GetRemoteCluster returns a remote cluster by name
 func (s *PresenceService) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
-	_, rc, err := s.getRemoteCluster(clusterName)
+	_, rc, err := s.getRemoteCluster(context.TODO(), clusterName)
 	return rc, trace.Wrap(err)
 }
 
@@ -1364,6 +1363,8 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 		} else { // DELETE IN 13.0. Legacy kube server is heartbeating back.
 			key = backend.Key(kubeServicesPrefix, h.Name)
 		}
+	case constants.KeepAliveDatabaseService:
+		key = backend.Key(databaseServicePrefix, h.Name)
 	default:
 		return trace.BadParameter("unknown keep-alive type %q", h.GetType())
 	}
@@ -1580,38 +1581,6 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	}, nil
 }
 
-// UpsertDatabaseService creates or updates (by name) a DatabaseService resource.
-func (s *PresenceService) UpsertDatabaseService(ctx context.Context, service types.DatabaseService) (*types.KeepAlive, error) {
-	if err := service.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	value, err := services.MarshalDatabaseService(service)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(databaseServicePrefix, service.GetName()),
-		Value:   value,
-		Expires: service.Expiry(),
-		ID:      service.GetResourceID(),
-	}
-	lease, err := s.Put(ctx, item)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if service.Expiry().IsZero() {
-		return &types.KeepAlive{}, nil
-	}
-	return &types.KeepAlive{
-		Type:      types.KeepAlive_DATABASE,
-		LeaseID:   lease.ID,
-		Namespace: apidefaults.Namespace,
-		Name:      service.GetName(),
-		HostID:    service.GetName(),
-		Expires:   service.Expiry(),
-	}, nil
-}
-
 // listResourcesWithSort supports sorting by falling back to retrieving all resources
 // with GetXXXs, filter, and then fake pagination.
 func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
@@ -1823,6 +1792,7 @@ const (
 	nodesPrefix                  = "nodes"
 	appsPrefix                   = "apps"
 	snowflakePrefix              = "snowflake"
+	samlIdPPrefix                = "saml_idp" //nolint:revive // Because we want this to be IdP.
 	serversPrefix                = "servers"
 	dbServersPrefix              = "databaseServers"
 	appServersPrefix             = "appServers"

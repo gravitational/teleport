@@ -73,6 +73,8 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkOpenSSHCA(ca)
 	case types.JWTSigner:
 		err = checkJWTKeys(ca)
+	case types.SAMLIDPCA:
+		err = checkSAMLIDPCA(ca)
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
@@ -127,10 +129,11 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-		}
-		_, err := tlsca.ParseCertificatePEM(pair.Cert)
-		if err != nil {
-			return trace.Wrap(err)
+		} else {
+			_, err := tlsca.ParseCertificatePEM(pair.Cert)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
@@ -197,6 +200,37 @@ func checkJWTKeys(cai types.CertAuthority) error {
 		}
 	}
 
+	return nil
+}
+
+// checkSAMLIDPCA checks if provided certificate authority contains a valid TLS key pair.
+// This function is used to verify the SAML IDP CA.
+func checkSAMLIDPCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+
+	if len(ca.Spec.ActiveKeys.TLS) == 0 {
+		return trace.BadParameter("missing SAML IdP CA")
+	}
+
+	for _, pair := range ca.GetTrustedTLSKeyPairs() {
+		if len(pair.Key) != 0 && pair.KeyType == types.PrivateKeyType_RAW {
+			var err error
+			if len(pair.Cert) > 0 {
+				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
+			} else {
+				_, err = utils.ParsePrivateKey(pair.Key)
+			}
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		if _, err := tlsca.ParseCertificatePEM(pair.Cert); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
@@ -314,10 +348,10 @@ type UserCertParams struct {
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	PreviousIdentityExpires time.Time
-	// ClientIP is an IP of the client to embed in the certificate.
-	ClientIP string
-	// SourceIP is an IP that certificate should be pinned to.
-	SourceIP string
+	// LoginIP is an observed IP of the client on the moment of certificate creation.
+	LoginIP string
+	// PinnedIP is an IP from which client must communicate with Teleport.
+	PinnedIP string
 	// DisallowReissue flags that any attempt to request new certificates while
 	// authenticated with this cert should be denied.
 	DisallowReissue bool

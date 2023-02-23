@@ -17,7 +17,7 @@ limitations under the License.
 import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
-import { matchPath, useHistory } from 'react-router';
+import { matchPath, useHistory, useLocation } from 'react-router';
 
 import { NavigationSwitcher } from 'teleport/Navigation/NavigationSwitcher';
 import cfg from 'teleport/config';
@@ -33,7 +33,7 @@ import { NavigationCategoryContainer } from 'teleport/Navigation/NavigationCateg
 
 import logo from './logo.png';
 
-import type { Location } from 'history';
+import type * as history from 'history';
 
 import type { TeleportFeature } from 'teleport/types';
 
@@ -77,7 +77,7 @@ export function getFirstRouteForCategory(
 
 function getCategoryForRoute(
   features: TeleportFeature[],
-  route: Location<unknown>
+  route: history.Location<unknown> | Location
 ) {
   const feature = features
     .filter(feature => Boolean(feature.route))
@@ -98,21 +98,50 @@ function getCategoryForRoute(
 export function Navigation() {
   const features = useFeatures();
   const history = useHistory();
+  const location = useLocation();
 
   const [view, setView] = useState(
     getCategoryForRoute(features, history.location) ||
       NavigationCategory.Resources
   );
 
-  const [previousRoute, setPreviousRoute] = useState('');
+  const [previousRoute, setPreviousRoute] = useState<{
+    [category: string]: string;
+  }>({});
+
+  const handleLocationChange = useCallback(
+    (next: history.Location<unknown> | Location) => {
+      const previousPathName = location.pathname;
+
+      const category = getCategoryForRoute(features, next);
+
+      if (category && category !== view) {
+        setPreviousRoute(previous => ({
+          ...previous,
+          [view]: previousPathName,
+        }));
+        setView(category);
+      }
+    },
+    [location, view]
+  );
 
   useEffect(() => {
-    const category = getCategoryForRoute(features, history.location);
+    return history.listen(handleLocationChange);
+  }, [history, location.pathname, features, view]);
 
-    if (category && category !== view) {
-      setView(category);
-    }
-  }, [history.location, features, view]);
+  const handlePopState = useCallback(
+    (event: PopStateEvent) => {
+      handleLocationChange((event.currentTarget as Window).location);
+    },
+    [view]
+  );
+
+  useEffect(() => {
+    window.addEventListener('popstate', handlePopState);
+
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [handlePopState]);
 
   const handleCategoryChange = useCallback(
     (category: NavigationCategory) => {
@@ -120,16 +149,11 @@ export function Navigation() {
         return;
       }
 
-      const previousPathName = history.location.pathname;
-
       history.push(
-        previousRoute || getFirstRouteForCategory(features, category)
+        previousRoute[category] || getFirstRouteForCategory(features, category)
       );
-
-      setPreviousRoute(previousPathName);
-      setView(category);
     },
-    [view, history.location.pathname, previousRoute]
+    [view, previousRoute]
   );
 
   const categories = NAVIGATION_CATEGORIES.map((category, index) => (

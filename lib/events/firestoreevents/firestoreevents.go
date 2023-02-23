@@ -25,12 +25,12 @@ import (
 
 	"cloud.google.com/go/firestore"
 	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
+	"cloud.google.com/go/firestore/apiv1/admin/adminpb"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/genproto/googleapis/firestore/admin/v1"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -537,27 +537,27 @@ func (l *Log) getIndexParent() string {
 func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 	tuples := firestorebk.IndexList{}
 	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
 	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_DESCENDING),
-		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_DESCENDING),
+		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
 	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(eventTypeDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_DESCENDING),
-		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_DESCENDING),
+		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
 	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(eventTypeDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(sessionIDDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(sessionIDDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
 	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, tuples, l.getIndexParent())
 	return trace.Wrap(err)
@@ -589,21 +589,33 @@ func (l *Log) purgeExpiredEvents() error {
 			if err != nil {
 				return firestorebk.ConvertGRPCError(err)
 			}
-			numDeleted := 0
-			batch := l.svc.Batch()
+			batch := l.svc.BulkWriter(l.svcContext)
+			jobs := make([]*firestore.BulkWriterJob, 0, len(docSnaps))
 			for _, docSnap := range docSnaps {
-				batch.Delete(docSnap.Ref)
-				numDeleted++
-			}
-			if numDeleted > 0 {
-				start = time.Now()
-				_, err := batch.Commit(l.svcContext)
-				batchWriteLatencies.Observe(time.Since(start).Seconds())
-				batchWriteRequests.Inc()
+				job, err := batch.Delete(docSnap.Ref)
 				if err != nil {
 					return firestorebk.ConvertGRPCError(err)
 				}
+
+				jobs = append(jobs, job)
 			}
+
+			if len(jobs) == 0 {
+				continue
+			}
+
+			start = time.Now()
+			var errs []error
+			batch.End()
+			for _, job := range jobs {
+				if _, err := job.Results(); err != nil {
+					errs = append(errs, firestorebk.ConvertGRPCError(err))
+				}
+			}
+
+			batchWriteLatencies.Observe(time.Since(start).Seconds())
+			batchWriteRequests.Inc()
+			return trace.NewAggregate(errs...)
 		}
 	}
 }

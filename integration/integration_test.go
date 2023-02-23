@@ -36,6 +36,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime/pprof"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -83,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web"
 )
 
 type integrationTestSuite struct {
@@ -908,6 +910,7 @@ func testInteractiveReverseTunnel(t *testing.T, suite *integrationTestSuite) {
 }
 
 func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -947,7 +950,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 			cl.Stdout = term
 			cl.Stdin = term
 
-			errCh <- cl.SSH(context.TODO(), []string{}, false)
+			errCh <- cl.SSH(ctx, []string{}, false)
 		}()
 
 		return term, errCh
@@ -1329,88 +1332,129 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	teleport := suite.newTeleport(t, nil, true)
-
-	// get a reference to site obj:
-	site := teleport.GetSiteAPI(helpers.Site)
-	require.NotNil(t, site)
-
-	person := NewTerminal(250)
-
-	cl, err := teleport.NewClient(helpers.ClientConfig{
-		Login:   suite.Me.Username,
-		Cluster: helpers.Site,
-		Host:    Host,
-		Port:    helpers.Port(t, teleport.SSH),
-	})
-	require.NoError(t, err)
-	cl.Stdout = person
-	cl.Stdin = person
-
-	sshCtx, sshCancel := context.WithCancel(context.Background())
-	t.Cleanup(sshCancel)
 	sshErr := make(chan error)
-	go func() {
-		sshErr <- cl.SSH(sshCtx, nil, false)
-		sshCancel()
-	}()
 
-	retry := func(command, pattern string) {
-		person.Type(command)
-		// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-		abortTime := time.Now().Add(10 * time.Second)
-		var matched bool
-		var output string
-		for {
-			output = replaceNewlines(person.Output(1000))
-			matched, _ = regexp.MatchString(pattern, output)
-			if matched {
-				break
-			}
-			time.Sleep(time.Millisecond * 200)
-			if time.Now().After(abortTime) {
-				require.FailNowf(t, "failed to capture output: %v", pattern)
-			}
-		}
-		if !matched {
-			require.FailNowf(t, "output %q does not match pattern %q", output, pattern)
-		}
+	tests := []struct {
+		name          string
+		createSession func(t *testing.T, i *helpers.TeleInstance, term *Terminal, cfg helpers.ClientConfig)
+	}{
+		{
+			name: "cli sessions",
+			createSession: func(t *testing.T, i *helpers.TeleInstance, term *Terminal, cfg helpers.ClientConfig) {
+				tc, err := i.NewClient(cfg)
+				require.NoError(t, err)
+
+				tc.Stdin = term
+				tc.Stdout = term
+
+				sshCtx, sshCancel := context.WithCancel(context.Background())
+				t.Cleanup(sshCancel)
+				go func() {
+					sshErr <- tc.SSH(sshCtx, nil, false)
+					sshCancel()
+				}()
+			},
+		},
+		{
+			name: "web sessions",
+			createSession: func(t *testing.T, i *helpers.TeleInstance, term *Terminal, cfg helpers.ClientConfig) {
+				wc, err := i.NewWebClient(cfg)
+				require.NoError(t, err)
+
+				stream, err := wc.SSH(web.TerminalRequest{
+					Server: net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)),
+					Login:  cfg.Login,
+					Term: session.TerminalParams{
+						W: 100,
+						H: 100,
+					},
+				})
+				require.NoError(t, err)
+
+				go func() {
+					err := utils.ProxyConn(context.Background(), term, stream)
+					sshErr <- err
+				}()
+			},
+		},
 	}
 
-	retry("echo start \r\n", ".*start.*")
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 
-	// initiate shutdown
-	ctx := context.TODO()
-	shutdownContext := teleport.Process.StartShutdown(ctx)
+			// Enable web service.
+			cfg := suite.defaultServiceConfig()
+			cfg.Auth.Enabled = true
+			cfg.Auth.Preference.SetSecondFactor("off")
+			cfg.Proxy.DisableWebService = false
+			cfg.Proxy.DisableWebInterface = true
+			cfg.Proxy.Enabled = true
+			cfg.SSH.Enabled = true
 
-	require.Eventually(t, func() bool {
-		// TODO: check that we either get a connection that fully works or a connection refused error
-		c, err := net.DialTimeout("tcp", teleport.ReverseTunnel, 250*time.Millisecond)
-		if err != nil {
-			require.True(t, utils.IsConnectionRefused(trace.Unwrap(err)))
-			return true
-		}
-		require.NoError(t, c.Close())
-		return false
-	}, time.Second*5, time.Millisecond*500, "proxy should not accept new connections while shutting down")
+			teleport := suite.NewTeleportWithConfig(t, []string{"test"}, nil, cfg)
 
-	// make sure that terminal still works
-	retry("echo howdy \r\n", ".*howdy.*")
+			password := uuid.NewString()
+			teleport.CreateWebUser(t, suite.Me.Username, password)
 
-	// now type exit and wait for shutdown to complete
-	person.Type("exit\n\r")
+			// get a reference to site obj:
+			site := teleport.GetSiteAPI(helpers.Site)
+			require.NotNil(t, site)
 
-	select {
-	case err := <-sshErr:
-		require.NoError(t, err)
-	case <-time.After(5 * time.Second):
-		require.FailNow(t, "failed to shutdown ssh session")
-	}
+			person := NewTerminal(250)
 
-	select {
-	case <-shutdownContext.Done():
-	case <-time.After(5 * time.Second):
-		require.FailNow(t, "Failed to shut down the server.")
+			test.createSession(t, teleport, person, helpers.ClientConfig{
+				Login:    suite.Me.Username,
+				Password: password,
+				Cluster:  helpers.Site,
+				Host:     Loopback,
+				Port:     helpers.Port(t, teleport.SSH),
+			})
+
+			person.Type("echo start \r\n")
+			require.Eventually(t, func() bool {
+				output := replaceNewlines(person.Output(1000))
+				matched, _ := regexp.MatchString(".*start.*", output)
+				return matched
+			}, 10*time.Second, 200*time.Millisecond)
+
+			// initiate shutdown
+			shutdownContext := teleport.Process.StartShutdown(context.Background())
+
+			require.Eventually(t, func() bool {
+				// TODO: check that we either get a connection that fully works or a connection refused error
+				c, err := net.DialTimeout("tcp", teleport.ReverseTunnel, 250*time.Millisecond)
+				if err != nil {
+					return utils.IsConnectionRefused(trace.Unwrap(err))
+				}
+				return c.Close() == nil
+			}, time.Second*5, time.Millisecond*500, "proxy should not accept new connections while shutting down")
+
+			// make sure that terminal still works
+			person.Type("echo howdy \r\n")
+			require.Eventually(t, func() bool {
+				output := replaceNewlines(person.Output(1000))
+				matched, _ := regexp.MatchString(".*howdy.*", output)
+				return matched
+			}, 10*time.Second, 200*time.Millisecond)
+
+			// now type exit and wait for shutdown to complete
+			person.Type("exit\n\r")
+
+			select {
+			case err := <-sshErr:
+				require.NoError(t, err)
+			case <-time.After(5 * time.Second):
+				require.FailNow(t, "failed to shutdown ssh session")
+			}
+
+			select {
+			case <-shutdownContext.Done():
+			case <-time.After(5 * time.Second):
+				require.FailNow(t, "Failed to shut down the server.")
+			}
+		})
 	}
 }
 
@@ -1547,6 +1591,9 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 }
 
 func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectTestCase) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	teleport := suite.NewTeleportInstance(t)
 
 	username := suite.Me.Username
@@ -1582,9 +1629,6 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 	require.NoError(t, teleport.CreateEx(t, nil, cfg))
 	require.NoError(t, teleport.Start())
 	defer teleport.StopAll()
-
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
 
 	if tc.concurrentConns < 1 {
 		// test cases that don't specify concurrentConns are single-connection tests.
@@ -1811,6 +1855,7 @@ func testTwoClustersTunnel(t *testing.T, suite *integrationTestSuite) {
 }
 
 func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time, proxyRecordMode string, execCountSiteA, execCountSiteB int) {
+	ctx := context.Background()
 	// start the http proxy, we need to make sure this was not used
 	ph := &helpers.ProxyHandler{}
 	ts := httptest.NewServer(ph)
@@ -1897,12 +1942,12 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	})
 	tc.Stdout = &outputA
 	require.NoError(t, err)
-	err = tc.SSH(context.TODO(), cmd, false)
+	err = tc.SSH(ctx, cmd, false)
 	require.NoError(t, err)
 	require.Equal(t, "hello world\n", outputA.String())
 
 	// Update trusted CAs.
-	err = tc.UpdateTrustedCA(context.TODO(), a.Secrets.SiteName)
+	err = tc.UpdateTrustedCA(ctx, a.Secrets.SiteName)
 	require.NoError(t, err)
 
 	// The known_hosts file should have two certificates, the way bytes.Split
@@ -1941,13 +1986,13 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	})
 	tc.Stdout = &outputB
 	require.NoError(t, err)
-	err = tc.SSH(context.TODO(), cmd, false)
+	err = tc.SSH(ctx, cmd, false)
 	require.NoError(t, err)
 	require.Equal(t, outputA.String(), outputB.String())
 
 	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
 	require.NoError(t, a.StopAuth(false))
-	err = tc.SSH(context.TODO(), cmd, false)
+	err = tc.SSH(ctx, cmd, false)
 	require.IsType(t, err, trace.ConnectionProblem(nil, ""))
 
 	// Reset and start "Site-A" again
@@ -1960,7 +2005,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	// and 'tc' (client) is also supposed to reconnect
 	var sshErr error
 	tcHasReconnected := func() bool {
-		sshErr = tc.SSH(context.TODO(), cmd, false)
+		sshErr = tc.SSH(ctx, cmd, false)
 		return sshErr == nil
 	}
 	require.Eventually(t, tcHasReconnected, 10*time.Second, 250*time.Millisecond,
@@ -2045,6 +2090,7 @@ func testTwoClustersProxy(t *testing.T, suite *integrationTestSuite) {
 // TestHA tests scenario when auth server for the cluster goes down
 // and we switch to local persistent caches
 func testHA(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -2097,7 +2143,7 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	// and 'tc' (client) is also supposed to reconnect
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err == nil {
 			break
 		}
@@ -2130,7 +2176,7 @@ func testHA(t *testing.T, suite *integrationTestSuite) {
 	// and 'tc' (client) is also supposed to reconnect
 	for i := 0; i < 30; i++ {
 		time.Sleep(1 * time.Second)
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err == nil {
 			break
 		}
@@ -3118,6 +3164,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 // TestDiscoveryRecovers ensures that discovery protocol recovers from a bad discovery
 // state (all known proxies are offline).
 func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3125,7 +3172,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 
 	// create load balancer for main cluster proxies
 	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
-	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
+	lb, err := utils.NewLoadBalancer(ctx, frontend)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
 	go lb.Serve()
@@ -3252,6 +3299,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 // TestDiscovery tests case for multiple proxies and a reverse tunnel
 // agent that eventually connnects to the the right proxy
 func testDiscovery(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3259,7 +3307,7 @@ func testDiscovery(t *testing.T, suite *integrationTestSuite) {
 
 	// create load balancer for main cluster proxies
 	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
-	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
+	lb, err := utils.NewLoadBalancer(ctx, frontend)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
 	go lb.Serve()
@@ -3381,6 +3429,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	// TODO(jakule): Re-enable this test
 	t.Skip("flaky test. Skip temporary")
 
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tr.Stop() })
 
@@ -3389,7 +3438,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 
 	// Create and start load balancer for proxies.
 	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
-	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
+	lb, err := utils.NewLoadBalancer(ctx, frontend)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
 	go lb.Serve()
@@ -3534,6 +3583,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 
 // TestDiscoveryNode makes sure the discovery protocol works with nodes.
 func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3542,7 +3592,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 
 	// Create and start load balancer for proxies.
 	frontend := *utils.MustParseAddr(net.JoinHostPort(Loopback, "0"))
-	lb, err := utils.NewLoadBalancer(context.TODO(), frontend)
+	lb, err := utils.NewLoadBalancer(ctx, frontend)
 	require.NoError(t, err)
 	err = lb.Listen()
 	require.NoError(t, err)
@@ -4846,6 +4896,9 @@ func waitForReload(serviceC chan *service.TeleportProcess, old *service.Teleport
 
 	// if old service is present, wait for it to complete shut down procedure
 	if old != nil {
+		if err := waitForProcessReloadEvent(old); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ctx, cancel := context.WithCancel(context.TODO())
 		go func() {
 			defer cancel()
@@ -4859,6 +4912,23 @@ func waitForReload(serviceC chan *service.TeleportProcess, old *service.Teleport
 		}
 	}
 	return svc, nil
+}
+
+// waitForProcessReloadEvent waits for the old process to receive a TeleportExitEvent
+// and verifies the event payload indicates the process is reloading.
+func waitForProcessReloadEvent(old *service.TeleportProcess) error {
+	event, err := old.WaitForEventTimeout(20*time.Second, service.TeleportExitEvent)
+	if err != nil {
+		return trace.WrapWithMessage(err, "timeout waiting for old service to broadcast exit event")
+	}
+	ctx, ok := event.Payload.(context.Context)
+	if !ok {
+		return trace.BadParameter("payload of the exit event is not a context.Context")
+	}
+	if !services.IsProcessReloading(ctx) {
+		return trace.BadParameter("payload of the exit event is not a ProcessReloadContext")
+	}
+	return nil
 }
 
 // runAndMatch runs command and makes sure it matches the pattern
@@ -5977,10 +6047,10 @@ func testSessionStartContainsAccessRequest(t *testing.T, suite *integrationTestS
 
 	accessRequestID := req.GetName()
 
-	err = authServer.CreateAccessRequest(context.TODO(), req, tlsca.Identity{})
+	err = authServer.CreateAccessRequest(ctx, req, tlsca.Identity{})
 	require.NoError(t, err)
 
-	err = authServer.SetAccessRequestState(context.TODO(), types.AccessRequestUpdate{
+	err = authServer.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 		RequestID: accessRequestID,
 		State:     types.RequestState_APPROVED,
 	})
@@ -6735,6 +6805,7 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 }
 
 func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) {
+	ctx := context.Background()
 	tc := createTrustedClusterPair(t, suite, func(t *testing.T, root, leaf *helpers.TeleInstance) {
 		rootNodes := []string{"root-one", "root-two"}
 		leafNodes := []string{"leaf-one", "leaf-two"}
@@ -6839,7 +6910,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			} else {
 				tc.SearchKeywords = nil
 			}
-			clusters, err := tc.ListNodesWithFiltersAllClusters(context.TODO())
+			clusters, err := tc.ListNodesWithFiltersAllClusters(ctx)
 			require.NoError(t, err)
 			nodes := make([]string, 0)
 			for _, v := range clusters {
@@ -6885,7 +6956,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 		}
 
 		t.Run("apps - "+test.name, func(t *testing.T) {
-			clusters, err := tc.ListAppsAllClusters(context.TODO(), nil)
+			clusters, err := tc.ListAppsAllClusters(ctx, nil)
 			require.NoError(t, err)
 			apps := make([]string, 0)
 			for _, v := range clusters {
@@ -6898,7 +6969,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 		})
 
 		t.Run("databases - "+test.name, func(t *testing.T) {
-			clusters, err := tc.ListDatabasesAllClusters(context.TODO(), nil)
+			clusters, err := tc.ListDatabasesAllClusters(ctx, nil)
 			require.NoError(t, err)
 			databases := make([]string, 0)
 			for _, v := range clusters {
@@ -6915,7 +6986,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			if test.search != "" {
 				req.SearchKeywords = strings.Split(test.search, " ")
 			}
-			clusterMap, err := tc.ListKubernetesClustersWithFiltersAllClusters(context.TODO(), req)
+			clusterMap, err := tc.ListKubernetesClustersWithFiltersAllClusters(ctx, req)
 			require.NoError(t, err)
 			clusters := make([]string, 0)
 			for _, cl := range clusterMap {

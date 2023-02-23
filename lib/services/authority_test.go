@@ -188,6 +188,100 @@ func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 	require.True(t, CertAuthoritiesEquivalent(caLocal, caUTC))
 }
 
+func TestCheckSAMLIDPCA(t *testing.T) {
+	// Create testing CA.
+	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster1"}, nil, time.Minute)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		keyset           types.CAKeySet
+		errAssertionFunc require.ErrorAssertionFunc
+	}{
+		{
+			name:             "no active keys",
+			keyset:           types.CAKeySet{},
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "multiple active keys",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: cert,
+					Key:  key,
+				}, {
+					Cert: cert,
+					Key:  key,
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "empty key",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: cert,
+					Key:  []byte{},
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "unparseable key",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: cert,
+					Key:  bytes.Repeat([]byte{49}, 1222),
+				}},
+			},
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "unparseable cert",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: bytes.Repeat([]byte{49}, 1222),
+					Key:  key,
+				}},
+			},
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "valid CA",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: cert,
+					Key:  key,
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "don't validate non-raw private keys",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert:    cert,
+					Key:     bytes.Repeat([]byte{49}, 1222),
+					KeyType: types.PrivateKeyType_PKCS11,
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.SAMLIDPCA,
+				ClusterName: "cluster1",
+				ActiveKeys:  test.keyset,
+			})
+			require.NoError(t, err)
+			test.errAssertionFunc(t, ValidateCertAuthority(ca))
+		})
+	}
+}
+
 func BenchmarkCertAuthoritiesEquivalent(b *testing.B) {
 	ca1, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,

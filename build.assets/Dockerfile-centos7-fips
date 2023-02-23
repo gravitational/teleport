@@ -1,3 +1,7 @@
+# Create an alias to the assets image. Ref: https://github.com/docker/for-mac/issues/2155
+ARG BUILDARCH
+FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport13-${BUILDARCH} AS teleport-buildbox-centos7-assets
+
 FROM centos:7 AS libbpf
 
 # Install required dependencies.
@@ -6,24 +10,18 @@ RUN yum groupinstall -y 'Development Tools' && \
     yum update -y && \
     yum -y install centos-release-scl-rh && \
     yum install -y \
-    # required by libbpf
-    centos-release-scl \
-    # required by libbpf
-    devtoolset-11-gcc* \
-    # required by libbpf
-    devtoolset-11-make \
-    # required by libbpf
-    elfutils-libelf-devel-static \
-    git \
-    # required by libbpf
-    scl-utils \
+        centos-release-scl \
+        devtoolset-11-gcc* \
+        devtoolset-11-make \
+        elfutils-libelf-devel-static \
+        scl-utils && \
     yum clean all
 
 # Install libbpf - compile with a newer GCC. The one installed by default is not able to compile it.
 # BUILD_STATIC_ONLY disables libbpf.so build as we don't need it.
 ARG LIBBPF_VERSION
 RUN mkdir -p /opt && cd /opt && \
-    curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     scl enable devtoolset-11 "make && BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install"
 
@@ -151,12 +149,6 @@ RUN make -C /opt/pam_teleport install
 
 RUN chmod a-w /
 
-# Download pre-built CentOS 7 assets with clang needed to build BPF tools.
-RUN cd / && curl -L https://s3.amazonaws.com/clientbuilds.gravitational.io/go/centos7-assets.tar.gz | tar -xz
-
-# Copy libbpf into the final image.
-COPY --from=libbpf /opt/libbpf/usr /usr
-
 ARG RUST_VERSION
 ENV RUSTUP_HOME=/usr/local/rustup \
      CARGO_HOME=/usr/local/cargo \
@@ -184,6 +176,13 @@ COPY --from=boringssl /opt/boringssl /opt/boringssl
 # https://github.com/cloudflare/boring#support-for-pre-built-binaries
 ENV BORING_BSSL_PATH=/opt/boringssl
 ENV BORING_BSSL_INCLUDE_PATH=/opt/boringssl/include
+
+ARG LIBBPF_VERSION
+COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
+
+# Download pre-built CentOS 7 assets with clang needed to build BPF tools.
+ARG BUILDARCH
+COPY --from=teleport-buildbox-centos7-assets /opt/llvm /opt/llvm
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

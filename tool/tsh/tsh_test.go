@@ -750,9 +750,23 @@ func TestMakeClient(t *testing.T) {
 	// minimal configuration (with defaults)
 	conf.Proxy = "proxy:3080"
 	conf.UserHost = "localhost"
+	conf.HomePath = t.TempDir()
+
+	// Create a empty profile so we don't ping proxy.
+	clientStore, err := initClientStore(&conf, conf.Proxy)
+	require.NoError(t, err)
+	profile := &profile.Profile{
+		SSHProxyAddr: "proxy:3023",
+		WebProxyAddr: "proxy:3080",
+	}
+	err = clientStore.SaveProfile(profile, true)
+	require.NoError(t, err)
+
 	tc, err = makeClient(&conf, true)
 	require.NoError(t, err)
 	require.NotNil(t, tc)
+
+	// profile info should be loaded into client
 	require.Equal(t, "proxy:3023", tc.Config.SSHProxyAddr)
 	require.Equal(t, "proxy:3080", tc.Config.WebProxyAddr)
 
@@ -829,10 +843,22 @@ func TestMakeClient(t *testing.T) {
 	proxySSHAddr, err := proxy.ProxySSHAddr()
 	require.NoError(t, err)
 
+	// If profile is missing, makeClient should call Ping on the proxy to fetch SSHProxyAddr
+	conf = CLIConf{
+		Proxy:              proxyWebAddr.String(),
+		Context:            context.Background(),
+		InsecureSkipVerify: true,
+	}
+	tc, err = makeClient(&conf, true)
+	require.NoError(t, err)
+	require.NotNil(t, tc)
+	require.Equal(t, proxyWebAddr.String(), tc.Config.WebProxyAddr)
+	require.Equal(t, proxySSHAddr.Addr, tc.Config.SSHProxyAddr)
+	require.NotNil(t, tc.LocalAgent().ExtendedAgent)
+
 	// With provided identity file.
 	//
-	// makeClient should call Ping on the proxy to fetch SSHProxyAddr, which is
-	// different from the default.
+	// makeClient should call Ping on the proxy to fetch SSHProxyAddr
 	conf = CLIConf{
 		Proxy:              proxyWebAddr.String(),
 		IdentityFileIn:     "../../fixtures/certs/identities/tls.pem",
@@ -851,6 +877,8 @@ func TestMakeClient(t *testing.T) {
 	agentKeys, err := tc.LocalAgent().ExtendedAgent.List()
 	require.NoError(t, err)
 	require.Greater(t, len(agentKeys), 0)
+	require.Equal(t, keys.PrivateKeyPolicyNone, tc.PrivateKeyPolicy,
+		"private key policy should be configured from the identity file temp profile")
 }
 
 // accessApprover allows watching and updating access requests
@@ -2534,17 +2562,19 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSOLoginFunc {
 	return func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
 		// generate certificates for our user
+		clusterName, err := authServer.GetClusterName()
+		require.NoError(t, err)
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
 			priv.MarshalSSHPublicKey(), user.GetName(), time.Hour,
 			constants.CertificateFormatStandard,
-			"localhost", "",
+			clusterName.GetClusterName(), "",
 		)
 		require.NoError(t, err)
 
 		// load CA cert
 		authority, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
-			DomainName: "localhost",
+			DomainName: clusterName.GetClusterName(),
 		}, false)
 		require.NoError(t, err)
 
@@ -2612,7 +2642,8 @@ func TestSerializeVersion(t *testing.T) {
 		name     string
 		expected string
 
-		proxyVersion string
+		proxyVersion       string
+		proxyPublicAddress string
 	}{
 		{
 			name: "no proxy version provided",
@@ -2622,18 +2653,19 @@ func TestSerializeVersion(t *testing.T) {
 			),
 		},
 		{
-			name:         "proxy version provided",
-			proxyVersion: "1.33.7",
+			name:               "proxy version provided",
+			proxyVersion:       "1.33.7",
+			proxyPublicAddress: "teleport.example.com:443",
 			expected: fmt.Sprintf(
-				`{"version": %q, "gitref": %q, "runtime": %q, "proxyVersion": %q}`,
-				teleport.Version, teleport.Gitref, runtime.Version(), "1.33.7"),
+				`{"version": %q, "gitref": %q, "runtime": %q, "proxyVersion": %q, "proxyPublicAddress": %q}`,
+				teleport.Version, teleport.Gitref, runtime.Version(), "1.33.7", "teleport.example.com:443"),
 		},
 	}
 
 	for _, tC := range testCases {
 		t.Run(tC.name, func(t *testing.T) {
 			testSerialization(t, tC.expected, func(fmt string) (string, error) {
-				return serializeVersion(fmt, tC.proxyVersion)
+				return serializeVersion(fmt, tC.proxyVersion, tC.proxyPublicAddress)
 			})
 		})
 	}

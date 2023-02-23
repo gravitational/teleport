@@ -34,6 +34,13 @@ Download and run the installer `.exe` file. It will install and open Teleport Co
 further user input.
 
 Repeat the process with newer versions to upgrade.
+
+A silent installation can be performed by running the installer with the `/S` flag. This will hide
+the progress bar and skip the launch of the app after the installation is complete.
+
+```code
+$ "Teleport Connect Setup-(=teleport.version=).exe" /S
+```
 </TabItem>
 </Tabs>
 
@@ -150,6 +157,30 @@ During installation, Teleport Connect automatically adds the `resources\bin` fol
 installation directory to the `Path` user environment variable.
 </TabItem>
 </Tabs>
+
+## Telemetry
+
+(!docs/pages/includes/teleport-connect-telemetry.mdx!)
+
+### Disabling telemetry
+
+If you initially agreed to share telemetry data, but now want to opt out, you need to update the `app_config.json` file:
+```json
+"usageReporting.enabled": false
+```
+<Tabs>
+<TabItem label="macOS">
+The Teleport Connect configuration file is located at `~/Library/Application Support/Teleport Connect/app_config.json`.
+</TabItem>
+<TabItem label="Linux">
+The Teleport Connect configuration file is located at `~/.config/Teleport Connect/app_config.json`.
+</TabItem>
+<TabItem label="Windows">
+The Teleport Connect configuration file is located at `C:\Users\%UserName%\AppData\Roaming\Teleport Connect\app_config.json`.
+</TabItem>
+</Tabs>
+
+The changes will take effect at the next launch.
 
 ## Troubleshooting
 
