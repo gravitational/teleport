@@ -31,7 +31,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -4948,6 +4947,8 @@ type GRPCServerConfig struct {
 	APIConfig
 	// TLS is GRPC server config
 	TLS *tls.Config
+	// Middleware is the request TLS client authenticator
+	Middleware *Middleware
 	// UnaryInterceptor intercepts individual GRPC requests
 	// for authentication and rate limiting
 	UnaryInterceptor grpc.UnaryServerInterceptor
@@ -4967,6 +4968,9 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 	if cfg.StreamInterceptor == nil {
 		return trace.BadParameter("missing parameter StreamInterceptor")
 	}
+	if cfg.Middleware == nil {
+		return trace.BadParameter("missing parameter Middleware")
+	}
 	return nil
 }
 
@@ -4981,13 +4985,22 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("GRPC(SERVER): keep alive %v count: %v.", cfg.KeepAlivePeriod, cfg.KeepAliveCount)
-	opts := []grpc.ServerOption{
-		grpc.Creds(&httplib.TLSCreds{
-			Config: cfg.TLS,
-		}),
 
-		grpc.ChainUnaryInterceptor(otelgrpc.UnaryServerInterceptor(), cfg.UnaryInterceptor),
-		grpc.ChainStreamInterceptor(otelgrpc.StreamServerInterceptor(), cfg.StreamInterceptor),
+	// httplib.TLSCreds are explicitly used instead of credentials.NewTLS because the latter
+	// modifies the tls.Config.NextProtos which causes problems due to multiplexing on the auth
+	// listener.
+	creds, err := NewTransportCredentials(TransportCredentialsConfig{
+		TransportCredentials: &httplib.TLSCreds{Config: cfg.TLS},
+		UserGetter:           cfg.Middleware,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	server := grpc.NewServer(
+		grpc.Creds(creds),
+		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptor),
+		grpc.ChainStreamInterceptor(cfg.StreamInterceptor),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
 				Time:    cfg.KeepAlivePeriod,
@@ -5000,8 +5013,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 				PermitWithoutStream: true,
 			},
 		),
-	}
-	server := grpc.NewServer(opts...)
+	)
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{

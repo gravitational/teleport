@@ -3753,6 +3753,32 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// authMiddleware authenticates request assuming TLS client authentication
+	// adds authentication information to the context
+	// and passes it to the API server
+	authMiddleware := &auth.Middleware{
+		ClusterName: clusterName,
+	}
+
+	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
+		TransportCredentials: credentials.NewTLS(serverTLSConfig),
+		UserGetter:           authMiddleware,
+		Authorizer:           authorizer,
+		Enforcer:             sessionController,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	sshGRPCServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			utils.GRPCServerUnaryErrorInterceptor,
@@ -3762,7 +3788,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			utils.GRPCServerStreamErrorInterceptor,
 			otelgrpc.StreamServerInterceptor(),
 		),
-		grpc.Creds(credentials.NewTLS(serverTLSConfig)),
+		grpc.Creds(creds),
 	)
 
 	process.RegisterCriticalFunc("proxy.ssh", func() error {
@@ -3779,7 +3805,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		// start grpc server
 		go func() {
-			if err := sshGRPCServer.Serve(proxyLimiter.WrapListener(listeners.sshGRPC)); !errors.Is(err, grpc.ErrServerStopped) {
+			if err := sshGRPCServer.Serve(proxyLimiter.WrapListener(listeners.sshGRPC)); err != nil && !utils.IsOKNetworkError(err) && !errors.Is(err, grpc.ErrServerStopped) {
 				log.WithError(err).Error("SSH gRPC server terminated unexpectedly")
 			}
 		}()
@@ -5246,25 +5272,28 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		AccessPoint:   cfg.accessPoint,
+		ClusterName:   clusterName,
 		Limiter:       cfg.limiter,
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}
 
+	tlsConf := copyAndConfigureTLS(serverTLSConfig, process.log, cfg.accessPoint, clusterName)
+	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
+		TransportCredentials: credentials.NewTLS(tlsConf),
+		UserGetter:           authMiddleware,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	server := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			utils.GRPCServerUnaryErrorInterceptor,
-			otelgrpc.UnaryServerInterceptor(),
 			authMiddleware.UnaryInterceptor(),
 		),
 		grpc.ChainStreamInterceptor(
-			utils.GRPCServerStreamErrorInterceptor,
-			otelgrpc.StreamServerInterceptor(),
 			authMiddleware.StreamInterceptor(),
 		),
-		grpc.Creds(credentials.NewTLS(
-			copyAndConfigureTLS(serverTLSConfig, process.log, cfg.accessPoint, clusterName),
-		)),
+		grpc.Creds(creds),
 	)
 
 	kubeServer, err := kubegprc.New(kubegprc.Config{

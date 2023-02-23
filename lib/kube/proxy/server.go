@@ -173,11 +173,16 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.BadParameter("kube_service won't start because it has neither static clusters nor a resource watcher configured.")
 	}
 
+	clustername, err := cfg.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		AccessPoint:   cfg.AccessPoint,
+		ClusterName:   clustername.GetClusterName(),
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}
 	authMiddleware.Wrap(fwd)

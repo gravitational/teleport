@@ -181,10 +181,16 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	clustername, err := config.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	server := &ProxyServer{
 		cfg: config,
 		middleware: &auth.Middleware{
-			AccessPoint:   config.AccessPoint,
+			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
 		closeCtx: ctx,
