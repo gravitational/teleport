@@ -9,12 +9,6 @@
 # teleport built on any newer Ubuntu version will not run on Centos 7 because
 # of this.
 
-# GRPC_NODE_PLUGIN_BINARY_TYPE has to be defined above the first FROM as it's
-# used in another FROM instruction. See the comment for grpc_node_plugin image
-# for more details.
-# Valid values are "prebuilt" and "compiled".
-ARG GRPC_NODE_PLUGIN_BINARY_TYPE
-
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
@@ -62,44 +56,18 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
 
 FROM buildpack-deps:18.04 AS libbpf
 
-# Install libbpf
+# Install required dependencies
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
         libelf-dev
 
 ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt &&  \
+    curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    make && \
-    make install
-
-## GRPC_NODE_PLUGIN ###########################################################
-
-# grpc_node_plugin is built only on arm64.
-#
-# To generate JS protofiles, we need the grpc-tools npm package. Unfortunately,
-# it doesn't ship with a prebuilt grpc_node_plugin binary for Linux arm64. [1]
-#
-# We have to build it from source. Cloning all submodules takes a lot of time
-# and bandwith so we build the binary in a separate image.
-#
-# [1] https://github.com/grpc/grpc-node/issues/1405#issuecomment-1282201879
-
-FROM buildpack-deps:18.04 AS grpc_node_plugin
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends cmake
-COPY teleterm_linux_arm64.toolchain.cmake ./linux_arm64.toolchain.cmake
-RUN git clone --depth=1 --branch=grpc-tools@1.11.2 https://github.com/grpc/grpc-node.git && \
-    mv linux_arm64.toolchain.cmake grpc-node/packages/grpc-tools/. && \
-    cd grpc-node && \
-    git submodule update --init --recursive && \
-    cd packages/grpc-tools && \
-    cmake -DCMAKE_TOOLCHAIN_FILE=linux_arm64.toolchain.cmake . && \
-    cmake --build . --target clean && cmake --build . --target grpc_node_plugin -- -j 12 && \
-    mv grpc_node_plugin ../../../. && \
-    cd ../../.. && \
-    rm -rf grpc-node
+    make &&  \
+    BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install
 
 ## BUILDBOX ###################################################################
 #
@@ -286,7 +254,7 @@ RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
 
 # Install JS gRPC tools.
-RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1)
+RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1 grpc-tools@1.12.4)
 
 # Install protobuf and grpc build tools.
 ARG PROTOC_VER
@@ -318,16 +286,15 @@ RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.1
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.13.1" && \
+    VERSION="1.14.0" && \
       curl -sSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
       chmod +x "${BIN}/buf"
 
 # Copy BPF libraries.
-COPY --from=libbpf /usr/include/bpf /usr/include/bpf
-COPY --from=libbpf /usr/lib64/ /usr/lib64/
-RUN cd /usr/local/lib && ldconfig
+ARG LIBBPF_VERSION
+COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Copy libfido2 libraries.
 # Do this near the end to take better advantage of the multi-stage build.
@@ -344,20 +311,6 @@ RUN cd /usr/local/lib && \
     ln -s libfido2.so.1 libfido2.so && \
     ldconfig
 COPY pkgconfig/buildbox/ /
-
-FROM buildbox AS grpc_node_plugin_binary_prebuilt
-ONBUILD RUN (npm install --global grpc-tools@1.11.2)
-
-FROM buildbox AS grpc_node_plugin_binary_compiled
-COPY --from=grpc_node_plugin grpc_node_plugin ./grpc_node_plugin
-ONBUILD RUN npm install --global --ignore-scripts grpc-tools@1.11.2 && \
-    mv grpc_node_plugin $(npm root -g)/grpc-tools/bin/. && \
-    # grpc-tools needs protoc but we already install it a couple of steps above.
-    ln -s $(which protoc) $(npm root -g)/grpc-tools/bin/protoc
-
-# A "conditional" FROM like this breaks up the number of steps in the progress bar of the given
-# image, so let's use it at the end. This way the progress bar for buildbox stays mostly untouched.
-FROM grpc_node_plugin_binary_${GRPC_NODE_PLUGIN_BINARY_TYPE} as buildbox
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

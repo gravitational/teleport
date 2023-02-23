@@ -96,6 +96,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_SnowflakeSession{
 				SnowflakeSession: r,
 			}
+		case types.KindSAMLIdPSession:
+			out.Resource = &proto.Event_SAMLIdPSession{
+				SAMLIdPSession: r,
+			}
 		default:
 			return nil, trace.BadParameter("only %q supported", types.WebSessionSubKinds)
 		}
@@ -174,6 +178,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case *types.SAMLIdPServiceProviderV1:
 		out.Resource = &proto.Event_SAMLIdPServiceProvider{
 			SAMLIdPServiceProvider: r,
+		}
+	case *types.UserGroupV1:
+		out.Resource = &proto.Event_UserGroup{
+			UserGroup: r,
 		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
@@ -307,6 +315,9 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetSAMLIdPServiceProvider(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetUserGroup(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else {

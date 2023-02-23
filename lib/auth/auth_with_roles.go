@@ -602,15 +602,21 @@ func (a *ServerWithRoles) GetCertAuthorities(ctx context.Context, caType types.C
 }
 
 func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
-	if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbReadNoSecrets); err != nil {
+	readVerb := types.VerbReadNoSecrets
+	if loadKeys {
+		readVerb = types.VerbRead
+	}
+
+	ca, err := a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if loadKeys {
-		if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	sctx := &services.Context{User: a.context.User, Resource: ca}
+	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindCertAuthority, readVerb); err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
+
+	return ca, nil
 }
 
 func (a *ServerWithRoles) GetDomainName(ctx context.Context) (string, error) {
@@ -651,6 +657,8 @@ func (a *ServerWithRoles) UpdateUserCARoleMap(ctx context.Context, name string, 
 }
 
 // GenerateToken generates multi-purpose authentication token.
+// Deprecated: Use CreateToken or UpdateToken.
+// DELETE IN 14.0.0, replaced by methods above (strideynet).
 func (a *ServerWithRoles) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return "", trace.Wrap(err)
@@ -1126,6 +1134,16 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
+	case constants.KeepAliveDatabaseService:
+		if serverName != handle.Name {
+			return trace.AccessDenied("access denied")
+		}
+		if !a.hasBuiltinRole(types.RoleDatabase) {
+			return trace.AccessDenied("access denied")
+		}
+		if err := a.action(apidefaults.Namespace, types.KindDatabaseService, types.VerbUpdate); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -1791,6 +1809,25 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 	return nil
 }
 
+// emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
+// events. For now, this just emits trusted_cluster_token.create.
+func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken) {
+	userMetadata := ClientUserMetadata(ctx)
+	for _, role := range token.GetRoles() {
+		if role == types.RoleTrustedCluster {
+			if err := e.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
+				Metadata: apievents.Metadata{
+					Type: events.TrustedClusterTokenCreateEvent,
+					Code: events.TrustedClusterTokenCreateCode,
+				},
+				UserMetadata: userMetadata,
+			}); err != nil {
+				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
+			}
+		}
+	}
+}
+
 func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
@@ -1798,7 +1835,11 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertToken(ctx, token)
+	if err := a.authServer.UpsertToken(ctx, token); err != nil {
+		return trace.Wrap(err)
+	}
+	emitTokenEvent(ctx, a.authServer.emitter, token)
+	return nil
 }
 
 func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.ProvisionToken) error {
@@ -1808,7 +1849,11 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.CreateToken(ctx, token)
+	if err := a.authServer.CreateToken(ctx, token); err != nil {
+		return trace.Wrap(err)
+	}
+	emitTokenEvent(ctx, a.authServer.emitter, token)
+	return nil
 }
 
 // ChangePassword updates users password based on the old password.
@@ -2153,6 +2198,12 @@ func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.Plu
 	}
 }
 
+// pingCacheKey is used to with Server.ttlCache to cache frequently-loaded
+// values in the Ping method.
+type pingCacheKey struct {
+	kind string
+}
+
 // Ping gets basic info about the auth server.
 func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) {
 	// The Ping method does not require special permissions since it only returns
@@ -2162,14 +2213,19 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 	if err != nil {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
-	heartbeat, err := a.authServer.GetLicenseCheckResult(ctx)
+
+	// license check result is loaded from real backend, and is not modified once loaded, so we
+	// can save a lot of IO by doing short-lived ttl caching.
+	heartbeat, err := utils.FnCacheGet(ctx, a.authServer.ttlCache, pingCacheKey{"license-check-result"}, a.authServer.GetLicenseCheckResult)
 	if err != nil {
-		return proto.PingResponse{}, trace.Wrap(err)
+		log.Warnf("Failed to load license check result for Ping: %v", err)
 	}
 	var warnings []string
-	for _, notification := range heartbeat.Spec.Notifications {
-		if notification.Type == LicenseExpiredNotification {
-			warnings = append(warnings, notification.Text)
+	if heartbeat != nil {
+		for _, notification := range heartbeat.Spec.Notifications {
+			if notification.Type == LicenseExpiredNotification {
+				warnings = append(warnings, notification.Text)
+			}
 		}
 	}
 	return proto.PingResponse{
@@ -2495,18 +2551,7 @@ func (a *ServerWithRoles) desiredAccessInfoForUser(ctx context.Context, req *pro
 
 // GenerateUserCerts generates users certificates
 func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-	authPref, err := a.authServer.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	identity := a.context.Identity.GetIdentity()
-
-	// Device trust: authorize device before issuing certificates, if applicable.
-	// This gives a better UX by failing earlier in the access attempt.
-	if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), identity); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return a.generateUserCerts(
 		ctx, req,
 		certRequestDeviceExtensions(identity.DeviceExtensions),
@@ -2514,7 +2559,14 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 }
 
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
-	var err error
+	// Device trust: authorize device before issuing certificates.
+	authPref, err := a.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.verifyUserDeviceForCertIssuance(req.Usage, authPref.GetDeviceTrust()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// this prevents clients who have no chance at getting a cert and impersonating anyone
 	// from enumerating local users and hitting database
@@ -2709,8 +2761,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		checker:           checker,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
-		clientIP: a.context.Identity.GetIdentity().ClientIP,
-		traits:   accessInfo.Traits,
+		loginIP: a.context.Identity.GetIdentity().LoginIP,
+		traits:  accessInfo.Traits,
 		activeRequests: services.RequestIDs{
 			AccessRequests: req.AccessRequests,
 		},
@@ -2776,6 +2828,23 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 
 	return certs, nil
+}
+
+// verifyUserDeviceForCertIssuance verifies if the user device is a trusted
+// device, in accordance to the certificate usage and the cluster's DeviceTrust
+// settings. It's meant to be called before issuing new user certificates.
+// Each Node (or access server) verifies the device independently, so this check
+// is not paramount to the access system itself, but it stops bad attempts from
+// progressing further and provides better feedback than other protocol-specific
+// failures.
+func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(usage proto.UserCertsRequest_CertUsage, dt *types.DeviceTrust) error {
+	// Ignore App or WindowsDeskop requests, they do not support device trust.
+	if usage == proto.UserCertsRequest_App || usage == proto.UserCertsRequest_WindowsDesktop {
+		return nil
+	}
+
+	identity := a.context.Identity.GetIdentity()
+	return trace.Wrap(dtauthz.VerifyTLSUser(dt, identity))
 }
 
 // CreateBot creates a new certificate renewal bot and returns a join token.
@@ -4211,6 +4280,24 @@ func (a *ServerWithRoles) GetSnowflakeSession(ctx context.Context, req types.Get
 	return session, nil
 }
 
+// GetSAMLIdPSession gets a SAML IdP session.
+func (a *ServerWithRoles) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
+	session, err := a.authServer.GetSAMLIdPSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if session.GetSubKind() != types.KindSAMLIdPSession {
+		return nil, trace.AccessDenied("GetSAMLIdPSession only allows reading sessions with SubKind SAMLIdpSession")
+	}
+	// Users can only fetch their own SAML IdP sessions.
+	if err := a.currentUserAction(session.GetUser()); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return session, nil
+}
+
 // GetAppSessions gets all application web sessions.
 func (a *ServerWithRoles) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
 	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
@@ -4247,6 +4334,16 @@ func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 	return sessions, nil
 }
 
+// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+func (a *ServerWithRoles) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	sessions, nextKey, err := a.authServer.ListSAMLIdPSessions(ctx, pageSize, pageToken, user)
+	return sessions, nextKey, trace.Wrap(err)
+}
+
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
@@ -4274,6 +4371,19 @@ func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.
 	return snowflakeSession, nil
 }
 
+// CreateSAMLIdPSession creates a SAML IdP session.
+func (a *ServerWithRoles) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
+	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	samlSession, err := a.authServer.CreateSAMLIdPSession(ctx, req, a.context.Identity.GetIdentity(), a.context.Checker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return samlSession, nil
+}
+
 // UpsertAppSession not implemented: can only be called locally.
 func (a *ServerWithRoles) UpsertAppSession(ctx context.Context, session types.WebSession) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -4281,6 +4391,11 @@ func (a *ServerWithRoles) UpsertAppSession(ctx context.Context, session types.We
 
 // UpsertSnowflakeSession not implemented: can only be called locally.
 func (a *ServerWithRoles) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertSAMLIdPSession not implemented: can only be called locally.
+func (a *ServerWithRoles) UpsertSAMLIdPSession(_ context.Context, _ types.WebSession) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -4311,6 +4426,22 @@ func (a *ServerWithRoles) DeleteSnowflakeSession(ctx context.Context, req types.
 		return trace.Wrap(err)
 	}
 	if err := a.authServer.DeleteSnowflakeSession(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteSAMLIdPSession removes a SAML IdP session.
+func (a *ServerWithRoles) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
+	samlSession, err := a.authServer.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest(req))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Check if user can delete this web session.
+	if err := a.canDeleteWebSession(samlSession.GetUser()); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.authServer.DeleteSAMLIdPSession(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -4348,6 +4479,32 @@ func (a *ServerWithRoles) DeleteUserAppSessions(ctx context.Context, req *proto.
 	}
 
 	if err := a.authServer.DeleteUserAppSessions(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+func (a *ServerWithRoles) DeleteAllSAMLIdPSessions(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.DeleteAllSAMLIdPSessions(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteUserSAMLIdPSessions deletes all of a user's SAML IdP sessions.
+func (a *ServerWithRoles) DeleteUserSAMLIdPSessions(ctx context.Context, username string) error {
+	// First, check if the current user can delete the request user sessions.
+	if err := a.canDeleteWebSession(username); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.DeleteUserSAMLIdPSessions(ctx, username); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5455,6 +5612,60 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 	}
 
 	return a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)
+}
+
+// ListUserGroups returns a paginated list of user group resources.
+func (a *ServerWithRoles) ListUserGroups(ctx context.Context, pageSize int, nextToken string) ([]types.UserGroup, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.ListUserGroups(ctx, pageSize, nextToken)
+}
+
+// GetUserGroup returns the specified user group resources.
+func (a *ServerWithRoles) GetUserGroup(ctx context.Context, name string) (types.UserGroup, error) {
+	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetUserGroup(ctx, name)
+}
+
+// CreateUserGroup creates a new user group resource.
+func (a *ServerWithRoles) CreateUserGroup(ctx context.Context, g types.UserGroup) error {
+	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.CreateUserGroup(ctx, g)
+}
+
+// UpdateUserGroup updates an existing user group resource.
+func (a *ServerWithRoles) UpdateUserGroup(ctx context.Context, g types.UserGroup) error {
+	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpdateUserGroup(ctx, g)
+}
+
+// DeleteUserGroup removes the specified user group resource.
+func (a *ServerWithRoles) DeleteUserGroup(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteUserGroup(ctx, name)
+}
+
+// DeleteAllUserGroups removes all user groups.
+func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteAllUserGroups(ctx)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

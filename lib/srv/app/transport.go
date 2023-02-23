@@ -254,7 +254,7 @@ func (t *transport) rewriteResponse(resp *http.Response) error {
 
 // rewriteRedirect applies redirect rules to the response.
 func (t *transport) rewriteRedirect(resp *http.Response) error {
-	if isRedirect(resp.StatusCode) {
+	if utils.IsRedirect(resp.StatusCode) {
 		// Parse the "Location" header.
 		u, err := url.Parse(resp.Header.Get("Location"))
 		if err != nil {
@@ -292,14 +292,6 @@ func host(addr string) string {
 		return addr
 	}
 	return host
-}
-
-// isRedirect returns true if the status code is a 3xx code.
-func isRedirect(code int) bool {
-	if code >= http.StatusMultipleChoices && code <= http.StatusPermanentRedirect {
-		return true
-	}
-	return false
 }
 
 // websocketTransport combines parameters for websockets transport.

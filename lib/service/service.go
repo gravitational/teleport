@@ -732,7 +732,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 	// so not all connections can be kept forever.
 	timeoutCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 	defer cancel()
-	srv.Shutdown(timeoutCtx)
+	srv.Shutdown(services.ProcessReloadContext(timeoutCtx))
 	if timeoutCtx.Err() == context.DeadlineExceeded {
 		// The new service can start initiating connections to the old service
 		// keeping it from shutting down gracefully, or some external
@@ -1921,8 +1921,10 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Databases:               cfg.services,
 		AppSession:              cfg.services,
 		SnowflakeSession:        cfg.services,
+		SAMLIdPSession:          cfg.services,
 		WindowsDesktops:         cfg.services,
 		SAMLIdPServiceProviders: cfg.services,
+		UserGroups:              cfg.services,
 		WebSession:              cfg.services.WebSessions(),
 		WebToken:                cfg.services.WebTokens(),
 		Component:               teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
@@ -4709,8 +4711,13 @@ func (process *TeleportProcess) initApps() {
 
 		// Execute this when process is asked to exit.
 		process.OnExit("apps.stop", func(payload interface{}) {
-			log.Infof("Shutting down.")
-			warnOnErr(appServer.Close(), log)
+			if payload == nil {
+				log.Infof("Shutting down immediately.")
+				warnOnErr(appServer.Close(), log)
+			} else {
+				log.Infof("Shutting down gracefully.")
+				warnOnErr(appServer.Shutdown(payloadContext(payload, log)), log)
+			}
 			if asyncEmitter != nil {
 				warnOnErr(asyncEmitter.Close(), log)
 			}
@@ -4804,6 +4811,11 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	// imported listeners that haven't been used so far
 	warnOnErr(process.closeImportedDescriptors(""), process.log)
 	warnOnErr(process.stopListeners(), process.log)
+
+	// populate context values
+	if len(process.getForkedPIDs()) > 0 {
+		ctx = services.ProcessForkedContext(ctx)
+	}
 
 	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
 	localCtx, cancel := context.WithCancel(ctx)

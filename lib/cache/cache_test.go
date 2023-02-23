@@ -74,6 +74,7 @@ type testPack struct {
 	presenceS               services.Presence
 	appSessionS             services.AppSession
 	snowflakeSessionS       services.SnowflakeSession
+	samlIdPSessionsS        services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
 	restrictions            services.Restrictions
 	apps                    services.Apps
 	kubernetes              services.Kubernetes
@@ -83,6 +84,7 @@ type testPack struct {
 	webTokenS               types.WebTokenInterface
 	windowsDesktops         services.WindowsDesktops
 	samlIDPServiceProviders services.SAMLIdPServiceProviders
+	userGroups              services.UserGroups
 }
 
 func (t *testPack) Close() {
@@ -190,6 +192,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.appSessionS = local.NewIdentityService(p.backend)
 	p.webSessionS = local.NewIdentityService(p.backend).WebSessions()
 	p.snowflakeSessionS = local.NewIdentityService(p.backend)
+	p.samlIdPSessionsS = local.NewIdentityService(p.backend)
 	p.webTokenS = local.NewIdentityService(p.backend).WebTokens()
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
@@ -198,6 +201,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
 	p.samlIDPServiceProviders = local.NewSAMLIdPServiceProviderService(p.backend)
+	p.userGroups = local.NewUserGroupService(p.backend)
 
 	return p, nil
 }
@@ -225,6 +229,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -232,6 +237,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		UserGroups:              p.userGroups,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -442,6 +448,7 @@ func TestNodeCAFiltering(t *testing.T) {
 		WebToken:                p.cache.webTokenCache,
 		WindowsDesktops:         p.cache.windowsDesktopsCache,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		UserGroups:              p.userGroups,
 		Backend:                 nodeCacheBackend,
 	}))
 	require.NoError(t, err)
@@ -607,6 +614,7 @@ func TestCompletenessInit(t *testing.T) {
 			AppSession:              p.appSessionS,
 			WebSession:              p.webSessionS,
 			SnowflakeSession:        p.snowflakeSessionS,
+			SAMLIdPSession:          p.samlIdPSessionsS,
 			WebToken:                p.webTokenS,
 			Restrictions:            p.restrictions,
 			Apps:                    p.apps,
@@ -615,6 +623,7 @@ func TestCompletenessInit(t *testing.T) {
 			Databases:               p.databases,
 			WindowsDesktops:         p.windowsDesktops,
 			SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+			UserGroups:              p.userGroups,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -671,6 +680,7 @@ func TestCompletenessReset(t *testing.T) {
 		AppSession:              p.appSessionS,
 		WebSession:              p.webSessionS,
 		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
 		WebToken:                p.webTokenS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
@@ -679,6 +689,7 @@ func TestCompletenessReset(t *testing.T) {
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		UserGroups:              p.userGroups,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -848,6 +859,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -855,6 +867,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		UserGroups:              p.userGroups,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -920,6 +933,7 @@ func initStrategy(t *testing.T) {
 		Presence:                p.presenceS,
 		AppSession:              p.appSessionS,
 		SnowflakeSession:        p.snowflakeSessionS,
+		SAMLIdPSession:          p.samlIdPSessionsS,
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		Restrictions:            p.restrictions,
@@ -929,6 +943,7 @@ func initStrategy(t *testing.T) {
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
+		UserGroups:              p.userGroups,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2436,35 +2451,97 @@ func TestDatabases(t *testing.T) {
 	require.Equal(t, 0, len(out))
 }
 
+// testFuncs are functions to support testing an object in a cache.
+type testFuncs[T types.Resource] struct {
+	newResource func(string) (T, error)
+	create      func(context.Context, T) error
+	list        func(context.Context) ([]T, error)
+	cacheList   func(context.Context) ([]T, error)
+	update      func(context.Context, T) error
+	deleteAll   func(context.Context) error
+}
+
 // TestSAMLIdPServiceProviders tests that CRUD operations on SAML IdP service provider resources are
 // replicated from the backend to the cache.
 func TestSAMLIdPServiceProviders(t *testing.T) {
 	t.Parallel()
 
-	p, err := newPack(t.TempDir(), ForProxy)
+	p, err := newPack(t.TempDir(), ForAuth)
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
 
+	testResources(t, p, testFuncs[types.SAMLIdPServiceProvider]{
+		newResource: func(name string) (types.SAMLIdPServiceProvider, error) {
+			return types.NewSAMLIdPServiceProvider(
+				types.Metadata{
+					Name: name,
+				},
+				types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: testEntityDescriptor,
+					EntityID:         "IAMShowcase",
+				})
+		},
+		create: p.samlIDPServiceProviders.CreateSAMLIdPServiceProvider,
+		list: func(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
+			results, _, err := p.samlIDPServiceProviders.ListSAMLIdPServiceProviders(ctx, 0, "")
+			return results, err
+		},
+		cacheList: func(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
+			results, _, err := p.cache.ListSAMLIdPServiceProviders(ctx, 0, "")
+			return results, err
+		},
+		update:    p.samlIDPServiceProviders.UpdateSAMLIdPServiceProvider,
+		deleteAll: p.samlIDPServiceProviders.DeleteAllSAMLIdPServiceProviders,
+	})
+}
+
+// TestUserGroups tests that CRUD operations on user group resources are
+// replicated from the backend to the cache.
+func TestUserGroups(t *testing.T) {
+	t.Parallel()
+
+	p, err := newPack(t.TempDir(), ForAuth)
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.UserGroup]{
+		newResource: func(name string) (types.UserGroup, error) {
+			return types.NewUserGroup(
+				types.Metadata{
+					Name: name,
+				},
+			)
+		},
+		create: p.userGroups.CreateUserGroup,
+		list: func(ctx context.Context) ([]types.UserGroup, error) {
+			results, _, err := p.userGroups.ListUserGroups(ctx, 0, "")
+			return results, err
+		},
+		cacheList: func(ctx context.Context) ([]types.UserGroup, error) {
+			results, _, err := p.cache.ListUserGroups(ctx, 0, "")
+			return results, err
+		},
+		update:    p.userGroups.UpdateUserGroup,
+		deleteAll: p.userGroups.DeleteAllUserGroups,
+	})
+}
+
+// testResources is a generic tester for resources.
+func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
 
-	// Create a service provider resource.
-	sp, err := types.NewSAMLIdPServiceProvider(
-		types.Metadata{
-			Name: "test-sp",
-		},
-		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: "<valid />",
-		})
+	// Create a resource.
+	r, err := funcs.newResource("test-sp")
+	r.SetExpiry(time.Now().Add(30 * time.Minute))
 	require.NoError(t, err)
 
-	err = p.samlIDPServiceProviders.CreateSAMLIdPServiceProvider(ctx, sp)
+	err = funcs.create(ctx, r)
 	require.NoError(t, err)
 
-	// Check that the service provider is now in the backend.
-	out, nextKey, err := p.samlIDPServiceProviders.ListSAMLIdPServiceProviders(ctx, 200, "")
+	// Check that the resource is now in the backend.
+	out, err := funcs.list(ctx)
 	require.NoError(t, err)
-	require.Empty(t, nextKey)
-	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp}, out,
+	require.Empty(t, cmp.Diff([]T{r}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
 	// Wait until the information has been replicated to the cache.
@@ -2475,24 +2552,22 @@ func TestSAMLIdPServiceProviders(t *testing.T) {
 		t.Fatal("timeout waiting for event")
 	}
 
-	// Make sure the cache has a single service provider in it.
-	out, nextKey, err = p.cache.ListSAMLIdPServiceProviders(ctx, 200, "")
+	// Make sure the cache has a single resource in it.
+	out, err = funcs.cacheList(ctx)
 	require.NoError(t, err)
-	require.Empty(t, nextKey)
-	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp}, out,
+	require.Empty(t, cmp.Diff([]T{r}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
-	// Update the service provider and upsert it into the backend again.
-	sp.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	err = p.samlIDPServiceProviders.UpdateSAMLIdPServiceProvider(ctx, sp)
+	// Update the resource and upsert it into the backend again.
+	r.SetExpiry(r.Expiry().Add(30 * time.Minute))
+	err = funcs.update(ctx, r)
 	require.NoError(t, err)
 
-	// Check that the service provider is in the backend and only one exists (so an
+	// Check that the resource is in the backend and only one exists (so an
 	// update occurred).
-	out, nextKey, err = p.samlIDPServiceProviders.ListSAMLIdPServiceProviders(ctx, 200, "")
+	out, err = funcs.list(ctx)
 	require.NoError(t, err)
-	require.Empty(t, nextKey)
-	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp}, out,
+	require.Empty(t, cmp.Diff([]T{r}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
 	// Check that information has been replicated to the cache.
@@ -2503,15 +2578,14 @@ func TestSAMLIdPServiceProviders(t *testing.T) {
 		t.Fatal("timeout waiting for event")
 	}
 
-	// Make sure the cache has a single service provider in it.
-	out, nextKey, err = p.cache.ListSAMLIdPServiceProviders(ctx, 200, "")
+	// Make sure the cache has a single resource in it.
+	out, err = funcs.cacheList(ctx)
 	require.NoError(t, err)
-	require.Empty(t, nextKey)
-	require.Empty(t, cmp.Diff([]types.SAMLIdPServiceProvider{sp}, out,
+	require.Empty(t, cmp.Diff([]T{r}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
 	// Remove all service providers from the backend.
-	err = p.samlIDPServiceProviders.DeleteAllSAMLIdPServiceProviders(ctx)
+	err = funcs.deleteAll(ctx)
 	require.NoError(t, err)
 
 	// Check that information has been replicated to the cache.
@@ -2523,9 +2597,8 @@ func TestSAMLIdPServiceProviders(t *testing.T) {
 	}
 
 	// Check that the cache is now empty.
-	out, nextKey, err = p.cache.ListSAMLIdPServiceProviders(ctx, 200, "")
+	out, err = funcs.cacheList(ctx)
 	require.NoError(t, err)
-	require.Empty(t, nextKey)
 	require.Equal(t, 0, len(out))
 }
 
@@ -2824,6 +2897,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWebSession:              &types.WebSessionV2{SubKind: types.KindWebSession},
 		types.KindAppSession:              &types.WebSessionV2{SubKind: types.KindAppSession},
 		types.KindSnowflakeSession:        &types.WebSessionV2{SubKind: types.KindSnowflakeSession},
+		types.KindSAMLIdPSession:          &types.WebSessionV2{SubKind: types.KindSAMLIdPServiceProvider},
 		types.KindWebToken:                &types.WebTokenV3{},
 		types.KindRemoteCluster:           &types.RemoteClusterV3{},
 		types.KindKubeService:             &types.ServerV2{},
@@ -2838,6 +2912,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindInstaller:               &types.InstallerV1{},
 		types.KindKubernetesCluster:       &types.KubernetesClusterV3{},
 		types.KindSAMLIdPServiceProvider:  &types.SAMLIdPServiceProviderV1{},
+		types.KindUserGroup:               &types.UserGroupV1{},
 	}
 
 	for name, cfg := range cases {
@@ -2860,3 +2935,14 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		})
 	}
 }
+
+// A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.
+const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+   <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+      <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+      <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+   </md:SPSSODescriptor>
+</md:EntityDescriptor>
+`

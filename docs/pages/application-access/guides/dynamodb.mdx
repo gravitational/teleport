@@ -125,8 +125,8 @@ $ tctl tokens add \
     --app-uri=https://console.aws.amazon.com/dynamodbv2/home
 ```
 
-The output should contain a `teleport app start` command that can be used to
-start the Teleport Application Service in the next step.
+On the host where you will run the Teleport Application Service, copy the token
+to a file called `/tmp/token`.
 
 <Admonition type="tip" title="non-standard AWS regions">
 Replace `https://console.aws.amazon.com` with
@@ -135,23 +135,40 @@ Replace `https://console.aws.amazon.com` with
 </Admonition>
 
 ### Install and start Teleport
+
 Install Teleport on the host where you will run the Teleport Application
 Service. See our [Installation](../../installation.mdx) page for options
 besides Linux servers.
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Now start the Teleport Application Service using the output from the previous
-step:
+Edit the Teleport configuration file (`/etc/teleport.yaml`) to include the
+following information, adjusting the value of `proxy_server` to specify the host
+and port of your Teleport Proxy Service:
 
-```code
-$ teleport app start \
-   --token=(=presets.tokens.first=) \
-   --ca-pin=(=presets.ca_pin=) \
-   --auth-server=https://teleport.example.com:443 \
-   --name=aws-dynamodb \
-   --uri=https://console.aws.amazon.com/dynamodbv2/home
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "teleport.example.com:443"
+auth_service:
+  enabled: off
+proxy_service:
+  enabled: off
+ssh_service:
+  enabled: off
+app_service:
+  enabled: true
+  apps:
+  - name: aws-dynamodb
+    uri: https://console.aws.amazon.com/dynamodbv2/home
 ```
+
+(!docs/pages/includes/aws-credentials.mdx service="the Teleport Application Service"!)
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Application Service"!)
 
 <Admonition type="warning" title="non-standard AWS regions">
 For non-standard AWS regions such as AWS GovCloud (US) regions and AWS China
@@ -214,7 +231,7 @@ Note that your federated login session is marked with your Teleport username.
 Now, log into the previously configured AWS DynamoDB app on your desktop:
 
 ```code
-$ tsh app login --aws-role ExampleTeleportDynamoDBRole aws-dynamodb
+$ tsh apps login --aws-role ExampleTeleportDynamoDBRole aws-dynamodb
 Logged into AWS app aws. Example AWS CLI command:
 
 $ tsh aws s3 ls
@@ -234,7 +251,7 @@ $ tsh aws dynamodb list-tables
 To log out of the `aws-dynamodb` application and remove credentials:
 
 ```code
-$ tsh app logout aws-dynamodb
+$ tsh apps logout aws-dynamodb
 ```
 
 ### Using other DynamoDB applications
@@ -243,7 +260,7 @@ First, log into the previously configured AWS DynamoDB app if you haven't
 already done so:
 
 ```code
-$ tsh app login --aws-role ExampleTeleportDynamoDBRole aws-dynamodb
+$ tsh apps login --aws-role ExampleTeleportDynamoDBRole aws-dynamodb
 ```
 
 To connect your DynamoDB application, you can start either a local HTTPS proxy
@@ -323,9 +340,9 @@ or a local AWS Service Endpoint proxy.
 To log out of the `aws-dynamodb` application and remove credentials:
 
 ```code
-$ tsh app logout aws-dynamodb
+$ tsh apps logout aws-dynamodb
 ```
 
 ## Next steps
-- More information on [AWS Management and API with Teleport Application Access](../../application-access/guides/aws-console.mdx).
+- More information on [AWS Management and API with Teleport Application Access](../../application-access/cloud-apis/aws-console.mdx).
 - Learn more about [AWS service endpoints](https://docs.aws.amazon.com/general/latest/gr/rande.html).

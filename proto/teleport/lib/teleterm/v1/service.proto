@@ -84,10 +84,6 @@ service TerminalService {
   rpc CreateGateway(CreateGatewayRequest) returns (Gateway);
   // RemoveGateway removes a gateway
   rpc RemoveGateway(RemoveGatewayRequest) returns (EmptyResponse);
-  // RestartGateway stops a gateway and starts a new with identical parameters, keeping the
-  // original URI. A temporary workaround until it's possible to refresh certs in a running
-  // database proxy.
-  rpc RestartGateway(RestartGatewayRequest) returns (EmptyResponse);
   // SetGatewayTargetSubresourceName changes the TargetSubresourceName field of gateway.Gateway
   // and returns the updated version of gateway.Gateway.
   //
@@ -268,15 +264,16 @@ message LoginPasswordlessRequest {
 }
 
 message FileTransferRequest {
-  string cluster_uri = 1;
+  reserved 1, 3;
+  // login is the SSH username to use for the transfer.
   string login = 2;
-  string hostname = 3;
-  // source path of the transferred file
+  // source path of the transferred file.
   string source = 4;
-  // destination path of the transferred file
+  // destination path of the transferred file.
   string destination = 5;
-  // indicates whether the file is uploaded/downloaded
+  // direction indicates whether the file is uploaded/downloaded.
   FileTransferDirection direction = 6;
+  string server_uri = 7;
 }
 
 // FileTransferDirection describes directions of a file transfer
@@ -381,10 +378,6 @@ message ListGatewaysResponse {
 }
 
 message RemoveGatewayRequest {
-  string gateway_uri = 1;
-}
-
-message RestartGatewayRequest {
   string gateway_uri = 1;
 }
 
