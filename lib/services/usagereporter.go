@@ -175,7 +175,9 @@ func (u *UsageUIOnboardRegisterChallengeSubmit) Anonymize(a utils.Anonymizer) pr
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiOnboardRegisterChallengeSubmit{
 			UiOnboardRegisterChallengeSubmit: &prehogv1.UIOnboardRegisterChallengeSubmitEvent{
-				UserName: a.AnonymizeString(u.UserName),
+				UserName:  a.AnonymizeString(u.UserName),
+				MfaType:   u.MfaType,
+				LoginFlow: u.LoginFlow,
 			},
 		},
 	}
@@ -306,6 +308,34 @@ func (u *UsageCertificateIssued) Anonymize(a utils.Anonymizer) prehogv1.SubmitEv
 				UsageApp:        u.UsageApp,
 				UsageKubernetes: u.UsageKubernetes,
 				UsageDesktop:    u.UsageDesktop,
+			},
+		},
+	}
+}
+
+// UsageKubeRequest is an event emitted when a Kubernetes API request is
+// handled.
+type UsageKubeRequest prehogv1.KubeRequestEvent
+
+func (u *UsageKubeRequest) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_KubeRequest{
+			KubeRequest: &prehogv1.KubeRequestEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
+// UsageSFTP is an event emitted for each file operation in a SFTP connection.
+type UsageSFTP prehogv1.SFTPEvent
+
+func (u *UsageSFTP) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_Sftp{
+			Sftp: &prehogv1.SFTPEvent{
+				UserName: a.AnonymizeString(u.UserName),
+				Action:   u.Action,
 			},
 		},
 	}
