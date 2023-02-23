@@ -66,7 +66,7 @@ type WebConfig struct {
 // UIConfig provides config options for the web UI served by the proxy service.
 type UIConfig struct {
 	// ScrollbackLines is the max number of lines the UI terminal can display in its history
-	ScrollbackLines int `json:"scrollbackLines,omitempty"`
+	ScrollbackLines int `json:"scrollbackLines,omitempty"` //nolint:unused // marshaled in config/configuration.go for WebConfig
 }
 
 // WebConfigAuthProvider describes auth. provider
