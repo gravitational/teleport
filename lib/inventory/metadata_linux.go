@@ -65,7 +65,8 @@ func (c *fetchConfig) fetchOSVersion() string {
 	return osVersion
 }
 
-// fetchGlibcVersion TODO
+// fetchGlibcVersion parses the output of 'ldd --version' and returns e.g.
+// "2.31".
 func (c *fetchConfig) fetchGlibcVersion() string {
 	cmd := "ldd"
 	out, err := c.exec(cmd, "--version")
