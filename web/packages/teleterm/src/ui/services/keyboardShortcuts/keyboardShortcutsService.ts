@@ -75,6 +75,28 @@ export class KeyboardShortcutsService {
     return this.shortcutsConfig;
   }
 
+  /**
+   * Some actions can get assigned the same accelerators.
+   * This method returns them.
+   */
+  getDuplicatedAccelerators():
+    | Record<string, KeyboardShortcutAction[]>
+    | undefined {
+    const duplicates = Array.from(this.acceleratorsToActions.entries())
+      .filter(([, shortcuts]) => shortcuts.length > 1)
+      .reduce<Record<string, KeyboardShortcutAction[]>>(
+        (accumulator, [accelerator, actions]) => {
+          accumulator[accelerator] = actions;
+          return accumulator;
+        },
+        {}
+      );
+
+    if (Object.keys(duplicates).length) {
+      return duplicates;
+    }
+  }
+
   private attachKeydownHandler(): void {
     const handleKeydown = (event: KeyboardEvent): void => {
       const shortcutAction = this.getShortcutAction(event);
@@ -111,7 +133,8 @@ export class KeyboardShortcutsService {
       .filter(Boolean)
       .join('+');
 
-    return this.acceleratorsToActions.get(accelerator);
+    // always return the first action (in case of duplicated accelerators)
+    return this.acceleratorsToActions.get(accelerator)?.[0];
   }
 
   private getPlatformModifierKeys(event: KeyboardEvent): string[] {
@@ -136,10 +159,13 @@ export class KeyboardShortcutsService {
   private mapAcceleratorsToActions(): void {
     this.acceleratorsToActions.clear();
     Object.entries(this.shortcutsConfig).forEach(([action, accelerator]) => {
-      this.acceleratorsToActions.set(
-        accelerator,
-        action as KeyboardShortcutAction
-      );
+      if (!accelerator) {
+        return;
+      }
+      this.acceleratorsToActions.set(accelerator, [
+        ...(this.acceleratorsToActions.get(accelerator) || []),
+        action as KeyboardShortcutAction,
+      ]);
     });
   }
 

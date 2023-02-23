@@ -24,6 +24,7 @@ import {
 import { IAppContext } from 'teleterm/ui/types';
 import { ConfigService } from 'teleterm/services/config';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 
 /**
  * Runs after the UI becomes visible.
@@ -46,6 +47,10 @@ export async function initUi(ctx: IAppContext): Promise<void> {
   await setUpUsageReporting(configService, ctx.modalsService);
   ctx.workspacesService.restorePersistedState();
   notifyAboutStoredConfigErrors(configService, ctx.notificationsService);
+  notifyAboutDuplicatedShortcutsCombinations(
+    ctx.keyboardShortcutsService,
+    ctx.notificationsService
+  );
 }
 
 function notifyAboutStoredConfigErrors(
@@ -71,6 +76,28 @@ function notifyAboutStoredConfigErrors(
             See documentation for the app config.
           </Link>
         </span>
+      ),
+    });
+  }
+}
+
+function notifyAboutDuplicatedShortcutsCombinations(
+  keyboardShortcutsService: KeyboardShortcutsService,
+  notificationsService: NotificationsService
+): void {
+  const duplicates = keyboardShortcutsService.getDuplicatedAccelerators();
+  if (duplicates) {
+    notificationsService.notifyWarning({
+      title: 'Shortcuts conflicts',
+      description: (
+        <ErrorsRenderer
+          errors={Object.entries(duplicates).map(
+            ([accelerator, duplicatedActions]) =>
+              `${accelerator} is used for actions: ${duplicatedActions.join(
+                ', '
+              )}. Only one of them will work.`
+          )}
+        />
       ),
     });
   }
