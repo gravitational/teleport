@@ -9,7 +9,23 @@ spec:
   asset_tag: HD6M74XNCK
 
   # collected_data is a list of data recently collected from the device.
+  # Each list item is an object containing event and device metadata..
   collected_data:
+    # collect_time is the device-recorded timestamp of when the data was collected.
+  - collect_time:
+      nanos: 312862000
+      seconds: 1677099866
+
+    # os_type is the operating system type of the device.
+    os_type: macos
+
+    # record_time is the Teleport-recorded timestamp of when the data was received.
+    record_time:
+      nanos: 396471000
+      seconds: 1677099866
+
+    # serial_number is the serial number of the device, usually matching the asset tag.
+    serial_number: HD6M74XNCK
 
   # create_time is a timestamp of when the device was created and enrolled with Teleport.
   create_time: "2023-02-22T21:04:20.87721Z"
