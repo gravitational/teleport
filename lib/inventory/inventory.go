@@ -86,17 +86,19 @@ type DownstreamSender interface {
 // supplied create func and manage hello exchange with the supplied upstream hello.
 func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) DownstreamHandle {
 	ctx, cancel := context.WithCancel(context.Background())
-	agentMetadataCh := make(chan proto.UpstreamInventoryAgentMetadata, 1)
 	handle := &downstreamHandle{
-		senderC:         make(chan DownstreamSender),
-		pingHandlers:    make(map[uint64]DownstreamPingHandler),
-		closeContext:    ctx,
-		cancel:          cancel,
-		agentMetadataCh: agentMetadataCh,
+		senderC:           make(chan DownstreamSender),
+		pingHandlers:      make(map[uint64]DownstreamPingHandler),
+		closeContext:      ctx,
+		cancel:            cancel,
+		agentMetadataDone: make(chan struct{}),
 	}
 	go handle.run(fn, hello)
 	go func() {
-		agentMetadataCh <- fetchAgentMetadata(&fetchConfig{ctx: ctx, hello: hello})
+		handle.agentMetadata = fetchAgentMetadata(&fetchConfig{ctx: ctx, hello: hello})
+		// Signal that the agentMetadata has been calculated by closing the
+		// agentMetadataDone channel.
+		close(handle.agentMetadataDone)
 	}()
 	return handle
 }
@@ -124,14 +126,13 @@ type downstreamHandle struct {
 	senderC      chan DownstreamSender
 	closeContext context.Context
 	cancel       context.CancelFunc
-	// agentMetadataCh is the buffered channel (size 1) where the agent metadata
-	// will be sent to at most once (once it is calculated). For this reason, if
-	// the agent metadata is taken out of the channel and we fail to send it
-	// upstream, then the metadata will never be sent upstream as there is no
-	// retry mechanism. However, since the agent metadata is sent after the
-	// hello exchange succeeds, it is unlikely that the sending of the metadata
-	// will fail.
-	agentMetadataCh chan proto.UpstreamInventoryAgentMetadata
+	// agentMetadataDone is an unbuffered channel that is closed once the agent
+	// metadata has been calculated by the goroutine responsible for it.
+	// This allows us only access the agent metadata once it is ready, while
+	// also caching it in agentMetadata (in order to not calculate it multiple
+	// times).
+	agentMetadataDone chan struct{}
+	agentMetadata     proto.UpstreamInventoryAgentMetadata
 }
 
 func (h *downstreamHandle) closing() bool {
@@ -204,14 +205,18 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 	}
 
 	sender := downstreamSender{stream, downstreamHello}
+	agentMetadataDone := h.agentMetadataDone
 
 	// handle incoming messages, distribute sender references and
 	// send agent metadata to the auth server.
 	for {
 		select {
 		case h.senderC <- sender:
-		case m := <-h.agentMetadataCh:
-			if err := stream.Send(h.closeContext, m); err != nil {
+		case <-agentMetadataDone:
+			// Set agentMetadataDone local variable to nil. This ensures that
+			// the agentMetadata will be sent at most once per handleStream.
+			agentMetadataDone = nil
+			if err := stream.Send(h.closeContext, h.agentMetadata); err != nil {
 				log.Warnf("Failed to send agent metadata: %v", err)
 			}
 		case msg := <-stream.Recv():
