@@ -92,7 +92,7 @@ func (c *fetchConfig) setDefaults() {
 	}
 	if c.httpDo == nil {
 		c.httpDo = func(req *http.Request) (*http.Response, error) {
-			client := &http.Client{}
+			client := defaults.HTTPClient()
 			client.Timeout = 5 * time.Second
 			return client.Do(req)
 		}
