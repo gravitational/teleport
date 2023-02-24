@@ -3074,7 +3074,7 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 					Os:                    m.OS,
 					OsVersion:             m.OSVersion,
 					HostArchitecture:      m.HostArchitecture,
-					GlibcVersion:          m.GLibCVersion,
+					GlibcVersion:          m.GlibcVersion,
 					InstallMethods:        m.InstallMethods,
 					ContainerRuntime:      m.ContainerRuntime,
 					ContainerOrchestrator: m.ContainerOrchestrator,

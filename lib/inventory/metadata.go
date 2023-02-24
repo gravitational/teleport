@@ -248,7 +248,6 @@ func (c *fetchConfig) fetchContainerRuntime() string {
 // running on kubernetes.
 func (c *fetchConfig) fetchContainerOrchestrator() string {
 	if c.kubeClient == nil {
-		// Return empty if not running on kubernetes.
 		return ""
 	}
 
