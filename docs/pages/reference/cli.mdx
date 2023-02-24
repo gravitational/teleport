@@ -1335,7 +1335,7 @@ DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.g
 ## tctl
 
 `tctl` is a CLI tool that allows a cluster administrator to manage all resources
-in a cluster, including nodes, users, tokens, and certificates.
+in a cluster, including nodes, users, tokens, certificates, and devices.
 
 `tctl` can also be used to modify the dynamic configuration of the cluster, such as
 creating new user roles or connecting Trusted Clusters.
@@ -2308,7 +2308,7 @@ $ echo '{"groups": ["example"]}' | tctl login_rule test --resource-file rule.yam
 
 Create or update a Teleport resource from a YAML file.
 
-The supported resource types are: user, node, cluster, role, connector.
+The supported resource types are: user, node, cluster, role, connector, and device.
 See the [Resources Reference](./resources.mdx) for complete docs on how to build these yaml files.
 
 ```code
@@ -2352,7 +2352,7 @@ $ tctl rm <resource-type/resource-name>
 #### Arguments
 
 - `<resource-type/resource-name>` Resource to delete
-  - `<resource type>` Type of a resource \[for example: `saml,oidc,github,user,cluster,tokens`]
+  - `<resource type>` Type of a resource \[for example: `saml,oidc,github,user,cluster,tokens,device`]
   - `<resource name>` Resource name to delete
 
 #### Examples
@@ -2376,7 +2376,7 @@ $ tctl get [<flags>] <resource-type/resource-name>,...
 #### Arguments
 
 - `<resource-type/resource-name>` The resource to get
-  - `<resource type>` The type of the resource \[for example: `user,cluster,token`]
+  - `<resource type>` The type of the resource \[for example: `user,cluster,token,device`]
   - `<resource name>` The name of the resource
 
 #### Flags
