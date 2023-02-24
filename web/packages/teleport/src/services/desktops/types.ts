@@ -26,6 +26,8 @@ export type Desktop = {
   addr: string;
   // Labels.
   labels: AgentLabel[];
+  // The list of logins this user can use on this desktop.
+  logins: string[];
 
   host_id?: string;
   host_addr?: string;
