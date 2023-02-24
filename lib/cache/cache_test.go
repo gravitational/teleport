@@ -200,7 +200,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
-	p.samlIDPServiceProviders = local.NewSAMLIdPServiceProviderService(p.backend)
+	p.samlIDPServiceProviders, err = local.NewSAMLIdPServiceProviderService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	p.userGroups = local.NewUserGroupService(p.backend)
 
 	return p, nil
