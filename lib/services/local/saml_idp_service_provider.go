@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -37,15 +36,13 @@ const (
 	samlIDPServiceProviderMaxPageSize   = 200
 )
 
-var _ = NewSAMLIdPServiceProviderService((*memory.Memory)(nil))
-
 // SAMLIdPServiceProviderService manages IdP service providers in the Backend.
 type SAMLIdPServiceProviderService struct {
 	svc generic.Service[types.SAMLIdPServiceProvider]
 }
 
 // NewSAMLIdPServiceProviderService creates a new SAMLIdPServiceProviderService.
-func NewSAMLIdPServiceProviderService(backend backend.Backend) *SAMLIdPServiceProviderService {
+func NewSAMLIdPServiceProviderService(backend backend.Backend) (*SAMLIdPServiceProviderService, error) {
 	svc, err := generic.NewService(&generic.ServiceConfig[types.SAMLIdPServiceProvider]{
 		Backend:       backend,
 		PageLimit:     samlIDPServiceProviderMaxPageSize,
@@ -55,12 +52,12 @@ func NewSAMLIdPServiceProviderService(backend backend.Backend) *SAMLIdPServicePr
 		UnmarshalFunc: services.UnmarshalSAMLIdPServiceProvider,
 	})
 	if err != nil {
-		panic(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return &SAMLIdPServiceProviderService{
 		svc: *svc,
-	}
+	}, nil
 }
 
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
