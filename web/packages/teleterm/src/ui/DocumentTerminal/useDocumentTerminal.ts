@@ -33,7 +33,7 @@ import type * as types from 'teleterm/ui/services/workspacesService';
 import type * as uri from 'teleterm/ui/uri';
 import type * as tsh from 'teleterm/services/tshd/types';
 
-export default function useDocumentTerminal(doc: types.DocumentTerminal) {
+export function useDocumentTerminal(doc: types.DocumentTerminal) {
   const logger = useRef(new Logger('useDocumentTerminal'));
   const ctx = useAppContext();
   const { documentsService } = useWorkspaceContext();

@@ -27,7 +27,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { Terminal } from './Terminal';
 import DocumentReconnect from './DocumentReconnect';
-import useDocTerminal, { Props } from './useDocumentTerminal';
+import { Props, useDocumentTerminal } from './useDocumentTerminal';
 import { useTshFileTransferHandlers } from './useTshFileTransferHandlers';
 
 export default function DocumentTerminalContainer({ doc, visible }: Props) {
@@ -42,7 +42,7 @@ export function DocumentTerminal(props: Props & { visible: boolean }) {
   const ctx = useAppContext();
   const { configService } = ctx.mainProcessClient;
   const { visible, doc } = props;
-  const state = useDocTerminal(doc);
+  const state = useDocumentTerminal(doc);
   const ptyProcess = state.data?.ptyProcess;
   const { upload, download } = useTshFileTransferHandlers();
   const unsanitizedTerminalFontFamily = configService.get(

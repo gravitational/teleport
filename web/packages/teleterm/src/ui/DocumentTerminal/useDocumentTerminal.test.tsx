@@ -37,7 +37,7 @@ import { NotificationsService } from 'teleterm/ui/services/notifications';
 
 import { WorkspaceContextProvider } from '../Documents';
 
-import useDocumentTerminal from './useDocumentTerminal';
+import { useDocumentTerminal } from './useDocumentTerminal';
 
 import type { IAppContext } from 'teleterm/ui/types';
 import type * as tsh from 'teleterm/services/tshd/types';
