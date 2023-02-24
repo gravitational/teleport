@@ -61,7 +61,7 @@ export interface DocumentTshNodeWithServerId extends DocumentTshNodeBase {
   //
   // We will execute `tsh ssh user` anyway and let tsh show an appropriate error message.
   login?: string;
-  loginHost?: string;
+  loginHost?: undefined;
 }
 
 export interface DocumentTshNodeWithLoginHost extends DocumentTshNodeBase {
