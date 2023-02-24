@@ -262,22 +262,22 @@ func (c *fetchConfig) fetchContainerOrchestrator() string {
 // fetchCloudEnvironment returns aws, gpc or azure if the agent is running on
 // such cloud environments.
 func (c *fetchConfig) fetchCloudEnvironment() string {
-	if c.awsHttpGetSuccess() {
+	if c.awsHTTPGetSuccess() {
 		return "aws"
 	}
-	if c.gcpHttpGetSuccess() {
+	if c.gcpHTTPGetSuccess() {
 		return "gcp"
 	}
-	if c.azureHttpGetSuccess() {
+	if c.azureHTTPGetSuccess() {
 		return "azure"
 	}
 	return ""
 }
 
-// awsHttpGetSuccess hits the AWS metadata endpoint in order to detect whether
+// awsHTTPGetSuccess hits the AWS metadata endpoint in order to detect whether
 // the agent is running on AWS.
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
-func (c *fetchConfig) awsHttpGetSuccess() bool {
+func (c *fetchConfig) awsHTTPGetSuccess() bool {
 	url := "http://169.254.169.254/latest/meta-data/"
 	req, err := http.NewRequestWithContext(c.ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -288,10 +288,10 @@ func (c *fetchConfig) awsHttpGetSuccess() bool {
 	return c.httpReqSuccess(req)
 }
 
-// gcpHttpGetSuccess hits the GCP metadata endpoint in order to detect whether
+// gcpHTTPGetSuccess hits the GCP metadata endpoint in order to detect whether
 // the agent is running on GCP.
 // https://cloud.google.com/compute/docs/metadata/overview#parts-of-a-request
-func (c *fetchConfig) gcpHttpGetSuccess() bool {
+func (c *fetchConfig) gcpHTTPGetSuccess() bool {
 	url := "http://metadata.google.internal/computeMetadata/v1"
 	req, err := http.NewRequestWithContext(c.ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -303,10 +303,10 @@ func (c *fetchConfig) gcpHttpGetSuccess() bool {
 	return c.httpReqSuccess(req)
 }
 
-// azureHttpGetSuccess hits the Azure metadata endpoint in order to detect whether
+// azureHTTPGetSuccess hits the Azure metadata endpoint in order to detect whether
 // the agent is running on Azure.
 // https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service
-func (c *fetchConfig) azureHttpGetSuccess() bool {
+func (c *fetchConfig) azureHTTPGetSuccess() bool {
 	url := "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
 	req, err := http.NewRequestWithContext(c.ctx, http.MethodGet, url, nil)
 	if err != nil {
