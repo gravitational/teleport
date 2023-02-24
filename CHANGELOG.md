@@ -1,5 +1,43 @@
 # Changelog
 
+## 12.0.3
+
+This release of Teleport contains multiple security fixes, improvements and bug fixes.
+
+### Security fixes
+
+* Fixed issue with malicious SQL Server packet being able to cause proxy crash. [#21638](https://github.com/gravitational/teleport/pull/21638)
+* Fixed issue with session terminated after a short delay instead of being immediately paused when moderator leaves. [#21974](https://github.com/gravitational/teleport/pull/21974)
+
+### Other improvements and bug fixes
+
+* Fixed issue with not being able to see any pods with an active access request. [#22196](https://github.com/gravitational/teleport/pull/22196)
+* Fixed issue with remote cluster state not always being correctly updated. [#22088](https://github.com/gravitational/teleport/pull/22088)
+* Fixed heartbeat errors from database servie. [#22087](https://github.com/gravitational/teleport/pull/22087)
+* Fixed issue with applications temporarily disappearing during app service restart. [#21807](https://github.com/gravitational/teleport/pull/21807)
+* Fixed issue with some Helm values being accidentally shared between auth and proxy configs. [#21768](https://github.com/gravitational/teleport/pull/21768)
+* Fixed issues with desktop access flow in Access Management interface. [#21756](https://github.com/gravitational/teleport/pull/21756)
+* Fixed "access denied" errors in Teleport Connect on Windows. [#21720](https://github.com/gravitational/teleport/pull/21720)
+* Fixed issue with database GUI client connections requiring random taps when per-session MFA is enabled. [#21661](https://github.com/gravitational/teleport/pull/21661)
+* Fixed issue with moderated sessions not working on leaf clusters. [#21612](https://github.com/gravitational/teleport/pull/21612)
+* Fixed issue with missing `--request-id` flag in UI for Kubernetes login instructions. [#21445](https://github.com/gravitational/teleport/pull/21445)
+* Fixed issue connecting to AWS resources when using full IAM role ARNs. [#21251](https://github.com/gravitational/teleport/pull/21251)
+* Fixed issue with `local_auth: false` setting being ignored without explicitly setting `authentication_type`. [#22215](https://github.com/gravitational/teleport/pull/22215)
+* Added `tctl` resource commands for Device Trust. [#22157](https://github.com/gravitational/teleport/pull/22157)
+* Added support for assuming roles in `tsh proxy aws`. [#21990](https://github.com/gravitational/teleport/pull/21990)
+* Added early feedback for successful security key taps in `tsh`. [#21780](https://github.com/gravitational/teleport/pull/21780)
+* Added device lock support. [#21751](https://github.com/gravitational/teleport/pull/21751)
+* Updated `tsh version` command to display client version only via `--client` flag. [#22167](https://github.com/gravitational/teleport/pull/22167)
+* Updated install script to use enterprise packages for enterprise clusters. [#22109](https://github.com/gravitational/teleport/pull/22109)
+* Updated install script to use deb/rpm repositories. [#22108](https://github.com/gravitational/teleport/pull/22108)
+* Updated proxy init container in Helm charts to use security context. [#22064](https://github.com/gravitational/teleport/pull/22064)
+* Updated `tsh` to include timestamps with debug logs. [#21996](https://github.com/gravitational/teleport/pull/21996)
+* Updated AWS access to fetch credentials with TTL matching user's certificate TTL. [#21994](https://github.com/gravitational/teleport/pull/21994)
+* Updated Go toolchain to `1.20.1`. [#21931](https://github.com/gravitational/teleport/pull/21931)
+* Updated `tsh kube login --all` to not require cluster name. [#21765](https://github.com/gravitational/teleport/pull/21765)
+* Updated `teleport db configure create` command to support more use-cases. [#21690](https://github.com/gravitational/teleport/pull/21690)
+* Improved performance in large clusters with etcd backend. [#21905](https://github.com/gravitational/teleport/pull/21905), [#21496](https://github.com/gravitational/teleport/pull/21496)
+
 ## 12.0.2
 
 This release of Teleport contains a security fix as well as multiple improvements and bug fixes.
