@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"runtime"
 	"strconv"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
@@ -91,7 +92,9 @@ func (c *fetchConfig) setDefaults() {
 	}
 	if c.httpDo == nil {
 		c.httpDo = func(req *http.Request) (*http.Response, error) {
-			return http.DefaultClient.Do(req)
+			client := &http.Client{}
+			client.Timeout = 5 * time.Second
+			return client.Do(req)
 		}
 	}
 	if c.kubeClient == nil {
