@@ -28,11 +28,15 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 	// All getters inspected in this test.
 	allFields := []func(License) Bool{
 		License.GetReportsUsage,
+		License.GetSalesCenterReporting,
 		License.GetCloud,
 		License.GetSupportsKubernetes,
 		License.GetSupportsApplicationAccess,
 		License.GetSupportsDatabaseAccess,
 		License.GetSupportsDesktopAccess,
+		License.GetSupportsModeratedSessions,
+		License.GetSupportsMachineID,
+		License.GetSupportsResourceAccessRequests,
 		License.GetTrial,
 	}
 
@@ -59,6 +63,12 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 			setter:      License.SetReportsUsage,
 			getter:      License.GetReportsUsage,
 			unsetFields: unsetFields(License.GetReportsUsage),
+		},
+		{
+			name:        "Set SalesCenterReporting",
+			setter:      License.SetSalesCenterReporting,
+			getter:      License.GetSalesCenterReporting,
+			unsetFields: unsetFields(License.GetSalesCenterReporting),
 		},
 		{
 			name:        "Set Cloud",
@@ -91,6 +101,24 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 			unsetFields: unsetFields(License.GetSupportsDesktopAccess),
 		},
 		{
+			name:        "Set Moderated Sessions Support",
+			setter:      License.SetSupportsModeratedSessions,
+			getter:      License.GetSupportsModeratedSessions,
+			unsetFields: unsetFields(License.GetSupportsModeratedSessions),
+		},
+		{
+			name:        "Set Machine ID Support",
+			setter:      License.SetSupportsMachineID,
+			getter:      License.GetSupportsMachineID,
+			unsetFields: unsetFields(License.GetSupportsMachineID),
+		},
+		{
+			name:        "Set Resource Access Request Support",
+			setter:      License.SetSupportsResourceAccessRequests,
+			getter:      License.GetSupportsResourceAccessRequests,
+			unsetFields: unsetFields(License.GetSupportsResourceAccessRequests),
+		},
+		{
 			name:        "Set Trial Support",
 			setter:      License.SetTrial,
 			getter:      License.GetTrial,
@@ -118,10 +146,14 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 	license := &LicenseV3{}
 	require.True(t, bool(license.GetSupportsApplicationAccess()))
 	require.False(t, bool(license.GetReportsUsage()))
+	require.False(t, bool(license.GetSalesCenterReporting()))
 	require.False(t, bool(license.GetCloud()))
 	require.False(t, bool(license.GetSupportsKubernetes()))
 	require.False(t, bool(license.GetSupportsDatabaseAccess()))
 	require.False(t, bool(license.GetSupportsDesktopAccess()))
+	require.False(t, bool(license.GetSupportsModeratedSessions()))
+	require.False(t, bool(license.GetSupportsMachineID()))
+	require.False(t, bool(license.GetSupportsResourceAccessRequests()))
 	require.False(t, bool(license.GetTrial()))
 }
 
