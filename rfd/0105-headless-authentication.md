@@ -75,7 +75,7 @@ Despite this, there are still two possible of attacks which we need to be aware 
 
 In both cases, the attacker manages to steal headless authenticated certificates. However, these certificates will only have a 1 minute TTL, so the blast radius can be kept relatively small, assuming the attack is not recurring. We can reduce the feasibility of these attacks further by:
 
-1. Providing sufficient information for the user to verify the request before approving. Before the user can approve a headless authentication, they should be notified of relevant request details (ip address, request id), as well as a warning that they should NEVER approve a request that they did not initiate themselves. For example, a user should never approve a headless authentication request made by a system admin. This is similar to how many platforms tell users that their support team will never ask for a user's password, and should be expressed with similar importance.
+1. Providing sufficient information for the user to verify the request before approving. Before the user can approve a headless authentication, they should be notified of relevant request details (ip address, request id, public key), as well as a warning that they should NEVER approve a request that they did not initiate themselves. For example, a user should never approve a headless authentication request made by a system admin. This is similar to how many platforms tell users that their support team will never ask for a user's password, and should be expressed with similar importance.
 
 2. Limiting the permissions of the resulting headless certificates. In theory, the client knows exactly what permissions it needs to fulfill the request, it can request a subset of the user's normal RBAC permissions to complete the request. For example, `tsh --headless ssh dave@server01` can request a certificate that provides just enough to connect to `server01` as `dave`. This approach gives the server adequate certainty that the command requested is the command that will be performed, so a modified client cannot misuse the certificates. Now we can safely provide the user with the requested command so that they can more confidently verify their headless authentication request is not coming from a modified client or phishing attack.
 
@@ -105,7 +105,7 @@ sequenceDiagram
     participant Teleport Auth
     
     Note over Headless Machine: tsh --headless ssh user@node01
-    Note over Headless Machine: generate request id and print URL<br/>proxy.example.com/headless/<request_id>
+    Note over Headless Machine: print URL proxy.example.com/headless/<request_id>
     par headless client request
         Headless Machine->>Teleport Proxy: POST /webapi/login/headless
         Teleport Proxy->>Teleport Auth: POST /:version/users/:user/ssh/authenticate
@@ -113,7 +113,7 @@ sequenceDiagram
 
     and local client request
         Headless Machine-->>Local Machine: user copies URL to local browser
-        Note over Local Machine: proxy.example.com/headless/<id>
+        Note over Local Machine: proxy.example.com/headless/<request_id>
         opt user is not already logged in locally
             Local Machine->>Teleport Proxy: user logs in normally e.g. password+MFA
             Teleport Proxy->>Local Machine: 
@@ -147,7 +147,11 @@ This flow can be broken down into three parts: headless login initiation, local 
 
 #### Headless login initiation
 
-First, the client initiates headless login through the web proxy endpoint `POST /webapi/login/headless`. The client provides a request id and normal login parameters (client public key, proxy address, etc.). The Proxy sends these headless login details to the Auth server through `POST /:version/users/:user/ssh/authenticate`, the standard SSH authentication endpoint.
+First, the client initiates headless login through the web proxy endpoint `POST /webapi/login/headless`. The client provides normal login parameters (client public key, proxy address, etc.). The Proxy sends these headless login details to the Auth server through `POST /:version/users/:user/ssh/authenticate`, the standard SSH authentication endpoint.
+
+A request id will be derived from the client's public key so that an attacker cannot intercept the headless login. If we used a random UUID, an attacker could attempt to mimic the user's request with the random UUID and their own public key. From the Auth server's perspective, it would have no way to tell which login attempt is valid.
+
+Note: We could also use the public key directly (base64 encoded), but we choose to use a UUID to shorten the URL and improve its readability.
 
 As [explained above](#unauthenticated-headless-login-endpoint), the Auth server will write the request details to the backend under `/headless_authentication/<request_id>` on demand. It will have a 1 minute TTL, by which point the user should have completed the headless authentication flow. The request will begin in the pending state. The Auth server then waits for the user to approve the authentication request using a resource watcher.
 
@@ -263,8 +267,6 @@ type HeadlessAuthenticationRequest struct {
     SSHLogin
     // User is a teleport username.
     User string `json:"user"`
-    // RequestID is an id for the headless authentication.
-    RequestID string
 }
 
 // SSHLogin contains common SSH login parameters.
@@ -303,7 +305,7 @@ It is only authorized for the user who requested headless authentication. Additi
 
 #### `POST /:version/users/:user/ssh/authenticate`
 
-This is an existing endpoint used to authenticate a user and receive user certs. We will add the `headless_authentication_id` field to switch to headless authentication instead of password/WebAuthn/etc.
+This is an existing endpoint used to authenticate a user and receive user certs. We will add the `headless` field to switch to headless authentication instead of password/WebAuthn/etc.
 
 ```go
 // AuthenticateUserRequest is a request to authenticate interactive user
@@ -320,8 +322,8 @@ type AuthenticateUserRequest struct {
   Session *SessionCreds `json:"session,omitempty"`
   // ClientMetadata includes forwarded information about a client
   ClientMetadata *ForwardedClientMetadata `json:"client_metadata,omitempty"`
-  // HeadlessAuthenticationID is the ID for a headless authentication resource.
-  HeadlessAuthenticationID string `json:"headless_authentication_id"`
+  // Headless determines whether headless authentication will be used
+  Headless bool `json:"headless"`
 }
 ```
 
@@ -368,7 +370,7 @@ Initially, we will only add support headless authentication for `tsh ls`, `tsh s
 
 #### Teleport Connect
 
-Teleport Connect will also be updated to handle the approval link `https://proxy.example.com/headless/<headless_session_id>/requests` with MFA verification included.
+Teleport Connect will also be updated to handle the approval link `https://proxy.example.com/headless/<request_id>` with MFA verification included.
 
 ### Additional comments
 
