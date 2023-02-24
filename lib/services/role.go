@@ -995,39 +995,29 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 	return result
 }
 
-// getAllAllowedServerLogins gets all the allowed server
-// logins for the RoleSet.
-func (set RoleSet) getAllAllowedServerLogins() []string {
-	return set.mustGetAllAllowedLogins(teleport.ComponentServer)
-}
-
-// getAllAllowedServerLogins gets all the allowed server
-// logins for the RoleSet.
-func (set RoleSet) getAllAllowedWindowsDesktopLogins() []string {
-	return set.mustGetAllAllowedLogins(teleport.ComponentWindowsDesktop)
-}
-
-// mustGetAllAllowedLogins gets all the allowed logins in the RoleSet for a particular resource
-// type, filtering out any that are denied. Currently supports the following values for resourceTypes:
+// GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
 //
-// - ComponentServer (ssh server)
+// Supports the following resource types:
 //
-// - ComponentWindowsDesktop
+// - types.Server with GetKind() == types.KindNode
 //
-// Passing any other value for resourceType will cause a panic.
-func (set RoleSet) mustGetAllAllowedLogins(resourceType string) []string {
+// - types.KindWindowsDesktop
+func (set RoleSet) GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error) {
+	// Create a map indexed by all logins in the RoleSet,
+	// mapped to false if any role has it in its deny section,
+	// true otherwise.
 	mapped := make(map[string]bool)
 
 	for _, role := range set {
 		var loginGetter func(types.RoleConditionType) []string
 
-		switch resourceType {
-		case teleport.ComponentServer:
+		switch resource.GetKind() {
+		case types.KindNode:
 			loginGetter = role.GetLogins
-		case teleport.ComponentWindowsDesktop:
+		case types.KindWindowsDesktop:
 			loginGetter = role.GetWindowsLogins
 		default:
-			panic(fmt.Sprintf("received unsupported resourceType: %s", resourceType))
+			return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
 		}
 
 		for _, login := range loginGetter(types.Allow) {
@@ -1038,41 +1028,34 @@ func (set RoleSet) mustGetAllAllowedLogins(resourceType string) []string {
 		}
 	}
 
-	var filtered []string
-	for login, isAllowed := range mapped {
-		if isAllowed {
-			filtered = append(filtered, login)
+	// Create a list of only the logins not denied by a role in the set.
+	var notDenied []string
+	for login, isNotDenied := range mapped {
+		if isNotDenied {
+			notDenied = append(notDenied, login)
 		}
 	}
 
-	return filtered
-}
+	var newLoginMatcher func(login string) RoleMatcher
+	switch resource.GetKind() {
+	case types.KindNode:
+		newLoginMatcher = NewLoginMatcher
+	case types.KindWindowsDesktop:
+		newLoginMatcher = NewWindowsLoginMatcher
+	default:
+		return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
+	}
 
-// filterAllowedLoginsByResource takes all the allowed logins for a given resource type (allLogins),
-// a constructor for that resource's login matcher (newLoginMatcher), and an instance of that resource type (resource),
-// and returns a slice of logins filtered for only those which are permitted on the given resource instance.
-func (set RoleSet) filterAllowedLoginsByResource(allLogins []string, newLoginMatcher func(login string) RoleMatcher, resource AccessCheckable) []string {
-	// Filter out any logins that are allowed by a role in the role set,
-	// but for which that role does not apply to the given windowsDesktop.
-	var filteredLogins []string
-	for _, login := range allLogins {
+	// Filter the not-denied logins for those allowed to be used with the given resource.
+	var allowed []string
+	for _, login := range notDenied {
 		err := set.checkAccess(resource, AccessState{MFAVerified: true}, newLoginMatcher(login))
 		if err == nil {
-			filteredLogins = append(filteredLogins, login)
+			allowed = append(allowed, login)
 		}
 	}
 
-	return filteredLogins
-}
-
-// GetAllowedServerLogins gets all the logins allowed for a given RoleSet-Server combo.
-func (set RoleSet) GetAllowedServerLogins(server types.Server) []string {
-	return set.filterAllowedLoginsByResource(set.getAllAllowedServerLogins(), NewLoginMatcher, server)
-}
-
-// GetAllowedWindowsDesktopLogins gets all the windows desktop logins allowed for a given RoleSet-WindowsDesktop combo.
-func (set RoleSet) GetAllowedWindowsDesktopLogins(windowsDesktop types.WindowsDesktop) []string {
-	return set.filterAllowedLoginsByResource(set.getAllAllowedWindowsDesktopLogins(), NewWindowsLoginMatcher, windowsDesktop)
+	return allowed, nil
 }
 
 // MatchNamespace returns true if given list of namespace matches
@@ -2385,8 +2368,8 @@ func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...in
 	return isDebugEnabled, log.Debugf
 }
 
-// checkAccess checks if this role set has access to a particular resource,
-// optionally matching the resource's labels.
+// checkAccess checks if this role set has access to a particular resource r,
+// based on the passed AccessState, the resource's labels, and the passed matchers.
 func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
 	// Note: logging in this function only happens in debug mode. This is because
 	// adding logging to this function (which is called on every resource returned

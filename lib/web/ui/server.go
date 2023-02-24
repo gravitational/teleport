@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 )
 
 // Label describes label for webapp
@@ -68,14 +69,17 @@ func (s sortedLabels) Swap(i, j int) {
 }
 
 // MakeServers creates server objects for webapp
-func MakeServers(clusterName string, servers []types.Server, userRoles services.RoleSet) []Server {
+func MakeServers(clusterName string, servers []types.Server, userRoles services.RoleSet) ([]Server, error) {
 	uiServers := []Server{}
 	for _, server := range servers {
 		serverLabels := server.GetStaticLabels()
 		serverCmdLabels := server.GetCmdLabels()
 		uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
 
-		serverLogins := userRoles.GetAllowedServerLogins(server)
+		serverLogins, err := userRoles.GetAllowedLoginsForResource(server)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		uiServers = append(uiServers, Server{
 			ClusterName: clusterName,
@@ -88,7 +92,7 @@ func MakeServers(clusterName string, servers []types.Server, userRoles services.
 		})
 	}
 
-	return uiServers
+	return uiServers, nil
 }
 
 // KubeCluster describes a kube cluster.
@@ -310,7 +314,7 @@ type Desktop struct {
 }
 
 // MakeDesktop converts a desktop from its API form to a type the UI can display.
-func MakeDesktop(windowsDesktop types.WindowsDesktop, userRoles services.RoleSet) Desktop {
+func MakeDesktop(windowsDesktop types.WindowsDesktop, userRoles services.RoleSet) (Desktop, error) {
 	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
 	stripRdpPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
@@ -322,7 +326,10 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, userRoles services.RoleSet
 
 	uiLabels := makeLabels(windowsDesktop.GetAllLabels())
 
-	logins := userRoles.GetAllowedWindowsDesktopLogins(windowsDesktop)
+	logins, err := userRoles.GetAllowedLoginsForResource(windowsDesktop)
+	if err != nil {
+		return Desktop{}, trace.Wrap(err)
+	}
 
 	return Desktop{
 		OS:     constants.WindowsOS,
@@ -331,18 +338,22 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, userRoles services.RoleSet
 		Labels: uiLabels,
 		HostID: windowsDesktop.GetHostID(),
 		Logins: logins,
-	}
+	}, nil
 }
 
 // MakeDesktops converts desktops from their API form to a type the UI can display.
-func MakeDesktops(windowsDesktops []types.WindowsDesktop, userRoles services.RoleSet) []Desktop {
+func MakeDesktops(windowsDesktops []types.WindowsDesktop, userRoles services.RoleSet) ([]Desktop, error) {
 	uiDesktops := make([]Desktop, 0, len(windowsDesktops))
 
 	for _, windowsDesktop := range windowsDesktops {
-		uiDesktops = append(uiDesktops, MakeDesktop(windowsDesktop, userRoles))
+		uiDesktop, err := MakeDesktop(windowsDesktop, userRoles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		uiDesktops = append(uiDesktops, uiDesktop)
 	}
 
-	return uiDesktops
+	return uiDesktops, nil
 }
 
 // DesktopService describes a desktop service to pass to the ui.

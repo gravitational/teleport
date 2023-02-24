@@ -3426,11 +3426,7 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 	}
 }
 
-// TestGetAllowedServerAndWindowsDesktopLogins tests both
-// GetAllowedServerLogins and GetAllowedWindowsDesktopLogins.
-// These are tested at the same time due to the close similarity
-// in expected behavior.
-func TestGetAllowedServerAndWindowsDesktopLogins(t *testing.T) {
+func TestGetAllowedLoginsForResource(t *testing.T) {
 	newRole := func(
 		allowLogins []string,
 		allowLabels types.Labels,
@@ -3619,8 +3615,10 @@ func TestGetAllowedServerAndWindowsDesktopLogins(t *testing.T) {
 			server := mustMakeTestServer(tc.labels)
 			desktop := mustMakeTestWindowsDesktop(tc.labels)
 
-			serverLogins := tc.roleSet.GetAllowedServerLogins(server)
-			desktopLogins := tc.roleSet.GetAllowedWindowsDesktopLogins(desktop)
+			serverLogins, err := tc.roleSet.GetAllowedLoginsForResource(server)
+			require.NoError(t, err)
+			desktopLogins, err := tc.roleSet.GetAllowedLoginsForResource(desktop)
+			require.NoError(t, err)
 
 			require.ElementsMatch(t, tc.expectedLogins, serverLogins)
 			require.ElementsMatch(t, tc.expectedLogins, desktopLogins)
