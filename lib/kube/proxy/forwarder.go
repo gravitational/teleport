@@ -1718,7 +1718,7 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 
 	// Make sure to overwrite the exiting headers, instead of appending to
 	// them.
-	headers[ImpersonateGroupHeader] = nil
+	headers.Del(ImpersonateGroupHeader)
 	for _, group := range impersonateGroups {
 		headers.Add(ImpersonateGroupHeader, group)
 	}
@@ -1729,8 +1729,8 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 // copyImpersonationHeaders copies the impersonation headers from the source
 // request to the destination request.
 func copyImpersonationHeaders(dst, src http.Header) {
-	dst[ImpersonateUserHeader] = nil
-	dst[ImpersonateGroupHeader] = nil
+	dst.Del(ImpersonateUserHeader)
+	dst.Del(ImpersonateGroupHeader)
 
 	for _, v := range src.Values(ImpersonateUserHeader) {
 		dst.Add(ImpersonateUserHeader, v)
