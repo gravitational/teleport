@@ -51,13 +51,17 @@ type fetchConfig struct {
 	ctx context.Context
 	// hello is the initial upstream hello message.
 	hello proto.UpstreamInventoryHello
+	// getenv is the method called to retrieve an environment
+	// variable.
+	// It is configurable so that it can be mocked in tests.
+	getenv func(name string) string
 	// readFile is the method called to read a file.
 	// It is configurable so that it can be mocked in tests.
 	readFile func(name string) ([]byte, error)
 	// execCommand is the method called to execute a command.
 	// It is configurable so that it can be mocked in tests.
 	execCommand func(name string, args ...string) ([]byte, error)
-	// httpDo is the method called to perform an httpDo request.
+	// httpDo is the method called to perform an http request.
 	// It is configurable so that it can be mocked in tests.
 	httpDo func(req *http.Request) (*http.Response, error)
 	// kubeClient is a kubernetes client used to retrieve the
@@ -72,6 +76,9 @@ type fetchConfig struct {
 func (c *fetchConfig) setDefaults() {
 	if c.ctx == nil {
 		c.ctx = context.Background()
+	}
+	if c.getenv == nil {
+		c.getenv = os.Getenv
 	}
 	if c.readFile == nil {
 		c.readFile = os.ReadFile
@@ -178,9 +185,51 @@ func (c *fetchConfig) fetchHostArchitecture() string {
 	return out
 }
 
+// fetchInstallMethods returns the list of methods used to install the agent.
 func (c *fetchConfig) fetchInstallMethods() []string {
-	// TODO(vitorenesduarte): fetch install methods
-	return []string{}
+	var installMethods []string
+	if c.dockerfileInstallMethod() {
+		installMethods = append(installMethods, "dockerfile")
+	}
+	if c.helmKubeAgentInstallMethod() {
+		installMethods = append(installMethods, "helm_kube_agent")
+	}
+	if c.nodeScriptInstallMethod() {
+		installMethods = append(installMethods, "node_script")
+	}
+	if c.systemctlInstallMethod() {
+		installMethods = append(installMethods, "systemctl")
+	}
+	return installMethods
+}
+
+// dockerfileInstallMethod returns whether the agent was installed using our
+// Dockerfile.
+func (c *fetchConfig) dockerfileInstallMethod() bool {
+	return c.getenv("TELEPORT_INSTALL_METHOD_DOCKERFILE") == "true"
+}
+
+// helmKubeAgentInstallMethod returns whether the agent was installed using our
+// Helm chart.
+func (c *fetchConfig) helmKubeAgentInstallMethod() bool {
+	return c.getenv("TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT") == "true"
+}
+
+// nodeScriptInstallMethod returns whether the agent was installed using our
+// install-node.sh script.
+func (c *fetchConfig) nodeScriptInstallMethod() bool {
+	return c.getenv("TELEPORT_INSTALL_METHOD_NODE_SCRIPT") == "true"
+}
+
+// systemctlInstallMethod returns whether the agent is running using
+// systemctl.
+func (c *fetchConfig) systemctlInstallMethod() bool {
+	out, err := c.exec("systemctl", "is-active", "teleport.service")
+	if err != nil {
+		return false
+	}
+
+	return out == "active"
 }
 
 // fetchContainerRuntime returns "docker" if the file "/.dockerenv" exists.
@@ -269,19 +318,6 @@ func (c *fetchConfig) azureHttpGetSuccess() bool {
 	return c.httpReqSuccess(req)
 }
 
-// azureGetSuccess performs an http request, returning true if the status code
-// is 200.
-func (c *fetchConfig) httpReqSuccess(req *http.Request) bool {
-	resp, err := c.httpDo(req.WithContext(c.ctx))
-	if err != nil {
-		log.Debugf("Failed to perform http GET request: %s", err)
-		return false
-	}
-	defer resp.Body.Close()
-
-	return resp.StatusCode == http.StatusOK
-}
-
 // exec runs a command and validates its output using the parse function.
 func (c *fetchConfig) exec(name string, args ...string) (string, error) {
 	out, err := c.execCommand(name, args...)
@@ -300,6 +336,19 @@ func (c *fetchConfig) read(name string) (string, error) {
 		return "", err
 	}
 	return string(out), nil
+}
+
+// httpReqSuccess performs an http request, returning true if the status code
+// is 200.
+func (c *fetchConfig) httpReqSuccess(req *http.Request) bool {
+	resp, err := c.httpDo(req.WithContext(c.ctx))
+	if err != nil {
+		log.Debugf("Failed to perform http GET request: %s", err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
 }
 
 // invalid logs the unexpected output/content and sanitizes it by quoting it.

@@ -173,6 +173,123 @@ func TestFetchHostArchitecture(t *testing.T) {
 	}
 }
 
+func TestFetchInstallMethods(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		desc        string
+		getenv      func(string) string
+		execCommand func(string, ...string) ([]byte, error)
+		expected    []string
+	}{
+		{
+			desc: "dockerfile if dockerfile",
+			getenv: func(name string) string {
+				if name == "TELEPORT_INSTALL_METHOD_DOCKERFILE" {
+					return "true"
+				}
+				return ""
+			},
+			execCommand: func(name string, args ...string) ([]byte, error) {
+				return nil, trace.NotFound("command does not exist")
+			},
+			expected: []string{
+				"dockerfile",
+			},
+		},
+		{
+			desc: "helm_kube_agent if helm",
+			getenv: func(name string) string {
+				if name == "TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT" {
+					return "true"
+				}
+				return ""
+			},
+			execCommand: func(name string, args ...string) ([]byte, error) {
+				return nil, trace.NotFound("command does not exist")
+			},
+			expected: []string{
+				"helm_kube_agent",
+			},
+		},
+		{
+			desc: "node_script if node script",
+			getenv: func(name string) string {
+				if name == "TELEPORT_INSTALL_METHOD_NODE_SCRIPT" {
+					return "true"
+				}
+				return ""
+			},
+			execCommand: func(name string, args ...string) ([]byte, error) {
+				return nil, trace.NotFound("command does not exist")
+			},
+			expected: []string{
+				"node_script",
+			},
+		},
+		{
+			desc: "systemctl if systemctl",
+			getenv: func(name string) string {
+				return ""
+			},
+			execCommand: func(name string, args ...string) ([]byte, error) {
+				if name != "systemctl" {
+					return nil, trace.NotFound("command does not exist")
+				}
+				if len(args) != 2 {
+					return nil, trace.NotFound("command does not exist")
+				}
+				if args[0] != "is-active" || args[1] != "teleport.service" {
+					return nil, trace.NotFound("command does not exist")
+				}
+				return []byte("active"), nil
+			},
+			expected: []string{
+				"systemctl",
+			},
+		},
+		{
+			desc: "dockerfile and helm_kube_agent if dockerfile and helm",
+			getenv: func(name string) string {
+				if name == "TELEPORT_INSTALL_METHOD_DOCKERFILE" {
+					return "true"
+				}
+				if name == "TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT" {
+					return "true"
+				}
+				return ""
+			},
+			execCommand: func(name string, args ...string) ([]byte, error) {
+				return nil, trace.NotFound("command does not exist")
+			},
+			expected: []string{
+				"dockerfile",
+				"helm_kube_agent",
+			},
+		},
+		{
+			desc: "empty if none",
+			getenv: func(name string) string {
+				return ""
+			},
+			execCommand: func(name string, args ...string) ([]byte, error) {
+				return nil, trace.NotFound("command does not exist")
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			c := &fetchConfig{
+				getenv:      tc.getenv,
+				execCommand: tc.execCommand,
+			}
+			require.Equal(t, tc.expected, c.fetchInstallMethods())
+		})
+	}
+}
+
 func TestFetchContainerRuntime(t *testing.T) {
 	t.Parallel()
 
