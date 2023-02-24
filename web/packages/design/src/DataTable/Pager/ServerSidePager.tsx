@@ -50,6 +50,6 @@ export function ServerSidePager({ nextPage, prevPage }: Props) {
 }
 
 export type Props = {
-  nextPage: () => void;
-  prevPage: () => void;
+  nextPage: (() => void) | null;
+  prevPage: (() => void) | null;
 };
