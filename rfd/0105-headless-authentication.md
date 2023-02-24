@@ -63,8 +63,6 @@ Headless authentication, like any login mechanism, can be started by any unauthe
 
 To ensure the requesting client is the only client that can use resulting headless certificates, we will use the PKCE-like flow common to all Teleport login flows. The client provides their public key in the login request, and the server issues certificates for the client's public key. If the client does not have access to the corresponding client private key, they cannot use the certificates.
 
-Note: The server can also encrypt the certificates with the client's public key. Since we don't currently do this for other login endpoints, we will omit this from this design.
-
 ##### Conclusion
 
 The design principles above go a long way in ensuring the security of headless authentication. There should be no way for an attacker to make a straightforward attack, like exfiltrating the user's key/certificates. Since WebAuthn verification is required, it should also be impossible for an attacker to hack the user's local machine to approve a fraudulent headless authentication. The headless authentication API flow is secured so it cannot be intercepted by an attacker.
@@ -85,9 +83,11 @@ In both cases, the attacker manages to steal headless authenticated certificates
 
 #### Unauthenticated headless login endpoint
 
-The new `/webapi/login/headless` http endpoint will be unauthenticated like other login endpoints, meaning anyone with access to the Teleport Proxy address can attempt to perform headless login for a Teleport user. We will rate limit the endpoint in the same way we do with the other login endpoints to prevent DoS attacks.
+The new new `POST /webapi/login/headless` endpoint will be unauthenticated like other login endpoints, meaning anyone with access to the Teleport Proxy address can attempt to perform headless login for a Teleport user. We will rate limit the endpoint in the same way we do with the other login endpoints to prevent DoS attacks.
 
-Unlike other login endpoints, `/webapi/login/headless` writes the `HeadlessAuthentication` to the backend before the user is authenticated. To prevent an attacker from overloading the storage with unauthenticated `HeadlessAuthentication` data, this data will be given a 1 minute TTL.
+Unlike other login endpoints, `POST /webapi/login/headless` needs to write the `HeadlessAuthentication` resource to the backend before the user is authenticated, so that the user can view and approve login details. A malicious actor could potentially use this endpoint to overload the backend to catastrophic effect, even with standard rate limiting in place.
+
+To circumvent this attack vector, we will use an on-demand approach. Rather than inserting the `HeadlessAuthentication` resource immediately, the request will wait until an authenticated user calls `rpc GetHeadlessAuthentication`, the first step of headless login approval. This will be accomplished by having `GetHeadlessAuthentication` insert an empty resource to the backend, if it doesn't already exist. The Auth server will detect this insertion and update the resource with the actual request details. Finally, `GetHeadlessAuthentication` will detect the resource update and return the details to the user.
 
 ### Headless authentication overview
 
@@ -100,52 +100,60 @@ The headless authentication flow is shown below:
 ```mermaid
 sequenceDiagram
     participant Local Machine
-    participant Remote Machine
+    participant Headless Machine as Remote (Headless) Machine
     participant Teleport Proxy
     participant Teleport Auth
     
-    Note over Remote Machine: tsh --headless ssh user@node01
-    Note over Remote Machine: generate UUID for headless<br/>login request and print URL
-
-    par
-        Remote Machine->>Teleport Proxy: POST /webapi/login/headless
+    Note over Headless Machine: tsh --headless ssh user@node01
+    Note over Headless Machine: generate request id and print URL<br/>proxy.example.com/headless/<request_id>
+    par headless client request
+        Headless Machine->>Teleport Proxy: POST /webapi/login/headless
         Teleport Proxy->>Teleport Auth: POST /:version/users/:user/ssh/authenticate
-        Teleport Auth ->> Backend: CreateHeadlessAuthentication<br/>{id, user, publicKey, state=pending}
-        Teleport Auth ->>+ Backend: watch for state change
-    and
-        Remote Machine-->>Local Machine: user copies URL to local browser
-        Note over Local Machine: proxy.example.com/headless/<id>/approve
+        Teleport Auth ->>+ Backend: wait for backend insert /headless_authentication/<request_id>
+
+    and local client request
+        Headless Machine-->>Local Machine: user copies URL to local browser
+        Note over Local Machine: proxy.example.com/headless/<id>
         opt user is not already logged in locally
             Local Machine->>Teleport Proxy: user logs in normally e.g. password+MFA
             Teleport Proxy->>Local Machine: 
         end
-        Local Machine->>Teleport Auth: rpc GetHeadlessAuthentication
-        Teleport Auth->>Local Machine: 
+        Local Machine->>Teleport Auth: rpc GetHeadlessAuthentication (request_id)
+        Teleport Auth ->> Backend: insert /headless_authentication/<request_id>
+
+        par headless client request
+            Backend ->>- Teleport Auth: unblock on insert
+            Teleport Auth ->> Backend: upsert /headless_authentication/<request_id><br/>{public key, user, ip}
+            Teleport Auth ->>+ Backend: wait for state change
+        end
+
+        Teleport Auth->>Local Machine: Headless Authentication details
+
         Note over Local Machine: share request details with user
         Local Machine->>Teleport Auth: rpc CreateAuthenticateChallenge
         Teleport Auth->>Local Machine: MFA Challenge
         Note over Local Machine: user taps YubiKey<br/>to sign MFA challenge
         Local Machine->>Teleport Auth: rpc UpdateHeadlessAuthenticationState<br/>with signed MFA challenge response
-        Teleport Auth ->> Backend: UpsertHeadlessAuthentication<br/>{id, user, publicKey, state=approved, mfaDevice}
+        Teleport Auth ->> Backend: upsert /headless_authentication/<request_id><br/>{public key, user, ip, state=approved, mfaDevice}
+    and headless client request
+        Backend ->>- Teleport Auth: unblock on state change
+        Teleport Auth->>Teleport Proxy: user certificates<br/>(MFA-verified, 1 minute TTL)
+        Teleport Proxy->>Headless Machine: user certificates<br/>(MFA-verified, 1 minute TTL)
+        Note over Headless Machine: Connect to user@node01
     end
-
-    Backend ->>- Teleport Auth: unblock on state change
-    Teleport Auth->>Teleport Proxy: user certificates<br/>(MFA-verified, 1 minute TTL)
-    Teleport Proxy->>Remote Machine: user certificates<br/>(MFA-verified, 1 minute TTL)
-    Note over Remote Machine: Connect to user@node01
 ```
 
 This flow can be broken down into three parts: headless login initiation, local authentication, and certificate retrieval.
 
 #### Headless login initiation
 
-First, the client initiates headless login through the web proxy endpoint `POST /webapi/login/headless`. The client provides a request UUID and normal login parameters (client public key, proxy address, etc.). The Proxy sends these headless login details to the Auth server through `POST /:version/users/:user/ssh/authenticate`, the standard SSH authentication endpoint.
+First, the client initiates headless login through the web proxy endpoint `POST /webapi/login/headless`. The client provides a request id and normal login parameters (client public key, proxy address, etc.). The Proxy sends these headless login details to the Auth server through `POST /:version/users/:user/ssh/authenticate`, the standard SSH authentication endpoint.
 
-The Auth server saves headless authentication details in the backend under `/headless_authentication/` with a 1 minute TTL, by which point the user should have completed the headless authentication flow. The request will begin in the pending state. The Auth server then waits for the user to approve the authentication request using a resource watcher on the `HeadlessAuthentication` resource kind.
+As [explained above](#unauthenticated-headless-login-endpoint), the Auth server will write the request details to the backend under `/headless_authentication/<request_id>` on demand. It will have a 1 minute TTL, by which point the user should have completed the headless authentication flow. The request will begin in the pending state. The Auth server then waits for the user to approve the authentication request using a resource watcher.
 
 #### Local authentication
 
-In parallel to headless login initiation, the client will generate a Teleport web Proxy URL for the client to complete headless authentication: `https://proxy.example.com/headless/<id>/approve`. The URL is shared with the user so they can locally authenticate the auth request from their local browser.
+In parallel to headless login initiation, the client will generate a Teleport web Proxy URL for the client to complete headless authentication: `https://proxy.example.com/headless/<request_id>`. The URL is shared with the user so they can locally authenticate the auth request from their local browser.
 
 When the user opens the URL locally, their local login session will be used to connect to the Teleport Auth server. If the user is not yet logged in, they will be prompted to login with MFA as usual.
 
@@ -162,6 +170,10 @@ If the headless authentication is approved/denied, the Auth server's resource wa
 
 The resulting user certificates will then be returned to the Proxy and then to the client. Now the client can complete the `tsh` request initially requested, e.g. `tsh ssh user@node01`.
 
+### `HeadlessAuthentication` resource watcher
+
+Both `POST /webapi/login/headless` and `rpc GetHeadlessAuthentication` make use of resource watchers to accomplish their respective goals. Creating resource watchers for every headless login request will put unwanted strain on the Auth Server. Instead, we will introduce a new basic resource watcher built for simplicity and efficiency. Many of the more complex, and expensive, watcher features will not be implemented (staleness detection, custom filters, etc.). The Auth service will be initiated with a single headless authentication watcher.
+
 ### Audit log
 
 The following actions will be tracked with audit events:
@@ -174,7 +186,7 @@ The following actions will be tracked with audit events:
 ```proto
 package teleport.headlessauthn.v1;
 
-// HeadlessAuthenticationService provides methods to create, view, and update authentication requests.
+// HeadlessAuthenticationService provides methods to view and update headless authentication requests.
 service HeadlessAuthenticationService {
   // GetHeadlessAuthentication is a request to retrieve a headless authentication from the backend.
   rpc GetHeadlessAuthentication(GetHeadlessAuthenticationRequest) returns (HeadlessAuthentication);
@@ -287,7 +299,7 @@ It is authorized for roles with `read` permissions on the `headless_authenticati
 
 This endpoint is used by Teleport clients to update headless login request state to approved or denied.
 
-It is only authorized authorized for the user who requested headless authentication. Additionally, when updating the state to `APPROVED`, the client must provide a valid MFA challenge response for the user. An MFA challenge can be requested from the existing rpc `CreateAuthenticateChallenge`.
+It is only authorized for the user who requested headless authentication. Additionally, when updating the state to `APPROVED`, the client must provide a valid MFA challenge response for the user. An MFA challenge can be requested from the existing rpc `CreateAuthenticateChallenge`.
 
 #### `POST /:version/users/:user/ssh/authenticate`
 
@@ -317,12 +329,12 @@ type AuthenticateUserRequest struct {
 
 #### `tsh --headless`
 
-We will add a new `--headless` flag to `tsh` which can be used to authenticate for a single `tsh` request. When this flag is provided, `tsh` will prompt the user to complete headless authentication on their local machine from the URL `https://proxy.example.com/headless/<id>/approve`. Once the user completes local authentication, `tsh` will receive credentials to complete the request.
+We will add a new `--headless` flag to `tsh` which can be used to authenticate for a single `tsh` request. When this flag is provided, `tsh` will prompt the user to complete headless authentication on their local machine from the URL `https://proxy.example.com/headless/<id>`. Once the user completes local authentication, `tsh` will receive credentials to complete the request.
 
 ```console
 $ tsh --headless --proxy=proxy --user=user ssh user@node01
 Complete headless authentication in your local web browser:
-https://proxy.example.com/headless/<id>/approve
+https://proxy.example.com/headless/<id>
 // Wait for user to complete local authentication with MFA
 <user@node01> $
 ```
@@ -337,15 +349,12 @@ Example (Exact UI/UX TBD):
 Headless login attempt requires approval. Contact your administrator if you didn't initiate this login attempt.
 Additional details:
   - request id: <id>
+  - public key: <ssh_public_key>
   - ip address: <ip_address>
 Tap your YubiKey to approve
 ```
 
 Note: When the user has to log in for the first time, we do not reuse their MFA verification to skip the second MFA check. Although this would be better UX, we cannot retrieve additional request details to share with the user until they log in. For security reasons, we should provide an MFA check after sharing the headless request details.
-
-#### View headless requests
-
-In the Web UI, we will create a new page to view and accept `tsh` requests for a headless session: `https://proxy.example.com/headless/<headless_session_id>/requests`. The UI may be very similar to the access request page, where a user can view requests, view additional details, and then click approve/deny. When the user clicks "approve", this will trigger a prompt for MFA verification to complete the approval.
 
 #### Environment variables
 
