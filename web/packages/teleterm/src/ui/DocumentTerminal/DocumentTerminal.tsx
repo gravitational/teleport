@@ -22,7 +22,6 @@ import {
   FileTransfer,
   FileTransferContextProvider,
 } from 'shared/components/FileTransfer';
-import { FileTransferActionBarStateless } from 'shared/components/FileTransfer/FileTransferActionBar';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import Document from 'teleterm/ui/Document';
@@ -47,60 +46,6 @@ export function DocumentTerminal(props: Props & { visible: boolean }) {
   ).value;
   const terminalFontSize = configService.get('terminal.fontSize').value;
 
-  let $fileTransfer;
-
-  if (doc.kind === 'doc.terminal_tsh_node') {
-    if ('serverUri' in doc) {
-      $fileTransfer = (
-        <FileTransferContextProvider>
-          <FileTransferActionBar isConnected={doc.status === 'connected'} />
-          <FileTransfer
-            beforeClose={() =>
-              // TODO (gzdunek): replace with a native dialog
-              window.confirm('Are you sure you want to cancel file transfers?')
-            }
-            transferHandlers={{
-              getDownloader: async (sourcePath, abortController) => {
-                const fileDialog =
-                  await ctx.mainProcessClient.showFileSaveDialog(sourcePath);
-                if (fileDialog.canceled) {
-                  return;
-                }
-                return download(
-                  {
-                    serverUri: doc.serverUri,
-                    login: doc.login,
-                    source: sourcePath,
-                    destination: fileDialog.filePath,
-                  },
-                  abortController
-                );
-              },
-              getUploader: async (destinationPath, file, abortController) =>
-                upload(
-                  {
-                    serverUri: doc.serverUri,
-                    login: doc.login,
-                    source: file.path,
-                    destination: destinationPath,
-                  },
-                  abortController
-                ),
-            }}
-          />
-        </FileTransferContextProvider>
-      );
-    } else {
-      $fileTransfer = (
-        <FileTransferActionBarStateless
-          disabled={true}
-          openDownloadDialog={() => {}}
-          openUploadDialog={() => {}}
-        />
-      );
-    }
-  }
-
   // Creating a new terminal might fail for multiple reasons, for example:
   //
   // * The user tried to execute `tsh ssh user@host` from the command bar and the request which
@@ -116,6 +61,49 @@ export function DocumentTerminal(props: Props & { visible: boolean }) {
       />
     );
   }
+
+  const $fileTransfer = doc.kind === 'doc.terminal_tsh_node' && (
+    <FileTransferContextProvider>
+      <FileTransferActionBar isConnected={doc.status === 'connected'} />
+      {'serverUri' in doc && (
+        <FileTransfer
+          beforeClose={() =>
+            // TODO (gzdunek): replace with a native dialog
+            window.confirm('Are you sure you want to cancel file transfers?')
+          }
+          transferHandlers={{
+            getDownloader: async (sourcePath, abortController) => {
+              const fileDialog = await ctx.mainProcessClient.showFileSaveDialog(
+                sourcePath
+              );
+              if (fileDialog.canceled) {
+                return;
+              }
+              return download(
+                {
+                  serverUri: doc.serverUri,
+                  login: doc.login,
+                  source: sourcePath,
+                  destination: fileDialog.filePath,
+                },
+                abortController
+              );
+            },
+            getUploader: async (destinationPath, file, abortController) =>
+              upload(
+                {
+                  serverUri: doc.serverUri,
+                  login: doc.login,
+                  source: file.path,
+                  destination: destinationPath,
+                },
+                abortController
+              ),
+          }}
+        />
+      )}
+    </FileTransferContextProvider>
+  );
 
   return (
     <Document
