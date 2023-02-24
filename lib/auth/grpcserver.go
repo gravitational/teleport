@@ -31,7 +31,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -4861,12 +4860,95 @@ func (g *GRPCServer) DeleteAllSAMLIdPServiceProviders(ctx context.Context, _ *em
 	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllSAMLIdPServiceProviders(ctx))
 }
 
+// ListUserGroups returns a paginated list of user group resources.
+func (g *GRPCServer) ListUserGroups(ctx context.Context, req *proto.ListUserGroupsRequest) (*proto.ListUserGroupsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userGroups, nextKey, err := auth.ListUserGroups(ctx, int(req.GetLimit()), req.GetNextKey())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userGroupsV1 := make([]*types.UserGroupV1, len(userGroups))
+	for i, g := range userGroups {
+		v1, ok := g.(*types.UserGroupV1)
+		if !ok {
+			return nil, trace.BadParameter("unexpected user group type %T", g)
+		}
+		userGroupsV1[i] = v1
+	}
+
+	return &proto.ListUserGroupsResponse{
+		UserGroups: userGroupsV1,
+		NextKey:    nextKey,
+	}, nil
+}
+
+// GetUserGroup returns the specified user group resources.
+func (g *GRPCServer) GetUserGroup(ctx context.Context, req *proto.GetUserGroupRequest) (*types.UserGroupV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sp, err := auth.GetUserGroup(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serviceProviderV1, ok := sp.(*types.UserGroupV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected user group type %T", sp)
+	}
+
+	return serviceProviderV1, nil
+}
+
+// CreateUserGroup creates a new user group resource.
+func (g *GRPCServer) CreateUserGroup(ctx context.Context, sp *types.UserGroupV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.CreateUserGroup(ctx, sp))
+}
+
+// UpdateUserGroup updates an existing user group resource.
+func (g *GRPCServer) UpdateUserGroup(ctx context.Context, sp *types.UserGroupV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.UpdateUserGroup(ctx, sp))
+}
+
+// DeleteUserGroup removes the specified user group resource.
+func (g *GRPCServer) DeleteUserGroup(ctx context.Context, req *proto.DeleteUserGroupRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.DeleteUserGroup(ctx, req.GetName()))
+}
+
+// DeleteAllUserGroups removes all user groups.
+func (g *GRPCServer) DeleteAllUserGroups(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllUserGroups(ctx))
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
 	APIConfig
 	// TLS is GRPC server config
 	TLS *tls.Config
+	// Middleware is the request TLS client authenticator
+	Middleware *Middleware
 	// UnaryInterceptor intercepts individual GRPC requests
 	// for authentication and rate limiting
 	UnaryInterceptor grpc.UnaryServerInterceptor
@@ -4886,6 +4968,9 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 	if cfg.StreamInterceptor == nil {
 		return trace.BadParameter("missing parameter StreamInterceptor")
 	}
+	if cfg.Middleware == nil {
+		return trace.BadParameter("missing parameter Middleware")
+	}
 	return nil
 }
 
@@ -4900,13 +4985,22 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("GRPC(SERVER): keep alive %v count: %v.", cfg.KeepAlivePeriod, cfg.KeepAliveCount)
-	opts := []grpc.ServerOption{
-		grpc.Creds(&httplib.TLSCreds{
-			Config: cfg.TLS,
-		}),
 
-		grpc.ChainUnaryInterceptor(otelgrpc.UnaryServerInterceptor(), cfg.UnaryInterceptor),
-		grpc.ChainStreamInterceptor(otelgrpc.StreamServerInterceptor(), cfg.StreamInterceptor),
+	// httplib.TLSCreds are explicitly used instead of credentials.NewTLS because the latter
+	// modifies the tls.Config.NextProtos which causes problems due to multiplexing on the auth
+	// listener.
+	creds, err := NewTransportCredentials(TransportCredentialsConfig{
+		TransportCredentials: &httplib.TLSCreds{Config: cfg.TLS},
+		UserGetter:           cfg.Middleware,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	server := grpc.NewServer(
+		grpc.Creds(creds),
+		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptor),
+		grpc.ChainStreamInterceptor(cfg.StreamInterceptor),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
 				Time:    cfg.KeepAlivePeriod,
@@ -4919,8 +5013,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 				PermitWithoutStream: true,
 			},
 		),
-	}
-	server := grpc.NewServer(opts...)
+	)
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{

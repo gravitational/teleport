@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -7918,6 +7919,54 @@ func TestLogout(t *testing.T) {
 	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
 }
 
+func TestGetIsDashboard(t *testing.T) {
+	tt := []struct {
+		name     string
+		features clientproto.Features
+		expected bool
+	}{
+		{
+			name: "not cloud nor recovery codes is not dashboard",
+			features: clientproto.Features{
+				Cloud:         false,
+				RecoveryCodes: false,
+			},
+			expected: false,
+		},
+		{
+			name: "not cloud, with recovery codes is dashboard",
+			features: clientproto.Features{
+				Cloud:         false,
+				RecoveryCodes: true,
+			},
+			expected: true,
+		},
+		{
+			name: "cloud, with recovery codes is not dashboard",
+			features: clientproto.Features{
+				Cloud:         true,
+				RecoveryCodes: true,
+			},
+			expected: false,
+		},
+		{
+			name: "cloud, without recovery codes is not dashboard",
+			features: clientproto.Features{
+				Cloud:         true,
+				RecoveryCodes: false,
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			result := isDashboard(tc.features)
+			require.Equal(t, tc.expected, result)
+		})
+	}
+}
+
 // initGRPCServer creates a grpc server serving on the provided listener.
 func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	clusterName := env.server.ClusterName()
@@ -7936,10 +7985,17 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		AccessPoint:   proxyAuthClient,
+		ClusterName:   clusterName,
 		Limiter:       limiter,
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}
+
+	tlsConf := copyAndConfigureTLS(tlsConfig, logrus.New(), proxyAuthClient, clusterName)
+	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
+		TransportCredentials: credentials.NewTLS(tlsConf),
+		UserGetter:           authMiddleware,
+	})
+	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
@@ -7948,9 +8004,7 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 		grpc.ChainStreamInterceptor(
 			authMiddleware.StreamInterceptor(),
 		),
-		grpc.Creds(credentials.NewTLS(
-			copyAndConfigureTLS(tlsConfig, logrus.New(), proxyAuthClient, clusterName),
-		)),
+		grpc.Creds(creds),
 	)
 
 	kubeproto.RegisterKubeServiceServer(grpcServer, &fakeKubeService{})
