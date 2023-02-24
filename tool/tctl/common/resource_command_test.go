@@ -635,7 +635,6 @@ spec:
 				require.NoError(t, err)
 				sps := []*types.SAMLIdPServiceProviderV1{}
 				mustDecodeJSON(t, buf, &sps)
-				require.NoError(t, err)
 				tt.expectEntityID(t, sps[0].GetEntityID())
 			}
 		})
