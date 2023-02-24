@@ -977,7 +977,7 @@ func (s *session) join(p *party) error {
 	return nil
 }
 
-func (s *session) BroadcastMessage(format string, args ...interface{}) {
+func (s *session) BroadcastMessage(format string, args ...any) {
 	if s.accessEvaluator.IsModerated() {
 		s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 	}
