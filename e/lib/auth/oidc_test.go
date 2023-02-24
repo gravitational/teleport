@@ -115,7 +115,7 @@ func createInsecureOIDCClient(t *testing.T, connector types.OIDCConnector) *oidc
 	}
 	client, err := oidc.NewClient(conf)
 	require.NoError(t, err)
-	client.SyncProviderConfig(connector.GetIssuerURL())
+	client.SyncProviderConfig(context.Background(), connector.GetIssuerURL())
 	return client
 }
 

@@ -239,15 +239,11 @@ func (c *oidcClient) needsRefresh(conn types.OIDCConnector) bool {
 // startSync starts a goroutine to sync the client with its provider
 // config until the given ctx is closed or the sync is canceled.
 func (c *oidcClient) startSync(ctx context.Context) {
-	// SyncProviderConfig doesn't take a context for cancellation, instead it
-	// returns a channel that has to be closed to stop the sync. To ensure that the
-	// sync is eventually stopped, we "wrap" the stop channel with a cancel context.
 	c.syncCtx, c.syncCancel = context.WithCancel(ctx)
 	go func() {
-		stop := c.client.SyncProviderConfig(c.connector.GetIssuerURL())
+		c.client.SyncProviderConfig(c.syncCtx, c.connector.GetIssuerURL())
 		close(c.firstSync)
 		<-c.syncCtx.Done()
-		close(stop)
 	}()
 }
 
