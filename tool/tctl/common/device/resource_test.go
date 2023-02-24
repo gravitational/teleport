@@ -49,11 +49,12 @@ spec:
   enroll_status: enrolled
 `,
 			expected: &devicepb.Device{
-				Id:           "xaa",
-				AssetTag:     "mymachine",
-				OsType:       devicepb.OSType_OS_TYPE_MACOS,
-				ApiVersion:   "v1",
-				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
+				Id:            "xaa",
+				AssetTag:      "mymachine",
+				OsType:        devicepb.OSType_OS_TYPE_MACOS,
+				ApiVersion:    "v1",
+				EnrollStatus:  devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
+				CollectedData: []*devicepb.DeviceCollectedData{},
 			},
 		},
 		{
