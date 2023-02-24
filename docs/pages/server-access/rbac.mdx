@@ -87,20 +87,25 @@ spec:
     - '{{external.allowedlogins}}'
 ```
 
-The `{{internal.logins}}` variable permits sharing
-allowed server logins with remote clusters. They will be replaced
-with the respective properties of a remote user connecting from a root cluster.
+The `{{internal.logins}}` variable applies to local users
+and works with Teleport Trusted Clusters.  Trusted Clusters allows
+connecting via a root Teleport Cluster to resources connected to other Teleport Clusters.
+Those Teleport Clusters, identified as leaf clusters, allow the connection
+by trusting the root Teleport Cluster.
 
-For example, suppose a user in the root cluster has the following role:
+For example, suppose a user in the root cluster has the following role.  As a
+local user they could have the `logins` trait of `jeff` so they have two logins, `jeff`
+and `ubuntu`.
 
 ```yaml
 spec:
   allow:
-    logins: ["ubuntu"]
+    logins: ['{{internal.logins}}', ubuntu]
 ```
 
 The role on the leaf cluster can be set up to use the user's allowed server
-accounts and names:
+accounts and names. The leaf cluster will then include the same logins allowed from the root
+cluster when the `{{internal.logins}}` template variable is used.
 
 ```yaml
 spec:
