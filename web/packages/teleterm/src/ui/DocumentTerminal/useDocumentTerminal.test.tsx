@@ -62,8 +62,10 @@ const server: tsh.Server = {
   addr: 'foo.localhost',
   labelsList: [],
 };
-const leafServer = { ...server };
-leafServer.uri = `${leafClusterUri}/servers/${serverUUID}`;
+const leafServer = {
+  ...server,
+  uri: `${leafClusterUri}/servers/${serverUUID}`,
+};
 
 const getDocTshNodeWithServerId: () => DocumentTshNodeWithServerId = () => ({
   kind: 'doc.terminal_tsh_node',
