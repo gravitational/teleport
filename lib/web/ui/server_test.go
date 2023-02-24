@@ -438,16 +438,15 @@ func TestMakeDatabaseHiddenLabels(t *testing.T) {
 }
 
 func TestMakeDesktopHiddenLabel(t *testing.T) {
-	windowsDesktop := &types.WindowsDesktopV3{
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Labels: map[string]string{
-					"teleport.internal/t2": "tt",
-					"label3":               "value2",
-				},
-			},
+	windowsDesktop, err := types.NewWindowsDesktopV3(
+		"test",
+		map[string]string{
+			"teleport.internal/t2": "tt",
+			"label3":               "value2",
 		},
-	}
+		types.WindowsDesktopSpecV3{Addr: "addr"},
+	)
+	require.NoError(t, err)
 
 	desktop, err := MakeDesktop(windowsDesktop, services.NewRoleSet())
 	require.NoError(t, err)
