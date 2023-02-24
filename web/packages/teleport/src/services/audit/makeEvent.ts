@@ -1271,7 +1271,7 @@ export const formatters: Formatters = {
     desc: 'Login Rule Deleted',
     format: ({ user, name }) => `User [${user}] deleted a login rule [${name}]`,
   },
-  [eventCodes.SAML_IDP_AUTH]: {
+  [eventCodes.SAML_IDP_AUTH_ATTEMPT]: {
     type: 'saml.idp.auth',
     desc: 'SAML IdP authentication',
     format: ({ user, success }) => {
@@ -1282,21 +1282,21 @@ export const formatters: Formatters = {
       return `User [${user}] ${desc} with the SAML IdP`;
     },
   },
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATED]: {
-    type: 'saml.idp.service.provider.created',
-    desc: 'SAML IdP service provider created',
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE]: {
+    type: 'saml.idp.service.provider.create',
+    desc: 'SAML IdP service provider create',
     format: ({ updated_by, name, service_provider_entity_id }) =>
       `User [${updated_by}] added service provider [${name}] with entity ID [${service_provider_entity_id}]`,
   },
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATED]: {
-    type: 'saml.idp.service.provider.updated',
-    desc: 'SAML IdP service provider updated',
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE]: {
+    type: 'saml.idp.service.provider.update',
+    desc: 'SAML IdP service provider update',
     format: ({ updated_by, name, service_provider_entity_id }) =>
       `User [${updated_by}] updated service provider [${name}] with entity ID [${service_provider_entity_id}]`,
   },
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETED]: {
-    type: 'saml.idp.service.provider.deleted',
-    desc: 'SAML IdP service provider deleted',
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE]: {
+    type: 'saml.idp.service.provider.delete',
+    desc: 'SAML IdP service provider delete',
     format: ({ updated_by, name, service_provider_entity_id }) =>
       `User [${updated_by}] deleted service provider [${name}] with entity ID [${service_provider_entity_id}]`,
   },

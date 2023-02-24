@@ -200,10 +200,10 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.INSTANCE_JOIN]: Icons.Info,
   [eventCodes.LOGIN_RULE_CREATE]: Icons.Info,
   [eventCodes.LOGIN_RULE_DELETE]: Icons.Info,
-  [eventCodes.SAML_IDP_AUTH]: Icons.Info,
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATED]: Icons.Info,
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATED]: Icons.Info,
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETED]: Icons.Info,
+  [eventCodes.SAML_IDP_AUTH_ATTEMPT]: Icons.Info,
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE]: Icons.Info,
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE]: Icons.Info,
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 

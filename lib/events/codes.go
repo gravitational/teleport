@@ -407,14 +407,14 @@ const (
 	// SAMLIdPAuthEventCode is the SAML IdP auth code.
 	SAMLIdPAuthCode = "TSI000I"
 
-	// SAMLIdPServiceProviderCreatedCode is the SAML IdP service provider created code.
-	SAMLIdPServiceProviderCreatedCode = "TSI001I"
+	// SAMLIdPServiceProviderCreateCode is the SAML IdP service provider create code.
+	SAMLIdPServiceProviderCreateCode = "TSI001I"
 
-	// SAMLIdPServiceProviderUpdatedCode is the SAML IdP service provider updated code.
-	SAMLIdPServiceProviderUpdatedCode = "TSI002I"
+	// SAMLIdPServiceProviderUpdateCode is the SAML IdP service provider update code.
+	SAMLIdPServiceProviderUpdateCode = "TSI002I"
 
-	// SAMLIdPServiceProviderDeletedCode is the SAML IdP service provider deleted code.
-	SAMLIdPServiceProviderDeletedCode = "TSI003I"
+	// SAMLIdPServiceProviderDeleteCode is the SAML IdP service provider delete code.
+	SAMLIdPServiceProviderDeleteCode = "TSI003I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

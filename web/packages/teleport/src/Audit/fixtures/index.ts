@@ -2711,7 +2711,7 @@ export const events = [
   },
   {
     code: 'TSI001I',
-    event: 'saml.idp.service.provider.created',
+    event: 'saml.idp.service.provider.create',
     time: '2023-01-25T19:21:36.144Z',
     name: 'saml-idp',
     updated_by: 'mike',
@@ -2719,7 +2719,7 @@ export const events = [
   },
   {
     code: 'TSI002I',
-    event: 'saml.idp.service.provider.updated',
+    event: 'saml.idp.service.provider.update',
     time: '2023-01-25T19:21:36.144Z',
     name: 'saml-idp',
     updated_by: 'mike',
@@ -2727,7 +2727,7 @@ export const events = [
   },
   {
     code: 'TSI003I',
-    event: 'saml.idp.service.provider.deleted',
+    event: 'saml.idp.service.provider.delete',
     time: '2023-01-25T19:21:36.144Z',
     name: 'saml-idp',
     updated_by: 'mike',

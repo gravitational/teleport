@@ -445,17 +445,17 @@ exports[`list of all events 1`] = `
             class="c14"
           >
             <span
-              class="c10 c15 icon icon-info_outline c10 c15"
+              class="c10 c15 icon icon-list c10 c15"
               color="light"
               font-size="3"
             />
-            SAML IdP service provider deleted
+            Unknown
           </div>
         </td>
         <td
           style="word-break: break-word;"
         >
-          User [mike] deleted service provider [saml-idp] with entity ID [valid-entity-id]
+          Unknown
         </td>
         <td
           style="min-width: 120px;"
@@ -482,17 +482,17 @@ exports[`list of all events 1`] = `
             class="c14"
           >
             <span
-              class="c10 c15 icon icon-info_outline c10 c15"
+              class="c10 c15 icon icon-list c10 c15"
               color="light"
               font-size="3"
             />
-            SAML IdP service provider updated
+            Unknown
           </div>
         </td>
         <td
           style="word-break: break-word;"
         >
-          User [mike] updated service provider [saml-idp] with entity ID [valid-entity-id]
+          Unknown
         </td>
         <td
           style="min-width: 120px;"
@@ -519,17 +519,17 @@ exports[`list of all events 1`] = `
             class="c14"
           >
             <span
-              class="c10 c15 icon icon-info_outline c10 c15"
+              class="c10 c15 icon icon-list c10 c15"
               color="light"
               font-size="3"
             />
-            SAML IdP service provider created
+            Unknown
           </div>
         </td>
         <td
           style="word-break: break-word;"
         >
-          User [mike] added service provider [saml-idp] with entity ID [valid-entity-id]
+          Unknown
         </td>
         <td
           style="min-width: 120px;"
@@ -556,17 +556,17 @@ exports[`list of all events 1`] = `
             class="c14"
           >
             <span
-              class="c10 c15 icon icon-info_outline c10 c15"
+              class="c10 c15 icon icon-list c10 c15"
               color="light"
               font-size="3"
             />
-            SAML IdP authentication
+            Unknown
           </div>
         </td>
         <td
           style="word-break: break-word;"
         >
-          User [mike] failed to authenticate with the SAML IdP
+          Unknown
         </td>
         <td
           style="min-width: 120px;"
@@ -593,17 +593,17 @@ exports[`list of all events 1`] = `
             class="c14"
           >
             <span
-              class="c10 c15 icon icon-info_outline c10 c15"
+              class="c10 c15 icon icon-list c10 c15"
               color="light"
               font-size="3"
             />
-            SAML IdP authentication
+            Unknown
           </div>
         </td>
         <td
           style="word-break: break-word;"
         >
-          User [mike] successfully authenticated with the SAML IdP
+          Unknown
         </td>
         <td
           style="min-width: 120px;"

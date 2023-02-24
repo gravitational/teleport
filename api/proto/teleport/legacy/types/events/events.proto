@@ -3234,10 +3234,10 @@ message OneOf {
     events.DeviceEvent DeviceEvent = 112;
     events.LoginRuleCreate LoginRuleCreate = 113;
     events.LoginRuleDelete LoginRuleDelete = 114;
-    events.SAMLIdPAuth SAMLIdPAuth = 115;
-    events.SAMLIdPServiceProviderCreated SAMLIdPServiceProviderCreated = 116;
-    events.SAMLIdPServiceProviderUpdated SAMLIdPServiceProviderUpdated = 117;
-    events.SAMLIdPServiceProviderDeleted SAMLIdPServiceProviderDeleted = 118;
+    events.SAMLIdPAuthAttempt SAMLIdPAuthAttempt = 115;
+    events.SAMLIdPServiceProviderCreate SAMLIdPServiceProviderCreate = 116;
+    events.SAMLIdPServiceProviderUpdate SAMLIdPServiceProviderUpdate = 117;
+    events.SAMLIdPServiceProviderDelete SAMLIdPServiceProviderDelete = 118;
   }
 }
 
@@ -4441,8 +4441,8 @@ message LoginRuleDelete {
   ];
 }
 
-// SAMLIdPAuth is emitted when a user has attempted to authorize against the SAML IdP.
-message SAMLIdPAuth {
+// SAMLIdPAuthAttempt is emitted when a user has attempted to authorize against the SAML IdP.
+message SAMLIdPAuthAttempt {
   // Metadata is common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -4472,8 +4472,8 @@ message SAMLIdPAuth {
   ];
 }
 
-// SAMLIdPServiceProviderCreated is emitted when a service provider has been added.
-message SAMLIdPServiceProviderCreated {
+// SAMLIdPServiceProviderCreate is emitted when a service provider has been added.
+message SAMLIdPServiceProviderCreate {
   // Metadata is common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -4496,8 +4496,8 @@ message SAMLIdPServiceProviderCreated {
   ];
 }
 
-// SAMLIdPServiceProviderUpdated is emitted when a service provider has been updated.
-message SAMLIdPServiceProviderUpdated {
+// SAMLIdPServiceProviderUpdate is emitted when a service provider has been updated.
+message SAMLIdPServiceProviderUpdate {
   // Metadata is common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -4520,8 +4520,8 @@ message SAMLIdPServiceProviderUpdated {
   ];
 }
 
-// SAMLIdPServiceProvider is emitted when a service provider has been deleted.
-message SAMLIdPServiceProviderDeleted {
+// SAMLIdPServiceProviderDelete is emitted when a service provider has been deleted.
+message SAMLIdPServiceProviderDelete {
   // Metadata is common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,

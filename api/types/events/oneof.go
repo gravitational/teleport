@@ -491,21 +491,21 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_LoginRuleDelete{
 			LoginRuleDelete: e,
 		}
-	case *SAMLIdPAuth:
-		out.Event = &OneOf_SAMLIdPAuth{
-			SAMLIdPAuth: e,
+	case *SAMLIdPAuthAttempt:
+		out.Event = &OneOf_SAMLIdPAuthAttempt{
+			SAMLIdPAuthAttempt: e,
 		}
-	case *SAMLIdPServiceProviderCreated:
-		out.Event = &OneOf_SAMLIdPServiceProviderCreated{
-			SAMLIdPServiceProviderCreated: e,
+	case *SAMLIdPServiceProviderCreate:
+		out.Event = &OneOf_SAMLIdPServiceProviderCreate{
+			SAMLIdPServiceProviderCreate: e,
 		}
-	case *SAMLIdPServiceProviderUpdated:
-		out.Event = &OneOf_SAMLIdPServiceProviderUpdated{
-			SAMLIdPServiceProviderUpdated: e,
+	case *SAMLIdPServiceProviderUpdate:
+		out.Event = &OneOf_SAMLIdPServiceProviderUpdate{
+			SAMLIdPServiceProviderUpdate: e,
 		}
-	case *SAMLIdPServiceProviderDeleted:
-		out.Event = &OneOf_SAMLIdPServiceProviderDeleted{
-			SAMLIdPServiceProviderDeleted: e,
+	case *SAMLIdPServiceProviderDelete:
+		out.Event = &OneOf_SAMLIdPServiceProviderDelete{
+			SAMLIdPServiceProviderDelete: e,
 		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())

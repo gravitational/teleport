@@ -5605,10 +5605,10 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
-	if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderCreated{
+	if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderCreate{
 		Metadata: apievents.Metadata{
-			Type: events.SAMLIdPServiceProviderCreatedEvent,
-			Code: events.SAMLIdPServiceProviderCreatedCode,
+			Type: events.SAMLIdPServiceProviderCreateEvent,
+			Code: events.SAMLIdPServiceProviderCreateCode,
 		},
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:      sp.GetName(),
@@ -5635,10 +5635,10 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
-	if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderUpdated{
+	if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderUpdate{
 		Metadata: apievents.Metadata{
-			Type: events.SAMLIdPServiceProviderUpdatedEvent,
-			Code: events.SAMLIdPServiceProviderUpdatedCode,
+			Type: events.SAMLIdPServiceProviderUpdateEvent,
+			Code: events.SAMLIdPServiceProviderUpdateCode,
 		},
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:      sp.GetName(),
@@ -5671,10 +5671,10 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 		return trace.Wrap(err)
 	}
 
-	if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDeleted{
+	if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDelete{
 		Metadata: apievents.Metadata{
-			Type: events.SAMLIdPServiceProviderDeletedEvent,
-			Code: events.SAMLIdPServiceProviderDeletedCode,
+			Type: events.SAMLIdPServiceProviderDeleteEvent,
+			Code: events.SAMLIdPServiceProviderDeleteCode,
 		},
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:      sp.GetName(),
@@ -5721,10 +5721,10 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 	}
 
 	for name, entityID := range nameAndEntityID {
-		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDeleted{
+		if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDelete{
 			Metadata: apievents.Metadata{
-				Type: events.SAMLIdPServiceProviderDeletedEvent,
-				Code: events.SAMLIdPServiceProviderDeletedCode,
+				Type: events.SAMLIdPServiceProviderDeleteEvent,
+				Code: events.SAMLIdPServiceProviderDeleteCode,
 			},
 			ResourceMetadata: apievents.ResourceMetadata{
 				Name:      name,
