@@ -1245,7 +1245,7 @@ func TestUIConfig(t *testing.T) {
 		ScrollbackLines: 555,
 	}
 	t.Parallel()
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
 
 	s := newWebSuiteWithConfig(t, webSuiteConfig{uiConfig: uiConfig})
 	clt := s.client(t)
@@ -1253,7 +1253,6 @@ func TestUIConfig(t *testing.T) {
 	re, err := clt.Get(ctx, endpoint, nil)
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
-	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
 	// Response is type application/javascript, we need to strip off the variable name
