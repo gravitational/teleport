@@ -72,5 +72,5 @@ func TestChannelEmitter(t *testing.T) {
 
 	cancel()
 	wg.Wait()
-	require.ErrorIs(t, trace.BadParameter("context cancelled"), err)
+	require.ErrorIs(t, trace.BadParameter("context canceled"), err)
 }

@@ -58,7 +58,7 @@ func (c *ChannelEmitter) EmitAuditEvent(ctx context.Context, event apievents.Aud
 	select {
 	case c.channel <- event:
 	case <-ctx.Done():
-		return trace.BadParameter("context cancelled")
+		return trace.BadParameter("context canceled")
 	}
 	return nil
 }
