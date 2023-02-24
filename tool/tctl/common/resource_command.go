@@ -734,9 +734,7 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client auth.Clie
 }
 
 func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
-	// Create services.SAMLIdPServiceProvider from raw YAML to extract the service provider name.
-	// Skip the checking and setting of defaults, as we'll check it later.
-	sp, err := services.UnmarshalSAMLIdPServiceProvider(raw.Raw, services.SkipCheckAndSetDefaults())
+	sp, err := services.UnmarshalSAMLIdPServiceProvider(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1607,7 +1605,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &samlIDPServiceProviderCollection{serviceProviders: []types.SAMLIdPServiceProvider{serviceProvider}}, nil
+			return &samlIdPServiceProviderCollection{serviceProviders: []types.SAMLIdPServiceProvider{serviceProvider}}, nil
 		}
 		var resources []types.SAMLIdPServiceProvider
 		nextKey := ""
@@ -1624,7 +1622,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 				break
 			}
 		}
-		return &samlIDPServiceProviderCollection{serviceProviders: resources}, nil
+		return &samlIdPServiceProviderCollection{serviceProviders: resources}, nil
 	case types.KindDevice:
 		remote := client.DevicesClient()
 		if rc.ref.Name != "" {

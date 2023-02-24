@@ -106,10 +106,6 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing entity descriptor")
 	}
 
-	if s.Spec.EntityID == "" {
-		return trace.BadParameter("entity ID is missing")
-	}
-
 	return nil
 }
 
