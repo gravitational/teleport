@@ -84,10 +84,8 @@ func UnmarshalSAMLIdPServiceProvider(data []byte, opts ...MarshalOption) (types.
 		if err := utils.FastUnmarshal(data, &s); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-		if !cfg.SkipCheckAndSetDefaults {
-			if err := s.CheckAndSetDefaults(); err != nil {
-				return nil, trace.Wrap(err)
-			}
+		if err := s.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
 		}
 		if cfg.ID != 0 {
 			s.SetResourceID(cfg.ID)
