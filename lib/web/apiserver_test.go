@@ -1253,6 +1253,8 @@ func TestUIConfig(t *testing.T) {
 	re, err := clt.Get(ctx, endpoint, nil)
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
 	// Response is type application/javascript, we need to strip off the variable name
 	// and the semicolon at the end, then we are left with json like object.
