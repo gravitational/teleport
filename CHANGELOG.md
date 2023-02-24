@@ -13,7 +13,7 @@ This release of Teleport contains multiple security fixes, improvements and bug 
 
 * Fixed issue with not being able to see any pods with an active access request. [#22196](https://github.com/gravitational/teleport/pull/22196)
 * Fixed issue with remote cluster state not always being correctly updated. [#22088](https://github.com/gravitational/teleport/pull/22088)
-* Fixed heartbeat errors from database servie. [#22087](https://github.com/gravitational/teleport/pull/22087)
+* Fixed heartbeat errors from database service. [#22087](https://github.com/gravitational/teleport/pull/22087)
 * Fixed issue with applications temporarily disappearing during app service restart. [#21807](https://github.com/gravitational/teleport/pull/21807)
 * Fixed issue with some Helm values being accidentally shared between auth and proxy configs. [#21768](https://github.com/gravitational/teleport/pull/21768)
 * Fixed issues with desktop access flow in Access Management interface. [#21756](https://github.com/gravitational/teleport/pull/21756)
