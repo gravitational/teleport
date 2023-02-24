@@ -1095,18 +1095,27 @@ func CreateUser(clt clt, username string, roles ...types.Role) (types.User, erro
 }
 
 // CreateUserAndRole creates user and role and assigns role to a user, used in tests
-func CreateUserAndRole(clt clt, username string, allowedLogins []string) (types.User, types.Role, error) {
+// If allowRules is nil, the role has admin privileges.
+// If allowRules is not-nil, then the rules associated with the role will be
+// replaced with those specified.
+func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRules []types.Rule) (types.User, types.Role, error) {
 	ctx := context.TODO()
 	user, err := types.NewUser(username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
 	role := services.RoleForUser(user)
 	role.SetLogins(types.Allow, allowedLogins)
+	if allowRules != nil {
+		role.SetRules(types.Allow, allowRules)
+	}
+
 	err = clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
 	user.AddRole(role.GetName())
 	err = clt.UpsertUser(user)
 	if err != nil {

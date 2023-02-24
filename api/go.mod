@@ -3,6 +3,7 @@ module github.com/gravitational/teleport/api
 go 1.19
 
 require (
+	github.com/coreos/go-semver v0.3.1
 	github.com/go-piv/piv-go v1.10.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-cmp v0.5.9
@@ -21,7 +22,7 @@ require (
 	go.opentelemetry.io/proto/otlp v0.19.0
 	golang.org/x/crypto v0.2.0 // replaced
 	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9
-	golang.org/x/net v0.6.0
+	golang.org/x/net v0.7.0
 	google.golang.org/genproto v0.0.0-20230209215440-0dfe4f8abfcc
 	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.28.1

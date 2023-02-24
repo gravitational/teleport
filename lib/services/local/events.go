@@ -105,6 +105,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			}
 		case types.KindWebSession:
 			switch kind.SubKind {
+			case types.KindSAMLIdPSession:
+				parser = newSAMLIdPSessionParser()
 			case types.KindSnowflakeSession:
 				parser = newSnowflakeSessionParser()
 			case types.KindAppSession:
@@ -146,6 +148,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newPluginParser(kind.LoadSecrets)
 		case types.KindSAMLIdPServiceProvider:
 			parser = newSAMLIDPServiceProviderParser()
+		case types.KindUserGroup:
+			parser = newUserGroupParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
@@ -875,6 +879,17 @@ func (p *appServerV2Parser) parse(event backend.Event) (types.Resource, error) {
 	return parseServer(event, types.KindAppServer)
 }
 
+func newSAMLIdPSessionParser() *webSessionParser {
+	return &webSessionParser{
+		baseParser: newBaseParser(backend.Key(samlIdPPrefix, sessionsPrefix)),
+		hdr: types.ResourceHeader{
+			Kind:    types.KindWebSession,
+			SubKind: types.KindSAMLIdPSession,
+			Version: types.V2,
+		},
+	}
+}
+
 func newSnowflakeSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: newBaseParser(backend.Key(snowflakePrefix, sessionsPrefix)),
@@ -896,7 +911,6 @@ func newAppSessionParser() *webSessionParser {
 		},
 	}
 }
-
 func newWebSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: newBaseParser(backend.Key(webPrefix, sessionsPrefix)),
@@ -1404,6 +1418,30 @@ func (p *samlIDPServiceProviderParser) parse(event backend.Event) (types.Resourc
 		return resourceHeader(event, types.KindSAMLIdPServiceProvider, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalSAMLIdPServiceProvider(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newUserGroupParser() *userGroupParser {
+	return &userGroupParser{
+		baseParser: newBaseParser(backend.Key(userGroupPrefix)),
+	}
+}
+
+type userGroupParser struct {
+	baseParser
+}
+
+func (p *userGroupParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindUserGroup, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalUserGroup(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)

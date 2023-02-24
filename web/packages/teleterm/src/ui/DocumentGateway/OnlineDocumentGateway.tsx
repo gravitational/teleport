@@ -15,7 +15,7 @@
  */
 
 import React, { useMemo, useRef } from 'react';
-import { debounce } from 'lodash';
+import { debounce } from 'shared/utils/highbar';
 import { Box, ButtonSecondary, Flex, Link, Text } from 'design';
 import Validation from 'shared/components/Validation';
 import * as Alerts from 'design/Alert';

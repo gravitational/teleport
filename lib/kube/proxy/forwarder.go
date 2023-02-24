@@ -255,6 +255,14 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	fwd.router.UseRawPath = true
 
+	fwd.router.GET("/version", fwd.withAuth(
+		func(ctx *authContext, w http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
+			// Forward version requests to the cluster.
+			return fwd.catchAll(ctx, w, r)
+		},
+		withCustomErrFormatter(fwd.writeResponseErrorToBody),
+	))
+
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", fwd.withAuth(fwd.exec))
 	fwd.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", fwd.withAuth(fwd.exec))
 
@@ -268,7 +276,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	fwd.router.GET("/api/:ver/namespaces/:podNamespace/pods", fwd.withAuth(fwd.listPods))
 	fwd.router.DELETE("/api/:ver/namespaces/:podNamespace/pods", fwd.withAuth(fwd.deletePodsCollection))
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods", fwd.withAuth(
-		func(ctx *authContext, w http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
+		func(ctx *authContext, w http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
 			// Forward pod creation to default handler.
 			return fwd.catchAll(ctx, w, r)
 		},
@@ -415,10 +423,10 @@ func (c *teleportClusterClient) dialEndpoint(ctx context.Context, network string
 }
 
 // handlerWithAuthFunc is http handler with passed auth context
-type handlerWithAuthFunc func(ctx *authContext, w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error)
+type handlerWithAuthFunc func(ctx *authContext, w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error)
 
 // handlerWithAuthFuncStd is http handler with passed auth context
-type handlerWithAuthFuncStd func(ctx *authContext, w http.ResponseWriter, r *http.Request) (interface{}, error)
+type handlerWithAuthFuncStd func(ctx *authContext, w http.ResponseWriter, r *http.Request) (any, error)
 
 // authenticate function authenticates request
 func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
@@ -496,7 +504,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 }
 
 func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc {
-	return httplib.MakeStdHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request) (interface{}, error) {
+	return httplib.MakeStdHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request) (any, error) {
 		authContext, err := f.authenticate(req)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -506,7 +514,7 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 		}
 
 		return handler(authContext, w, req)
-	}, f.formatResponseError)
+	}, f.formatStatusResponseError)
 }
 
 // acquireConnectionLockWithIdentity acquires a connection lock under a given identity.
@@ -524,8 +532,30 @@ func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, ident
 	return nil
 }
 
-func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
-	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
+// authOption is a functional option for authOptions.
+type authOption func(*authOptions)
+
+// authOptions is a set of options for withAuth handler.
+type authOptions struct {
+	// errFormater is a function that formats the error response.
+	errFormater func(http.ResponseWriter, error)
+}
+
+// withCustomErrFormatter allows to override the default error formatter.
+func withCustomErrFormatter(f func(http.ResponseWriter, error)) authOption {
+	return func(o *authOptions) {
+		o.errFormater = f
+	}
+}
+
+func (f *Forwarder) withAuth(handler handlerWithAuthFunc, opts ...authOption) httprouter.Handle {
+	authOpts := authOptions{
+		errFormater: f.formatStatusResponseError,
+	}
+	for _, opt := range opts {
+		opt(&authOpts)
+	}
+	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 		authContext, err := f.authenticate(req)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -538,13 +568,13 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 			return nil, trace.Wrap(err)
 		}
 		return handler(authContext, w, req, p)
-	}, f.formatResponseError)
+	}, authOpts.errFormater)
 }
 
 // withAuthPassthrough authenticates the request and fetches information but doesn't deny if the user
 // doesn't have RBAC access to the Kubernetes cluster.
 func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc) httprouter.Handle {
-	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
+	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 		authContext, err := f.authenticate(req)
 		if err != nil {
 			if !trace.IsAccessDenied(err) && !trace.IsNotFound(err) {
@@ -556,14 +586,22 @@ func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc) httprouter.
 			return nil, trace.Wrap(err)
 		}
 		return handler(authContext, w, req, p)
-	}, f.formatResponseError)
+	}, f.formatStatusResponseError)
 }
 
 func (f *Forwarder) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, respErr error) {
-	f.formatResponseError(rw, respErr)
+	f.formatStatusResponseError(rw, respErr)
 }
 
-func (f *Forwarder) formatResponseError(rw http.ResponseWriter, respErr error) {
+// writeResponseErrorToBody writes the error response to the body without any formatting.
+// It is used for the /version endpoint since Kubernetes doesn't expect a JSON response
+// for that endpoint.
+func (f *Forwarder) writeResponseErrorToBody(rw http.ResponseWriter, respErr error) {
+	http.Error(rw, respErr.Error(), http.StatusInternalServerError)
+}
+
+// formatStatusResponseError formats the error response into a kube Status object.
+func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr error) {
 	status := &metav1.Status{
 		Status: metav1.StatusFailure,
 		// Don't trace.Unwrap the error, in case it was wrapped with a
@@ -635,9 +673,16 @@ func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemo
 	if !isRemoteCluster {
 		// check signing TTL and return a list of allowed logins for local cluster based on Kubernetes service labels.
 		kubeAccessDetails, err := f.getKubeAccessDetails(roles, kubeCluster, sessionTTL, kubeResource)
-		if err != nil {
+		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
+			// roles.CheckKubeGroupsAndUsers returns trace.NotFound if the user does
+			// does not have at least one configured kubernetes_users or kubernetes_groups.
+		} else if trace.IsNotFound(err) {
+			const errMsg = "Your user's Teleport role does not allow Kubernetes access." +
+				" Please ask cluster administrator to ensure your role has appropriate kubernetes_groups and kubernetes_users set."
+			return nil, trace.NotFound(errMsg)
 		}
+
 		kubeUsers = kubeAccessDetails.kubeUsers
 		kubeGroups = kubeAccessDetails.kubeGroups
 		kubeLabels = kubeAccessDetails.clusterLabels
@@ -953,8 +998,15 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		// the kubeResource.
 		// This is required because CheckAccess does not validate the subresource type.
 		if actx.kubeResource != nil && len(actx.Checker.GetAllowedResourceIDs()) > 0 {
-			kubeResources := getKubeResourcesFromAllowedRequestIds(ks, actx.Checker.GetAllowedResourceIDs())
-			if err := matchKubernetesResource(*actx.kubeResource, kubeResources, nil /*denied branch is empty*/); err != nil {
+			// GetKubeResources returns the allowed and denied Kubernetes resources
+			// for the user. Since we have active access requests, the allowed
+			// resources will be the list of pods that the user requested access to if he
+			// requested access to specific pods or the list of pods that his roles
+			// allow if the user requested access a kubernetes cluster. If the user
+			// did not request access to any Kubernetes resource type, the allowed
+			// list will be empty.
+			allowed, denied := actx.Checker.GetKubeResources(ks)
+			if err := matchKubernetesResource(*actx.kubeResource, allowed, denied); err != nil {
 				return trace.AccessDenied(notFoundMessage)
 			}
 		}
@@ -967,27 +1019,6 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		return nil
 	}
 	return trace.AccessDenied(notFoundMessage)
-}
-
-func getKubeResourcesFromAllowedRequestIds(ks types.KubeCluster, resourceIDs []types.ResourceID) []types.KubernetesResource {
-	kubeResources := make([]types.KubernetesResource, 0, len(resourceIDs))
-	for _, resourceID := range resourceIDs {
-		if !slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) || resourceID.Name != ks.GetName() {
-			continue
-		}
-		split := strings.SplitN(resourceID.SubResourceName, "/", 3)
-		if len(split) != 2 {
-			continue
-		}
-		kubeResources = append(kubeResources,
-			types.KubernetesResource{
-				Kind:      resourceID.Kind,
-				Namespace: split[0],
-				Name:      split[1],
-			},
-		)
-	}
-	return kubeResources
 }
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any
@@ -1037,7 +1068,7 @@ func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 }
 
 // join joins an existing session over a websocket connection
-func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
+func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
 	f.log.Debugf("Join %v.", req.URL.String())
 
 	sess, err := f.newClusterSession(*ctx)
@@ -1140,7 +1171,7 @@ func (f *Forwarder) deleteSession(id uuid.UUID) {
 }
 
 // remoteJoin forwards a join request to a remote cluster.
-func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession) (resp interface{}, err error) {
+func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession) (resp any, err error) {
 	dialer := &websocket.Dialer{
 		TLSClientConfig: sess.tlsConfig,
 		NetDialContext:  sess.DialWithContext,
@@ -1159,7 +1190,7 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 			return nil, trace.Wrap(err)
 		}
 
-		var obj map[string]interface{}
+		var obj map[string]any
 		if err := json.Unmarshal(msg, &obj); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1272,7 +1303,7 @@ func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, role
 }
 
 // execNonInteractive handles all exec sessions without a TTY.
-func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) (resp interface{}, err error) {
+func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, request remoteCommandRequest, proxy *remoteCommandProxy, sess *clusterSession) (resp any, err error) {
 	defer proxy.Close()
 
 	roles, err := getRolesByName(f, ctx.Context.Identity.GetIdentity().Groups)
@@ -1436,7 +1467,7 @@ func exitCode(err error) (errMsg, code string) {
 
 // exec forwards all exec requests to the target server, captures
 // all output from the session
-func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
+func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
 	f.log.Debugf("Exec %v.", req.URL.String())
 	defer func() {
 		if err != nil {
@@ -1521,7 +1552,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 }
 
 // remoteExec forwards an exec request to a remote cluster.
-func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession, request remoteCommandRequest, proxy *remoteCommandProxy) (resp interface{}, err error) {
+func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession, request remoteCommandRequest, proxy *remoteCommandProxy) (resp any, err error) {
 	defer proxy.Close()
 
 	executor, err := f.getExecutor(*ctx, sess, req)
@@ -1544,7 +1575,7 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 }
 
 // portForward starts port forwarding to the remote cluster
-func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
+func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	f.log.Debugf("Port forward: %v. req headers: %v.", req.URL.String(), req.Header)
 	sess, err := f.newClusterSession(*ctx)
 	if err != nil {
@@ -1687,7 +1718,7 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 
 	// Make sure to overwrite the exiting headers, instead of appending to
 	// them.
-	headers[ImpersonateGroupHeader] = nil
+	headers.Del(ImpersonateGroupHeader)
 	for _, group := range impersonateGroups {
 		headers.Add(ImpersonateGroupHeader, group)
 	}
@@ -1698,8 +1729,8 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 // copyImpersonationHeaders copies the impersonation headers from the source
 // request to the destination request.
 func copyImpersonationHeaders(dst, src http.Header) {
-	dst[ImpersonateUserHeader] = nil
-	dst[ImpersonateGroupHeader] = nil
+	dst.Del(ImpersonateUserHeader)
+	dst.Del(ImpersonateGroupHeader)
 
 	for _, v := range src.Values(ImpersonateUserHeader) {
 		dst.Add(ImpersonateUserHeader, v)
@@ -1800,7 +1831,7 @@ func computeImpersonatedPrincipals(log logrus.FieldLogger, kubeUsers, kubeGroups
 }
 
 // catchAll forwards all HTTP requests to the target k8s API server
-func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.Request) (interface{}, error) {
+func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.Request) (any, error) {
 	sess, err := f.newClusterSession(*ctx)
 	if err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
@@ -2376,7 +2407,7 @@ func (f *Forwarder) isLocalKubeCluster(sess *clusterSession) bool {
 
 // listPods forwards the pod list request to the target server, captures
 // all output and filters accordingly to user roles resource access rules.
-func (f *Forwarder) listPods(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
+func (f *Forwarder) listPods(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
 	sess, err := f.newClusterSession(*ctx)
 	if err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
@@ -2482,7 +2513,7 @@ func (f *Forwarder) listPodsWatcher(req *http.Request, w http.ResponseWriter, se
 
 // deletePodsCollection calls listPods method to list the Pods the user
 // has access to and calls their delete method using the allowed kube principals.
-func (f *Forwarder) deletePodsCollection(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
+func (f *Forwarder) deletePodsCollection(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
 	sess, err := f.newClusterSession(*ctx)
 	if err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
