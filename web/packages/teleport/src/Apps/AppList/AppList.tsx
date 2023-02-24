@@ -124,8 +124,18 @@ export default function AppList(props: Props) {
   );
 }
 
-function renderAddressCell({ publicAddr }: App) {
-  return <Cell>https://{publicAddr}</Cell>;
+function renderAddressCell({ publicAddr, uri }: App) {
+  if (publicAddr) {
+    if (isCloudOrTcpApp(uri)) {
+      if (uri.startsWith('cloud')) {
+        return <Cell>cloud://{publicAddr}</Cell>;
+      } else {
+        return <Cell>tcp://{publicAddr}</Cell>;
+      }
+    }
+    return <Cell>https://{publicAddr}</Cell>;
+  }
+  return <Cell></Cell>;
 }
 
 function renderAppIcon({ name, awsConsole }: App) {
@@ -158,7 +168,12 @@ function renderLaunchButtonCell({
   fqdn,
   clusterId,
   publicAddr,
+  uri,
 }: App) {
+  if (isCloudOrTcpApp(uri)) {
+    return <Cell></Cell>;
+  }
+
   const $btn = awsConsole ? (
     <AwsLaunchButton
       awsRoles={awsRoles}
@@ -180,6 +195,10 @@ function renderLaunchButtonCell({
   );
 
   return <Cell align="right">{$btn}</Cell>;
+}
+
+function isCloudOrTcpApp(uri: string) {
+  return uri.startsWith('cloud://') || uri.startsWith('tcp://');
 }
 
 function getIconColor(appName: string) {
