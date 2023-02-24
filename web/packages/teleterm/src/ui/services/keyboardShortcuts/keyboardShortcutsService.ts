@@ -27,7 +27,10 @@ import {
 
 export class KeyboardShortcutsService {
   private eventsSubscribers = new Set<KeyboardShortcutEventSubscriber>();
-  private acceleratorsToActions = new Map<string, KeyboardShortcutAction>();
+  private readonly acceleratorsToActions = new Map<
+    string,
+    KeyboardShortcutAction
+  >();
   private readonly shortcutsConfig: Record<KeyboardShortcutAction, string>;
 
   constructor(
@@ -53,7 +56,7 @@ export class KeyboardShortcutsService {
       openClusters: this.configService.get('keymap.openClusters').value,
       openProfiles: this.configService.get('keymap.openProfiles').value,
     };
-    this.mapAcceleratorsToActions();
+    this.acceleratorsToActions = mapAcceleratorsToActions(this.shortcutsConfig);
     this.attachKeydownHandler();
   }
 
@@ -117,18 +120,19 @@ export class KeyboardShortcutsService {
     }
   }
 
-  /** Inverts shortcuts-keys pairs to allow accessing shortcut by an accelerator. */
-  private mapAcceleratorsToActions(): void {
-    this.acceleratorsToActions.clear();
-    Object.entries(this.shortcutsConfig).forEach(([action, accelerator]) => {
-      this.acceleratorsToActions.set(
-        accelerator,
-        action as KeyboardShortcutAction
-      );
-    });
-  }
-
   private notifyEventsSubscribers(event: KeyboardShortcutEvent): void {
     this.eventsSubscribers.forEach(subscriber => subscriber(event));
   }
+}
+
+/** Inverts shortcuts-keys pairs to allow accessing shortcut by an accelerator. */
+function mapAcceleratorsToActions(
+  shortcutsConfig: Record<KeyboardShortcutAction, string>
+): Map<string, KeyboardShortcutAction> {
+  const acceleratorsToActions = new Map<string, KeyboardShortcutAction>();
+  Object.entries(shortcutsConfig).forEach(([action, accelerator]) => {
+    acceleratorsToActions.set(accelerator, action as KeyboardShortcutAction);
+  });
+
+  return acceleratorsToActions;
 }
