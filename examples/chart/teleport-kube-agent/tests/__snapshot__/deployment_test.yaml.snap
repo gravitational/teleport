@@ -255,6 +255,23 @@ sets Pod labels when specified if action is Upgrade:
         secretName: teleport-kube-agent-join-token
     - emptyDir: {}
       name: data
+sets by default a container security context if action is Upgrade:
+  1: |
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - all
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 9807
+  2: |
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - all
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 9807
 should add emptyDir for data when existingDataVolume is not set if action is Upgrade:
   1: |
     containers:

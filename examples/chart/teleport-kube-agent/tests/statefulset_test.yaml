@@ -655,3 +655,26 @@ tests:
           path: spec.volumeClaimTemplates
       - matchSnapshot:
           path: spec.template.spec
+
+  - it: sets by default a container security context
+    template: statefulset.yaml
+    values:
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - matchSnapshot:
+          path: spec.template.spec.initContainers[0].securityContext
+      - matchSnapshot:
+          path: spec.template.spec.containers[0].securityContext
+
+  - it: sets no container security context when manually unset
+    template: statefulset.yaml
+    values:
+      - ../.lint/initcontainers.yaml
+      - ../.lint/security-context-empty.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext
+          value: null
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value: null
