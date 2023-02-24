@@ -152,7 +152,7 @@ View registered devices:
 $ tctl devices ls
 Asset Tag    OS    Enroll Status Device ID
 ------------ ----- ------------- ------------------------------------
-(=devicetrust.asset_tag=) macOS not enrolled  d40f2ee4-856d-4aef-b784-c4371e39c036
+(=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
 ```
 
 A registered device is a device that Teleport knows about. Once a registered
@@ -320,7 +320,7 @@ configuration will ensure every resources can only ever be accessed with a
 trusted device.
 </Admonition>
 
-## Optional: Locking a trusted device
+## Optional: Locking a device
 
 Similar to [session and identity locking](./locking.mdx), a device can be locked
 using `tctl lock`.
@@ -335,13 +335,13 @@ Find a device ID to lock:
 $ tctl devices ls
 Asset Tag     OS    Enroll Status   Device ID
 ------------ -----  ------------- ------------------------------------
-(=devicetrust.asset_tag=)  macOS  enrolled      9cdfc0ad-64b7-4d9c-9342-50e97f418ba0
+(=devicetrust.asset_tag=)  macOS  enrolled     (=devicetrust.device_id=)
 ```
 
 Lock a device:
 
 ```code
-$ tctl lock --device 9cdfc0ad-64b7-4d9c-9342-50e97f418ba0 --ttl=12h
+$ tctl lock --device (=devicetrust.device_id=) --ttl=12h
 Created a lock with name "5444970a-39a0-4814-968d-e58b4a8fa686".
 ```
 
@@ -349,7 +349,7 @@ Now, if a user on that device tries to access an SSH server for example, Telepor
 
 ```code
 $ tsh ssh server1
-ERROR: ssh: rejected: administratively prohibited (lock targeting Device:"9cdfc0ad-64b7-4d9c-9342-50e97f418ba0" is in force)
+ERROR: ssh: rejected: administratively prohibited (lock targeting Device:"(=devicetrust.device_id=)" is in force)
 ```
 
 ## Troubleshooting
