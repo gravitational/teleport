@@ -183,6 +183,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.SAMLIdPServiceProviders == nil {
 		cfg.SAMLIdPServiceProviders = local.NewSAMLIdPServiceProviderService(cfg.Backend)
 	}
+	if cfg.UserGroups == nil {
+		cfg.UserGroups = local.NewUserGroupService(cfg.Backend)
+	}
 	if cfg.ConnectionsDiagnostic == nil {
 		cfg.ConnectionsDiagnostic = local.NewConnectionsDiagnosticService(cfg.Backend)
 	}
@@ -249,6 +252,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Events:                  cfg.Events,
 		WindowsDesktops:         cfg.WindowsDesktops,
 		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
+		UserGroups:              cfg.UserGroups,
 		SessionTrackerService:   cfg.SessionTrackerService,
 		Enforcer:                cfg.Enforcer,
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
@@ -329,6 +333,7 @@ type Services struct {
 	services.DatabaseServices
 	services.WindowsDesktops
 	services.SAMLIdPServiceProviders
+	services.UserGroups
 	services.SessionTrackerService
 	services.Enforcer
 	services.ConnectionsDiagnostic
