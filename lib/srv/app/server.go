@@ -313,8 +313,13 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	clustername, err := s.c.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create and configure HTTP server with authorizing middleware.
-	s.httpServer = s.newHTTPServer()
+	s.httpServer = s.newHTTPServer(clustername.GetClusterName())
 
 	// TCP server will handle TCP applications.
 	tcpServer, err := s.newTCPServer()
@@ -1057,11 +1062,12 @@ func (s *Server) appWithUpdatedLabels(app types.Application) *types.AppV3 {
 
 // newHTTPServer creates an *http.Server that can authorize and forward
 // requests to a target application.
-func (s *Server) newHTTPServer() *http.Server {
+func (s *Server) newHTTPServer(clusterName string) *http.Server {
 	// Reuse the auth.Middleware to authorize requests but only accept
 	// certificates that were specifically generated for applications.
+
 	s.authMiddleware = &auth.Middleware{
-		AccessPoint:   s.c.AccessPoint,
+		ClusterName:   clusterName,
 		AcceptedUsage: []string{teleport.UsageAppsOnly},
 	}
 	s.authMiddleware.Wrap(s)
