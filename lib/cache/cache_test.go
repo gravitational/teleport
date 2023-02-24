@@ -1275,6 +1275,8 @@ func TestClusterName(t *testing.T) {
 
 // TestNamespaces tests caching of namespaces
 func TestNamespaces(t *testing.T) {
+	t.Parallel()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
