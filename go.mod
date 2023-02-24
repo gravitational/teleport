@@ -209,7 +209,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534 // indirect
-	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
+	github.com/coreos/pkg v0.0.0-20220810130054-c7d1c02cb6cf // indirect
 	github.com/crewjam/httperr v0.2.0 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -359,7 +359,7 @@ require (
 
 // Update also `ignore` in .github/dependabot.yml.
 replace (
-	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.6
+	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.1.0
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.5.0-teleport.1
 	github.com/go-redis/redis/v9 => github.com/gravitational/redis/v9 v9.0.0-teleport.3
