@@ -1822,7 +1822,6 @@ message ListResourcesRequest {
   // UsePreviewAsRoles indicates that the response should include all resources
   // the caller would be able to access with their preview_as_roles
   bool UsePreviewAsRoles = 12 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
-  // ListResourcesFilters are the optional filters to be applied when listing resources.
   // ListResourcesFilters are the optional additional filters to be applied when listing resources.
   types.ListResourcesFilters ListResourcesFilters = 13 [(gogoproto.jsontag) = "list_resources_filters,omitempty"];
 }
