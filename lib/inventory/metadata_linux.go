@@ -25,7 +25,12 @@ import (
 	"strings"
 )
 
+// This regexp is used to validate if the OS version computed has the expected
+// format.
 var matchOSVersion = regexp.MustCompile(`^[\w\s\.\/]+$`)
+
+// This regexp is used to validate if glibc version fetched has the expected
+// format.
 var matchGlibcVersion = regexp.MustCompile(`^\d+\.\d+$`)
 
 // fetchOSVersion combines the content of '/etc/os-release' to be e.g.

@@ -43,8 +43,8 @@ const (
 	windowsDesktopService = "windows_desktop"
 )
 
-// This regexp is used to validate if the host architecture fetched
-// has the expected format.
+// This regexp is used to validate if the host architecture fetched has the
+// expected format.
 var matchHostArchitecture = regexp.MustCompile(`^\w+$`)
 
 // fetchConfig contains the configuration used by the fetchAgentMetadata method.
