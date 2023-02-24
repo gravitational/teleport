@@ -1334,7 +1334,7 @@ type JWKSResponse struct {
 // return what was set by the file config. Returns nil if neither are set which
 // is fine, as the web UI can set its own defaults.
 func (h *Handler) getUIConfig(ctx context.Context) webclient.UIConfig {
-	if uiConfig, err := h.cfg.ProxyClient.GetUIConfig(ctx); err == nil && uiConfig != nil {
+	if uiConfig, err := h.cfg.AccessPoint.GetUIConfig(ctx); err == nil && uiConfig != nil {
 		return webclient.UIConfig{
 			ScrollbackLines: int(uiConfig.GetScrollbackLines()),
 		}

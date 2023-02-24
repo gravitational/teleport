@@ -22,6 +22,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// UIConfig defines ui configuration for the web UI served
+// by the proxy service. This is a configuration resource,
+// never create more than one instance of it.
 type UIConfig interface {
 	Resource
 
@@ -43,7 +46,7 @@ func NewUIConfigV1() (*UIConfigV1, error) {
 	return uiconfig, nil
 }
 
-// CheckAndSetDefaults implements UIConfig
+// CheckAndSetDefaults verifies the constraints for UIConfig.
 func (c *UIConfigV1) CheckAndSetDefaults() error {
 	c.setStaticFields()
 	if err := c.Metadata.CheckAndSetDefaults(); err != nil {

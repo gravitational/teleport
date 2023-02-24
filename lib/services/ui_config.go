@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// UnmarshalUIConfig unmarshals the UIConfig resource from JSON.
 func UnmarshalUIConfig(data []byte, opts ...MarshalOption) (types.UIConfig, error) {
 	var uiconfig types.UIConfigV1
 
@@ -51,6 +52,7 @@ func UnmarshalUIConfig(data []byte, opts ...MarshalOption) (types.UIConfig, erro
 	return &uiconfig, nil
 }
 
+// MarshalUIConfig marshals the UIConfig resource to JSON.
 func MarshalUIConfig(uiconfig types.UIConfig, opts ...MarshalOption) ([]byte, error) {
 	if err := uiconfig.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
