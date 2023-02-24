@@ -318,8 +318,19 @@ func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...KubeCluste
 	return kubeConfigLocation
 }
 
+// GenTestKubeClientTLSCertOptions is a function that can be used to modify the
+// identity used to generate the kube client certificate.
+type GenTestKubeClientTLSCertOptions func(*tlsca.Identity)
+
+// WithResourceAccessRequests adds resource access requests to the identity.
+func WithResourceAccessRequests(r ...types.ResourceID) GenTestKubeClientTLSCertOptions {
+	return func(identity *tlsca.Identity) {
+		identity.AllowedResourceIDs = r
+	}
+}
+
 // GenTestKubeClientTLSCert generates a kube client to access kube service
-func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string) (*kubernetes.Clientset, *rest.Config) {
+func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *rest.Config) {
 	authServer := c.AuthServer
 	clusterName, err := authServer.GetClusterName()
 	require.NoError(t, err)
@@ -358,6 +369,9 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 		KubernetesGroups:  user.GetKubeGroups(),
 		KubernetesCluster: kubeCluster,
 		RouteToCluster:    c.ClusterName,
+	}
+	for _, opt := range opts {
+		opt(&id)
 	}
 	subj, err := id.Subject()
 	require.NoError(t, err)
