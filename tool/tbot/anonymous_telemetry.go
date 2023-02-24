@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 )
 
 const (
@@ -48,6 +49,7 @@ func telemetryEnabled() bool {
 // It is imperative that this code does not send any user or teleport instance
 // identifiable information.
 func sendTelemetry(ctx context.Context, log logrus.FieldLogger, cfg *config.BotConfig) error {
+	start := time.Now()
 	if !telemetryEnabled() {
 		// TODO(noah): Have this not be a placeholder message
 		log.Warn("no telemetry placeholder message")
@@ -87,14 +89,18 @@ func sendTelemetry(ctx context.Context, log logrus.FieldLogger, cfg *config.BotC
 	client := v1alphaconnect.NewTbotReportingServiceClient(
 		http.DefaultClient, telemetryEndpoint(),
 	)
+	distinctID := uuid.New().String()
 	_, err := client.SubmitTbotEvent(ctx, connect.NewRequest(&v1alpha.SubmitTbotEventRequest{
-		DistinctId: uuid.New().String(),
+		DistinctId: distinctID,
 		Timestamp:  timestamppb.Now(),
 		Event:      &v1alpha.SubmitTbotEventRequest_Start{Start: data},
 	}))
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	log.WithField("distinct_id", distinctID).
+		WithField("duration", time.Since(start)).
+		Debug("Successfully transmitted anonymous telemetry")
 
 	return nil
 }
