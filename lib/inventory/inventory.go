@@ -128,9 +128,9 @@ type downstreamHandle struct {
 	cancel       context.CancelFunc
 	// agentMetadataDone is an unbuffered channel that is closed once the agent
 	// metadata has been calculated by the goroutine responsible for it.
-	// This allows us only access the agent metadata once it is ready, while
-	// also caching it in agentMetadata (in order to not calculate it multiple
-	// times).
+	// This allows us to access the agent metadata as soon as it is ready (but
+	// never before), while also caching it in agentMetadata (in order to not
+	// calculate it multiple times).
 	agentMetadataDone chan struct{}
 	agentMetadata     proto.UpstreamInventoryAgentMetadata
 }
