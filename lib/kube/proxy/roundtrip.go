@@ -155,8 +155,8 @@ func (s *SpdyRoundTripper) dial(url *url.URL) (net.Conn, error) {
 // copyImpersonationHeaders copies the impersonation headers from the source
 // request to the destination request.
 func copyImpersonationHeaders(dst, src http.Header) {
-	dst[ImpersonateUserHeader] = nil
-	dst[ImpersonateGroupHeader] = nil
+	dst.Del(ImpersonateUserHeader)
+	dst.Del(ImpersonateGroupHeader)
 
 	for _, v := range src.Values(ImpersonateUserHeader) {
 		dst.Add(ImpersonateUserHeader, v)
