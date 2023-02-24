@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// UIConfig defines ui configuration for the web UI served
+// UIConfig defines configuration for the web UI served
 // by the proxy service. This is a configuration resource,
 // never create more than one instance of it.
 type UIConfig interface {
