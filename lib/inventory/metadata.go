@@ -125,7 +125,7 @@ func fetchAgentMetadata(c *fetchConfig) proto.UpstreamInventoryAgentMetadata {
 		OS:                    c.fetchOS(),
 		OSVersion:             c.fetchOSVersion(),
 		HostArchitecture:      c.fetchHostArchitecture(),
-		GLibCVersion:          c.fetchGlibcVersion(),
+		GlibcVersion:          c.fetchGlibcVersion(),
 		InstallMethods:        c.fetchInstallMethods(),
 		ContainerRuntime:      c.fetchContainerRuntime(),
 		ContainerOrchestrator: c.fetchContainerOrchestrator(),

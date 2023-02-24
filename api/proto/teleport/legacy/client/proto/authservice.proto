@@ -2078,8 +2078,8 @@ message UpstreamInventoryAgentMetadata {
   string OSVersion = 5;
   // HostArchitecture advertises the instance host architecture (e.g. "x86_64" or "arm64").
   string HostArchitecture = 6;
-  // GLibCVersion advertises the instance glibc version of linux instances (e.g. "2.35").
-  string GLibCVersion = 7;
+  // GlibcVersion advertises the instance glibc version of linux instances (e.g. "2.35").
+  string GlibcVersion = 7;
   // InstallMethods advertises the install methods used for the instance (e.g. "dockerfile").
   repeated string InstallMethods = 8;
   // ContainerRuntime advertises the container runtime for the instance, if any (e.g. "docker").
