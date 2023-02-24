@@ -128,10 +128,10 @@ export class DocumentsService {
    * createTshNodeDocumentFromLoginHost handles creation of the doc when the server URI is not
    * available, for example when executing `tsh ssh user@host` from the command bar.
    *
-   * @param {string} clusterUri - the URI of the cluster which should be used for hostname lookup.
-   * That is, the command will succeed only if the given cluster has only a single server with the
-   * hostname matching `host`.
-   * @param {string} loginHost - the "user@host" pair.
+   * @param clusterUri - the URI of the cluster which should be used for hostname lookup. That is,
+   * the command will succeed only if the given cluster has only a single server with the hostname
+   * matching `host`.
+   * @param loginHost - the "user@host" pair.
    */
   createTshNodeDocumentFromLoginHost(
     clusterUri: ClusterUri,
