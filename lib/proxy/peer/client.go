@@ -362,7 +362,7 @@ func (c *Client) DialNode(
 		return nil, trace.Wrap(err)
 	}
 
-	return newStreamConn(streamRW, src, dst), nil
+	return streamutils.NewConn(streamRW, src, dst), nil
 }
 
 // stream is the common subset of the [clientapi.ProxyService_DialNodeClient] and
