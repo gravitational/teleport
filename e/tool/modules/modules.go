@@ -34,6 +34,7 @@ func SetModules(license types.License) {
 type enterpriseModules struct {
 	license             types.License
 	enableRecoveryCodes atomic.Bool
+	enablePlugins       atomic.Bool
 }
 
 // Features returns supported features
@@ -62,6 +63,11 @@ func (p *enterpriseModules) Features() modules.Features {
 // EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
 func (p *enterpriseModules) EnableRecoveryCodes() {
 	p.enableRecoveryCodes.Store(true)
+}
+
+// EnablePlugins enables the hosted plugins runtime.
+func (p *enterpriseModules) EnablePlugins() {
+	p.enablePlugins.Store(true)
 }
 
 // BuildType returns build type (OSS or Enterprise)
