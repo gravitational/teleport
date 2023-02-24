@@ -774,6 +774,19 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			},
 			errAssertion: require.NoError,
 		},
+		{
+			desc:       "empty impersonated group header ignored",
+			kubeUsers:  []string{"kube-user-a"},
+			kubeGroups: []string{},
+			inHeaders: http.Header{
+				"Host": []string{"example.com"},
+			},
+			wantHeaders: http.Header{
+				"Host":                []string{"example.com"},
+				ImpersonateUserHeader: []string{"kube-user-a"},
+			},
+			errAssertion: require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Log(tt.desc)
@@ -1600,6 +1613,41 @@ func Test_getPodResourceFromRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := getPodResourceFromRequest(tt.requestURI)
 			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func Test_copyImpersonationHeaders(t *testing.T) {
+	tests := []struct {
+		name        string
+		inHeaders   http.Header
+		wantHeaders http.Header
+	}{
+		{
+			name: "copy impersonation headers",
+			inHeaders: http.Header{
+				"Host":                 []string{"example.com"},
+				ImpersonateUserHeader:  []string{"user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-b"},
+			},
+			wantHeaders: http.Header{
+				ImpersonateUserHeader:  []string{"user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-b"},
+			},
+		},
+		{
+			name: "don't introduce empty impersonation headers",
+			inHeaders: http.Header{
+				"Host": []string{"example.com"},
+			},
+			wantHeaders: http.Header{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dst := http.Header{}
+			copyImpersonationHeaders(dst, tt.inHeaders)
+			require.Equal(t, tt.wantHeaders, dst)
 		})
 	}
 }
