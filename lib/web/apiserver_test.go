@@ -171,6 +171,8 @@ type webSuiteConfig struct {
 
 	disableDiskBasedRecording bool
 
+	uiConfig webclient.UIConfig
+
 	// Custom "HealthCheckAppServer" function. Can be used to avoid dialing app
 	// services.
 	HealthCheckAppServer healthCheckAppServerFunc
@@ -443,6 +445,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		SessionControl:                  proxySessionController,
 		Router:                          router,
 		HealthCheckAppServer:            cfg.HealthCheckAppServer,
+		UI:                              cfg.uiConfig,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -1235,6 +1238,29 @@ func TestNewTerminalHandler(t *testing.T) {
 	require.Equal(t, validCfg.DisplayLogin, term.displayLogin)
 	// newly added
 	require.NotNil(t, term.log)
+}
+
+func TestUIConfig(t *testing.T) {
+	uiConfig := webclient.UIConfig{
+		ScrollbackLines: 555,
+	}
+	t.Parallel()
+	ctx := context.Background()
+
+	s := newWebSuiteWithConfig(t, webSuiteConfig{uiConfig: uiConfig})
+	clt := s.client(t)
+	endpoint := clt.Endpoint("web", "config.js")
+	re, err := clt.Get(ctx, endpoint, nil)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+
+	// Response is type application/javascript, we need to strip off the variable name
+	// and the semicolon at the end, then we are left with json like object.
+	var cfg webclient.WebConfig
+	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
+	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
+	require.NoError(t, err)
+	require.Equal(t, uiConfig, cfg.UI)
 }
 
 func TestResizeTerminal(t *testing.T) {
