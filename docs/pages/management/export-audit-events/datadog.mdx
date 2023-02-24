@@ -56,13 +56,16 @@ d-->h(Datadog)
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - A [Datadog](https://www.datadoghq.com/) account.
+- A server, virtual machine, Kubernets cluster, or Docker environment to run the
+  Event Handler. The instructions below assume a local Docker container for testing.
 - Fluentd version v(=fluentd.version=) or greater. The Teleport Event Handler
   will create a new `fluent.conf` file you can integrate into an existing Fluentd
-  system, or use with a fresh setup.
+  system, or use with a fresh setup. The instructions below assume a local Docker
+  container for testing.
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/6. Install the event handler plugin
+## Step 1/6. Install the Event Handler plugin
 
 The Teleport event handler runs alongside the Fluentd forwarder, receives events
 from Teleport's events API, and forwards them to Fluentd.
@@ -80,13 +83,6 @@ that defines a `teleport-event-handler` role and a user with read-only access
 to the `event` API:
 
 ```yaml
-kind: user
-metadata:
-  name: teleport-event-handler
-spec:
-  roles: ['teleport-event-handler']
-version: v2
----
 kind: role
 metadata:
   name: teleport-event-handler
@@ -96,6 +92,13 @@ spec:
       - resources: ['event']
         verbs: ['list','read']
 version: v5
+---
+kind: user
+metadata:
+  name: teleport-event-handler
+spec:
+  roles: ['teleport-event-handler']
+version: v2
 ```
 
 Use `tctl` to create the role and the user:
@@ -154,19 +157,7 @@ read events. We export an identity file for the user with the `tctl auth sign`
 command.
 
 <Tabs>
-<TabItem label="Self-Hosted" scope={["oss","enterprise"]}>
-```code
-$ tctl auth sign --user=teleport-event-handler --out=identity
-```
-
-This command creates one PEM-encoded file, `identity`. The identity file
-includes both TLS and SSH credentials. The Event Handler plugin uses the SSH
-credentials to connect to the Proxy Service, which establishes a reverse tunnel
-connection to the Auth Service. The plugin uses this reverse tunnel, along with
-your TLS credentials, to connect to the Auth Service's gRPC endpoint.
-
-</TabItem>
-<TabItem label="Teleport Cloud" scope={["cloud"]}>
+<TabItem label="Executable" scope={["oss","enterprise"]}>
 ```code
 $ tctl auth sign --user=teleport-event-handler --out=identity
 ```
@@ -217,7 +208,7 @@ $ /usr/sbin/td-agent-gem install fluent-plugin-datadog
 
 <Admonition type="tip" title="Testing Locally?">
 
-If you're running Fluentd in a local docker container for testing, you can adjust
+If you're running Fluentd in a local Docker container for testing, you can adjust
 the entrypoint to an interactive shell as the root user, so you can install the
 plugin before starting Fluentd:
 
@@ -233,7 +224,7 @@ $ fluentd -c /fluentd/etc/fluent.conf
 
 ### Configure Fluentd for Datadog
 
-From the Datadog web UI, generate an API key for Fluentd. From **Organization Settings** -> Access -> API Keys, click on **+ New Key**:
+From the Datadog web UI, generate an API key for Fluentd. From **Organization Settings** -> Access -> **API Keys**, click on **+ New Key**:
 
 ![Datadog API key generation](../../../img/management/datadog-generate-api.png)
 
@@ -258,7 +249,11 @@ Copy the API key, and use it to add a new `<match>` block to `fluent.conf`:
 - Adjust the `host` value to match your Datadog site. See their [Log Collection
   and Integrations](https://docs.datadoghq.com/logs/log_collection/?tab=host)
   to determine the correct value.
-- `dd_source` is an optional field you can use to filter these logs in the Datadog UI.
+- `dd_source` is an optional field you can use to filter these logs in the
+  Datadog UI.
+- Adjust `ca_path`, `cert_path` and `private_key_path` to point to the credential
+  files generated earlier. If you're testing locally, the Docker command above
+  already mounted the current working directory to `keys/` in the container.
 
 Restart Fluentd after saving the changes to `fluent.conf`.
 
