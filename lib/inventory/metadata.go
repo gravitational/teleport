@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// Service names for UpstreamInventoryAgentMetadata
 const (
 	nodeService           = "node"
 	kubeService           = "kube"
