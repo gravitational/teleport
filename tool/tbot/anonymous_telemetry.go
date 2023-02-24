@@ -13,44 +13,53 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 )
 
 const (
-	anonymousTelemetryEnabledEnv  = "TELEPORT_ANONYMOUS_TELEMETRY"
-	anonymousTelemetryEndpointEnv = "TELEPORT_ANONYMOUS_TELEMETRY_ENDPOINT"
+	anonymousTelemetryEnabledEnv = "TELEPORT_ANONYMOUS_TELEMETRY"
+	anonymousTelemetryAddressEnv = "TELEPORT_ANONYMOUS_TELEMETRY_ADDRESS"
 
 	helperEnv        = "_TBOT_TELEMETRY_HELPER"
 	helperVersionEnv = "_TBOT_TELEMETRY_HELPER_VERSION"
 )
 
-func telemetryEndpoint() string {
-	env := os.Getenv(anonymousTelemetryEndpointEnv)
-	if env != "" {
-		return env
-	}
+type envGetter func(key string) string
 
-	// staging: https://reporting-staging.teleportinfra.dev
-	return "https://reporting.teleportinfra.sh"
-}
-
-func telemetryEnabled() bool {
+func telemetryEnabled(envGetter envGetter) bool {
 	if val, err := strconv.ParseBool(
-		os.Getenv(anonymousTelemetryEnabledEnv),
+		envGetter(anonymousTelemetryEnabledEnv),
 	); err == nil {
 		return val
 	}
 	return false
 }
 
+func telemetryClient(envGetter envGetter) v1alphaconnect.TbotReportingServiceClient {
+	// staging: https://reporting-staging.teleportinfra.dev
+	endpoint := "https://reporting.teleportinfra.sh"
+	if env := envGetter(anonymousTelemetryAddressEnv); env != "" {
+		endpoint = env
+	}
+
+	return v1alphaconnect.NewTbotReportingServiceClient(
+		http.DefaultClient, endpoint,
+	)
+}
+
 // sendTelemetry sends the anonymous on start Telemetry event.
 // It is imperative that this code does not send any user or teleport instance
 // identifiable information.
-func sendTelemetry(ctx context.Context, log logrus.FieldLogger, cfg *config.BotConfig) error {
+func sendTelemetry(
+	ctx context.Context,
+	client v1alphaconnect.TbotReportingServiceClient,
+	envGetter envGetter,
+	log logrus.FieldLogger,
+	cfg *config.BotConfig,
+) error {
 	start := time.Now()
-	if !telemetryEnabled() {
+	if !telemetryEnabled(envGetter) {
 		// TODO(noah): Have this not be a placeholder message
 		log.Warn("no telemetry placeholder message")
 		return nil
@@ -58,17 +67,19 @@ func sendTelemetry(ctx context.Context, log logrus.FieldLogger, cfg *config.BotC
 	log.Warn("telemetry enabled placeholder message")
 
 	data := &v1alpha.TbotStartEvent{
-		// TODO: Determine run mode
-		RunMode: v1alpha.TbotStartEvent_RUN_MODE_UNSPECIFIED,
+		RunMode: v1alpha.TbotStartEvent_RUN_MODE_DAEMON,
 		// Default to reporting the "token" join method to account for
 		// scenarios where initial join has onboarding configured but future
 		// starts renew using credentials.
 		JoinType: string(types.JoinMethodToken),
 		Version:  teleport.Version,
 	}
-	if helper := os.Getenv(helperEnv); helper != "" {
+	if cfg.Oneshot {
+		data.RunMode = v1alpha.TbotStartEvent_RUN_MODE_ONE_SHOT
+	}
+	if helper := envGetter(helperEnv); helper != "" {
 		data.Helper = helper
-		data.HelperVersion = os.Getenv(helperVersionEnv)
+		data.HelperVersion = envGetter(helperVersionEnv)
 	}
 	if cfg.Onboarding != nil && cfg.Onboarding.JoinMethod != "" {
 		data.JoinType = string(cfg.Onboarding.JoinMethod)
@@ -86,9 +97,6 @@ func sendTelemetry(ctx context.Context, log logrus.FieldLogger, cfg *config.BotC
 		}
 	}
 
-	client := v1alphaconnect.NewTbotReportingServiceClient(
-		http.DefaultClient, telemetryEndpoint(),
-	)
 	distinctID := uuid.New().String()
 	_, err := client.SubmitTbotEvent(ctx, connect.NewRequest(&v1alpha.SubmitTbotEventRequest{
 		DistinctId: distinctID,

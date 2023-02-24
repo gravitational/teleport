@@ -230,7 +230,9 @@ func onStart(botConfig *config.BotConfig) error {
 
 	go handleSignals(log, reloadChan, cancel)
 	go func() {
-		if err := sendTelemetry(ctx, log, botConfig); err != nil {
+		if err := sendTelemetry(
+			ctx, telemetryClient(os.Getenv), os.Getenv, log, botConfig,
+		); err != nil {
 			log.WithError(err).Error(
 				"Failed to send anonymous telemetry.",
 			)
