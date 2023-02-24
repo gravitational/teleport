@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// Service names for UpstreamInventoryAgentMetadata
+// Service names for UpstreamInventoryAgentMetadata.
 const (
 	nodeService           = "node"
 	kubeService           = "kube"
@@ -93,7 +93,10 @@ func (c *fetchConfig) setDefaults() {
 	}
 	if c.httpDo == nil {
 		c.httpDo = func(req *http.Request) (*http.Response, error) {
-			client := defaults.HTTPClient()
+			client, err := defaults.HTTPClient()
+			if err != nil {
+				return nil, err
+			}
 			client.Timeout = 5 * time.Second
 			return client.Do(req)
 		}
