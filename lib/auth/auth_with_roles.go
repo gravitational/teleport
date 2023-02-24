@@ -1613,6 +1613,15 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 
 		servers := types.AppServers(appservers)
+
+		// Removes apps that aren't supported by the UI.
+		// Doesn't remove them if the request is coming from someone listing Apps
+		// to create a resource access request, that way they can still request Apps
+		// via the UI even if they can't be launched from the UI.
+		if !req.GetUseSearchAsRoles() {
+			servers = removeUnsupportedApps(servers)
+		}
+
 		if err := servers.SortByCustom(req.SortBy); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -5730,4 +5739,23 @@ func verbsToReplaceResourceWithOrigin(stored types.ResourceWithOrigin) []string 
 		verbs = append(verbs, types.VerbCreate)
 	}
 	return verbs
+}
+
+// removeUnsupportedApps filters unsupported (TCP, Cloud API-only) apps out of the list of app servers returned to the Web UI
+// because they cannot be accessed from the Web UI.
+func removeUnsupportedApps(appServers []types.AppServer) (filteredAppServers []types.AppServer) {
+	for _, server := range appServers {
+		a := server.GetApp()
+		// Skip over API-only Cloud apps
+		if strings.HasPrefix(a.GetURI(), "cloud://") {
+			continue
+		}
+
+		// Skip over TCP apps since they cannot be accessed through web UI.
+		if server.GetApp().IsTCP() {
+			continue
+		}
+		filteredAppServers = append(filteredAppServers, server)
+	}
+	return filteredAppServers
 }

@@ -21,7 +21,6 @@ package web
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -62,7 +61,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	apps := removeUnsupportedApps(appServers)
+	apps := asApps(appServers)
 
 	return listResourcesGetResponse{
 		Items: ui.MakeApps(ui.MakeAppsConfig{
@@ -73,7 +72,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			Apps:              apps,
 		}),
 		StartKey:   resp.NextKey,
-		TotalCount: len(apps),
+		TotalCount: resp.TotalCount,
 	}, nil
 }
 
@@ -369,19 +368,9 @@ func (h *Handler) proxyDNSNames() (dnsNames []string) {
 	return dnsNames
 }
 
-// removeUnsupportedApps filters unsupported (TCP, Cloud API-only) apps out of the list of app servers.
-func removeUnsupportedApps(appServers []types.AppServer) (apps types.Apps) {
+// asApps converts a list of appServers to Apps
+func asApps(appServers []types.AppServer) (apps types.Apps) {
 	for _, server := range appServers {
-		a := server.GetApp()
-		// Skip over API-only Cloud apps
-		if strings.HasPrefix(a.GetURI(), "cloud://") {
-			continue
-		}
-
-		// Skip over TCP apps since they cannot be accessed through web UI.
-		if server.GetApp().IsTCP() {
-			continue
-		}
 		apps = append(apps, server.GetApp())
 	}
 	return apps
