@@ -135,7 +135,7 @@ func TestFetchHostArchitecture(t *testing.T) {
 		expected    string
 	}{
 		{
-			desc: "set correctly if expected format",
+			desc: "arch output if arch exists",
 			execCommand: func(name string, args ...string) ([]byte, error) {
 				if name != "arch" {
 					return nil, trace.NotFound("command does not exist")
@@ -143,16 +143,6 @@ func TestFetchHostArchitecture(t *testing.T) {
 				return []byte("x86_64"), nil
 			},
 			expected: "x86_64",
-		},
-		{
-			desc: "full output if unexpected format",
-			execCommand: func(name string, args ...string) ([]byte, error) {
-				if name != "arch" {
-					return nil, trace.NotFound("command does not exist")
-				}
-				return []byte("Architecture: x86_64"), nil
-			},
-			expected: sanitize("Architecture: x86_64"),
 		},
 		{
 			desc: "empty if arch does not exist",
@@ -168,7 +158,7 @@ func TestFetchHostArchitecture(t *testing.T) {
 			c := &fetchConfig{
 				execCommand: tc.execCommand,
 			}
-			require.Equal(t, tc.expected, c.fetchHostArchitecture())
+			require.Equal(t, tc.expected, c.fetchHostArchitectureInfo())
 		})
 	}
 }
@@ -360,12 +350,12 @@ func TestFetchContainerOrchestrator(t *testing.T) {
 		expected   string
 	}{
 		{
-			desc:       "kubernetes with version X",
+			desc:       "kubernetes with git version X",
 			kubeClient: newFakeClientSet("X"),
 			expected:   "kubernetes-X",
 		},
 		{
-			desc:       "kubernetes with version Y",
+			desc:       "kubernetes with git version Y",
 			kubeClient: newFakeClientSet("Y"),
 			expected:   "kubernetes-Y",
 		},

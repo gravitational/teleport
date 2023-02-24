@@ -314,9 +314,9 @@ message AgentMetadataEvent {
   string host_id = 2;
   repeated string services = 3;
   string os = 4;
-  string os_version = 5;
-  string host_architecture = 6;
-  string glibc_version = 7;
+  string os_version_info = 5;
+  string host_architecture_info = 6;
+  string glibc_version_info = 7;
   repeated string install_methods = 8;
   string container_runtime = 9;
   string container_orchestrator = 10;

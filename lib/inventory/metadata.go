@@ -22,9 +22,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"regexp"
 	"runtime"
-	"strconv"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -44,10 +42,6 @@ const (
 	dbService             = "db"
 	windowsDesktopService = "windows_desktop"
 )
-
-// This regexp is used to validate if the host architecture fetched has the
-// expected format.
-var matchHostArchitecture = regexp.MustCompile(`^\w+$`)
 
 // fetchConfig contains the configuration used by the fetchAgentMetadata method.
 type fetchConfig struct {
@@ -131,9 +125,9 @@ func fetchAgentMetadata(c *fetchConfig) proto.UpstreamInventoryAgentMetadata {
 		HostID:                c.fetchHostID(),
 		Services:              c.fetchServices(),
 		OS:                    c.fetchOS(),
-		OSVersion:             c.fetchOSVersion(),
-		HostArchitecture:      c.fetchHostArchitecture(),
-		GlibcVersion:          c.fetchGlibcVersion(),
+		OSVersionInfo:         c.fetchOSVersionInfo(),
+		HostArchitectureInfo:  c.fetchHostArchitectureInfo(),
+		GlibcVersionInfo:      c.fetchGlibcVersionInfo(),
 		InstallMethods:        c.fetchInstallMethods(),
 		ContainerRuntime:      c.fetchContainerRuntime(),
 		ContainerOrchestrator: c.fetchContainerOrchestrator(),
@@ -177,17 +171,11 @@ func (c *fetchConfig) fetchServices() []string {
 	return services
 }
 
-// fetchHostArchitecture computes the host architecture using the arch
-// command-line utility.
-func (c *fetchConfig) fetchHostArchitecture() string {
-	command := "arch"
-	out, err := c.exec(command)
+// fetchHostArchitectureInfo returns the output of arch.
+func (c *fetchConfig) fetchHostArchitectureInfo() string {
+	out, err := c.exec("arch")
 	if err != nil {
 		return ""
-	}
-
-	if !matchHostArchitecture.MatchString(out) {
-		return invalid(command, out)
 	}
 
 	return out
@@ -229,8 +217,7 @@ func (c *fetchConfig) nodeScriptInstallMethod() bool {
 	return c.getenv("TELEPORT_INSTALL_METHOD_NODE_SCRIPT") == "true"
 }
 
-// systemctlInstallMethod returns whether the agent is running using
-// systemctl.
+// systemctlInstallMethod returns whether the agent is running using systemctl.
 func (c *fetchConfig) systemctlInstallMethod() bool {
 	out, err := c.exec("systemctl", "is-active", "teleport.service")
 	if err != nil {
@@ -332,16 +319,18 @@ func (c *fetchConfig) exec(name string, args ...string) (string, error) {
 		log.Debugf("Failed to execute command '%s': %s", name, err)
 		return "", err
 	}
+
 	return string(out), nil
 }
 
-// read reads a read and validates its content using the parse function.
+// read reads a file and validates its content using the parse function.
 func (c *fetchConfig) read(name string) (string, error) {
 	out, err := c.readFile(name)
 	if err != nil {
 		log.Debugf("Failed to read file '%s': %s", name, err)
 		return "", err
 	}
+
 	return string(out), nil
 }
 
@@ -356,15 +345,4 @@ func (c *fetchConfig) httpReqSuccess(req *http.Request) bool {
 	defer resp.Body.Close()
 
 	return resp.StatusCode == http.StatusOK
-}
-
-// invalid logs the unexpected output/content and sanitizes it by quoting it.
-func invalid(in string, out string) string {
-	log.Debugf("Unexpected '%q' format: %s", in, out)
-	return sanitize(out)
-}
-
-// sanitize sanitizes some output/content by quoting it.
-func sanitize(s string) string {
-	return strconv.Quote(s)
 }

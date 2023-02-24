@@ -26,12 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFetchOSVersion(t *testing.T) {
+func TestFetchOSVersionInfo(t *testing.T) {
 	t.Parallel()
-
-	expectedProductName := `macOS`
-	expectedProductVersion := `13.2.1`
-	unexpectedProductVersion := `v13.2.1`
 
 	testCases := []struct {
 		desc        string
@@ -39,7 +35,7 @@ func TestFetchOSVersion(t *testing.T) {
 		expected    string
 	}{
 		{
-			desc: "set correctly if expected format",
+			desc: "set correctly if sw_vers exists",
 			execCommand: func(name string, args ...string) ([]byte, error) {
 				if name != "sw_vers" {
 					return nil, trace.NotFound("command does not exist")
@@ -50,35 +46,14 @@ func TestFetchOSVersion(t *testing.T) {
 
 				switch args[0] {
 				case "-productName":
-					return []byte(expectedProductName), nil
+					return []byte("macOS"), nil
 				case "-productVersion":
-					return []byte(expectedProductVersion), nil
+					return []byte("13.2.1"), nil
 				default:
 					return nil, trace.Errorf("invalid command argument")
 				}
 			},
 			expected: "macOS 13.2.1",
-		},
-		{
-			desc: "full output if unexpected format",
-			execCommand: func(name string, args ...string) ([]byte, error) {
-				if name != "sw_vers" {
-					return nil, trace.NotFound("command does not exist")
-				}
-				if len(args) != 1 {
-					return nil, trace.Errorf("invalid command argument")
-				}
-
-				switch args[0] {
-				case "-productName":
-					return []byte(expectedProductName), nil
-				case "-productVersion":
-					return []byte(unexpectedProductVersion), nil
-				default:
-					return nil, trace.Errorf("invalid command argument")
-				}
-			},
-			expected: sanitize("macOS v13.2.1"),
 		},
 		{
 			desc: "empty if sw_vers does not exist",
@@ -94,7 +69,7 @@ func TestFetchOSVersion(t *testing.T) {
 			c := &fetchConfig{
 				execCommand: tc.execCommand,
 			}
-			require.Equal(t, tc.expected, c.fetchOSVersion())
+			require.Equal(t, tc.expected, c.fetchOSVersionInfo())
 		})
 	}
 }

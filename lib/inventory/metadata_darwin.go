@@ -21,33 +21,25 @@ package inventory
 
 import (
 	"fmt"
-	"regexp"
 )
 
-var matchOSVersion = regexp.MustCompile(`^macOS \d+\.\d+\.\d+$`)
-
-// fetchOSVersion combines the output of 'sw_vers' to be e.g. "macOS 13.2.1".
-func (c *fetchConfig) fetchOSVersion() string {
-	command := "sw_vers"
-	productName, err := c.exec(command, "-productName")
+// fetchOSVersionContent returns something equivalent to the output of
+// '$(sw_vers -productName) $(sw_vers -productVersion)'.
+func (c *fetchConfig) fetchOSVersionInfo() string {
+	productName, err := c.exec("sw_vers", "-productName")
 	if err != nil {
 		return ""
 	}
 
-	productVersion, err := c.exec(command, "-productVersion")
+	productVersion, err := c.exec("sw_vers", "-productVersion")
 	if err != nil {
 		return ""
 	}
 
-	osVersion := fmt.Sprintf("%s %s", productName, productVersion)
-	if !matchOSVersion.MatchString(osVersion) {
-		return invalid(command, osVersion)
-	}
-
-	return osVersion
+	return fmt.Sprintf("%s %s", productName, productVersion)
 }
 
-// fetchGlibcVersion returns "" on darwin.
-func (c *fetchConfig) fetchGlibcVersion() string {
+// fetchGlibcVersionInfo returns "" on darwin.
+func (c *fetchConfig) fetchGlibcVersionInfo() string {
 	return ""
 }

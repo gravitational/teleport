@@ -2074,12 +2074,14 @@ message UpstreamInventoryAgentMetadata {
   repeated string Services = 3;
   // OS advertises the instance OS ("darwin" or "linux").
   string OS = 4;
-  // OSVersion advertises the instance OS version (e.g. "Ubuntu 22.04").
-  string OSVersion = 5;
-  // HostArchitecture advertises the instance host architecture (e.g. "x86_64" or "arm64").
-  string HostArchitecture = 6;
-  // GlibcVersion advertises the instance glibc version of linux instances (e.g. "2.35").
-  string GlibcVersion = 7;
+  // OSVersionInfo advertises information that can be used to infer the instance OS version.
+  string OSVersionInfo = 5;
+  // HostArchitectureInfo advertises information that can be used to infer the instance host
+  // architecture.
+  string HostArchitectureInfo = 6;
+  // GlibcVersionInfo advertises the information that can be used to infer the glibc version
+  // of linux instances.
+  string GlibcVersionInfo = 7;
   // InstallMethods advertises the install methods used for the instance (e.g. "dockerfile").
   repeated string InstallMethods = 8;
   // ContainerRuntime advertises the container runtime for the instance, if any (e.g. "docker").
