@@ -51,7 +51,9 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindAppServer)
+	shouldPruneUnsupportedApps := r.URL.Query().Get("searchAsRoles") != "yes"
+
+	resp, err := listResources(clt, r, types.KindAppServer, &types.ListResourcesFilters{PruneUnsupportedUIApps: shouldPruneUnsupportedApps})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

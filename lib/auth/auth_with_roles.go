@@ -1618,7 +1618,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		// Doesn't remove them if the request is coming from someone listing Apps
 		// to create a resource access request, that way they can still request Apps
 		// via the UI even if they can't be launched from the UI.
-		if !req.GetUseSearchAsRoles() {
+		if req.ListResourcesFilters.PruneUnsupportedUIApps {
 			servers = removeUnsupportedApps(servers)
 		}
 

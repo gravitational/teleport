@@ -2232,7 +2232,7 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindNode)
+	resp, err := listResources(clt, r, types.KindNode, nil /* no extra filters */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

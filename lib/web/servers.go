@@ -35,7 +35,7 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindKubernetesCluster)
+	resp, err := listResources(clt, r, types.KindKubernetesCluster, nil /* no extra filters */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -83,7 +83,7 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindDatabaseServer)
+	resp, err := listResources(clt, r, types.KindDatabaseServer, nil /* no extra filters */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -153,7 +153,7 @@ func (h *Handler) clusterDatabaseServicesList(w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindDatabaseService)
+	resp, err := listResources(clt, r, types.KindDatabaseService, nil /* no extra filters */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -177,7 +177,7 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindWindowsDesktop)
+	resp, err := listResources(clt, r, types.KindWindowsDesktop, nil /* no extra filters */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -203,7 +203,7 @@ func (h *Handler) clusterDesktopServicesGet(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindWindowsDesktopService)
+	resp, err := listResources(clt, r, types.KindWindowsDesktopService, nil /* no extra filters */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

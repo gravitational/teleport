@@ -633,7 +633,7 @@ func TestListResources(t *testing.T) {
 				return nil, nil
 			}
 
-			_, err = listResources(m, httpReq, types.KindNode)
+			_, err = listResources(m, httpReq, types.KindNode, nil /* no extra filters */)
 			if tc.wantBadParamErr {
 				require.True(t, trace.IsBadParameter(err))
 			} else {

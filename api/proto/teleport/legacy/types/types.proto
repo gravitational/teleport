@@ -5043,3 +5043,10 @@ message UserGroupV1 {
     (gogoproto.embed) = true
   ];
 }
+
+// ListResourcesFilters are the optional additional filters to be applied when listing resources.
+message ListResourcesFilters {
+  // pruneUnsupportedUIApps determines whether or not Apps not supported by the UI (ie. Cloud and TCP apps)
+  // should be pruned from the response.
+  bool pruneUnsupportedUIApps = 1 [(gogoproto.jsontag) = "prune_unsupported_apps,omitempty"];
+}

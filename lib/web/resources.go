@@ -382,7 +382,7 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 }
 
 // listResources gets a list of resources depending on the type of resource.
-func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string) (*types.ListResourcesResponse, error) {
+func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string, filters *types.ListResourcesFilters) (*types.ListResourcesResponse, error) {
 	values := r.URL.Query()
 
 	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
@@ -394,13 +394,14 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 
 	startKey := values.Get("startKey")
 	req := proto.ListResourcesRequest{
-		ResourceType:        resourceKind,
-		Limit:               limit,
-		StartKey:            startKey,
-		SortBy:              sortBy,
-		PredicateExpression: values.Get("query"),
-		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
-		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
+		ResourceType:         resourceKind,
+		Limit:                limit,
+		StartKey:             startKey,
+		SortBy:               sortBy,
+		PredicateExpression:  values.Get("query"),
+		SearchKeywords:       client.ParseSearchKeywords(values.Get("search"), ' '),
+		UseSearchAsRoles:     values.Get("searchAsRoles") == "yes",
+		ListResourcesFilters: filters,
 	}
 
 	return clt.ListResources(r.Context(), req)
