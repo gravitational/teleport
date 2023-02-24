@@ -86,13 +86,18 @@ type DownstreamSender interface {
 // supplied create func and manage hello exchange with the supplied upstream hello.
 func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) DownstreamHandle {
 	ctx, cancel := context.WithCancel(context.Background())
+	agentMetadataCh := make(chan proto.UpstreamInventoryAgentMetadata, 1)
 	handle := &downstreamHandle{
-		senderC:      make(chan DownstreamSender),
-		pingHandlers: make(map[uint64]DownstreamPingHandler),
-		closeContext: ctx,
-		cancel:       cancel,
+		senderC:         make(chan DownstreamSender),
+		pingHandlers:    make(map[uint64]DownstreamPingHandler),
+		closeContext:    ctx,
+		cancel:          cancel,
+		agentMetadataCh: agentMetadataCh,
 	}
 	go handle.run(fn, hello)
+	go func() {
+		agentMetadataCh <- fetchAgentMetadata(&fetchConfig{ctx: ctx, hello: hello})
+	}()
 	return handle
 }
 
@@ -119,6 +124,14 @@ type downstreamHandle struct {
 	senderC      chan DownstreamSender
 	closeContext context.Context
 	cancel       context.CancelFunc
+	// agentMetadataCh is the buffered channel (size 1) where the agent metadata
+	// will be sent to at most once (once it is calculated). For this reason, if
+	// the agent metadata is taken out of the channel and we fail to send it
+	// upstream, then the metadata will never be sent upstream as there is no
+	// retry mechanism. However, since the agent metadata is sent after the
+	// hello exchange succeeds, it is unlikely that the sending of the metadata
+	// will fail.
+	agentMetadataCh chan proto.UpstreamInventoryAgentMetadata
 }
 
 func (h *downstreamHandle) closing() bool {
@@ -162,14 +175,6 @@ func (h *downstreamHandle) tryRun(fn DownstreamCreateFunc, hello proto.UpstreamI
 }
 
 func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControlStream, upstreamHello proto.UpstreamInventoryHello) error {
-	agentMetadataCh := make(chan proto.UpstreamInventoryAgentMetadata, 1)
-	go func() {
-		agentMetadataCh <- fetchAgentMetadata(&fetchConfig{
-			ctx:   h.closeContext,
-			hello: upstreamHello,
-		})
-	}()
-
 	defer stream.Close()
 	// send upstream hello
 	if err := stream.Send(h.closeContext, upstreamHello); err != nil {
@@ -205,7 +210,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 	for {
 		select {
 		case h.senderC <- sender:
-		case m := <-agentMetadataCh:
+		case m := <-h.agentMetadataCh:
 			if err := stream.Send(h.closeContext, m); err != nil {
 				log.Warnf("Failed to send agent metadata: %v", err)
 			}
