@@ -2734,7 +2734,7 @@ type samlIDPServiceProviders struct {
 }
 
 func (s *samlIDPServiceProviders) erase(ctx context.Context) error {
-	if err := s.samlIdpServiceProvidersCache.DeleteAllSAMLIdPServiceProviders(ctx); err != nil {
+	if err := s.samlIdPServiceProvidersCache.DeleteAllSAMLIdPServiceProviders(ctx); err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -2766,9 +2766,9 @@ func (s *samlIDPServiceProviders) fetch(ctx context.Context) (apply func(ctx con
 		}
 
 		for _, resource := range resources {
-			err = s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
+			err = s.samlIdPServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
 			if trace.IsAlreadyExists(err) {
-				err = s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource)
+				err = s.samlIdPServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource)
 			}
 			if err != nil {
 				return trace.Wrap(err)
@@ -2781,7 +2781,7 @@ func (s *samlIDPServiceProviders) fetch(ctx context.Context) (apply func(ctx con
 func (s *samlIDPServiceProviders) processEvent(ctx context.Context, event types.Event) error {
 	switch event.Type {
 	case types.OpDelete:
-		err := s.samlIdpServiceProvidersCache.DeleteSAMLIdPServiceProvider(ctx, event.Resource.GetName())
+		err := s.samlIdPServiceProvidersCache.DeleteSAMLIdPServiceProvider(ctx, event.Resource.GetName())
 		if err != nil && !trace.IsNotFound(err) {
 			s.Logger.WithError(err).Warn("Failed to delete resource.")
 			return trace.Wrap(err)
@@ -2791,9 +2791,9 @@ func (s *samlIDPServiceProviders) processEvent(ctx context.Context, event types.
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		err := s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
+		err := s.samlIdPServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
 		if trace.IsAlreadyExists(err) {
-			err = s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource)
+			err = s.samlIdPServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource)
 		}
 		return trace.Wrap(err)
 	default:
