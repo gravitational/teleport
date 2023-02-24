@@ -279,7 +279,7 @@ func (c *fetchConfig) fetchCloudEnvironment() string {
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
 func (c *fetchConfig) awsHttpGetSuccess() bool {
 	url := "http://169.254.169.254/latest/meta-data/"
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(c.ctx, http.MethodGet, url, nil)
 	if err != nil {
 		log.Debugf("Failed to create AWS http GET request '%s': %s", url, err)
 		return false
@@ -293,7 +293,7 @@ func (c *fetchConfig) awsHttpGetSuccess() bool {
 // https://cloud.google.com/compute/docs/metadata/overview#parts-of-a-request
 func (c *fetchConfig) gcpHttpGetSuccess() bool {
 	url := "http://metadata.google.internal/computeMetadata/v1"
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(c.ctx, http.MethodGet, url, nil)
 	if err != nil {
 		log.Debugf("Failed to create GCP http GET request '%s': %s", url, err)
 		return false
@@ -308,7 +308,7 @@ func (c *fetchConfig) gcpHttpGetSuccess() bool {
 // https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service
 func (c *fetchConfig) azureHttpGetSuccess() bool {
 	url := "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(c.ctx, http.MethodGet, url, nil)
 	if err != nil {
 		log.Debugf("Failed to create Azure http GET request '%s': %s", url, err)
 		return false
@@ -341,7 +341,7 @@ func (c *fetchConfig) read(name string) (string, error) {
 // httpReqSuccess performs an http request, returning true if the status code
 // is 200.
 func (c *fetchConfig) httpReqSuccess(req *http.Request) bool {
-	resp, err := c.httpDo(req.WithContext(c.ctx))
+	resp, err := c.httpDo(req)
 	if err != nil {
 		log.Debugf("Failed to perform http GET request: %s", err)
 		return false
