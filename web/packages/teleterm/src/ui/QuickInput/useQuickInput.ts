@@ -75,7 +75,7 @@ export default function useQuickInput() {
     suggestionsAttempt.status === 'success' &&
     suggestionsAttempt.data.length > 0;
   const openQuickInputShortcutAction: KeyboardShortcutAction = 'openQuickInput';
-  const { getShortcut } = useKeyboardShortcutFormatters();
+  const { getAccelerator } = useKeyboardShortcutFormatters();
 
   const onFocus = (e: any) => {
     if (e.relatedTarget) {
@@ -194,7 +194,7 @@ export default function useQuickInput() {
     onInputChange: quickInputService.setInputValue,
     onHide: quickInputService.hide,
     onShow: quickInputService.show,
-    keyboardShortcut: getShortcut(openQuickInputShortcutAction),
+    keyboardShortcut: getAccelerator(openQuickInputShortcutAction),
   };
 }
 

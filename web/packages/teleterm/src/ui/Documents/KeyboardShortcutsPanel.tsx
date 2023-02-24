@@ -24,7 +24,7 @@ import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShor
 import { KeyboardShortcutAction } from 'teleterm/services/config';
 
 export function KeyboardShortcutsPanel() {
-  const { getShortcut } = useKeyboardShortcutFormatters();
+  const { getAccelerator } = useKeyboardShortcutFormatters();
 
   const items: { title: string; shortcutAction: KeyboardShortcutAction }[] = [
     {
@@ -55,7 +55,7 @@ export function KeyboardShortcutsPanel() {
         {items.map(item => (
           <Entry
             title={item.title}
-            shortcut={getShortcut(item.shortcutAction, {
+            accelerator={getAccelerator(item.shortcutAction, {
               useWhitespaceSeparator: true,
             })}
             key={item.shortcutAction}
@@ -66,14 +66,14 @@ export function KeyboardShortcutsPanel() {
   );
 }
 
-function Entry(props: { title: string; shortcut: string }) {
+function Entry(props: { title: string; accelerator: string }) {
   return (
     <>
       <Text textAlign="right" color="light" typography="subtitle1" py="4px">
         {props.title}
       </Text>
       <MonoText bg="primary.main" textAlign="left" px="12px" py="4px">
-        {props.shortcut}
+        {props.accelerator}
       </MonoText>
     </>
   );

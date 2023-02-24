@@ -19,14 +19,14 @@ import { useAppContext } from '../../appContextProvider';
 import { Platform } from '../../../mainProcess/types';
 
 interface KeyboardShortcutFormatters {
-  getLabelWithShortcut(
+  getLabelWithAccelerator(
     label: string,
-    shortcutAction: KeyboardShortcutAction,
+    action: KeyboardShortcutAction,
     options?: KeyboardShortcutFormattingOptions
   ): string;
 
-  getShortcut(
-    shortcutAction: KeyboardShortcutAction,
+  getAccelerator(
+    action: KeyboardShortcutAction,
     options?: KeyboardShortcutFormattingOptions
   ): string;
 }
@@ -41,25 +41,25 @@ export function useKeyboardShortcutFormatters(): KeyboardShortcutFormatters {
   const keyboardShortcuts = keyboardShortcutsService.getShortcutsConfig();
 
   return {
-    getLabelWithShortcut(label, shortcutAction, options) {
-      const formattedShortcut = formatKeyboardShortcut({
+    getLabelWithAccelerator(label, action, options) {
+      const formattedAccelerator = formatAccelerator({
         platform,
-        accelerator: keyboardShortcuts[shortcutAction],
+        accelerator: keyboardShortcuts[action],
         ...options,
       });
-      return `${label} (${formattedShortcut})`;
+      return `${label} (${formattedAccelerator})`;
     },
-    getShortcut(shortcutKey, options) {
-      return formatKeyboardShortcut({
+    getAccelerator(action, options) {
+      return formatAccelerator({
         platform,
-        accelerator: keyboardShortcuts[shortcutKey],
+        accelerator: keyboardShortcuts[action],
         ...options,
       });
     },
   };
 }
 
-function formatKeyboardShortcut(options: {
+function formatAccelerator(options: {
   platform: Platform;
   accelerator: string;
   useWhitespaceSeparator?: boolean;
