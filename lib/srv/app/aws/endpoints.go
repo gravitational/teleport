@@ -167,7 +167,7 @@ func resolveEndpointByXForwardedHost(r *http.Request, headerKey string) (*endpoi
 // Sample AWS SDK reference for the discovery flow:
 // https://github.com/aws/aws-sdk-go/blob/41717ba2c04d3fd03f94d09ea984a10899574935/service/timestreamquery/api.go#L1295-L1319
 func shouldDiscoverTimestreamEndpoint(r *http.Request) bool {
-	target := r.Header.Get("X-Amz-Target")
+	target := r.Header.Get(awsutils.AmzTargetHeader)
 	return strings.HasPrefix(target, timestreamOpPrefix) && !strings.HasSuffix(target, "DescribeEndpoints")
 }
 
@@ -193,6 +193,8 @@ func (s *signerHandler) resolveTimestreamEndpoint(r *http.Request) (*endpoints.R
 		return nil, trace.Wrap(err)
 	}
 
+	// The endpoint is cached for one minute per user session per region per
+	// request type.
 	key := resolveTimestreamEndpointCacheKey{
 		credentials:              credentials,
 		region:                   awsAuthHeader.Region,
@@ -229,7 +231,7 @@ type resolveTimestreamEndpointCacheKey struct {
 }
 
 func isTimestreamWriteRequest(r *http.Request) bool {
-	switch strings.TrimPrefix(r.Header.Get("X-Amz-Target"), timestreamOpPrefix) {
+	switch strings.TrimPrefix(r.Header.Get(awsutils.AmzTargetHeader), timestreamOpPrefix) {
 	// AWS SDK reference:
 	// https://github.com/aws/aws-sdk-go/blob/main/service/timestreamwrite/api.go
 	case "CreateDatabase", "CreateTable",
@@ -250,7 +252,7 @@ func isTimestreamWriteRequest(r *http.Request) bool {
 	case "ListTagsForResource", "TagResource", "UntagResource":
 		return false
 	default:
-		logrus.Warnf("Unknown Timestream operation %q. Assuming the request is a Timestream Query request.", r.Header.Get("X-Amz-Target"))
+		logrus.Warnf("Unknown Timestream operation %q. Assuming the request is a Timestream Query request.", r.Header.Get(awsutils.AmzTargetHeader))
 		return false
 	}
 }
