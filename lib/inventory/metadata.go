@@ -19,6 +19,7 @@ package inventory
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"regexp"
@@ -56,6 +57,9 @@ type fetchConfig struct {
 	// execCommand is the method called to execute a command.
 	// It is configurable so that it can be mocked in tests.
 	execCommand func(name string, args ...string) ([]byte, error)
+	// httpDo is the method called to perform an httpDo request.
+	// It is configurable so that it can be mocked in tests.
+	httpDo func(req *http.Request) (*http.Response, error)
 	// kubeClient is a kubernetes client used to retrieve the
 	// server version.
 	// It is configurable so that it can be mocked in tests.
@@ -66,12 +70,20 @@ type fetchConfig struct {
 // standard library. Having these two methods configurable allows us to mock
 // them in tests.
 func (c *fetchConfig) setDefaults() {
+	if c.ctx == nil {
+		c.ctx = context.Background()
+	}
 	if c.readFile == nil {
 		c.readFile = os.ReadFile
 	}
 	if c.execCommand == nil {
 		c.execCommand = func(name string, args ...string) ([]byte, error) {
 			return exec.Command(name, args...).Output()
+		}
+	}
+	if c.httpDo == nil {
+		c.httpDo = func(req *http.Request) (*http.Response, error) {
+			return http.DefaultClient.Do(req)
 		}
 	}
 	if c.kubeClient == nil {
@@ -189,16 +201,85 @@ func (c *fetchConfig) fetchContainerOrchestrator() string {
 		// Return empty if not running on kubernetes.
 		return ""
 	}
+
 	version, err := c.kubeClient.Discovery().ServerVersion()
 	if err != nil {
 		log.Debugf("Failed to retrieve kubernetes server version: %s", err)
 	}
+
 	return fmt.Sprintf("kubernetes-%s", version.GitVersion)
 }
 
+// fetchCloudEnvironment returns aws, gpc or azure if the agent is running on
+// such cloud environments.
 func (c *fetchConfig) fetchCloudEnvironment() string {
-	// TODO(vitorenesduarte): fetch cloud environment
+	if c.awsHttpGetSuccess() {
+		return "aws"
+	}
+	if c.gcpHttpGetSuccess() {
+		return "gcp"
+	}
+	if c.azureHttpGetSuccess() {
+		return "azure"
+	}
 	return ""
+}
+
+// awsHttpGetSuccess hits the AWS metadata endpoint in order to detect whether
+// the agent is running on AWS.
+// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
+func (c *fetchConfig) awsHttpGetSuccess() bool {
+	url := "http://169.254.169.254/latest/meta-data/"
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		log.Debugf("Failed to create AWS http GET request '%s': %s", url, err)
+		return false
+	}
+
+	return c.httpReqSuccess(req)
+}
+
+// gcpHttpGetSuccess hits the GCP metadata endpoint in order to detect whether
+// the agent is running on GCP.
+// https://cloud.google.com/compute/docs/metadata/overview#parts-of-a-request
+func (c *fetchConfig) gcpHttpGetSuccess() bool {
+	url := "http://metadata.google.internal/computeMetadata/v1"
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		log.Debugf("Failed to create GCP http GET request '%s': %s", url, err)
+		return false
+	}
+
+	req.Header.Add("Metadata-Flavor", "Google")
+	return c.httpReqSuccess(req)
+}
+
+// azureHttpGetSuccess hits the Azure metadata endpoint in order to detect whether
+// the agent is running on Azure.
+// https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service
+func (c *fetchConfig) azureHttpGetSuccess() bool {
+	url := "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		log.Debugf("Failed to create Azure http GET request '%s': %s", url, err)
+		return false
+	}
+
+	req.Header.Add("Metadata", "true")
+	return c.httpReqSuccess(req)
+}
+
+// azureGetSuccess performs an http request, returning true if the status code
+// is 200.
+func (c *fetchConfig) httpReqSuccess(req *http.Request) bool {
+	resp, err := c.httpDo(req.WithContext(c.ctx))
+	if err != nil {
+		log.Debugf("Failed to perform http GET request: %s", err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
 }
 
 // exec runs a command and validates its output using the parse function.

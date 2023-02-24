@@ -17,6 +17,10 @@ limitations under the License.
 package inventory
 
 import (
+	"context"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -261,6 +265,90 @@ func TestFetchContainerOrchestrator(t *testing.T) {
 				kubeClient: tc.kubeClient,
 			}
 			require.Equal(t, tc.expected, c.fetchContainerOrchestrator())
+		})
+	}
+}
+
+func TestFetchCloudEnvironment(t *testing.T) {
+	t.Parallel()
+
+	success := &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader("")),
+	}
+
+	testCases := []struct {
+		desc     string
+		httpDo   func(*http.Request) (*http.Response, error)
+		expected string
+	}{
+		{
+			desc: "aws if on aws",
+			httpDo: func(req *http.Request) (*http.Response, error) {
+				if req.URL.String() != "http://169.254.169.254/latest/meta-data/" {
+					return nil, trace.NotFound("not found")
+				}
+				if len(req.Header) != 0 {
+					return nil, trace.NotFound("not found")
+				}
+				return success, nil
+			},
+			expected: "aws",
+		},
+		{
+			desc: "gcp if on gcp ",
+			httpDo: func(req *http.Request) (*http.Response, error) {
+				if req.URL.String() != "http://metadata.google.internal/computeMetadata/v1" {
+					return nil, trace.NotFound("not found")
+				}
+				if len(req.Header) != 1 {
+					return nil, trace.NotFound("not found")
+				}
+				if len(req.Header["Metadata-Flavor"]) != 1 {
+					return nil, trace.NotFound("not found")
+				}
+				if req.Header["Metadata-Flavor"][0] != "Google" {
+					return nil, trace.NotFound("not found")
+				}
+				return success, nil
+			},
+			expected: "gcp",
+		},
+		{
+			desc: "azure if on azure",
+			httpDo: func(req *http.Request) (*http.Response, error) {
+				if req.URL.String() != "http://169.254.169.254/metadata/instance?api-version=2021-02-01" {
+					return nil, trace.NotFound("not found")
+				}
+				if len(req.Header) != 1 {
+					return nil, trace.NotFound("not found")
+				}
+				if len(req.Header["Metadata"]) != 1 {
+					return nil, trace.NotFound("not found")
+				}
+				if req.Header["Metadata"][0] != "true" {
+					return nil, trace.NotFound("not found")
+				}
+				return success, nil
+			},
+			expected: "azure",
+		},
+		{
+			desc: "empty if not aws, gcp nor azure",
+			httpDo: func(req *http.Request) (*http.Response, error) {
+				return nil, trace.NotFound("not found")
+			},
+			expected: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			c := &fetchConfig{
+				ctx:    context.Background(),
+				httpDo: tc.httpDo,
+			}
+			require.Equal(t, tc.expected, c.fetchCloudEnvironment())
 		})
 	}
 }
