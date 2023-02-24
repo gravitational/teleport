@@ -144,10 +144,12 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newInstallerParser()
 		case types.KindKubernetesCluster:
 			parser = newKubeClusterParser()
-		case types.KindSAMLIdPServiceProvider:
-			parser = newSAMLIDPServiceProviderParser()
 		case types.KindPlugin:
 			parser = newPluginParser(kind.LoadSecrets)
+		case types.KindSAMLIdPServiceProvider:
+			parser = newSAMLIDPServiceProviderParser()
+		case types.KindUserGroup:
+			parser = newUserGroupParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
@@ -1366,30 +1368,6 @@ func (p *installerParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
-func newSAMLIDPServiceProviderParser() *samlIDPServiceProviderParser {
-	return &samlIDPServiceProviderParser{
-		baseParser: newBaseParser(backend.Key(samlIDPServiceProviderPrefix)),
-	}
-}
-
-type samlIDPServiceProviderParser struct {
-	baseParser
-}
-
-func (p *samlIDPServiceProviderParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		return resourceHeader(event, types.KindSAMLIdPServiceProvider, types.V1, 0)
-	case types.OpPut:
-		return services.UnmarshalSAMLIdPServiceProvider(event.Item.Value,
-			services.WithResourceID(event.Item.ID),
-			services.WithExpires(event.Item.Expires),
-		)
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
 type pluginParser struct {
 	baseParser
 	loadSecrets bool
@@ -1419,6 +1397,54 @@ func (p *pluginParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.Wrap(err)
 		}
 		return plugin, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newSAMLIDPServiceProviderParser() *samlIDPServiceProviderParser {
+	return &samlIDPServiceProviderParser{
+		baseParser: newBaseParser(backend.Key(samlIDPServiceProviderPrefix)),
+	}
+}
+
+type samlIDPServiceProviderParser struct {
+	baseParser
+}
+
+func (p *samlIDPServiceProviderParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindSAMLIdPServiceProvider, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalSAMLIdPServiceProvider(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newUserGroupParser() *userGroupParser {
+	return &userGroupParser{
+		baseParser: newBaseParser(backend.Key(userGroupPrefix)),
+	}
+}
+
+type userGroupParser struct {
+	baseParser
+}
+
+func (p *userGroupParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindUserGroup, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalUserGroup(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
