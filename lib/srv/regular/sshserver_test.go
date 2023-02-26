@@ -2423,7 +2423,7 @@ func TestHandlePuTTYWinadj(t *testing.T) {
 
 	se, err := f.ssh.clt.NewSession(ctx)
 	require.NoError(t, err)
-	defer se.Close()
+	t.Cleanup(func() { se.Close() })
 
 	// send a PuTTY winadj request to the server. it shouldn't error, but the response
 	// should be a failure.
