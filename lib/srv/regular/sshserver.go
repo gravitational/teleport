@@ -1499,12 +1499,9 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 				),
 			)
 			// some functions called inside dispatch() may handle replies to SSH channel requests internally,
-			// rather than leaving the reply to be handled inside this loop. in that case, those functions are
-			// expected to return a ReplyAlreadyHandled error to halt the default behaviour.
-			err := s.dispatch(ctx, ch, req, scx)
-			if trace.IsReplyAlreadyHandled(err) {
-				req.WantReply = false
-			} else if err != nil {
+			// rather than leaving the reply to be handled inside this loop. in that case, those functions must
+			// set req.WantReply to false so that two replies are not sent.
+			if err := s.dispatch(ctx, ch, req, scx); err != nil {
 				s.replyError(ch, req, err)
 				span.End()
 				return
@@ -1610,11 +1607,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			// tuning. It can be sent on any type of channel. There is no message-specific data. Servers MUST treat it
 			// as an unrecognized request and respond with SSH_MSG_CHANNEL_FAILURE.
 			// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
-			err := s.handlePuTTYWinadj(ch, req)
-			if err != nil {
-				return err
-			}
-			return nil
+			return s.handlePuTTYWinadj(ch, req)
 		default:
 			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}
@@ -2084,5 +2077,8 @@ func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
 		s.Logger.Warnf("Failed to reply to %q request: %v", req.Type, err)
 		return err
 	}
-	return trace.ReplyAlreadyHandled("reply handled by handlePuTTYWinadj")
+	// the reply has been handled inside this function (rather than relying on the standard behaviour
+	// of leaving handleSessionRequests to do it) so set the WantReply flag to false here.
+	req.WantReply = false
+	return nil
 }
