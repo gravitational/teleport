@@ -78,9 +78,8 @@ export default function AppList(props: Props) {
           isSortable: true,
         },
         {
-          key: 'publicAddr',
+          key: 'addrWithProtocol',
           headerText: 'Address',
-          render: renderAddressCell,
         },
         {
           key: 'labels',
@@ -124,20 +123,6 @@ export default function AppList(props: Props) {
   );
 }
 
-function renderAddressCell({ publicAddr, uri }: App) {
-  if (publicAddr) {
-    if (isCloudOrTcpApp(uri)) {
-      if (uri.startsWith('cloud')) {
-        return <Cell>cloud://{publicAddr}</Cell>;
-      } else {
-        return <Cell>tcp://{publicAddr}</Cell>;
-      }
-    }
-    return <Cell>https://{publicAddr}</Cell>;
-  }
-  return <Cell></Cell>;
-}
-
 function renderAppIcon({ name, awsConsole }: App) {
   return (
     <Cell style={{ userSelect: 'none' }}>
@@ -168,37 +153,45 @@ function renderLaunchButtonCell({
   fqdn,
   clusterId,
   publicAddr,
-  uri,
+  isCloudOrTcpEndpoint,
 }: App) {
-  if (isCloudOrTcpApp(uri)) {
-    return <Cell></Cell>;
+  let $btn;
+  if (awsConsole) {
+    $btn = (
+      <AwsLaunchButton
+        awsRoles={awsRoles}
+        fqdn={fqdn}
+        clusterId={clusterId}
+        publicAddr={publicAddr}
+      />
+    );
+  } else if (isCloudOrTcpEndpoint) {
+    $btn = (
+      <ButtonBorder
+        disabled
+        width="88px"
+        size="small"
+        title="Cloud or TCP applications cannot be launched by the browser"
+      >
+        LAUNCH
+      </ButtonBorder>
+    );
+  } else {
+    $btn = (
+      <ButtonBorder
+        as="a"
+        width="88px"
+        size="small"
+        target="_blank"
+        href={launchUrl}
+        rel="noreferrer"
+      >
+        LAUNCH
+      </ButtonBorder>
+    );
   }
 
-  const $btn = awsConsole ? (
-    <AwsLaunchButton
-      awsRoles={awsRoles}
-      fqdn={fqdn}
-      clusterId={clusterId}
-      publicAddr={publicAddr}
-    />
-  ) : (
-    <ButtonBorder
-      as="a"
-      width="88px"
-      size="small"
-      target="_blank"
-      href={launchUrl}
-      rel="noreferrer"
-    >
-      LAUNCH
-    </ButtonBorder>
-  );
-
   return <Cell align="right">{$btn}</Cell>;
-}
-
-function isCloudOrTcpApp(uri: string) {
-  return uri.startsWith('cloud://') || uri.startsWith('tcp://');
 }
 
 function getIconColor(appName: string) {

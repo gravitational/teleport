@@ -974,8 +974,7 @@ exports[`failed state 1`] = `
             This is a Jenkins app
           </td>
           <td>
-            https://
-            jenkins.teleport-proxy.com
+            https://jenkins.teleport-proxy.com
           </td>
           <td>
             <div
@@ -1034,8 +1033,7 @@ exports[`failed state 1`] = `
             This is a Mattermost app
           </td>
           <td>
-            https://
-            mattermost.teleport-proxy.com
+            https://mattermost.teleport-proxy.com
           </td>
           <td>
             <div
@@ -1093,7 +1091,9 @@ exports[`failed state 1`] = `
           <td>
             This is a TCP app
           </td>
-          <td />
+          <td>
+            tcp://some-address
+          </td>
           <td>
             <div
               class="c25"
@@ -1112,7 +1112,19 @@ exports[`failed state 1`] = `
               </div>
             </div>
           </td>
-          <td />
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              disabled=""
+              kind="border"
+              title="Cloud or TCP applications cannot be launched by the browser"
+              width="88px"
+            >
+              LAUNCH
+            </button>
+          </td>
         </tr>
         <tr>
           <td
@@ -1137,8 +1149,7 @@ exports[`failed state 1`] = `
             This is an AWS Console app
           </td>
           <td>
-            https://
-            awsconsole-1.teleport-proxy.com
+            https://awsconsole-1.teleport-proxy.com
           </td>
           <td>
             <div
@@ -1204,7 +1215,9 @@ exports[`failed state 1`] = `
           <td>
             This is a Cloud specific app
           </td>
-          <td />
+          <td>
+            cloud://some-address
+          </td>
           <td>
             <div
               class="c25"
@@ -1223,7 +1236,19 @@ exports[`failed state 1`] = `
               </div>
             </div>
           </td>
-          <td />
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              disabled=""
+              kind="border"
+              title="Cloud or TCP applications cannot be launched by the browser"
+              width="88px"
+            >
+              LAUNCH
+            </button>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -1981,8 +2006,7 @@ exports[`loaded state 1`] = `
             This is a Jenkins app
           </td>
           <td>
-            https://
-            jenkins.teleport-proxy.com
+            https://jenkins.teleport-proxy.com
           </td>
           <td>
             <div
@@ -2041,8 +2065,7 @@ exports[`loaded state 1`] = `
             This is a Mattermost app
           </td>
           <td>
-            https://
-            mattermost.teleport-proxy.com
+            https://mattermost.teleport-proxy.com
           </td>
           <td>
             <div
@@ -2100,7 +2123,9 @@ exports[`loaded state 1`] = `
           <td>
             This is a TCP app
           </td>
-          <td />
+          <td>
+            tcp://some-address
+          </td>
           <td>
             <div
               class="c25"
@@ -2119,7 +2144,19 @@ exports[`loaded state 1`] = `
               </div>
             </div>
           </td>
-          <td />
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              disabled=""
+              kind="border"
+              title="Cloud or TCP applications cannot be launched by the browser"
+              width="88px"
+            >
+              LAUNCH
+            </button>
+          </td>
         </tr>
         <tr>
           <td
@@ -2144,8 +2181,7 @@ exports[`loaded state 1`] = `
             This is an AWS Console app
           </td>
           <td>
-            https://
-            awsconsole-1.teleport-proxy.com
+            https://awsconsole-1.teleport-proxy.com
           </td>
           <td>
             <div
@@ -2211,7 +2247,9 @@ exports[`loaded state 1`] = `
           <td>
             This is a Cloud specific app
           </td>
-          <td />
+          <td>
+            cloud://some-address
+          </td>
           <td>
             <div
               class="c25"
@@ -2230,7 +2268,19 @@ exports[`loaded state 1`] = `
               </div>
             </div>
           </td>
-          <td />
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              disabled=""
+              kind="border"
+              title="Cloud or TCP applications cannot be launched by the browser"
+              width="88px"
+            >
+              LAUNCH
+            </button>
+          </td>
         </tr>
       </tbody>
     </table>
