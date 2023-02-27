@@ -238,12 +238,11 @@ message CreateDeviceEnrollTokenRequest {
 // <- MacOSEnrollChallenge (server)
 // -> MacOSEnrollChallengeResponse
 // <- EnrollDeviceSuccess
-//
-// Only macOS enrollments are supported at the moment.
 message EnrollDeviceRequest {
   oneof payload {
     EnrollDeviceInit init = 1;
     MacOSEnrollChallengeResponse macos_challenge_response = 2;
+    TPMEnrollChallengeResponse tpm_challenge_response = 3;
   }
 }
 
@@ -252,6 +251,7 @@ message EnrollDeviceResponse {
   oneof payload {
     EnrollDeviceSuccess success = 1;
     MacOSEnrollChallenge macos_challenge = 2;
+    TPMEnrollChallenge tpm_challenge = 3;
   }
 }
 
@@ -271,6 +271,9 @@ message EnrollDeviceInit {
 
   // Payload for macOS-specific data.
   MacOSEnrollPayload macos = 4;
+
+  // Payload for TPM-specific data.
+  TPMEnrollPayload tpm = 5;
 }
 
 // EnrollDeviceSuccess marks a successful device enrollment ceremony.
@@ -295,6 +298,74 @@ message MacOSEnrollChallenge {
 message MacOSEnrollChallengeResponse {
   // Signature over the challenge, using the device key.
   bytes signature = 2;
+}
+
+// TPMEnrollPayload is the TPM-specific enrollment payload.
+message TPMEnrollPayload {
+  // ek_public is the device's Endorsement Key in PKIX, ASN.1 DER form.
+  bytes ek_public = 1;
+
+  // attestation_data is used to verify the attestation key.
+  TPMAttestationData attestation_data = 5;
+
+  // app_certification_params are used to certify the application key.
+  TPMCertificationParameters app_certification_params = 6;
+}
+
+// TPMAttetationData contains metadata data about an attestation key.
+//
+// See https://pkg.go.dev/github.com/google/go-attestation/attest#AttestationParameters.
+// This message excludes the `UseTCSDActivationFormat` option as it is TMP 1.x specific and always false.
+message TPMAttestationData {
+  // public is an encoded TPMT_PUBLIC structure containing the attestation key and signing parameters.
+  bytes public = 1;
+
+  // create_data represents the properties of a TPM key, encoded as a
+  // TPMS_CREATION_DATA structure.
+  bytes create_data = 2;
+
+  // create_attestation represents an assertion as to the details of the key,
+  // encoded as a TPMS_ATTEST structure.
+  bytes create_attestation = 3;
+
+  // create_signature is a signature of create_attestation, encoded as a
+  // TPMT_SIGNATURE structure.
+  bytes create_signature = 4;
+}
+
+// TPMCertificationParameters contains metadata about an application key for certification.
+//
+// See https://pkg.go.dev/github.com/google/go-attestation/attest#CertificationParameters
+message TPMCertificationParameters {
+  // public is an encoded TPMT_PUBLIC structure containing the application public key and signing parameters.
+  bytes public = 1;
+
+  // create_data represents the properties of a TPM key, encoded as a
+  // TPMS_CREATION_DATA structure.
+  bytes create_data = 2;
+
+  // create_attestation represents an assertion as to the details of the key,
+  // encoded as a TPMS_ATTEST structure.
+  bytes create_attestation = 3;
+
+  // create_signature is a signature of create_attestation, encoded as a
+  // TPMT_SIGNATURE structure.
+  bytes create_signature = 4;
+}
+
+// TPMEnrollChallenge is a TPM enrollment challenge.
+message TPMEnrollChallenge {
+  // credential is the credential to be used for the challenge.
+  bytes credential = 1;
+
+  // secret is an encrypted secret which requires both the EK and AK private parts to decrypt.
+  bytes secret = 2;
+}
+
+// TPMEnrollChallengeResponse is a TPM enrollment challenge response.
+message TPMEnrollChallengeResponse {
+  // secret is the decrypted challenge secret.
+  bytes secret = 2;
 }
 
 // Request for AuthenticateDevice.
