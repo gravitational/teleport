@@ -110,6 +110,7 @@ const desktops: Desktop[] = [
     name: 'bb8411a4-ba50-537c-89b3-226a00447bc6',
     addr: 'host.com',
     labels: [{ name: 'foo', value: 'bar' }],
+    logins: ['Administrator'],
   },
 ];
 
