@@ -31,7 +31,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/mod/semver"
 )
 
 type YumRepoTool struct {
@@ -264,11 +263,6 @@ func (yrt *YumRepoTool) addArtifacts(bucketArtifactPaths []string, relativeGpgPu
 		return trace.Wrap(err, "failed to get artifacts by architecture")
 	}
 
-	majorVersion := semver.Major(yrt.config.artifactVersion)
-	if yrt.config.targetCloud {
-		majorVersion = "cloud"
-	}
-
 	repoCount := 0
 	for os, osVersions := range yrt.supportedOSs {
 		osPath := path.Join(yrt.config.localBucketPath, os)
@@ -279,7 +273,7 @@ func (yrt *YumRepoTool) addArtifacts(bucketArtifactPaths []string, relativeGpgPu
 					"Teleport",
 					arch,
 					yrt.config.releaseChannel,
-					majorVersion,
+					yrt.config.versionChannel,
 				)
 				repoPath := path.Join(osPath, relativeRepoPath)
 
@@ -426,7 +420,7 @@ func (yrt *YumRepoTool) createRepoFile(filePath, osName, osVersion, arch, relati
 					"Teleport",
 					arch,
 					yrt.config.releaseChannel,
-					semver.Major(yrt.config.artifactVersion),
+					yrt.config.versionChannel,
 				},
 				"/",
 			),
