@@ -49,7 +49,6 @@ test('undefined values in context response gives proper default values', async (
     username: 'foo',
     authType: 'local',
     acl: {
-      windowsLogins: [],
       authConnectors: {
         list: true,
         read: true,
