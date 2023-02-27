@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FetchStatus, SortType } from 'design/DataTable/types';
+import { FetchStatus, SortType, Page } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
@@ -569,17 +569,6 @@ function getDefaultAddedAll(): AddedAll {
     windows_desktop: false,
   };
 }
-
-// Page keeps track of our current agent list
-//  start keys and current position.
-type Page = {
-  // keys are the list of start keys collected from
-  // each page fetch.
-  keys: string[];
-  // index refers to the current index the page
-  // is at in the list of keys.
-  index: number;
-};
 
 type AddedAll = {
   [K in AgentIdKind]: boolean;

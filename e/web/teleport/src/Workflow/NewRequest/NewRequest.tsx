@@ -209,7 +209,7 @@ export function NewRequest(props: State) {
             <SearchPanel
               updateQuery={updateQuery}
               updateSearch={updateSearch}
-              pageCount={pageCount}
+              pageIndicators={pageCount}
               filter={agentFilter}
               showSearchBar={currResourceOpt.value !== 'role'}
               disableSearch={fetchStatus === 'loading'}

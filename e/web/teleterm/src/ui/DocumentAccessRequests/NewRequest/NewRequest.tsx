@@ -105,7 +105,7 @@ export function NewRequest() {
         <SearchPanel
           updateQuery={updateQuery}
           updateSearch={updateSearch}
-          pageCount={pageCount}
+          pageIndicators={pageCount}
           filter={agentFilter}
           showSearchBar={true}
           disableSearch={fetchStatus === 'loading'}
