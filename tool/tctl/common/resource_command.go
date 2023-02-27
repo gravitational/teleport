@@ -24,7 +24,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -739,13 +738,6 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Overwrite the entity ID field by extracting it from the entity descriptor.
-	ed, err := samlsp.ParseMetadata([]byte(sp.GetEntityDescriptor()))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	sp.SetEntityID(ed.EntityID)
 
 	serviceProviderName := sp.GetName()
 	if err := sp.CheckAndSetDefaults(); err != nil {

@@ -602,9 +602,8 @@ spec:
     </md:EntityDescriptor>
   entity_id: never-seen-entity-id
 `,
-			name:           "test1",
-			expectError:    require.NoError,
-			expectEntityID: requireEqual("IAMShowcase"),
+			name:        "test1",
+			expectError: require.Error,
 		},
 		{
 			desc: "handle invalid entity descriptor",
