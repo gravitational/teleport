@@ -1,6 +1,6 @@
 # Changelog
 
-## 12.0.3
+## 12.0.4
 
 This release of Teleport contains multiple security fixes, improvements and bug fixes.
 
@@ -11,6 +11,7 @@ This release of Teleport contains multiple security fixes, improvements and bug 
 
 ### Other improvements and bug fixes
 
+* Fixed issue with orphaned child processes after session ends. [#22222](https://github.com/gravitational/teleport/pull/22222)
 * Fixed issue with not being able to see any pods with an active access request. [#22196](https://github.com/gravitational/teleport/pull/22196)
 * Fixed issue with remote cluster state not always being correctly updated. [#22088](https://github.com/gravitational/teleport/pull/22088)
 * Fixed heartbeat errors from database service. [#22087](https://github.com/gravitational/teleport/pull/22087)
@@ -27,6 +28,7 @@ This release of Teleport contains multiple security fixes, improvements and bug 
 * Added support for assuming roles in `tsh proxy aws`. [#21990](https://github.com/gravitational/teleport/pull/21990)
 * Added early feedback for successful security key taps in `tsh`. [#21780](https://github.com/gravitational/teleport/pull/21780)
 * Added device lock support. [#21751](https://github.com/gravitational/teleport/pull/21751)
+* Added suppport for security contexts in `teleport-kube-agent` Helm chart. [#21535](https://github.com/gravitational/teleport/pull/21535)
 * Updated `tsh version` command to display client version only via `--client` flag. [#22167](https://github.com/gravitational/teleport/pull/22167)
 * Updated install script to use enterprise packages for enterprise clusters. [#22109](https://github.com/gravitational/teleport/pull/22109)
 * Updated install script to use deb/rpm repositories. [#22108](https://github.com/gravitational/teleport/pull/22108)
