@@ -3068,8 +3068,8 @@ func TestClusterAppsGet(t *testing.T) {
 	// Test correct response.
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 2)
-	require.Equal(t, 2, resp.TotalCount)
+	require.Len(t, resp.Items, 3)
+	require.Equal(t, 3, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.App{{
 		Name:        resource.Spec.App.GetName(),
 		Description: resource.Spec.App.GetDescription(),
@@ -3082,6 +3082,14 @@ func TestClusterAppsGet(t *testing.T) {
 	}, {
 		Name:       "app2",
 		URI:        "uri",
+		Labels:     []ui.Label{},
+		ClusterID:  env.server.ClusterName(),
+		FQDN:       "publicaddrs",
+		PublicAddr: "publicaddrs",
+		AWSConsole: false,
+	}, {
+		Name:       "app3",
+		URI:        "tcp://something",
 		Labels:     []ui.Label{},
 		ClusterID:  env.server.ClusterName(),
 		FQDN:       "publicaddrs",

@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { render } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
 
 import {
   Loaded,
@@ -30,22 +30,22 @@ jest.mock('teleport/useStickyClusterId', () =>
 );
 
 test('loaded state', async () => {
-  const { container, findAllByText } = render(<Loaded />);
-  await findAllByText(/Applications/i);
+  const { container } = render(<Loaded />);
+  await screen.findAllByText(/Applications/i);
 
   expect(container).toMatchSnapshot();
 });
 
 test('pagination unsupported state', async () => {
-  const { container, findAllByText } = render(<PaginationUnsupported />);
-  await findAllByText(/Applications/i);
+  const { container } = render(<PaginationUnsupported />);
+  await screen.findAllByText(/Applications/i);
 
   expect(container).toMatchSnapshot();
 });
 
 test('failed state', async () => {
-  const { container, findAllByText } = render(<Failed />);
-  await findAllByText(/some error message/i);
+  const { container } = render(<Failed />);
+  await screen.findAllByText(/some error message/i);
 
   expect(container).toMatchSnapshot();
 });

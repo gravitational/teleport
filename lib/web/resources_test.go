@@ -777,6 +777,15 @@ func TestHandleClusterAppsGetFallback(t *testing.T) {
 			ClusterID:  "cluster-name",
 			FQDN:       "app2.dns-name",
 			AWSConsole: false,
+		},
+		// not excluding any apps now.
+		{
+			Name:       "app3",
+			URI:        "tcp://something",
+			Labels:     []ui.Label{},
+			ClusterID:  "cluster-name",
+			FQDN:       "app3.dns-name",
+			AWSConsole: false,
 		}})
 }
 
