@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -320,7 +321,7 @@ func (c *fetchConfig) exec(name string, args ...string) (string, error) {
 		return "", err
 	}
 
-	return string(out), nil
+	return strings.TrimSpace(string(out)), nil
 }
 
 // read reads a file and validates its content using the parse function.
@@ -331,7 +332,7 @@ func (c *fetchConfig) read(name string) (string, error) {
 		return "", err
 	}
 
-	return string(out), nil
+	return strings.TrimSpace(string(out)), nil
 }
 
 // httpReqSuccess performs an http request, returning true if the status code
