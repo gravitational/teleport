@@ -1657,6 +1657,16 @@ message AuthPreferenceSpecV2 {
   // IDP is a set of options related to accessing IdPs within Teleport.
   // Requires Teleport Enterprise.
   IdPOptions IDP = 14 [(gogoproto.jsontag) = "idp,omitempty"];
+
+  // AllowHeadless enables/disables headless support.
+  // Headless authentication requires Webauthn to work.
+  // Defaults to true if the Webauthn is configured, defaults to false
+  // otherwise.
+  BoolValue AllowHeadless = 15 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "allow_headless,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
 }
 
 // U2F defines settings for U2F device.

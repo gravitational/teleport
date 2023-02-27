@@ -3129,32 +3129,46 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 
 // getSSHLoginFunc returns an SSHLoginFunc that matches client and cluster settings.
 func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginFunc, error) {
-	switch authType := pr.Auth.Type; {
-	case authType == constants.Local && pr.Auth.Local != nil && pr.Auth.Local.Name == constants.PasswordlessConnector:
-		// Sanity check settings.
-		if !pr.Auth.AllowPasswordless {
-			return nil, trace.BadParameter("passwordless disallowed by cluster settings")
+	switch pr.Auth.Type {
+	case constants.Local:
+		switch pr.Auth.Local.Name {
+		case constants.PasswordlessConnector:
+			// Sanity check settings.
+			if !pr.Auth.AllowPasswordless {
+				return nil, trace.BadParameter("passwordless disallowed by cluster settings")
+			}
+			return tc.pwdlessLogin, nil
+		case constants.HeadlessConnector:
+			// Sanity check settings.
+			if !pr.Auth.AllowHeadless {
+				return nil, trace.BadParameter("headless disallowed by cluster settings")
+			}
+			// TODO (Joerger): Add headless login flow.
+			fallthrough
+		case constants.LocalConnector, "":
+			// if passwordless is enabled and there are passwordless credentials
+			// registered, we can try to go with passwordless login even though
+			// auth=local was selected.
+			if tc.canDefaultToPasswordless(pr) {
+				log.Debug("Trying passwordless login because credentials were found")
+				return tc.pwdlessLogin, nil
+			}
+
+			return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+				return tc.localLogin(ctx, priv, pr.Auth.SecondFactor)
+			}, nil
+		default:
+			return nil, trace.BadParameter("unsupported authentication connector type: %q", pr.Auth.Local.Name)
 		}
-		return tc.pwdlessLogin, nil
-	case authType == constants.Local && tc.canDefaultToPasswordless(pr):
-		log.Debug("Trying passwordless login because credentials were found")
-		// if passwordless is enabled and there are passwordless credentials
-		// registered, we can try to go with passwordless login even though
-		// auth=local was selected.
-		return tc.pwdlessLogin, nil
-	case authType == constants.Local:
-		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-			return tc.localLogin(ctx, priv, pr.Auth.SecondFactor)
-		}, nil
-	case authType == constants.OIDC:
+	case constants.OIDC:
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 			return tc.ssoLogin(ctx, priv, pr.Auth.OIDC.Name, constants.OIDC)
 		}, nil
-	case authType == constants.SAML:
+	case constants.SAML:
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 			return tc.ssoLogin(ctx, priv, pr.Auth.SAML.Name, constants.SAML)
 		}, nil
-	case authType == constants.Github:
+	case constants.Github:
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 			return tc.ssoLogin(ctx, priv, pr.Auth.Github.Name, constants.Github)
 		}, nil

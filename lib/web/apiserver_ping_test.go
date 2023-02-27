@@ -90,6 +90,22 @@ func TestPing(t *testing.T) {
 			},
 		},
 		{
+			name: "OK headless connector",
+			spec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				Webauthn: &types.Webauthn{
+					RPID: "example.com",
+				},
+				ConnectorName: constants.HeadlessConnector,
+			},
+			assertResp: func(_ types.AuthPreference, resp *webclient.PingResponse) {
+				assert.True(t, resp.Auth.AllowHeadless, "Auth.AllowHeadless")
+				require.NotNil(t, resp.Auth.Local, "Auth.Local")
+				assert.Equal(t, constants.HeadlessConnector, resp.Auth.Local.Name, "Auth.Local.Name")
+			},
+		},
+		{
 			name:      "OK device trust mode=off",
 			buildType: modules.BuildOSS,
 			spec: &types.AuthPreferenceSpecV2{
