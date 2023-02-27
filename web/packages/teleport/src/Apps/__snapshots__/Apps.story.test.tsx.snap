@@ -496,13 +496,6 @@ exports[`failed state 1`] = `
   justify-content: flex-end;
 }
 
-.c34 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
-}
-
 .c1 {
   box-sizing: border-box;
   margin-bottom: 24px;
@@ -885,9 +878,9 @@ exports[`failed state 1`] = `
           <div
             class="c20"
             color="primary.contrastText"
-            style="white-space: nowrap;"
+            style="text-transform: uppercase;"
           >
-            SHOWING 
+            Showing 
             <strong>
               1
             </strong>
@@ -1238,14 +1231,10 @@ exports[`failed state 1`] = `
         width="100%"
       >
         <div
-          class="c34"
-        />
-        <div
           class="c19"
         >
           <button
             class="c35"
-            disabled=""
             title="Previous page"
           >
             <span
@@ -1256,7 +1245,6 @@ exports[`failed state 1`] = `
           </button>
           <button
             class="c35"
-            disabled=""
             title="Next page"
           >
             <span
@@ -1498,13 +1486,6 @@ exports[`loaded state 1`] = `
   width: 100%;
   display: flex;
   justify-content: flex-end;
-}
-
-.c34 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
 }
 
 .c1 {
@@ -1895,9 +1876,9 @@ exports[`loaded state 1`] = `
           <div
             class="c20"
             color="primary.contrastText"
-            style="white-space: nowrap;"
+            style="text-transform: uppercase;"
           >
-            SHOWING 
+            Showing 
             <strong>
               1
             </strong>
@@ -2248,14 +2229,10 @@ exports[`loaded state 1`] = `
         width="100%"
       >
         <div
-          class="c34"
-        />
-        <div
           class="c19"
         >
           <button
             class="c35"
-            disabled=""
             title="Previous page"
           >
             <span
@@ -2266,7 +2243,6 @@ exports[`loaded state 1`] = `
           </button>
           <button
             class="c35"
-            disabled=""
             title="Next page"
           >
             <span

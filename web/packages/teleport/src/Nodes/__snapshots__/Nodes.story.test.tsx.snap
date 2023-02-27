@@ -437,13 +437,6 @@ exports[`failed 1`] = `
   justify-content: flex-end;
 }
 
-.c27 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
-}
-
 .c1 {
   box-sizing: border-box;
   margin-bottom: 24px;
@@ -821,9 +814,9 @@ exports[`failed 1`] = `
         <div
           class="c20"
           color="primary.contrastText"
-          style="white-space: nowrap;"
+          style="text-transform: uppercase;"
         >
-          SHOWING 
+          Showing 
           <strong>
             1
           </strong>
@@ -1157,14 +1150,10 @@ exports[`failed 1`] = `
       width="100%"
     >
       <div
-        class="c27"
-      />
-      <div
         class="c19"
       >
         <button
           class="c28"
-          disabled=""
           title="Previous page"
         >
           <span
@@ -1175,7 +1164,6 @@ exports[`failed 1`] = `
         </button>
         <button
           class="c28"
-          disabled=""
           title="Next page"
         >
           <span
@@ -1357,13 +1345,6 @@ exports[`loaded 1`] = `
   width: 100%;
   display: flex;
   justify-content: flex-end;
-}
-
-.c30 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
 }
 
 .c1 {
@@ -1826,9 +1807,9 @@ exports[`loaded 1`] = `
         <div
           class="c23"
           color="primary.contrastText"
-          style="white-space: nowrap;"
+          style="text-transform: uppercase;"
         >
-          SHOWING 
+          Showing 
           <strong>
             1
           </strong>
@@ -2162,14 +2143,10 @@ exports[`loaded 1`] = `
       width="100%"
     >
       <div
-        class="c30"
-      />
-      <div
         class="c22"
       >
         <button
           class="c31"
-          disabled=""
           title="Previous page"
         >
           <span
@@ -2180,7 +2157,6 @@ exports[`loaded 1`] = `
         </button>
         <button
           class="c31"
-          disabled=""
           title="Next page"
         >
           <span

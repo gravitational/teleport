@@ -163,13 +163,6 @@ exports[`render DocumentNodes 1`] = `
   justify-content: flex-end;
 }
 
-.c34 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
-}
-
 .c28 {
   background: #03203C;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
@@ -931,9 +924,9 @@ exports[`render DocumentNodes 1`] = `
             <div
               class="c27"
               color="primary.contrastText"
-              style="white-space: nowrap;"
+              style="text-transform: uppercase;"
             >
-              SHOWING 
+              Showing 
               <strong>
                 1
               </strong>
@@ -1215,9 +1208,6 @@ exports[`render DocumentNodes 1`] = `
           width="100%"
         >
           <div
-            class="c34"
-          />
-          <div
             class="c26"
           >
             <button
@@ -1233,6 +1223,7 @@ exports[`render DocumentNodes 1`] = `
             </button>
             <button
               class="c35"
+              disabled=""
               title="Next page"
             >
               <span

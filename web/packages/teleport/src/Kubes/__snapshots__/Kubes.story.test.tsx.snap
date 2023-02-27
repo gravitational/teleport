@@ -427,13 +427,6 @@ exports[`failed 1`] = `
   justify-content: flex-end;
 }
 
-.c26 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
-}
-
 .c21 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
@@ -811,9 +804,9 @@ exports[`failed 1`] = `
         <div
           class="c20"
           color="primary.contrastText"
-          style="white-space: nowrap;"
+          style="text-transform: uppercase;"
         >
-          SHOWING 
+          Showing 
           <strong>
             1
           </strong>
@@ -947,14 +940,10 @@ exports[`failed 1`] = `
       width="100%"
     >
       <div
-        class="c26"
-      />
-      <div
         class="c19"
       >
         <button
           class="c27"
-          disabled=""
           title="Previous page"
         >
           <span
@@ -965,7 +954,6 @@ exports[`failed 1`] = `
         </button>
         <button
           class="c27"
-          disabled=""
           title="Next page"
         >
           <span
@@ -1138,13 +1126,6 @@ exports[`loaded 1`] = `
   width: 100%;
   display: flex;
   justify-content: flex-end;
-}
-
-.c26 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
 }
 
 .c21 {
@@ -1530,9 +1511,9 @@ exports[`loaded 1`] = `
         <div
           class="c20"
           color="primary.contrastText"
-          style="white-space: nowrap;"
+          style="text-transform: uppercase;"
         >
-          SHOWING 
+          Showing 
           <strong>
             1
           </strong>
@@ -1666,14 +1647,10 @@ exports[`loaded 1`] = `
       width="100%"
     >
       <div
-        class="c26"
-      />
-      <div
         class="c19"
       >
         <button
           class="c27"
-          disabled=""
           title="Previous page"
         >
           <span
@@ -1684,7 +1661,6 @@ exports[`loaded 1`] = `
         </button>
         <button
           class="c27"
-          disabled=""
           title="Next page"
         >
           <span
