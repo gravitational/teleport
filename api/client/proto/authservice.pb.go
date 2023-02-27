@@ -12720,8 +12720,8 @@ type UpstreamInventoryAgentMetadata struct {
 	// HostArchitectureInfo advertises information that can be used to infer the instance host
 	// architecture.
 	HostArchitectureInfo string `protobuf:"bytes,6,opt,name=HostArchitectureInfo,proto3" json:"HostArchitectureInfo,omitempty"`
-	// GlibcVersionInfo advertises the information that can be used to infer the instance glibc
-	// version of linux instances.
+	// GlibcVersionInfo advertises the information that can be used to infer the glibc version
+	// of linux instances.
 	GlibcVersionInfo string `protobuf:"bytes,7,opt,name=GlibcVersionInfo,proto3" json:"GlibcVersionInfo,omitempty"`
 	// InstallMethods advertises the install methods used for the instance (e.g. "dockerfile").
 	InstallMethods []string `protobuf:"bytes,8,rep,name=InstallMethods,proto3" json:"InstallMethods,omitempty"`
