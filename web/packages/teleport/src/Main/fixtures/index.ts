@@ -14,40 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { fullAcl } from 'teleport/mocks/contexts';
 import makeUserContext from 'teleport/services/user/makeUserContext';
-import { Access, Acl } from 'teleport/services/user/types';
-
-const fullAccess: Access = {
-  list: true,
-  read: true,
-  edit: true,
-  create: true,
-  remove: true,
-};
-
-export const fullAcl: Acl = {
-  windowsLogins: ['Administrator'],
-  tokens: fullAccess,
-  appServers: fullAccess,
-  kubeServers: fullAccess,
-  recordedSessions: fullAccess,
-  activeSessions: fullAccess,
-  authConnectors: fullAccess,
-  roles: fullAccess,
-  users: fullAccess,
-  trustedClusters: fullAccess,
-  events: fullAccess,
-  accessRequests: fullAccess,
-  billing: fullAccess,
-  dbServers: fullAccess,
-  db: fullAccess,
-  desktops: fullAccess,
-  nodes: fullAccess,
-  connectionDiagnostic: fullAccess,
-  clipboardSharingEnabled: true,
-  desktopSessionRecordingEnabled: true,
-  directorySharingEnabled: true,
-};
 
 export const userContext = makeUserContext({
   authType: 'sso',

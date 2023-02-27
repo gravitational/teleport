@@ -4129,3 +4129,113 @@ func TestGetActiveSessionTrackers(t *testing.T) {
 		})
 	}
 }
+
+func TestListReleasesPermissions(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	tt := []struct {
+		Name         string
+		Role         types.RoleSpecV5
+		ErrAssertion require.BoolAssertionFunc
+	}{
+		{
+			Name: "no permission error if user has allow rule to list downloads",
+			Role: types.RoleSpecV5{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindDownload},
+					Verbs:     []string{types.VerbList},
+				}}},
+			},
+			ErrAssertion: require.False,
+		},
+		{
+			Name: "permission error if user deny allow rule to list downloads",
+			Role: types.RoleSpecV5{
+				Deny: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindDownload},
+					Verbs:     []string{types.VerbList},
+				}}},
+			},
+			ErrAssertion: require.True,
+		},
+		{
+			Name: "permission error if user has no rules regarding downloads",
+			Role: types.RoleSpecV5{
+				Allow: types.RoleConditions{Rules: []types.Rule{}},
+			},
+			ErrAssertion: require.True,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.Name, func(t *testing.T) {
+			role, err := CreateRole(ctx, srv.Auth(), "test-role", tc.Role)
+			require.Nil(t, err)
+
+			user, err := CreateUser(srv.Auth(), "test-user", role)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			_, err = client.ListReleases(ctx)
+			tc.ErrAssertion(t, trace.IsAccessDenied(err))
+		})
+	}
+}
+
+func TestGetLicensePermissions(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	tt := []struct {
+		Name         string
+		Role         types.RoleSpecV5
+		ErrAssertion require.BoolAssertionFunc
+	}{
+		{
+			Name: "no permission error if user has allow rule to read license",
+			Role: types.RoleSpecV5{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindLicense},
+					Verbs:     []string{types.VerbRead},
+				}}},
+			},
+			ErrAssertion: require.False,
+		},
+		{
+			Name: "permission error if user deny allow rule to read license",
+			Role: types.RoleSpecV5{
+				Deny: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindLicense},
+					Verbs:     []string{types.VerbRead},
+				}}},
+			},
+			ErrAssertion: require.True,
+		},
+		{
+			Name: "permission error if user has no rules regarding license",
+			Role: types.RoleSpecV5{
+				Allow: types.RoleConditions{Rules: []types.Rule{}},
+			},
+			ErrAssertion: require.True,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.Name, func(t *testing.T) {
+			role, err := CreateRole(ctx, srv.Auth(), "test-role", tc.Role)
+			require.Nil(t, err)
+
+			user, err := CreateUser(srv.Auth(), "test-user", role)
+			require.NoError(t, err)
+
+			client, err := srv.NewClient(TestUser(user.GetName()))
+			require.NoError(t, err)
+
+			_, err = client.GetLicense(ctx)
+			tc.ErrAssertion(t, trace.IsAccessDenied(err))
+		})
+	}
+}
