@@ -1,11 +1,11 @@
 /**
- * Copyright 2020-2022 Gravitational, Inc.
+ * Copyright 2023 Gravitational, Inc
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,7 +29,7 @@ import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
 import AppList from './AppList';
-import useApps, { State } from './useApps';
+import { useApps, State } from './useApps';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -43,24 +43,25 @@ export function Apps(props: State) {
     isLeafCluster,
     canCreate,
     attempt,
-    results,
+    fetchedData,
     fetchNext,
     fetchPrev,
-    from,
-    to,
     pageSize,
     params,
     setParams,
-    startKeys,
     setSort,
     pathname,
     replaceHistory,
     fetchStatus,
     isSearchEmpty,
+    pageIndicators,
     onLabelClick,
   } = props;
 
-  const hasNoApps = results.apps.length === 0 && isSearchEmpty;
+  const hasNoApps =
+    attempt.status === 'success' &&
+    fetchedData.agents.length === 0 &&
+    isSearchEmpty;
 
   return (
     <FeatureBox>
@@ -85,17 +86,14 @@ export function Apps(props: State) {
       )}
       {attempt.status !== 'processing' && !hasNoApps && (
         <AppList
-          apps={results.apps}
+          apps={fetchedData.agents}
           fetchNext={fetchNext}
           fetchPrev={fetchPrev}
           fetchStatus={fetchStatus}
-          from={from}
-          to={to}
-          totalCount={results.totalCount}
+          pageIndicators={pageIndicators}
           pageSize={pageSize}
           params={params}
           setParams={setParams}
-          startKeys={startKeys}
           setSort={setSort}
           pathname={pathname}
           replaceHistory={replaceHistory}

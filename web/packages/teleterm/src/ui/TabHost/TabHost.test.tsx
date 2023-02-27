@@ -36,6 +36,15 @@ import AppContext from 'teleterm/ui/appContext';
 
 import { getEmptyPendingAccessRequest } from '../services/workspacesService/accessRequestsService';
 
+// TODO(ravicious): Remove the mock once a separate entry point for e-teleterm is created.
+//
+// Mocking out DocumentsRenderer because it imports an e-teleterm component which breaks CI tests
+// for the OSS version. The tests here don't test the behavior of DocumentsRenderer so the only
+// thing we lose by adding the mock is "smoke tests" of different document kinds.
+jest.mock('teleterm/ui/Documents/DocumentsRenderer', () => ({
+  DocumentsRenderer: ({ children }) => <>{children}</>,
+}));
+
 function getMockDocuments(): Document[] {
   return [
     {

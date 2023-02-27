@@ -30,7 +30,7 @@ import serviceSession, {
   ParticipantList,
   ParticipantMode,
 } from 'teleport/services/session';
-import serviceNodes from 'teleport/services/nodes';
+import ServiceNodes from 'teleport/services/nodes';
 import serviceClusters from 'teleport/services/clusters';
 
 import { StoreParties, StoreDocs, DocumentSsh, Document } from './stores';
@@ -46,7 +46,7 @@ const tracer = trace.getTracer('console-context');
 export default class ConsoleContext {
   storeDocs = new StoreDocs();
   storeParties = new StoreParties();
-  nodesService = new serviceNodes();
+  nodesService = new ServiceNodes();
 
   constructor() {
     // always initialize the console with 1 document
@@ -158,11 +158,7 @@ export default class ConsoleContext {
   }
 
   fetchNodes(clusterId: string, params?: UrlResourcesParams) {
-    return this.nodesService.fetchNodes(clusterId, params).then(nodesRes => {
-      return {
-        nodesRes,
-      };
-    });
+    return this.nodesService.fetchNodes(clusterId, params);
   }
 
   fetchClusters() {
