@@ -416,7 +416,7 @@ exports[`success state 1`] = `
           <div
             class="c10"
             color="primary.contrastText"
-            style="white-space: no-wrap;"
+            style="white-space: nowrap;"
           >
             SHOWING 
             <strong>

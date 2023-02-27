@@ -814,7 +814,7 @@ exports[`failed 1`] = `
         <div
           class="c20"
           color="primary.contrastText"
-          style="white-space: no-wrap;"
+          style="white-space: nowrap;"
         >
           SHOWING 
           <strong>
@@ -1548,7 +1548,7 @@ exports[`loaded 1`] = `
         <div
           class="c20"
           color="primary.contrastText"
-          style="white-space: no-wrap;"
+          style="white-space: nowrap;"
         >
           SHOWING 
           <strong>
