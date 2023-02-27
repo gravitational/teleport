@@ -934,6 +934,7 @@ exports[`render DocumentNodes 1`] = `
             <div
               class="c27"
               color="primary.contrastText"
+              style="white-space: no-wrap;"
             >
               SHOWING 
               <strong>
