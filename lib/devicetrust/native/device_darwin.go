@@ -123,6 +123,10 @@ func signChallenge(chal []byte) (sig []byte, err error) {
 	return sig, err
 }
 
+func tpmEnrollChallenge(encrypted []byte, credential []byte) ([]byte, error) {
+	return nil, errPlatformNotSupported
+}
+
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 	var pubKeyC C.PublicKey
 	defer func() {

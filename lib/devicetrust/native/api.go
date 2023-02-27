@@ -14,7 +14,15 @@
 
 package native
 
-import devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+import (
+	"errors"
+
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+)
+
+// trace.NotImplemented avoided on purpose: we use NotImplemented errors to
+// detect the lack of a server-side Device Trust implementation.
+var errPlatformNotSupported = errors.New("platform not supported")
 
 // EnrollDeviceInit creates the initial enrollment data for the device.
 // This includes fetching or creating a device credential, collecting device
@@ -33,6 +41,11 @@ func CollectDeviceData() (*devicepb.DeviceCollectedData, error) {
 // authentication ceremonies.
 func SignChallenge(chal []byte) (sig []byte, err error) {
 	return signChallenge(chal)
+}
+
+// TPMEnrollChallenge completes a TPM enrollment challenge.
+func TPMEnrollChallenge(encrypted []byte, credential []byte) ([]byte, error) {
+	return tpmEnrollChallenge(encrypted, credential)
 }
 
 // GetDeviceCredential returns the current device credential, if it exists.

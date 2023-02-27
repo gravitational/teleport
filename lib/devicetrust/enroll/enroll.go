@@ -27,9 +27,10 @@ import (
 
 // vars below are used to fake OSes and switch implementations for tests.
 var (
-	getOSType     = getDeviceOSType
-	enrollInit    = native.EnrollDeviceInit
-	signChallenge = native.SignChallenge
+	getOSType          = getDeviceOSType
+	enrollInit         = native.EnrollDeviceInit
+	signChallenge      = native.SignChallenge
+	tpmEnrollChallenge = native.TPMEnrollChallenge
 )
 
 // RunCeremony performs the client-side device enrollment ceremony.
@@ -44,7 +45,7 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 func runCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, enrollToken string) (*devicepb.Device, error) {
 	// Start by checking the OSType, this lets us exit early with a nicer message
 	// for non-supported OSes.
-	if getOSType() != devicepb.OSType_OS_TYPE_MACOS {
+	if getOSType() == devicepb.OSType_OS_TYPE_UNSPECIFIED {
 		return nil, trace.BadParameter("device enrollment not supported for current OS (%v)", runtime.GOOS)
 	}
 
@@ -72,8 +73,19 @@ func runCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	}
 
 	// 2. Challenge.
-	// Only macOS is supported, see the guard at the beginning of the method.
 	if err := enrollDeviceMacOS(stream, resp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch getOSType() {
+	case devicepb.OSType_OS_TYPE_MACOS:
+		err = enrollDeviceMacOS(stream, resp)
+	case devicepb.OSType_OS_TYPE_WINDOWS:
+		err = enrollDeviceWindows(stream, resp)
+	case devicepb.OSType_OS_TYPE_LINUX:
+		// TODO(joel): implement & test
+		panic("not implemented")
+	}
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	resp, err = stream.Recv()
@@ -87,6 +99,22 @@ func runCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 		return nil, trace.BadParameter("unexpected success payload from server: %T", resp.Payload)
 	}
 	return successResp.Device, nil
+}
+
+func enrollDeviceWindows(stream devicepb.DeviceTrustService_EnrollDeviceClient, resp *devicepb.EnrollDeviceResponse) error {
+	chalResp := resp.GetTpmChallenge()
+	sig, err := tpmEnrollChallenge(chalResp.Secret, chalResp.Credential)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = stream.Send(&devicepb.EnrollDeviceRequest{
+		Payload: &devicepb.EnrollDeviceRequest_TpmChallengeResponse{
+			TpmChallengeResponse: &devicepb.TPMEnrollChallengeResponse{
+				Secret: sig,
+			},
+		},
+	})
+	return trace.Wrap(err)
 }
 
 func enrollDeviceMacOS(stream devicepb.DeviceTrustService_EnrollDeviceClient, resp *devicepb.EnrollDeviceResponse) error {
