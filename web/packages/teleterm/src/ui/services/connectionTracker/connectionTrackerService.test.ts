@@ -131,7 +131,7 @@ it('updates the port of a gateway connection when the underlying doc gets update
   expect((connection as TrackedGatewayConnection).port).toBe('54321');
 });
 
-it('creates a connection foc doc.terminal_tsh_node docs with serverUri', () => {
+it('creates a connection for doc.terminal_tsh_node docs with serverUri', () => {
   const document: DocumentTshNodeWithServerId = {
     kind: 'doc.terminal_tsh_node',
     uri: '/docs/123',
