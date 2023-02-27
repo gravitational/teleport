@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// Service names for UpstreamInventoryAgentMetadata.
+// Service names for AgentMetadataEvent.
 const (
 	nodeService           = "node"
 	kubeService           = "kube"
@@ -47,8 +47,6 @@ const (
 // fetchConfig contains the configuration used by the fetchAgentMetadata method.
 type fetchConfig struct {
 	ctx context.Context
-	// hello is the initial upstream hello message.
-	hello proto.UpstreamInventoryHello
 	// getenv is the method called to retrieve an environment
 	// variable.
 	// It is configurable so that it can be mocked in tests.
@@ -122,9 +120,6 @@ func getKubeClient() kubernetes.Interface {
 func fetchAgentMetadata(c *fetchConfig) proto.UpstreamInventoryAgentMetadata {
 	c.setDefaults()
 	return proto.UpstreamInventoryAgentMetadata{
-		Version:               c.fetchVersion(),
-		HostID:                c.fetchHostID(),
-		Services:              c.fetchServices(),
 		OS:                    c.fetchOS(),
 		OSVersionInfo:         c.fetchOSVersionInfo(),
 		HostArchitectureInfo:  c.fetchHostArchitectureInfo(),
@@ -136,26 +131,11 @@ func fetchAgentMetadata(c *fetchConfig) proto.UpstreamInventoryAgentMetadata {
 	}
 }
 
-// fetchVersion returns the Teleport version present in the hello message.
-func (c *fetchConfig) fetchVersion() string {
-	return c.hello.Version
-}
-
-// fetchHostID returns the agent ID present in the hello message.
-func (c *fetchConfig) fetchHostID() string {
-	return c.hello.ServerID
-}
-
-// fetchOS returns the value of GOOS.
-func (c *fetchConfig) fetchOS() string {
-	return runtime.GOOS
-}
-
 // fetchServices computes the list of access protocols enabled at the agent from
 // the list of system roles present in the hello message.
-func (c *fetchConfig) fetchServices() []string {
+func fetchServices(systemRoles []types.SystemRole) []string {
 	var services []string
-	for _, svc := range c.hello.Services {
+	for _, svc := range systemRoles {
 		switch svc {
 		case types.RoleNode:
 			services = append(services, nodeService)
@@ -170,6 +150,11 @@ func (c *fetchConfig) fetchServices() []string {
 		}
 	}
 	return services
+}
+
+// fetchOS returns the value of GOOS.
+func (c *fetchConfig) fetchOS() string {
+	return runtime.GOOS
 }
 
 // fetchHostArchitectureInfo returns the output of arch.

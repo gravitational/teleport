@@ -95,7 +95,7 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryH
 	}
 	go handle.run(fn, hello)
 	go func() {
-		handle.agentMetadata = fetchAgentMetadata(&fetchConfig{ctx: ctx, hello: hello})
+		handle.agentMetadata = fetchAgentMetadata(&fetchConfig{ctx: ctx})
 		// Signal that the agentMetadata has been calculated by closing the
 		// agentMetadataDone channel.
 		close(handle.agentMetadataDone)

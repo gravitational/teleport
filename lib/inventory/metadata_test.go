@@ -31,7 +31,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -116,12 +115,7 @@ func TestFetchServices(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			c := &fetchConfig{
-				hello: proto.UpstreamInventoryHello{
-					Services: tc.helloServices,
-				},
-			}
-			require.Equal(t, tc.expected, c.fetchServices())
+			require.Equal(t, tc.expected, fetchServices(tc.helloServices))
 		})
 	}
 }

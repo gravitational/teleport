@@ -237,22 +237,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				handle.CloseWithError(trace.BadParameter("unexpected upstream hello"))
 				return
 			case proto.UpstreamInventoryAgentMetadata:
-				log.Debugf("Agent metadata received: %v", m)
-				if err := c.usageReporter.AnonymizeAndSubmit(&services.AgentMetadataEvent{
-					Version:               m.Version,
-					HostId:                m.HostID,
-					Services:              m.Services,
-					Os:                    m.OS,
-					OsVersionInfo:         m.OSVersionInfo,
-					HostArchitectureInfo:  m.HostArchitectureInfo,
-					GlibcVersionInfo:      m.GlibcVersionInfo,
-					InstallMethods:        m.InstallMethods,
-					ContainerRuntime:      m.ContainerRuntime,
-					ContainerOrchestrator: m.ContainerOrchestrator,
-					CloudEnvironment:      m.CloudEnvironment,
-				}); err != nil {
-					log.Debugf("Unable to submit agent metadata: %v", err)
-				}
+				c.handleAgentMetadata(handle, m)
 			case proto.InventoryHeartbeat:
 				if err := c.handleHeartbeatMsg(handle, m); err != nil {
 					handle.CloseWithError(err)
@@ -507,6 +492,25 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 	}
 	handle.sshServer = sshServer
 	return nil
+}
+
+func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.UpstreamInventoryAgentMetadata) {
+	log.Debugf("Agent metadata received: %v", m)
+	if err := c.usageReporter.AnonymizeAndSubmit(&services.AgentMetadataEvent{
+		Version:               handle.Hello().Version,
+		HostId:                handle.Hello().ServerID,
+		Services:              fetchServices(handle.Hello().Services),
+		Os:                    m.OS,
+		OsVersionInfo:         m.OSVersionInfo,
+		HostArchitectureInfo:  m.HostArchitectureInfo,
+		GlibcVersionInfo:      m.GlibcVersionInfo,
+		InstallMethods:        m.InstallMethods,
+		ContainerRuntime:      m.ContainerRuntime,
+		ContainerOrchestrator: m.ContainerOrchestrator,
+		CloudEnvironment:      m.CloudEnvironment,
+	}); err != nil {
+		log.Debugf("Unable to submit agent metadata: %v", err)
+	}
 }
 
 func (c *Controller) keepAliveServer(handle *upstreamHandle, now time.Time) error {

@@ -2065,32 +2065,25 @@ message UpstreamInventoryHello {
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing
 // metadata about the instance.
 message UpstreamInventoryAgentMetadata {
-  // Version advertises the teleport version of the instance.
-  string Version = 1;
-  // HostID advertises the ID of the instance.
-  string HostID = 2;
-  // Services advertises the currently live services of the instance that represent
-  // access protocols ("node", "kube", "app", "db" and "windows_desktop").
-  repeated string Services = 3;
   // OS advertises the instance OS ("darwin" or "linux").
-  string OS = 4;
+  string OS = 1;
   // OSVersionInfo advertises information that can be used to infer the instance OS version.
-  string OSVersionInfo = 5;
+  string OSVersionInfo = 2;
   // HostArchitectureInfo advertises information that can be used to infer the instance host
   // architecture.
-  string HostArchitectureInfo = 6;
+  string HostArchitectureInfo = 3;
   // GlibcVersionInfo advertises the information that can be used to infer the glibc version
   // of linux instances.
-  string GlibcVersionInfo = 7;
+  string GlibcVersionInfo = 4;
   // InstallMethods advertises the install methods used for the instance (e.g. "dockerfile").
-  repeated string InstallMethods = 8;
+  repeated string InstallMethods = 5;
   // ContainerRuntime advertises the container runtime for the instance, if any (e.g. "docker").
-  string ContainerRuntime = 9;
+  string ContainerRuntime = 6;
   // ContainerOrchestrator advertises the container orchestrator for the instance, if any
   // (e.g. "kubernetes-v1.24.8-eks-ffeb93d").
-  string ContainerOrchestrator = 10;
+  string ContainerOrchestrator = 7;
   // CloudEnvironment advertises the cloud environment for the instance, if any (e.g. "aws").
-  string CloudEnvironment = 11;
+  string CloudEnvironment = 8;
 }
 
 // DownstreamInventoryHello is the hello message sent down the inventory control stream.
