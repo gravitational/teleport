@@ -47,6 +47,7 @@ import (
 	_ "github.com/coreos/go-oidc/oidc"
 	_ "github.com/crewjam/saml/samlidp"
 	_ "github.com/go-piv/piv-go/piv"
+	- "github.com/google/go-attestation/attest"
 	_ "github.com/gravitational/form"
 	_ "github.com/gravitational/teleport-plugins/access/common"
 	_ "google.golang.org/api/admin/directory/v1"
