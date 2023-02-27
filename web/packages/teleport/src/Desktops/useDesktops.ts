@@ -19,11 +19,13 @@ import { useLocation } from 'react-router';
 import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
+import { LoginItem } from 'shared/components/MenuLogin';
+
 import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import history from 'teleport/services/history';
-import { DesktopsResponse } from 'teleport/services/desktops';
+import { Desktop, DesktopsResponse } from 'teleport/services/desktops';
 import getResourceUrlQueryParams, {
   ResourceUrlQueryParams,
 } from 'teleport/getUrlQueryParams';
@@ -38,7 +40,6 @@ export default function useDesktops(ctx: Ctx) {
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const username = ctx.storeUser.state.username;
-  const windowsLogins = ctx.storeUser.getWindowsLogins();
   const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
   const [params, setParams] = useState<ResourceUrlQueryParams>({
     sort: { fieldName: 'name', dir: 'ASC' },
@@ -59,8 +60,8 @@ export default function useDesktops(ctx: Ctx) {
     results.totalCount > 0 ? (startKeys.length - 2) * pageSize + 1 : 0;
   const to = results.totalCount > 0 ? from + results.desktops.length - 1 : 0;
 
-  const getWindowsLoginOptions = (desktopName: string) =>
-    makeOptions(clusterId, desktopName, windowsLogins);
+  const getWindowsLoginOptions = ({ name, logins }: Desktop) =>
+    makeOptions(clusterId, name, logins);
 
   useEffect(() => {
     fetchDesktops();
@@ -184,7 +185,7 @@ function makeOptions(
   clusterId: string,
   desktopName = '',
   logins = [] as string[]
-) {
+): LoginItem[] {
   return logins.map(username => {
     const url = cfg.getDesktopRoute({
       clusterId,
