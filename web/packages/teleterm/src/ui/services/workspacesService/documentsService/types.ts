@@ -128,6 +128,22 @@ export type Document =
   | DocumentCluster
   | DocumentTerminal;
 
+export function isDocumentTshNodeWithLoginHost(
+  doc: Document
+): doc is DocumentTshNodeWithLoginHost {
+  // Careful here as TypeScript lets you make type guards unsound. You can double invert the last
+  // check and TypeScript won't complain.
+  return doc.kind === 'doc.terminal_tsh_node' && !('serverId' in doc);
+}
+
+export function isDocumentTshNodeWithServerId(
+  doc: Document
+): doc is DocumentTshNodeWithServerId {
+  // Careful here as TypeScript lets you make type guards unsound. You can double invert the last
+  // check and TypeScript won't complain.
+  return doc.kind === 'doc.terminal_tsh_node' && 'serverId' in doc;
+}
+
 export type CreateGatewayDocumentOpts = {
   gatewayUri?: uri.GatewayUri;
   targetUri: uri.DatabaseUri;

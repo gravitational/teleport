@@ -20,7 +20,10 @@ import { runOnce } from 'shared/utils/highbar';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { IAppContext } from 'teleterm/ui/types';
-import { DocumentsService } from 'teleterm/ui/services/workspacesService';
+import {
+  DocumentsService,
+  isDocumentTshNodeWithLoginHost,
+} from 'teleterm/ui/services/workspacesService';
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { routing } from 'teleterm/ui/uri';
@@ -75,7 +78,7 @@ async function startTerminalSession(
   documentsService: DocumentsService,
   doc: types.DocumentTerminal
 ) {
-  if (doc.kind === 'doc.terminal_tsh_node' && !('serverId' in doc)) {
+  if (isDocumentTshNodeWithLoginHost(doc)) {
     doc = await resolveLoginHost(ctx, logger, documentsService, doc);
   }
 
@@ -301,7 +304,7 @@ function createCmd(
   clusterName: string
 ): PtyCommand {
   if (doc.kind === 'doc.terminal_tsh_node') {
-    if (!('serverId' in doc)) {
+    if (isDocumentTshNodeWithLoginHost(doc)) {
       throw new Error(
         'Cannot create a PTY for doc.terminal_tsh_node without serverId'
       );

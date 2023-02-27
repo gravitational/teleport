@@ -27,6 +27,7 @@ import { Attempt } from 'shared/hooks/useAsync';
 import Document from 'teleterm/ui/Document';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { assertUnreachable } from 'teleterm/ui/utils';
+import { isDocumentTshNodeWithServerId } from 'teleterm/ui/services/workspacesService';
 
 import { Terminal } from './Terminal';
 import useDocTerminal, { Props } from './useDocumentTerminal';
@@ -65,7 +66,7 @@ export function DocumentTerminal(props: Props & { visible: boolean }) {
   const $fileTransfer = doc.kind === 'doc.terminal_tsh_node' && (
     <FileTransferContextProvider>
       <FileTransferActionBar isConnected={doc.status === 'connected'} />
-      {'serverUri' in doc && (
+      {isDocumentTshNodeWithServerId(doc) && (
         <FileTransfer
           beforeClose={() =>
             // TODO (gzdunek): replace with a native dialog
