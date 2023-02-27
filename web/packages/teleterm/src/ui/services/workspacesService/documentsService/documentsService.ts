@@ -15,7 +15,13 @@ limitations under the License.
 */
 
 import { unique } from 'teleterm/ui/utils/uid';
-import { DocumentUri, paths, routing, ServerUri } from 'teleterm/ui/uri';
+import {
+  ClusterUri,
+  DocumentUri,
+  ServerUri,
+  paths,
+  routing,
+} from 'teleterm/ui/uri';
 
 import {
   CreateAccessRequestDocumentOpts,
@@ -29,6 +35,8 @@ import {
   DocumentGateway,
   DocumentTshKube,
   DocumentTshNode,
+  DocumentTshNodeWithLoginHost,
+  DocumentTshNodeWithServerId,
 } from './types';
 
 export class DocumentsService {
@@ -99,9 +107,10 @@ export class DocumentsService {
     };
   }
 
-  createTshNodeDocument(serverUri: ServerUri): DocumentTshNode {
+  createTshNodeDocument(serverUri: ServerUri): DocumentTshNodeWithServerId {
     const { params } = routing.parseServerUri(serverUri);
     const uri = routing.getDocUri({ docId: unique() });
+
     return {
       uri,
       kind: 'doc.terminal_tsh_node',
@@ -112,6 +121,33 @@ export class DocumentsService {
       serverUri,
       title: '',
       login: '',
+    };
+  }
+
+  /**
+   * createTshNodeDocumentFromLoginHost handles creation of the doc when the server URI is not
+   * available, for example when executing `tsh ssh user@host` from the command bar.
+   *
+   * @param clusterUri - the URI of the cluster which should be used for hostname lookup. That is,
+   * the command will succeed only if the given cluster has only a single server with the hostname
+   * matching `host`.
+   * @param loginHost - the "user@host" pair.
+   */
+  createTshNodeDocumentFromLoginHost(
+    clusterUri: ClusterUri,
+    loginHost: string
+  ): DocumentTshNodeWithLoginHost {
+    const { params } = routing.parseClusterUri(clusterUri);
+    const uri = routing.getDocUri({ docId: unique() });
+
+    return {
+      uri,
+      kind: 'doc.terminal_tsh_node',
+      title: loginHost,
+      status: 'connecting',
+      rootClusterId: params.rootClusterId,
+      leafClusterId: params.leafClusterId,
+      loginHost,
     };
   }
 

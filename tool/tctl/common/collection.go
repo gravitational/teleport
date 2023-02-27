@@ -1007,6 +1007,7 @@ func (l *loginRuleCollection) resources() []types.Resource {
 	return resources
 }
 
+//nolint:revive // Because we want this to be IdP.
 type samlIdPServiceProviderCollection struct {
 	serviceProviders []types.SAMLIdPServiceProvider
 }
