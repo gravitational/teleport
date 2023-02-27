@@ -14,5 +14,5 @@
  * limitations under the License.
  */
 
-export { ClientSidePager } from './ClientSidePager/ClientSidePager';
-export { ServerSidePager } from './ServerSidePager';
+export { useUrlFiltering } from './useUrlFiltering';
+export { useServerSidePagination } from './useServersidePagination';
