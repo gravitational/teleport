@@ -60,6 +60,7 @@ const apps: App[] = [
     name: 'aws-console-1',
     uri: 'https://console.aws.amazon.com/ec2/v2/home',
     publicAddr: 'awsconsole-1.teleport-proxy.com',
+    addrWithProtocol: 'https://awsconsole-1.teleport-proxy.com',
     labels: [
       {
         name: 'aws_account_id',

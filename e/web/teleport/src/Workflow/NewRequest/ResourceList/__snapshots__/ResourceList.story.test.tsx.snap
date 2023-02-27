@@ -217,8 +217,7 @@ exports[`render Apps 1`] = `
             This is an AWS Console app
           </td>
           <td>
-            https://
-            awsconsole-1.teleport-proxy.com
+            https://awsconsole-1.teleport-proxy.com
           </td>
           <td>
             <div

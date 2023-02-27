@@ -3,6 +3,12 @@ import { FetchStatus, SortType } from 'design/DataTable/types';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
+import { App } from 'teleport/services/apps';
+import { WindowsDesktopService } from 'teleport/services/desktops';
+import { Kube } from 'teleport/services/kube';
+import { Database } from 'teleport/services/databases';
+import { Node } from 'teleport/services/nodes';
+
 import Ctx from 'e-teleport/teleportContextE';
 
 import type {
@@ -26,6 +32,9 @@ export function useNewRequest(ctx: Ctx) {
     getEmptyFetchedDataState()
   );
 
+  const [addedAll, setAddedAll] = useState(getDefaultAddedAll());
+  const addAllFetchAttempt = useAttempt('');
+
   const [page, setPage] = useState<Page>({ keys: [], index: 0 });
   const [agentFilter, setAgentFilter] = useState<AgentFilter>({
     sort: getDefaultSort(selectedResource),
@@ -34,6 +43,8 @@ export function useNewRequest(ctx: Ctx) {
   const [addedResources, setAddedResources] = useState<ResourceMap>(
     getEmptyResourceState()
   );
+
+  const [numAddedOnPage, setNumAddedOnPage] = useState(getNumAddedOnPage());
 
   useEffect(() => {
     // No need to fetch anything for roles, it
@@ -51,6 +62,10 @@ export function useNewRequest(ctx: Ctx) {
       sort: getDefaultSort(selectedResource),
     });
   }, [clusterId]);
+
+  useEffect(() => {
+    setNumAddedOnPage(getNumAddedOnPage());
+  }, [page, selectedResource, addedResources]);
 
   // TODO (lisa): this is pretty hacky, maybe expose the ref for selector,
   // but that might require touching multiple files adding to an already bloated PR.
@@ -128,6 +143,7 @@ export function useNewRequest(ctx: Ctx) {
   ) {
     if (addedResources[kind][resourceId]) {
       delete addedResources[kind][resourceId];
+      updateAddedAll(kind as AgentIdKind, false);
     } else {
       addedResources[kind][resourceId] = resourceName
         ? resourceName
@@ -235,6 +251,194 @@ export function useNewRequest(ctx: Ctx) {
     setAgentFilter({ ...agentFilter, search: '', query });
   }
 
+  function addAgents(agents: AgentKind[]) {
+    switch (selectedResource) {
+      case 'node':
+        (agents as Node[]).forEach(
+          node => (addedResources[selectedResource][node.id] = node.addr)
+        );
+        break;
+      case 'app':
+        (agents as App[]).forEach(
+          app => (addedResources[selectedResource][app.name] = app.id)
+        );
+        break;
+      case 'db':
+        (agents as Database[]).forEach(
+          db => (addedResources[selectedResource][db.name] = db.hostname)
+        );
+        break;
+      case 'kube_cluster':
+        (agents as Kube[]).forEach(
+          kube => (addedResources[selectedResource][kube.name] = kube.name)
+        );
+        break;
+      case 'windows_desktop':
+        (agents as WindowsDesktopService[]).forEach(
+          desktop =>
+            (addedResources[selectedResource][desktop.name] = desktop.addr)
+        );
+        break;
+    }
+
+    setAddedResources({
+      ...addedResources,
+      app: { ...addedResources.app },
+      db: { ...addedResources.db },
+      kube_cluster: { ...addedResources.kube_cluster },
+      node: { ...addedResources.node },
+      windows_desktop: { ...addedResources.windows_desktop },
+    });
+  }
+
+  function unAddCurrentPage() {
+    switch (selectedResource) {
+      case 'node':
+        (fetchedData.agents as Node[]).forEach(
+          node => delete addedResources[selectedResource][node.id]
+        );
+        break;
+      case 'app':
+        (fetchedData.agents as App[]).forEach(
+          app => delete addedResources[selectedResource][app.name]
+        );
+        break;
+      case 'db':
+        (fetchedData.agents as Database[]).forEach(
+          db => delete addedResources[selectedResource][db.name]
+        );
+        break;
+      case 'kube_cluster':
+        (fetchedData.agents as Kube[]).forEach(
+          kube => delete addedResources[selectedResource][kube.name]
+        );
+        break;
+      case 'windows_desktop':
+        (fetchedData.agents as WindowsDesktopService[]).forEach(
+          desktop => delete addedResources[selectedResource][desktop.name]
+        );
+        break;
+    }
+
+    setAddedResources({
+      ...addedResources,
+      app: { ...addedResources.app },
+      db: { ...addedResources.db },
+      kube_cluster: { ...addedResources.kube_cluster },
+      node: { ...addedResources.node },
+      windows_desktop: { ...addedResources.windows_desktop },
+    });
+  }
+
+  function updateAddedAll(agentKind: AgentIdKind, isAddedAll: boolean) {
+    addedAll[agentKind] = isAddedAll;
+    setAddedAll({
+      app: addedAll.app,
+      db: addedAll.db,
+      kube_cluster: addedAll.kube_cluster,
+      node: addedAll.node,
+      windows_desktop: addedAll.windows_desktop,
+    });
+  }
+
+  function toggleAddCurrentPage() {
+    if (numAddedOnPage === 0) {
+      addAgents(fetchedData.agents);
+    } else {
+      unAddCurrentPage();
+    }
+    updateAddedAll(selectedResource as AgentIdKind, false);
+  }
+
+  function toggleAddAllPages() {
+    if (!addedAll[selectedResource]) {
+      const cb = getAgentsFetchCallback(ctx, selectedResource);
+      addAllFetchAttempt.setAttempt({ status: 'processing' });
+      setFetchStatus('loading');
+
+      cb(clusterId, {
+        ...agentFilter,
+        limit: fetchedData.totalCount,
+        searchAsRoles: 'yes',
+      })
+        .then(res => {
+          addAgents(res.agents);
+          addAllFetchAttempt.setAttempt({ status: 'success' });
+          setFetchStatus('');
+          updateAddedAll(selectedResource as AgentIdKind, true);
+        })
+        .catch((err: Error) => {
+          addAllFetchAttempt.handleError(err);
+          setFetchStatus('');
+        });
+    } else {
+      updateAddedAll(selectedResource as AgentIdKind, false);
+      addedResources[selectedResource] = {};
+      setAddedResources({
+        ...addedResources,
+        app: { ...addedResources.app },
+        db: { ...addedResources.db },
+        kube_cluster: { ...addedResources.kube_cluster },
+        node: { ...addedResources.node },
+        windows_desktop: { ...addedResources.windows_desktop },
+      });
+    }
+  }
+
+  function getNumAddedOnPage() {
+    let count = 0;
+    for (const agent in fetchedData.agents) {
+      switch (selectedResource) {
+        case 'node':
+          if (
+            addedResources[selectedResource][
+              (fetchedData.agents[agent] as Node).id
+            ]
+          ) {
+            count++;
+          }
+          break;
+        case 'app':
+          if (
+            addedResources[selectedResource][
+              (fetchedData.agents[agent] as App).name
+            ]
+          ) {
+            count++;
+          }
+          break;
+        case 'db':
+          if (
+            addedResources[selectedResource][
+              (fetchedData.agents[agent] as Database).name
+            ]
+          ) {
+            count++;
+          }
+          break;
+        case 'kube_cluster':
+          if (
+            addedResources[selectedResource][
+              (fetchedData.agents[agent] as Kube).name
+            ]
+          ) {
+            count++;
+          }
+          break;
+        case 'windows_desktop':
+          if (
+            addedResources[selectedResource][
+              (fetchedData.agents[agent] as WindowsDesktopService).name
+            ]
+          ) {
+            count++;
+          }
+          break;
+      }
+    }
+    return count;
+  }
+
   // Calculate counts for our resource list.
   const requestableRoles = ctx.storeUser.getRequestableRoles();
   let fromPage = 0;
@@ -278,6 +482,13 @@ export function useNewRequest(ctx: Ctx) {
     prevPage: page.index > 0 ? fetchPrev : null,
     clearAddedResources,
     requestableRoles,
+    toggleAddCurrentPage,
+    toggleAddAllPages,
+    numOfPages: Math.ceil(fetchedData.totalCount / pageSize),
+    addedAll,
+    unAddCurrentPage,
+    numAddedOnPage,
+    addAllFetchAttempt: addAllFetchAttempt.attempt,
   };
 }
 
@@ -349,6 +560,16 @@ function getDefaultSort(kind: ResourceKind): SortType {
   return { fieldName: 'name', dir: 'ASC' };
 }
 
+function getDefaultAddedAll(): AddedAll {
+  return {
+    app: false,
+    node: false,
+    db: false,
+    kube_cluster: false,
+    windows_desktop: false,
+  };
+}
+
 // Page keeps track of our current agent list
 //  start keys and current position.
 type Page = {
@@ -358,6 +579,10 @@ type Page = {
   // index refers to the current index the page
   // is at in the list of keys.
   index: number;
+};
+
+type AddedAll = {
+  [K in AgentIdKind]: boolean;
 };
 
 // ResourceKind describes resource kind's for both a search based access
