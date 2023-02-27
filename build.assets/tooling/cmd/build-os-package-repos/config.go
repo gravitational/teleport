@@ -136,7 +136,7 @@ func NewConfigWithFlagset(fs *flag.FlagSet) *Config {
 		}
 	})
 	fs.StringVar(&c.releaseChannel, "release-channel", "", "The release channel of the repos that the artifacts should be added to")
-	fs.StringVar(&c.versionChannel, "version-channel", "", "The version channel of the repos that the artifacts should be added to. Semver values will be truncated to major version.")
+	fs.StringVar(&c.versionChannel, "version-channel", "", "The version channel of the repos that the artifacts should be added to. Semver values will be truncated to major version. Examples: \"v1.2.3\" (truncated to \"v1\"), \"cloud\".")
 
 	return c
 }
