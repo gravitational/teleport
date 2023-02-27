@@ -181,7 +181,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
 	if cfg.SAMLIdPServiceProviders == nil {
-		cfg.SAMLIdPServiceProviders = local.NewSAMLIdPServiceProviderService(cfg.Backend)
+		cfg.SAMLIdPServiceProviders, err = local.NewSAMLIdPServiceProviderService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.UserGroups == nil {
 		cfg.UserGroups = local.NewUserGroupService(cfg.Backend)
