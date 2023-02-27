@@ -2718,6 +2718,14 @@ export const events = [
     service_provider_entity_id: 'valid-entity-id',
   },
   {
+    code: 'TSI001W',
+    event: 'saml.idp.service.provider.create',
+    time: '2023-01-25T19:21:36.144Z',
+    name: 'saml-idp',
+    updated_by: 'mike',
+    service_provider_entity_id: 'valid-entity-id',
+  },
+  {
     code: 'TSI002I',
     event: 'saml.idp.service.provider.update',
     time: '2023-01-25T19:21:36.144Z',
@@ -2726,7 +2734,23 @@ export const events = [
     service_provider_entity_id: 'valid-entity-id',
   },
   {
+    code: 'TSI002W',
+    event: 'saml.idp.service.provider.update',
+    time: '2023-01-25T19:21:36.144Z',
+    name: 'saml-idp',
+    updated_by: 'mike',
+    service_provider_entity_id: 'valid-entity-id',
+  },
+  {
     code: 'TSI003I',
+    event: 'saml.idp.service.provider.delete',
+    time: '2023-01-25T19:21:36.144Z',
+    name: 'saml-idp',
+    updated_by: 'mike',
+    service_provider_entity_id: 'valid-entity-id',
+  },
+  {
+    code: 'TSI003W',
     event: 'saml.idp.service.provider.delete',
     time: '2023-01-25T19:21:36.144Z',
     name: 'saml-idp',

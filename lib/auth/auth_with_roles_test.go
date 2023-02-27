@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -3879,6 +3880,243 @@ func TestGetLicensePermissions(t *testing.T) {
 			_, err = client.GetLicense(ctx)
 			tc.ErrAssertion(t, trace.IsAccessDenied(err))
 		})
+	}
+}
+
+func TestCreateSAMLIdPServiceProvider(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	role, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSAMLIdPServiceProvider},
+					Verbs:     []string{types.VerbRead, types.VerbCreate, types.VerbDelete},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	require.Nil(t, err)
+
+	user, err := CreateUser(srv.Auth(), "test-user", role)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	tt := []struct {
+		Name         string
+		SP           types.SAMLIdPServiceProvider
+		EventCode    string
+		ErrAssertion require.ErrorAssertionFunc
+	}{
+		{
+			Name: "create service provider",
+			SP: &types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: newEntityDescriptor("IAMShowcase"),
+					EntityID:         "IAMShowcase",
+				},
+			},
+			EventCode:    events.SAMLIdPServiceProviderCreateCode,
+			ErrAssertion: require.NoError,
+		},
+		{
+			Name: "fail creation",
+			SP: &types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: "non-null",
+					EntityID:         "invalid",
+				},
+			},
+			EventCode:    events.SAMLIdPServiceProviderCreateFailureCode,
+			ErrAssertion: require.Error,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.Name, func(t *testing.T) {
+			chanEmitter := eventstest.NewChannelEmitter(1)
+			srv.AuthServer.AuthServer.emitter = chanEmitter
+			err := client.CreateSAMLIdPServiceProvider(ctx, tc.SP)
+			tc.ErrAssertion(t, err)
+			select {
+			case event := <-chanEmitter.C():
+				require.Equal(t, tc.EventCode, event.GetCode())
+			case <-time.After(5 * time.Second):
+				require.Fail(t, "timeout waiting for create event")
+			}
+		})
+	}
+}
+
+func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	role, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSAMLIdPServiceProvider},
+					Verbs:     []string{types.VerbRead, types.VerbUpdate, types.VerbCreate, types.VerbDelete},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	require.Nil(t, err)
+
+	user, err := CreateUser(srv.Auth(), "test-user", role)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	sp := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "test",
+			},
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor("IAMShowcase"),
+			EntityID:         "IAMShowcase",
+		},
+	}
+	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp))
+
+	tt := []struct {
+		Name         string
+		SP           types.SAMLIdPServiceProvider
+		EventCode    string
+		ErrAssertion require.ErrorAssertionFunc
+	}{
+		{
+			Name: "update service provider",
+			SP: &types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: newEntityDescriptor("new-entity-id"),
+					EntityID:         "new-entity-id",
+				},
+			},
+			EventCode:    events.SAMLIdPServiceProviderUpdateCode,
+			ErrAssertion: require.NoError,
+		},
+		{
+			Name: "fail update",
+			SP: &types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: "non-null",
+					EntityID:         "invalid",
+				},
+			},
+			EventCode:    events.SAMLIdPServiceProviderUpdateFailureCode,
+			ErrAssertion: require.Error,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.Name, func(t *testing.T) {
+			chanEmitter := eventstest.NewChannelEmitter(1)
+			srv.AuthServer.AuthServer.emitter = chanEmitter
+			err := client.UpdateSAMLIdPServiceProvider(ctx, tc.SP)
+			tc.ErrAssertion(t, err)
+			select {
+			case event := <-chanEmitter.C():
+				require.Equal(t, tc.EventCode, event.GetCode())
+			case <-time.After(5 * time.Second):
+				require.Fail(t, "timeout waiting for update event")
+			}
+		})
+	}
+}
+
+func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	role, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSAMLIdPServiceProvider},
+					Verbs:     []string{types.VerbRead, types.VerbUpdate, types.VerbCreate, types.VerbDelete},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	require.Nil(t, err)
+
+	user, err := CreateUser(srv.Auth(), "test-user", role)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	sp := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "test",
+			},
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor("IAMShowcase"),
+			EntityID:         "IAMShowcase",
+		},
+	}
+	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp))
+
+	// Successful delete
+	chanEmitter := eventstest.NewChannelEmitter(1)
+	srv.AuthServer.AuthServer.emitter = chanEmitter
+	err = client.DeleteSAMLIdPServiceProvider(ctx, sp.GetName())
+	require.NoError(t, err)
+	select {
+	case event := <-chanEmitter.C():
+		require.Equal(t, events.SAMLIdPServiceProviderDeleteCode, event.GetCode())
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timeout waiting for update event")
+	}
+
+	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp))
+
+	// Non-existent delete
+	chanEmitter = eventstest.NewChannelEmitter(1)
+	srv.AuthServer.AuthServer.emitter = chanEmitter
+	err = client.DeleteSAMLIdPServiceProvider(ctx, "nonexistent")
+	require.Error(t, err)
+	select {
+	case event := <-chanEmitter.C():
+		require.Equal(t, events.SAMLIdPServiceProviderDeleteFailureCode, event.GetCode())
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timeout waiting for update event")
 	}
 }
 

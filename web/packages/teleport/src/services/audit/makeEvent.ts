@@ -1284,21 +1284,39 @@ export const formatters: Formatters = {
   },
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE]: {
     type: 'saml.idp.service.provider.create',
-    desc: 'SAML IdP service provider create',
+    desc: 'SAML IdP service provider created',
     format: ({ updated_by, name, service_provider_entity_id }) =>
       `User [${updated_by}] added service provider [${name}] with entity ID [${service_provider_entity_id}]`,
   },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE]: {
+    type: 'saml.idp.service.provider.create',
+    desc: 'SAML IdP service provider create failed',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] failed to add service provider [${name}] with entity ID [${service_provider_entity_id}]`,
+  },
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE]: {
     type: 'saml.idp.service.provider.update',
-    desc: 'SAML IdP service provider update',
+    desc: 'SAML IdP service provider updated',
     format: ({ updated_by, name, service_provider_entity_id }) =>
       `User [${updated_by}] updated service provider [${name}] with entity ID [${service_provider_entity_id}]`,
   },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE]: {
+    type: 'saml.idp.service.provider.update',
+    desc: 'SAML IdP service provider update failed',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] failed to update service provider [${name}] with entity ID [${service_provider_entity_id}]`,
+  },
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE]: {
     type: 'saml.idp.service.provider.delete',
-    desc: 'SAML IdP service provider delete',
+    desc: 'SAML IdP service provider deleted',
     format: ({ updated_by, name, service_provider_entity_id }) =>
       `User [${updated_by}] deleted service provider [${name}] with entity ID [${service_provider_entity_id}]`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE]: {
+    type: 'saml.idp.service.provider.delete',
+    desc: 'SAML IdP service provider delete failed',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] failed to delete service provider [${name}] with entity ID [${service_provider_entity_id}]`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

@@ -220,8 +220,11 @@ export const eventCodes = {
   LOGIN_RULE_DELETE: 'TLR01I',
   SAML_IDP_AUTH_ATTEMPT: 'TSI000I',
   SAML_IDP_SERVICE_PROVIDER_CREATE: 'TSI001I',
+  SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE: 'TSI001W',
   SAML_IDP_SERVICE_PROVIDER_UPDATE: 'TSI002I',
+  SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE: 'TSI002W',
   SAML_IDP_SERVICE_PROVIDER_DELETE: 'TSI003I',
+  SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE: 'TSI003W',
 } as const;
 
 /**
@@ -1141,6 +1144,14 @@ export type RawEvents = {
       service_provider_entity_id: string;
     }
   >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE]: RawEvent<
     typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE,
     {
@@ -1149,8 +1160,24 @@ export type RawEvents = {
       service_provider_entity_id: string;
     }
   >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE]: RawEvent<
     typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE,
     {
       name: string;
       updated_by: string;
