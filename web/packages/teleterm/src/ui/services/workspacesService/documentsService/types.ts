@@ -61,6 +61,10 @@ export interface DocumentTshNodeWithServerId extends DocumentTshNodeBase {
   //
   // We will execute `tsh ssh user` anyway and let tsh show an appropriate error message.
   login?: string;
+  // loginHost exists on DocumentTshNodeWithServerId mostly because
+  // DocumentsService.prototype.update doesn't let us remove fields. To keep the types truthful to
+  // the implementation (which is something we should avoid doing, it should work the other way
+  // around), loginHost was kept on DocumentTshNodeWithServerId.
   loginHost?: undefined;
 }
 
