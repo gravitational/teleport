@@ -1,5 +1,32 @@
 # Changelog
 
+## 11.3.5
+
+This release of Teleport contains a security fix as well as multiple improvements and bug fixes.
+
+### Security fix
+
+* Fixed issue with session being terminated after a short delay instead of immediately paused after moderator leaves. [#21973](https://github.com/gravitational/teleport/pull/21973)
+
+### Other improvements and bug fixes
+
+* Fixed issue with `kubectl exec` commands failing on leaf clusters. [#22245](https://github.com/gravitational/teleport/pull/22245)
+* Fixed issue with `local_auth: false` setting being ignored unless authentication type is set. [#22241](https://github.com/gravitational/teleport/pull/22241)
+* Fixed `command info` hang in Redis database access. [#22229](https://github.com/gravitational/teleport/pull/22229)
+* Fixed issue with orphaned child processes after session ends. [#22224](https://github.com/gravitational/teleport/pull/22224)
+* Fixed issue with internal logins periodically appearing in Teleport Connect. [#22188](https://github.com/gravitational/teleport/pull/22188)
+* Fixed issue with remote cluster connection status sometimes not being updated properly. [#22089](https://github.com/gravitational/teleport/pull/22089)
+* Fixed heartbeat failures from database service. [#22084](https://github.com/gravitational/teleport/pull/22084)
+* Fixed issue with missing `--request-id=` flag in UI for Kubernetes login instructions. [#21443](https://github.com/gravitational/teleport/pull/21443)
+* Fixed access denied issues when using full role ARN when connecting to databases. [#21254](https://github.com/gravitational/teleport/pull/21254)
+* Added `--client` flag to `tsh version` command flag to show client-only version. [#22168](https://github.com/gravitational/teleport/pull/22168)
+* Added Kubernetes join method. [#21907](https://github.com/gravitational/teleport/pull/21907)
+* Added extra Prometheus metrics for tracking active connections. [#21772](https://github.com/gravitational/teleport/pull/21772)
+* Added ability to select all matching resources when creating a resource access request. [#22349](https://github.com/gravitational/teleport/pull/22349)
+* Updated `tsh` to print log timestamps in debug mode by default. [#21995](https://github.com/gravitational/teleport/pull/21995)
+* Updated Go toolchain to `1.20.1`. [#21934](https://github.com/gravitational/teleport/pull/21934)
+* Improved error reporting from `kubectl` commands. [#21919](https://github.com/gravitational/teleport/pull/21919)
+
 ## 11.3.4
 
 This release of Teleport contains a low severity security fix and multiple improvements and bug fixes.
