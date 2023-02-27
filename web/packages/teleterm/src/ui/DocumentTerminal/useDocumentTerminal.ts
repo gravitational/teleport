@@ -40,20 +40,27 @@ export default function useDocumentTerminal(doc: types.DocumentTerminal) {
   const logger = useRef(new Logger('useDocumentTerminal'));
   const ctx = useAppContext();
   const { documentsService } = useWorkspaceContext();
-  const [attempt, startTerminal] = useAsync(async () =>
-    startTerminalSession(ctx, logger.current, documentsService, doc)
-  );
+  const [attempt, startTerminal] = useAsync(async () => {
+    try {
+      return await startTerminalSession(
+        ctx,
+        logger.current,
+        documentsService,
+        doc
+      );
+    } catch (err) {
+      if ('status' in doc) {
+        documentsService.update(doc.uri, { status: 'error' });
+      }
+
+      throw err;
+    }
+  });
 
   useEffect(() => {
-    (async () => {
-      if (attempt.status === '') {
-        const [, err] = await startTerminal();
-
-        if (err && !(err instanceof CanceledError) && 'status' in doc) {
-          documentsService.update(doc.uri, { status: 'error' });
-        }
-      }
-    })();
+    if (attempt.status === '') {
+      startTerminal();
+    }
 
     return () => {
       if (attempt.status === 'success') {
