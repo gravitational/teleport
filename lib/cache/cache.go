@@ -92,6 +92,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
 		{Kind: types.KindAppServer, Version: types.V2},
+		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
@@ -109,6 +110,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
+		{Kind: types.KindUserGroup},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -135,6 +137,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAppServer},
 		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindApp},
+		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
@@ -150,6 +153,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
+		{Kind: types.KindUserGroup},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -431,10 +435,12 @@ type Cache struct {
 	databasesCache               services.Databases
 	appSessionCache              services.AppSession
 	snowflakeSessionCache        services.SnowflakeSession
+	samlIdPSessionCache          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
 	webSessionCache              types.WebSessionInterface
 	webTokenCache                types.WebTokenInterface
 	windowsDesktopsCache         services.WindowsDesktops
-	samlIdpServiceProvidersCache services.SAMLIdPServiceProviders
+	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
+	userGroupsCache              services.UserGroups
 	eventsFanout                 *services.FanoutSet
 
 	// closed indicates that the cache has been closed
@@ -494,11 +500,13 @@ func (c *Cache) read() (readGuard, error) {
 			databases:               c.databasesCache,
 			appSession:              c.appSessionCache,
 			snowflakeSession:        c.snowflakeSessionCache,
+			samlIdPSession:          c.samlIdPSessionCache,
 			webSession:              c.webSessionCache,
 			webToken:                c.webTokenCache,
 			release:                 c.rw.RUnlock,
 			windowsDesktops:         c.windowsDesktopsCache,
-			samlIdpServiceProviders: c.samlIdpServiceProvidersCache,
+			samlIdPServiceProviders: c.samlIdPServiceProvidersCache,
+			userGroups:              c.userGroupsCache,
 		}, nil
 	}
 	c.rw.RUnlock()
@@ -517,10 +525,12 @@ func (c *Cache) read() (readGuard, error) {
 		databases:               c.Config.Databases,
 		appSession:              c.Config.AppSession,
 		snowflakeSession:        c.Config.SnowflakeSession,
+		samlIdPSession:          c.Config.SAMLIdPSession,
 		webSession:              c.Config.WebSession,
 		webToken:                c.Config.WebToken,
 		windowsDesktops:         c.Config.WindowsDesktops,
-		samlIdpServiceProviders: c.Config.SAMLIdPServiceProviders,
+		samlIdPServiceProviders: c.Config.SAMLIdPServiceProviders,
+		userGroups:              c.Config.UserGroups,
 		release:                 nil,
 	}, nil
 }
@@ -539,6 +549,7 @@ type readGuard struct {
 	presence                services.Presence
 	appSession              services.AppSession
 	snowflakeSession        services.SnowflakeSession
+	samlIdPSession          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
 	restrictions            services.Restrictions
 	apps                    services.Apps
 	kubernetes              services.Kubernetes
@@ -547,7 +558,8 @@ type readGuard struct {
 	webSession              types.WebSessionInterface
 	webToken                types.WebTokenInterface
 	windowsDesktops         services.WindowsDesktops
-	samlIdpServiceProviders services.SAMLIdPServiceProviders
+	samlIdPServiceProviders services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
+	userGroups              services.UserGroups
 	release                 func()
 	released                bool
 }
@@ -603,6 +615,8 @@ type Config struct {
 	DatabaseServices services.DatabaseServices
 	// Databases is a databases service.
 	Databases services.Databases
+	// SAMLIdPSession holds SAML IdP sessions.
+	SAMLIdPSession services.SAMLIdPSession
 	// SnowflakeSession holds Snowflake sessions.
 	SnowflakeSession services.SnowflakeSession
 	// AppSession holds application sessions.
@@ -615,6 +629,8 @@ type Config struct {
 	WindowsDesktops services.WindowsDesktops
 	// SAMLIdPServiceProviders is a SAML IdP service providers service.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
+	// UserGroups is a user groups service.
+	UserGroups services.UserGroups
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -742,6 +758,13 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	//nolint:revive // Because we want this to be IdP.
+	samlIdPServiceProvidersCache, err := local.NewSAMLIdPServiceProviderService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -762,10 +785,12 @@ func New(config Config) (*Cache, error) {
 		databasesCache:               local.NewDatabasesService(config.Backend),
 		appSessionCache:              local.NewIdentityService(config.Backend),
 		snowflakeSessionCache:        local.NewIdentityService(config.Backend),
+		samlIdPSessionCache:          local.NewIdentityService(config.Backend),
 		webSessionCache:              local.NewIdentityService(config.Backend).WebSessions(),
 		webTokenCache:                local.NewIdentityService(config.Backend).WebTokens(),
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
-		samlIdpServiceProvidersCache: local.NewSAMLIdPServiceProviderService(config.Backend),
+		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
+		userGroupsCache:              local.NewUserGroupService(config.Backend),
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -1980,6 +2005,19 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 	return rg.snowflakeSession.GetSnowflakeSession(ctx, req)
 }
 
+// GetSAMLIdPSession gets a SAML IdP session.
+func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPSession")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.samlIdPSession.GetSAMLIdPSession(ctx, req)
+}
+
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseServers")
@@ -2198,7 +2236,7 @@ func (c *Cache) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, n
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.samlIdpServiceProviders.ListSAMLIdPServiceProviders(ctx, pageSize, nextKey)
+	return rg.samlIdPServiceProviders.ListSAMLIdPServiceProviders(ctx, pageSize, nextKey)
 }
 
 // GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
@@ -2211,7 +2249,33 @@ func (c *Cache) GetSAMLIdPServiceProvider(ctx context.Context, name string) (typ
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.samlIdpServiceProviders.GetSAMLIdPServiceProvider(ctx, name)
+	return rg.samlIdPServiceProviders.GetSAMLIdPServiceProvider(ctx, name)
+}
+
+// ListUserGroups returns a paginated list of user group resources.
+func (c *Cache) ListUserGroups(ctx context.Context, pageSize int, nextKey string) ([]types.UserGroup, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListUserGroups")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.userGroups.ListUserGroups(ctx, pageSize, nextKey)
+}
+
+// GetUserGroup returns the specified user group resources.
+func (c *Cache) GetUserGroup(ctx context.Context, name string) (types.UserGroup, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetUserGroup")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.userGroups.GetUserGroup(ctx, name)
 }
 
 // ListResources is a part of auth.Cache implementation

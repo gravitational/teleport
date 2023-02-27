@@ -55,6 +55,10 @@ type WebConfig struct {
 	TunnelPublicAddress string `json:"tunnelPublicAddress,omitempty"`
 	// RecoveryCodesEnabled is a flag that determines if recovery codes are enabled in the cluster.
 	RecoveryCodesEnabled bool `json:"recoveryCodesEnabled,omitempty"`
+	// IsDashboard is a flag that determines if the cluster is running as a "dashboard".
+	// The web UI for dashboards provides functionality for downloading self-hosted licenses and
+	// Teleport Enterprise binaries.
+	IsDashboard bool `json:"isDashboard,omitempty"`
 }
 
 // WebConfigAuthProvider describes auth. provider

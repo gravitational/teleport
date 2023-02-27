@@ -23,6 +23,9 @@ MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 # libbpf version required by the build.
 LIBBPF_VER := 1.0.1
 
+# If set to 1, webassets are not built.
+WEBASSETS_SKIP_BUILD ?= 0
+
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
@@ -79,14 +82,15 @@ BPF_MESSAGE := without-BPF-support
 # have compilation issues that require fixing.
 with_bpf := no
 ifeq ("$(OS)","linux")
-ifeq ("$(ARCH)","amd64")
+# True if $ARCH == amd64 || $ARCH == arm64
+ifneq (,$(filter "$(ARCH)","amd64" "arm64"))
 ifneq ("$(wildcard /usr/libbpf-${LIBBPF_VER}/include/bpf/bpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
 BPF_MESSAGE := with-BPF-support
 CLANG ?= $(shell which clang || which clang-10)
 LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-10)
-KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/')
+KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/g; s/aarch64/arm64/g')
 INCLUDES :=
 ER_BPF_BUILDDIR := lib/bpf/bytecode
 RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
@@ -238,27 +242,22 @@ IS_NATIVE_BUILD ?= $(if $(filter $(ARCH), $(shell go env GOARCH)),"yes","no")
 
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
-ifeq ("$(ARCH)","amd64")
-# Link static version of libraries required by Teleport (bpf, pcsc) to reduce system dependencies. Avoid dependencies on dynamic libraries if we already link the static version using --as-needed.
-CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS="-I/usr/libbpf-${LIBBPF_VER}/include" CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
-CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"
+# True if $ARCH == amd64 || $ARCH == arm64
+ifneq (,$(filter "$(ARCH)","amd64" "arm64"))
+	ifeq ($(IS_NATIVE_BUILD),"yes")
+	# Link static version of libraries required by Teleport (bpf, pcsc) to reduce system dependencies. Avoid dependencies on dynamic libraries if we already link the static version using --as-needed.
+	CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS="-I/usr/libbpf-${LIBBPF_VER}/include" CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
+	CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"
+	else
+	CGOFLAG += CC=aarch64-linux-gnu-gcc
+	endif
 else ifeq ("$(ARCH)","arm")
 # ARM builds need to specify the correct C compiler
 CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
-else ifeq ("$(ARCH)","arm64")
-# ARM64 requires CGO but does not need to do any special linkage due to its reduced featureset
-CGOFLAG = CGO_ENABLED=1
-
-# If we 're not guaranteed to be building natively on an arm64 system, then we'll
-# need to configure the cross compiler.
-ifeq ($(IS_NATIVE_BUILD),"no")
-CGOFLAG += CC=aarch64-linux-gnu-gcc
 endif
-
-endif
-endif
+endif # OS == linux
 
 # Windows requires extra parameters to cross-compile with CGO.
 ifeq ("$(OS)","windows")
@@ -370,8 +369,10 @@ endif
 # only tsh is built.
 #
 .PHONY:full
+full: WEBASSETS_SKIP_BUILD = 0
 full: ensure-webassets
 ifneq ("$(OS)", "windows")
+	export WEBASSETS_SKIP_BUILD=0
 	$(MAKE) all
 endif
 
@@ -832,7 +833,7 @@ lint-api:
 .PHONY: lint-sh
 lint-sh: SH_LINT_FLAGS ?=
 lint-sh:
-	find . -type f -name '*.sh' | xargs \
+	find . -type f -name '*.sh' -not -path "*/node_modules/*" | xargs \
 		shellcheck \
 		--exclude=SC2086 \
 		$(SH_LINT_FLAGS)
@@ -1170,11 +1171,13 @@ test-compat:
 
 .PHONY: ensure-webassets
 ensure-webassets:
-	@MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" OSS webassets/oss-sha build-ui web
+	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/teleport && cp web/packages/build/index.ejs webassets/teleport/index.html; \
+	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" OSS webassets/oss-sha build-ui web; fi
 
 .PHONY: ensure-webassets-e
 ensure-webassets-e:
-	@MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web
+	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/e/teleport && cp web/packages/build/index.ejs webassets/e/teleport/index.html; \
+	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web; fi
 
 .PHONY: init-submodules-e
 init-submodules-e:
@@ -1201,15 +1204,16 @@ backport:
 
 .PHONY: ensure-js-deps
 ensure-js-deps:
-	yarn install --ignore-scripts
+	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
+	else yarn install --ignore-scripts; fi
 
 .PHONY: build-ui
 build-ui: ensure-js-deps
-	yarn build-ui-oss
+	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || yarn build-ui-oss
 
 .PHONY: build-ui-e
 build-ui-e: ensure-js-deps
-	yarn build-ui-e
+	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || yarn build-ui-e
 
 .PHONY: docker-ui
 docker-ui:

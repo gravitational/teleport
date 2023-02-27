@@ -181,7 +181,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
 	}
 	if cfg.SAMLIdPServiceProviders == nil {
-		cfg.SAMLIdPServiceProviders = local.NewSAMLIdPServiceProviderService(cfg.Backend)
+		cfg.SAMLIdPServiceProviders, err = local.NewSAMLIdPServiceProviderService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if cfg.UserGroups == nil {
+		cfg.UserGroups = local.NewUserGroupService(cfg.Backend)
 	}
 	if cfg.ConnectionsDiagnostic == nil {
 		cfg.ConnectionsDiagnostic = local.NewConnectionsDiagnosticService(cfg.Backend)
@@ -249,6 +255,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Events:                  cfg.Events,
 		WindowsDesktops:         cfg.WindowsDesktops,
 		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
+		UserGroups:              cfg.UserGroups,
 		SessionTrackerService:   cfg.SessionTrackerService,
 		Enforcer:                cfg.Enforcer,
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
@@ -337,6 +344,7 @@ type Services struct {
 	services.DatabaseServices
 	services.WindowsDesktops
 	services.SAMLIdPServiceProviders
+	services.UserGroups
 	services.SessionTrackerService
 	services.Enforcer
 	services.ConnectionsDiagnostic
@@ -2776,6 +2784,8 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 }
 
 // GenerateToken generates multi-purpose authentication token.
+// Deprecated: Use CreateToken or UpdateToken.
+// DELETE IN 14.0.0, replaced by methods above (strideynet).
 func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	ttl := defaults.ProvisioningTokenTTL
 	if req.TTL != 0 {

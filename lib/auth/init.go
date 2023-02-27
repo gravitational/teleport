@@ -184,6 +184,9 @@ type InitConfig struct {
 	// SAMLIdPServiceProviders is a service that manages SAML IdP service providers.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
 
+	// UserGroups is a service that manages user groups.
+	UserGroups services.UserGroups
+
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 

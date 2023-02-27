@@ -75,7 +75,7 @@ func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, role, err := CreateUserAndRole(srv.AuthServer, "test-user", []string{})
+	user, role, err := CreateUserAndRole(srv.AuthServer, "test-user", []string{}, nil)
 	require.NoError(t, err)
 	localUser := LocalUser{
 		Username: user.GetName(),
@@ -195,7 +195,7 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 	authServer := testServer.AuthServer
 	ctx := context.Background()
 
-	user, role, err := CreateUserAndRole(authServer, "llama", []string{"llama"})
+	user, role, err := CreateUserAndRole(authServer, "llama", []string{"llama"}, nil)
 	require.NoError(t, err, "CreateUserAndRole")
 
 	userWithoutExtensions := LocalUser{

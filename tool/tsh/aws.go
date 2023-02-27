@@ -154,7 +154,11 @@ func (a *awsApp) GetAWSCredentials() (*credentials.Credentials, error) {
 	//
 	// https://docs.aws.amazon.com/STS/latest/APIReference/API_Credentials.html
 	a.credentialsOnce.Do(func() {
-		a.credentials = credentials.NewStaticCredentials(uuid.NewString(), uuid.NewString(), "")
+		a.credentials = credentials.NewStaticCredentials(
+			getEnvOrDefault(awsAccessKeyIDEnvVar, uuid.NewString()),
+			getEnvOrDefault(awsSecretAccessKeyEnvVar, uuid.NewString()),
+			"",
+		)
 	})
 
 	if a.credentials == nil {

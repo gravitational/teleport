@@ -23,8 +23,8 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/utils"
-	streamutils "github.com/gravitational/teleport/lib/utils/grpc/stream"
 )
 
 // proxyService implements the grpc ProxyService.
@@ -95,7 +95,7 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		return trace.Wrap(err)
 	}
 
-	streamConn := utils.NewTrackingConn(newStreamConn(streamRW, source, destination))
+	streamConn := utils.NewTrackingConn(streamutils.NewConn(streamRW, source, destination))
 
 	err = utils.ProxyConn(stream.Context(), streamConn, nodeConn)
 	sent, received := streamConn.Stat()
