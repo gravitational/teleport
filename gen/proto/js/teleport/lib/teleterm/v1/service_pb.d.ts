@@ -1027,11 +1027,6 @@ export namespace CreateGatewayRequest {
 }
 
 export class ListGatewaysRequest extends jspb.Message { 
-    clearClusterIdsList(): void;
-    getClusterIdsList(): Array<string>;
-    setClusterIdsList(value: Array<string>): ListGatewaysRequest;
-    addClusterIds(value: string, index?: number): string;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListGatewaysRequest.AsObject;
@@ -1045,7 +1040,6 @@ export class ListGatewaysRequest extends jspb.Message {
 
 export namespace ListGatewaysRequest {
     export type AsObject = {
-        clusterIdsList: Array<string>,
     }
 }
 
