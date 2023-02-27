@@ -39,7 +39,7 @@ Teleport opsgenie start –config <config file location>
 
 ## UX
 
-Once an access request has been created, the Opsgenie plugin will create an alert in service specified in the config file using the Opsgenie Alert API Create endpoint. 
+Once an access request has been created, the Opsgenie plugin will create an alert in the service specified in the request annotation using the Opsgenie Alert API Create endpoint. 
 
 The appropriate on call responder can then click into the provided link and approve or deny the access request.
 
