@@ -91,7 +91,7 @@ export function PageIndicatorText({
       typography="body2"
       color="primary.contrastText"
       mr={1}
-      style={{ whiteSpace: 'no-wrap' }}
+      style={{ whiteSpace: 'nowrap' }}
     >
       SHOWING <strong>{from}</strong> - <strong>{to}</strong> of{' '}
       <strong>{count}</strong>

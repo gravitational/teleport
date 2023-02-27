@@ -888,7 +888,7 @@ exports[`failed state 1`] = `
           <div
             class="c20"
             color="primary.contrastText"
-            style="white-space: no-wrap;"
+            style="white-space: nowrap;"
           >
             SHOWING 
             <strong>
@@ -1921,7 +1921,7 @@ exports[`loaded state 1`] = `
           <div
             class="c20"
             color="primary.contrastText"
-            style="white-space: no-wrap;"
+            style="white-space: nowrap;"
           >
             SHOWING 
             <strong>
