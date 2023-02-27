@@ -35,7 +35,7 @@ class FeatureAccessRequests implements TeleportFeature {
   category = NavigationCategory.Resources;
 
   hasAccess() {
-    return true;
+    return !cfg.oss.isDashboard;
   }
 
   navigationItem = {
@@ -55,7 +55,7 @@ class FeatureNewAccessRequest implements TeleportFeature {
   };
 
   hasAccess() {
-    return true;
+    return !cfg.oss.isDashboard;
   }
 
   navigationItem = {
@@ -79,7 +79,7 @@ class FeatureReviewAccessRequests implements TeleportFeature {
   };
 
   hasAccess() {
-    return true; // TODO(isaiah)
+    return !cfg.oss.isDashboard;
   }
 
   navigationItem = {
