@@ -1598,7 +1598,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &samlIDPServiceProviderCollection{serviceProviders: []types.SAMLIdPServiceProvider{serviceProvider}}, nil
+			return &samlIdPServiceProviderCollection{serviceProviders: []types.SAMLIdPServiceProvider{serviceProvider}}, nil
 		}
 		var resources []types.SAMLIdPServiceProvider
 		nextKey := ""
@@ -1615,7 +1615,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 				break
 			}
 		}
-		return &samlIDPServiceProviderCollection{serviceProviders: resources}, nil
+		return &samlIdPServiceProviderCollection{serviceProviders: resources}, nil
 	case types.KindDevice:
 		remote := client.DevicesClient()
 		if rc.ref.Name != "" {
