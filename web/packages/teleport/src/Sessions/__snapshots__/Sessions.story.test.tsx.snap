@@ -244,6 +244,31 @@ exports[`loaded 1`] = `
   border-top-right-radius: 8px;
 }
 
+.c11 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c11 .c12 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c11:hover .c12,
+.c11:focus .c12 {
+  opacity: 1;
+}
+
+.c11:disabled {
+  cursor: default;
+}
+
+.c11:disabled .c12 {
+  opacity: 0.1;
+}
+
 .c6 {
   position: absolute;
   height: 100%;
@@ -293,31 +318,6 @@ exports[`loaded 1`] = `
   font-size: 12px;
 }
 
-.c11 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c11 .c12 {
-  font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
-}
-
-.c11:hover .c12,
-.c11:focus .c12 {
-  opacity: 1;
-}
-
-.c11:disabled {
-  cursor: default;
-}
-
-.c11:disabled .c12 {
-  opacity: 0.1;
-}
-
 .c15 tbody > tr > td {
   vertical-align: middle;
 }
@@ -359,7 +359,7 @@ exports[`loaded 1`] = `
         <div
           class="c9"
           color="primary.contrastText"
-          style="white-space: nowrap;"
+          style="white-space: nowrap; text-transform: uppercase;"
         >
           Showing 
           <strong>

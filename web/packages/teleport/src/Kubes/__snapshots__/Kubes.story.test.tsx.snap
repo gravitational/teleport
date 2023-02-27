@@ -546,6 +546,31 @@ exports[`failed 1`] = `
   cursor: pointer;
 }
 
+.c27 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c27 .c17 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c27:hover .c17,
+.c27:focus .c17 {
+  opacity: 1;
+}
+
+.c27:disabled {
+  cursor: default;
+}
+
+.c27:disabled .c17 {
+  opacity: 0.1;
+}
+
 .c10 {
   position: absolute;
   height: 100%;
@@ -646,31 +671,6 @@ exports[`failed 1`] = `
 
 .c13:disabled + .c14:before {
   background: #455a64;
-}
-
-.c27 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c27 .c17 {
-  font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
-}
-
-.c27:hover .c17,
-.c27:focus .c17 {
-  opacity: 1;
-}
-
-.c27:disabled {
-  cursor: default;
-}
-
-.c27:disabled .c17 {
-  opacity: 0.1;
 }
 
 .c11 {
@@ -807,7 +807,7 @@ exports[`failed 1`] = `
         <div
           class="c20"
           color="primary.contrastText"
-          style="white-space: nowrap;"
+          style="text-transform: uppercase;"
         >
           Showing 
           <strong>
@@ -1262,6 +1262,31 @@ exports[`loaded 1`] = `
   cursor: pointer;
 }
 
+.c27 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c27 .c17 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c27:hover .c17,
+.c27:focus .c17 {
+  opacity: 1;
+}
+
+.c27:disabled {
+  cursor: default;
+}
+
+.c27:disabled .c17 {
+  opacity: 0.1;
+}
+
 .c10 {
   position: absolute;
   height: 100%;
@@ -1362,31 +1387,6 @@ exports[`loaded 1`] = `
 
 .c13:disabled + .c14:before {
   background: #455a64;
-}
-
-.c27 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c27 .c17 {
-  font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
-}
-
-.c27:hover .c17,
-.c27:focus .c17 {
-  opacity: 1;
-}
-
-.c27:disabled {
-  cursor: default;
-}
-
-.c27:disabled .c17 {
-  opacity: 0.1;
 }
 
 .c11 {
@@ -1529,7 +1529,7 @@ exports[`loaded 1`] = `
         <div
           class="c20"
           color="primary.contrastText"
-          style="white-space: nowrap;"
+          style="text-transform: uppercase;"
         >
           Showing 
           <strong>

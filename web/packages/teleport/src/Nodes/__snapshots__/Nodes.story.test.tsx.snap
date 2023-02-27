@@ -596,6 +596,31 @@ exports[`failed 1`] = `
   cursor: pointer;
 }
 
+.c28 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c28 .c17 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c28:hover .c17,
+.c28:focus .c17 {
+  opacity: 1;
+}
+
+.c28:disabled {
+  cursor: default;
+}
+
+.c28:disabled .c17 {
+  opacity: 0.1;
+}
+
 .c10 {
   position: absolute;
   height: 100%;
@@ -698,31 +723,6 @@ exports[`failed 1`] = `
   background: #455a64;
 }
 
-.c28 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c28 .c17 {
-  font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
-}
-
-.c28:hover .c17,
-.c28:focus .c17 {
-  opacity: 1;
-}
-
-.c28:disabled {
-  cursor: default;
-}
-
-.c28:disabled .c17 {
-  opacity: 0.1;
-}
-
 .c11 {
   display: flex;
   align-items: center;
@@ -817,7 +817,7 @@ exports[`failed 1`] = `
         <div
           class="c20"
           color="primary.contrastText"
-          style="white-space: nowrap;"
+          style="text-transform: uppercase;"
         >
           Showing 
           <strong>
@@ -1595,6 +1595,31 @@ exports[`loaded 1`] = `
   cursor: pointer;
 }
 
+.c31 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c31 .c20 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c31:hover .c20,
+.c31:focus .c20 {
+  opacity: 1;
+}
+
+.c31:disabled {
+  cursor: default;
+}
+
+.c31:disabled .c20 {
+  opacity: 0.1;
+}
+
 .c13 {
   position: absolute;
   height: 100%;
@@ -1695,31 +1720,6 @@ exports[`loaded 1`] = `
 
 .c16:disabled + .c17:before {
   background: #455a64;
-}
-
-.c31 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c31 .c20 {
-  font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
-}
-
-.c31:hover .c20,
-.c31:focus .c20 {
-  opacity: 1;
-}
-
-.c31:disabled {
-  cursor: default;
-}
-
-.c31:disabled .c20 {
-  opacity: 0.1;
 }
 
 .c14 {
@@ -1841,7 +1841,7 @@ exports[`loaded 1`] = `
         <div
           class="c23"
           color="primary.contrastText"
-          style="white-space: nowrap;"
+          style="text-transform: uppercase;"
         >
           Showing 
           <strong>

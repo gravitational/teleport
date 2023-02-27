@@ -476,6 +476,31 @@ exports[`rendering of Session Recordings 1`] = `
   border-top-right-radius: 8px;
 }
 
+.c13 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c13 .c14 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c13:hover .c14,
+.c13:focus .c14 {
+  opacity: 1;
+}
+
+.c13:disabled {
+  cursor: default;
+}
+
+.c13:disabled .c14 {
+  opacity: 0.1;
+}
+
 .c8 {
   position: absolute;
   height: 100%;
@@ -523,31 +548,6 @@ exports[`rendering of Session Recordings 1`] = `
 .c7::placeholder {
   color: rgba(255,255,255,0.24);
   font-size: 12px;
-}
-
-.c13 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c13 .c14 {
-  font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
-}
-
-.c13:hover .c14,
-.c13:focus .c14 {
-  opacity: 1;
-}
-
-.c13:disabled {
-  cursor: default;
-}
-
-.c13:disabled .c14 {
-  opacity: 0.1;
 }
 
 <div>
@@ -646,7 +646,7 @@ exports[`rendering of Session Recordings 1`] = `
           <div
             class="c11"
             color="primary.contrastText"
-            style="white-space: nowrap;"
+            style="white-space: nowrap; text-transform: uppercase;"
           >
             Showing 
             <strong>

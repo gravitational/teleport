@@ -655,6 +655,31 @@ exports[`failed state 1`] = `
   cursor: pointer;
 }
 
+.c35 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c35 .c17 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c35:hover .c17,
+.c35:focus .c17 {
+  opacity: 1;
+}
+
+.c35:disabled {
+  cursor: default;
+}
+
+.c35:disabled .c17 {
+  opacity: 0.1;
+}
+
 .c10 {
   position: absolute;
   height: 100%;
@@ -757,31 +782,6 @@ exports[`failed state 1`] = `
   background: #455a64;
 }
 
-.c35 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c35 .c17 {
-  font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
-}
-
-.c35:hover .c17,
-.c35:focus .c17 {
-  opacity: 1;
-}
-
-.c35:disabled {
-  cursor: default;
-}
-
-.c35:disabled .c17 {
-  opacity: 0.1;
-}
-
 .c11 {
   display: flex;
   align-items: center;
@@ -881,7 +881,7 @@ exports[`failed state 1`] = `
           <div
             class="c20"
             color="primary.contrastText"
-            style="white-space: nowrap;"
+            style="text-transform: uppercase;"
           >
             Showing 
             <strong>
@@ -1670,6 +1670,31 @@ exports[`loaded state 1`] = `
   cursor: pointer;
 }
 
+.c35 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c35 .c17 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c35:hover .c17,
+.c35:focus .c17 {
+  opacity: 1;
+}
+
+.c35:disabled {
+  cursor: default;
+}
+
+.c35:disabled .c17 {
+  opacity: 0.1;
+}
+
 .c10 {
   position: absolute;
   height: 100%;
@@ -1770,31 +1795,6 @@ exports[`loaded state 1`] = `
 
 .c13:disabled + .c14:before {
   background: #455a64;
-}
-
-.c35 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c35 .c17 {
-  font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
-}
-
-.c35:hover .c17,
-.c35:focus .c17 {
-  opacity: 1;
-}
-
-.c35:disabled {
-  cursor: default;
-}
-
-.c35:disabled .c17 {
-  opacity: 0.1;
 }
 
 .c11 {
@@ -1902,7 +1902,7 @@ exports[`loaded state 1`] = `
           <div
             class="c20"
             color="primary.contrastText"
-            style="white-space: nowrap;"
+            style="text-transform: uppercase;"
           >
             Showing 
             <strong>
