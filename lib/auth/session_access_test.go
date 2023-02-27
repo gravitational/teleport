@@ -76,9 +76,9 @@ func successStartTestCase(t *testing.T) startTestCase {
 }
 
 func successStartTestCasePause(t *testing.T) startTestCase {
-	hostRole, err := types.NewRole("host", types.RoleSpecV6{})
+	hostRole, err := types.NewRole("host", types.RoleSpecV5{})
 	require.NoError(t, err)
-	participantRole, err := types.NewRole("participant", types.RoleSpecV6{})
+	participantRole, err := types.NewRole("participant", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	hostRole.SetSessionRequirePolicies([]*types.SessionRequirePolicy{{
@@ -117,9 +117,9 @@ func successStartTestCasePause(t *testing.T) startTestCase {
 }
 
 func pauseCanBeOverwritten(t *testing.T) startTestCase {
-	hostRole, err := types.NewRole("host", types.RoleSpecV6{})
+	hostRole, err := types.NewRole("host", types.RoleSpecV5{})
 	require.NoError(t, err)
-	participantRole, err := types.NewRole("participant", types.RoleSpecV6{})
+	participantRole, err := types.NewRole("participant", types.RoleSpecV5{})
 	require.NoError(t, err)
 
 	hostRole.SetSessionRequirePolicies([]*types.SessionRequirePolicy{
