@@ -16,6 +16,10 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'examples/**'
+  merge_group:
+    paths-ignore:
+      - 'docs/**'
+      - 'examples/**'      
 
 jobs:
   lint:
