@@ -1716,6 +1716,16 @@ message GetClusterCACertResponse {
   bytes TLSCA = 1 [(gogoproto.jsontag) = "tls_ca"];
 }
 
+// GetLicenseResponse is a response from GetLicense
+message GetLicenseResponse {
+  bytes License = 1 [(gogoproto.jsontag) = "license"];
+}
+
+// ListReleasesResponse is a response from ListReleases
+message ListReleasesResponse {
+  repeated types.Release releases = 1 [(gogoproto.jsontag) = "releases"];
+}
+
 // GenerateTokenRequest is a request to generate auth token.
 message GenerateTokenRequest {
   // Token sets the token value. If not set, it will be auto generated.
@@ -1945,6 +1955,16 @@ message AppendDiagnosticTraceRequest {
 // SubmitUsageEventRequest is used to submit an external usage event.
 message SubmitUsageEventRequest {
   teleport.usageevents.v1.UsageEventOneOf Event = 1 [(gogoproto.jsontag) = "event"];
+}
+
+// GetLicenseEvent is used to submit an external usage event.
+message GetLicenseRequest {
+  // GetLicense currently takes no params
+}
+
+// GetLicenseEvent is used to submit an external usage event.
+message ListReleasesRequest {
+  // ListReleases currently takes no params
 }
 
 // AuthService is authentication/authorization service implementation
@@ -2538,4 +2558,10 @@ service AuthService {
 
   // SubmitUsageEvent submits an external usage event.
   rpc SubmitUsageEvent(SubmitUsageEventRequest) returns (google.protobuf.Empty);
+
+  // GetLicense returns the license used to start the auth server.
+  rpc GetLicense(GetLicenseRequest) returns (GetLicenseResponse);
+
+  // ListReleases returns a list of Teleport Enterprise releases.
+  rpc ListReleases(ListReleasesRequest) returns (ListReleasesResponse);
 }

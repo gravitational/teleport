@@ -45,6 +45,7 @@ import (
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/google/uuid"
+	liblicense "github.com/gravitational/license"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -82,6 +83,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
@@ -445,6 +447,8 @@ type Server struct {
 
 	loginRuleEvaluator loginrule.Evaluator
 
+	releaseService release.Client
+
 	sshca.Authority
 
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
@@ -527,6 +531,9 @@ type Server struct {
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
+
+	// license is the Teleport Enterprise license used to start the auth server
+	license *liblicense.License
 }
 
 // SetLoginRuleEvaluator sets the login rule evaluator.
@@ -542,6 +549,16 @@ func (a *Server) GetLoginRuleEvaluator() loginrule.Evaluator {
 		return loginrule.NullEvaluator{}
 	}
 	return a.loginRuleEvaluator
+}
+
+// SetLicense sets the license
+func (a *Server) SetLicense(license *liblicense.License) {
+	a.license = license
+}
+
+// SetReleaseService sets the release service
+func (a *Server) SetReleaseService(svc release.Client) {
+	a.releaseService = svc
 }
 
 // CloseContext returns the close context
@@ -4133,6 +4150,14 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 		}
 	}
 	return trace.Wrap(a.keyStore.DeleteUnusedKeys(ctx, usedKeys))
+}
+
+// GetLicense return the license used the star the teleport enterprise auth server
+func (a *Server) GetLicense(ctx context.Context) (string, error) {
+	if a.license == nil {
+		return "", trace.NotFound("license not found")
+	}
+	return fmt.Sprintf("%s%s", a.license.CertPEM, a.license.KeyPEM), nil
 }
 
 // authKeepAliver is a keep aliver using auth server directly
