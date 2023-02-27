@@ -417,12 +417,10 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	switch c.Spec.Type {
-	case constants.Local:
-		if !c.Spec.AllowLocalAuth.Value {
-			log.Warn("Ignoring local_auth=false when authentication.type=local")
-			c.Spec.AllowLocalAuth.Value = true
-		}
-	case constants.OIDC, constants.SAML, constants.Github:
+	case constants.Local, constants.OIDC, constants.SAML, constants.Github:
+		// Note that "type:local" and "local_auth:false" is considered a valid
+		// setting, as it is a common idiom for clusters that rely on dynamic
+		// configuration.
 	default:
 		return trace.BadParameter("authentication type %q not supported", c.Spec.Type)
 	}

@@ -1549,7 +1549,7 @@ func setupImpersonationHeaders(log log.FieldLogger, ctx authContext, headers htt
 
 		// Make sure to overwrite the exiting headers, instead of appending to
 		// them.
-		headers[ImpersonateGroupHeader] = nil
+		headers.Del(ImpersonateGroupHeader)
 		for _, group := range impersonateGroups {
 			headers.Add(ImpersonateGroupHeader, group)
 		}
