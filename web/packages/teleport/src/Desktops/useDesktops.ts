@@ -16,6 +16,8 @@ limitations under the License.
 
 import { useEffect } from 'react';
 
+import { LoginItem } from 'shared/components/MenuLogin';
+
 import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -25,11 +27,12 @@ import {
 } from 'teleport/components/hooks';
 import { openNewTab } from 'teleport/lib/util';
 
+import type { Desktop } from 'teleport/services/desktops';
+
 export function useDesktops(ctx: Ctx) {
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const username = ctx.storeUser.state.username;
-  const windowsLogins = ctx.storeUser.getWindowsLogins();
 
   const { params, search, ...filteringProps } = useUrlFiltering({
     fieldName: 'name',
@@ -42,12 +45,12 @@ export function useDesktops(ctx: Ctx) {
     params,
   });
 
-  const getWindowsLoginOptions = (desktopName: string) =>
-    makeOptions(clusterId, desktopName, windowsLogins);
-
   useEffect(() => {
     fetch();
   }, [clusterId, search]);
+
+  const getWindowsLoginOptions = ({ name, logins }: Desktop) =>
+    makeOptions(clusterId, name, logins);
 
   const openRemoteDesktopTab = (username: string, desktopName: string) => {
     const url = cfg.getDesktopRoute({
@@ -76,7 +79,7 @@ function makeOptions(
   clusterId: string,
   desktopName = '',
   logins = [] as string[]
-) {
+): LoginItem[] {
   return logins.map(username => {
     const url = cfg.getDesktopRoute({
       clusterId,

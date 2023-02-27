@@ -28,6 +28,10 @@ export interface App {
   fqdn: string;
   awsRoles: AwsRole[];
   awsConsole: boolean;
+  isCloudOrTcpEndpoint?: boolean;
+  // addrWithProtocol can either be a public address or
+  // if public address wasn't defined, fallback to uri
+  addrWithProtocol?: string;
 }
 
 export type AwsRole = {

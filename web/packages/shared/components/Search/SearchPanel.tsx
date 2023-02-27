@@ -32,6 +32,7 @@ export function SearchPanel({
   filter,
   showSearchBar,
   disableSearch,
+  extraChildren,
 }: {
   updateQuery(s: string): void;
   updateSearch(s: string): void;
@@ -39,6 +40,7 @@ export function SearchPanel({
   filter: AgentFilter;
   showSearchBar: boolean;
   disableSearch: boolean;
+  extraChildren?: JSX.Element;
 }) {
   const [query, setQuery] = useState(filter.search || filter.query || '');
   const [isAdvancedSearch, setIsAdvancedSearch] = useState(!!filter.query);
@@ -65,13 +67,12 @@ export function SearchPanel({
 
   return (
     <StyledPanel
-      as="form"
       onSubmit={handleOnSubmit}
       borderTopLeftRadius={3}
       borderTopRightRadius={3}
     >
       <Flex justifyContent="space-between" alignItems="center" width="100%">
-        <Flex style={{ width: '70%' }} alignItems="center">
+        <Flex as="form" style={{ width: '70%' }} alignItems="center">
           <StyledFlex
             mr={3}
             alignItems="center"
@@ -93,11 +94,14 @@ export function SearchPanel({
             </Tooltip>
           )}
         </Flex>
-        <PageIndicatorText
-          from={pageIndicators.from}
-          to={pageIndicators.to}
-          count={pageIndicators.total}
-        />
+        <Flex alignItems="center">
+          <PageIndicatorText
+            from={pageIndicators.from}
+            to={pageIndicators.to}
+            count={pageIndicators.total}
+          />
+          {extraChildren && extraChildren}
+        </Flex>
       </Flex>
     </StyledPanel>
   );

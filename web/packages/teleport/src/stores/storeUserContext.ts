@@ -42,10 +42,6 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.roles;
   }
 
-  getWindowsLogins() {
-    return this.state.acl.windowsLogins;
-  }
-
   getTrustedClusterAccess() {
     return this.state.acl.trustedClusters;
   }

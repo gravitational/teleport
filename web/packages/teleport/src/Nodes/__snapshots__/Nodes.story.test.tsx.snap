@@ -817,7 +817,7 @@ exports[`failed 1`] = `
         <div
           class="c20"
           color="primary.contrastText"
-          style="text-transform: uppercase;"
+          style="white-space: nowrap;"
         >
           Showing 
           <strong>
@@ -1841,7 +1841,7 @@ exports[`loaded 1`] = `
         <div
           class="c23"
           color="primary.contrastText"
-          style="text-transform: uppercase;"
+          style="white-space: nowrap;"
         >
           Showing 
           <strong>

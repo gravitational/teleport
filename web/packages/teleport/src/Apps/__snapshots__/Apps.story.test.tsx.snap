@@ -375,14 +375,14 @@ exports[`failed state 1`] = `
   color: #FFFFFF;
 }
 
-.c31 {
+.c30 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 22px;
 }
 
-.c32 {
+.c31 {
   display: inline-block;
   transition: color 0.3s;
   margin-left: 4px;
@@ -477,18 +477,18 @@ exports[`failed state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #e64a19;
+  background-color: #f57c00;
   border-radius: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.c30 {
+.c32 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #f57c00;
+  background-color: #1976d2;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -881,7 +881,7 @@ exports[`failed state 1`] = `
           <div
             class="c20"
             color="primary.contrastText"
-            style="text-transform: uppercase;"
+            style="white-space: nowrap;"
           >
             Showing 
             <strong>
@@ -889,12 +889,12 @@ exports[`failed state 1`] = `
             </strong>
              - 
             <strong>
-              4
+              5
             </strong>
              of
              
             <strong>
-              4
+              5
             </strong>
           </div>
         </div>
@@ -968,8 +968,7 @@ exports[`failed state 1`] = `
             This is a Jenkins app
           </td>
           <td>
-            https://
-            jenkins.teleport-proxy.com
+            https://jenkins.teleport-proxy.com
           </td>
           <td>
             <div
@@ -1028,8 +1027,7 @@ exports[`failed state 1`] = `
             This is a Mattermost app
           </td>
           <td>
-            https://
-            mattermost.teleport-proxy.com
+            https://mattermost.teleport-proxy.com
           </td>
           <td>
             <div
@@ -1069,7 +1067,7 @@ exports[`failed state 1`] = `
             style="user-select: none;"
           >
             <div
-              class="c29"
+              class="c28"
               height="32px"
               width="32px"
             >
@@ -1077,19 +1075,18 @@ exports[`failed state 1`] = `
                 class="c24"
                 font-size="3"
               >
-                G
+                T
               </div>
             </div>
           </td>
           <td>
-            Grafana
+            TCP
           </td>
           <td>
-            This is a Grafana app
+            This is a TCP app
           </td>
           <td>
-            https://
-            grafana.teleport-proxy.com
+            tcp://some-address
           </td>
           <td>
             <div
@@ -1112,16 +1109,15 @@ exports[`failed state 1`] = `
           <td
             align="right"
           >
-            <a
+            <button
               class="c27"
-              href="/web/launch/grafana.one/one/grafana.teleport-proxy.com"
+              disabled=""
               kind="border"
-              rel="noreferrer"
-              target="_blank"
+              title="Cloud or TCP applications cannot be launched by the browser"
               width="88px"
             >
               LAUNCH
-            </a>
+            </button>
           </td>
         </tr>
         <tr>
@@ -1129,12 +1125,12 @@ exports[`failed state 1`] = `
             style="user-select: none;"
           >
             <div
-              class="c30"
+              class="c29"
               height="32px"
               width="32px"
             >
               <span
-                class="c17 c31 icon icon-amazonaws "
+                class="c17 c30 icon icon-amazonaws "
                 color="light"
                 font-size="6"
               />
@@ -1147,8 +1143,7 @@ exports[`failed state 1`] = `
             This is an AWS Console app
           </td>
           <td>
-            https://
-            awsconsole-1.teleport-proxy.com
+            https://awsconsole-1.teleport-proxy.com
           </td>
           <td>
             <div
@@ -1184,10 +1179,68 @@ exports[`failed state 1`] = `
             >
               LAUNCH
               <span
-                class="c17 c32 icon icon-caret-down "
+                class="c17 c31 icon icon-caret-down "
                 color="text.secondary"
                 font-size="2"
               />
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="user-select: none;"
+          >
+            <div
+              class="c32"
+              height="32px"
+              width="32px"
+            >
+              <div
+                class="c24"
+                font-size="3"
+              >
+                C
+              </div>
+            </div>
+          </td>
+          <td>
+            Cloud
+          </td>
+          <td>
+            This is a Cloud specific app
+          </td>
+          <td>
+            cloud://some-address
+          </td>
+          <td>
+            <div
+              class="c25"
+            >
+              <div
+                class="c26"
+                kind="secondary"
+              >
+                env: dev
+              </div>
+              <div
+                class="c26"
+                kind="secondary"
+              >
+                cluster: one
+              </div>
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              disabled=""
+              kind="border"
+              title="Cloud or TCP applications cannot be launched by the browser"
+              width="88px"
+            >
+              LAUNCH
             </button>
           </td>
         </tr>
@@ -1337,14 +1390,14 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
 }
 
-.c31 {
+.c30 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 22px;
 }
 
-.c32 {
+.c31 {
   display: inline-block;
   transition: color 0.3s;
   margin-left: 4px;
@@ -1439,18 +1492,18 @@ exports[`loaded state 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #e64a19;
+  background-color: #f57c00;
   border-radius: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.c30 {
+.c32 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
-  background-color: #f57c00;
+  background-color: #1976d2;
   border-radius: 100%;
   display: flex;
   align-items: center;
@@ -1849,7 +1902,7 @@ exports[`loaded state 1`] = `
           <div
             class="c20"
             color="primary.contrastText"
-            style="text-transform: uppercase;"
+            style="white-space: nowrap;"
           >
             Showing 
             <strong>
@@ -1857,12 +1910,12 @@ exports[`loaded state 1`] = `
             </strong>
              - 
             <strong>
-              4
+              5
             </strong>
              of
              
             <strong>
-              4
+              5
             </strong>
           </div>
         </div>
@@ -1936,8 +1989,7 @@ exports[`loaded state 1`] = `
             This is a Jenkins app
           </td>
           <td>
-            https://
-            jenkins.teleport-proxy.com
+            https://jenkins.teleport-proxy.com
           </td>
           <td>
             <div
@@ -1996,8 +2048,7 @@ exports[`loaded state 1`] = `
             This is a Mattermost app
           </td>
           <td>
-            https://
-            mattermost.teleport-proxy.com
+            https://mattermost.teleport-proxy.com
           </td>
           <td>
             <div
@@ -2037,7 +2088,7 @@ exports[`loaded state 1`] = `
             style="user-select: none;"
           >
             <div
-              class="c29"
+              class="c28"
               height="32px"
               width="32px"
             >
@@ -2045,19 +2096,18 @@ exports[`loaded state 1`] = `
                 class="c24"
                 font-size="3"
               >
-                G
+                T
               </div>
             </div>
           </td>
           <td>
-            Grafana
+            TCP
           </td>
           <td>
-            This is a Grafana app
+            This is a TCP app
           </td>
           <td>
-            https://
-            grafana.teleport-proxy.com
+            tcp://some-address
           </td>
           <td>
             <div
@@ -2080,16 +2130,15 @@ exports[`loaded state 1`] = `
           <td
             align="right"
           >
-            <a
+            <button
               class="c27"
-              href="/web/launch/grafana.one/one/grafana.teleport-proxy.com"
+              disabled=""
               kind="border"
-              rel="noreferrer"
-              target="_blank"
+              title="Cloud or TCP applications cannot be launched by the browser"
               width="88px"
             >
               LAUNCH
-            </a>
+            </button>
           </td>
         </tr>
         <tr>
@@ -2097,12 +2146,12 @@ exports[`loaded state 1`] = `
             style="user-select: none;"
           >
             <div
-              class="c30"
+              class="c29"
               height="32px"
               width="32px"
             >
               <span
-                class="c17 c31 icon icon-amazonaws "
+                class="c17 c30 icon icon-amazonaws "
                 color="light"
                 font-size="6"
               />
@@ -2115,8 +2164,7 @@ exports[`loaded state 1`] = `
             This is an AWS Console app
           </td>
           <td>
-            https://
-            awsconsole-1.teleport-proxy.com
+            https://awsconsole-1.teleport-proxy.com
           </td>
           <td>
             <div
@@ -2152,10 +2200,68 @@ exports[`loaded state 1`] = `
             >
               LAUNCH
               <span
-                class="c17 c32 icon icon-caret-down "
+                class="c17 c31 icon icon-caret-down "
                 color="text.secondary"
                 font-size="2"
               />
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="user-select: none;"
+          >
+            <div
+              class="c32"
+              height="32px"
+              width="32px"
+            >
+              <div
+                class="c24"
+                font-size="3"
+              >
+                C
+              </div>
+            </div>
+          </td>
+          <td>
+            Cloud
+          </td>
+          <td>
+            This is a Cloud specific app
+          </td>
+          <td>
+            cloud://some-address
+          </td>
+          <td>
+            <div
+              class="c25"
+            >
+              <div
+                class="c26"
+                kind="secondary"
+              >
+                env: dev
+              </div>
+              <div
+                class="c26"
+                kind="secondary"
+              >
+                cluster: one
+              </div>
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c27"
+              disabled=""
+              kind="border"
+              title="Cloud or TCP applications cannot be launched by the browser"
+              width="88px"
+            >
+              LAUNCH
             </button>
           </td>
         </tr>

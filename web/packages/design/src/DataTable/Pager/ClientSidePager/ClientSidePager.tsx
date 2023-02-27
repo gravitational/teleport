@@ -16,9 +16,7 @@
 
 import React from 'react';
 
-import { PageIndicatorText } from 'shared/components/Search';
-
-import { Flex } from 'design';
+import { Flex, Text } from 'design';
 import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 
 import { StyledArrowBtn, StyledFetchMoreBtn } from '../StyledPager';
@@ -63,5 +61,27 @@ export function ClientSidePager(props: Props) {
         </StyledArrowBtn>
       </Flex>
     </Flex>
+  );
+}
+
+export function PageIndicatorText({
+  from,
+  to,
+  count,
+}: {
+  from: number;
+  to: number;
+  count: number;
+}) {
+  return (
+    <Text
+      typography="body2"
+      color="primary.contrastText"
+      mr={1}
+      style={{ whiteSpace: 'nowrap' }}
+    >
+      SHOWING <strong>{from}</strong> - <strong>{to}</strong> of{' '}
+      <strong>{count}</strong>
+    </Text>
   );
 }

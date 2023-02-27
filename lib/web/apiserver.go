@@ -840,6 +840,7 @@ func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, 
 		SecondFactor:        cap.GetSecondFactor(),
 		PreferredLocalMFA:   cap.GetPreferredLocalMFA(),
 		AllowPasswordless:   cap.GetAllowPasswordless(),
+		AllowHeadless:       cap.GetAllowHeadless(),
 		Local:               &webclient.LocalSettings{},
 		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
 		DeviceTrustDisabled: deviceTrustDisabled(cap),
@@ -2247,8 +2248,13 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
+	uiServers, err := ui.MakeServers(site.GetName(), servers, accessChecker.Roles())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return listResourcesGetResponse{
-		Items:      ui.MakeServers(site.GetName(), servers, accessChecker.Roles()),
+		Items:      uiServers,
 		StartKey:   resp.NextKey,
 		TotalCount: resp.TotalCount,
 	}, nil

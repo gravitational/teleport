@@ -358,7 +358,7 @@ exports[`render clusters 1`] = `
         <div
           class="c9"
           color="primary.contrastText"
-          style="text-transform: uppercase;"
+          style="white-space: nowrap;"
         >
           Showing 
           <strong>
