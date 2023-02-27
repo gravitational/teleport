@@ -282,6 +282,31 @@ exports[`render DocumentNodes 1`] = `
   cursor: pointer;
 }
 
+.c35 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c35 .c24 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c35:hover .c24,
+.c35:focus .c24 {
+  opacity: 1;
+}
+
+.c35:disabled {
+  cursor: default;
+}
+
+.c35:disabled .c24 {
+  opacity: 0.1;
+}
+
 .c17 {
   position: absolute;
   height: 100%;
@@ -382,31 +407,6 @@ exports[`render DocumentNodes 1`] = `
 
 .c20:disabled + .c21:before {
   background: #455a64;
-}
-
-.c35 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c35 .c24 {
-  font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
-}
-
-.c35:hover .c24,
-.c35:focus .c24 {
-  opacity: 1;
-}
-
-.c35:disabled {
-  cursor: default;
-}
-
-.c35:disabled .c24 {
-  opacity: 0.1;
 }
 
 .c18 {
