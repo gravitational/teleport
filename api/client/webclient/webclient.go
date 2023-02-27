@@ -377,6 +377,8 @@ type AuthenticationSettings struct {
 	PreferredLocalMFA constants.SecondFactorType `json:"preferred_local_mfa,omitempty"`
 	// AllowPasswordless is true if passwordless logins are allowed.
 	AllowPasswordless bool `json:"allow_passwordless,omitempty"`
+	// AllowHeadless is true if headless logins are allowed.
+	AllowHeadless bool `json:"allow_headless,omitempty"`
 	// Local contains settings for local authentication.
 	Local *LocalSettings `json:"local,omitempty"`
 	// Webauthn contains MFA settings for Web Authentication.
