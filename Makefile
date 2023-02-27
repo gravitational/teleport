@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.3.12
+VERSION=10.3.13
 
 DOCKER_IMAGE ?= teleport
 
@@ -737,7 +737,7 @@ lint-api:
 .PHONY: lint-sh
 lint-sh: SH_LINT_FLAGS ?=
 lint-sh:
-	find . -type f -name '*.sh' | xargs \
+	find . -type f -name '*.sh' -not -path "*/node_modules/*" | xargs \
 		shellcheck \
 		--exclude=SC2086 \
 		$(SH_LINT_FLAGS)
@@ -1122,7 +1122,7 @@ init-submodules-e:
 #    - install drone cli
 #    - set $DRONE_TOKEN
 #    - tsh login --proxy=platform.teleport.sh
-#    - tsh app login drone
+#    - tsh apps login drone
 #    - tsh proxy app drone
 #    - export DRONE_SERVER=https://localhost:$TSH_PROXY_PORT
 #    - make dronegen
