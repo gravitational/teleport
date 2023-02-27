@@ -62,6 +62,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // replaced
 	github.com/golang-jwt/jwt/v4 v4.4.3
 	github.com/google/btree v1.1.2
+	github.com/google/go-attestation v0.4.3
 	github.com/google/go-cmp v0.5.9
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.3.0
@@ -159,7 +160,6 @@ require (
 	sigs.k8s.io/controller-runtime v0.14.4
 	sigs.k8s.io/controller-tools v0.11.3
 	sigs.k8s.io/yaml v1.3.0
-	github.com/google/go-attestation v0.4.3
 )
 
 // Indirect mailgun dependencies.
