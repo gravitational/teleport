@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -143,13 +144,14 @@ type Controller struct {
 	serverTTL          time.Duration
 	instanceHBInterval time.Duration
 	maxKeepAliveErrs   int
+	usageReporter      services.UsageReporter
 	testEvents         chan testEvent
 	closeContext       context.Context
 	cancel             context.CancelFunc
 }
 
 // NewController sets up a new controller instance.
-func NewController(auth Auth, opts ...ControllerOption) *Controller {
+func NewController(auth Auth, usageReporter services.UsageReporter, opts ...ControllerOption) *Controller {
 	var options controllerOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -166,6 +168,7 @@ func NewController(auth Auth, opts ...ControllerOption) *Controller {
 		auth:               auth,
 		authID:             options.authID,
 		testEvents:         options.testEvents,
+		usageReporter:      usageReporter,
 		closeContext:       ctx,
 		cancel:             cancel,
 	}
@@ -234,9 +237,22 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				handle.CloseWithError(trace.BadParameter("unexpected upstream hello"))
 				return
 			case proto.UpstreamInventoryAgentMetadata:
-				log.Warnf("Unexpected upstream agent metadata on control stream of server %q.", handle.Hello().ServerID)
-				handle.CloseWithError(trace.BadParameter("unexpected upstream agent metadata"))
-				return
+				log.Debugf("Agent metadata received: %v", m)
+				if err := c.usageReporter.AnonymizeAndSubmit(&services.AgentMetadataEvent{
+					Version:               m.Version,
+					HostId:                m.HostID,
+					Services:              m.Services,
+					Os:                    m.OS,
+					OsVersionInfo:         m.OSVersionInfo,
+					HostArchitectureInfo:  m.HostArchitectureInfo,
+					GlibcVersionInfo:      m.GlibcVersionInfo,
+					InstallMethods:        m.InstallMethods,
+					ContainerRuntime:      m.ContainerRuntime,
+					ContainerOrchestrator: m.ContainerOrchestrator,
+					CloudEnvironment:      m.CloudEnvironment,
+				}); err != nil {
+					log.Debugf("Unable to submit agent metadata: %v", err)
+				}
 			case proto.InventoryHeartbeat:
 				if err := c.handleHeartbeatMsg(handle, m); err != nil {
 					handle.CloseWithError(err)

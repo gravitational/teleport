@@ -279,7 +279,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
-		inventory:       inventory.NewController(cfg.Presence, inventory.WithAuthServerID(cfg.HostUUID)),
+		inventory:       inventory.NewController(cfg.Presence, cfg.UsageReporter, inventory.WithAuthServerID(cfg.HostUUID)),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
 		loadAllCAs:      cfg.LoadAllCAs,
@@ -3067,23 +3067,6 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 				if err := a.RegisterInventoryControlStream(upstream, m); err != nil {
 					upstream.CloseWithError(err)
 					return
-				}
-			case proto.UpstreamInventoryAgentMetadata:
-				log.Debugf("Agent metadata received: %v", m)
-				if err := a.AnonymizeAndSubmit(&services.AgentMetadataEvent{
-					Version:               m.Version,
-					HostId:                m.HostID,
-					Services:              m.Services,
-					Os:                    m.OS,
-					OsVersionInfo:         m.OSVersionInfo,
-					HostArchitectureInfo:  m.HostArchitectureInfo,
-					GlibcVersionInfo:      m.GlibcVersionInfo,
-					InstallMethods:        m.InstallMethods,
-					ContainerRuntime:      m.ContainerRuntime,
-					ContainerOrchestrator: m.ContainerOrchestrator,
-					CloudEnvironment:      m.CloudEnvironment,
-				}); err != nil {
-					log.Debugf("Unable to submit agent metadata: %v", err)
 				}
 			default:
 				upstream.CloseWithError(trace.BadParameter("expected upstream hello, got: %T", msg))
