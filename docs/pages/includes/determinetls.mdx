@@ -3,10 +3,21 @@ instead of utilizing multiple ports for each protocol type. If enabled that can 
 To get details of the Teleport Cluster you can invoke `/webapi/ping` path
 on the Teleport Proxy Service. The `proxy.tls_routing_enabled` value indicates if TLS routing is enabled:
 
+<ScopedBlock scope={["cloud"]}>
+```code
+$ curl https://mytenant.teleport.sh/webapi/ping |  jq '.proxy.tls_routing_enabled'
+true
+```
+
+Replace `mytenant.teleport.sh` with your Teleport Enterprise Cloud tenant address.
+</ScopedBlock>
+<ScopedBlock scope={["oss","enterprise"]}>
 ```code
 $ curl https://teleport.example.com/webapi/ping |  jq '.proxy.tls_routing_enabled'
 true
-
 ```
 
-Replace `teleport.example.com` with your Teleport Proxy address or Cloud address (e.g. `mytenant.teleport.sh`)
+Replace `teleport.example.com` with your Teleport Proxy address.
+</ScopedBlock>
+
+
