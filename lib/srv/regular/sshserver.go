@@ -1602,10 +1602,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			}
 			return nil
 		case sshutils.PuTTYWinadjRequest:
-			// PuTTY sends this request along with some SSH_MSG_CHANNEL_WINDOW_ADJUST messages as part of its window-size
-			// tuning. It can be sent on any type of channel. There is no message-specific data. Servers MUST treat it
-			// as an unrecognized request and respond with SSH_MSG_CHANNEL_FAILURE.
-			// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
 			return s.handlePuTTYWinadj(ch, req)
 		default:
 			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
@@ -1659,10 +1655,6 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		}
 		return nil
 	case sshutils.PuTTYWinadjRequest:
-		// PuTTY sends this request along with some SSH_MSG_CHANNEL_WINDOW_ADJUST messages as part of its window-size
-		// tuning. It can be sent on any type of channel. There is no message-specific data. Servers MUST treat it
-		// as an unrecognized request and respond with SSH_MSG_CHANNEL_FAILURE.
-		// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
 		return s.handlePuTTYWinadj(ch, req)
 	default:
 		return trace.BadParameter(
@@ -2033,7 +2025,11 @@ func rejectChannel(ch ssh.NewChannel, reason ssh.RejectionReason, msg string) {
 }
 
 // handlePuTTYWinadj replies with failure to a PuTTY winadj request as required.
-// it returns an error if the reply fails.
+// it returns an error if the reply fails. context from the PuTTY documentation:
+// PuTTY sends this request along with some SSH_MSG_CHANNEL_WINDOW_ADJUST messages as part of its window-size
+// tuning. It can be sent on any type of channel. There is no message-specific data. Servers MUST treat it
+// as an unrecognized request and respond with SSH_MSG_CHANNEL_FAILURE.
+// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
 func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
 	if err := req.Reply(false, nil); err != nil {
 		s.Logger.Warnf("Failed to reply to %q request: %v", req.Type, err)
