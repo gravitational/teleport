@@ -734,6 +734,7 @@ func (rc *ResourceCommand) createLoginRule(ctx context.Context, client auth.Clie
 }
 
 func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	// Create services.SAMLIdPServiceProvider from raw YAML to extract the service provider name.
 	sp, err := services.UnmarshalSAMLIdPServiceProvider(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
