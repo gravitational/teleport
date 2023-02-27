@@ -2039,7 +2039,7 @@ func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
 		s.Logger.Warnf("Failed to reply to %q request: %v", req.Type, err)
 		return err
 	}
-	// the reply has been handled inside this function (rather than relying on the standard behaviour
+	// the reply has been handled inside this function (rather than relying on the standard behavior
 	// of leaving handleSessionRequests to do it) so set the WantReply flag to false here.
 	req.WantReply = false
 	return nil
