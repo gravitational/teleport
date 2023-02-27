@@ -289,6 +289,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SAMLIdPServiceProviderUpdate{}
 	case SAMLIdPServiceProviderDeleteEvent:
 		e = &events.SAMLIdPServiceProviderDelete{}
+	case SAMLIdPServiceProviderDeleteAllEvent:
+		e = &events.SAMLIdPServiceProviderDeleteAll{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 

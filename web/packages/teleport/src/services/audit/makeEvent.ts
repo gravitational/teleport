@@ -1318,6 +1318,18 @@ export const formatters: Formatters = {
     format: ({ updated_by, name, service_provider_entity_id }) =>
       `User [${updated_by}] failed to delete service provider [${name}] with entity ID [${service_provider_entity_id}]`,
   },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL]: {
+    type: 'saml.idp.service.provider.delete_all',
+    desc: 'All SAML IdP service provider deleted',
+    format: ({ updated_by, name }) =>
+      `User [${updated_by}] deleted all service providers`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE]: {
+    type: 'saml.idp.service.provider.delete',
+    desc: 'SAML IdP service provider delete failed',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] failed to delete all service providers`,
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',

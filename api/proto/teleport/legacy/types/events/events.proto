@@ -3238,6 +3238,7 @@ message OneOf {
     events.SAMLIdPServiceProviderCreate SAMLIdPServiceProviderCreate = 116;
     events.SAMLIdPServiceProviderUpdate SAMLIdPServiceProviderUpdate = 117;
     events.SAMLIdPServiceProviderDelete SAMLIdPServiceProviderDelete = 118;
+    events.SAMLIdPServiceProviderDeleteAll SAMLIdPServiceProviderDeleteAll = 119;
   }
 }
 
@@ -4538,6 +4539,23 @@ message SAMLIdPServiceProviderDelete {
 
   // SAMLIdPServiceProviderMetadata is common SAML IdP service provider event metadata
   SAMLIdPServiceProviderMetadata ServiceProvider = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SAMLIdPServiceProviderDeleteAll is emitted when all service providers have been deleted.
+message SAMLIdPServiceProviderDeleteAll {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is common resource event metadata
+  ResourceMetadata Resource = 2 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""

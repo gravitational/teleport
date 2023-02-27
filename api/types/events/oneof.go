@@ -507,6 +507,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SAMLIdPServiceProviderDelete{
 			SAMLIdPServiceProviderDelete: e,
 		}
+	case *SAMLIdPServiceProviderDeleteAll:
+		out.Event = &OneOf_SAMLIdPServiceProviderDeleteAll{
+			SAMLIdPServiceProviderDeleteAll: e,
+		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
 		unknown := &Unknown{}

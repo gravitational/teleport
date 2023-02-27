@@ -610,6 +610,9 @@ const (
 	// SAMLIdPServiceProviderDeleteEvent is emitted when a service provider has been deleted.
 	SAMLIdPServiceProviderDeleteEvent = "saml.idp.service.provider.delete"
 
+	// SAMLIdPServiceProviderDeleteAllEvent is emitted when all service providers have been deleted.
+	SAMLIdPServiceProviderDeleteAllEvent = "saml.idp.service.provider.delete_all"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )

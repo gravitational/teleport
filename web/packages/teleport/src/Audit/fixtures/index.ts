@@ -2757,6 +2757,20 @@ export const events = [
     updated_by: 'mike',
     service_provider_entity_id: 'valid-entity-id',
   },
+  {
+    code: 'TSI004I',
+    event: 'saml.idp.service.provider.delete',
+    time: '2023-01-25T19:21:36.144Z',
+    name: 'saml-idp',
+    updated_by: 'mike',
+  },
+  {
+    code: 'TSI004W',
+    event: 'saml.idp.service.provider.delete',
+    time: '2023-01-25T19:21:36.144Z',
+    name: 'saml-idp',
+    updated_by: 'mike',
+  },
 ].map(makeEvent);
 
 // Do not add new events to this array, add it to `events` list.

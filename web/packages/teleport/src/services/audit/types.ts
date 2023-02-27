@@ -225,6 +225,8 @@ export const eventCodes = {
   SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE: 'TSI002W',
   SAML_IDP_SERVICE_PROVIDER_DELETE: 'TSI003I',
   SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE: 'TSI003W',
+  SAML_IDP_SERVICE_PROVIDER_DELETE_ALL: 'TSI004I',
+  SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE: 'TSI004W',
 } as const;
 
 /**
@@ -1182,6 +1184,20 @@ export type RawEvents = {
       name: string;
       updated_by: string;
       service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE,
+    {
+      name: string;
+      updated_by: string;
     }
   >;
 };

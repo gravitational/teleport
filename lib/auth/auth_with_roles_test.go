@@ -3899,8 +3899,6 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Nil(t, err)
-
 	user, err := CreateUser(srv.Auth(), "test-user", role)
 	require.NoError(t, err)
 
@@ -3949,16 +3947,9 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.Name, func(t *testing.T) {
-			chanEmitter := eventstest.NewChannelEmitter(1)
-			srv.AuthServer.AuthServer.emitter = chanEmitter
-			err := client.CreateSAMLIdPServiceProvider(ctx, tc.SP)
-			tc.ErrAssertion(t, err)
-			select {
-			case event := <-chanEmitter.C():
-				require.Equal(t, tc.EventCode, event.GetCode())
-			case <-time.After(5 * time.Second):
-				require.Fail(t, "timeout waiting for create event")
-			}
+			modifyAndWaitForEvent(t, tc.ErrAssertion, client, srv, tc.EventCode, func() error {
+				return client.CreateSAMLIdPServiceProvider(ctx, tc.SP)
+			})
 		})
 	}
 }
@@ -3978,8 +3969,6 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-
-	require.Nil(t, err)
 
 	user, err := CreateUser(srv.Auth(), "test-user", role)
 	require.NoError(t, err)
@@ -4042,16 +4031,9 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.Name, func(t *testing.T) {
-			chanEmitter := eventstest.NewChannelEmitter(1)
-			srv.AuthServer.AuthServer.emitter = chanEmitter
-			err := client.UpdateSAMLIdPServiceProvider(ctx, tc.SP)
-			tc.ErrAssertion(t, err)
-			select {
-			case event := <-chanEmitter.C():
-				require.Equal(t, tc.EventCode, event.GetCode())
-			case <-time.After(5 * time.Second):
-				require.Fail(t, "timeout waiting for update event")
-			}
+			modifyAndWaitForEvent(t, tc.ErrAssertion, client, srv, tc.EventCode, func() error {
+				return client.UpdateSAMLIdPServiceProvider(ctx, tc.SP)
+			})
 		})
 	}
 }
@@ -4071,8 +4053,6 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-
-	require.Nil(t, err)
 
 	user, err := CreateUser(srv.Auth(), "test-user", role)
 	require.NoError(t, err)
@@ -4094,30 +4074,86 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp))
 
 	// Successful delete
-	chanEmitter := eventstest.NewChannelEmitter(1)
-	srv.AuthServer.AuthServer.emitter = chanEmitter
-	err = client.DeleteSAMLIdPServiceProvider(ctx, sp.GetName())
-	require.NoError(t, err)
-	select {
-	case event := <-chanEmitter.C():
-		require.Equal(t, events.SAMLIdPServiceProviderDeleteCode, event.GetCode())
-	case <-time.After(5 * time.Second):
-		require.Fail(t, "timeout waiting for update event")
-	}
+	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderDeleteCode, func() error {
+		return client.DeleteSAMLIdPServiceProvider(ctx, sp.GetName())
+	})
 
 	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp))
 
 	// Non-existent delete
-	chanEmitter = eventstest.NewChannelEmitter(1)
+	modifyAndWaitForEvent(t, require.NoError, client, srv, events.SAMLIdPServiceProviderDeleteCode, func() error {
+		return client.DeleteSAMLIdPServiceProvider(ctx, "nonexistent")
+	})
+}
+
+func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	role, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSAMLIdPServiceProvider},
+					Verbs:     []string{types.VerbRead, types.VerbUpdate, types.VerbCreate, types.VerbDelete},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := CreateUser(srv.Auth(), "test-user", role)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	sp1 := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "test",
+			},
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor("ed1"),
+			EntityID:         "ed1",
+		},
+	}
+	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp1))
+
+	sp2 := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "test2",
+			},
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor("ed2"),
+			EntityID:         "ed2",
+		},
+	}
+	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp2))
+
+	// Successful delete
+	modifyAndWaitForEvent(t, require.NoError, client, srv, events.SAMLIdPServiceProviderDeleteAllCode, func() error {
+		return client.DeleteAllSAMLIdPServiceProviders(ctx)
+	})
+}
+
+// modifyAndWaitForEvent performs the function fn() and then waits for the given event.
+func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, client *Client, srv *TestTLSServer, eventCode string, fn func() error) apievents.AuditEvent {
+	chanEmitter := eventstest.NewChannelEmitter(1)
 	srv.AuthServer.AuthServer.emitter = chanEmitter
-	err = client.DeleteSAMLIdPServiceProvider(ctx, "nonexistent")
-	require.Error(t, err)
+	err := fn()
+	errFn(t, err)
 	select {
 	case event := <-chanEmitter.C():
-		require.Equal(t, events.SAMLIdPServiceProviderDeleteFailureCode, event.GetCode())
+		require.Equal(t, eventCode, event.GetCode())
+		return event
 	case <-time.After(5 * time.Second):
 		require.Fail(t, "timeout waiting for update event")
 	}
+	return nil
 }
 
 func TestUnimplementedClients(t *testing.T) {
