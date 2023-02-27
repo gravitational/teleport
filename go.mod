@@ -159,6 +159,7 @@ require (
 	sigs.k8s.io/controller-runtime v0.14.4
 	sigs.k8s.io/controller-tools v0.11.3
 	sigs.k8s.io/yaml v1.3.0
+	github.com/google/go-attestation v0.4.3
 )
 
 // Indirect mailgun dependencies.
@@ -167,8 +168,6 @@ require (
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
-
-require github.com/google/go-attestation v0.4.3
 
 require (
 	cloud.google.com/go v0.109.0 // indirect
