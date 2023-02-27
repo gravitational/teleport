@@ -69,4 +69,5 @@ export type NavItem = {
   exact?: boolean;
   getLink(clusterId?: string): string;
   group?: NavGroup;
+  isExternalLink?: boolean;
 };

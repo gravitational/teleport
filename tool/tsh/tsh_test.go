@@ -2672,7 +2672,8 @@ func TestSerializeVersion(t *testing.T) {
 		name     string
 		expected string
 
-		proxyVersion string
+		proxyVersion       string
+		proxyPublicAddress string
 	}{
 		{
 			name: "no proxy version provided",
@@ -2682,18 +2683,19 @@ func TestSerializeVersion(t *testing.T) {
 			),
 		},
 		{
-			name:         "proxy version provided",
-			proxyVersion: "1.33.7",
+			name:               "proxy version provided",
+			proxyVersion:       "1.33.7",
+			proxyPublicAddress: "teleport.example.com:443",
 			expected: fmt.Sprintf(
-				`{"version": %q, "gitref": %q, "runtime": %q, "proxyVersion": %q}`,
-				teleport.Version, teleport.Gitref, runtime.Version(), "1.33.7"),
+				`{"version": %q, "gitref": %q, "runtime": %q, "proxyVersion": %q, "proxyPublicAddress": %q}`,
+				teleport.Version, teleport.Gitref, runtime.Version(), "1.33.7", "teleport.example.com:443"),
 		},
 	}
 
 	for _, tC := range testCases {
 		t.Run(tC.name, func(t *testing.T) {
 			testSerialization(t, tC.expected, func(fmt string) (string, error) {
-				return serializeVersion(fmt, tC.proxyVersion)
+				return serializeVersion(fmt, tC.proxyVersion, tC.proxyPublicAddress)
 			})
 		})
 	}

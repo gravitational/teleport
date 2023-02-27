@@ -24,6 +24,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -498,6 +499,9 @@ type session struct {
 
 	// serverMeta contains metadata about the target node of this session.
 	serverMeta apievents.ServerMetadata
+
+	// started is true after the session start.
+	started atomic.Bool
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -896,7 +900,13 @@ func (s *session) setHasEnhancedRecording(val bool) {
 
 // launch launches the session.
 // Must be called under session Lock.
-func (s *session) launch(ctx *ServerContext) error {
+func (s *session) launch() {
+	// Mark the session as started here, as we want to avoid double initialization.
+	if s.started.Swap(true) {
+		s.log.Debugf("Session has already started")
+		return
+	}
+
 	s.log.Debug("Launching session")
 	s.BroadcastMessage("Connecting to %v over SSH", s.serverMeta.ServerHostname)
 
@@ -953,8 +963,6 @@ func (s *session) launch(ctx *ServerContext) error {
 		_, err := io.Copy(s.term.PTY(), s.io)
 		s.log.Debugf("Copying from reader to PTY completed with error %v.", err)
 	}()
-
-	return nil
 }
 
 // startInteractive starts a new interactive process (or a shell) in the
@@ -1296,7 +1304,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 	// Remove party for the term writer
 	s.io.DeleteWriter(string(p.id))
 
-	// Emit session leave event to both the Audit Log as well as over the
+	// Emit session leave event to both the Audit Log and over the
 	// "x-teleport-event" channel in the SSH connection.
 	s.emitSessionLeaveEvent(p.ctx)
 
@@ -1306,7 +1314,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 	}
 
 	if !canRun {
-		if policyOptions.TerminateOnLeave {
+		if policyOptions.OnLeaveAction == types.OnSessionLeaveTerminate {
 			// Force termination in goroutine to avoid deadlock
 			go s.registry.ForceTerminate(s.scx)
 			return nil
@@ -1494,18 +1502,30 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 			return trace.Wrap(err)
 		}
 
-		if canStart {
-			if err := s.launch(s.scx); err != nil {
-				s.log.WithError(err).Error("Failed to launch session")
-			}
-			return nil
-		}
+		switch {
+		case canStart && !s.started.Load():
+			s.launch()
 
-		base := "Waiting for required participants..."
-		if s.displayParticipantRequirements {
-			s.BroadcastMessage(base+"\r\n%v", s.access.PrettyRequirementsList())
-		} else {
-			s.BroadcastMessage(base)
+			return nil
+		case canStart:
+			// If the session is already running, but the party is a moderator that leaved
+			// a session with onLeave=pause and then rejoined, we need to unpause the session.
+			// When the moderator leaved the session, the session was paused, and we spawn
+			// a goroutine to wait for the moderator to rejoin. If the moderator rejoins
+			// before the session ends, we need to unpause the session by updating its state and
+			// the goroutine will unblock the s.io terminal.
+			// types.SessionState_SessionStatePending marks a session that is waiting for
+			// a moderator to rejoin.
+			if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStateRunning); err != nil {
+				s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
+			}
+		default:
+			const base = "Waiting for required participants..."
+			if s.displayParticipantRequirements {
+				s.BroadcastMessage(base+"\r\n%v", s.access.PrettyRequirementsList())
+			} else {
+				s.BroadcastMessage(base)
+			}
 		}
 	}
 

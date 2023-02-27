@@ -52,6 +52,7 @@ function makeItems(clusterId: string, storeItems: Store.NavItem[]) {
       exact: cur.exact,
       title: cur.title,
       Icon: cur.Icon,
+      isExternalLink: cur.isExternalLink,
     };
 
     if (itemGroups[groupName]) {
@@ -105,4 +106,5 @@ export interface Item {
   exact?: boolean;
   title: string;
   Icon: any;
+  isExternalLink?: boolean;
 }

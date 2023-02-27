@@ -342,6 +342,16 @@ connectors are accepted, invalid are rejected with sensible error messages.
 - [ ] EC2 Join method in IoT mode with node and auth in different AWS accounts
 - [ ] IAM Join method in IoT mode with node and auth in different AWS accounts
 
+### Kubernetes Node Joining
+- [ ] Join a Teleport node running in the same Kubernetes cluster via a Kubernetes ProvisionToken
+
+### Cloud Labels
+- [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/management/guides/ec2-tags/)
+and with tag `foo`: `bar`. Verify that a node running on the instance has label
+`aws/foo=bar`.
+- [ ] Create an Azure VM with tag `foo`: `bar`. Verify that a node running on the
+instance has label `azure/foo=bar`.
+
 ### Passwordless
 
 Passwordless requires `tsh` compiled with libfido2 for most operations (apart
