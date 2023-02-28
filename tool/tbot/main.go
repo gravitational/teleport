@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/gravitational/trace"
@@ -227,9 +228,12 @@ func onStart(botConfig *config.BotConfig) error {
 	reloadChan := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
 	go handleSignals(log, reloadChan, cancel)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		if err := sendTelemetry(
 			ctx, telemetryClient(os.Getenv), os.Getenv, log, botConfig,
 		); err != nil {
@@ -240,7 +244,13 @@ func onStart(botConfig *config.BotConfig) error {
 	}()
 
 	b := tbot.New(botConfig, log, reloadChan)
-	return trace.Wrap(b.Run(ctx))
+	if err := trace.Wrap(b.Run(ctx)); err != nil {
+		return err
+	}
+
+	// Ensures telemetry finishes sending before application exits in oneshot.
+	wg.Wait()
+	return nil
 }
 
 // handleSignals handles incoming Unix signals.
