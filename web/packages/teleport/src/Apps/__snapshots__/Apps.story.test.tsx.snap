@@ -390,7 +390,7 @@ exports[`failed state 1`] = `
   font-size: 14px;
 }
 
-.c36 {
+.c35 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -652,28 +652,28 @@ exports[`failed state 1`] = `
   cursor: pointer;
 }
 
-.c35 {
+.c34 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c35 .c17 {
+.c34 .c17 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c35:hover .c17,
-.c35:focus .c17 {
+.c34:hover .c17,
+.c34:focus .c17 {
   opacity: 1;
 }
 
-.c35:disabled {
+.c34:disabled {
   cursor: default;
 }
 
-.c35:disabled .c17 {
+.c34:disabled .c17 {
   opacity: 0.1;
 }
 
@@ -1234,21 +1234,21 @@ exports[`failed state 1`] = `
           class="c19"
         >
           <button
-            class="c35"
+            class="c34"
             title="Previous page"
           >
             <span
-              class="c17 c36 icon icon-arrow-left-circle "
+              class="c17 c35 icon icon-arrow-left-circle "
               color="light"
               font-size="3"
             />
           </button>
           <button
-            class="c35"
+            class="c34"
             title="Next page"
           >
             <span
-              class="c17 c36 icon icon-arrow-right-circle "
+              class="c17 c35 icon icon-arrow-right-circle "
               color="light"
               font-size="3"
             />
@@ -1382,7 +1382,7 @@ exports[`loaded state 1`] = `
   font-size: 14px;
 }
 
-.c36 {
+.c35 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -1644,28 +1644,28 @@ exports[`loaded state 1`] = `
   cursor: pointer;
 }
 
-.c35 {
+.c34 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c35 .c17 {
+.c34 .c17 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c35:hover .c17,
-.c35:focus .c17 {
+.c34:hover .c17,
+.c34:focus .c17 {
   opacity: 1;
 }
 
-.c35:disabled {
+.c34:disabled {
   cursor: default;
 }
 
-.c35:disabled .c17 {
+.c34:disabled .c17 {
   opacity: 0.1;
 }
 
@@ -2232,21 +2232,21 @@ exports[`loaded state 1`] = `
           class="c19"
         >
           <button
-            class="c35"
+            class="c34"
             title="Previous page"
           >
             <span
-              class="c17 c36 icon icon-arrow-left-circle "
+              class="c17 c35 icon icon-arrow-left-circle "
               color="light"
               font-size="3"
             />
           </button>
           <button
-            class="c35"
+            class="c34"
             title="Next page"
           >
             <span
-              class="c17 c36 icon icon-arrow-right-circle "
+              class="c17 c35 icon icon-arrow-right-circle "
               color="light"
               font-size="3"
             />

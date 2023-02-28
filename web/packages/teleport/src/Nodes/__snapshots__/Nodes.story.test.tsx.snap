@@ -384,7 +384,7 @@ exports[`failed 1`] = `
   font-size: 14px;
 }
 
-.c29 {
+.c28 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -593,28 +593,28 @@ exports[`failed 1`] = `
   cursor: pointer;
 }
 
-.c28 {
+.c27 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c28 .c17 {
+.c27 .c17 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c28:hover .c17,
-.c28:focus .c17 {
+.c27:hover .c17,
+.c27:focus .c17 {
   opacity: 1;
 }
 
-.c28:disabled {
+.c27:disabled {
   cursor: default;
 }
 
-.c28:disabled .c17 {
+.c27:disabled .c17 {
   opacity: 0.1;
 }
 
@@ -1153,21 +1153,21 @@ exports[`failed 1`] = `
         class="c19"
       >
         <button
-          class="c28"
+          class="c27"
           title="Previous page"
         >
           <span
-            class="c17 c29 icon icon-arrow-left-circle "
+            class="c17 c28 icon icon-arrow-left-circle "
             color="light"
             font-size="3"
           />
         </button>
         <button
-          class="c28"
+          class="c27"
           title="Next page"
         >
           <span
-            class="c17 c29 icon icon-arrow-right-circle "
+            class="c17 c28 icon icon-arrow-right-circle "
             color="light"
             font-size="3"
           />
@@ -1294,7 +1294,7 @@ exports[`loaded 1`] = `
   font-size: 14px;
 }
 
-.c32 {
+.c31 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -1561,28 +1561,28 @@ exports[`loaded 1`] = `
   cursor: pointer;
 }
 
-.c31 {
+.c30 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c31 .c20 {
+.c30 .c20 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c31:hover .c20,
-.c31:focus .c20 {
+.c30:hover .c20,
+.c30:focus .c20 {
   opacity: 1;
 }
 
-.c31:disabled {
+.c30:disabled {
   cursor: default;
 }
 
-.c31:disabled .c20 {
+.c30:disabled .c20 {
   opacity: 0.1;
 }
 
@@ -2146,21 +2146,21 @@ exports[`loaded 1`] = `
         class="c22"
       >
         <button
-          class="c31"
+          class="c30"
           title="Previous page"
         >
           <span
-            class="c20 c32 icon icon-arrow-left-circle "
+            class="c20 c31 icon icon-arrow-left-circle "
             color="light"
             font-size="3"
           />
         </button>
         <button
-          class="c31"
+          class="c30"
           title="Next page"
         >
           <span
-            class="c20 c32 icon icon-arrow-right-circle "
+            class="c20 c31 icon icon-arrow-right-circle "
             color="light"
             font-size="3"
           />
