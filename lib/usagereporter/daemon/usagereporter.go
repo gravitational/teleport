@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package daemon
+package usagereporter
 
 import (
 	"context"
@@ -25,7 +25,7 @@ import (
 
 	prehogapi "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	prehogclient "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
-	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	teletermapi "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/usagereporter"
 	"github.com/gravitational/teleport/lib/utils"
@@ -60,7 +60,13 @@ const (
 	retryAttempts = 2
 )
 
-func NewConnectUsageReporter(ctx context.Context, prehogAddr string) (*usagereporter.UsageReporter[prehogapi.SubmitConnectEventRequest], error) {
+type (
+	UsageReporter  = usagereporter.UsageReporter[prehogapi.SubmitConnectEventRequest]
+	SubmitFunc     = usagereporter.SubmitFunc[prehogapi.SubmitConnectEventRequest]
+	SubmittedEvent = usagereporter.SubmittedEvent[prehogapi.SubmitConnectEventRequest]
+)
+
+func NewConnectUsageReporter(ctx context.Context, prehogAddr string) (*UsageReporter, error) {
 	submitter, err := newPrehogSubmitter(ctx, prehogAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -76,7 +82,7 @@ func NewConnectUsageReporter(ctx context.Context, prehogAddr string) (*usagerepo
 	}), nil
 }
 
-func newPrehogSubmitter(ctx context.Context, prehogEndpoint string) (usagereporter.SubmitFunc[prehogapi.SubmitConnectEventRequest], error) {
+func newPrehogSubmitter(ctx context.Context, prehogEndpoint string) (SubmitFunc, error) {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			ForceAttemptHTTP2:   true,
@@ -93,8 +99,8 @@ func newPrehogSubmitter(ctx context.Context, prehogEndpoint string) (usagereport
 
 	client := prehogclient.NewConnectReportingServiceClient(httpClient, prehogEndpoint)
 
-	return func(reporter *usagereporter.UsageReporter[prehogapi.SubmitConnectEventRequest], events []*usagereporter.SubmittedEvent[prehogapi.SubmitConnectEventRequest]) ([]*usagereporter.SubmittedEvent[prehogapi.SubmitConnectEventRequest], error) {
-		var failed []*usagereporter.SubmittedEvent[prehogapi.SubmitConnectEventRequest]
+	return func(reporter *UsageReporter, events []*SubmittedEvent) ([]*SubmittedEvent, error) {
+		var failed []*SubmittedEvent
 		var errors []error
 
 		// Note: the backend doesn't support batching at the moment.
@@ -112,7 +118,7 @@ func newPrehogSubmitter(ctx context.Context, prehogEndpoint string) (usagereport
 	}, nil
 }
 
-func GetAnonymizedPrehogEvent(req *api.ReportUsageEventRequest) (*prehogapi.SubmitConnectEventRequest, error) {
+func GetAnonymizedPrehogEvent(req *teletermapi.ReportUsageEventRequest) (*prehogapi.SubmitConnectEventRequest, error) {
 	prehogEvent := req.PrehogReq
 
 	// non-anonymized
