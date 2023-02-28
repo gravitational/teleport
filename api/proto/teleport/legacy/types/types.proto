@@ -4595,6 +4595,26 @@ message Participant {
   ];
 }
 
+// UIConfigV1 represents the configuration for the web UI served by the proxy service
+message UIConfigV1 {
+  // Header is the resource header for the UI configuration.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Spec is the resource spec.
+  UIConfigSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// UIConfigSpecV1 is the specification for a UIConfig
+message UIConfigSpecV1 {
+  int32 ScrollbackLines = 1 [(gogoproto.jsontag) = "scrollback_lines"];
+}
+
 // InstallerV1 represents an installer script resource. Used to
 // provide a script to install teleport on discovered nodes.
 message InstallerV1 {
