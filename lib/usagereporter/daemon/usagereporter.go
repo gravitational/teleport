@@ -112,16 +112,7 @@ func newPrehogSubmitter(ctx context.Context, prehogEndpoint string) (usagereport
 	}, nil
 }
 
-func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
-	prehogEvent, err := getAnonymizedPrehogEvent(req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	s.usageReporter.AddEventsToQueue(prehogEvent)
-	return nil
-}
-
-func getAnonymizedPrehogEvent(req *api.ReportUsageEventRequest) (*prehogapi.SubmitConnectEventRequest, error) {
+func GetAnonymizedPrehogEvent(req *api.ReportUsageEventRequest) (*prehogapi.SubmitConnectEventRequest, error) {
 	prehogEvent := req.PrehogReq
 
 	// non-anonymized

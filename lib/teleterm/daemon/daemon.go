@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/usagereporter"
+	daemonreporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
 const (
@@ -47,7 +48,7 @@ func New(cfg Config) (*Service, error) {
 
 	closeContext, cancel := context.WithCancel(context.Background())
 
-	connectUsageReporter, err := NewConnectUsageReporter(closeContext, cfg.PrehogAddr)
+	connectUsageReporter, err := daemonreporter.NewConnectUsageReporter(closeContext, cfg.PrehogAddr)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -527,6 +528,15 @@ func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clus
 	}
 
 	return response, nil
+}
+
+func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
+	prehogEvent, err := daemonreporter.GetAnonymizedPrehogEvent(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.usageReporter.AddEventsToQueue(prehogEvent)
+	return nil
 }
 
 // Stop terminates all cluster open connections
