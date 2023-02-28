@@ -17,7 +17,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package inventory
+package metadata
 
 import (
 	"testing"
@@ -55,7 +55,7 @@ func TestFetchOSVersionInfo(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			c := &fetchConfig{
+			c := &AgentMetadataFetchConfig{
 				readFile: tc.readFile,
 			}
 			require.Equal(t, tc.expected, c.fetchOSVersionInfo())
@@ -101,7 +101,7 @@ func TestFetchGlibcVersion(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			c := &fetchConfig{
+			c := &AgentMetadataFetchConfig{
 				execCommand: tc.execCommand,
 			}
 			require.Equal(t, tc.expected, c.fetchGlibcVersionInfo())

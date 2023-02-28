@@ -1,5 +1,5 @@
-//go:build linux
-// +build linux
+//go:build darwin
+// +build darwin
 
 /*
 Copyright 2023 Gravitational, Inc.
@@ -17,24 +17,29 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package inventory
+package metadata
 
-// fetchOSVersionInfo returns the content of '/etc/os-release'.
-func (c *fetchConfig) fetchOSVersionInfo() string {
-	out, err := c.read("/etc/os-release")
+import (
+	"fmt"
+)
+
+// fetchOSVersionContent returns something equivalent to the output of
+// '$(sw_vers -productName) $(sw_vers -productVersion)'.
+func (c *AgentMetadataFetchConfig) fetchOSVersionInfo() string {
+	productName, err := c.exec("sw_vers", "-productName")
 	if err != nil {
 		return ""
 	}
 
-	return out
+	productVersion, err := c.exec("sw_vers", "-productVersion")
+	if err != nil {
+		return ""
+	}
+
+	return fmt.Sprintf("%s %s", productName, productVersion)
 }
 
-// fetchGlibcVersionInfo returns the output of 'ldd --version'.
-func (c *fetchConfig) fetchGlibcVersionInfo() string {
-	out, err := c.exec("ldd", "--version")
-	if err != nil {
-		return ""
-	}
-
-	return out
+// fetchGlibcVersionInfo returns "" on darwin.
+func (c *AgentMetadataFetchConfig) fetchGlibcVersionInfo() string {
+	return ""
 }

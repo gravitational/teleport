@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package inventory
+package metadata
 
 import (
 	"context"
@@ -44,9 +44,9 @@ const (
 	windowsDesktopService = "windows_desktop"
 )
 
-// fetchConfig contains the configuration used by the fetchAgentMetadata method.
-type fetchConfig struct {
-	ctx context.Context
+// AgentMetadataFetchConfig contains the configuration used by the FetchAgentMetadata method.
+type AgentMetadataFetchConfig struct {
+	Context context.Context
 	// getenv is the method called to retrieve an environment
 	// variable.
 	// It is configurable so that it can be mocked in tests.
@@ -69,9 +69,9 @@ type fetchConfig struct {
 // setDefaults sets the values of readFile and execCommand to the ones in the
 // standard library. Having these two methods configurable allows us to mock
 // them in tests.
-func (c *fetchConfig) setDefaults() {
-	if c.ctx == nil {
-		c.ctx = context.Background()
+func (c *AgentMetadataFetchConfig) setDefaults() {
+	if c.Context == nil {
+		c.Context = context.Background()
 	}
 	if c.getenv == nil {
 		c.getenv = os.Getenv
@@ -115,9 +115,9 @@ func getKubeClient() kubernetes.Interface {
 	return client
 }
 
-// fetchAgentMetadata fetches and calculates all agent metadata we are interested
+// FetchAgentMetadata fetches and calculates all agent metadata we are interested
 // in tracking.
-func fetchAgentMetadata(c *fetchConfig) proto.UpstreamInventoryAgentMetadata {
+func FetchAgentMetadata(c *AgentMetadataFetchConfig) proto.UpstreamInventoryAgentMetadata {
 	c.setDefaults()
 	return proto.UpstreamInventoryAgentMetadata{
 		OS:                    c.fetchOS(),
@@ -131,9 +131,9 @@ func fetchAgentMetadata(c *fetchConfig) proto.UpstreamInventoryAgentMetadata {
 	}
 }
 
-// fetchServices computes the list of access protocols enabled at the agent from
+// FetchServices computes the list of access protocols enabled at the agent from
 // the list of system roles present in the hello message.
-func fetchServices(systemRoles []types.SystemRole) []string {
+func FetchServices(systemRoles []types.SystemRole) []string {
 	var services []string
 	for _, svc := range systemRoles {
 		switch svc {
@@ -153,12 +153,12 @@ func fetchServices(systemRoles []types.SystemRole) []string {
 }
 
 // fetchOS returns the value of GOOS.
-func (c *fetchConfig) fetchOS() string {
+func (c *AgentMetadataFetchConfig) fetchOS() string {
 	return runtime.GOOS
 }
 
 // fetchHostArchitectureInfo returns the output of arch.
-func (c *fetchConfig) fetchHostArchitectureInfo() string {
+func (c *AgentMetadataFetchConfig) fetchHostArchitectureInfo() string {
 	out, err := c.exec("arch")
 	if err != nil {
 		return ""
@@ -168,7 +168,7 @@ func (c *fetchConfig) fetchHostArchitectureInfo() string {
 }
 
 // fetchInstallMethods returns the list of methods used to install the agent.
-func (c *fetchConfig) fetchInstallMethods() []string {
+func (c *AgentMetadataFetchConfig) fetchInstallMethods() []string {
 	var installMethods []string
 	if c.dockerfileInstallMethod() {
 		installMethods = append(installMethods, "dockerfile")
@@ -187,24 +187,24 @@ func (c *fetchConfig) fetchInstallMethods() []string {
 
 // dockerfileInstallMethod returns whether the agent was installed using our
 // Dockerfile.
-func (c *fetchConfig) dockerfileInstallMethod() bool {
+func (c *AgentMetadataFetchConfig) dockerfileInstallMethod() bool {
 	return c.getenv("TELEPORT_INSTALL_METHOD_DOCKERFILE") == "true"
 }
 
 // helmKubeAgentInstallMethod returns whether the agent was installed using our
 // Helm chart.
-func (c *fetchConfig) helmKubeAgentInstallMethod() bool {
+func (c *AgentMetadataFetchConfig) helmKubeAgentInstallMethod() bool {
 	return c.getenv("TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT") == "true"
 }
 
 // nodeScriptInstallMethod returns whether the agent was installed using our
 // install-node.sh script.
-func (c *fetchConfig) nodeScriptInstallMethod() bool {
+func (c *AgentMetadataFetchConfig) nodeScriptInstallMethod() bool {
 	return c.getenv("TELEPORT_INSTALL_METHOD_NODE_SCRIPT") == "true"
 }
 
 // systemctlInstallMethod returns whether the agent is running using systemctl.
-func (c *fetchConfig) systemctlInstallMethod() bool {
+func (c *AgentMetadataFetchConfig) systemctlInstallMethod() bool {
 	out, err := c.exec("systemctl", "is-active", "teleport.service")
 	if err != nil {
 		return false
@@ -214,7 +214,7 @@ func (c *fetchConfig) systemctlInstallMethod() bool {
 }
 
 // fetchContainerRuntime returns "docker" if the file "/.dockerenv" exists.
-func (c *fetchConfig) fetchContainerRuntime() string {
+func (c *AgentMetadataFetchConfig) fetchContainerRuntime() string {
 	_, err := c.read("/.dockerenv")
 	if err != nil {
 		return ""
@@ -226,7 +226,7 @@ func (c *fetchConfig) fetchContainerRuntime() string {
 
 // fetchContainerOrchestrator returns kubernetes-${GIT_VERSION} if the agent is
 // running on kubernetes.
-func (c *fetchConfig) fetchContainerOrchestrator() string {
+func (c *AgentMetadataFetchConfig) fetchContainerOrchestrator() string {
 	if c.kubeClient == nil {
 		return ""
 	}
@@ -241,7 +241,7 @@ func (c *fetchConfig) fetchContainerOrchestrator() string {
 
 // fetchCloudEnvironment returns aws, gpc or azure if the agent is running on
 // such cloud environments.
-func (c *fetchConfig) fetchCloudEnvironment() string {
+func (c *AgentMetadataFetchConfig) fetchCloudEnvironment() string {
 	if c.awsHTTPGetSuccess() {
 		return "aws"
 	}
@@ -257,9 +257,9 @@ func (c *fetchConfig) fetchCloudEnvironment() string {
 // awsHTTPGetSuccess hits the AWS metadata endpoint in order to detect whether
 // the agent is running on AWS.
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
-func (c *fetchConfig) awsHTTPGetSuccess() bool {
+func (c *AgentMetadataFetchConfig) awsHTTPGetSuccess() bool {
 	url := "http://169.254.169.254/latest/meta-data/"
-	req, err := http.NewRequestWithContext(c.ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(c.Context, http.MethodGet, url, nil)
 	if err != nil {
 		log.Debugf("Failed to create AWS http GET request '%s': %s", url, err)
 		return false
@@ -271,9 +271,9 @@ func (c *fetchConfig) awsHTTPGetSuccess() bool {
 // gcpHTTPGetSuccess hits the GCP metadata endpoint in order to detect whether
 // the agent is running on GCP.
 // https://cloud.google.com/compute/docs/metadata/overview#parts-of-a-request
-func (c *fetchConfig) gcpHTTPGetSuccess() bool {
+func (c *AgentMetadataFetchConfig) gcpHTTPGetSuccess() bool {
 	url := "http://metadata.google.internal/computeMetadata/v1"
-	req, err := http.NewRequestWithContext(c.ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(c.Context, http.MethodGet, url, nil)
 	if err != nil {
 		log.Debugf("Failed to create GCP http GET request '%s': %s", url, err)
 		return false
@@ -286,9 +286,9 @@ func (c *fetchConfig) gcpHTTPGetSuccess() bool {
 // azureHTTPGetSuccess hits the Azure metadata endpoint in order to detect whether
 // the agent is running on Azure.
 // https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service
-func (c *fetchConfig) azureHTTPGetSuccess() bool {
+func (c *AgentMetadataFetchConfig) azureHTTPGetSuccess() bool {
 	url := "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
-	req, err := http.NewRequestWithContext(c.ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(c.Context, http.MethodGet, url, nil)
 	if err != nil {
 		log.Debugf("Failed to create Azure http GET request '%s': %s", url, err)
 		return false
@@ -299,7 +299,7 @@ func (c *fetchConfig) azureHTTPGetSuccess() bool {
 }
 
 // exec runs a command and validates its output using the parse function.
-func (c *fetchConfig) exec(name string, args ...string) (string, error) {
+func (c *AgentMetadataFetchConfig) exec(name string, args ...string) (string, error) {
 	out, err := c.execCommand(name, args...)
 	if err != nil {
 		log.Debugf("Failed to execute command '%s': %s", name, err)
@@ -310,7 +310,7 @@ func (c *fetchConfig) exec(name string, args ...string) (string, error) {
 }
 
 // read reads a file and validates its content using the parse function.
-func (c *fetchConfig) read(name string) (string, error) {
+func (c *AgentMetadataFetchConfig) read(name string) (string, error) {
 	out, err := c.readFile(name)
 	if err != nil {
 		log.Debugf("Failed to read file '%s': %s", name, err)
@@ -322,7 +322,7 @@ func (c *fetchConfig) read(name string) (string, error) {
 
 // httpReqSuccess performs an http request, returning true if the status code
 // is 200.
-func (c *fetchConfig) httpReqSuccess(req *http.Request) bool {
+func (c *AgentMetadataFetchConfig) httpReqSuccess(req *http.Request) bool {
 	resp, err := c.httpDo(req)
 	if err != nil {
 		log.Debugf("Failed to perform http GET request: %s", err)

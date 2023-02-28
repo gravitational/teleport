@@ -1,5 +1,5 @@
-//go:build darwin
-// +build darwin
+//go:build !darwin && !linux
+// +build !darwin,!linux
 
 /*
 Copyright 2023 Gravitational, Inc.
@@ -17,29 +17,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package inventory
+package metadata
 
 import (
-	"fmt"
+	"runtime"
+
+	log "github.com/sirupsen/logrus"
 )
 
-// fetchOSVersionContent returns something equivalent to the output of
-// '$(sw_vers -productName) $(sw_vers -productVersion)'.
-func (c *fetchConfig) fetchOSVersionInfo() string {
-	productName, err := c.exec("sw_vers", "-productName")
-	if err != nil {
-		return ""
-	}
-
-	productVersion, err := c.exec("sw_vers", "-productVersion")
-	if err != nil {
-		return ""
-	}
-
-	return fmt.Sprintf("%s %s", productName, productVersion)
+// fetchOSVersionInfo returns "" if not on linux and not on darwin.
+func (c *AgentMetadataFetchConfig) fetchOSVersionInfo() string {
+	log.Warningf("fetchOSVersionInfo is not implemented for %s", runtime.GOOS)
+	return ""
 }
 
-// fetchGlibcVersionInfo returns "" on darwin.
-func (c *fetchConfig) fetchGlibcVersionInfo() string {
+// fetchGlibcVersionInfo returns "" if not on linux and not on darwin.
+func (c *AgentMetadataFetchConfig) fetchGlibcVersionInfo() string {
+	log.Warningf("fetchGlibcVersionInfo is not implemented for %s", runtime.GOOS)
 	return ""
 }

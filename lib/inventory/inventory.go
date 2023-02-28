@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
@@ -95,7 +96,7 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryH
 	}
 	go handle.run(fn, hello)
 	go func() {
-		handle.agentMetadata = fetchAgentMetadata(&fetchConfig{ctx: ctx})
+		handle.agentMetadata = metadata.FetchAgentMetadata(&metadata.AgentMetadataFetchConfig{Context: ctx})
 		// Signal that the agentMetadata has been calculated by closing the
 		// agentMetadataDone channel.
 		close(handle.agentMetadataDone)

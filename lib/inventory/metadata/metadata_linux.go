@@ -1,5 +1,5 @@
-//go:build !darwin && !linux
-// +build !darwin,!linux
+//go:build linux
+// +build linux
 
 /*
 Copyright 2023 Gravitational, Inc.
@@ -17,22 +17,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package inventory
+package metadata
 
-import (
-	"runtime"
+// fetchOSVersionInfo returns the content of '/etc/os-release'.
+func (c *AgentMetadataFetchConfig) fetchOSVersionInfo() string {
+	out, err := c.read("/etc/os-release")
+	if err != nil {
+		return ""
+	}
 
-	log "github.com/sirupsen/logrus"
-)
-
-// fetchOSVersionInfo returns "" if not on linux and not on darwin.
-func (c *fetchConfig) fetchOSVersionInfo() string {
-	log.Warningf("fetchOSVersionInfo is not implemented for %s", runtime.GOOS)
-	return ""
+	return out
 }
 
-// fetchGlibcVersionInfo returns "" if not on linux and not on darwin.
-func (c *fetchConfig) fetchGlibcVersionInfo() string {
-	log.Warningf("fetchGlibcVersionInfo is not implemented for %s", runtime.GOOS)
-	return ""
+// fetchGlibcVersionInfo returns the output of 'ldd --version'.
+func (c *AgentMetadataFetchConfig) fetchGlibcVersionInfo() string {
+	out, err := c.exec("ldd", "--version")
+	if err != nil {
+		return ""
+	}
+
+	return out
 }

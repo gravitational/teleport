@@ -25,6 +25,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -499,7 +500,7 @@ func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.Upstrea
 	if err := c.usageReporter.AnonymizeAndSubmit(&services.AgentMetadataEvent{
 		Version:               handle.Hello().Version,
 		HostId:                handle.Hello().ServerID,
-		Services:              fetchServices(handle.Hello().Services),
+		Services:              metadata.FetchServices(handle.Hello().Services),
 		Os:                    m.OS,
 		OsVersionInfo:         m.OSVersionInfo,
 		HostArchitectureInfo:  m.HostArchitectureInfo,
