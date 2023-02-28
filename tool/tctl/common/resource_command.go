@@ -769,9 +769,10 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI
 		return trace.Wrap(err)
 	}
 
+	// TODO(codingllama): Figure out a way to call BulkCreateDevices here?
 	_, err = client.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device:            dev,
-		CreateEnrollToken: false,
+		Device:           dev,
+		CreateAsResource: true,
 	})
 	if err != nil {
 		return trail.FromGRPC(err)
