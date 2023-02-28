@@ -99,6 +99,16 @@ export interface Database extends apiDb.Database.AsObject {
 }
 
 export interface Cluster extends apiCluster.Cluster.AsObject {
+  /**
+   * The URI of the cluster.
+   *
+   * For root clusters, it has the form of `/clusters/:rootClusterId` where `rootClusterId` is the
+   * name of the profile, that is the hostname of the proxy used to connect to the root cluster.
+   * `rootClusterId` is not equal to the name of the root cluster.
+   *
+   * For leaf clusters, it has the form of `/clusters/:rootClusterId/leaves/:leafClusterId` where
+   * `leafClusterId` is equal to the `name` property of the cluster.
+   */
   uri: uri.ClusterUri;
   loggedInUser?: LoggedInUser;
 }
@@ -247,11 +257,13 @@ export type CreateGatewayParams = {
 
 export type ServerSideParams = {
   clusterUri: uri.ClusterUri;
+  // search is used for regular search.
   search?: string;
   searchAsRoles?: string;
   sort?: SortType;
   startKey?: string;
   limit?: number;
+  // query is used for advanced search.
   query?: string;
 };
 

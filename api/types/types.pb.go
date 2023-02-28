@@ -4511,7 +4511,12 @@ type AuthPreferenceSpecV2 struct {
 	DeviceTrust *DeviceTrust `protobuf:"bytes,13,opt,name=DeviceTrust,proto3" json:"device_trust,omitempty"`
 	// IDP is a set of options related to accessing IdPs within Teleport.
 	// Requires Teleport Enterprise.
-	IDP                  *IdPOptions `protobuf:"bytes,14,opt,name=IDP,proto3" json:"idp,omitempty"`
+	IDP *IdPOptions `protobuf:"bytes,14,opt,name=IDP,proto3" json:"idp,omitempty"`
+	// AllowHeadless enables/disables headless support.
+	// Headless authentication requires Webauthn to work.
+	// Defaults to true if the Webauthn is configured, defaults to false
+	// otherwise.
+	AllowHeadless        *BoolOption `protobuf:"bytes,15,opt,name=AllowHeadless,proto3,customtype=BoolOption" json:"allow_headless,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
 	XXX_unrecognized     []byte      `json:"-"`
 	XXX_sizecache        int32       `json:"-"`
@@ -19677,6 +19682,18 @@ func (m *AuthPreferenceSpecV2) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
+	if m.AllowHeadless != nil {
+		{
+			size := m.AllowHeadless.Size()
+			i -= size
+			if _, err := m.AllowHeadless.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+			i = encodeVarintTypes(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x7a
+	}
 	if m.IDP != nil {
 		{
 			size, err := m.IDP.MarshalToSizedBuffer(dAtA[:i])
@@ -20139,12 +20156,12 @@ func (m *UserTokenSpecV3) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	n99, err99 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
-	if err99 != nil {
-		return 0, err99
+	n100, err100 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
+	if err100 != nil {
+		return 0, err100
 	}
-	i -= n99
-	i = encodeVarintTypes(dAtA, i, uint64(n99))
+	i -= n100
+	i = encodeVarintTypes(dAtA, i, uint64(n100))
 	i--
 	dAtA[i] = 0x22
 	if m.Usage != 0 {
@@ -20261,12 +20278,12 @@ func (m *UserTokenSecretsSpecV3) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	n102, err102 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
-	if err102 != nil {
-		return 0, err102
+	n103, err103 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
+	if err103 != nil {
+		return 0, err103
 	}
-	i -= n102
-	i = encodeVarintTypes(dAtA, i, uint64(n102))
+	i -= n103
+	i = encodeVarintTypes(dAtA, i, uint64(n103))
 	i--
 	dAtA[i] = 0x1a
 	if len(m.QRCode) > 0 {
@@ -20430,20 +20447,20 @@ func (m *AccessReview) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.ThresholdIndexes) > 0 {
-		dAtA106 := make([]byte, len(m.ThresholdIndexes)*10)
-		var j105 int
+		dAtA107 := make([]byte, len(m.ThresholdIndexes)*10)
+		var j106 int
 		for _, num := range m.ThresholdIndexes {
 			for num >= 1<<7 {
-				dAtA106[j105] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA107[j106] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j105++
+				j106++
 			}
-			dAtA106[j105] = uint8(num)
-			j105++
+			dAtA107[j106] = uint8(num)
+			j106++
 		}
-		i -= j105
-		copy(dAtA[i:], dAtA106[:j105])
-		i = encodeVarintTypes(dAtA, i, uint64(j105))
+		i -= j106
+		copy(dAtA[i:], dAtA107[:j106])
+		i = encodeVarintTypes(dAtA, i, uint64(j106))
 		i--
 		dAtA[i] = 0x3a
 	}
@@ -20457,12 +20474,12 @@ func (m *AccessReview) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i--
 	dAtA[i] = 0x32
-	n108, err108 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
-	if err108 != nil {
-		return 0, err108
+	n109, err109 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
+	if err109 != nil {
+		return 0, err109
 	}
-	i -= n108
-	i = encodeVarintTypes(dAtA, i, uint64(n108))
+	i -= n109
+	i = encodeVarintTypes(dAtA, i, uint64(n109))
 	i--
 	dAtA[i] = 0x2a
 	if len(m.Reason) > 0 {
@@ -20565,20 +20582,20 @@ func (m *ThresholdIndexSet) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Indexes) > 0 {
-		dAtA111 := make([]byte, len(m.Indexes)*10)
-		var j110 int
+		dAtA112 := make([]byte, len(m.Indexes)*10)
+		var j111 int
 		for _, num := range m.Indexes {
 			for num >= 1<<7 {
-				dAtA111[j110] = uint8(uint64(num)&0x7f | 0x80)
+				dAtA112[j111] = uint8(uint64(num)&0x7f | 0x80)
 				num >>= 7
-				j110++
+				j111++
 			}
-			dAtA111[j110] = uint8(num)
-			j110++
+			dAtA112[j111] = uint8(num)
+			j111++
 		}
-		i -= j110
-		copy(dAtA[i:], dAtA111[:j110])
-		i = encodeVarintTypes(dAtA, i, uint64(j110))
+		i -= j111
+		copy(dAtA[i:], dAtA112[:j111])
+		i = encodeVarintTypes(dAtA, i, uint64(j111))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -20778,20 +20795,20 @@ func (m *AccessRequestSpecV3) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x32
 	}
-	n115, err115 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err115 != nil {
-		return 0, err115
-	}
-	i -= n115
-	i = encodeVarintTypes(dAtA, i, uint64(n115))
-	i--
-	dAtA[i] = 0x2a
-	n116, err116 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
+	n116, err116 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
 	if err116 != nil {
 		return 0, err116
 	}
 	i -= n116
 	i = encodeVarintTypes(dAtA, i, uint64(n116))
+	i--
+	dAtA[i] = 0x2a
+	n117, err117 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
+	if err117 != nil {
+		return 0, err117
+	}
+	i -= n117
+	i = encodeVarintTypes(dAtA, i, uint64(n117))
 	i--
 	dAtA[i] = 0x22
 	if m.State != 0 {
@@ -22861,12 +22878,12 @@ func (m *UserSpecV2) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i--
 	dAtA[i] = 0x42
-	n148, err148 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err148 != nil {
-		return 0, err148
+	n149, err149 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err149 != nil {
+		return 0, err149
 	}
-	i -= n148
-	i = encodeVarintTypes(dAtA, i, uint64(n148))
+	i -= n149
+	i = encodeVarintTypes(dAtA, i, uint64(n149))
 	i--
 	dAtA[i] = 0x3a
 	{
@@ -23008,28 +23025,28 @@ func (m *LoginStatus) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	n151, err151 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.RecoveryAttemptLockExpires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.RecoveryAttemptLockExpires):])
-	if err151 != nil {
-		return 0, err151
-	}
-	i -= n151
-	i = encodeVarintTypes(dAtA, i, uint64(n151))
-	i--
-	dAtA[i] = 0x2a
-	n152, err152 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LockExpires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LockExpires):])
+	n152, err152 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.RecoveryAttemptLockExpires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.RecoveryAttemptLockExpires):])
 	if err152 != nil {
 		return 0, err152
 	}
 	i -= n152
 	i = encodeVarintTypes(dAtA, i, uint64(n152))
 	i--
-	dAtA[i] = 0x22
-	n153, err153 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LockedTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LockedTime):])
+	dAtA[i] = 0x2a
+	n153, err153 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LockExpires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LockExpires):])
 	if err153 != nil {
 		return 0, err153
 	}
 	i -= n153
 	i = encodeVarintTypes(dAtA, i, uint64(n153))
+	i--
+	dAtA[i] = 0x22
+	n154, err154 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LockedTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LockedTime):])
+	if err154 != nil {
+		return 0, err154
+	}
+	i -= n154
+	i = encodeVarintTypes(dAtA, i, uint64(n154))
 	i--
 	dAtA[i] = 0x1a
 	if len(m.LockedMessage) > 0 {
@@ -23086,12 +23103,12 @@ func (m *CreatedBy) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	i--
 	dAtA[i] = 0x1a
-	n155, err155 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Time, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Time):])
-	if err155 != nil {
-		return 0, err155
+	n156, err156 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Time, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Time):])
+	if err156 != nil {
+		return 0, err156
 	}
-	i -= n155
-	i = encodeVarintTypes(dAtA, i, uint64(n155))
+	i -= n156
+	i = encodeVarintTypes(dAtA, i, uint64(n156))
 	i--
 	dAtA[i] = 0x12
 	if m.Connector != nil {
@@ -23209,20 +23226,20 @@ func (m *MFADevice) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			}
 		}
 	}
-	n158, err158 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastUsed, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastUsed):])
-	if err158 != nil {
-		return 0, err158
-	}
-	i -= n158
-	i = encodeVarintTypes(dAtA, i, uint64(n158))
-	i--
-	dAtA[i] = 0x3a
-	n159, err159 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.AddedAt, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.AddedAt):])
+	n159, err159 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastUsed, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastUsed):])
 	if err159 != nil {
 		return 0, err159
 	}
 	i -= n159
 	i = encodeVarintTypes(dAtA, i, uint64(n159))
+	i--
+	dAtA[i] = 0x3a
+	n160, err160 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.AddedAt, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.AddedAt):])
+	if err160 != nil {
+		return 0, err160
+	}
+	i -= n160
+	i = encodeVarintTypes(dAtA, i, uint64(n160))
 	i--
 	dAtA[i] = 0x32
 	if len(m.Id) > 0 {
@@ -23819,12 +23836,12 @@ func (m *TunnelConnectionSpecV2) MarshalToSizedBuffer(dAtA []byte) (int, error) 
 		i--
 		dAtA[i] = 0x22
 	}
-	n168, err168 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastHeartbeat, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastHeartbeat):])
-	if err168 != nil {
-		return 0, err168
+	n169, err169 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastHeartbeat, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastHeartbeat):])
+	if err169 != nil {
+		return 0, err169
 	}
-	i -= n168
-	i = encodeVarintTypes(dAtA, i, uint64(n168))
+	i -= n169
+	i = encodeVarintTypes(dAtA, i, uint64(n169))
 	i--
 	dAtA[i] = 0x1a
 	if len(m.ProxyName) > 0 {
@@ -23916,12 +23933,12 @@ func (m *AcquireSemaphoreRequest) MarshalToSizedBuffer(dAtA []byte) (int, error)
 		i--
 		dAtA[i] = 0x2a
 	}
-	n169, err169 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err169 != nil {
-		return 0, err169
+	n170, err170 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err170 != nil {
+		return 0, err170
 	}
-	i -= n169
-	i = encodeVarintTypes(dAtA, i, uint64(n169))
+	i -= n170
+	i = encodeVarintTypes(dAtA, i, uint64(n170))
 	i--
 	dAtA[i] = 0x22
 	if m.MaxLeases != 0 {
@@ -23970,12 +23987,12 @@ func (m *SemaphoreLease) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	n170, err170 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err170 != nil {
-		return 0, err170
+	n171, err171 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err171 != nil {
+		return 0, err171
 	}
-	i -= n170
-	i = encodeVarintTypes(dAtA, i, uint64(n170))
+	i -= n171
+	i = encodeVarintTypes(dAtA, i, uint64(n171))
 	i--
 	dAtA[i] = 0x2a
 	if len(m.LeaseID) > 0 {
@@ -24033,12 +24050,12 @@ func (m *SemaphoreLeaseRef) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x1a
 	}
-	n171, err171 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err171 != nil {
-		return 0, err171
+	n172, err172 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err172 != nil {
+		return 0, err172
 	}
-	i -= n171
-	i = encodeVarintTypes(dAtA, i, uint64(n171))
+	i -= n172
+	i = encodeVarintTypes(dAtA, i, uint64(n172))
 	i--
 	dAtA[i] = 0x12
 	if len(m.LeaseID) > 0 {
@@ -24276,28 +24293,28 @@ func (m *WebSessionSpecV2) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x48
 	}
-	n177, err177 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LoginTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LoginTime):])
-	if err177 != nil {
-		return 0, err177
-	}
-	i -= n177
-	i = encodeVarintTypes(dAtA, i, uint64(n177))
-	i--
-	dAtA[i] = 0x42
-	n178, err178 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	n178, err178 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LoginTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LoginTime):])
 	if err178 != nil {
 		return 0, err178
 	}
 	i -= n178
 	i = encodeVarintTypes(dAtA, i, uint64(n178))
 	i--
-	dAtA[i] = 0x3a
-	n179, err179 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.BearerTokenExpires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.BearerTokenExpires):])
+	dAtA[i] = 0x42
+	n179, err179 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
 	if err179 != nil {
 		return 0, err179
 	}
 	i -= n179
 	i = encodeVarintTypes(dAtA, i, uint64(n179))
+	i--
+	dAtA[i] = 0x3a
+	n180, err180 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.BearerTokenExpires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.BearerTokenExpires):])
+	if err180 != nil {
+		return 0, err180
+	}
+	i -= n180
+	i = encodeVarintTypes(dAtA, i, uint64(n180))
 	i--
 	dAtA[i] = 0x32
 	if len(m.BearerToken) > 0 {
@@ -24489,20 +24506,20 @@ func (m *SAMLSessionData) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x22
 	}
-	n180, err180 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.ExpireTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.ExpireTime):])
-	if err180 != nil {
-		return 0, err180
-	}
-	i -= n180
-	i = encodeVarintTypes(dAtA, i, uint64(n180))
-	i--
-	dAtA[i] = 0x1a
-	n181, err181 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.CreateTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.CreateTime):])
+	n181, err181 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.ExpireTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.ExpireTime):])
 	if err181 != nil {
 		return 0, err181
 	}
 	i -= n181
 	i = encodeVarintTypes(dAtA, i, uint64(n181))
+	i--
+	dAtA[i] = 0x1a
+	n182, err182 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.CreateTime, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.CreateTime):])
+	if err182 != nil {
+		return 0, err182
+	}
+	i -= n182
+	i = encodeVarintTypes(dAtA, i, uint64(n182))
 	i--
 	dAtA[i] = 0x12
 	if len(m.ID) > 0 {
@@ -24784,12 +24801,12 @@ func (m *RemoteClusterStatusV3) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	n185, err185 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastHeartbeat, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastHeartbeat):])
-	if err185 != nil {
-		return 0, err185
+	n186, err186 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastHeartbeat, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastHeartbeat):])
+	if err186 != nil {
+		return 0, err186
 	}
-	i -= n185
-	i = encodeVarintTypes(dAtA, i, uint64(n185))
+	i -= n186
+	i = encodeVarintTypes(dAtA, i, uint64(n186))
 	i--
 	dAtA[i] = 0x12
 	if len(m.Connection) > 0 {
@@ -27039,12 +27056,12 @@ func (m *GithubAuthRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		dAtA[i] = 0x62
 	}
 	if m.Expires != nil {
-		n214, err214 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.Expires):])
-		if err214 != nil {
-			return 0, err214
+		n215, err215 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.Expires):])
+		if err215 != nil {
+			return 0, err215
 		}
-		i -= n214
-		i = encodeVarintTypes(dAtA, i, uint64(n214))
+		i -= n215
+		i = encodeVarintTypes(dAtA, i, uint64(n215))
 		i--
 		dAtA[i] = 0x5a
 	}
@@ -28039,12 +28056,12 @@ func (m *LockSpecV2) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.Expires != nil {
-		n232, err232 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.Expires):])
-		if err232 != nil {
-			return 0, err232
+		n233, err233 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.Expires):])
+		if err233 != nil {
+			return 0, err233
 		}
-		i -= n232
-		i = encodeVarintTypes(dAtA, i, uint64(n232))
+		i -= n233
+		i = encodeVarintTypes(dAtA, i, uint64(n233))
 		i--
 		dAtA[i] = 0x1a
 	}
@@ -28583,12 +28600,12 @@ func (m *RegisterUsingTokenRequest) MarshalToSizedBuffer(dAtA []byte) (int, erro
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.Expires != nil {
-		n240, err240 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.Expires):])
-		if err240 != nil {
-			return 0, err240
+		n241, err241 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.Expires):])
+		if err241 != nil {
+			return 0, err241
 		}
-		i -= n240
-		i = encodeVarintTypes(dAtA, i, uint64(n240))
+		i -= n241
+		i = encodeVarintTypes(dAtA, i, uint64(n241))
 		i--
 		dAtA[i] = 0x62
 	}
@@ -28768,12 +28785,12 @@ func (m *RecoveryCodesSpecV1) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	n243, err243 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
-	if err243 != nil {
-		return 0, err243
+	n244, err244 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
+	if err244 != nil {
+		return 0, err244
 	}
-	i -= n243
-	i = encodeVarintTypes(dAtA, i, uint64(n243))
+	i -= n244
+	i = encodeVarintTypes(dAtA, i, uint64(n244))
 	i--
 	dAtA[i] = 0x12
 	if len(m.Codes) > 0 {
@@ -29124,20 +29141,20 @@ func (m *SessionTrackerSpecV1) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x32
 	}
-	n247, err247 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err247 != nil {
-		return 0, err247
-	}
-	i -= n247
-	i = encodeVarintTypes(dAtA, i, uint64(n247))
-	i--
-	dAtA[i] = 0x2a
-	n248, err248 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
+	n248, err248 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
 	if err248 != nil {
 		return 0, err248
 	}
 	i -= n248
 	i = encodeVarintTypes(dAtA, i, uint64(n248))
+	i--
+	dAtA[i] = 0x2a
+	n249, err249 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
+	if err249 != nil {
+		return 0, err249
+	}
+	i -= n249
+	i = encodeVarintTypes(dAtA, i, uint64(n249))
 	i--
 	dAtA[i] = 0x22
 	if m.State != 0 {
@@ -29241,12 +29258,12 @@ func (m *Participant) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	n249, err249 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastActive, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastActive):])
-	if err249 != nil {
-		return 0, err249
+	n250, err250 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.LastActive, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.LastActive):])
+	if err250 != nil {
+		return 0, err250
 	}
-	i -= n249
-	i = encodeVarintTypes(dAtA, i, uint64(n249))
+	i -= n250
+	i = encodeVarintTypes(dAtA, i, uint64(n250))
 	i--
 	dAtA[i] = 0x22
 	if len(m.Mode) > 0 {
@@ -33187,6 +33204,10 @@ func (m *AuthPreferenceSpecV2) Size() (n int) {
 	}
 	if m.IDP != nil {
 		l = m.IDP.Size()
+		n += 1 + l + sovTypes(uint64(l))
+	}
+	if m.AllowHeadless != nil {
+		l = m.AllowHeadless.Size()
 		n += 1 + l + sovTypes(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
@@ -53241,6 +53262,42 @@ func (m *AuthPreferenceSpecV2) Unmarshal(dAtA []byte) error {
 				m.IDP = &IdPOptions{}
 			}
 			if err := m.IDP.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 15:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AllowHeadless", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.AllowHeadless == nil {
+				m.AllowHeadless = &BoolOption{}
+			}
+			if err := m.AllowHeadless.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

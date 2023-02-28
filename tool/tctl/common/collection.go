@@ -1022,19 +1022,20 @@ func (l *loginRuleCollection) resources() []types.Resource {
 	return resources
 }
 
-type samlIDPServiceProviderCollection struct {
+//nolint:revive // Because we want this to be IdP.
+type samlIdPServiceProviderCollection struct {
 	serviceProviders []types.SAMLIdPServiceProvider
 }
 
-func (c *samlIDPServiceProviderCollection) resources() []types.Resource {
+func (c *samlIdPServiceProviderCollection) resources() []types.Resource {
 	r := make([]types.Resource, len(c.serviceProviders))
-	for _, resource := range c.serviceProviders {
-		r = append(r, resource)
+	for i, resource := range c.serviceProviders {
+		r[i] = resource
 	}
 	return r
 }
 
-func (c *samlIDPServiceProviderCollection) writeText(w io.Writer) error {
+func (c *samlIdPServiceProviderCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Name"})
 	for _, serviceProvider := range c.serviceProviders {
 		t.AddRow([]string{serviceProvider.GetName()})
