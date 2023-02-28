@@ -47,6 +47,7 @@ export function getKeyboardShortcutSchema(platform: Platform) {
 
   return z
     .string()
+    .transform(s => s.replaceAll(' ', ''))
     .transform(s => s.split('+'))
     .transform(putModifiersFirst(allowedModifiers))
     .superRefine(validateKeyCodeAndModifiers(allowedModifiers))
