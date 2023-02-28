@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 const (
@@ -47,12 +47,12 @@ type UsageLogger struct {
 	inner apievents.Emitter
 
 	// reporter is a usage reporter, where filtered audit events will be sent
-	reporter services.UsageReporter
+	reporter usagereporter.UsageReporter
 }
 
 // report submits a usage event, but silently ignores events if no reporter is
 // configured.
-func (u *UsageLogger) report(event services.UsageAnonymizable) error {
+func (u *UsageLogger) report(event usagereporter.UsageAnonymizable) error {
 	if u.reporter == nil {
 		return nil
 	}
@@ -71,7 +71,7 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 		// Note: we can have different behavior based on event code (local vs
 		// SSO) if desired, but we currently only care about connector type /
 		// method
-		return trace.Wrap(u.report(&services.UsageUserLogin{
+		return trace.Wrap(u.report(&usagereporter.UsageUserLogin{
 			UserName:      e.User,
 			ConnectorType: e.Method,
 		}))
@@ -83,17 +83,17 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 			sessionType = types.KubernetesSessionKind
 		}
 
-		return trace.Wrap(u.report(&services.UsageSessionStart{
+		return trace.Wrap(u.report(&usagereporter.UsageSessionStart{
 			UserName:    e.User,
 			SessionType: string(sessionType),
 		}))
 	case *apievents.PortForward:
-		return trace.Wrap(u.report(&services.UsageSessionStart{
+		return trace.Wrap(u.report(&usagereporter.UsageSessionStart{
 			UserName:    e.User,
 			SessionType: portSessionType,
 		}))
 	case *apievents.DatabaseSessionStart:
-		return trace.Wrap(u.report(&services.UsageSessionStart{
+		return trace.Wrap(u.report(&usagereporter.UsageSessionStart{
 			UserName:    e.User,
 			SessionType: string(types.DatabaseSessionKind),
 		}))
@@ -102,41 +102,41 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 		if types.IsAppTCP(e.AppURI) {
 			sessionType = tcpSessionType
 		}
-		return trace.Wrap(u.report(&services.UsageSessionStart{
+		return trace.Wrap(u.report(&usagereporter.UsageSessionStart{
 			UserName:    e.User,
 			SessionType: sessionType,
 		}))
 	case *apievents.WindowsDesktopSessionStart:
-		return trace.Wrap(u.report(&services.UsageSessionStart{
+		return trace.Wrap(u.report(&usagereporter.UsageSessionStart{
 			UserName:    e.User,
 			SessionType: string(types.WindowsDesktopSessionKind),
 		}))
 
 	case *apievents.GithubConnectorCreate:
-		return trace.Wrap(u.report(&services.UsageSSOCreate{
+		return trace.Wrap(u.report(&usagereporter.UsageSSOCreate{
 			ConnectorType: types.KindGithubConnector,
 		}))
 	case *apievents.OIDCConnectorCreate:
-		return trace.Wrap(u.report(&services.UsageSSOCreate{
+		return trace.Wrap(u.report(&usagereporter.UsageSSOCreate{
 			ConnectorType: types.KindOIDCConnector,
 		}))
 	case *apievents.SAMLConnectorCreate:
-		return trace.Wrap(u.report(&services.UsageSSOCreate{
+		return trace.Wrap(u.report(&usagereporter.UsageSSOCreate{
 			ConnectorType: types.KindSAMLConnector,
 		}))
 	case *apievents.RoleCreate:
-		return trace.Wrap(u.report(&services.UsageRoleCreate{
+		return trace.Wrap(u.report(&usagereporter.UsageRoleCreate{
 			UserName: e.User,
 			RoleName: e.ResourceMetadata.Name,
 		}))
 
 	case *apievents.KubeRequest:
-		return trace.Wrap(u.report(&services.UsageKubeRequest{
+		return trace.Wrap(u.report(&usagereporter.UsageKubeRequest{
 			UserName: e.User,
 		}))
 
 	case *apievents.SFTP:
-		return trace.Wrap(u.report(&services.UsageSFTP{
+		return trace.Wrap(u.report(&usagereporter.UsageSFTP{
 			UserName: e.User,
 			Action:   int32(e.Action),
 		}))
@@ -162,7 +162,7 @@ func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 // New creates a new usage event IAuditLog impl, which wraps another IAuditLog
 // impl and forwards a subset of audit log events to the cluster UsageReporter
 // service.
-func New(reporter services.UsageReporter, log logrus.FieldLogger, inner apievents.Emitter) (*UsageLogger, error) {
+func New(reporter usagereporter.UsageReporter, log logrus.FieldLogger, inner apievents.Emitter) (*UsageLogger, error) {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}
