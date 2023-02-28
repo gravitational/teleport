@@ -6925,7 +6925,7 @@ steps:
   - export VERSION="${DRONE_TAG}"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos apt -bucket "$REPO_S3_BUCKET" -local-bucket-path
-    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    "$BUCKET_CACHE_PATH" -version-channel "$VERSION" -release-channel "$RELEASE_CHANNEL"
     -artifact-path "$ARTIFACT_PATH" -log-level 4 -aptly-root-dir "$APTLY_ROOT_DIR"
   environment:
     APTLY_ROOT_DIR: /mnt/aptly
@@ -7129,7 +7129,7 @@ steps:
   - export VERSION="${DRONE_TAG}"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
-    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    "$BUCKET_CACHE_PATH" -version-channel "$VERSION" -release-channel "$RELEASE_CHANNEL"
     -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
   environment:
     ARTIFACT_PATH: /go/artifacts
@@ -18925,6 +18925,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 39c40129c9a9837beebf450fac24e8938ec1e1f1c467dd0a334ee58718f3433b
+hmac: bc40ded3c6c520d2f5f3578625115b2acb610f79565ec98abab420b955c0737b
 
 ...

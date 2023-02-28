@@ -24,21 +24,21 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc/peer"
 
-	proxyv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/proxy/v1"
+	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 )
 
-// Client is a wrapper around a [proxyv1.ProxyServiceClient] that
+// Client is a wrapper around a [transportv1.TransportServiceClient] that
 // hides the implementation details of establishing connections
 // over gRPC streams.
 type Client struct {
-	clt proxyv1.ProxyServiceClient
+	clt transportv1pb.TransportServiceClient
 }
 
 // NewClient constructs a Client that operates on the provided
-// [proxyv1.ProxyServiceClient]. An error is returned if the client
+// [transportv1pb.TransportServiceClient]. An error is returned if the client
 // provided is nil.
-func NewClient(client proxyv1.ProxyServiceClient) (*Client, error) {
+func NewClient(client transportv1pb.TransportServiceClient) (*Client, error) {
 	if client == nil {
 		return nil, trace.BadParameter("parameter client required")
 	}
@@ -48,8 +48,8 @@ func NewClient(client proxyv1.ProxyServiceClient) (*Client, error) {
 
 // ClusterDetails retrieves the cluster details as observed by the Teleport Proxy
 // that the Client is connected to.
-func (c *Client) ClusterDetails(ctx context.Context) (*proxyv1.ClusterDetails, error) {
-	resp, err := c.clt.GetClusterDetails(ctx, &proxyv1.GetClusterDetailsRequest{})
+func (c *Client) ClusterDetails(ctx context.Context) (*transportv1pb.ClusterDetails, error) {
+	resp, err := c.clt.GetClusterDetails(ctx, &transportv1pb.GetClusterDetailsRequest{})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -65,7 +65,7 @@ func (c *Client) DialCluster(ctx context.Context, cluster string, src net.Addr) 
 		return nil, trail.FromGRPC(err, "unable to establish proxy stream")
 	}
 
-	if err := stream.Send(&proxyv1.ProxyClusterRequest{Cluster: cluster}); err != nil {
+	if err := stream.Send(&transportv1pb.ProxyClusterRequest{Cluster: cluster}); err != nil {
 		return nil, trail.FromGRPC(err, "failed to send cluster request")
 	}
 
@@ -83,9 +83,9 @@ func (c *Client) DialCluster(ctx context.Context, cluster string, src net.Addr) 
 }
 
 // clusterStream implements the [streamutils.Source] interface
-// for a [proxyv1.ProxyService_ProxyClusterClient].
+// for a [transportv1pb.TransportService_ProxyClusterClient].
 type clusterStream struct {
-	stream proxyv1.ProxyService_ProxyClusterClient
+	stream transportv1pb.TransportService_ProxyClusterClient
 }
 
 func (c clusterStream) Recv() ([]byte, error) {
@@ -102,19 +102,19 @@ func (c clusterStream) Recv() ([]byte, error) {
 }
 
 func (c clusterStream) Send(frame []byte) error {
-	return trace.Wrap(c.stream.Send(&proxyv1.ProxyClusterRequest{Frame: &proxyv1.Frame{Payload: frame}}))
+	return trace.Wrap(c.stream.Send(&transportv1pb.ProxyClusterRequest{Frame: &transportv1pb.Frame{Payload: frame}}))
 }
 
 // DialHost establishes a connection to the instance in the provided cluster that matches
 // the hostport. If a keyring is provided then it will be forwarded to the remote instance.
 // The src address will be used as the LocalAddr of the returned [net.Conn].
-func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net.Addr, keyring agent.ExtendedAgent) (net.Conn, *proxyv1.ClusterDetails, error) {
+func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net.Addr, keyring agent.ExtendedAgent) (net.Conn, *transportv1pb.ClusterDetails, error) {
 	stream, err := c.clt.ProxySSH(ctx)
 	if err != nil {
 		return nil, nil, trail.FromGRPC(err, "unable to establish proxy stream")
 	}
 
-	if err := stream.Send(&proxyv1.ProxySSHRequest{DialTarget: &proxyv1.TargetHost{
+	if err := stream.Send(&transportv1pb.ProxySSHRequest{DialTarget: &transportv1pb.TargetHost{
 		HostPort: hostport,
 		Cluster:  cluster,
 	}}); err != nil {
@@ -127,8 +127,8 @@ func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net
 	}
 
 	// create a stream for agent protocol
-	agentStream := newClientStream(stream, func(payload []byte) *proxyv1.ProxySSHRequest {
-		return &proxyv1.ProxySSHRequest{Frame: &proxyv1.ProxySSHRequest_Agent{Agent: &proxyv1.Frame{Payload: payload}}}
+	agentStream := newClientStream(stream, func(payload []byte) *transportv1pb.ProxySSHRequest {
+		return &transportv1pb.ProxySSHRequest{Frame: &transportv1pb.ProxySSHRequest_Agent{Agent: &transportv1pb.Frame{Payload: payload}}}
 	})
 	// create a reader writer for agent protocol
 	agentRW, err := streamutils.NewReadWriter(agentStream)
@@ -137,8 +137,8 @@ func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net
 	}
 
 	// create a stream for ssh protocol
-	sshStream := newClientStream(stream, func(payload []byte) *proxyv1.ProxySSHRequest {
-		return &proxyv1.ProxySSHRequest{Frame: &proxyv1.ProxySSHRequest_Ssh{Ssh: &proxyv1.Frame{Payload: payload}}}
+	sshStream := newClientStream(stream, func(payload []byte) *transportv1pb.ProxySSHRequest {
+		return &transportv1pb.ProxySSHRequest{Frame: &transportv1pb.ProxySSHRequest_Ssh{Ssh: &transportv1pb.Frame{Payload: payload}}}
 	})
 
 	// create a reader writer for SSH protocol
@@ -170,9 +170,9 @@ func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net
 			}
 
 			switch frame := req.Frame.(type) {
-			case *proxyv1.ProxySSHResponse_Ssh:
+			case *transportv1pb.ProxySSHResponse_Ssh:
 				sshStream.incomingC <- frame.Ssh.Payload
-			case *proxyv1.ProxySSHResponse_Agent:
+			case *transportv1pb.ProxySSHResponse_Agent:
 				if keyring == nil {
 					continue
 				}
@@ -204,17 +204,17 @@ func (a addr) String() string {
 }
 
 // sshStream implements the [streamutils.Source] interface
-// for a [proxyv1.ProxyService_ProxySSHClient]. Instead of
+// for a [transportv1pb.TransportService_ProxySSHClient]. Instead of
 // reading directly from the stream reads are from an incoming
 // channel that is fed by the multiplexer.
 type sshStream struct {
 	incomingC chan []byte
 	errorC    chan error
-	stream    proxyv1.ProxyService_ProxySSHClient
-	requestFn func(payload []byte) *proxyv1.ProxySSHRequest
+	stream    transportv1pb.TransportService_ProxySSHClient
+	requestFn func(payload []byte) *transportv1pb.ProxySSHRequest
 }
 
-func newClientStream(stream proxyv1.ProxyService_ProxySSHClient, requestFn func(payload []byte) *proxyv1.ProxySSHRequest) *sshStream {
+func newClientStream(stream transportv1pb.TransportService_ProxySSHClient, requestFn func(payload []byte) *transportv1pb.ProxySSHRequest) *sshStream {
 	return &sshStream{
 		incomingC: make(chan []byte, 10),
 		errorC:    make(chan error, 1),

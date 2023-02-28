@@ -999,6 +999,9 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 				),
 			)
 
+			// some functions called inside dispatch() may handle replies to SSH channel requests internally,
+			// rather than leaving the reply to be handled inside this loop. in that case, those functions must
+			// set req.WantReply to false so that two replies are not sent.
 			if err := s.dispatch(ctx, ch, req, scx); err != nil {
 				s.replyError(ch, req, err)
 				span.End()
@@ -1058,6 +1061,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 				s.log.Debug(err)
 			}
 			return nil
+		case sshutils.PuTTYWinadjRequest:
+			return s.handlePuTTYWinadj(ch, req)
 		default:
 			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}
@@ -1091,6 +1096,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			s.log.Debug(err)
 		}
 		return nil
+	case sshutils.PuTTYWinadjRequest:
+		return s.handlePuTTYWinadj(ch, req)
 	default:
 		return trace.BadParameter(
 			"%v doesn't support request type '%v'", s.Component(), req.Type)
@@ -1297,4 +1304,21 @@ func parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext) (*remoteSub
 	}
 
 	return parseRemoteSubsystem(context.Background(), r.Name, ctx), nil
+}
+
+// handlePuTTYWinadj replies with failure to a PuTTY winadj request as required.
+// it returns an error if the reply fails. context from the PuTTY documentation:
+// PuTTY sends this request along with some SSH_MSG_CHANNEL_WINDOW_ADJUST messages as part of its window-size
+// tuning. It can be sent on any type of channel. There is no message-specific data. Servers MUST treat it
+// as an unrecognized request and respond with SSH_MSG_CHANNEL_FAILURE.
+// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
+func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
+	if err := req.Reply(false, nil); err != nil {
+		s.log.Warnf("Failed to reply to %q request: %v", req.Type, err)
+		return err
+	}
+	// the reply has been handled inside this function (rather than relying on the standard behavior
+	// of leaving handleSessionRequests to do it) so set the WantReply flag to false here.
+	req.WantReply = false
+	return nil
 }
