@@ -104,7 +104,9 @@ func (t *TeleportUsageReporter) Run(ctx context.Context) {
 	t.usageReporter.Run(ctx)
 }
 
-func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter usagereporter.SubmitFunc[prehogapi.SubmitEventRequest]) (*TeleportUsageReporter, error) {
+type SubmitFunc = usagereporter.SubmitFunc[prehogv1.SubmitEventRequest]
+
+func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter SubmitFunc) (*TeleportUsageReporter, error) {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}
@@ -121,7 +123,7 @@ func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterN
 
 	clock := clockwork.NewRealClock()
 
-	reporter := usagereporter.NewUsageReporter[prehogapi.SubmitEventRequest](&usagereporter.Options[prehogapi.SubmitEventRequest]{
+	reporter := usagereporter.NewUsageReporter(&usagereporter.Options[prehogapi.SubmitEventRequest]{
 		Log:           log,
 		Submit:        submitter,
 		MinBatchSize:  usageReporterMinBatchSize,
@@ -141,7 +143,7 @@ func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterN
 	}, nil
 }
 
-func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *tls.Certificate, caCertPEM []byte) (usagereporter.SubmitFunc[prehogapi.SubmitEventRequest], error) {
+func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *tls.Certificate, caCertPEM []byte) (SubmitFunc, error) {
 	tlsConfig := &tls.Config{
 		// Self-signed test licenses may not have a proper issuer and won't be
 		// used if just passed in via Certificates, so we'll use this to
