@@ -23,6 +23,8 @@ const (
 
 	helperEnv        = "_TBOT_TELEMETRY_HELPER"
 	helperVersionEnv = "_TBOT_TELEMETRY_HELPER_VERSION"
+
+	telemetryDocs = "example.com/placeholder"
 )
 
 type envGetter func(key string) string
@@ -60,11 +62,10 @@ func sendTelemetry(
 ) error {
 	start := time.Now()
 	if !telemetryEnabled(envGetter) {
-		// TODO(noah): Have this not be a placeholder message
-		log.Warn("no telemetry placeholder message")
+		log.Warnf("Anonymous telemetry is not enabled. Find out more about Machine ID's anonymous telemetry at %s", telemetryDocs)
 		return nil
 	}
-	log.Warn("telemetry enabled placeholder message")
+	log.Infof("Anonymous telemetry is enabled. Find out more about Machine ID's anonymous telemetry at %s", telemetryDocs)
 
 	data := &v1alpha.TbotStartEvent{
 		RunMode: v1alpha.TbotStartEvent_RUN_MODE_DAEMON,
