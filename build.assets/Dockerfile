@@ -136,13 +136,13 @@ RUN apt-get -y update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install gcloud SDK and Firestore emulator.
-RUN curl -sSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts
+RUN curl -sSLf https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts
 ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
 # beta component is required by firestore emulator: https://cloud.google.com/sdk/gcloud/reference/beta/emulators/firestore/start
 RUN gcloud components install cloud-firestore-emulator beta
 
 # Install etcd.
-RUN curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
+RUN curl -Lf https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
      cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/
 
 # Add the CI user.
@@ -183,13 +183,13 @@ ENV PATH="$PATH:${NODE_PATH}/bin"
 RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo "arm64"; fi) && \
     export NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" && \
     mkdir -p ${NODE_PATH} && \
-    curl -o /tmp/nodejs.tar.xz -L ${NODE_URL} && \
+    curl -o /tmp/nodejs.tar.xz -Lf ${NODE_URL} && \
     tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
 RUN corepack enable yarn
 
 # Install Go.
 ARG GOLANG_VERSION
-RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && curl -Lf https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -204,20 +204,20 @@ RUN make -C /opt/pam_teleport install
 ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
 # Install bats.
-RUN curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
+RUN curl -Lf https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
     cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
     rm -r bats-core-1.2.1
 
 # Install libbpf.
 ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && curl -Lf https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make && \
     make install
 
 # Install helm.
 RUN mkdir -p helm-tarball && \
-    curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
+    curl -Lf https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
 RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
@@ -235,7 +235,7 @@ ARG GOGO_PROTO_TAG
 ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 
 RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
-     curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
+     curl -Lf -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
      chmod -R a+r /usr/local/include/google/protobuf && \
      chmod -R a+xr /usr/local/bin/protoc && \
@@ -255,14 +255,14 @@ RUN go install github.com/google/addlicense@v1.0.0
 RUN go install github.com/daixiang0/gci@v0.7.0
 
 # Install golangci-lint.
-RUN curl -L https://github.com/golangci/golangci-lint/releases/download/v1.46.0/golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
+RUN curl -Lf https://github.com/golangci/golangci-lint/releases/download/v1.46.0/golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
     cp golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
     rm -r golangci-lint*
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
     VERSION="1.14.0" && \
-      curl -sSL \
+      curl -sSLf \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
       chmod +x "${BIN}/buf"
