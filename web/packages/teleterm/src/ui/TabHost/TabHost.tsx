@@ -21,7 +21,7 @@ import { Flex } from 'design';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService/documentsService/types';
 import { Tabs } from 'teleterm/ui/Tabs';
-import { DocumentsRenderer } from 'teleterm/ui/Documents';
+import { DocumentsRenderer } from 'teleterm/ui/Documents/DocumentsRenderer';
 import { IAppContext } from 'teleterm/ui/types';
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 
