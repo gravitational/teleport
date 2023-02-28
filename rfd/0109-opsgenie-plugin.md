@@ -16,14 +16,19 @@ Users are also able to configure auto approval flows to be met under certain con
 
 ## Configuration UX
 
-The plugin will be configured using a toml file containing the required information to interact with both Teleport access and the Opsgenie API.
+The plugin will be configured in Teleport's config yaml file. The required fields will be added to a 'plugins' section containing the required information to interact with both Teleport access and the Opsgenie API.
 
 ```
-[opsgenie]
-api_key = "path/to/key" # File containing Opsgenie API Key
-opsgenie_addr = "example.app.opsgenie.com" # Address of Opsgenie
-severity = "2" # Severity to create Opsgenie alerts with
+plugins:
+    opsgenie:
+        api_key: "path/to/key" # File containing Opsgenie API Key
+        opsgenie_addr: "example.app.opsgenie.com" # Address of Opsgenie
+        priority: "2" # Priority to create Opsgenie alerts with
+        alert_tags: ["example-tag"] # List of tags to be added to alerts created in Opsgenie
+        auto_approval: true # Whether or not to enable auto approval
 ```
+
+The logging configuration will be shared with the main Teleport process.
 
 ### Getting an Opsgenie API key
 
@@ -34,7 +39,7 @@ In the Opsgenie web UI go to Settings -> App settings -> API key management. Cre
 The plugin will be started using a command of the form
 
 ```
-Teleport opsgenie start –config <config file location>
+teleport start --config /etc/teleport.yaml
 ```
 
 ## UX
@@ -43,7 +48,7 @@ Once an access request has been created, the Opsgenie plugin will create an aler
 
 The appropriate on call responder can then click into the provided link and approve or deny the access request.
 
-For auto approval of certain access requests the access request will be auto approved if the requesting user is on-call in one of the services provided in request annotation.
+For auto approval of certain access requests the access request will be auto approved if the requesting user is on-call in one of the services provided in request annotation. (Provided auto approval is enabled in the config)
 
 Once an access request has been approved or denied the plugin will add a note to the alert and close the relevant alert tied to that access request.
 
@@ -76,7 +81,7 @@ When the Opsgenie plugin creates alerts for incoming access requests the Create 
 }
 ```
 
-When the access request has been approved or denied the alert created in Opsgenie will have a note added to it using the ‘Add note to alert’ endpoint. Then the alert will be closed using the ‘Close alert’ endpoint.
+On every review of the access request the alert created in Opsgenie will have a note added to it using the ‘Add note to alert’ endpoint. Then the alert will be closed using the ‘Close alert’ endpoint once the alert has either been approved or denied.
 
 ```
 <Reviewer> reviewed the request at <someTime>.
@@ -93,6 +98,10 @@ Similar to the existing Pagerduty plugin for auto-approval to work, the user cre
 Access requests will be mapped to Opsgenie alerts by including the Access request ID in the tags field of the note. 
 
 Shared code between the teleport-plugins found in lib is not too extensive and the simplest method to handle this when adding the Opsgenie plugin would be to simply duplicate what is needed for now.
+
+### Note
+
+Opsgenie will only ever read Teleport state and never write it.
 
 ## Security considerations
 
