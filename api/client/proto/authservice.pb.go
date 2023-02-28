@@ -343,6 +343,7 @@ type Event struct {
 	//	*Event_SAMLIdPServiceProvider
 	//	*Event_SAMLIdPSession
 	//	*Event_UserGroup
+	//	*Event_UIConfig
 	Resource             isEvent_Resource `protobuf_oneof:"Resource"`
 	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
 	XXX_unrecognized     []byte           `json:"-"`
@@ -496,6 +497,9 @@ type Event_SAMLIdPSession struct {
 type Event_UserGroup struct {
 	UserGroup *types.UserGroupV1 `protobuf:"bytes,38,opt,name=UserGroup,proto3,oneof" json:"user_group,omitempty"`
 }
+type Event_UIConfig struct {
+	UIConfig *types.UIConfigV1 `protobuf:"bytes,39,opt,name=UIConfig,proto3,oneof" json:"ui_config,omitempty"`
+}
 
 func (*Event_ResourceHeader) isEvent_Resource()          {}
 func (*Event_CertAuthority) isEvent_Resource()           {}
@@ -533,6 +537,7 @@ func (*Event_DatabaseService) isEvent_Resource()         {}
 func (*Event_SAMLIdPServiceProvider) isEvent_Resource()  {}
 func (*Event_SAMLIdPSession) isEvent_Resource()          {}
 func (*Event_UserGroup) isEvent_Resource()               {}
+func (*Event_UIConfig) isEvent_Resource()                {}
 
 func (m *Event) GetResource() isEvent_Resource {
 	if m != nil {
@@ -800,6 +805,13 @@ func (m *Event) GetUserGroup() *types.UserGroupV1 {
 	return nil
 }
 
+func (m *Event) GetUIConfig() *types.UIConfigV1 {
+	if x, ok := m.GetResource().(*Event_UIConfig); ok {
+		return x.UIConfig
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*Event) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
@@ -839,6 +851,7 @@ func (*Event) XXX_OneofWrappers() []interface{} {
 		(*Event_SAMLIdPServiceProvider)(nil),
 		(*Event_SAMLIdPSession)(nil),
 		(*Event_UserGroup)(nil),
+		(*Event_UIConfig)(nil),
 	}
 }
 
@@ -14842,6 +14855,12 @@ type AuthServiceClient interface {
 	SetAuthPreference(ctx context.Context, in *types.AuthPreferenceV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// GetUIConfig gets the configuration for the UI served by the proxy service
+	GetUIConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.UIConfigV1, error)
+	// SetUIConfig sets the configuration for the UI served by the proxy service
+	SetUIConfig(ctx context.Context, in *types.UIConfigV1, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// DeleteUIConfig deletes the custom configuration for the UI served by the proxy service
+	DeleteUIConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetEvents gets events from the audit log.
 	GetEvents(ctx context.Context, in *GetEventsRequest, opts ...grpc.CallOption) (*Events, error)
 	// GetSessionEvents gets completed session events from the audit log.
@@ -16783,6 +16802,33 @@ func (c *authServiceClient) ResetAuthPreference(ctx context.Context, in *emptypb
 	return out, nil
 }
 
+func (c *authServiceClient) GetUIConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.UIConfigV1, error) {
+	out := new(types.UIConfigV1)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GetUIConfig", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) SetUIConfig(ctx context.Context, in *types.UIConfigV1, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/SetUIConfig", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) DeleteUIConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteUIConfig", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *authServiceClient) GetEvents(ctx context.Context, in *GetEventsRequest, opts ...grpc.CallOption) (*Events, error) {
 	out := new(Events)
 	err := c.cc.Invoke(ctx, "/proto.AuthService/GetEvents", in, out, opts...)
@@ -17854,6 +17900,12 @@ type AuthServiceServer interface {
 	SetAuthPreference(context.Context, *types.AuthPreferenceV2) (*emptypb.Empty, error)
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
+	// GetUIConfig gets the configuration for the UI served by the proxy service
+	GetUIConfig(context.Context, *emptypb.Empty) (*types.UIConfigV1, error)
+	// SetUIConfig sets the configuration for the UI served by the proxy service
+	SetUIConfig(context.Context, *types.UIConfigV1) (*emptypb.Empty, error)
+	// DeleteUIConfig deletes the custom configuration for the UI served by the proxy service
+	DeleteUIConfig(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetEvents gets events from the audit log.
 	GetEvents(context.Context, *GetEventsRequest) (*Events, error)
 	// GetSessionEvents gets completed session events from the audit log.
@@ -18527,6 +18579,15 @@ func (*UnimplementedAuthServiceServer) SetAuthPreference(ctx context.Context, re
 }
 func (*UnimplementedAuthServiceServer) ResetAuthPreference(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResetAuthPreference not implemented")
+}
+func (*UnimplementedAuthServiceServer) GetUIConfig(ctx context.Context, req *emptypb.Empty) (*types.UIConfigV1, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUIConfig not implemented")
+}
+func (*UnimplementedAuthServiceServer) SetUIConfig(ctx context.Context, req *types.UIConfigV1) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetUIConfig not implemented")
+}
+func (*UnimplementedAuthServiceServer) DeleteUIConfig(ctx context.Context, req *emptypb.Empty) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteUIConfig not implemented")
 }
 func (*UnimplementedAuthServiceServer) GetEvents(ctx context.Context, req *GetEventsRequest) (*Events, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetEvents not implemented")
@@ -21601,6 +21662,60 @@ func _AuthService_ResetAuthPreference_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_GetUIConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetUIConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GetUIConfig",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetUIConfig(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_SetUIConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(types.UIConfigV1)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).SetUIConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/SetUIConfig",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).SetUIConfig(ctx, req.(*types.UIConfigV1))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_DeleteUIConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).DeleteUIConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/DeleteUIConfig",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).DeleteUIConfig(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AuthService_GetEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetEventsRequest)
 	if err := dec(in); err != nil {
@@ -23565,6 +23680,18 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_ResetAuthPreference_Handler,
 		},
 		{
+			MethodName: "GetUIConfig",
+			Handler:    _AuthService_GetUIConfig_Handler,
+		},
+		{
+			MethodName: "SetUIConfig",
+			Handler:    _AuthService_SetUIConfig_Handler,
+		},
+		{
+			MethodName: "DeleteUIConfig",
+			Handler:    _AuthService_DeleteUIConfig_Handler,
+		},
+		{
 			MethodName: "GetEvents",
 			Handler:    _AuthService_GetEvents_Handler,
 		},
@@ -24807,6 +24934,29 @@ func (m *Event_UserGroup) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	return len(dAtA) - i, nil
 }
+func (m *Event_UIConfig) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Event_UIConfig) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.UIConfig != nil {
+		{
+			size, err := m.UIConfig.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintAuthservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x2
+		i--
+		dAtA[i] = 0xba
+	}
+	return len(dAtA) - i, nil
+}
 func (m *Watch) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -25190,12 +25340,12 @@ func (m *UserCertsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x22
 	}
-	n41, err41 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err41 != nil {
-		return 0, err41
+	n42, err42 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err42 != nil {
+		return 0, err42
 	}
-	i -= n41
-	i = encodeVarintAuthservice(dAtA, i, uint64(n41))
+	i -= n42
+	i = encodeVarintAuthservice(dAtA, i, uint64(n42))
 	i--
 	dAtA[i] = 0x1a
 	if len(m.Username) > 0 {
@@ -26840,12 +26990,12 @@ func (m *GenerateAppTokenRequest) MarshalToSizedBuffer(dAtA []byte) (int, error)
 			dAtA[i] = 0x2a
 		}
 	}
-	n53, err53 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
-	if err53 != nil {
-		return 0, err53
+	n54, err54 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Expires):])
+	if err54 != nil {
+		return 0, err54
 	}
-	i -= n53
-	i = encodeVarintAuthservice(dAtA, i, uint64(n53))
+	i -= n54
+	i = encodeVarintAuthservice(dAtA, i, uint64(n54))
 	i--
 	dAtA[i] = 0x22
 	if len(m.URI) > 0 {
@@ -30519,20 +30669,20 @@ func (m *GetEventsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 			dAtA[i] = 0x22
 		}
 	}
-	n96, err96 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.EndDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.EndDate):])
-	if err96 != nil {
-		return 0, err96
-	}
-	i -= n96
-	i = encodeVarintAuthservice(dAtA, i, uint64(n96))
-	i--
-	dAtA[i] = 0x1a
-	n97, err97 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartDate):])
+	n97, err97 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.EndDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.EndDate):])
 	if err97 != nil {
 		return 0, err97
 	}
 	i -= n97
 	i = encodeVarintAuthservice(dAtA, i, uint64(n97))
+	i--
+	dAtA[i] = 0x1a
+	n98, err98 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartDate):])
+	if err98 != nil {
+		return 0, err98
+	}
+	i -= n98
+	i = encodeVarintAuthservice(dAtA, i, uint64(n98))
 	i--
 	dAtA[i] = 0x12
 	if len(m.Namespace) > 0 {
@@ -30586,20 +30736,20 @@ func (m *GetSessionEventsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error)
 		i--
 		dAtA[i] = 0x18
 	}
-	n98, err98 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.EndDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.EndDate):])
-	if err98 != nil {
-		return 0, err98
-	}
-	i -= n98
-	i = encodeVarintAuthservice(dAtA, i, uint64(n98))
-	i--
-	dAtA[i] = 0x12
-	n99, err99 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartDate):])
+	n99, err99 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.EndDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.EndDate):])
 	if err99 != nil {
 		return 0, err99
 	}
 	i -= n99
 	i = encodeVarintAuthservice(dAtA, i, uint64(n99))
+	i--
+	dAtA[i] = 0x12
+	n100, err100 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartDate, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.StartDate):])
+	if err100 != nil {
+		return 0, err100
+	}
+	i -= n100
+	i = encodeVarintAuthservice(dAtA, i, uint64(n100))
 	i--
 	dAtA[i] = 0xa
 	return len(dAtA) - i, nil
@@ -31924,12 +32074,12 @@ func (m *RecoveryCodes) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	n106, err106 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
-	if err106 != nil {
-		return 0, err106
+	n107, err107 := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.Created, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(m.Created):])
+	if err107 != nil {
+		return 0, err107
 	}
-	i -= n106
-	i = encodeVarintAuthservice(dAtA, i, uint64(n106))
+	i -= n107
+	i = encodeVarintAuthservice(dAtA, i, uint64(n107))
 	i--
 	dAtA[i] = 0x12
 	if len(m.Codes) > 0 {
@@ -32983,12 +33133,12 @@ func (m *SessionTrackerUpdateExpiry) MarshalToSizedBuffer(dAtA []byte) (int, err
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if m.Expires != nil {
-		n124, err124 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.Expires):])
-		if err124 != nil {
-			return 0, err124
+		n125, err125 := github_com_gogo_protobuf_types.StdTimeMarshalTo(*m.Expires, dAtA[i-github_com_gogo_protobuf_types.SizeOfStdTime(*m.Expires):])
+		if err125 != nil {
+			return 0, err125
 		}
-		i -= n124
-		i = encodeVarintAuthservice(dAtA, i, uint64(n124))
+		i -= n125
+		i = encodeVarintAuthservice(dAtA, i, uint64(n125))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -35061,6 +35211,18 @@ func (m *Event_UserGroup) Size() (n int) {
 	_ = l
 	if m.UserGroup != nil {
 		l = m.UserGroup.Size()
+		n += 2 + l + sovAuthservice(uint64(l))
+	}
+	return n
+}
+func (m *Event_UIConfig) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.UIConfig != nil {
+		l = m.UIConfig.Size()
 		n += 2 + l + sovAuthservice(uint64(l))
 	}
 	return n
@@ -41003,6 +41165,41 @@ func (m *Event) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Resource = &Event_UserGroup{v}
+			iNdEx = postIndex
+		case 39:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UIConfig", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &types.UIConfigV1{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Resource = &Event_UIConfig{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

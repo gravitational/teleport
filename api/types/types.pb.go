@@ -603,7 +603,7 @@ func (x ConnectionDiagnosticTrace_TraceType) String() string {
 }
 
 func (ConnectionDiagnosticTrace_TraceType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{217, 0}
+	return fileDescriptor_9198ee693835762e, []int{219, 0}
 }
 
 // StatusType describes whether this was a success or a failure.
@@ -632,7 +632,7 @@ func (x ConnectionDiagnosticTrace_StatusType) String() string {
 }
 
 func (ConnectionDiagnosticTrace_StatusType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{217, 1}
+	return fileDescriptor_9198ee693835762e, []int{219, 1}
 }
 
 type KeepAlive struct {
@@ -11665,6 +11665,91 @@ func (m *Participant) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Participant proto.InternalMessageInfo
 
+// UIConfigV1 represents the configuration for the web UI served by the proxy service
+type UIConfigV1 struct {
+	// Header is the resource header for the UI configuration.
+	ResourceHeader `protobuf:"bytes,1,opt,name=Header,proto3,embedded=Header" json:""`
+	// Spec is the resource spec.
+	Spec                 UIConfigSpecV1 `protobuf:"bytes,5,opt,name=Spec,proto3" json:"spec"`
+	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
+	XXX_unrecognized     []byte         `json:"-"`
+	XXX_sizecache        int32          `json:"-"`
+}
+
+func (m *UIConfigV1) Reset()         { *m = UIConfigV1{} }
+func (m *UIConfigV1) String() string { return proto.CompactTextString(m) }
+func (*UIConfigV1) ProtoMessage()    {}
+func (*UIConfigV1) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9198ee693835762e, []int{211}
+}
+func (m *UIConfigV1) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UIConfigV1) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UIConfigV1.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UIConfigV1) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UIConfigV1.Merge(m, src)
+}
+func (m *UIConfigV1) XXX_Size() int {
+	return m.Size()
+}
+func (m *UIConfigV1) XXX_DiscardUnknown() {
+	xxx_messageInfo_UIConfigV1.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UIConfigV1 proto.InternalMessageInfo
+
+// UIConfigSpecV1 is the specification for a UIConfig
+type UIConfigSpecV1 struct {
+	ScrollbackLines      int32    `protobuf:"varint,1,opt,name=ScrollbackLines,proto3" json:"scrollback_lines"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UIConfigSpecV1) Reset()         { *m = UIConfigSpecV1{} }
+func (m *UIConfigSpecV1) String() string { return proto.CompactTextString(m) }
+func (*UIConfigSpecV1) ProtoMessage()    {}
+func (*UIConfigSpecV1) Descriptor() ([]byte, []int) {
+	return fileDescriptor_9198ee693835762e, []int{212}
+}
+func (m *UIConfigSpecV1) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UIConfigSpecV1) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UIConfigSpecV1.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UIConfigSpecV1) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UIConfigSpecV1.Merge(m, src)
+}
+func (m *UIConfigSpecV1) XXX_Size() int {
+	return m.Size()
+}
+func (m *UIConfigSpecV1) XXX_DiscardUnknown() {
+	xxx_messageInfo_UIConfigSpecV1.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UIConfigSpecV1 proto.InternalMessageInfo
+
 // InstallerV1 represents an installer script resource. Used to
 // provide a script to install teleport on discovered nodes.
 type InstallerV1 struct {
@@ -11687,7 +11772,7 @@ func (m *InstallerV1) Reset()         { *m = InstallerV1{} }
 func (m *InstallerV1) String() string { return proto.CompactTextString(m) }
 func (*InstallerV1) ProtoMessage()    {}
 func (*InstallerV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{211}
+	return fileDescriptor_9198ee693835762e, []int{213}
 }
 func (m *InstallerV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -11729,7 +11814,7 @@ func (m *InstallerSpecV1) Reset()         { *m = InstallerSpecV1{} }
 func (m *InstallerSpecV1) String() string { return proto.CompactTextString(m) }
 func (*InstallerSpecV1) ProtoMessage()    {}
 func (*InstallerSpecV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{212}
+	return fileDescriptor_9198ee693835762e, []int{214}
 }
 func (m *InstallerSpecV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -11771,7 +11856,7 @@ func (m *InstallerV1List) Reset()         { *m = InstallerV1List{} }
 func (m *InstallerV1List) String() string { return proto.CompactTextString(m) }
 func (*InstallerV1List) ProtoMessage()    {}
 func (*InstallerV1List) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{213}
+	return fileDescriptor_9198ee693835762e, []int{215}
 }
 func (m *InstallerV1List) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -11815,7 +11900,7 @@ func (m *SortBy) Reset()         { *m = SortBy{} }
 func (m *SortBy) String() string { return proto.CompactTextString(m) }
 func (*SortBy) ProtoMessage()    {}
 func (*SortBy) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{214}
+	return fileDescriptor_9198ee693835762e, []int{216}
 }
 func (m *SortBy) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -11861,7 +11946,7 @@ func (m *ConnectionDiagnosticV1) Reset()         { *m = ConnectionDiagnosticV1{}
 func (m *ConnectionDiagnosticV1) String() string { return proto.CompactTextString(m) }
 func (*ConnectionDiagnosticV1) ProtoMessage()    {}
 func (*ConnectionDiagnosticV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{215}
+	return fileDescriptor_9198ee693835762e, []int{217}
 }
 func (m *ConnectionDiagnosticV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -11911,7 +11996,7 @@ func (m *ConnectionDiagnosticSpecV1) Reset()         { *m = ConnectionDiagnostic
 func (m *ConnectionDiagnosticSpecV1) String() string { return proto.CompactTextString(m) }
 func (*ConnectionDiagnosticSpecV1) ProtoMessage()    {}
 func (*ConnectionDiagnosticSpecV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{216}
+	return fileDescriptor_9198ee693835762e, []int{218}
 }
 func (m *ConnectionDiagnosticSpecV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -11957,7 +12042,7 @@ func (m *ConnectionDiagnosticTrace) Reset()         { *m = ConnectionDiagnosticT
 func (m *ConnectionDiagnosticTrace) String() string { return proto.CompactTextString(m) }
 func (*ConnectionDiagnosticTrace) ProtoMessage()    {}
 func (*ConnectionDiagnosticTrace) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{217}
+	return fileDescriptor_9198ee693835762e, []int{219}
 }
 func (m *ConnectionDiagnosticTrace) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12000,7 +12085,7 @@ func (m *DatabaseServiceV1) Reset()         { *m = DatabaseServiceV1{} }
 func (m *DatabaseServiceV1) String() string { return proto.CompactTextString(m) }
 func (*DatabaseServiceV1) ProtoMessage()    {}
 func (*DatabaseServiceV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{218}
+	return fileDescriptor_9198ee693835762e, []int{220}
 }
 func (m *DatabaseServiceV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12042,7 +12127,7 @@ func (m *DatabaseServiceSpecV1) Reset()         { *m = DatabaseServiceSpecV1{} }
 func (m *DatabaseServiceSpecV1) String() string { return proto.CompactTextString(m) }
 func (*DatabaseServiceSpecV1) ProtoMessage()    {}
 func (*DatabaseServiceSpecV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{219}
+	return fileDescriptor_9198ee693835762e, []int{221}
 }
 func (m *DatabaseServiceSpecV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12083,7 +12168,7 @@ func (m *DatabaseResourceMatcher) Reset()         { *m = DatabaseResourceMatcher
 func (m *DatabaseResourceMatcher) String() string { return proto.CompactTextString(m) }
 func (*DatabaseResourceMatcher) ProtoMessage()    {}
 func (*DatabaseResourceMatcher) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{220}
+	return fileDescriptor_9198ee693835762e, []int{222}
 }
 func (m *DatabaseResourceMatcher) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12125,7 +12210,7 @@ func (m *ClusterAlert) Reset()         { *m = ClusterAlert{} }
 func (m *ClusterAlert) String() string { return proto.CompactTextString(m) }
 func (*ClusterAlert) ProtoMessage()    {}
 func (*ClusterAlert) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{221}
+	return fileDescriptor_9198ee693835762e, []int{223}
 }
 func (m *ClusterAlert) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12171,7 +12256,7 @@ func (m *ClusterAlertSpec) Reset()         { *m = ClusterAlertSpec{} }
 func (m *ClusterAlertSpec) String() string { return proto.CompactTextString(m) }
 func (*ClusterAlertSpec) ProtoMessage()    {}
 func (*ClusterAlertSpec) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{222}
+	return fileDescriptor_9198ee693835762e, []int{224}
 }
 func (m *ClusterAlertSpec) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12221,7 +12306,7 @@ func (m *GetClusterAlertsRequest) Reset()         { *m = GetClusterAlertsRequest
 func (m *GetClusterAlertsRequest) String() string { return proto.CompactTextString(m) }
 func (*GetClusterAlertsRequest) ProtoMessage()    {}
 func (*GetClusterAlertsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{223}
+	return fileDescriptor_9198ee693835762e, []int{225}
 }
 func (m *GetClusterAlertsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12275,7 +12360,7 @@ func (m *AlertAcknowledgement) Reset()         { *m = AlertAcknowledgement{} }
 func (m *AlertAcknowledgement) String() string { return proto.CompactTextString(m) }
 func (*AlertAcknowledgement) ProtoMessage()    {}
 func (*AlertAcknowledgement) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{224}
+	return fileDescriptor_9198ee693835762e, []int{226}
 }
 func (m *AlertAcknowledgement) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12327,7 +12412,7 @@ func (m *Release) Reset()         { *m = Release{} }
 func (m *Release) String() string { return proto.CompactTextString(m) }
 func (*Release) ProtoMessage()    {}
 func (*Release) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{225}
+	return fileDescriptor_9198ee693835762e, []int{227}
 }
 func (m *Release) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12385,7 +12470,7 @@ func (m *Asset) Reset()         { *m = Asset{} }
 func (m *Asset) String() string { return proto.CompactTextString(m) }
 func (*Asset) ProtoMessage()    {}
 func (*Asset) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{226}
+	return fileDescriptor_9198ee693835762e, []int{228}
 }
 func (m *Asset) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12438,7 +12523,7 @@ func (m *PluginV1) Reset()         { *m = PluginV1{} }
 func (m *PluginV1) String() string { return proto.CompactTextString(m) }
 func (*PluginV1) ProtoMessage()    {}
 func (*PluginV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{227}
+	return fileDescriptor_9198ee693835762e, []int{229}
 }
 func (m *PluginV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12483,7 +12568,7 @@ func (m *PluginSpecV1) Reset()         { *m = PluginSpecV1{} }
 func (m *PluginSpecV1) String() string { return proto.CompactTextString(m) }
 func (*PluginSpecV1) ProtoMessage()    {}
 func (*PluginSpecV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{228}
+	return fileDescriptor_9198ee693835762e, []int{230}
 }
 func (m *PluginSpecV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12557,7 +12642,7 @@ func (m *PluginSlackAccessSettings) Reset()         { *m = PluginSlackAccessSett
 func (m *PluginSlackAccessSettings) String() string { return proto.CompactTextString(m) }
 func (*PluginSlackAccessSettings) ProtoMessage()    {}
 func (*PluginSlackAccessSettings) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{229}
+	return fileDescriptor_9198ee693835762e, []int{231}
 }
 func (m *PluginSlackAccessSettings) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12677,7 +12762,7 @@ func (m *PluginOAuth2AuthorizationCodeCredentials) Reset() {
 func (m *PluginOAuth2AuthorizationCodeCredentials) String() string { return proto.CompactTextString(m) }
 func (*PluginOAuth2AuthorizationCodeCredentials) ProtoMessage()    {}
 func (*PluginOAuth2AuthorizationCodeCredentials) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{231}
+	return fileDescriptor_9198ee693835762e, []int{233}
 }
 func (m *PluginOAuth2AuthorizationCodeCredentials) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12718,7 +12803,7 @@ func (m *PluginStatusV1) Reset()         { *m = PluginStatusV1{} }
 func (m *PluginStatusV1) String() string { return proto.CompactTextString(m) }
 func (*PluginStatusV1) ProtoMessage()    {}
 func (*PluginStatusV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{232}
+	return fileDescriptor_9198ee693835762e, []int{234}
 }
 func (m *PluginStatusV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12763,7 +12848,7 @@ func (m *PluginCredentialsV1) Reset()         { *m = PluginCredentialsV1{} }
 func (m *PluginCredentialsV1) String() string { return proto.CompactTextString(m) }
 func (*PluginCredentialsV1) ProtoMessage()    {}
 func (*PluginCredentialsV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{233}
+	return fileDescriptor_9198ee693835762e, []int{235}
 }
 func (m *PluginCredentialsV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12838,7 +12923,7 @@ func (m *PluginOAuth2AccessTokenCredentials) Reset()         { *m = PluginOAuth2
 func (m *PluginOAuth2AccessTokenCredentials) String() string { return proto.CompactTextString(m) }
 func (*PluginOAuth2AccessTokenCredentials) ProtoMessage()    {}
 func (*PluginOAuth2AccessTokenCredentials) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{234}
+	return fileDescriptor_9198ee693835762e, []int{236}
 }
 func (m *PluginOAuth2AccessTokenCredentials) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12880,7 +12965,7 @@ func (m *PluginListV1) Reset()         { *m = PluginListV1{} }
 func (m *PluginListV1) String() string { return proto.CompactTextString(m) }
 func (*PluginListV1) ProtoMessage()    {}
 func (*PluginListV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{235}
+	return fileDescriptor_9198ee693835762e, []int{237}
 }
 func (m *PluginListV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12923,7 +13008,7 @@ type SAMLIdPServiceProviderV1 struct {
 func (m *SAMLIdPServiceProviderV1) Reset()      { *m = SAMLIdPServiceProviderV1{} }
 func (*SAMLIdPServiceProviderV1) ProtoMessage() {}
 func (*SAMLIdPServiceProviderV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{236}
+	return fileDescriptor_9198ee693835762e, []int{238}
 }
 func (m *SAMLIdPServiceProviderV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -12969,7 +13054,7 @@ func (m *SAMLIdPServiceProviderSpecV1) Reset()         { *m = SAMLIdPServiceProv
 func (m *SAMLIdPServiceProviderSpecV1) String() string { return proto.CompactTextString(m) }
 func (*SAMLIdPServiceProviderSpecV1) ProtoMessage()    {}
 func (*SAMLIdPServiceProviderSpecV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{237}
+	return fileDescriptor_9198ee693835762e, []int{239}
 }
 func (m *SAMLIdPServiceProviderSpecV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -13011,7 +13096,7 @@ func (m *IdPOptions) Reset()         { *m = IdPOptions{} }
 func (m *IdPOptions) String() string { return proto.CompactTextString(m) }
 func (*IdPOptions) ProtoMessage()    {}
 func (*IdPOptions) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{238}
+	return fileDescriptor_9198ee693835762e, []int{240}
 }
 func (m *IdPOptions) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -13053,7 +13138,7 @@ func (m *IdPSAMLOptions) Reset()         { *m = IdPSAMLOptions{} }
 func (m *IdPSAMLOptions) String() string { return proto.CompactTextString(m) }
 func (*IdPSAMLOptions) ProtoMessage()    {}
 func (*IdPSAMLOptions) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{239}
+	return fileDescriptor_9198ee693835762e, []int{241}
 }
 func (m *IdPSAMLOptions) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -13103,7 +13188,7 @@ func (m *KubernetesResourceV1) Reset()         { *m = KubernetesResourceV1{} }
 func (m *KubernetesResourceV1) String() string { return proto.CompactTextString(m) }
 func (*KubernetesResourceV1) ProtoMessage()    {}
 func (*KubernetesResourceV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{240}
+	return fileDescriptor_9198ee693835762e, []int{242}
 }
 func (m *KubernetesResourceV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -13145,7 +13230,7 @@ func (m *KubernetesResourceSpecV1) Reset()         { *m = KubernetesResourceSpec
 func (m *KubernetesResourceSpecV1) String() string { return proto.CompactTextString(m) }
 func (*KubernetesResourceSpecV1) ProtoMessage()    {}
 func (*KubernetesResourceSpecV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{241}
+	return fileDescriptor_9198ee693835762e, []int{243}
 }
 func (m *KubernetesResourceSpecV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -13186,7 +13271,7 @@ type UserGroupV1 struct {
 func (m *UserGroupV1) Reset()      { *m = UserGroupV1{} }
 func (*UserGroupV1) ProtoMessage() {}
 func (*UserGroupV1) Descriptor() ([]byte, []int) {
-	return fileDescriptor_9198ee693835762e, []int{242}
+	return fileDescriptor_9198ee693835762e, []int{244}
 }
 func (m *UserGroupV1) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -13464,6 +13549,8 @@ func init() {
 	proto.RegisterType((*SessionTrackerSpecV1)(nil), "types.SessionTrackerSpecV1")
 	proto.RegisterType((*SessionTrackerPolicySet)(nil), "types.SessionTrackerPolicySet")
 	proto.RegisterType((*Participant)(nil), "types.Participant")
+	proto.RegisterType((*UIConfigV1)(nil), "types.UIConfigV1")
+	proto.RegisterType((*UIConfigSpecV1)(nil), "types.UIConfigSpecV1")
 	proto.RegisterType((*InstallerV1)(nil), "types.InstallerV1")
 	proto.RegisterType((*InstallerSpecV1)(nil), "types.InstallerSpecV1")
 	proto.RegisterType((*InstallerV1List)(nil), "types.InstallerV1List")
@@ -29183,6 +29270,85 @@ func (m *Participant) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *UIConfigV1) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UIConfigV1) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UIConfigV1) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	{
+		size, err := m.Spec.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintTypes(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x2a
+	{
+		size, err := m.ResourceHeader.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintTypes(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *UIConfigSpecV1) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UIConfigSpecV1) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UIConfigSpecV1) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.ScrollbackLines != 0 {
+		i = encodeVarintTypes(dAtA, i, uint64(m.ScrollbackLines))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *InstallerV1) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -37293,6 +37459,37 @@ func (m *Participant) Size() (n int) {
 	}
 	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.LastActive)
 	n += 1 + l + sovTypes(uint64(l))
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UIConfigV1) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.ResourceHeader.Size()
+	n += 1 + l + sovTypes(uint64(l))
+	l = m.Spec.Size()
+	n += 1 + l + sovTypes(uint64(l))
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UIConfigSpecV1) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ScrollbackLines != 0 {
+		n += 1 + sovTypes(uint64(m.ScrollbackLines))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -81511,6 +81708,193 @@ func (m *Participant) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTypes(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UIConfigV1) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTypes
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UIConfigV1: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UIConfigV1: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResourceHeader", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.ResourceHeader.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Spec", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Spec.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTypes(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UIConfigSpecV1) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTypes
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UIConfigSpecV1: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UIConfigSpecV1: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ScrollbackLines", wireType)
+			}
+			m.ScrollbackLines = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ScrollbackLines |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipTypes(dAtA[iNdEx:])
