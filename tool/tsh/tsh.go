@@ -31,6 +31,7 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/pprof"
+	runtimetrace "runtime/trace"
 	"sort"
 	"strconv"
 	"strings"
@@ -533,7 +534,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	initLogger(&cf)
 
 	moduleCfg := modules.GetModules()
-	var cpuProfile, memProfile string
+	var cpuProfile, memProfile, traceProfile string
 
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
@@ -545,6 +546,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	app.Flag("user", fmt.Sprintf("Teleport user [%s]", localUser)).Envar(userEnvVar).StringVar(&cf.Username)
 	app.Flag("mem-profile", "Write memory profile to file").Hidden().StringVar(&memProfile)
 	app.Flag("cpu-profile", "Write CPU profile to file").Hidden().StringVar(&cpuProfile)
+	app.Flag("trace-profile", "Write trace profile to file").Hidden().StringVar(&traceProfile)
 	app.Flag("option", "").Short('o').Hidden().AllowDuplicate().PreAction(func(ctx *kingpin.ParseContext) error {
 		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
 	}).String()
@@ -998,6 +1000,20 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 				return
 			}
 		}()
+	}
+
+	if traceProfile != "" {
+		log.Debugf("writing trace profile to %v", traceProfile)
+		f, err := os.Create(traceProfile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer f.Close()
+
+		if err := runtimetrace.Start(f); err != nil {
+			return trace.Wrap(err)
+		}
+		defer runtimetrace.Stop()
 	}
 
 	switch command {

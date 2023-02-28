@@ -543,14 +543,13 @@ func handleClusterAppsGet(clt resourcesAPIGetter, r *http.Request, cfg ui.MakeAp
 			return nil, trace.Wrap(err)
 		}
 
-		apps, numExcludedApps := extractAppsWithoutTCPEndpoint(appServers)
+		apps := extractApps(appServers)
 		cfg.Apps = apps
-		totalCount := resp.TotalCount - numExcludedApps
 
 		return &listResourcesGetResponse{
 			Items:      ui.MakeApps(cfg),
 			StartKey:   &resp.NextKey,
-			TotalCount: &totalCount,
+			TotalCount: &resp.TotalCount,
 		}, nil
 	}
 
@@ -564,7 +563,7 @@ func handleClusterAppsGet(clt resourcesAPIGetter, r *http.Request, cfg ui.MakeAp
 		return nil, trace.Wrap(err)
 	}
 
-	apps, _ := extractAppsWithoutTCPEndpoint(appServers)
+	apps := extractApps(appServers)
 	cfg.Apps = types.DeduplicateApps(apps)
 
 	return &listResourcesGetResponse{
