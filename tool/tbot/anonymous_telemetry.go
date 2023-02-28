@@ -2,19 +2,21 @@ package main
 
 import (
 	"context"
+	"net/http"
+	"strconv"
+	"time"
+
 	"github.com/bufbuild/connect-go"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/types/known/timestamppb"
-	"net/http"
-	"strconv"
-	"time"
 )
 
 const (
