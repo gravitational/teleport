@@ -449,13 +449,13 @@ exports[`list of all events 1`] = `
               color="light"
               font-size="3"
             />
-            Unknown
+            SAML IdP service provider delete failed
           </div>
         </td>
         <td
           style="word-break: break-word;"
         >
-          Unknown
+          User [mike] failed to delete all service providers
         </td>
         <td
           style="min-width: 120px;"
@@ -529,7 +529,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [mike] failed to delete all service providers
+          User [mike] failed to delete service provider [saml-idp] with entity ID [valid-entity-id]
         </td>
         <td
           style="min-width: 120px;"
