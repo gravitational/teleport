@@ -811,6 +811,7 @@ exports[`failed 1`] = `
         <div
           class="c20"
           color="primary.contrastText"
+          style="white-space: nowrap;"
         >
           SHOWING 
           <strong>
@@ -1572,6 +1573,7 @@ exports[`open source loaded 1`] = `
         <div
           class="c20"
           color="primary.contrastText"
+          style="white-space: nowrap;"
         >
           SHOWING 
           <strong>
