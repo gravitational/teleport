@@ -1,5 +1,8 @@
 {{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 {{- if $auth.validateConfigOnDeploy }}
+{{- if not $auth.teleportConfig -}}
+{{- fail "'auth.teleportConfig' is required in scratch mode" }}
+{{- end -}}
 {{- $configTemplate := printf "teleport-cluster.auth.config.%s" $auth.chartMode -}}
 apiVersion: v1
 kind: ConfigMap
