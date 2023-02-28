@@ -14,18 +14,14 @@
  * limitations under the License.
  */
 
-import { FetchStatus, ServersideProps } from './../types';
+import type { FetchStatus } from '../../types';
 
-export default function usePager({
-  nextPage,
-  prevPage,
+export function useClientSidePager({
   data = [],
   paginatedData = [],
-  currentPage,
-  pageSize,
-  serversideProps,
-  ...props
-}: Props) {
+  currentPage = 0,
+  pageSize = 50,
+}: Props): State {
   const currentPageData = paginatedData[currentPage] || [];
   const searchFrom = currentPage * pageSize;
 
@@ -37,24 +33,15 @@ export default function usePager({
 
   const count = data.length;
 
-  const isNextDisabled = serversideProps
-    ? serversideProps.startKeys[serversideProps.startKeys.length - 1] === ''
-    : to === data.length - 1;
-
-  const isPrevDisabled = serversideProps
-    ? serversideProps.startKeys.length <= 2
-    : currentPage === 0;
+  const isNextDisabled = to === data.length - 1;
+  const isPrevDisabled = currentPage === 0;
 
   return {
-    nextPage,
-    prevPage,
     from,
     to,
     count,
     isNextDisabled,
     isPrevDisabled,
-    serversideProps,
-    ...props,
   };
 }
 
@@ -67,7 +54,12 @@ export type Props = {
   pageSize?: number;
   onFetchMore?: () => void;
   fetchStatus?: FetchStatus;
-  serversideProps?: ServersideProps;
 };
 
-export type State = ReturnType<typeof usePager>;
+export type State = {
+  from: number;
+  to: number;
+  count: number;
+  isNextDisabled: boolean;
+  isPrevDisabled: boolean;
+};
