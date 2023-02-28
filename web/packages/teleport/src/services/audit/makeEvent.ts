@@ -1324,10 +1324,10 @@ export const formatters: Formatters = {
     format: ({ updated_by, name }) =>
       `User [${updated_by}] deleted all service providers`,
   },
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE]: {
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE]: {
     type: 'saml.idp.service.provider.delete',
     desc: 'SAML IdP service provider delete failed',
-    format: ({ updated_by, name, service_provider_entity_id }) =>
+    format: ({ updated_by }) =>
       `User [${updated_by}] failed to delete all service providers`,
   },
   [eventCodes.UNKNOWN]: {
