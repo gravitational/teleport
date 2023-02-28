@@ -1334,7 +1334,9 @@ type JWKSResponse struct {
 // return what was set by the file config. Returns nil if neither are set which
 // is fine, as the web UI can set its own defaults.
 func (h *Handler) getUIConfig(ctx context.Context) webclient.UIConfig {
-	if uiConfig, err := h.cfg.AccessPoint.GetUIConfig(ctx); err == nil && uiConfig != nil {
+	// In v13+ this will be called from the proxy local cache on `AccessPoint.GetUIConfig`.
+	// https://github.com/gravitational/teleport/pull/22097#discussion_r1117445223
+	if uiConfig, err := h.cfg.ProxyClient.GetUIConfig(ctx); err == nil && uiConfig != nil {
 		return webclient.UIConfig{
 			ScrollbackLines: int(uiConfig.GetScrollbackLines()),
 		}
