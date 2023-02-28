@@ -77,6 +77,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 		certsAssertion func(*proto.Certs)
 		errorAssertion func(error) bool
 		clock          clockwork.Clock
+		delay          time.Duration // Expired tokens are deleted in background, might need slight delay in relevant test
 	}{
 		{
 			desc:           "reject empty",
@@ -238,6 +239,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 			},
 			clock:          clockwork.NewRealClock(),
 			errorAssertion: trace.IsAccessDenied,
+			delay:          time.Millisecond * 100,
 		},
 	}
 
@@ -247,6 +249,7 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 				tc.clock = clockwork.NewRealClock()
 			}
 			a.SetClock(tc.clock)
+			time.Sleep(tc.delay)
 			certs, err := a.RegisterUsingToken(ctx, tc.req)
 			if tc.errorAssertion != nil {
 				require.True(t, tc.errorAssertion(err))
