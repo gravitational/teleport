@@ -58,7 +58,7 @@ function ServerList(props: State) {
       <SearchPanel
         updateQuery={updateQuery}
         updateSearch={updateSearch}
-        pageCount={pageCount}
+        pageIndicators={pageCount}
         filter={agentFilter}
         showSearchBar={true}
         disableSearch={disabled}

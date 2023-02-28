@@ -37,15 +37,12 @@ type Props = {
 export default function DocumentNodes(props: Props) {
   const { doc, visible } = props;
   const {
-    results,
+    fetchedData,
     fetchNext,
     fetchPrev,
     pageSize,
-    from,
-    to,
     params,
     setParams,
-    startKeys,
     setSort,
     pathname,
     replaceHistory,
@@ -55,6 +52,7 @@ export default function DocumentNodes(props: Props) {
     changeCluster,
     getNodeSshLogins,
     onLabelClick,
+    pageIndicators,
   } = useNodes(doc);
 
   function onLoginMenuSelect(
@@ -106,19 +104,16 @@ export default function DocumentNodes(props: Props) {
           )}
           {attempt.status !== 'processing' && (
             <NodeList
-              nodes={results.nodes}
-              totalCount={results.totalCount}
+              nodes={fetchedData.agents}
               onLoginMenuOpen={onLoginMenuOpen}
               onLoginSelect={onLoginMenuSelect}
               fetchNext={fetchNext}
               fetchPrev={fetchPrev}
               fetchStatus={fetchStatus}
-              from={from}
-              to={to}
+              pageIndicators={pageIndicators}
               pageSize={pageSize}
               params={params}
               setParams={setParams}
-              startKeys={startKeys}
               setSort={setSort}
               pathname={pathname}
               replaceHistory={replaceHistory}
