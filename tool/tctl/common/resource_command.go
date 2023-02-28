@@ -646,8 +646,7 @@ func (rc *ResourceCommand) createUIConfig(ctx context.Context, client auth.Clien
 		return trace.Wrap(err)
 	}
 
-	err = client.SetUIConfig(ctx, uic)
-	return trace.Wrap(err)
+	return trace.Wrap(client.SetUIConfig(ctx, uic))
 }
 
 func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {

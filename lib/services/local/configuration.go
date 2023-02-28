@@ -401,8 +401,7 @@ func (s *ClusterConfigurationService) SetUIConfig(ctx context.Context, uic types
 }
 
 func (s *ClusterConfigurationService) DeleteUIConfig(ctx context.Context) error {
-	return trace.Wrap(
-		s.Delete(ctx, backend.Key(clusterConfigPrefix, uiPrefix)))
+	return trace.Wrap(s.Delete(ctx, backend.Key(clusterConfigPrefix, uiPrefix)))
 }
 
 // GetInstaller gets the script of the cluster from the backend.

@@ -25,8 +25,6 @@ import (
 
 // UnmarshalUIConfig unmarshals the UIConfig resource from JSON.
 func UnmarshalUIConfig(data []byte, opts ...MarshalOption) (types.UIConfig, error) {
-	var uiconfig types.UIConfigV1
-
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing resource data")
 	}
@@ -36,6 +34,7 @@ func UnmarshalUIConfig(data []byte, opts ...MarshalOption) (types.UIConfig, erro
 		return nil, trace.Wrap(err)
 	}
 
+	var uiconfig types.UIConfigV1
 	if err := utils.FastUnmarshal(data, &uiconfig); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
