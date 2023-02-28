@@ -4609,6 +4609,44 @@ message AlertAcknowledgement {
   ];
 }
 
+// Release correspond to a Teleport Enterprise releases
+message Release {
+  // NotesMD is the notes of the release in markdown
+  string NotesMD = 1 [(gogoproto.jsontag) = "notes_md"];
+  // Product is the release product, teleport or teleport-ent
+  string Product = 2 [(gogoproto.jsontag) = "product"];
+  // ReleaseID is the ID of the product
+  string ReleaseID = 3 [(gogoproto.jsontag) = "release_id"];
+  // Status is the status of the release
+  string Status = 4 [(gogoproto.jsontag) = "status"];
+  // Version is the version of the release
+  string Version = 5 [(gogoproto.jsontag) = "version"];
+  // Assets is a list of assets related to the release
+  repeated Asset Assets = 6 [(gogoproto.jsontag) = "assets"];
+}
+
+// Asset represents a release asset
+message Asset {
+  // Arch is the architecture of the asset
+  string Arch = 1 [(gogoproto.jsontag) = "arch"];
+  // Description is the description of the asset
+  string Description = 2 [(gogoproto.jsontag) = "description"];
+  // Name is the name of the asset
+  string Name = 3 [(gogoproto.jsontag) = "name"];
+  // OS is which OS the asset is built for
+  string OS = 4 [(gogoproto.jsontag) = "os"];
+  // SHA256 is the sha256 of the asset
+  string SHA256 = 5 [(gogoproto.jsontag) = "sha256"];
+  // Size is the size of the release in bytes
+  int64 AssetSize = 6 [(gogoproto.jsontag) = "asset_size"];
+  // DisplaySize is the human-readable size of the asset
+  string DisplaySize = 7 [(gogoproto.jsontag) = "display_size"];
+  // ReleaseIDs is a list of releases that have the asset included
+  repeated string ReleaseIDs = 8 [(gogoproto.jsontag) = "release_ids"];
+  // PublicURL is the public URL used to download the asset
+  string PublicURL = 9 [(gogoproto.jsontag) = "public_url"];
+}
+
 // RequireMFAType is a type of MFA requirement enforced outside of login,
 // such as per-session MFA or per-request PIV touch.
 enum RequireMFAType {

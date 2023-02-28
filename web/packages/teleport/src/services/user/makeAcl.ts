@@ -18,7 +18,6 @@ import { Acl } from './types';
 
 export default function makeAcl(json): Acl {
   json = json || {};
-  const windowsLogins = json.windowsLogins || [];
   const authConnectors = json.authConnectors || defaultAccess;
   const trustedClusters = json.trustedClusters || defaultAccess;
   const roles = json.roles || defaultAccess;
@@ -51,9 +50,10 @@ export default function makeAcl(json): Acl {
     json.directorySharing !== undefined ? json.directorySharing : true;
 
   const nodes = json.nodes || defaultAccess;
+  const license = json.license || defaultAccess;
+  const download = json.download || defaultAccess;
 
   return {
-    windowsLogins,
     authConnectors,
     trustedClusters,
     roles,
@@ -74,6 +74,8 @@ export default function makeAcl(json): Acl {
     nodes,
     directorySharingEnabled,
     connectionDiagnostic,
+    license,
+    download,
   };
 }
 

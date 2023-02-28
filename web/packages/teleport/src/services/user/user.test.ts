@@ -49,7 +49,6 @@ test('undefined values in context response gives proper default values', async (
     username: 'foo',
     authType: 'local',
     acl: {
-      windowsLogins: [],
       authConnectors: {
         list: true,
         read: true,
@@ -122,6 +121,20 @@ test('undefined values in context response gives proper default values', async (
         remove: false,
       },
       kubeServers: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+      license: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
+      download: {
         list: false,
         read: false,
         edit: false,
