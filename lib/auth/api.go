@@ -279,6 +279,21 @@ type ReadProxyAccessPoint interface {
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
+
+	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
+	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
+
+	// ListSAMLIdPServiceProviders returns a paginated list of all SAML IdP service provider resources.
+	ListSAMLIdPServiceProviders(context.Context, int, string) ([]types.SAMLIdPServiceProvider, string, error)
+
+	// GetSAMLIdPSession gets a SAML IdP session.
+	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
+
+	// ListUserGroups returns a paginated list of user group resources.
+	ListUserGroups(ctx context.Context, pageSize int, nextKey string) ([]types.UserGroup, string, error)
+
+	// GetUserGroup returns the specified user group resources.
+	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
 }
 
 // SnowflakeSessionWatcher is watcher interface used by Snowflake web session watcher.
