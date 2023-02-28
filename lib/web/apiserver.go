@@ -1305,7 +1305,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		IsCloud:              h.ClusterFeatures.GetCloud(),
 		TunnelPublicAddress:  tunnelPublicAddr,
 		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
-		UI:                   h.cfg.UI,
+		UI:                   h.getUIConfig(r.Context()),
 		IsDashboard:          isDashboard(h.ClusterFeatures),
 	}
 
@@ -1328,6 +1328,18 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 type JWKSResponse struct {
 	// Keys is a list of public keys in JWK format.
 	Keys []jwt.JWK `json:"keys"`
+}
+
+// getUiConfig will first try to get an ui_config set in the cache and then
+// return what was set by the file config. Returns nil if neither are set which
+// is fine, as the web UI can set its own defaults.
+func (h *Handler) getUIConfig(ctx context.Context) webclient.UIConfig {
+	if uiConfig, err := h.cfg.AccessPoint.GetUIConfig(ctx); err == nil && uiConfig != nil {
+		return webclient.UIConfig{
+			ScrollbackLines: int(uiConfig.GetScrollbackLines()),
+		}
+	}
+	return h.cfg.UI
 }
 
 // jwks returns all public keys used to sign JWT tokens for this cluster.

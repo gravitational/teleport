@@ -155,8 +155,8 @@ func (s *serverCollection) writeText(w io.Writer) error {
 		t = asciitable.MakeTable(headers, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-
 	}
+
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -548,6 +548,21 @@ func (c *authPrefCollection) resources() (r []types.Resource) {
 func (c *authPrefCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Type", "Second Factor"})
 	t.AddRow([]string{c.authPref.GetType(), string(c.authPref.GetSecondFactor())})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type uiConfigCollection struct {
+	uiconfig types.UIConfig
+}
+
+func (c *uiConfigCollection) resources() (r []types.Resource) {
+	return []types.Resource{c.uiconfig}
+}
+
+func (c *uiConfigCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Scrollback Lines"})
+	t.AddRow([]string{string(c.uiconfig.GetScrollbackLines())})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

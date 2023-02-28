@@ -872,6 +872,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 		cfg.Proxy.PeerAddr = *addr
 	}
+
 	if fc.Proxy.UI != nil {
 		cfg.Proxy.UI = webclient.UIConfig(*fc.Proxy.UI)
 	}
