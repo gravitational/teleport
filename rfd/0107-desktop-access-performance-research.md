@@ -6,6 +6,7 @@ state: draft
 # RFD 107 - Desktop Access Performance
 
 ## Required Approvers
+
 Engineering: @zmb3 && @ibeckermayer
 
 ## What
@@ -19,7 +20,6 @@ We want to improve user experience when using the desktop access module. Current
 is insufficient performance of the video rendering which results in choppier experience or noticeable stuttering. Each frame in the RDP protocol as we're currently using it consists of (in most cases) 64x64 pixel bitmaps that are assembled into the full screen image. All of these bitmaps needs to be sent by the server, and received and processed by the client. There are different settings we can apply to RDP, which can be classified into two general ways in which we can reduce the time needed to render a frame.
 One of the ways is to reduce the amount of data that we need to send over the wire. The other way is to reduce the time required to process that data. In this document we'll discuss some solutions that achieve these goals.
 
-
 ### RDP Bitmap caching
 
 One of the ways to reduce the amount of data sent between the proxy and the web browser is to reduce the number of messages with bitmap data that need processing. The RDP protocol extension [[MS-RDPEGDI] Remote Desktop Protocol: Graphics Device Interface (GDI) Acceleration Extensions](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/745f2eee-d110-464c-8aca-06fc1814f6ad) achieves this end by encoding the drawing operations that produce an image instead of always sending the actual bitmap data. Multiple drawing operations are introduced in this extension, but this document focuses on only two operations that interact with the bitmap caches.
@@ -32,12 +32,11 @@ Given that our clients can afford a 40MB cache, the obvious choice is to support
 Depending on the number of bits per pixel in bitmaps, the cache limits vary. Here's a full breakdown of the cache types and their sizes:
 
 | bpp | revision 1 | revision 2 |
-| --- |:----------:| ----------:|
-| 8   | 1.5 MB     |     10MB   |
-| 16  | 3.0 MB     |     20MB   |
-| 24  | 4.5 MB     |     30MB   |
-| 32  | 6.0 MB     |     40MB   |
-
+| --- | :--------: | ---------: |
+| 8   |   1.5 MB   |       10MB |
+| 16  |   3.0 MB   |       20MB |
+| 24  |   4.5 MB   |       30MB |
+| 32  |   6.0 MB   |       40MB |
 
 #### How it works on the protocol level?
 
@@ -46,7 +45,7 @@ Two new types of messages need to be handled by our RDP library in order to enab
 
 #### What changes are required to support caching?
 
-Teleport Desktop Protocol (TDP) needs to be extended with two messages: 
+Teleport Desktop Protocol (TDP) needs to be extended with two messages:
 
 ##### 29 - bitmap cache store
 
@@ -65,7 +64,6 @@ This message is sent from the server to the client to render a bitmap stored in 
 ```
 
 Update to the UI is also required. The browser memory and javascript's array of hash tables, where cache id is the index of the array, and the cache index is a key in the hash table, will be used to store bitmap data.
-
 
 There's a sequence diagram which shows the flow of the messages between all components:
 
@@ -91,10 +89,11 @@ sequenceDiagram
 - web browser loads bitmap from the in-memory cache
 
 #### session recordings
-Since we no longer send every bitmap over the wire and to keep session recordings to work we'll also need to keep the cache of the bitmaps at the proxy. When we encounter the `save bitmap message` we'll need to store that bitmap at the proxy and then whenver `load bitmap message` will be sent we'll need to load bitmap from the cache and generate appropriate event with the bitmap data. 
 
+Since we no longer send every bitmap over the wire and to keep session recordings to work we'll also need to keep the cache of the bitmaps at the proxy. When we encounter the `save bitmap message` we'll need to store that bitmap at the proxy and then whenver `load bitmap message` will be sent we'll need to load bitmap from the cache and generate appropriate event with the bitmap data.
 
 ### Process bitmaps in Rust library
+
 While interacting with the remote desktop using the RDP protocol, most of the protocol messages exchanged between the server and a client are related to rendering bitmaps. Messages almost always contain compressed data to reduce bandwidth usage and latency. Rendering compressed bitmaps on the screen requires uncompressing data first using decompress algorithm and encoding bitmaps into PNG.
 While decompression is already done in the Rust library, the encoding of bitmaps is done in the Go client.
 
