@@ -164,12 +164,10 @@ options are `ssh` and `k8s`.
 
 A participant joining a session will always have one of three modes:
 
-- `peer`: Can join and collaborate in a session. They can view output and send
-  input.
-- `moderator`: Can join and watch a session. They can view output and
-  forcefully terminate the session at will.
-- `observer`: Can join and watch a session. They cannot control the session in
-  any way.
+- `observer`: Allows read-only access to the session. You can view output but cannot control the session in any way nor send any input.
+- `moderator`: Allows you to watch the session. You can view output and forcefully terminate or pause the session at any time, but can't send input.
+- `peer`: Allows you to collaborate in the session. You can view output and send input.
+
 
 When joining a session with `tsh join` or `tsh kube join`, a user can specify a
 mode with the `--mode <mode>` flag , where the mode is one of `peer`,
