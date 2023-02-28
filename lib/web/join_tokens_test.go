@@ -890,31 +890,32 @@ func TestJoinScriptEnterprise(t *testing.T) {
 		},
 	}
 
-	isTeleportOSSLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/teleport[-_]v?\${TELEPORT_VERSION}`)
-	isTeleportEntLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/teleport-ent[-_]v?\${TELEPORT_VERSION}`)
+	getGravitationalTeleportLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/\${TELEPORT_PACKAGE_NAME}[-_]v?\${TELEPORT_VERSION}`)
 
 	// Using the OSS Version, all the links must contain only teleport as package name.
 	script, err := getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
 	require.NoError(t, err)
 
-	matches := isTeleportOSSLinkRegex.FindAllString(script, -1)
+	matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
 	require.ElementsMatch(t, matches, []string{
-		"https://get.gravitational.com/teleport-v${TELEPORT_VERSION}",
-		"https://get.gravitational.com/teleport_${TELEPORT_VERSION}",
-		"https://get.gravitational.com/teleport-${TELEPORT_VERSION}",
+		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
+		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
+		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
 	})
+	require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport'")
 
-	// Using the Enterprise Version, all the links must contain teleport-ent as package name
+	// Using the Enterprise Version, the package name must be teleport-ent
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 	script, err = getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
 	require.NoError(t, err)
 
-	matches = isTeleportEntLinkRegex.FindAllString(script, -1)
+	matches = getGravitationalTeleportLinkRegex.FindAllString(script, -1)
 	require.ElementsMatch(t, matches, []string{
-		"https://get.gravitational.com/teleport-ent-v${TELEPORT_VERSION}",
-		"https://get.gravitational.com/teleport-ent_${TELEPORT_VERSION}",
-		"https://get.gravitational.com/teleport-ent-${TELEPORT_VERSION}",
+		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
+		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
+		"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
 	})
+	require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport-ent'")
 }
 
 func TestIsSameAzureRuleSet(t *testing.T) {

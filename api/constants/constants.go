@@ -56,6 +56,9 @@ const (
 	// local/passwordless logins.
 	PasswordlessConnector = "passwordless"
 
+	// HeadlessConnector is the authentication connector for headless logins.
+	HeadlessConnector = "headless"
+
 	// Local means authentication will happen locally within the Teleport cluster.
 	Local = "local"
 
@@ -105,6 +108,9 @@ const (
 
 	// KeepAliveKube is the keep alive type for Kubernetes server
 	KeepAliveKube = "kube"
+
+	// KeepAliveDatabaseService is the keep alive type for database service.
+	KeepAliveDatabaseService = "db_service"
 
 	// WindowsOS is the GOOS constant used for Microsoft Windows.
 	WindowsOS = "windows"
@@ -157,6 +163,7 @@ const (
 var SystemConnectors = []string{
 	LocalConnector,
 	PasswordlessConnector,
+	HeadlessConnector,
 }
 
 // SecondFactorType is the type of 2FA authentication.

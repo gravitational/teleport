@@ -148,7 +148,7 @@ func RunWhileLocked(ctx context.Context, backend Backend, lockName string, ttl t
 		refreshAfter := ttl / 2
 		for {
 			select {
-			case <-time.After(refreshAfter):
+			case <-backend.Clock().After(refreshAfter):
 				if err := lock.resetTTL(ctx, backend); err != nil {
 					cancelFunction()
 					log.Errorf("%v", err)

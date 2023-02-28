@@ -48,6 +48,7 @@ message KeepAlive {
     DATABASE = 3;
     WINDOWS_DESKTOP = 4;
     KUBERNETES = 5;
+    DATABASE_SERVICE = 6;
   }
   KeepAliveType Type = 9 [(gogoproto.jsontag) = "type"];
   // HostID is an optional UUID of the host the resource belongs to.
@@ -1613,6 +1614,16 @@ message AuthPreferenceSpecV2 {
   // IDP is a set of options related to accessing IdPs within Teleport.
   // Requires Teleport Enterprise.
   IdPOptions IDP = 14 [(gogoproto.jsontag) = "idp,omitempty"];
+
+  // AllowHeadless enables/disables headless support.
+  // Headless authentication requires Webauthn to work.
+  // Defaults to true if the Webauthn is configured, defaults to false
+  // otherwise.
+  BoolValue AllowHeadless = 15 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "allow_headless,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
 }
 
 // U2F defines settings for U2F device.
@@ -4906,7 +4917,7 @@ message PluginSlackAccessSettings {
   string fallback_channel = 1;
 }
 
-message PluginInitialCredentialsV1 {
+message PluginBootstrapCredentialsV1 {
   oneof credentials {
     PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
   }
