@@ -4500,6 +4500,45 @@ func (g *GRPCServer) SetInstaller(ctx context.Context, req *types.InstallerV1) (
 	return &emptypb.Empty{}, nil
 }
 
+func (g *GRPCServer) SetUIConfig(ctx context.Context, req *types.UIConfigV1) (*emptypb.Empty, error) {
+	// TODO (avatus) send an audit event when SetUIConfig is called
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.SetUIConfig(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (g *GRPCServer) GetUIConfig(ctx context.Context, _ *emptypb.Empty) (*types.UIConfigV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	uiconfig, err := auth.ServerWithRoles.GetUIConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	uiconfigv1, ok := uiconfig.(*types.UIConfigV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", uiconfig)
+	}
+	return uiconfigv1, nil
+}
+
+func (g *GRPCServer) DeleteUIConfig(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteUIConfig(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // GetInstaller retrieves the installer script resource
 func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceRequest) (*types.InstallerV1, error) {
 	auth, err := g.authenticate(ctx)

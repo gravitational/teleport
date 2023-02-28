@@ -145,6 +145,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindTrustedCluster, nil
 	case types.KindClusterAuthPreference, "cluster_authentication_preferences", "cap":
 		return types.KindClusterAuthPreference, nil
+	case types.KindUIConfig, "ui":
+		return types.KindUIConfig, nil
 	case types.KindClusterNetworkingConfig, "networking_config", "networking", "net_config", "netconfig":
 		return types.KindClusterNetworkingConfig, nil
 	case types.KindSessionRecordingConfig, "recording_config", "session_recording", "rec_config", "recconfig":
