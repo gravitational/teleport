@@ -188,6 +188,9 @@ type ReadProxyAccessPoint interface {
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error)
 
+	// GetUIConfig returns configuration for the UI served by the proxy service
+	GetUIConfig(ctx context.Context) (types.UIConfig, error)
+
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
@@ -917,6 +920,9 @@ type Cache interface {
 	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
 	// ListWindowsDesktopServices returns a paginated list of windows desktops.
 	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
+
+	// GetUIConfig gets the config for the UI served by the proxy service
+	GetUIConfig(ctx context.Context) (types.UIConfig, error)
 
 	// GetInstaller gets installer resource for this cluster
 	GetInstaller(ctx context.Context, name string) (types.Installer, error)
