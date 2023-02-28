@@ -202,7 +202,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.TraceClient = tracing.NewNoopClient()
 	}
 	if cfg.UsageReporter == nil {
-		cfg.UsageReporter = usagereporter.NewDiscardUsageReporter()
+		cfg.UsageReporter = usagereporter.DiscardUsageReporter{}
 	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{

@@ -88,6 +88,8 @@ type TeleportUsageReporter struct {
 	clock       clockwork.Clock
 }
 
+var _ UsageReporter = (*TeleportUsageReporter)(nil)
+
 func (t *TeleportUsageReporter) AnonymizeAndSubmit(events ...UsageAnonymizable) error {
 	for _, e := range events {
 		req := e.Anonymize(t.anonymizer)
@@ -199,12 +201,9 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 // DiscardUsageReporter is a dummy usage reporter that drops all events.
 type DiscardUsageReporter struct{}
 
-func (d *DiscardUsageReporter) AnonymizeAndSubmit(event ...UsageAnonymizable) error {
+var _ UsageReporter = DiscardUsageReporter{}
+
+func (DiscardUsageReporter) AnonymizeAndSubmit(...UsageAnonymizable) error {
 	// do nothing
 	return nil
-}
-
-// NewDiscardUsageReporter creates a new usage reporter that drops all events.
-func NewDiscardUsageReporter() *DiscardUsageReporter {
-	return &DiscardUsageReporter{}
 }
