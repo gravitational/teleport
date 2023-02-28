@@ -52,6 +52,9 @@ func (c *UIConfigV1) CheckAndSetDefaults() error {
 	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	if c.Spec.ScrollbackLines < 0 {
+		return trace.BadParameter("invalid scrollback lines value. Must be greater than 0.")
+	}
 	return nil
 }
 

@@ -4501,6 +4501,7 @@ func (g *GRPCServer) SetInstaller(ctx context.Context, req *types.InstallerV1) (
 }
 
 func (g *GRPCServer) SetUIConfig(ctx context.Context, req *types.UIConfigV1) (*emptypb.Empty, error) {
+	// TODO (avatus) send an audit event when SetUIConfig is called
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
