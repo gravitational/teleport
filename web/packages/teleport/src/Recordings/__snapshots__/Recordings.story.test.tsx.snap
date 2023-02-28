@@ -646,6 +646,7 @@ exports[`rendering of Session Recordings 1`] = `
           <div
             class="c11"
             color="primary.contrastText"
+            style="white-space: nowrap;"
           >
             SHOWING 
             <strong>

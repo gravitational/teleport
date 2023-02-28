@@ -5574,6 +5574,60 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 	return a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)
 }
 
+// ListUserGroups returns a paginated list of user group resources.
+func (a *ServerWithRoles) ListUserGroups(ctx context.Context, pageSize int, nextToken string) ([]types.UserGroup, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.ListUserGroups(ctx, pageSize, nextToken)
+}
+
+// GetUserGroup returns the specified user group resources.
+func (a *ServerWithRoles) GetUserGroup(ctx context.Context, name string) (types.UserGroup, error) {
+	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetUserGroup(ctx, name)
+}
+
+// CreateUserGroup creates a new user group resource.
+func (a *ServerWithRoles) CreateUserGroup(ctx context.Context, g types.UserGroup) error {
+	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.CreateUserGroup(ctx, g)
+}
+
+// UpdateUserGroup updates an existing user group resource.
+func (a *ServerWithRoles) UpdateUserGroup(ctx context.Context, g types.UserGroup) error {
+	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpdateUserGroup(ctx, g)
+}
+
+// DeleteUserGroup removes the specified user group resource.
+func (a *ServerWithRoles) DeleteUserGroup(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteUserGroup(ctx, name)
+}
+
+// DeleteAllUserGroups removes all user groups.
+func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteAllUserGroups(ctx)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {

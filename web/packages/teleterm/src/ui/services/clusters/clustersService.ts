@@ -185,7 +185,9 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     try {
       const clusters = await this.client.listRootClusters();
       this.setState(draft => {
-        draft.clusters = new Map(clusters.map(c => [c.uri, c]));
+        draft.clusters = new Map(
+          clusters.map(c => [c.uri, this.removeInternalLoginsFromCluster(c)])
+        );
       });
       clusters
         .filter(c => c.connected)
