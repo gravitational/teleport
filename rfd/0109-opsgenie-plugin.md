@@ -11,7 +11,7 @@ This RFD proposes a plugin that allows Teleport to integrate with Opsgenie, allo
 
 ## Success criteria
 Users are able to configure teleport to automatically create alerts in Opsgenie from access requests.
-Alerts were chosen over incidents in Opsgenie for high priority alerts that indicate a service interruption.
+Alerts were chosen over incidents in Opsgenie as incidents are intended to be used for high priority alerts that indicate a service interruption.
 Users are also able to configure auto approval flows to be met under certain conditions. E.g when a requester is on-call 
 
 ## Configuration UX
