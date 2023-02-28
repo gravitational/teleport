@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	prehogapi "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
-	prehogclient "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
+	prehogv1c "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/usagereporter"
@@ -72,7 +72,7 @@ const (
 type UsageReporter interface {
 	// AnonymizeAndSubmit submits a usage event. The payload will be
 	// anonymized by the reporter implementation.
-	AnonymizeAndSubmit(event ...UsageAnonymizable) error
+	AnonymizeAndSubmit(event ...Anonymizable) error
 }
 
 // TeleportUsageReporter submits Teleport usage events
@@ -90,7 +90,7 @@ type TeleportUsageReporter struct {
 
 var _ UsageReporter = (*TeleportUsageReporter)(nil)
 
-func (t *TeleportUsageReporter) AnonymizeAndSubmit(events ...UsageAnonymizable) error {
+func (t *TeleportUsageReporter) AnonymizeAndSubmit(events ...Anonymizable) error {
 	for _, e := range events {
 		req := e.Anonymize(t.anonymizer)
 		req.Timestamp = timestamppb.New(t.clock.Now())
@@ -177,7 +177,7 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 	}
 	httpClient.Timeout = 5 * time.Second
 
-	client := prehogclient.NewTeleportReportingServiceClient(httpClient, prehogEndpoint)
+	client := prehogv1c.NewTeleportReportingServiceClient(httpClient, prehogEndpoint)
 
 	return func(reporter *usagereporter.UsageReporter[prehogapi.SubmitEventRequest], events []*usagereporter.SubmittedEvent[prehogapi.SubmitEventRequest]) ([]*usagereporter.SubmittedEvent[prehogapi.SubmitEventRequest], error) {
 		var failed []*usagereporter.SubmittedEvent[prehogapi.SubmitEventRequest]
@@ -203,7 +203,7 @@ type DiscardUsageReporter struct{}
 
 var _ UsageReporter = DiscardUsageReporter{}
 
-func (DiscardUsageReporter) AnonymizeAndSubmit(...UsageAnonymizable) error {
+func (DiscardUsageReporter) AnonymizeAndSubmit(...Anonymizable) error {
 	// do nothing
 	return nil
 }

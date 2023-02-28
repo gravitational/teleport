@@ -52,7 +52,7 @@ type UsageLogger struct {
 
 // report submits a usage event, but silently ignores events if no reporter is
 // configured.
-func (u *UsageLogger) report(event usagereporter.UsageAnonymizable) error {
+func (u *UsageLogger) report(event usagereporter.Anonymizable) error {
 	if u.reporter == nil {
 		return nil
 	}
@@ -71,7 +71,7 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 		// Note: we can have different behavior based on event code (local vs
 		// SSO) if desired, but we currently only care about connector type /
 		// method
-		return trace.Wrap(u.report(&usagereporter.UsageUserLogin{
+		return trace.Wrap(u.report(&usagereporter.UserLoginEvent{
 			UserName:      e.User,
 			ConnectorType: e.Method,
 		}))
@@ -83,17 +83,17 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 			sessionType = types.KubernetesSessionKind
 		}
 
-		return trace.Wrap(u.report(&usagereporter.UsageSessionStart{
+		return trace.Wrap(u.report(&usagereporter.SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(sessionType),
 		}))
 	case *apievents.PortForward:
-		return trace.Wrap(u.report(&usagereporter.UsageSessionStart{
+		return trace.Wrap(u.report(&usagereporter.SessionStartEvent{
 			UserName:    e.User,
 			SessionType: portSessionType,
 		}))
 	case *apievents.DatabaseSessionStart:
-		return trace.Wrap(u.report(&usagereporter.UsageSessionStart{
+		return trace.Wrap(u.report(&usagereporter.SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(types.DatabaseSessionKind),
 		}))
@@ -102,41 +102,41 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 		if types.IsAppTCP(e.AppURI) {
 			sessionType = tcpSessionType
 		}
-		return trace.Wrap(u.report(&usagereporter.UsageSessionStart{
+		return trace.Wrap(u.report(&usagereporter.SessionStartEvent{
 			UserName:    e.User,
 			SessionType: sessionType,
 		}))
 	case *apievents.WindowsDesktopSessionStart:
-		return trace.Wrap(u.report(&usagereporter.UsageSessionStart{
+		return trace.Wrap(u.report(&usagereporter.SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(types.WindowsDesktopSessionKind),
 		}))
 
 	case *apievents.GithubConnectorCreate:
-		return trace.Wrap(u.report(&usagereporter.UsageSSOCreate{
+		return trace.Wrap(u.report(&usagereporter.SSOCreateEvent{
 			ConnectorType: types.KindGithubConnector,
 		}))
 	case *apievents.OIDCConnectorCreate:
-		return trace.Wrap(u.report(&usagereporter.UsageSSOCreate{
+		return trace.Wrap(u.report(&usagereporter.SSOCreateEvent{
 			ConnectorType: types.KindOIDCConnector,
 		}))
 	case *apievents.SAMLConnectorCreate:
-		return trace.Wrap(u.report(&usagereporter.UsageSSOCreate{
+		return trace.Wrap(u.report(&usagereporter.SSOCreateEvent{
 			ConnectorType: types.KindSAMLConnector,
 		}))
 	case *apievents.RoleCreate:
-		return trace.Wrap(u.report(&usagereporter.UsageRoleCreate{
+		return trace.Wrap(u.report(&usagereporter.RoleCreateEvent{
 			UserName: e.User,
 			RoleName: e.ResourceMetadata.Name,
 		}))
 
 	case *apievents.KubeRequest:
-		return trace.Wrap(u.report(&usagereporter.UsageKubeRequest{
+		return trace.Wrap(u.report(&usagereporter.KubeRequestEvent{
 			UserName: e.User,
 		}))
 
 	case *apievents.SFTP:
-		return trace.Wrap(u.report(&usagereporter.UsageSFTP{
+		return trace.Wrap(u.report(&usagereporter.SFTPEvent{
 			UserName: e.User,
 			Action:   int32(e.Action),
 		}))
