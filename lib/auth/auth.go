@@ -1626,7 +1626,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 		user = req.impersonator
 	}
 
-	if err := a.AnonymizeAndSubmit(&usagereporter.UsageCertificateIssued{
+	if err := a.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
 		UserName:        user,
 		Ttl:             durationpb.New(req.ttl),
 		IsBot:           bot,
