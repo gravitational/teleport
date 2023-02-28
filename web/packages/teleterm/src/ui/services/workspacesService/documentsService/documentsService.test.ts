@@ -130,6 +130,7 @@ test('only TSH node documents should be returned', () => {
     serverUri: '/clusters/foo/servers/bar',
     status: 'connecting',
     rootClusterId: '',
+    leafClusterId: undefined,
   };
 
   service.add(tshNodeDocument);

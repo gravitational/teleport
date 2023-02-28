@@ -351,6 +351,7 @@ exports[`list of all events 1`] = `
         <div
           class="c6"
           color="primary.contrastText"
+          style="white-space: nowrap;"
         >
           SHOWING 
           <strong>
@@ -7286,6 +7287,7 @@ exports[`loaded audit log screen 1`] = `
         <div
           class="c11"
           color="primary.contrastText"
+          style="white-space: nowrap;"
         >
           SHOWING 
           <strong>
