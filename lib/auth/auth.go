@@ -3062,14 +3062,13 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 	go func() {
 		select {
 		case msg := <-upstream.Recv():
-			switch m := msg.(type) {
-			case proto.UpstreamInventoryHello:
-				if err := a.RegisterInventoryControlStream(upstream, m); err != nil {
-					upstream.CloseWithError(err)
-					return
-				}
-			default:
+			hello, ok := msg.(proto.UpstreamInventoryHello)
+			if !ok {
 				upstream.CloseWithError(trace.BadParameter("expected upstream hello, got: %T", msg))
+				return
+			}
+			if err := a.RegisterInventoryControlStream(upstream, hello); err != nil {
+				upstream.CloseWithError(err)
 				return
 			}
 		case <-upstream.Done():
