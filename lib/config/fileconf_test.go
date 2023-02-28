@@ -344,6 +344,29 @@ func TestAuthenticationSection(t *testing.T) {
 				ConnectorName: "passwordless",
 			},
 		}, {
+			desc: "Local auth with headless connector",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "on",
+					"webauthn": cfgMap{
+						"rp_id": "example.com",
+					},
+					"headless":       "true",
+					"connector_name": "headless",
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				Type:         "local",
+				SecondFactor: "on",
+				Webauthn: &Webauthn{
+					RPID: "example.com",
+				},
+				Headless:      types.NewBoolOption(true),
+				ConnectorName: "headless",
+			},
+		}, {
 			desc: "Device Trust config",
 			mutate: func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{

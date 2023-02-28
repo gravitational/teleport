@@ -21,6 +21,7 @@ package bpf
 
 import (
 	_ "embed"
+	"runtime"
 	"unsafe"
 
 	"github.com/aquasecurity/libbpfgo"
@@ -110,7 +111,12 @@ func startOpen(bufferSize int) (*open, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	syscalls := []string{"open", "openat", "openat2"}
+	syscalls := []string{"openat", "openat2"}
+
+	if runtime.GOARCH != "arm64" {
+		// open is not implemented on arm64.
+		syscalls = append(syscalls, "open")
+	}
 
 	for _, syscall := range syscalls {
 		if err = AttachSyscallTracepoint(o.module, syscall); err != nil {
