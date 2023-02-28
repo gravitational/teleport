@@ -85,15 +85,15 @@ function notifyAboutDuplicatedShortcutsCombinations(
   keyboardShortcutsService: KeyboardShortcutsService,
   notificationsService: NotificationsService
 ): void {
-  const duplicates = keyboardShortcutsService.getDuplicatedAccelerators();
+  const duplicates = keyboardShortcutsService.getDuplicateAccelerators();
   if (duplicates) {
     notificationsService.notifyWarning({
       title: 'Shortcuts conflicts',
       description: (
         <ErrorsRenderer
           errors={Object.entries(duplicates).map(
-            ([accelerator, duplicatedActions]) =>
-              `${accelerator} is used for actions: ${duplicatedActions.join(
+            ([accelerator, actions]) =>
+              `${accelerator} is used for actions: ${actions.join(
                 ', '
               )}. Only one of them will work.`
           )}

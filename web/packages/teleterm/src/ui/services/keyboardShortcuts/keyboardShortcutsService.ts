@@ -82,7 +82,7 @@ export class KeyboardShortcutsService {
    * Some actions can get assigned the same accelerators.
    * This method returns them.
    */
-  getDuplicatedAccelerators():
+  getDuplicateAccelerators():
     | Record<string, KeyboardShortcutAction[]>
     | undefined {
     const duplicates = Array.from(this.acceleratorsToActions.entries())
@@ -136,7 +136,7 @@ export class KeyboardShortcutsService {
       .filter(Boolean)
       .join('+');
 
-    // always return the first action (in case of duplicated accelerators)
+    // always return the first action (in case of duplicate accelerators)
     return this.acceleratorsToActions.get(accelerator)?.[0];
   }
 

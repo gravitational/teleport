@@ -19,7 +19,7 @@ import { z } from 'zod';
 import { Platform } from 'teleterm/mainProcess/types';
 
 const VALID_SHORTCUT_MESSAGE =
-  'Valid shortcut can contain multiple modifiers (like "Shift") and a single key code (like "A" or "Tab"), combined by the "+" character.';
+  'A valid shortcut contains zero or more modifiers (like "Shift") and a single key code (like "A" or "Tab"), combined by the "+" character.';
 
 export function invalidKeyCodeIssue(wrongKeyCode: string): z.IssueData {
   return {
@@ -35,15 +35,15 @@ export function invalidModifierIssue(wrongModifier: string): z.IssueData {
   };
 }
 
-export function duplicatedModifierIssue(): z.IssueData {
+export function duplicateModifierIssue(): z.IssueData {
   return {
     code: z.ZodIssueCode.custom,
-    message: `Duplicated modifier found. ${VALID_SHORTCUT_MESSAGE}`,
+    message: `Duplicate modifier found. ${VALID_SHORTCUT_MESSAGE}`,
   };
 }
 
 export function getKeyboardShortcutSchema(platform: Platform) {
-  const allowedModifiers = getAllowedModifiers(platform);
+  const allowedModifiers = getSupportedModifiers(platform);
 
   return z
     .string()
@@ -85,7 +85,7 @@ function validateKeyCodeAndModifiers(
     }
 
     if (expectedModifiers.length !== new Set(expectedModifiers).size) {
-      ctx.addIssue(duplicatedModifierIssue());
+      ctx.addIssue(duplicateModifierIssue());
       return z.NEVER;
     }
 
@@ -97,8 +97,8 @@ function validateKeyCodeAndModifiers(
   };
 }
 
-/** Returns allowed modifiers for a given platform in a correct order. */
-function getAllowedModifiers(platform: Platform): string[] {
+/** Returns allowed modifiers for a given platform in the correct order. */
+function getSupportedModifiers(platform: Platform): string[] {
   switch (platform) {
     case 'win32':
     case 'linux':

@@ -39,7 +39,7 @@ test('do not call subscriber after it has been unsubscribed', () => {
   expect(subscriber).not.toHaveBeenCalled();
 });
 
-test('duplicated accelerators are returned', () => {
+test('duplicate accelerators are returned', () => {
   const service = new KeyboardShortcutsService(
     'darwin',
     createMockConfigService({
@@ -49,7 +49,7 @@ test('duplicated accelerators are returned', () => {
     })
   );
 
-  expect(service.getDuplicatedAccelerators()).toStrictEqual({
+  expect(service.getDuplicateAccelerators()).toStrictEqual({
     'Command+1': ['tab1', 'tab2'],
   });
 });

@@ -20,7 +20,7 @@ import {
   getKeyboardShortcutSchema,
   invalidModifierIssue,
   invalidKeyCodeIssue,
-  duplicatedModifierIssue,
+  duplicateModifierIssue,
 } from './getKeyboardShortcutSchema';
 
 const schema = z.object({
@@ -46,7 +46,7 @@ test('single-parts shortcuts are parsed correctly', () => {
   expect(parsed).toStrictEqual({ 'keymap.tab1': '1' });
 });
 
-test('shortcuts parts are sorted in a correct order', () => {
+test('shortcuts parts are sorted in the correct order', () => {
   const parsed = schema.parse({ 'keymap.tab1': 'Shift+1+Command' });
   expect(parsed).toStrictEqual({ 'keymap.tab1': 'Command+Shift+1' });
 });
@@ -71,7 +71,7 @@ test('fails when only modifiers are passed', () => {
   expect(parse).toThrow(getZodError(invalidKeyCodeIssue('Shift')));
 });
 
-test('fails when duplicated modifiers are passed', () => {
+test('fails when duplicate modifiers are passed', () => {
   const parse = () => schema.parse({ 'keymap.tab1': 'Command+I+Command' });
-  expect(parse).toThrow(getZodError(duplicatedModifierIssue()));
+  expect(parse).toThrow(getZodError(duplicateModifierIssue()));
 });
