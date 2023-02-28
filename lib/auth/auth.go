@@ -89,6 +89,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
@@ -208,7 +209,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.TraceClient = tracing.NewNoopClient()
 	}
 	if cfg.UsageReporter == nil {
-		cfg.UsageReporter = services.NewDiscardUsageReporter()
+		cfg.UsageReporter = usagereporter.NewDiscardUsageReporter()
 	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
@@ -349,7 +350,7 @@ type Services struct {
 	services.Enforcer
 	services.ConnectionsDiagnostic
 	services.StatusInternal
-	services.UsageReporter
+	usagereporter.UsageReporter
 	types.Events
 	events.IAuditLog
 }
@@ -962,7 +963,7 @@ func (a *Server) SetEnforcer(enforcer services.Enforcer) {
 
 // SetUsageReporter sets the server's usage reporter. Note that this is only
 // safe to use before server start.
-func (a *Server) SetUsageReporter(reporter services.UsageReporter) {
+func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
 	a.Services.UsageReporter = reporter
 }
 
@@ -1625,7 +1626,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 		user = req.impersonator
 	}
 
-	if err := a.AnonymizeAndSubmit(&services.UsageCertificateIssued{
+	if err := a.AnonymizeAndSubmit(&usagereporter.UsageCertificateIssued{
 		UserName:        user,
 		Ttl:             durationpb.New(req.ttl),
 		IsBot:           bot,
@@ -3979,7 +3980,7 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 		return trace.Wrap(err)
 	}
 
-	event, err := services.ConvertUsageEvent(req.GetEvent(), username)
+	event, err := usagereporter.ConvertUsageEvent(req.GetEvent(), username)
 	if err != nil {
 		return trace.Wrap(err)
 	}
