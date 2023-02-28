@@ -312,6 +312,18 @@
             }
           ]
         },
+        {
+          "title": "Teleport as an IdP",
+          "slug": "/access-controls/idps/",
+          "forScopes": ["enterprise", "cloud"],
+          "entries": [
+            {
+              "title": "SAML identity provider",
+              "slug": "/access-controls/idps/saml/",
+              "forScopes": ["enterprise", "cloud"]
+            }
+          ]
+        },
 		{
           "title": "Login Rules",
           "slug": "/access-controls/login-rules/",
