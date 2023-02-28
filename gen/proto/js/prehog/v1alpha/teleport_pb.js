@@ -7573,9 +7573,9 @@ proto.prehog.v1alpha.AgentMetadataEvent.toObject = function(includeInstance, msg
     hostId: jspb.Message.getFieldWithDefault(msg, 2, ""),
     servicesList: (f = jspb.Message.getRepeatedField(msg, 3)) == null ? undefined : f,
     os: jspb.Message.getFieldWithDefault(msg, 4, ""),
-    osVersionInfo: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    hostArchitectureInfo: jspb.Message.getFieldWithDefault(msg, 6, ""),
-    glibcVersionInfo: jspb.Message.getFieldWithDefault(msg, 7, ""),
+    osVersion: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    hostArchitecture: jspb.Message.getFieldWithDefault(msg, 6, ""),
+    glibcVersion: jspb.Message.getFieldWithDefault(msg, 7, ""),
     installMethodsList: (f = jspb.Message.getRepeatedField(msg, 8)) == null ? undefined : f,
     containerRuntime: jspb.Message.getFieldWithDefault(msg, 9, ""),
     containerOrchestrator: jspb.Message.getFieldWithDefault(msg, 10, ""),
@@ -7634,15 +7634,15 @@ proto.prehog.v1alpha.AgentMetadataEvent.deserializeBinaryFromReader = function(m
       break;
     case 5:
       var value = /** @type {string} */ (reader.readString());
-      msg.setOsVersionInfo(value);
+      msg.setOsVersion(value);
       break;
     case 6:
       var value = /** @type {string} */ (reader.readString());
-      msg.setHostArchitectureInfo(value);
+      msg.setHostArchitecture(value);
       break;
     case 7:
       var value = /** @type {string} */ (reader.readString());
-      msg.setGlibcVersionInfo(value);
+      msg.setGlibcVersion(value);
       break;
     case 8:
       var value = /** @type {string} */ (reader.readString());
@@ -7717,21 +7717,21 @@ proto.prehog.v1alpha.AgentMetadataEvent.serializeBinaryToWriter = function(messa
       f
     );
   }
-  f = message.getOsVersionInfo();
+  f = message.getOsVersion();
   if (f.length > 0) {
     writer.writeString(
       5,
       f
     );
   }
-  f = message.getHostArchitectureInfo();
+  f = message.getHostArchitecture();
   if (f.length > 0) {
     writer.writeString(
       6,
       f
     );
   }
-  f = message.getGlibcVersionInfo();
+  f = message.getGlibcVersion();
   if (f.length > 0) {
     writer.writeString(
       7,
@@ -7861,10 +7861,10 @@ proto.prehog.v1alpha.AgentMetadataEvent.prototype.setOs = function(value) {
 
 
 /**
- * optional string os_version_info = 5;
+ * optional string os_version = 5;
  * @return {string}
  */
-proto.prehog.v1alpha.AgentMetadataEvent.prototype.getOsVersionInfo = function() {
+proto.prehog.v1alpha.AgentMetadataEvent.prototype.getOsVersion = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
 };
 
@@ -7873,16 +7873,16 @@ proto.prehog.v1alpha.AgentMetadataEvent.prototype.getOsVersionInfo = function() 
  * @param {string} value
  * @return {!proto.prehog.v1alpha.AgentMetadataEvent} returns this
  */
-proto.prehog.v1alpha.AgentMetadataEvent.prototype.setOsVersionInfo = function(value) {
+proto.prehog.v1alpha.AgentMetadataEvent.prototype.setOsVersion = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
 };
 
 
 /**
- * optional string host_architecture_info = 6;
+ * optional string host_architecture = 6;
  * @return {string}
  */
-proto.prehog.v1alpha.AgentMetadataEvent.prototype.getHostArchitectureInfo = function() {
+proto.prehog.v1alpha.AgentMetadataEvent.prototype.getHostArchitecture = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
 };
 
@@ -7891,16 +7891,16 @@ proto.prehog.v1alpha.AgentMetadataEvent.prototype.getHostArchitectureInfo = func
  * @param {string} value
  * @return {!proto.prehog.v1alpha.AgentMetadataEvent} returns this
  */
-proto.prehog.v1alpha.AgentMetadataEvent.prototype.setHostArchitectureInfo = function(value) {
+proto.prehog.v1alpha.AgentMetadataEvent.prototype.setHostArchitecture = function(value) {
   return jspb.Message.setProto3StringField(this, 6, value);
 };
 
 
 /**
- * optional string glibc_version_info = 7;
+ * optional string glibc_version = 7;
  * @return {string}
  */
-proto.prehog.v1alpha.AgentMetadataEvent.prototype.getGlibcVersionInfo = function() {
+proto.prehog.v1alpha.AgentMetadataEvent.prototype.getGlibcVersion = function() {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 7, ""));
 };
 
@@ -7909,7 +7909,7 @@ proto.prehog.v1alpha.AgentMetadataEvent.prototype.getGlibcVersionInfo = function
  * @param {string} value
  * @return {!proto.prehog.v1alpha.AgentMetadataEvent} returns this
  */
-proto.prehog.v1alpha.AgentMetadataEvent.prototype.setGlibcVersionInfo = function(value) {
+proto.prehog.v1alpha.AgentMetadataEvent.prototype.setGlibcVersion = function(value) {
   return jspb.Message.setProto3StringField(this, 7, value);
 };
 

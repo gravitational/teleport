@@ -1043,14 +1043,14 @@ export class AgentMetadataEvent extends jspb.Message {
     getOs(): string;
     setOs(value: string): AgentMetadataEvent;
 
-    getOsVersionInfo(): string;
-    setOsVersionInfo(value: string): AgentMetadataEvent;
+    getOsVersion(): string;
+    setOsVersion(value: string): AgentMetadataEvent;
 
-    getHostArchitectureInfo(): string;
-    setHostArchitectureInfo(value: string): AgentMetadataEvent;
+    getHostArchitecture(): string;
+    setHostArchitecture(value: string): AgentMetadataEvent;
 
-    getGlibcVersionInfo(): string;
-    setGlibcVersionInfo(value: string): AgentMetadataEvent;
+    getGlibcVersion(): string;
+    setGlibcVersion(value: string): AgentMetadataEvent;
 
     clearInstallMethodsList(): void;
     getInstallMethodsList(): Array<string>;
@@ -1083,9 +1083,9 @@ export namespace AgentMetadataEvent {
         hostId: string,
         servicesList: Array<string>,
         os: string,
-        osVersionInfo: string,
-        hostArchitectureInfo: string,
-        glibcVersionInfo: string,
+        osVersion: string,
+        hostArchitecture: string,
+        glibcVersion: string,
         installMethodsList: Array<string>,
         containerRuntime: string,
         containerOrchestrator: string,
