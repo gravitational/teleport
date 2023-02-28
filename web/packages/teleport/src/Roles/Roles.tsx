@@ -93,7 +93,7 @@ export function Roles(props: State) {
               Role-based access control
             </Text>
             <Text typography="subtitle1" mb={3}>
-              Kubernetes and SSH authentication in one place. A Teleport role
+              Fine-grain control over who can and how they access resources. A Teleport role
               can be assigned based on user identity when used with single
               sign-on (SSO).
             </Text>
