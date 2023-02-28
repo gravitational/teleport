@@ -141,7 +141,7 @@ function getRenderedContent(
       </Flex>
     );
   }
-  if (isContentAnObject(content)) {
+  if (isContentANotificationItemObject(content)) {
     return (
       <Flex flexDirection="column" minWidth="0" width="100%">
         <div
@@ -182,7 +182,7 @@ function getRenderedContent(
   }
 }
 
-function isContentAnObject(
+function isContentANotificationItemObject(
   content: NotificationItemContent
 ): content is NotificationItemObjectContent {
   return (
