@@ -26,8 +26,8 @@ for all Teleport users, so no configuration is necessary.
 ## Establish a trust relationship between an application and Teleport
 
 You'll need to establish a trust relationship between an application, which will
-be functionining here as a **SAML service provider**, and Teleport's SAML identity
-provider. This process can vary greatly betwen applications, so you will likely
+be functioning here as a **SAML service provider**, and Teleport's SAML identity
+provider. This process can vary greatly between applications, so you will likely
 need to refer to the target application's documentation in order to figure out how to
 add Teleport's identity provider metadata to the application.
 
@@ -45,7 +45,7 @@ metadata:
   # service provider as well as in identity provider initiated SSO.
   name: saml-service-provider
 spec:
-  # The entity_descriptor is the service provier XML.
+  # The entity_descriptor is the service provider XML.
   entity_descriptor: |
     <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"...
 ```
