@@ -99,3 +99,36 @@ While decompression is already done in the Rust library, the encoding of bitmaps
 
 The best performance can be achieved by moving the PNG encoding procedure from the Go client to the Rust library. It'll also simplify the way we encode and decode PNG TDP messages.
 During the tests, the average time it took to process messages (read, process, decompress, and encode) when the encoding took place in the Go side was around 500μs. After moving the encoding of bitmaps into PNGs to the Rust library, the time it took to process a message went down to 50μs.
+
+### IronRDP
+
+#### Background
+
+Over the course of this feature's development, we've become aware of a RDP client written in Rust called [IronRDP](https://github.com/Devolutions/IronRDP/) which
+is actively built and maintained by [Devolutions](https://devolutions.net/). Importantly, Devolutions employs Marc-André Moreau, who is the founder of the
+[FreeRDP](https://github.com/FreeRDP/FreeRDP) project, which is the canonical open source C implementation of the protocol started back in 2011.
+
+Presuming IronRDP provides better performance and can be hooked into our existing system without too much trouble, it's an attractive option because it's built
+in a language we're already using, and is actively maintained by a team of engineers at Devolutions, including at least one serious domain expert. This is in
+contrast to our current RDP client, [rdp-rs](https://github.com/gravitational/rdp-rs), which is no longer actively maintained.
+
+#### RDP 7: Bitmaps with RemoteFX encoding
+
+According to Moreau's best judgement, the best bang for one's buck in terms of performance vs complexity of implementation is to go with RDP 7, which is to say
+to use bitmaps encoded by the RemoteFX codec.
+
+It can oftentimes be difficult to decipher precisely what RDP version does what, and what that means, just by looking at the protocol specification itself. In
+practice what "using bitmaps encoded by the RemoteFX codec" means is that your client sends the
+[`CODEC_GUID_REMOTEFX`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/86507fed-a0ee-4242-b802-237534a8f65e) value when exchanging
+capability sets with the server, which tells the server to relay the screen back to the client in the form of RemoteFX encoded bitmaps, which are communicated
+via the [Set Surface Bits](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/776dbdaf-7619-45fd-9a90-ebfd07802b24) and
+[Stream Surface Bits](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/b2218638-3cf9-4f2f-be61-b096ec3c8dc5) commands. The bitmaps encoded
+in these commands will be encoded with the [RemoteFX Codec](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdprfx/62495a4a-a495-46ea-b459-5cde04c44549), which the client must decode and display.
+
+##### Performance comparison
+
+The performance improvement between Teleport's current client to IronRDP is unmistakable. The first video below shows the first few seconds of a YouTube video being played over a Teleport
+connection, and the second shows the same clip over IronRDP:
+
+1.
+2.
