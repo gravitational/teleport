@@ -3048,6 +3048,7 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 		Version:  teleport.Version,
 		ServerID: a.ServerID,
 	}
+	log.Debugf("RegisterInventoryControlStream send downstream hello: %v", downstreamHello)
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
 		return trace.Wrap(err)
 	}
@@ -3067,6 +3068,7 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 				upstream.CloseWithError(trace.BadParameter("expected upstream hello, got: %T", msg))
 				return
 			}
+			log.Debugf("MakeLocalInventoryControlStream received hello: %v", hello)
 			if err := a.RegisterInventoryControlStream(upstream, hello); err != nil {
 				upstream.CloseWithError(err)
 				return
