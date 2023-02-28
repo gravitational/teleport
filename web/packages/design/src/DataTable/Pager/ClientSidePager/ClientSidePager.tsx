@@ -19,34 +19,21 @@ import React from 'react';
 import { Flex, Text } from 'design';
 import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 
-import { StyledArrowBtn, StyledFetchMoreBtn } from './StyledPager';
-import usePager, { State, Props } from './usePager';
+import { StyledArrowBtn, StyledFetchMoreBtn } from '../StyledPager';
 
-export default function Container(props: Props) {
-  const state = usePager(props);
-  return <Pager {...state} />;
-}
+import { useClientSidePager, Props } from './useClientSidePager';
 
-export function Pager({
-  nextPage,
-  prevPage,
-  isNextDisabled,
-  isPrevDisabled,
-  from,
-  to,
-  count,
-  onFetchMore,
-  fetchStatus,
-  serversideProps,
-}: State) {
+export function ClientSidePager(props: Props) {
+  const { nextPage, prevPage, onFetchMore, fetchStatus } = props;
+  const { from, to, count, isNextDisabled, isPrevDisabled } =
+    useClientSidePager(props);
+
   const isFetchingEnabled = onFetchMore && fetchStatus !== 'disabled';
   return (
     <Flex justifyContent="flex-end" width="100%">
       <Flex alignItems="center" mr={2}>
-        {!serversideProps && (
-          <PageIndicatorText from={from + 1} to={to + 1} count={count} />
-        )}
-        {isFetchingEnabled && !serversideProps && (
+        <PageIndicatorText from={from + 1} to={to + 1} count={count} />
+        {isFetchingEnabled && (
           <StyledFetchMoreBtn
             disabled={fetchStatus === 'loading'}
             onClick={onFetchMore}
@@ -91,9 +78,9 @@ export function PageIndicatorText({
       typography="body2"
       color="primary.contrastText"
       mr={1}
-      style={{ whiteSpace: 'nowrap' }}
+      style={{ whiteSpace: 'nowrap', textTransform: 'uppercase' }}
     >
-      SHOWING <strong>{from}</strong> - <strong>{to}</strong> of{' '}
+      Showing <strong>{from}</strong> - <strong>{to}</strong> of{' '}
       <strong>{count}</strong>
     </Text>
   );

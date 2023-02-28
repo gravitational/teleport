@@ -34,12 +34,6 @@ export interface App {
   addrWithProtocol?: string;
 }
 
-export type AppsResponse = {
-  apps: App[];
-  startKey?: string;
-  totalCount?: number;
-};
-
 export type AwsRole = {
   arn: string;
   display: string;

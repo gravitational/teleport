@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2022 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,19 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import { AgentLabel } from 'teleport/services/agents';
 
-export interface Node {
-  id: string;
-  clusterId: string;
-  hostname: string;
-  labels: AgentLabel[];
-  addr: string;
-  tunnel: boolean;
-  sshLogins: string[];
-}
-
-export interface BashCommand {
-  text: string;
-  expires: string;
-}
+export { useUrlFiltering } from './useUrlFiltering';
+export { encodeUrlQueryParams } from './encodeUrlQueryParams';
