@@ -1113,6 +1113,12 @@ type AuthenticationConfig struct {
 	// otherwise.
 	Passwordless *types.BoolOption `yaml:"passwordless"`
 
+	// Headless enables/disables headless support.
+	// Requires Webauthn to work.
+	// Defaults to true if the Webauthn is configured, defaults to false
+	// otherwise.
+	Headless *types.BoolOption `yaml:"headless"`
+
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
 	DeviceTrust *DeviceTrust `yaml:"device_trust,omitempty"`
@@ -1156,6 +1162,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
 		AllowPasswordless: a.Passwordless,
+		AllowHeadless:     a.Headless,
 		DeviceTrust:       dt,
 	})
 }
