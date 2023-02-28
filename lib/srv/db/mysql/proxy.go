@@ -279,5 +279,5 @@ const (
 	//
 	// Some clients may refuse to work with older servers (e.g. MySQL
 	// Workbench requires > 5.5).
-	serverVersion = "8.0.0-Teleport"
+	serverVersion = "8.0.3-Teleport"
 )
