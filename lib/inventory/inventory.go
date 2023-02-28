@@ -130,13 +130,13 @@ func (h *downstreamHandle) closing() bool {
 // autoEmitMetadata sends the agent metadata once per stream (i.e. connection
 // with the auth server).
 func (h *downstreamHandle) autoEmitMetadata() {
-	log.Infof("autoEmitMetadata")
+	log.Debugf("autoEmitMetadata")
 	metadata := metadata.FetchAgentMetadata(&metadata.AgentMetadataFetchConfig{Context: h.CloseContext()})
-	log.Infof("autoEmitMetadata ready: %v", metadata)
+	log.Debugf("autoEmitMetadata ready: %+v", metadata)
 	for {
 		select {
 		case sender := <-h.Sender(): // wait for stream to be opened
-			log.Infof("autoEmitMetadata sending")
+			log.Debugf("autoEmitMetadata sending")
 			if err := sender.Send(h.CloseContext(), metadata); err != nil { // send metadata
 				log.Warnf("Failed to send agent metadata: %v", err)
 			}
@@ -196,7 +196,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 		}
 		return trace.Errorf("failed to send upstream hello: %v", err)
 	}
-	log.Debugf("handleStream send hello: %v", upstreamHello)
+	log.Debugf("handleStream send hello: %+v", upstreamHello)
 
 	// wait for downstream hello
 	var downstreamHello proto.DownstreamInventoryHello
@@ -216,7 +216,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 	case <-h.closeContext.Done():
 		return nil
 	}
-	log.Debugf("handleStream received downstream hello: %v", downstreamHello)
+	log.Debugf("handleStream received downstream hello: %+v", downstreamHello)
 
 	sender := downstreamSender{stream, downstreamHello}
 

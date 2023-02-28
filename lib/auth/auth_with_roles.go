@@ -847,7 +847,7 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 		return hello, trace.Errorf("auth server shutdown")
 	}
 
-	log.Debugf("RegisterInventoryControlStream received hello: %v", hello)
+	log.Debugf("RegisterInventoryControlStream received hello: %+v", hello)
 
 	// verify that server is creating stream on behalf of itself.
 	if hello.ServerID != role.GetServerID() {

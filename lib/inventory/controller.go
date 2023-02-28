@@ -225,6 +225,8 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 		c.testEvent(handlerClose)
 	}()
 
+	log.Debugf("handleControlStream hello: %+v", handle.hello)
+
 	// keepAliveInit tracks wether or not we've initialized the server keepalive sub-interval. we do this lazily
 	// upon receipt of the first heartbeat since not all servers send heartbeats.
 	var keepAliveInit bool
@@ -238,6 +240,7 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				handle.CloseWithError(trace.BadParameter("unexpected upstream hello"))
 				return
 			case proto.UpstreamInventoryAgentMetadata:
+				log.Debugf("handleControlStream metadata: %+v", m)
 				c.handleAgentMetadata(handle, m)
 			case proto.InventoryHeartbeat:
 				if err := c.handleHeartbeatMsg(handle, m); err != nil {
@@ -496,7 +499,7 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 }
 
 func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.UpstreamInventoryAgentMetadata) {
-	log.Debugf("Agent metadata received: %v", m)
+	log.Debugf("Agent metadata received: %+v", m)
 	if err := c.usageReporter.AnonymizeAndSubmit(&services.AgentMetadataEvent{
 		Version:               handle.Hello().Version,
 		HostId:                handle.Hello().ServerID,
