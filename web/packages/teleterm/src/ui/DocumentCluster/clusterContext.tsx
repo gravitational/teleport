@@ -18,10 +18,10 @@ import React from 'react';
 import { matchPath } from 'react-router';
 import { useStore, Store } from 'shared/libs/stores';
 
-import { tsh } from 'teleterm/ui/services/clusters/types';
 import { IAppContext } from 'teleterm/ui/types';
 import { ClusterUri, DocumentUri, KubeUri, routing } from 'teleterm/ui/uri';
-import { retryWithRelogin } from 'teleterm/ui/utils';
+
+import type * as tsh from 'teleterm/services/tshd/types';
 
 type State = {
   navLocation: NavLocation;
@@ -75,19 +75,6 @@ class ClusterContext extends Store<State> {
 
   connectKube = (kubeUri: KubeUri) => {
     this.appCtx.commandLauncher.executeCommand('kube-connect', { kubeUri });
-  };
-
-  sync = async () => {
-    try {
-      await retryWithRelogin(this.appCtx, this.clusterUri, () =>
-        this.appCtx.clustersService.syncCluster(this.clusterUri)
-      );
-    } catch (e) {
-      this.appCtx.notificationsService.notifyError({
-        title: `Could not synchronize cluster ${this.state.clusterName}`,
-        description: e.message,
-      });
-    }
   };
 
   refresh = () => {
@@ -144,10 +131,6 @@ class ClusterContext extends Store<State> {
   changeSearchValue = (searchValue: string) => {
     this.setState({ searchValue });
   };
-
-  getSyncStatus() {
-    return this.appCtx.clustersService.getClusterSyncStatus(this.clusterUri);
-  }
 
   changeLocation(navLocation: NavLocation) {
     this.setState({

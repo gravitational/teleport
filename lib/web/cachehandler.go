@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,4 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export { DocumentTerminal } from './DocumentTerminal';
+package web
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/gravitational/teleport/lib/httplib"
+)
+
+// makeCacheHandler adds support for gzip compression for given handler.
+func makeCacheHandler(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httplib.SetCacheHeaders(w.Header(), time.Hour*24*365 /* one year */)
+
+		handler.ServeHTTP(w, r)
+	})
+}
