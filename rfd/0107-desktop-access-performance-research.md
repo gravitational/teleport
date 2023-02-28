@@ -128,7 +128,14 @@ in these commands will be encoded with the [RemoteFX Codec](https://learn.micros
 ##### Performance comparison
 
 The performance improvement between Teleport's current client to IronRDP is unmistakable. The first video below shows the first few seconds of a YouTube video being played over a Teleport
-connection, and the second shows the same clip over IronRDP:
+connection, and the second shows the same clip over IronRDP.
 
-1.
-2.
+Teleport (unwatchable):
+
+https://user-images.githubusercontent.com/13578537/221960403-ab7ae7a2-7fe9-4391-9e5e-e34047098bf8.mov
+
+</br>
+
+IronRDP (uploaded to Google Drive because it exceeded GitHub's limit, probably because it wasn't dropping a sizeable chunk of the frames like the above):
+
+https://drive.google.com/file/d/1xyzkAWPyKu-zLQpx168zHH_i7DoqnacC/view?usp=sharing
