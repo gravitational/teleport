@@ -69,6 +69,11 @@ func TestWriteCmd(t *testing.T) {
 			expected: []byte("*2\r\n$9\r\ntest val1\r\n$10\r\ntest val 2\r\n"),
 		},
 		{
+			name:     "[]nil",
+			val:      []interface{}{nil},
+			expected: []byte("*1\r\n$-1\r\n"),
+		},
+		{
 			name:     "[]bool",
 			val:      []bool{true, false},
 			expected: []byte("*2\r\n$1\r\n1\r\n$1\r\n0\r\n"),

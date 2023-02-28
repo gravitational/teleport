@@ -1502,7 +1502,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				Kind: types.KindUser,
 			},
 			crud: func(context.Context) types.Resource {
-				user := newUser("user1", []string{"admin"})
+				user := newUser("user1", []string{constants.DefaultImplicitRole})
 				err := s.Users().UpsertUser(user)
 				require.NoError(t, err)
 

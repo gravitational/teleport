@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -46,15 +47,6 @@ func TestMiddlewareGetUser(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, s.UpsertClusterName(cn))
 
-	// Helper func for generating fake certs.
-	subject := func(id tlsca.Identity) pkix.Name {
-		s, err := id.Subject()
-		require.NoError(t, err)
-		// ExtraNames get moved to Names when generating a real x509 cert.
-		// Since we're just mimicking certs in memory, move manually.
-		s.Names = s.ExtraNames
-		return s
-	}
 	now := time.Date(2020, time.November, 5, 0, 0, 0, 0, time.UTC)
 
 	var (
@@ -113,7 +105,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 		{
 			desc: "local user",
 			peers: []*x509.Certificate{{
-				Subject:  subject(localUserIdentity),
+				Subject:  subject(t, localUserIdentity),
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{localClusterName}},
 			}},
@@ -126,7 +118,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 		{
 			desc: "local user no teleport cluster in cert subject",
 			peers: []*x509.Certificate{{
-				Subject:  subject(localUserIdentityNoTeleportCluster),
+				Subject:  subject(t, localUserIdentityNoTeleportCluster),
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{localClusterName}},
 			}},
@@ -139,7 +131,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 		{
 			desc: "local system role",
 			peers: []*x509.Certificate{{
-				Subject:  subject(localSystemRole),
+				Subject:  subject(t, localSystemRole),
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{localClusterName}},
 			}},
@@ -154,7 +146,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 		{
 			desc: "remote user",
 			peers: []*x509.Certificate{{
-				Subject:  subject(remoteUserIdentity),
+				Subject:  subject(t, remoteUserIdentity),
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{remoteClusterName}},
 			}},
@@ -169,7 +161,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 		{
 			desc: "remote user no teleport cluster in cert subject",
 			peers: []*x509.Certificate{{
-				Subject:  subject(remoteUserIdentityNoTeleportCluster),
+				Subject:  subject(t, remoteUserIdentityNoTeleportCluster),
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{remoteClusterName}},
 			}},
@@ -184,7 +176,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 		{
 			desc: "remote system role",
 			peers: []*x509.Certificate{{
-				Subject:  subject(remoteSystemRole),
+				Subject:  subject(t, remoteSystemRole),
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{remoteClusterName}},
 			}},
@@ -201,7 +193,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 
 			m := &Middleware{
-				AccessPoint: s,
+				ClusterName: localClusterName,
 			}
 
 			id, err := m.GetUser(tls.ConnectionState{PeerCertificates: tt.peers})
@@ -212,4 +204,105 @@ func TestMiddlewareGetUser(t *testing.T) {
 			require.Empty(t, cmp.Diff(id, tt.wantID, cmpopts.EquateEmpty()))
 		})
 	}
+}
+
+// testConn is a connection that implements utils.TLSConn for testing WrapContextWithUser.
+type testConn struct {
+	tls.Conn
+
+	state           tls.ConnectionState
+	handshakeCalled bool
+}
+
+func (t *testConn) ConnectionState() tls.ConnectionState   { return t.state }
+func (t *testConn) Handshake() error                       { t.handshakeCalled = true; return nil }
+func (t *testConn) HandshakeContext(context.Context) error { return t.Handshake() }
+
+func TestWrapContextWithUser(t *testing.T) {
+	localClusterName := "local"
+	s := newTestServices(t)
+
+	// Set up local cluster name in the backend.
+	cn, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: localClusterName,
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.UpsertClusterName(cn))
+
+	now := time.Date(2020, time.November, 5, 0, 0, 0, 0, time.UTC)
+	localUserIdentity := tlsca.Identity{
+		Username:        "foo",
+		Groups:          []string{"devs"},
+		TeleportCluster: localClusterName,
+		Expires:         now,
+	}
+
+	tests := []struct {
+		desc           string
+		peers          []*x509.Certificate
+		wantID         IdentityGetter
+		needsHandshake bool
+	}{
+		{
+			desc: "local user doesn't need handshake",
+			peers: []*x509.Certificate{{
+				Subject:  subject(t, localUserIdentity),
+				NotAfter: now,
+				Issuer:   pkix.Name{Organization: []string{localClusterName}},
+			}},
+			wantID: LocalUser{
+				Username: localUserIdentity.Username,
+				Identity: localUserIdentity,
+			},
+			needsHandshake: false,
+		},
+		{
+			desc: "local user needs handshake",
+			peers: []*x509.Certificate{{
+				Subject:  subject(t, localUserIdentity),
+				NotAfter: now,
+				Issuer:   pkix.Name{Organization: []string{localClusterName}},
+			}},
+			wantID: LocalUser{
+				Username: localUserIdentity.Username,
+				Identity: localUserIdentity,
+			},
+			needsHandshake: true,
+		},
+	}
+
+	clusterName, err := s.GetClusterName()
+	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			m := &Middleware{
+				ClusterName: clusterName.GetClusterName(),
+			}
+
+			conn := &testConn{
+				state: tls.ConnectionState{PeerCertificates: tt.peers,
+					HandshakeComplete: !tt.needsHandshake},
+			}
+
+			parentCtx := context.Background()
+			ctx, err := m.WrapContextWithUser(parentCtx, conn)
+			require.NoError(t, err)
+			require.Equal(t, tt.needsHandshake, conn.handshakeCalled)
+
+			cert := ctx.Value(contextUserCertificate)
+			user := ctx.Value(ContextUser)
+			require.Empty(t, cmp.Diff(cert, tt.peers[0], cmpopts.EquateEmpty()))
+			require.Empty(t, cmp.Diff(user, tt.wantID, cmpopts.EquateEmpty()))
+		})
+	}
+}
+
+// Helper func for generating fake certs.
+func subject(t *testing.T, id tlsca.Identity) pkix.Name {
+	s, err := id.Subject()
+	require.NoError(t, err)
+	// ExtraNames get moved to Names when generating a real x509 cert.
+	// Since we're just mimicking certs in memory, move manually.
+	s.Names = s.ExtraNames
+	return s
 }

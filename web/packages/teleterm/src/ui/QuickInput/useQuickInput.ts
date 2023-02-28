@@ -62,7 +62,7 @@ export default function useQuickInput() {
       const [, err] = await getSuggestions();
       if (err && !(err instanceof CanceledError)) {
         appContext.notificationsService.notifyError({
-          title: 'Error fetching suggestions',
+          title: 'Could not fetch command bar suggestions',
           description: err.message,
         });
       }
