@@ -130,10 +130,13 @@ func (h *downstreamHandle) closing() bool {
 // autoEmitMetadata sends the agent metadata once per stream (i.e. connection
 // with the auth server).
 func (h *downstreamHandle) autoEmitMetadata() {
+	log.Info("autoEmitMetadata")
 	metadata := metadata.FetchAgentMetadata(&metadata.AgentMetadataFetchConfig{Context: h.CloseContext()})
+	log.Info("autoEmitMetadata ready: %v", metadata)
 	for {
 		select {
 		case sender := <-h.Sender(): // wait for stream to be opened
+			log.Info("autoEmitMetadata sending")
 			if err := sender.Send(h.CloseContext(), metadata); err != nil { // send metadata
 				log.Warnf("Failed to send agent metadata: %v", err)
 			}
