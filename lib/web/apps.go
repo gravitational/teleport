@@ -232,21 +232,13 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID, user string)
 	return auth.WaitForAppSession(ctx, sessionID, user, h.cfg.AccessPoint)
 }
 
-// extractAppsWithoutTCPEndpoint iterates over a list of app servers and extracts
-// its application without its URI prefixed with "tcp". It also keeps a
-// counter of how many TCP applications were excluded from the list (e.g. used to
-// subtract it from the TotalCount received from ListResources api).
-func extractAppsWithoutTCPEndpoint(appServers []types.AppServer) (apps types.Apps, numExcluded int) {
+func extractApps(appServers []types.AppServer) types.Apps {
+	var apps types.Apps
 	for _, server := range appServers {
-		// Skip over TCP apps since they cannot be accessed through web UI.
-		if !server.GetApp().IsTCP() {
-			apps = append(apps, server.GetApp())
-		} else {
-			numExcluded++
-		}
+		apps = append(apps, server.GetApp())
 	}
 
-	return apps, numExcluded
+	return apps
 }
 
 type resolveAppParams struct {
