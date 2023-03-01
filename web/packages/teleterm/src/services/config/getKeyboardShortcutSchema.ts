@@ -18,13 +18,10 @@ import { z } from 'zod';
 
 import { Platform } from 'teleterm/mainProcess/types';
 
-const VALID_SHORTCUT_MESSAGE =
-  'A valid shortcut contains at least one modifier and a single key code, e.g., "Control+Shift+A". Function keys do not require a modifier.';
-
 export function invalidKeyCodeIssue(wrongKeyCode: string): z.IssueData {
   return {
     code: z.ZodIssueCode.custom,
-    message: `"${wrongKeyCode}" cannot be used as a key code. ${VALID_SHORTCUT_MESSAGE}`,
+    message: `"${wrongKeyCode}" cannot be used as a key code.`,
   };
 }
 
@@ -33,21 +30,21 @@ export function invalidModifierIssue(wrongModifiers: string[]): z.IssueData {
     code: z.ZodIssueCode.custom,
     message: `${wrongModifiers
       .map(m => `"${m}"`)
-      .join(', ')} cannot be used as a modifier. ${VALID_SHORTCUT_MESSAGE}`,
+      .join(', ')} cannot be used as a modifier.`,
   };
 }
 
 export function duplicateModifierIssue(): z.IssueData {
   return {
     code: z.ZodIssueCode.custom,
-    message: `Duplicate modifier found. ${VALID_SHORTCUT_MESSAGE}`,
+    message: `Duplicate modifier found.`,
   };
 }
 
 export function missingModifierIssue(keyCode: string): z.IssueData {
   return {
     code: z.ZodIssueCode.custom,
-    message: `"${keyCode}" requires a modifier. ${VALID_SHORTCUT_MESSAGE}`,
+    message: `"${keyCode}" requires a modifier.`,
   };
 }
 

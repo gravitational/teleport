@@ -56,9 +56,15 @@ function notifyAboutStoredConfigErrors(
 ): void {
   const errors = configService.getStoredConfigErrors();
   if (errors) {
+    const isKeymapError = errors.some(e =>
+      e.path[0].toString().startsWith('keymap.')
+    );
     notificationsService.notifyError({
       title: 'Encountered errors in config file',
       list: errors.map(e => `${e.path[0].toString()}: ${e.message}`),
+      description:
+        isKeymapError &&
+        'A valid shortcut contains at least one modifier and a single key code, e.g., "Control+Shift+A". Function keys do not require a modifier.',
       link: {
         // TODO(gzdunek): point to the properer section
         href: 'https://goteleport.com/docs/connect-your-client/teleport-connect/',
