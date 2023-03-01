@@ -64,7 +64,7 @@ func sendTelemetry(
 ) error {
 	start := time.Now()
 	if !telemetryEnabled(envGetter) {
-		log.Warnf("Anonymous telemetry is not enabled. Find out more about Machine ID's anonymous telemetry at %s", telemetryDocs)
+		log.Infof("Anonymous telemetry is not enabled. Find out more about Machine ID's anonymous telemetry at %s", telemetryDocs)
 		return nil
 	}
 	log.Infof("Anonymous telemetry is enabled. Find out more about Machine ID's anonymous telemetry at %s", telemetryDocs)
