@@ -171,6 +171,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_Installer{
 			Installer: r,
 		}
+	case *types.UIConfigV1:
+		out.Resource = &proto.Event_UIConfig{
+			UIConfig: r,
+		}
 	case *types.DatabaseServiceV1:
 		out.Resource = &proto.Event_DatabaseService{
 			DatabaseService: r,
@@ -309,6 +313,9 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetInstaller(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetUIConfig(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetDatabaseService(); r != nil {

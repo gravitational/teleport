@@ -198,6 +198,10 @@ const (
 	// cluster audit configuration.
 	MetaNameClusterAuditConfig = "cluster-audit-config"
 
+	// MetaNameUIConfig is the exact name of the singleton resource holding
+	// proxy service UI configuration.
+	MetaNameUIConfig = "ui-config"
+
 	// KindClusterNetworkingConfig is the resource that holds cluster networking configuration.
 	KindClusterNetworkingConfig = "cluster_networking_config"
 
@@ -289,6 +293,10 @@ const (
 	// KindInstaller is a resource that holds a node installer script
 	// used to install teleport on discovered nodes
 	KindInstaller = "installer"
+
+	// KindUIConfig is a resource that holds configuration for the UI
+	// served by the proxy service
+	KindUIConfig = "ui_config"
 
 	// KindClusterAlert is a resource that conveys a cluster-level alert message.
 	KindClusterAlert = "cluster_alert"
