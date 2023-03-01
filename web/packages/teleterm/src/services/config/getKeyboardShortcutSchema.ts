@@ -50,6 +50,7 @@ export function getKeyboardShortcutSchema(platform: Platform) {
     .transform(s => s.trim().split(/\s?\+\s?/))
     .transform(putModifiersFirst(allowedModifiers))
     .superRefine(validateKeyCodeAndModifiers(allowedModifiers))
+    .transform(adjustCasing)
     .transform(s => s.join('+'));
 }
 
@@ -68,6 +69,16 @@ function putModifiersFirst(
     });
 }
 
+/** Currently works only for single characters. */
+function adjustCasing(tokens: string[]): string[] {
+  return tokens.map(token => {
+    if (token.length === 1) {
+      return token.toUpperCase();
+    }
+    return token;
+  });
+}
+
 function validateKeyCodeAndModifiers(
   allowedModifiers: string[]
 ): (tokens: string[], ctx: z.RefinementCtx) => void {
@@ -79,7 +90,11 @@ function validateKeyCodeAndModifiers(
 
     const [expectedKeyCode, ...expectedModifiers] = [...tokens].reverse();
 
-    if (!ALLOWED_KEY_CODES.includes(expectedKeyCode)) {
+    const expectedKeyCodeUppercase =
+      expectedKeyCode.length === 1 // letters
+        ? expectedKeyCode.toUpperCase()
+        : expectedKeyCode;
+    if (!ALLOWED_KEY_CODES.includes(expectedKeyCodeUppercase)) {
       ctx.addIssue(invalidKeyCodeIssue(expectedKeyCode));
       return z.NEVER;
     }

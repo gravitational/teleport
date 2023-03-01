@@ -61,6 +61,11 @@ test('empty accelerator is allowed', () => {
   expect(parsed).toStrictEqual({ 'keymap.tab1': '' });
 });
 
+test('lowercase single characters are allowed and converted to uppercase', () => {
+  const parsed = schema.parse({ 'keymap.tab1': 'Shift+Command+a' });
+  expect(parsed).toStrictEqual({ 'keymap.tab1': 'Command+Shift+A' });
+});
+
 test('parsing fails when incorrect physical key is passed', () => {
   const parse = () => schema.parse({ 'keymap.tab1': 'Shift+12' });
   expect(parse).toThrow(getZodError(invalidKeyCodeIssue('12')));
