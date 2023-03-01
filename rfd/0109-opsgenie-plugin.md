@@ -44,7 +44,7 @@ teleport plugin opsgenie start --config /etc/teleport.yaml
 
 ## UX
 
-Once an access request has been created, the Opsgenie plugin will create an alert in the service specified in the request annotation using the Opsgenie Alert API Create endpoint. 
+Once an access request has been created, the Opsgenie plugin will create an alert in the service specified in the request annotation using the Opsgenie Alert API [Create](https://docs.opsgenie.com/docs/alert-api#create-alert) endpoint. 
 
 The appropriate on-call responder can then click the provided link to the access request and approve or deny it.
 
@@ -79,7 +79,7 @@ Header Value: genieKey $apiKey
 ```
 
 ### Creating alerts
-When the Opsgenie plugin creates alerts for incoming access requests the Create alert request will be of the form
+When the Opsgenie plugin creates alerts for incoming access requests the [Create](https://docs.opsgenie.com/docs/alert-api#create-alert) alert request will be of the form
 
 ```
 {
@@ -95,7 +95,7 @@ When the Opsgenie plugin creates alerts for incoming access requests the Create 
 }
 ```
 
-On every review of the access request the alert created in Opsgenie will have a note added to it using the ‘Add note to alert’ endpoint. Then the alert will be closed using the ‘Close alert’ endpoint once the alert has either been approved or denied.
+On every review of the access request the alert created in Opsgenie will have a note added to it using the ‘[Add note to alert](https://docs.opsgenie.com/docs/alert-api#add-note-to-alert)’ endpoint. Then the alert will be closed using the ‘[Close alert](https://docs.opsgenie.com/docs/alert-api#close-alert)’ endpoint once the alert has either been approved or denied.
 
 ```
 <Reviewer> reviewed the request at <someTime>.
@@ -105,7 +105,7 @@ Reason: <Reason>
 
 ### Auto approval
 
-To check if the requesting user of a request is currently on-call the ‘Who is on call API’s ‘Get on calls’ endpoint will be used. 'https://<configured-opsgenie-address>/v2/schedules/<SheduleName>/on-calls?scheduleIdentifierType=name'
+To check if the requesting user of a request is currently on-call the ‘Who is on call API’s ‘[Get on calls](https://docs.opsgenie.com/docs/who-is-on-call-api#get-on-calls)’ endpoint will be used. 'https://<configured-opsgenie-address>/v2/schedules/<SheduleName>/on-calls?scheduleIdentifierType=name'
 
 Similar to the existing Pagerduty plugin for auto-approval to work, the user creating an Access Request must have a Teleport username that is also the email address associated with an Opsgenie account.
 
