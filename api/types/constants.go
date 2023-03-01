@@ -326,6 +326,12 @@ const (
 	// KindUserGroup is an externally sourced user group.
 	KindUserGroup = "user_group"
 
+	// KindOktaImportRule is a rule for importing Okta objects.
+	KindOktaImportRule = "okta_import_rule"
+
+	// KindOktaAssignment is a set of actions to apply to Okta.
+	KindOktaAssignment = "okta_assignment"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
