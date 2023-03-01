@@ -720,19 +720,45 @@ Sign into the Teleport Web UI as your original user. In your spreadsheet,  click
 "View Access Request" next to your new request. When you submit your review,
 e.g., deny the request, the new status will appear within the spreadsheet.
 
+<Notice type="danger">
+
+Access Request plugins must not enable reviewing Access Requests via the plugin,
+and must always refer a reviewer to the Teleport Web UI to complete the review.
+Otherwise, an unauthorized party could spoof traffic to the plugin and escalate
+privileges. 
+
+</Notice>
+
 ## Next steps
 
 In this guide, we showed you how to set up an Access Request plugin using
-Teleport's API client libraries. 
+Teleport's API client libraries. To go beyond the minimal plugin we demonstrate
+in this guide, you can use the Teleport API to set up more sophisticated
+workflows that take full advantage of your communication and project management
+tools. 
 
-While this plugin is rather simple, you can use the Teleport API to set up more
-sophisticated workflows that take full advantage of your communication and
-project management tools. For example, the
+### Use the common plugin base 
+
+The
 [`common.BaseApp`](https://pkg.go.dev/github.com/gravitational/teleport-plugins/access/common#BaseApp)
 type makes it easier to write an Access Request plugin based on a messaging
-application like Discord or Slack.
+application like Discord or Slack, helping to ensure that your plugin implements
+a full set of features.
 
-See the
+### Manage state
+
+While the plugin we developed in this guide is stateless, updating Access
+Request information by searching all rows of a spreadsheet, real-world Access
+Request plugins typically need to manage state. You can use the
+[`plugindata`](https://pkg.go.dev/github.com/gravitational/teleport-plugins/lib/plugindata)
+package to make it easier for your Access Request plugin to do this. 
+
+### Consult the examples
+
+Explore the
 [`gravitational/teleport-plugins`](https://github.com/gravitational/teleport-plugins)
-repository on GitHub for examples of plugins developed at Teleport.
+repository on GitHub for examples of plugins developed at Teleport. You can see
+how these plugins use the packages we discuss in this guide, as well as how they
+add more complete functionality like configuraiton validation and state
+management.
 
