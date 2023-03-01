@@ -12,17 +12,27 @@ state: draft
 ## What
 
 Allow users who are using elevated permissions via an access request to abandon
-them ahead of their expiry once they are no longer of use.
+them ahead of their expiry once they are no longer of use. Once a request has been
+abandoned, it can no longer be used to assume elevated privileges.
 
 ## Why
 
+Today, when a user is finished with an access request, they can "unassume"
+the associated roles and drop back down to a standard level of access. The
+request can be leveraged to elevate permissions again until it expires.
+
+By allowing a user to declare that they are done with an access request
+and no longer need to use it, we can render the access request invalid
+for future use and <reduce the time and surface area....>
+
+
 By reducing the amount of time that a user has elevated permissions we also
 reduce the time and surface area to which an attack could occur in the event
-the users device becomes compromised.
+of a compromise.
 
 ## Success Criteria
 
-- A user is able to abandon an active access request ahead of their expiry time
+- A user is able to abandon an active access request ahead of its expiry time
   via the CLI or UI.
 - Creating a lock to prevent further use of the existing certificate.
 - An abandoned access request is unrecoverable and unusable.
