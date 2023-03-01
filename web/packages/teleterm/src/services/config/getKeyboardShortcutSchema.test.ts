@@ -51,8 +51,8 @@ test('accelerator parts are sorted in the correct order', () => {
   expect(parsed).toStrictEqual({ 'keymap.tab1': 'Command+Shift+1' });
 });
 
-test('accelerator with spaces is parsed correctly', () => {
-  const parsed = schema.parse({ 'keymap.tab1': 'Shift + 1 + Command' });
+test('accelerator with whitespaces is parsed correctly', () => {
+  const parsed = schema.parse({ 'keymap.tab1': ' Shift + 1 + Command ' });
   expect(parsed).toStrictEqual({ 'keymap.tab1': 'Command+Shift+1' });
 });
 
