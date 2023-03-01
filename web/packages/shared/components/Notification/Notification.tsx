@@ -177,12 +177,18 @@ function getRenderedContent(
       >
         {content.list && <List items={content.list} />}
         {content.description}
+        {content.link && (
+          <Link
+            css={`
+              display: block;
+            `}
+            href={content.link.href}
+            target="_blank"
+          >
+            {content.link.text}
+          </Link>
+        )}
       </Text>
-      {content.link && (
-        <Link href={content.link.href} target="_blank">
-          {content.link.text}
-        </Link>
-      )}
     </Flex>
   );
 }
