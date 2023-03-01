@@ -18,7 +18,6 @@ import { Acl } from './types';
 
 export default function makeAcl(json): Acl {
   json = json || {};
-  const windowsLogins = json.windowsLogins || [];
   const authConnectors = json.authConnectors || defaultAccess;
   const trustedClusters = json.trustedClusters || defaultAccess;
   const roles = json.roles || defaultAccess;
@@ -52,7 +51,6 @@ export default function makeAcl(json): Acl {
   const nodes = json.nodes || defaultAccess;
 
   return {
-    windowsLogins,
     authConnectors,
     trustedClusters,
     roles,
