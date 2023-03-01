@@ -170,6 +170,8 @@ $ tbot init \
     --reader-user=app
 ```
 
+(!docs/pages/includes/machine-id/machine-id-init-bot-data.mdx!)
+
 <Notice type="note">
 Be sure to re-run `tbot init ...` as shown here if config templates are added
 or removed from `tbot.yaml`. You may run into permissions errors if `tbot init`
@@ -230,6 +232,7 @@ Finally, run the following commands to start Machine ID:
 
 ```code
 $ sudo systemctl daemon-reload 
+$ sudo systemctl enable machine-id machine-id-proxy
 $ sudo systemctl start machine-id machine-id-proxy
 $ sudo systemctl status machine-id machine-id-proxy
 ```

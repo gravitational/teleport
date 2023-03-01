@@ -140,6 +140,8 @@ $ sudo tbot init \
     --reader-user=jenkins
 ```
 
+(!docs/pages/includes/machine-id/machine-id-init-bot-data.mdx!)
+
 Next, you need to start Machine ID in the background of each Jenkins worker.
 
 <ScopedBlock scope={["cloud"]}>
@@ -197,11 +199,7 @@ WantedBy=multi-user.target
 
 Finally, run the following commands to start Machine ID.
 
-```code
-$ sudo systemctl daemon-reload
-$ sudo systemctl start machine-id
-$ sudo systemctl status machine-id
-```
+(!docs/pages/includes/machine-id/machine-id-service.mdx!)
 
 ## Step 2/2. Update and run Jenkins pipelines
 
