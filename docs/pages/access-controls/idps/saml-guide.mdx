@@ -60,7 +60,7 @@ User teleport-admin has been updated:
 	New roles: auditor,editor,access,sp-manager
 ```
 
-## Step 2/4. Configure samltest.id to recognize Teleport's identity provider.
+## Step 2/4. Configure samltest.id to recognize Teleport's identity provider
 
 The first step in configuring the application for SSO is retrieving Teleport's
 SAML identity provider metadata. You can obtain this metadata in XML format by
@@ -108,7 +108,7 @@ $ tctl create saml-sp.yaml
 
 Teleport now trusts the samltest.id service provider.
 
-## Step 4/4. Verify samltest.id login works.
+## Step 4/4. Verify samltest.id login works
 
 To verify everything works, navigate back to samltest.id's home page and select
 "Test Your IdP." From there, enter the entity ID of Teleport's identity provider,
