@@ -261,8 +261,8 @@ RUN curl -L https://github.com/golangci/golangci-lint/releases/download/v1.46.0/
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.14.0" && \
-      curl -sSL \
+    VERSION="1.15.0" && \
+      curl -sSLf \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
       chmod +x "${BIN}/buf"
