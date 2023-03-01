@@ -4074,14 +4074,14 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp))
 
 	// Successful delete
-	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderDeleteCode, func() error {
+	modifyAndWaitForEvent(t, require.NoError, client, srv, events.SAMLIdPServiceProviderDeleteCode, func() error {
 		return client.DeleteSAMLIdPServiceProvider(ctx, sp.GetName())
 	})
 
 	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp))
 
 	// Non-existent delete
-	modifyAndWaitForEvent(t, require.NoError, client, srv, events.SAMLIdPServiceProviderDeleteCode, func() error {
+	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderDeleteFailureCode, func() error {
 		return client.DeleteSAMLIdPServiceProvider(ctx, "nonexistent")
 	})
 }
