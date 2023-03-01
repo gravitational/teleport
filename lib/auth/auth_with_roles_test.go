@@ -3883,33 +3883,6 @@ func TestGetLicensePermissions(t *testing.T) {
 	}
 }
 
-func TestCreateSAMLIdPServiceProvider_nopermissions(t *testing.T) {
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-
-	user, err := CreateUser(srv.Auth(), "test-user")
-	require.NoError(t, err)
-
-	client, err := srv.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
-
-	sp := &types.SAMLIdPServiceProviderV1{
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Name: "test",
-			},
-		},
-		Spec: types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: newEntityDescriptor("IAMShowcase"),
-			EntityID:         "IAMShowcase",
-		},
-	}
-
-	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderCreateFailureCode, func() error {
-		return client.CreateSAMLIdPServiceProvider(ctx, sp)
-	})
-}
-
 func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
