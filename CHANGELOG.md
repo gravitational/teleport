@@ -133,7 +133,7 @@ Teleport config.
 
 “Custom” mode users should follow the migration guide:
 
-https://goteleport.com/docs/ver/12.x/deploy-a-cluster/helm-deployments/migration-v12/
+https://goteleport.com/docs/deploy-a-cluster/helm-deployments/migration-v12/
 
 ### Dropped support for SHA1 in Server Access
 
