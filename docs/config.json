@@ -318,8 +318,13 @@
           "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
-              "title": "SAML identity provider",
-              "slug": "/access-controls/idps/saml/",
+              "title": "SAML Identity Provider Guide",
+              "slug": "/access-controls/idps/saml-guide/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "SAML Identity Provider Reference",
+              "slug": "/access-controls/idps/saml-reference/",
               "forScopes": ["enterprise", "cloud"]
             }
           ]
