@@ -3883,94 +3883,11 @@ func TestGetLicensePermissions(t *testing.T) {
 	}
 }
 
-func TestCreateSAMLIdPServiceProvider(t *testing.T) {
+func TestCreateSAMLIdPServiceProvider_nopermissions(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	role, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindSAMLIdPServiceProvider},
-					Verbs:     []string{types.VerbRead, types.VerbCreate, types.VerbDelete},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	user, err := CreateUser(srv.Auth(), "test-user", role)
-	require.NoError(t, err)
-
-	client, err := srv.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
-
-	tt := []struct {
-		Name         string
-		SP           types.SAMLIdPServiceProvider
-		EventCode    string
-		ErrAssertion require.ErrorAssertionFunc
-	}{
-		{
-			Name: "create service provider",
-			SP: &types.SAMLIdPServiceProviderV1{
-				ResourceHeader: types.ResourceHeader{
-					Metadata: types.Metadata{
-						Name: "test",
-					},
-				},
-				Spec: types.SAMLIdPServiceProviderSpecV1{
-					EntityDescriptor: newEntityDescriptor("IAMShowcase"),
-					EntityID:         "IAMShowcase",
-				},
-			},
-			EventCode:    events.SAMLIdPServiceProviderCreateCode,
-			ErrAssertion: require.NoError,
-		},
-		{
-			Name: "fail creation",
-			SP: &types.SAMLIdPServiceProviderV1{
-				ResourceHeader: types.ResourceHeader{
-					Metadata: types.Metadata{
-						Name: "test",
-					},
-				},
-				Spec: types.SAMLIdPServiceProviderSpecV1{
-					EntityDescriptor: "non-null",
-					EntityID:         "invalid",
-				},
-			},
-			EventCode:    events.SAMLIdPServiceProviderCreateFailureCode,
-			ErrAssertion: require.Error,
-		},
-	}
-
-	for _, tc := range tt {
-		t.Run(tc.Name, func(t *testing.T) {
-			modifyAndWaitForEvent(t, tc.ErrAssertion, client, srv, tc.EventCode, func() error {
-				return client.CreateSAMLIdPServiceProvider(ctx, tc.SP)
-			})
-		})
-	}
-}
-
-func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
-
-	role, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindSAMLIdPServiceProvider},
-					Verbs:     []string{types.VerbRead, types.VerbUpdate, types.VerbCreate, types.VerbDelete},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	user, err := CreateUser(srv.Auth(), "test-user", role)
+	user, err := CreateUser(srv.Auth(), "test-user")
 	require.NoError(t, err)
 
 	client, err := srv.NewClient(TestUser(user.GetName()))
@@ -3987,16 +3904,122 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 			EntityID:         "IAMShowcase",
 		},
 	}
-	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp))
+
+	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderCreateFailureCode, func() error {
+		return client.CreateSAMLIdPServiceProvider(ctx, sp)
+	})
+}
+
+func TestCreateSAMLIdPServiceProvider(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	user, noAccessUser := createSAMLIdPTestUsers(t, srv.Auth())
 
 	tt := []struct {
 		Name         string
+		User         string
+		SP           types.SAMLIdPServiceProvider
+		EventCode    string
+		ErrAssertion require.ErrorAssertionFunc
+	}{
+		{
+			Name: "create service provider",
+			User: user,
+			SP: &types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: newEntityDescriptor("IAMShowcase"),
+					EntityID:         "IAMShowcase",
+				},
+			},
+			EventCode:    events.SAMLIdPServiceProviderCreateCode,
+			ErrAssertion: require.NoError,
+		},
+		{
+			Name: "fail creation",
+			User: user,
+			SP: &types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: "non-null",
+					EntityID:         "invalid",
+				},
+			},
+			EventCode:    events.SAMLIdPServiceProviderCreateFailureCode,
+			ErrAssertion: require.Error,
+		},
+		{
+			Name: "no permissions",
+			User: noAccessUser,
+			SP: &types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test-new",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: newEntityDescriptor("no-permissions"),
+					EntityID:         "no-permissions",
+				},
+			},
+			EventCode:    events.SAMLIdPServiceProviderCreateFailureCode,
+			ErrAssertion: require.Error,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.Name, func(t *testing.T) {
+			client, err := srv.NewClient(TestUser(tc.User))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, client.Close())
+			})
+
+			modifyAndWaitForEvent(t, tc.ErrAssertion, client, srv, tc.EventCode, func() error {
+				return client.CreateSAMLIdPServiceProvider(ctx, tc.SP)
+			})
+		})
+	}
+}
+
+func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	user, noAccessUser := createSAMLIdPTestUsers(t, srv.Auth())
+
+	sp := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "test",
+			},
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor("IAMShowcase"),
+			EntityID:         "IAMShowcase",
+		},
+	}
+	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp))
+
+	tt := []struct {
+		Name         string
+		User         string
 		SP           types.SAMLIdPServiceProvider
 		EventCode    string
 		ErrAssertion require.ErrorAssertionFunc
 	}{
 		{
 			Name: "update service provider",
+			User: user,
 			SP: &types.SAMLIdPServiceProviderV1{
 				ResourceHeader: types.ResourceHeader{
 					Metadata: types.Metadata{
@@ -4013,6 +4036,24 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 		},
 		{
 			Name: "fail update",
+			User: user,
+			SP: &types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: "non-null",
+					EntityID:         "invalid",
+				},
+			},
+			EventCode:    events.SAMLIdPServiceProviderUpdateFailureCode,
+			ErrAssertion: require.Error,
+		},
+		{
+			Name: "no permissions",
+			User: noAccessUser,
 			SP: &types.SAMLIdPServiceProviderV1{
 				ResourceHeader: types.ResourceHeader{
 					Metadata: types.Metadata{
@@ -4031,6 +4072,12 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.Name, func(t *testing.T) {
+			client, err := srv.NewClient(TestUser(tc.User))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, client.Close())
+			})
+
 			modifyAndWaitForEvent(t, tc.ErrAssertion, client, srv, tc.EventCode, func() error {
 				return client.UpdateSAMLIdPServiceProvider(ctx, tc.SP)
 			})
@@ -4042,23 +4089,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	role, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindSAMLIdPServiceProvider},
-					Verbs:     []string{types.VerbRead, types.VerbUpdate, types.VerbCreate, types.VerbDelete},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	user, err := CreateUser(srv.Auth(), "test-user", role)
-	require.NoError(t, err)
-
-	client, err := srv.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
+	user, noAccessUser := createSAMLIdPTestUsers(t, srv.Auth())
 
 	sp := &types.SAMLIdPServiceProviderV1{
 		ResourceHeader: types.ResourceHeader{
@@ -4071,9 +4102,19 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 			EntityID:         "IAMShowcase",
 		},
 	}
-	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp))
+	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp))
+
+	// No permissions delete
+	client, err := srv.NewClient(TestUser(noAccessUser))
+	require.NoError(t, err)
+	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderDeleteFailureCode, func() error {
+		return client.DeleteSAMLIdPServiceProvider(ctx, sp.GetName())
+	})
 
 	// Successful delete
+	client, err = srv.NewClient(TestUser(user))
+	require.NoError(t, err)
+
 	modifyAndWaitForEvent(t, require.NoError, client, srv, events.SAMLIdPServiceProviderDeleteCode, func() error {
 		return client.DeleteSAMLIdPServiceProvider(ctx, sp.GetName())
 	})
@@ -4090,23 +4131,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	role, err := CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindSAMLIdPServiceProvider},
-					Verbs:     []string{types.VerbRead, types.VerbUpdate, types.VerbCreate, types.VerbDelete},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	user, err := CreateUser(srv.Auth(), "test-user", role)
-	require.NoError(t, err)
-
-	client, err := srv.NewClient(TestUser(user.GetName()))
-	require.NoError(t, err)
+	user, noAccessUser := createSAMLIdPTestUsers(t, srv.Auth())
 
 	sp1 := &types.SAMLIdPServiceProviderV1{
 		ResourceHeader: types.ResourceHeader{
@@ -4119,7 +4144,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			EntityID:         "ed1",
 		},
 	}
-	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp1))
+	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp1))
 
 	sp2 := &types.SAMLIdPServiceProviderV1{
 		ResourceHeader: types.ResourceHeader{
@@ -4132,16 +4157,70 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			EntityID:         "ed2",
 		},
 	}
-	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp2))
+	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp2))
+
+	// Failed delete
+	client, err := srv.NewClient(TestUser(noAccessUser))
+	require.NoError(t, err)
+
+	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderDeleteAllFailureCode, func() error {
+		return client.DeleteAllSAMLIdPServiceProviders(ctx)
+	})
 
 	// Successful delete
+	client, err = srv.NewClient(TestUser(user))
+	require.NoError(t, err)
+
 	modifyAndWaitForEvent(t, require.NoError, client, srv, events.SAMLIdPServiceProviderDeleteAllCode, func() error {
 		return client.DeleteAllSAMLIdPServiceProviders(ctx)
 	})
 }
 
+// Create the test users for SAML IdP service provider tests.
+//
+//nolint:revive // Because we want this to be IdP
+func createSAMLIdPTestUsers(t *testing.T, server *Server) (string, string) {
+	ctx := context.Background()
+
+	role, err := CreateRole(ctx, server, "test-empty", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSAMLIdPServiceProvider},
+					Verbs:     []string{types.VerbRead, types.VerbUpdate, types.VerbCreate, types.VerbDelete},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := CreateUser(server, "test-user", role)
+	require.NoError(t, err)
+
+	noAccessRole, err := CreateRole(ctx, server, "no-access-role", types.RoleSpecV6{
+		Deny: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSAMLIdPServiceProvider},
+					Verbs:     []string{types.VerbRead, types.VerbCreate, types.VerbDelete},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	noAccessUser, err := CreateUser(server, "noaccess-user", noAccessRole)
+	require.NoError(t, err)
+
+	return user.GetName(), noAccessUser.GetName()
+}
+
 // modifyAndWaitForEvent performs the function fn() and then waits for the given event.
 func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, client *Client, srv *TestTLSServer, eventCode string, fn func() error) apievents.AuditEvent {
+	// Make sure we ignore events after consuming this one.
+	defer func() {
+		srv.AuthServer.AuthServer.emitter = events.NewDiscardEmitter()
+	}()
 	chanEmitter := eventstest.NewChannelEmitter(1)
 	srv.AuthServer.AuthServer.emitter = chanEmitter
 	err := fn()

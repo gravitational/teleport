@@ -5596,14 +5596,13 @@ func (a *ServerWithRoles) GetSAMLIdPServiceProvider(ctx context.Context, name st
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	err := a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
-	code := events.SAMLIdPServiceProviderCreateCode
-	if err != nil {
-		code = events.SAMLIdPServiceProviderCreateFailureCode
+	code := events.SAMLIdPServiceProviderCreateFailureCode
+	var err error
+	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbCreate); err == nil {
+		err = a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
+		if err == nil {
+			code = events.SAMLIdPServiceProviderCreateCode
+		}
 	}
 
 	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderCreate{
@@ -5618,7 +5617,7 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
 			ServiceProviderEntityID: sp.GetEntityID(),
 		},
-	}); err != nil {
+	}); emitErr != nil {
 		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider created event.")
 	}
 
@@ -5627,14 +5626,13 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
 func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	err := a.authServer.UpdateSAMLIdPServiceProvider(ctx, sp)
-	code := events.SAMLIdPServiceProviderUpdateCode
-	if err != nil {
-		code = events.SAMLIdPServiceProviderUpdateFailureCode
+	code := events.SAMLIdPServiceProviderUpdateFailureCode
+	var err error
+	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbUpdate); err == nil {
+		err = a.authServer.UpdateSAMLIdPServiceProvider(ctx, sp)
+		if err == nil {
+			code = events.SAMLIdPServiceProviderUpdateCode
+		}
 	}
 
 	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderUpdate{
@@ -5649,7 +5647,7 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
 			ServiceProviderEntityID: sp.GetEntityID(),
 		},
-	}); err != nil {
+	}); emitErr != nil {
 		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider updated event.")
 	}
 
@@ -5658,22 +5656,22 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 
 // DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
 func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name string) error {
-	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Get the service provider so we can emit its entity ID later.
 	var entityID string
 	code := events.SAMLIdPServiceProviderDeleteFailureCode
-	sp, err := a.authServer.GetSAMLIdPServiceProvider(ctx, name)
-	if err == nil {
-		name = sp.GetName()
-		entityID = sp.GetEntityID()
-
-		// Delete the actual service provider.
-		err = a.authServer.DeleteSAMLIdPServiceProvider(ctx, name)
+	var err error
+	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err == nil {
+		var sp types.SAMLIdPServiceProvider
+		// Get the service provider so we can emit its entity ID later.
+		sp, err = a.authServer.GetSAMLIdPServiceProvider(ctx, name)
 		if err == nil {
-			code = events.SAMLIdPServiceProviderDeleteCode
+			name = sp.GetName()
+			entityID = sp.GetEntityID()
+
+			// Delete the actual service provider.
+			err = a.authServer.DeleteSAMLIdPServiceProvider(ctx, name)
+			if err == nil {
+				code = events.SAMLIdPServiceProviderDeleteCode
+			}
 		}
 	}
 
@@ -5689,7 +5687,7 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
 			ServiceProviderEntityID: entityID,
 		},
-	}); err != nil {
+	}); emitErr != nil {
 		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider deleted event.")
 	}
 
@@ -5698,14 +5696,13 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 
 // DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
 func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) error {
-	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-
-	code := events.SAMLIdPServiceProviderDeleteAllCode
-	err := a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)
-	if err != nil {
-		code = events.SAMLIdPServiceProviderDeleteAllFailureCode
+	code := events.SAMLIdPServiceProviderDeleteAllFailureCode
+	var err error
+	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err == nil {
+		err = a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)
+		if err == nil {
+			code = events.SAMLIdPServiceProviderDeleteAllCode
+		}
 	}
 
 	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDeleteAll{
