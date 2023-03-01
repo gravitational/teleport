@@ -9,21 +9,21 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 type mockReportingServiceClient struct {
-	eventRequest *v1alpha.SubmitTbotEventRequest
+	eventRequest *prehogv1.SubmitTbotEventRequest
 }
 
 func (mrsc *mockReportingServiceClient) SubmitTbotEvent(
 	ctx context.Context,
-	req *connect.Request[v1alpha.SubmitTbotEventRequest],
-) (*connect.Response[v1alpha.SubmitTbotEventResponse], error) {
+	req *connect.Request[prehogv1.SubmitTbotEventRequest],
+) (*connect.Response[prehogv1.SubmitTbotEventResponse], error) {
 	mrsc.eventRequest = req.Msg
-	return connect.NewResponse(&v1alpha.SubmitTbotEventResponse{}), nil
+	return connect.NewResponse(&prehogv1.SubmitTbotEventResponse{}), nil
 }
 
 func mockEnvGetter(data map[string]string) envGetter {
@@ -91,9 +91,9 @@ func TestSendTelemetry(t *testing.T) {
 		require.NotNil(t, mockClient.eventRequest)
 		require.NotZero(t, mockClient.eventRequest.Timestamp)
 		require.NotZero(t, mockClient.eventRequest.DistinctId)
-		require.Equal(t, &v1alpha.SubmitTbotEventRequest_Start{
-			Start: &v1alpha.TbotStartEvent{
-				RunMode:  v1alpha.TbotStartEvent_RUN_MODE_ONE_SHOT,
+		require.Equal(t, &prehogv1.SubmitTbotEventRequest_Start{
+			Start: &prehogv1.TbotStartEvent{
+				RunMode:  prehogv1.TbotStartEvent_RUN_MODE_ONE_SHOT,
 				JoinType: string(types.JoinMethodGitHub),
 				Version:  teleport.Version,
 

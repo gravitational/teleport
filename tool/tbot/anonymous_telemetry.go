@@ -14,8 +14,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
-	"github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
+	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	prehogv1c "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -40,14 +40,14 @@ func telemetryEnabled(envGetter envGetter) bool {
 	return false
 }
 
-func telemetryClient(envGetter envGetter) v1alphaconnect.TbotReportingServiceClient {
+func telemetryClient(envGetter envGetter) prehogv1c.TbotReportingServiceClient {
 	// staging: https://reporting-staging.teleportinfra.dev
 	endpoint := "https://reporting.teleportinfra.sh"
 	if env := envGetter(anonymousTelemetryAddressEnv); env != "" {
 		endpoint = env
 	}
 
-	return v1alphaconnect.NewTbotReportingServiceClient(
+	return prehogv1c.NewTbotReportingServiceClient(
 		http.DefaultClient, endpoint,
 	)
 }
@@ -57,7 +57,7 @@ func telemetryClient(envGetter envGetter) v1alphaconnect.TbotReportingServiceCli
 // identifiable information.
 func sendTelemetry(
 	ctx context.Context,
-	client v1alphaconnect.TbotReportingServiceClient,
+	client prehogv1c.TbotReportingServiceClient,
 	envGetter envGetter,
 	log logrus.FieldLogger,
 	cfg *config.BotConfig,
@@ -69,8 +69,8 @@ func sendTelemetry(
 	}
 	log.Infof("Anonymous telemetry is enabled. Find out more about Machine ID's anonymous telemetry at %s", telemetryDocs)
 
-	data := &v1alpha.TbotStartEvent{
-		RunMode: v1alpha.TbotStartEvent_RUN_MODE_DAEMON,
+	data := &prehogv1.TbotStartEvent{
+		RunMode: prehogv1.TbotStartEvent_RUN_MODE_DAEMON,
 		// Default to reporting the "token" join method to account for
 		// scenarios where initial join has onboarding configured but future
 		// starts renew using credentials.
@@ -78,7 +78,7 @@ func sendTelemetry(
 		Version:  teleport.Version,
 	}
 	if cfg.Oneshot {
-		data.RunMode = v1alpha.TbotStartEvent_RUN_MODE_ONE_SHOT
+		data.RunMode = prehogv1.TbotStartEvent_RUN_MODE_ONE_SHOT
 	}
 	if helper := envGetter(helperEnv); helper != "" {
 		data.Helper = helper
@@ -101,10 +101,10 @@ func sendTelemetry(
 	}
 
 	distinctID := uuid.New().String()
-	_, err := client.SubmitTbotEvent(ctx, connect.NewRequest(&v1alpha.SubmitTbotEventRequest{
+	_, err := client.SubmitTbotEvent(ctx, connect.NewRequest(&prehogv1.SubmitTbotEventRequest{
 		DistinctId: distinctID,
 		Timestamp:  timestamppb.Now(),
-		Event:      &v1alpha.SubmitTbotEventRequest_Start{Start: data},
+		Event:      &prehogv1.SubmitTbotEventRequest_Start{Start: data},
 	}))
 	if err != nil {
 		return trace.Wrap(err)
