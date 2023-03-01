@@ -99,32 +99,32 @@ function validateKeyCodeAndModifiers(
       return z.NEVER;
     }
 
-    const [expectedKeyCode, ...expectedModifiers] = [...tokens].reverse();
+    const [keyCode, ...modifiers] = [...tokens].reverse();
 
-    const expectedKeyCodeUppercase =
-      expectedKeyCode.length === 1 // letters
-        ? expectedKeyCode.toUpperCase()
-        : expectedKeyCode;
-    if (!ALLOWED_KEY_CODES.includes(expectedKeyCodeUppercase)) {
-      ctx.addIssue(invalidKeyCodeIssue(expectedKeyCode));
+    const keyCodeUppercase =
+      keyCode.length === 1 // letters
+        ? keyCode.toUpperCase()
+        : keyCode;
+    if (!ALLOWED_KEY_CODES.includes(keyCodeUppercase)) {
+      ctx.addIssue(invalidKeyCodeIssue(keyCode));
       return z.NEVER;
     }
 
-    if (expectedModifiers.length !== new Set(expectedModifiers).size) {
+    if (modifiers.length !== new Set(modifiers).size) {
       ctx.addIssue(duplicateModifierIssue());
       return z.NEVER;
     }
 
-    const invalidModifiers = expectedModifiers.filter(
-      expectedModifier => !allowedModifiers.includes(expectedModifier)
+    const invalidModifiers = modifiers.filter(
+      modifier => !allowedModifiers.includes(modifier)
     );
     if (invalidModifiers.length) {
       ctx.addIssue(invalidModifierIssue(invalidModifiers));
       return z.NEVER;
     }
 
-    if (!FUNCTION_KEYS.includes(expectedKeyCode) && !expectedModifiers.length) {
-      ctx.addIssue(missingModifierIssue(expectedKeyCode));
+    if (!FUNCTION_KEYS.includes(keyCode) && !modifiers.length) {
+      ctx.addIssue(missingModifierIssue(keyCode));
     }
   };
 }
