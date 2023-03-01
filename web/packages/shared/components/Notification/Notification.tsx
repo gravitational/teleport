@@ -141,56 +141,57 @@ function getRenderedContent(
       </Flex>
     );
   }
-
-  return (
-    <Flex flexDirection="column" minWidth="0" width="100%">
-      <div
-        css={`
-          position: relative;
-        `}
-      >
-        <Text
-          fontSize={14}
-          bold
-          mr="30px"
-          css={`
-            line-height: 20px;
-          `}
-        >
-          {content.title}
-        </Text>
+  if (typeof content === 'object') {
+    return (
+      <Flex flexDirection="column" minWidth="0" width="100%">
         <div
           css={`
-            position: absolute;
-            top: 0;
-            right: 0;
+            position: relative;
           `}
         >
-          {removeIcon}
-        </div>
-      </div>
-      <Text
-        fontSize={13}
-        lineHeight={20}
-        color="text.secondary"
-        css={longerTextCss}
-      >
-        {content.list && <List items={content.list} />}
-        {content.description}
-        {content.link && (
-          <Link
+          <Text
+            fontSize={14}
+            bold
+            mr="30px"
             css={`
-              display: block;
+              line-height: 20px;
             `}
-            href={content.link.href}
-            target="_blank"
           >
-            {content.link.text}
-          </Link>
-        )}
-      </Text>
-    </Flex>
-  );
+            {content.title}
+          </Text>
+          <div
+            css={`
+              position: absolute;
+              top: 0;
+              right: 0;
+            `}
+          >
+            {removeIcon}
+          </div>
+        </div>
+        <Text
+          fontSize={13}
+          lineHeight={20}
+          color="text.secondary"
+          css={longerTextCss}
+        >
+          {content.list && <List items={content.list} />}
+          {content.description}
+          {content.link && (
+            <Link
+              css={`
+                display: block;
+              `}
+              href={content.link.href}
+              target="_blank"
+            >
+              {content.link.text}
+            </Link>
+          )}
+        </Text>
+      </Flex>
+    );
+  }
 }
 
 function List(props: { items: string[] }) {
