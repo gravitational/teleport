@@ -79,7 +79,7 @@ function notifyAboutDuplicatedShortcutsCombinations(
   notificationsService: NotificationsService
 ): void {
   const duplicates = keyboardShortcutsService.getDuplicateAccelerators();
-  if (duplicates) {
+  if (Object.keys(duplicates).length) {
     notificationsService.notifyWarning({
       title: 'Shortcuts conflicts',
       list: Object.entries(duplicates).map(

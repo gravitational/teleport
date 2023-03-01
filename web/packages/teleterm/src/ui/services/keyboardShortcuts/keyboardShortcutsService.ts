@@ -82,10 +82,8 @@ export class KeyboardShortcutsService {
    * Some actions can get assigned the same accelerators.
    * This method returns them.
    */
-  getDuplicateAccelerators():
-    | Record<string, KeyboardShortcutAction[]>
-    | undefined {
-    const duplicates = Array.from(this.acceleratorsToActions.entries())
+  getDuplicateAccelerators(): Record<string, KeyboardShortcutAction[]> {
+    return Array.from(this.acceleratorsToActions.entries())
       .filter(([, shortcuts]) => shortcuts.length > 1)
       .reduce<Record<string, KeyboardShortcutAction[]>>(
         (accumulator, [accelerator, actions]) => {
@@ -94,10 +92,6 @@ export class KeyboardShortcutsService {
         },
         {}
       );
-
-    if (Object.keys(duplicates).length) {
-      return duplicates;
-    }
   }
 
   private attachKeydownHandler(): void {
@@ -169,6 +163,7 @@ function mapAcceleratorsToActions(
 ): Map<string, KeyboardShortcutAction[]> {
   const acceleratorsToActions = new Map<string, KeyboardShortcutAction[]>();
   Object.entries(shortcutsConfig).forEach(([action, accelerator]) => {
+    // empty accelerator means that an empty string was provided in the config file, so the shortcut is disabled.
     if (!accelerator) {
       return;
     }
@@ -177,6 +172,5 @@ function mapAcceleratorsToActions(
       action as KeyboardShortcutAction,
     ]);
   });
-
   return acceleratorsToActions;
 }
