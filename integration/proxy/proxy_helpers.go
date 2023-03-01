@@ -488,11 +488,6 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 	if config.Listener == nil {
 		config.Listener = mustCreateListener(t)
 	}
-	if config.SNI == "" {
-		address, err := utils.ParseAddr(config.RemoteProxyAddr)
-		require.NoError(t, err)
-		config.SNI = address.Host()
-	}
 	if config.ParentContext == nil {
 		config.ParentContext = context.TODO()
 	}

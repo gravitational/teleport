@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -106,8 +107,7 @@ const (
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
-var SupportedProtocols = append(
-	ProtocolsWithPing(ProtocolsWithPingSupport...),
+var SupportedProtocols = WithPingProtocols(
 	append([]Protocol{
 		// HTTP needs to be prioritized over HTTP2 due to a bug in Chrome:
 		// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017
@@ -124,7 +124,7 @@ var SupportedProtocols = append(
 		ProtocolProxySSHGRPC,
 		ProtocolProxyGRPCInsecure,
 		ProtocolProxyGRPCSecure,
-	}, DatabaseProtocols...)...,
+	}, DatabaseProtocols...),
 )
 
 // ProtocolsToString converts the list of Protocols to the list of strings.
@@ -178,10 +178,9 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolDynamoDB,
 	}
 
-	return slices.Contains(
-		append(dbTLSProtocols, ProtocolsWithPing(dbTLSProtocols...)...),
-		protocol,
-	)
+	return slices.ContainsFunc(dbTLSProtocols, func(dbTLSProtocol Protocol) bool {
+		return protocol == dbTLSProtocol || protocol == ProtocolWithPing(dbTLSProtocol)
+	})
 }
 
 // DatabaseProtocols is the list of the database protocols supported.
@@ -199,17 +198,21 @@ var DatabaseProtocols = []Protocol{
 
 // ProtocolsWithPingSupport is the list of protocols that Ping connection is
 // supported. For now, only database protocols are supported.
-var ProtocolsWithPingSupport = DatabaseProtocols
+var ProtocolsWithPingSupport = append(
+	DatabaseProtocols,
+	ProtocolTCP,
+)
 
-// ProtocolsWithPing receives a list a protocols and returns a list of them with
-// the Ping protocol suffix.
-func ProtocolsWithPing(protocols ...Protocol) []Protocol {
-	res := make([]Protocol, len(protocols))
-	for i := range res {
-		res[i] = ProtocolWithPing(protocols[i])
+// WithPingProtocols adds Ping protocols to the list for each protocol that
+// supports Ping.
+func WithPingProtocols(protocols []Protocol) []Protocol {
+	var pingProtocols []Protocol
+	for _, protocol := range protocols {
+		if HasPingSupport(protocol) {
+			pingProtocols = append(pingProtocols, ProtocolWithPing(protocol))
+		}
 	}
-
-	return res
+	return utils.Deduplicate(append(pingProtocols, protocols...))
 }
 
 // ProtocolWithPing receives a protocol and returns it with the Ping protocol

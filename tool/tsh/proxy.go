@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -425,7 +424,6 @@ func onProxyCommandDB(cf *CLIConf) error {
 		database:         db,
 		listener:         listener,
 		localProxyTunnel: cf.LocalProxyTunnel,
-		rootClusterName:  rootCluster,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -536,52 +534,27 @@ func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.Co
 	return dbProxyAuthMultiTpl
 }
 
+// TODO(greedy52) replace localProxyOpts with []alpnproxy.LocalProxyConfigOpt and remove mkLocalProxy.
 type localProxyOpts struct {
-	proxyAddr               string
-	listener                net.Listener
-	protocols               []alpncommon.Protocol
-	insecure                bool
-	certs                   []tls.Certificate
-	rootCAs                 *x509.CertPool
-	alpnConnUpgradeRequired bool
-	middleware              alpnproxy.LocalProxyMiddleware
-}
-
-// protocol returns the first protocol or string if configuration doesn't contain any protocols.
-func (l *localProxyOpts) protocol() string {
-	if len(l.protocols) == 0 {
-		return ""
-	}
-	return string(l.protocols[0])
+	proxyAddr  string
+	listener   net.Listener
+	protocols  []alpncommon.Protocol
+	insecure   bool
+	certs      []tls.Certificate
+	middleware alpnproxy.LocalProxyMiddleware
+	configOpts []alpnproxy.LocalProxyConfigOpt
 }
 
 func mkLocalProxy(ctx context.Context, opts *localProxyOpts) (*alpnproxy.LocalProxy, error) {
-	alpnProtocol, err := alpncommon.ToALPNProtocol(opts.protocol())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	address, err := utils.ParseAddr(opts.proxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	protocols := append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...)
-	if alpncommon.HasPingSupport(alpnProtocol) {
-		protocols = append(alpncommon.ProtocolsWithPing(alpnProtocol), protocols...)
-	}
-
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify:      opts.insecure,
-		RemoteProxyAddr:         opts.proxyAddr,
-		Protocols:               protocols,
-		Listener:                opts.listener,
-		ParentContext:           ctx,
-		SNI:                     address.Host(),
-		Certs:                   opts.certs,
-		RootCAs:                 opts.rootCAs,
-		ALPNConnUpgradeRequired: opts.alpnConnUpgradeRequired,
-		Middleware:              opts.middleware,
-	})
+		InsecureSkipVerify: opts.insecure,
+		RemoteProxyAddr:    opts.proxyAddr,
+		Protocols:          opts.protocols,
+		Listener:           opts.listener,
+		ParentContext:      ctx,
+		Certs:              opts.certs,
+		Middleware:         opts.middleware,
+	}, opts.configOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -625,11 +598,6 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	address, err := utils.ParseAddr(tc.WebProxyAddr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	addr := "localhost:0"
 	if cf.LocalProxyPort != "" {
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
@@ -640,15 +608,12 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		Listener:           listener,
-		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocols:          []alpncommon.Protocol{alpnProtocolForApp(app)},
-		InsecureSkipVerify: cf.InsecureSkipVerify,
-		ParentContext:      cf.Context,
-		SNI:                address.Host(),
-		Certs:              []tls.Certificate{appCerts},
-	})
+	lp, err := alpnproxy.NewLocalProxy(
+		makeBasicLocalProxyConfig(cf, tc, listener),
+		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
+		alpnproxy.WithClientCert(appCerts),
+		alpnproxy.WithALPNConnUpgradeTest(tc.RootClusterCACertPool),
+	)
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
 			return trace.NewAggregate(err, cerr)
@@ -866,6 +831,15 @@ func isLocalProxyTunnelRequested(cf *CLIConf) bool {
 	return cf.LocalProxyTunnel ||
 		cf.LocalProxyCertFile != "" ||
 		cf.LocalProxyKeyFile != ""
+}
+
+func makeBasicLocalProxyConfig(cf *CLIConf, tc *libclient.TeleportClient, listener net.Listener) alpnproxy.LocalProxyConfig {
+	return alpnproxy.LocalProxyConfig{
+		RemoteProxyAddr:    tc.WebProxyAddr,
+		InsecureSkipVerify: cf.InsecureSkipVerify,
+		ParentContext:      cf.Context,
+		Listener:           listener,
+	}
 }
 
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.

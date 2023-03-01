@@ -144,12 +144,20 @@ type Pack struct {
 	flushAppURI         string
 }
 
+func (p *Pack) RootWebAddr() string {
+	return p.rootCluster.Web
+}
+
 func (p *Pack) RootAppClusterName() string {
 	return p.rootAppClusterName
 }
 
 func (p *Pack) RootAppPublicAddr() string {
 	return p.rootAppPublicAddr
+}
+
+func (p *Pack) RootTCPAppPublicAddr() string {
+	return p.rootTCPPublicAddr
 }
 
 func (p *Pack) LeafAppClusterName() string {
@@ -296,6 +304,20 @@ func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) []
 			Value: casResp.SubjectCookieValue,
 		},
 	}
+}
+
+// CreateAppSessionWithClientCert creates an application session with the root
+// cluster and returns the client cert that can be used for an application
+// request.
+func (p *Pack) CreateAppSessionWithClientCert(t *testing.T) []tls.Certificate {
+	session, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+		Username:    p.username,
+		PublicAddr:  p.rootAppPublicAddr,
+		ClusterName: p.rootAppClusterName,
+	})
+	require.NoError(t, err)
+	config := p.makeTLSConfig(t, session.GetName(), session.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName)
+	return config.Certificates
 }
 
 // LockUser will lock the configured user for this pack.
@@ -474,9 +496,9 @@ func (p *Pack) MakeRequest(cookies []*http.Cookie, method string, endpoint strin
 	return p.sendRequest(req, nil)
 }
 
-// makeRequestWithClientCert makes a request to the root cluster using the
+// MakeRequestWithClientCert makes a request to the root cluster using the
 // client certificate authentication from the provided tls config.
-func (p *Pack) makeRequestWithClientCert(tlsConfig *tls.Config, method, endpoint string) (int, string, error) {
+func (p *Pack) MakeRequestWithClientCert(tlsConfig *tls.Config, method, endpoint string) (int, string, error) {
 	req, err := http.NewRequest(method, p.assembleRootProxyURL(endpoint), nil)
 	if err != nil {
 		return 0, "", trace.Wrap(err)

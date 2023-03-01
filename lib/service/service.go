@@ -3712,7 +3712,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// TCP applications.
 	if alpnRouter != nil {
 		alpnRouter.Add(alpnproxy.HandlerDecs{
-			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolTCP),
+			MatchFunc: alpnproxy.MatchByProtocolWithPing(alpncommon.ProtocolTCP),
 			Handler:   webServer.HandleConnection,
 		})
 	}
