@@ -1,9 +1,9 @@
 # Opsgenie Integration RFD
 ## Required approvers
 
-Engineering:
-Product:
-Security:
+Engineering: @r0mant, @marcoandredinis, @hugoShaka
+Product: @klizhentas, @xinding33
+Security: @reedloden, @jentfoo
 
 ## What
 
@@ -12,7 +12,7 @@ This RFD proposes a plugin that allows Teleport to integrate with Opsgenie, allo
 ## Success criteria
 Users are able to configure teleport to automatically create alerts in Opsgenie from access requests.
 Alerts were chosen over incidents in Opsgenie as incidents are intended to be used for high priority alerts that indicate a service interruption.
-Users are also able to configure auto approval flows to be met under certain conditions. E.g when a requester is on-call 
+Users are also able to configure auto approval flows to be met under certain conditions. E.g when a requester is on-call.
 
 ## Configuration UX
 
@@ -22,7 +22,7 @@ The plugin will be configured in Teleport's config yaml file. The required field
 plugins:
     opsgenie:
         api_key: "path/to/key" # File containing Opsgenie API Key
-        opsgenie_addr: "example.app.opsgenie.com" # Address of Opsgenie
+        addr: "example.app.opsgenie.com" # Address of Opsgenie
         priority: "2" # Priority to create Opsgenie alerts with
         alert_tags: ["example-tag"] # List of tags to be added to alerts created in Opsgenie
         auto_approval: true # Whether or not to enable auto approval
@@ -39,14 +39,14 @@ In the Opsgenie web UI go to Settings -> App settings -> API key management. Cre
 The plugin will be started using a command of the form
 
 ```
-teleport start --config /etc/teleport.yaml
+teleport plugin opsgenie start --config /etc/teleport.yaml
 ```
 
 ## UX
 
 Once an access request has been created, the Opsgenie plugin will create an alert in the service specified in the request annotation using the Opsgenie Alert API Create endpoint. 
 
-The appropriate on call responder can then click into the provided link and approve or deny the access request.
+The appropriate on-call responder can then click the provided link to the access request and approve or deny it.
 
 For auto approval of certain access requests the access request will be auto approved if the requesting user is on-call in one of the services provided in request annotation. (Provided auto approval is enabled in the config)
 
