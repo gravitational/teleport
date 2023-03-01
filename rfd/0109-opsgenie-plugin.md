@@ -9,6 +9,16 @@ Security: @reedloden, @jentfoo
 
 This RFD proposes a plugin that allows Teleport to integrate with Opsgenie, allowing access requests to show up as alerts in Opsgenie. This plugin will differ from existing plugins by being part of the Teleport binary directly.
 
+## Scope
+
+### Phase 1
+
+The plugin will be run as a standalone application similar to the existing Pagerduty plugin differing only in that it will be part of the Teleport binary.
+
+### Phase 2
+
+The plugin will follow the 'hosted' operations model and will at that point be possible to run as part of the Auth server directly or as a standalone application.
+
 ## Success criteria
 Users are able to configure teleport to automatically create alerts in Opsgenie from access requests.
 Alerts were chosen over incidents in Opsgenie as incidents are intended to be used for high priority alerts that indicate a service interruption.
@@ -25,7 +35,7 @@ plugins:
         addr: "example.app.opsgenie.com" # Address of Opsgenie
         priority: "2" # Priority to create Opsgenie alerts with
         alert_tags: ["example-tag"] # List of tags to be added to alerts created in Opsgenie
-        identity_file: "path/to/identity_file" # Identity file to be used if the Opsgenie plugin is being run independently of the auth server
+        identity_file: "path/to/identity_file" # Identity file to be used
 ```
 
 The logging configuration will be shared with the main Teleport process.
