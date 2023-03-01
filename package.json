@@ -40,6 +40,7 @@
     ]
   },
   "dependencies": {
+    "@xmldom/xmldom": "^0.8.4",
     "loader-utils": "^1.4.2"
   }
 }
