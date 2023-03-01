@@ -1,6 +1,6 @@
 ---
 title: How to Build an Access Request Plugin
-description: Manage Access Requests using custom workflows by using the Teleport API
+description: Manage Access Requests using custom workflows with the Teleport API
 ---
 
 With Teleport [Access Requests](../access-controls/access-requests.mdx), you can
@@ -32,10 +32,10 @@ connect it to your production Teleport cluster.**  Use a demo cluster instead.
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-- Go installed on your workstation. See the [Go download
-  page](https://go.dev/dl/). You will not need to be familiar with Go to
-  complete this guide, though Go knowledge is required if you want to build your
-  own Access Request plugin.
+- Go version (=teleport.golang=) installed on your workstation. See the [Go
+  download page](https://go.dev/dl/). You will not need to be familiar with Go
+  to complete this guide, though Go knowledge is required if you want to build
+  your own Access Request plugin.
 
 You will need the following in order to set up the demo plugin, which requires
 authenticating to the Google Sheets API:
@@ -294,63 +294,66 @@ struct to organize these two clients, instead of, say, two separate variables.
 Whether creating a new row of the spreadsheet or updating an existing one, we
 need a way to extract data from an Access Reqeust in order to provide it to
 Google Sheets. Below the `googleSheetsPlugin` type declaration, add the
-following function:
+following functions:
 
 ```go
-func (g *googleSheetsPlugin) makeRowData(ar types.AccessRequest) *sheets.RowData {
+func stringPtr(s string) *string { return &s }
 
-	t := ar.GetCreationTime().String()
-	u := ar.GetUser()
-	s := strings.Join(ar.GetRoles(), ",")
-	i := ar.GetName()
-	a, ok := requestStates[ar.GetState()]
-	l := fmt.Sprintf(
-		"=HYPERLINK(\"%v\", \"%v\")",
-		"https://"+proxyAddr+"/web/requests/"+ar.GetName(),
-		"View Access Request",
-	)
+func (g *googleSheetsPlugin) makeRowData(ar types.AccessRequest) *sheets.RowData {
+	requestState, ok := requestStates[ar.GetState()]
 
 	// Could not find a state, but this is still a valid Access Request
 	if !ok {
-		a = requestStates[types.RequestState_NONE]
+		requestState = requestStates[types.RequestState_NONE]
 	}
+
+	viewLink := fmt.Sprintf(
+		`=HYPERLINK("%v", "%v")`,
+		"https://"+proxyAddr+"/web/requests/"+ar.GetName(),
+		"View Access Request",
+	)
 
 	return &sheets.RowData{
 		Values: []*sheets.CellData{
 			&sheets.CellData{
 				UserEnteredValue: &sheets.ExtendedValue{
-					StringValue: &i,
+					StringValue: stringPtr(ar.GetName()),
 				},
 			},
 			&sheets.CellData{
 				UserEnteredValue: &sheets.ExtendedValue{
-					StringValue: &t,
+					StringValue: stringPtr(ar.GetCreationTime().String()),
 				},
 			},
 			&sheets.CellData{
 				UserEnteredValue: &sheets.ExtendedValue{
-					StringValue: &u,
+					StringValue: stringPtr(ar.GetUser()),
 				},
 			},
 			&sheets.CellData{
 				UserEnteredValue: &sheets.ExtendedValue{
-					StringValue: &s,
+					StringValue: stringPtr(strings.Join(ar.GetRoles(), ",")),
 				},
 			},
 			&sheets.CellData{
 				UserEnteredValue: &sheets.ExtendedValue{
-					StringValue: &a,
+					StringValue: &requestState,
 				},
 			},
 			&sheets.CellData{
 				UserEnteredValue: &sheets.ExtendedValue{
-					FormulaValue: &l,
+					FormulaValue: &viewLink,
 				},
 			},
 		},
 	}
 }
 ```
+
+The `sheets.RowData` type makes extensive use of pointers to strings, so we
+introduce a utility function called `stringPtr` that returns the pointer to the
+provided string. This makes it easier to assign the values of cells in the
+`sheets.RowData` using chains of function calls.
 
 `makeRowData` is a method of the `googleSheetsPlugin` type. (The `*` before
 `googleSheetsPlugin` indicates that the method receives a *pointer* to a
@@ -378,7 +381,6 @@ Below `makeRowData`, add the following:
 
 ```go
 func (g *googleSheetsPlugin) createRow(ar types.AccessRequest) error {
-
 	row := g.makeRowData(ar)
 
 	req := sheets.BatchUpdateSpreadsheetRequest{
@@ -396,7 +398,6 @@ func (g *googleSheetsPlugin) createRow(ar types.AccessRequest) error {
 	}
 
 	resp, err := g.sheetsClient.BatchUpdate(spreadSheetID, &req).Do()
-
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -435,7 +436,6 @@ this function below `createRow`:
 
 ```go
 func (g *googleSheetsPlugin) updateRow(ar types.AccessRequest, rowNum int64) error {
-
 	row := g.makeRowData(ar)
 
 	req := sheets.BatchUpdateSpreadsheetRequest{
@@ -454,8 +454,8 @@ func (g *googleSheetsPlugin) updateRow(ar types.AccessRequest, rowNum int64) err
 			},
 		},
 	}
-	resp, err := g.sheetsClient.BatchUpdate(spreadSheetID, &req).Do()
 
+	resp, err := g.sheetsClient.BatchUpdate(spreadSheetID, &req).Do()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -485,15 +485,15 @@ Below `updateRow`, add this function:
 
 ```go
 func (g *googleSheetsPlugin) updateSpreadsheet(ar types.AccessRequest) error {
-
 	s, err := g.sheetsClient.Get(spreadSheetID).IncludeGridData(true).Do()
-
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	if len(s.Sheets) != 1 {
-		return errors.New("the spreadsheet must have a single sheet")
+		return trace.Wrap(
+	        errors.New("the spreadsheet must have a single sheet"),
+		)
 	}
 
 	for _, d := range s.Sheets[0].Data {
@@ -503,7 +503,7 @@ func (g *googleSheetsPlugin) updateSpreadsheet(ar types.AccessRequest) error {
 				r.Values[0].UserEnteredValue.StringValue != nil &&
 				*r.Values[0].UserEnteredValue.StringValue == ar.GetName() {
 				if err := g.updateRow(ar, int64(i)); err != nil {
-					return err
+					return trace.Wrap(err)
 				}
 				fmt.Println("Updated a spreadsheet row.")
 			}
@@ -535,11 +535,6 @@ func (g *googleSheetsPlugin) handleEvent(ctx context.Context, event types.Event)
 
 	r := event.Resource.(types.AccessRequest)
 
-	// Ignore Access Requests that are not Role Requests
-	if len(r.GetRoles()) == 0 {
-		return nil
-	}
-
 	if r.GetState() == types.RequestState_PENDING {
 		return g.createRow(r)
 	}
@@ -548,10 +543,9 @@ func (g *googleSheetsPlugin) handleEvent(ctx context.Context, event types.Event)
 }
 ```
 
-Since this plugin only processes Role Access Requests, we return early if the
-request has no associated roles. We then check whether the request is in a
-pending state, i.e., whether the request is new. If so, we call `createRow`. If
-not, we call `updateSpreadsheet`.
+`handleEvent` checks whether an Access Request is in a pending state, i.e.,
+whether the request is new. If so, we call `createRow`. If not, we call
+`updateSpreadsheet`.
 
 It is worth noting that the function takes any `types.Event`, which includes
 Access Requests but also other audit events, such as the creation of a
@@ -651,7 +645,6 @@ func main() {
 			grpc.WithReturnConnectionError(),
 		},
 	})
-
 	if err != nil {
 		panic(err)
 	}
@@ -698,14 +691,10 @@ Make sure that:
 ## Step 7/7. Test your plugin
 
 Now that you have written your plugin, run it to forward Access Requests from
-your Teleport cluster to Google Sheets. Execute the following commands from
+your Teleport cluster to Google Sheets. Execute the following command from
 within your project directory:
 
 ```code
-# Fetch dependencies:
-$ go mod tidy
-
-# Run the program:
 $ go run main.go
 ```
 
