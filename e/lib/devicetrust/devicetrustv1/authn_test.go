@@ -501,7 +501,7 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 	allowRule := types.RoleConditions{
 		Logins: []string{"llama"},
 		NodeLabels: map[string]utils.Strings{
-			"env": utils.Strings{"dev"},
+			"env": {"dev"},
 		},
 	}
 	var allRoles []types.Role
@@ -581,7 +581,7 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 
 			// Failure assertions.
 			if !trace.IsBadParameter(err) {
-				t.Fatalf("AuthenticateDevice returned err = %T, want trace.BadParameterError", err)
+				t.Fatalf("AuthenticateDevice returned err = %v (%T), want trace.BadParameterError", err, err)
 			}
 			assert.ErrorContains(t, err, "device trust disabled", "AuthenticateDevice error mismatch")
 
