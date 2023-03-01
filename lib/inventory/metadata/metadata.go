@@ -31,17 +31,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-)
-
-// Service names for AgentMetadataEvent.
-const (
-	nodeService           = "node"
-	kubeService           = "kube"
-	appService            = "app"
-	dbService             = "db"
-	windowsDesktopService = "windows_desktop"
 )
 
 // AgentMetadataFetchConfig contains the configuration used by the FetchAgentMetadata method.
@@ -129,27 +119,6 @@ func FetchAgentMetadata(c *AgentMetadataFetchConfig) proto.UpstreamInventoryAgen
 		ContainerOrchestrator: c.fetchContainerOrchestrator(),
 		CloudEnvironment:      c.fetchCloudEnvironment(),
 	}
-}
-
-// FetchServices computes the list of access protocols enabled at the agent from
-// the list of system roles present in the hello message.
-func FetchServices(systemRoles []types.SystemRole) []string {
-	var services []string
-	for _, svc := range systemRoles {
-		switch svc {
-		case types.RoleNode:
-			services = append(services, nodeService)
-		case types.RoleKube:
-			services = append(services, kubeService)
-		case types.RoleApp:
-			services = append(services, appService)
-		case types.RoleDatabase:
-			services = append(services, dbService)
-		case types.RoleWindowsDesktop:
-			services = append(services, windowsDesktopService)
-		}
-	}
-	return services
 }
 
 // fetchOS returns the value of GOOS.

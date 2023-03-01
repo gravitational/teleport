@@ -497,10 +497,16 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 
 func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.UpstreamInventoryAgentMetadata) {
 	log.Debugf("Agent metadata received: %v", m)
+
+	svcs := make([]string, 0, len(handle.Hello().Services))
+	for _, svc := range handle.Hello().Services {
+		svcs = append(svcs, svc.String())
+	}
+
 	if err := c.usageReporter.AnonymizeAndSubmit(&services.AgentMetadataEvent{
 		Version:               handle.Hello().Version,
 		HostId:                handle.Hello().ServerID,
-		Services:              metadata.FetchServices(handle.Hello().Services),
+		Services:              svcs,
 		Os:                    m.OS,
 		OsVersionInfo:         m.OSVersionInfo,
 		HostArchitectureInfo:  m.HostArchitectureInfo,
