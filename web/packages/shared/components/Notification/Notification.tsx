@@ -19,11 +19,7 @@ import styled, { css, useTheme } from 'styled-components';
 import { ButtonIcon, Flex, Link, Text } from 'design';
 import { Close } from 'design/Icon';
 
-import type {
-  NotificationItem,
-  NotificationItemContent,
-  NotificationItemObjectContent,
-} from './types';
+import type { NotificationItem, NotificationItemContent } from './types';
 
 interface NotificationProps {
   item: NotificationItem;
@@ -145,79 +141,68 @@ function getRenderedContent(
       </Flex>
     );
   }
-  if (isContentANotificationItemObject(content)) {
-    return (
-      <Flex flexDirection="column" minWidth="0" width="100%">
-        <div
+
+  return (
+    <Flex flexDirection="column" minWidth="0" width="100%">
+      <div
+        css={`
+          position: relative;
+        `}
+      >
+        <Text
+          fontSize={14}
+          bold
+          mr="30px"
           css={`
-            position: relative;
+            line-height: 20px;
           `}
         >
-          <Text
-            fontSize={14}
-            bold
-            mr="30px"
-            css={`
-              line-height: 20px;
-            `}
-          >
-            {content.title}
-          </Text>
-          <div
-            css={`
-              position: absolute;
-              top: 0;
-              right: 0;
-            `}
-          >
-            {removeIcon}
-          </div>
-        </div>
-        <Text
-          fontSize={13}
-          lineHeight={20}
-          color="text.secondary"
-          css={longerTextCss}
-        >
-          {content.list && <ListRenderer list={content.list} />}
-          {content.description}
+          {content.title}
         </Text>
-        {content.link && (
-          <Link href={content.link.href} target="_blank">
-            {content.link.text}
-          </Link>
-        )}
-      </Flex>
-    );
-  }
+        <div
+          css={`
+            position: absolute;
+            top: 0;
+            right: 0;
+          `}
+        >
+          {removeIcon}
+        </div>
+      </div>
+      <Text
+        fontSize={13}
+        lineHeight={20}
+        color="text.secondary"
+        css={longerTextCss}
+      >
+        {content.list && <List items={content.list} />}
+        {content.description}
+      </Text>
+      {content.link && (
+        <Link href={content.link.href} target="_blank">
+          {content.link.text}
+        </Link>
+      )}
+    </Flex>
+  );
 }
 
-function ListRenderer(props: { list: string[] }) {
-  if (props.list.length === 1) {
-    return <>{props.list[0]}</>;
+function List(props: { items: string[] }) {
+  if (props.items.length === 1) {
+    return <>{props.items[0]}</>;
   }
 
   return (
     <ul
       css={`
         margin: 0;
-        padding-inline-start: 12px;
+        padding-inline-start: 13px;
       `}
     >
-      {props.list.map((item, index) => (
+      {props.items.map((item, index) => (
         <li key={index}>{item}</li>
       ))}
     </ul>
-  );
-}
-
-function isContentANotificationItemObject(
-  content: NotificationItemContent
-): content is NotificationItemObjectContent {
-  return (
-    typeof content === 'object' &&
-    (content as NotificationItemObjectContent).title !== undefined &&
-    (content as NotificationItemObjectContent).description !== undefined
   );
 }
 
