@@ -116,6 +116,12 @@ message CreateDeviceRequest {
 
   // If true, a DeviceEnrollToken is created along with the Device.
   bool create_enroll_token = 2;
+
+  // If true, create the device as a Teleport resource, meaning that fields that
+  // are usually considered read-only or system managed are copied as provided
+  // to storage.
+  // Prefer using non-resource creation semantics if possible.
+  bool create_as_resource = 3;
 }
 
 // Request for DeleteDevice.
@@ -191,6 +197,12 @@ enum DeviceView {
 message BulkCreateDevicesRequest {
   // Devices to create.
   repeated Device devices = 1;
+
+  // If true, create the device as a Teleport resource, meaning that fields that
+  // are usually considered read-only or system managed are copied as provided
+  // to storage.
+  // Prefer using non-resource creation semantics if possible.
+  bool create_as_resource = 2;
 }
 
 // Response for BulkCreateDevices.
