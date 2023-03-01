@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
@@ -1504,9 +1505,16 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	teleportPackage := teleport.ComponentTeleport
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		teleportPackage = fmt.Sprintf("%s-%s", teleport.ComponentTeleport, modules.BuildEnterprise)
+	}
+
 	tmpl := installers.Template{
 		PublicProxyAddr: h.cfg.PublicProxyAddr,
 		MajorVersion:    version,
+		TeleportPackage: teleportPackage,
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)
