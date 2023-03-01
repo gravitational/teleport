@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { tsh } from 'teleterm/ui/services/clusters/types';
+import type * as tsh from 'teleterm/services/tshd/types';
 
 type SuggestionBase<T, R> = {
   kind: T;
