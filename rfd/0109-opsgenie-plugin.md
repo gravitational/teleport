@@ -25,7 +25,6 @@ plugins:
         addr: "example.app.opsgenie.com" # Address of Opsgenie
         priority: "2" # Priority to create Opsgenie alerts with
         alert_tags: ["example-tag"] # List of tags to be added to alerts created in Opsgenie
-        auto_approval: true # Whether or not to enable auto approval
 ```
 
 The logging configuration will be shared with the main Teleport process.
@@ -48,9 +47,23 @@ Once an access request has been created, the Opsgenie plugin will create an aler
 
 The appropriate on-call responder can then click the provided link to the access request and approve or deny it.
 
-For auto approval of certain access requests the access request will be auto approved if the requesting user is on-call in one of the services provided in request annotation. (Provided auto approval is enabled in the config)
+For auto approval of certain access requests the access request will be auto approved if the requesting user is on-call in one of the services provided in request annotation.
 
 Once an access request has been approved or denied the plugin will add a note to the alert and close the relevant alert tied to that access request.
+
+Example role with services in the annotation that indicate that users with this roll can be on-call for those services.
+
+```
+kind: role
+metadata:
+  name: someRole
+spec:
+  allow:
+    request:
+      roles: [someOtherRole]
+      annotations:
+        opsgenie_services: ["service1", "service2"]
+```
 
 ## Implementation details
 In this section we will take a look at how the plugin will interact with the Opsgenie API.
