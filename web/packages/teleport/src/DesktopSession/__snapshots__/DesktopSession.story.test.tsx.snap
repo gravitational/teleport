@@ -2242,7 +2242,7 @@ exports[`webauthn prompt 1`] = `
           class="c5"
           color="text.primary"
         >
-          Verify Your Identity
+          Multi-factor authentication
         </div>
       </div>
       <div
@@ -2252,7 +2252,7 @@ exports[`webauthn prompt 1`] = `
         <div
           class="c7"
         >
-          Re-authentication is required. Follow the prompts given by your browser to complete authentication.
+          Re-enter your multi-factor authentication in the browser to continue.
         </div>
       </div>
       <div
@@ -2263,7 +2263,7 @@ exports[`webauthn prompt 1`] = `
           kind="primary"
           width="130px"
         >
-          Verify
+          OK
         </button>
         <button
           class="c10"
