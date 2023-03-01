@@ -771,7 +771,7 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 
 func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	if rc.IsForced() {
-		fmt.Printf("Warning: Devices cannot be overwritten with the --force flag.")
+		fmt.Printf("Warning: Devices cannot be overwritten with the --force flag\n")
 	}
 
 	dev, err := device.UnmarshalDevice(raw.Raw)
@@ -779,15 +779,16 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI
 		return trace.Wrap(err)
 	}
 
+	// TODO(codingllama): Figure out a way to call BulkCreateDevices here?
 	_, err = client.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device:            dev,
-		CreateEnrollToken: false,
+		Device:           dev,
+		CreateAsResource: true,
 	})
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
 
-	fmt.Printf("Device %v/%v added to the inventory", dev.AssetTag, devicetrust.FriendlyOSType(dev.OsType))
+	fmt.Printf("Device %v/%v added to the inventory\n", dev.AssetTag, devicetrust.FriendlyOSType(dev.OsType))
 	return nil
 }
 
