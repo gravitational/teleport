@@ -20,7 +20,7 @@ import {
   ConfigService,
 } from 'teleterm/services/config';
 
-import { getKeyCode } from './getKeyCode';
+import { getKeyName } from './getKeyName';
 import {
   KeyboardShortcutEvent,
   KeyboardShortcutEventSubscriber,
@@ -114,7 +114,9 @@ export class KeyboardShortcutsService {
   private getShortcutAction(
     event: KeyboardEvent
   ): KeyboardShortcutAction | undefined {
-    // skip modifier-only events
+    // If only a modifier is pressed, `code` is this modifier name
+    // (in case of a combination like "Cmd+A", `code` is "A").
+    // We do not support modifier-only accelerators, so we can skip the further checks.
     if (
       event.code.includes('Shift') ||
       event.code.includes('Meta') ||
@@ -125,7 +127,7 @@ export class KeyboardShortcutsService {
     }
     const accelerator = [
       ...this.getPlatformModifierKeys(event),
-      getKeyCode(event),
+      getKeyName(event),
     ]
       .filter(Boolean)
       .join('+');

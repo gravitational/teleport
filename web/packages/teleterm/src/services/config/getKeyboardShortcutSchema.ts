@@ -75,7 +75,12 @@ function putModifiersFirst(
     });
 }
 
-/** Currently works only for single characters. */
+/** Currently, works only for single characters.
+ * An accelerator string is compared to a string generated from event properties
+ * (so it should be case-insensitive too).
+ * But what is more important, this string is used also for tooltips.
+ * If we allow "CTRL+SHIFT+PAGEUP" then we cannot display it as "Ctrl+Shift+PageUp".
+ */
 function adjustCasing(tokens: string[]): string[] {
   return tokens.map(token => {
     if (token.length === 1) {
