@@ -143,6 +143,7 @@ function generateRange(start: number, end: number): string[] {
 
 const FUNCTION_KEYS = generateRange(1, 24).map(key => `F${key}`);
 
+// subset of https://github.com/electron/electron/blob/49df19214ea3abaf0ad91adf3d374cba32abd521/docs/api/accelerator.md#available-key-codes
 const ALLOWED_KEY_CODES = [
   ...generateRange(0, 9), // 0-9 range
   ...FUNCTION_KEYS,

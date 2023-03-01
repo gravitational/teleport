@@ -76,7 +76,7 @@ export function createConfigStore<
     });
     const reParsed = parse(withoutInvalidKeys);
     if (reParsed.success === false) {
-      // it should not occur after removing invalid keys, but just in case
+      // it can happen when a default value does not pass validation
       throw new Error(
         `Re-parsing config file failed \n${reParsed.error.message}`
       );
