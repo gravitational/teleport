@@ -90,7 +90,7 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 		return nil, trace.Wrap(err)
 	}
 
-	dev, err := s.storage.CreateDevice(ctx, req.Device)
+	dev, err := s.storage.CreateDevice(ctx, req.Device, req.CreateAsResource)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -247,7 +247,7 @@ func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreat
 		return nil, trace.BadParameter("devices required")
 	}
 
-	devs := s.storage.BulkCreateDevices(ctx, req.Devices)
+	devs := s.storage.BulkCreateDevices(ctx, req.Devices, req.CreateAsResource)
 
 	// Emit audit events.
 	for _, created := range devs {

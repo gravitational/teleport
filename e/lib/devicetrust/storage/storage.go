@@ -68,10 +68,13 @@ func (s *S) nowUTC() time.Time {
 }
 
 // BulkCreateDevices creates devices in bulk.
+// If `createAsResource` is `true`, readonly and system-managed fields that are
+// present are copied as-is to storage. This is to allow "device" tctl resources
+// to behave alike other resources. Prefer non-resource creation if possible.
 // Returns, for each device, a DeviceOrStatus with a non-empty ID in case of
 // success, or a failure Status in case of error. The response is guaranteed to
 // have the same ordering as the input.
-func (s *S) BulkCreateDevices(ctx context.Context, devs []*devicepb.Device) []*devicepb.DeviceOrStatus {
+func (s *S) BulkCreateDevices(ctx context.Context, devs []*devicepb.Device, createAsResource bool) []*devicepb.DeviceOrStatus {
 	errToStatus := func(err error) *statuspb.Status {
 		return status.Convert(trail.ToGRPC(err)).Proto()
 	}
@@ -82,7 +85,7 @@ func (s *S) BulkCreateDevices(ctx context.Context, devs []*devicepb.Device) []*d
 		resp[i] = &devicepb.DeviceOrStatus{}
 
 		// Is the device valid?
-		if err := validateDeviceForCreate(dev); err != nil {
+		if err := validateDeviceForCreate(dev, createAsResource); err != nil {
 			resp[i].Status = errToStatus(err)
 			continue
 		}
@@ -117,7 +120,7 @@ func (s *S) BulkCreateDevices(ctx context.Context, devs []*devicepb.Device) []*d
 		i := i
 		dev := dev
 		g.Go(func() error {
-			created, err := s.createDevice(ctx, dev)
+			created, err := s.createDevice(ctx, dev, createAsResource)
 			mu.Lock()
 			resp[i].Status = errToStatus(err)
 			resp[i].Id = created.GetId()
@@ -140,41 +143,47 @@ type assetTagKey struct {
 
 // CreateDevice creates a new Device in storage and updates the necessary
 // indexes (such as the asset tag index).
+// If `createAsResource` is `true`, readonly and system-managed fields that are
+// present are copied as-is to storage. This is to allow "device" tctl resources
+// to behave alike other resources. Prefer non-resource creation if possible.
 // Returns the stored device.
-// Prefer using BulkCreateDevices if you want to create multiple devices
+// Prefer using [BulkCreateDevices] if you want to create multiple devices
 // concurrently.
-func (s *S) CreateDevice(ctx context.Context, dev *devicepb.Device) (*devicepb.Device, error) {
-	if err := validateDeviceForCreate(dev); err != nil {
+func (s *S) CreateDevice(ctx context.Context, dev *devicepb.Device, createAsResource bool) (*devicepb.Device, error) {
+	if err := validateDeviceForCreate(dev, createAsResource); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return s.createDevice(ctx, dev)
+	return s.createDevice(ctx, dev, createAsResource)
 }
 
-func (s *S) createDevice(ctx context.Context, dev *devicepb.Device) (*devicepb.Device, error) {
-	// Marshal device to start, just in the extremely unlikely case that it fails.
-	now := s.nowUTC()
-	stored := &storedDevice{
-		OSType:       int(dev.OsType),
-		AssetTag:     dev.AssetTag,
-		CreateTime:   now,
-		UpdateTime:   now,
-		EnrollStatus: int(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED),
-	}
-	storedJSON, err := json.Marshal(stored)
+func (s *S) createDevice(ctx context.Context, dev *devicepb.Device, createAsResource bool) (*devicepb.Device, error) {
+	// There are two use-cases for resource-like creates:
+	//
+	// 1. Brand-new insertions, similarly to non-resource creation
+	// 2. Backup-like insertions, i.e., the equivalent of
+	//    `tctl rm devices/X | tctl create`
+	//
+	// There's no clear indication of what we're looking at, except that fields
+	// that are usually system-managed are present, so we do our best to honor
+	// those and insert as-is to storage.
+
+	deviceID, storedDev, storedCD := deviceToStored(dev, s.nowUTC(), createAsResource)
+
+	// Marshal device before writes, just in the extremely unlikely case that it
+	// fails.
+	storedJSON, err := json.Marshal(storedDev)
 	if err != nil {
 		return nil, trace.Wrap(err, "marshal device")
 	}
-
-	deviceID := uuid.NewString()
 
 	// Create/update asset tag index.
 	// It's OK to leave the asset tag mapping behind if writing the device fails.
 	ref := &deviceRef{
 		DeviceID: deviceID,
-		OSType:   stored.OSType,
+		OSType:   storedDev.OSType,
 	}
-	if err := s.updateAssetTagIndex(ctx, stored.AssetTag, ref); err != nil {
+	if err := s.updateAssetTagIndex(ctx, storedDev.AssetTag, ref); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -186,7 +195,75 @@ func (s *S) createDevice(ctx context.Context, dev *devicepb.Device) (*devicepb.D
 		return nil, trace.Wrap(err)
 	}
 
-	return storedToDevice(deviceID, stored), nil
+	// Write collected data, if any.
+	// Only happens for resource-like writes.
+	storedCD, err = s.recordResourceCollectedData(ctx, deviceID, storedCD)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created := storedToDevice(deviceID, storedDev)
+	created.CollectedData = storedSliceToCollectedData(storedCD)
+	return created, nil
+}
+
+func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (deviceID string, storedDev *storedDevice, storedCD []*storedCollectedData) {
+	storedDev = &storedDevice{
+		OSType:       int(d.OsType),
+		AssetTag:     d.AssetTag,
+		CreateTime:   now,
+		UpdateTime:   now,
+		EnrollStatus: int(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED),
+	}
+
+	// Non-resource writes don't assign readonly or system-managed fields.
+	if !createAsResource {
+		return uuid.NewString(), storedDev, nil
+	}
+
+	// ID.
+	deviceID = d.Id
+	if deviceID == "" {
+		deviceID = uuid.NewString()
+	}
+
+	// CreateTime and UpdateTime.
+	if d.CreateTime != nil {
+		storedDev.CreateTime = d.CreateTime.AsTime()
+	}
+	if d.UpdateTime != nil {
+		storedDev.UpdateTime = d.UpdateTime.AsTime()
+	}
+
+	// EnrollToken: enrollment tokens cannot be backed-up via `tctl get`; they are
+	// considered ephemeral by the system and never returned on reads.
+	// That seems to be for the best.
+
+	// EnrollStatus.
+	if d.EnrollStatus != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED {
+		storedDev.EnrollStatus = int(d.EnrollStatus)
+	}
+
+	// DeviceCredential.
+	if cred := d.Credential; cred != nil {
+		storedDev.Credential = &storedDeviceCredential{
+			ID:           cred.Id,
+			PublicKeyDER: cred.PublicKeyDer,
+		}
+	}
+
+	// CollectedData.
+	storedCD = make([]*storedCollectedData, len(d.CollectedData))
+	for i, cd := range d.CollectedData {
+		storedCD[i] = &storedCollectedData{
+			CollectTime:  cd.CollectTime.AsTime(),
+			RecordTime:   cd.RecordTime.AsTime(),
+			OSType:       int(cd.OsType),
+			SerialNumber: cd.SerialNumber,
+		}
+	}
+
+	return deviceID, storedDev, storedCD
 }
 
 func (s *S) updateAssetTagIndex(ctx context.Context, assetTag string, ref *deviceRef) error {
@@ -471,12 +548,7 @@ func (s *S) getDeviceCollectedData(ctx context.Context, deviceID string) ([]*dev
 		if err := json.Unmarshal(item.Value, stored); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cd[i] = &devicepb.DeviceCollectedData{
-			CollectTime:  timestamppb.New(stored.CollectTime),
-			RecordTime:   timestamppb.New(stored.RecordTime),
-			OsType:       devicepb.OSType(stored.OSType),
-			SerialNumber: stored.SerialNumber,
-		}
+		cd[i] = storedToCollectedData(stored)
 	}
 
 	// Sort by ascending RecordTime.
@@ -490,6 +562,26 @@ func (s *S) getDeviceCollectedData(ctx context.Context, deviceID string) ([]*dev
 	})
 
 	return cd, nil
+}
+
+func storedToCollectedData(stored *storedCollectedData) *devicepb.DeviceCollectedData {
+	return &devicepb.DeviceCollectedData{
+		CollectTime:  timestamppb.New(stored.CollectTime),
+		RecordTime:   timestamppb.New(stored.RecordTime),
+		OsType:       devicepb.OSType(stored.OSType),
+		SerialNumber: stored.SerialNumber,
+	}
+}
+
+func storedSliceToCollectedData(stored []*storedCollectedData) []*devicepb.DeviceCollectedData {
+	if len(stored) == 0 {
+		return nil
+	}
+	cd := make([]*devicepb.DeviceCollectedData, len(stored))
+	for i, s := range stored {
+		cd[i] = storedToCollectedData(s)
+	}
+	return cd
 }
 
 // GetDevicesByAssetTag reads devices by asset tag.
@@ -801,6 +893,60 @@ func (s *S) recordCollectedData(ctx context.Context, deviceID string, cd *device
 	}
 
 	return nil
+}
+
+// recordResourceCollectedData is a variant of [recordResourceCollectedData]
+// used exclusively for collected data acquired during resource-like device
+// writes.
+// It's simplified by the fact that the device is brand-new, thus has no
+// collected data present in storage: the `storedCD` is all the data we have for
+// the device.
+// Returns the stored slice.
+func (s *S) recordResourceCollectedData(ctx context.Context, deviceID string, storedCD []*storedCollectedData) ([]*storedCollectedData, error) {
+	if len(storedCD) == 0 {
+		return nil, nil
+	}
+
+	// Sort by ascending RecordTime and do the following assumptions:
+	// - The oldest collected data is the enrollment data.
+	// - All other datas are authn data
+	sort.Slice(storedCD, func(i, j int) bool {
+		d1 := storedCD[i]
+		d2 := storedCD[j]
+		return d1.RecordTime.Before(d2.RecordTime)
+	})
+
+	// Limit slice to MaxCollectedDataPerDevice+1, keeping the oldest data
+	// (enrollment) and the N newer ones (authn).
+	if l := len(storedCD); l > MaxCollectedDataPerDevice+1 {
+		storedCD = append(storedCD[:1], storedCD[l-MaxCollectedDataPerDevice:]...)
+	}
+
+	for i, cd := range storedCD {
+		// Assign ID and origin according to slice position (first=enrollment).
+		var cdID string
+		if i == 0 {
+			cdID = enrollmentDataID
+			cd.Origin = originEnrollment
+		} else {
+			cdID = uuid.NewString()
+			cd.Origin = originAuthentication
+		}
+
+		val, err := json.Marshal(cd)
+		if err != nil {
+			return nil, trace.Wrap(err, "marshal collected data (index=%v, cd=%v)", i, cd)
+		}
+
+		if _, err := s.backend().Put(ctx, backend.Item{
+			Key:   collectedDataKey(deviceID, cdID),
+			Value: val,
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return storedCD, nil
 }
 
 // simplifiedCollectedData is used to decide which collected data entries to

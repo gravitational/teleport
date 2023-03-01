@@ -39,115 +39,331 @@ func TestS_BulkCreateDevices(t *testing.T) {
 	ctx := context.Background()
 
 	// Make sure "alpaca" already exists before we attempt the bulk creation.
-	alpacaDev, err := s.CreateDevice(ctx, &devicepb.Device{
+	_, err := s.CreateDevice(ctx, &devicepb.Device{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "alpaca",
-	})
+	}, false /* createAsResource */)
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
 
-	// Bulk create a few devices, mixing successes and failures.
-	devs := s.BulkCreateDevices(ctx, []*devicepb.Device{
-		// OK.
-		{
-			OsType:   devicepb.OSType_OS_TYPE_MACOS,
-			AssetTag: "llama",
-		},
-		// NOK, duplicate within devs.
-		{
-			OsType:   devicepb.OSType_OS_TYPE_MACOS,
-			AssetTag: "llama",
-		},
-		// NOK, duplicate in storage.
-		{
-			OsType:   devicepb.OSType_OS_TYPE_MACOS,
-			AssetTag: "alpaca",
-		},
-		// NOK, duplicate within devs (and in storage).
-		{
-			OsType:   devicepb.OSType_OS_TYPE_MACOS,
-			AssetTag: "alpaca",
-		},
-		// OK.
-		{
-			OsType:   devicepb.OSType_OS_TYPE_MACOS,
-			AssetTag: "camel",
-		},
-		// NOK, invalid OsType.
-		{
-			OsType:   devicepb.OSType_OS_TYPE_UNSPECIFIED,
-			AssetTag: "cat",
-		},
-	})
+	const resource1Tag = "AAA000000000"
+	const resource2Tag = "BBB000000000"
+	_, pubKeyDER := newKeyPair(t)
 
-	// Verify response codes.
-	wantCodes := []codes.Code{
-		codes.OK,              // llama
-		codes.AlreadyExists,   // llama dupe
-		codes.AlreadyExists,   // alpaca dupe
-		codes.AlreadyExists,   // alpaca dupe
-		codes.OK,              // camel
-		codes.InvalidArgument, // cat, missing OsType
+	// resource1 is a complete, resource-like device.
+	resource1 := &devicepb.Device{
+		ApiVersion: "v1",
+		Id:         "a6f76866-a9eb-4a23-9bb1-7980347a1bee",
+		OsType:     devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag:   resource1Tag,
+		CreateTime: timestamppb.New(time.Date(2023, 2, 24, 19, 0, 0, 0, time.UTC)),
+		UpdateTime: timestamppb.New(time.Date(2023, 2, 24, 19, 15, 0, 500, time.UTC)),
+		EnrollToken: &devicepb.DeviceEnrollToken{
+			Token: "i-am-ignored",
+		},
+		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
+		Credential: &devicepb.DeviceCredential{
+			Id:           "ae2d978c-fee8-419d-a2e6-a5dd0a00c4b8",
+			PublicKeyDer: pubKeyDER,
+		},
+		CollectedData: []*devicepb.DeviceCollectedData{
+			{
+				CollectTime:  timestamppb.New(time.Date(2023, 2, 24, 19, 0, 5, 0, time.UTC)),
+				RecordTime:   timestamppb.New(time.Date(2023, 2, 24, 19, 0, 5, 500, time.UTC)),
+				OsType:       devicepb.OSType_OS_TYPE_MACOS,
+				SerialNumber: resource1Tag,
+			},
+			{
+				CollectTime:  timestamppb.New(time.Date(2023, 2, 24, 19, 0, 15, 0, time.UTC)),
+				RecordTime:   timestamppb.New(time.Date(2023, 2, 24, 19, 0, 15, 500, time.UTC)),
+				OsType:       devicepb.OSType_OS_TYPE_MACOS,
+				SerialNumber: resource1Tag,
+			},
+		},
 	}
-	gotCodes := make([]codes.Code, len(devs))
-	for i, dev := range devs {
-		c := codes.Code(dev.GetStatus().GetCode())
-		gotCodes[i] = c
 
-		// Sanity check IDs.
-		if c == codes.OK && dev.GetId() == "" {
-			t.Errorf("BulkCreateDevices: device #%v has code %s but an empty ID", i, c)
+	// listAll is a helper that lists all devices in storage.
+	listAll := func(t *testing.T) []*devicepb.Device {
+		t.Helper()
+
+		var allDevices []*devicepb.Device
+		var pageToken string
+		for {
+			devs, nextPageToken, err := s.ListDevices(ctx, 0 /* pageSize */, pageToken, devicepb.DeviceView_DEVICE_VIEW_RESOURCE)
+			if err != nil {
+				t.Fatalf("ListDevices failed: %v", err)
+			}
+			allDevices = append(allDevices, devs...)
+			if nextPageToken == "" {
+				break
+			}
+			pageToken = nextPageToken
 		}
-	}
-	if diff := cmp.Diff(wantCodes, gotCodes); diff != "" {
-		t.Fatalf("BulkCreateDevices codes mismatch (-want +got):\n%s", diff)
-	}
-	llamaDev := devs[0]
-	camelDev := devs[4]
 
-	// Verify stored devices.
-	pageSize := len(devs) + 2 // devs+alpaca+1, so we can detect unwanted devices
-	stored, _, err := s.ListDevices(ctx, pageSize, "" /* pageToken */, devicepb.DeviceView_DEVICE_VIEW_LIST)
-	if err != nil {
-		t.Fatalf("ListDevices failed: %v", err)
+		return allDevices
 	}
-	wantDevs := map[string]string{
-		alpacaDev.Id: "alpaca",
-		llamaDev.Id:  "llama", // AssetTag not present in DeviceOrStatus.
-		camelDev.Id:  "camel",
+
+	// Tests build on each other: this is desirable so can tests errors such as
+	// AlreadyExists, but it does making testing a bit more complex as a whole.
+	tests := []struct {
+		name             string
+		createAsResource bool
+		devices          []*devicepb.Device
+		wantCodes        []codes.Code
+		wantDevices      func(t *testing.T, got []*devicepb.DeviceOrStatus) map[string]string // ID->AssetTag
+	}{
+		{
+			name: "ok",
+			devices: []*devicepb.Device{
+				// OK.
+				{
+					OsType:   devicepb.OSType_OS_TYPE_MACOS,
+					AssetTag: "llama",
+				},
+				// NOK, duplicate within devs.
+				{
+					OsType:   devicepb.OSType_OS_TYPE_MACOS,
+					AssetTag: "llama",
+				},
+				// NOK, duplicate in storage.
+				{
+					OsType:   devicepb.OSType_OS_TYPE_MACOS,
+					AssetTag: "alpaca",
+				},
+				// NOK, duplicate within devs (and in storage).
+				{
+					OsType:   devicepb.OSType_OS_TYPE_MACOS,
+					AssetTag: "alpaca",
+				},
+				// OK.
+				{
+					OsType:   devicepb.OSType_OS_TYPE_MACOS,
+					AssetTag: "camel",
+				},
+				// NOK, invalid OsType.
+				{
+					OsType:   devicepb.OSType_OS_TYPE_UNSPECIFIED,
+					AssetTag: "cat",
+				},
+			},
+			wantCodes: []codes.Code{
+				codes.OK,              // llama
+				codes.AlreadyExists,   // llama dupe
+				codes.AlreadyExists,   // alpaca dupe
+				codes.AlreadyExists,   // alpaca dupe
+				codes.OK,              // camel
+				codes.InvalidArgument, // cat, missing OsType
+			},
+			wantDevices: func(t *testing.T, got []*devicepb.DeviceOrStatus) map[string]string {
+				llamaDev := got[0]
+				camelDev := got[4]
+				return map[string]string{
+					llamaDev.Id: "llama",
+					camelDev.Id: "camel",
+				}
+			},
+		},
+		{
+			name:             "createAsResource",
+			createAsResource: true,
+			devices: []*devicepb.Device{
+				// OK: Complete resource.
+				resource1,
+				// OK: Partial resource.
+				{
+					OsType:   devicepb.OSType_OS_TYPE_MACOS,
+					AssetTag: resource2Tag,
+				},
+				// NOK: Invalid resource: missing mandatory field.
+				{
+					OsType:   devicepb.OSType_OS_TYPE_MACOS,
+					AssetTag: "",
+				},
+				// NOK: Invalid resource: failed resource-like validation.
+				{
+					ApiVersion: "v99", // invalid
+					OsType:     devicepb.OSType_OS_TYPE_MACOS,
+					AssetTag:   "XXXXXXXXXXXX",
+				},
+			},
+			wantCodes: []codes.Code{
+				codes.OK, // resource1
+				codes.OK, // resource2
+				codes.InvalidArgument,
+				codes.InvalidArgument,
+			},
+			wantDevices: func(t *testing.T, got []*devicepb.DeviceOrStatus) map[string]string {
+				// ID in `got` matches requested ID.
+				resOrStatus1 := got[0]
+				if resOrStatus1.Id != resource1.Id {
+					t.Errorf("BulkCreateDevices: got[0].Id = %v, want %v", resOrStatus1.Id, resource1.Id)
+				}
+
+				resource2 := got[1]
+				return map[string]string{
+					resource1.Id: resource1.AssetTag, // ID is the same as requested
+					resource2.Id: resource2Tag,
+				}
+			},
+		},
 	}
-	gotDevs := make(map[string]string)
-	for _, dev := range stored {
-		gotDevs[dev.Id] = dev.AssetTag
-	}
-	if diff := cmp.Diff(wantDevs, gotDevs); diff != "" {
-		t.Errorf("ListDevices mismatch (-want +got):\n%s", diff)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			devsBefore := listAll(t)
+
+			got := s.BulkCreateDevices(ctx, test.devices, test.createAsResource)
+
+			devsAfter := listAll(t)
+
+			// Verify response codes from `got`.
+			gotCodes := make([]codes.Code, len(got))
+			for i, dev := range got {
+				c := codes.Code(dev.GetStatus().GetCode())
+				gotCodes[i] = c
+
+				// Sanity check IDs.
+				if c == codes.OK && dev.GetId() == "" {
+					t.Errorf("BulkCreateDevices: device #%v has code %s but an empty ID", i, c)
+				}
+			}
+			if diff := cmp.Diff(test.wantCodes, gotCodes); diff != "" {
+				t.Fatalf("BulkCreateDevices codes mismatch (-want +got):\n%s", diff)
+			}
+
+			// Verify storage state.
+			gotDevs := make(map[string]string)
+			for _, d := range devsAfter {
+				gotDevs[d.Id] = d.AssetTag
+			}
+			wantDevs := make(map[string]string)
+			for _, d := range devsBefore { // Fill want with existing devs...
+				wantDevs[d.Id] = d.AssetTag
+			}
+			for k, v := range test.wantDevices(t, got) { //...then add the expected devs
+				wantDevs[k] = v
+			}
+			if diff := cmp.Diff(wantDevs, gotDevs); diff != "" {
+				t.Errorf("ListDevices mismatch (-want +got)\n%s", diff)
+			}
+		})
 	}
 }
 
 func TestS_CreateDevice(t *testing.T) {
 	env := mustNewEnv()
 	defer env.Close()
-	s := env.S
 
+	s := env.S
 	ctx := context.Background()
 
+	clock := env.Clock
+	clockAdvance := func() {
+		clock.Advance(1 * time.Second)
+	}
+
+	const dev1Tag = "A00AA0AAAA0A"
+	const resource1Tag = "AAA000000000"
+	const resource2Tag = "BBB000000000"
+	const resource3Tag = "CCC000000000"
+
+	_, pubKeyDER := newKeyPair(t)
+
+	// excessiveCD is used by resource-like write tests.
+	excessiveCD := make([]*devicepb.DeviceCollectedData, storage.MaxCollectedDataPerDevice+2)
+	for i := range excessiveCD {
+		now := clock.Now().UTC()
+		excessiveCD[i] = &devicepb.DeviceCollectedData{
+			CollectTime:  timestamppb.New(now),
+			RecordTime:   timestamppb.New(now.Add(50 * time.Millisecond)),
+			OsType:       devicepb.OSType_OS_TYPE_MACOS,
+			SerialNumber: resource3Tag,
+		}
+		clockAdvance()
+	}
+
 	tests := []struct {
-		name string
-		dev  *devicepb.Device
+		name             string
+		dev              *devicepb.Device
+		createAsResource bool
+		modifyWant       func(dev, want *devicepb.Device) // adjust want for `createAsResource` tests.
 	}{
 		{
 			name: "ok",
 			dev: &devicepb.Device{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
-				AssetTag: "A00AA0AAAA0A",
+				AssetTag: dev1Tag,
+			},
+		},
+		{
+			name: "create as a resource",
+			dev: &devicepb.Device{
+				ApiVersion: "v1",
+				Id:         "a6f76866-a9eb-4a23-9bb1-7980347a1bee",
+				OsType:     devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag:   resource1Tag,
+				CreateTime: timestamppb.New(time.Date(2023, 2, 24, 19, 0, 0, 0, time.UTC)),
+				UpdateTime: timestamppb.New(time.Date(2023, 2, 24, 19, 15, 0, 500, time.UTC)),
+				EnrollToken: &devicepb.DeviceEnrollToken{
+					Token: "i-am-ignored",
+				},
+				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
+				Credential: &devicepb.DeviceCredential{
+					Id:           "ae2d978c-fee8-419d-a2e6-a5dd0a00c4b8",
+					PublicKeyDer: pubKeyDER,
+				},
+				CollectedData: []*devicepb.DeviceCollectedData{
+					{
+						CollectTime:  timestamppb.New(time.Date(2023, 2, 24, 19, 0, 5, 0, time.UTC)),
+						RecordTime:   timestamppb.New(time.Date(2023, 2, 24, 19, 0, 5, 500, time.UTC)),
+						OsType:       devicepb.OSType_OS_TYPE_MACOS,
+						SerialNumber: resource1Tag,
+					},
+					{
+						CollectTime:  timestamppb.New(time.Date(2023, 2, 24, 19, 0, 15, 0, time.UTC)),
+						RecordTime:   timestamppb.New(time.Date(2023, 2, 24, 19, 0, 15, 500, time.UTC)),
+						OsType:       devicepb.OSType_OS_TYPE_MACOS,
+						SerialNumber: resource1Tag,
+					},
+				},
+			},
+			createAsResource: true,
+			modifyWant: func(dev, want *devicepb.Device) {
+				// All fields that are typically system-generated are copied from `dev`.
+				want.Id = dev.Id
+				want.CreateTime = dev.CreateTime
+				want.UpdateTime = dev.UpdateTime
+				want.EnrollStatus = dev.EnrollStatus
+				want.Credential = dev.Credential
+				want.CollectedData = dev.CollectedData
+			},
+		},
+		{
+			name: "partial create as a resource", // Only required fields set.
+			dev: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: resource2Tag,
+			},
+			createAsResource: true,
+		},
+		{
+			name: "excessive collected data discarded on write",
+			dev: &devicepb.Device{
+				OsType:        devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag:      resource3Tag,
+				CollectedData: excessiveCD,
+			},
+			createAsResource: true,
+			modifyWant: func(_ *devicepb.Device, want *devicepb.Device) {
+				// Keep the oldest CD as enrollment data, skip the excessive entry
+				// (index 1) and retain the rest.
+				want.CollectedData = append(excessiveCD[:1], excessiveCD[2:]...)
 			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := s.CreateDevice(ctx, test.dev)
+			got, err := s.CreateDevice(ctx, test.dev, test.createAsResource)
 			if err != nil {
 				t.Fatalf("CreateDevice failed: %v", err)
 			}
@@ -168,6 +384,10 @@ func TestS_CreateDevice(t *testing.T) {
 			if got.CreateTime != nil && got.UpdateTime != nil && got.CreateTime.AsTime().After(got.UpdateTime.AsTime()) {
 				t.Errorf("CreateDevice: CreateTime (%v) is after UpdateTime (%v)", got.CreateTime, got.UpdateTime)
 			}
+			if m := storage.MaxCollectedDataPerDevice + 1; len(got.CollectedData) > m {
+				t.Errorf("CreateDevice: got %v CollectedData entries, want <= %v", len(got.CollectedData), m)
+			}
+
 			want := &devicepb.Device{
 				ApiVersion:   got.ApiVersion,
 				Id:           got.Id,
@@ -176,6 +396,14 @@ func TestS_CreateDevice(t *testing.T) {
 				CreateTime:   got.CreateTime,
 				UpdateTime:   got.UpdateTime,
 				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+			}
+			if test.modifyWant != nil {
+				test.modifyWant(test.dev, want)
+			}
+			// Sanity check: wanted collected data is within the limits of
+			// MaxCollectedDataPerDevice.
+			if m := storage.MaxCollectedDataPerDevice + 1; len(want.CollectedData) > m {
+				t.Errorf("want.CollectedData has %v entries, it should have at most %v entries", len(got.CollectedData), m)
 			}
 			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 				t.Errorf("CreateDevice: mismatch (-want +got):\n%s", diff)
@@ -205,6 +433,22 @@ func TestS_CreateDevice(t *testing.T) {
 	}
 }
 
+func newKeyPair(t *testing.T) (priv *ecdsa.PrivateKey, pubKeyDER []byte) {
+	t.Helper()
+
+	var err error
+	priv, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+
+	pubKeyDER, err = x509.MarshalPKIXPublicKey(priv.Public())
+	if err != nil {
+		t.Fatalf("MarshalPKIXPublicKey failed: %v", err)
+	}
+	return priv, pubKeyDER
+}
+
 func TestS_CreateDevice_reusedAssetTags(t *testing.T) {
 	env := mustNewEnv()
 	defer env.Close()
@@ -223,7 +467,7 @@ func TestS_CreateDevice_reusedAssetTags(t *testing.T) {
 	// All devices have the same asset tag but distinct OSes.
 	ctx := context.Background()
 	for _, dev := range []**devicepb.Device{&devMac, &devLinux, &devWin} {
-		created, err := s.CreateDevice(ctx, *dev)
+		created, err := s.CreateDevice(ctx, *dev, false /* createAsResource */)
 		if err != nil {
 			t.Fatalf("CreateDevice failed: %v", err)
 		}
@@ -273,7 +517,7 @@ func TestS_CreateDevice_concurrentAssetTags(t *testing.T) {
 			if _, err := s.CreateDevice(ctx, &devicepb.Device{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "llama",
-			}); err != nil && !trace.IsAlreadyExists(err) {
+			}, false /* createAsResource */); err != nil && !trace.IsAlreadyExists(err) {
 				t.Errorf("CreateDevice returned an unexpected error: %v (want nil or already exists)", err)
 			}
 			wg.Done()
@@ -310,7 +554,7 @@ func TestS_CreateDevice_errors(t *testing.T) {
 		AssetTag: knownTag,
 	}
 	ctx := context.Background()
-	if _, err := s.CreateDevice(ctx, validDev); err != nil {
+	if _, err := s.CreateDevice(ctx, validDev, false /* createAsResource */); err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
 
@@ -319,10 +563,11 @@ func TestS_CreateDevice_errors(t *testing.T) {
 	validDev.AssetTag = otherTag
 
 	tests := []struct {
-		name      string
-		createDev func() *devicepb.Device
-		wantErr   string
-		assertErr func(error) bool
+		name             string
+		createDev        func() *devicepb.Device
+		createAsResource bool
+		wantErr          string
+		assertErr        func(error) bool
 	}{
 		{
 			name:      "device nil",
@@ -370,10 +615,194 @@ func TestS_CreateDevice_errors(t *testing.T) {
 			wantErr:   "already registered",
 			assertErr: trace.IsAlreadyExists,
 		},
+		{
+			name: "resource: invalid api_version",
+			createDev: func() *devicepb.Device {
+				d := proto.Clone(validDev).(*devicepb.Device)
+				d.ApiVersion = "v99"
+				return d
+			},
+			createAsResource: true,
+			wantErr:          "api_version",
+			assertErr:        trace.IsBadParameter,
+		},
+		{
+			name: "resource: ID not an UUID",
+			createDev: func() *devicepb.Device {
+				d := proto.Clone(validDev).(*devicepb.Device)
+				d.Id = "banana"
+				return d
+			},
+			createAsResource: true,
+			wantErr:          "device ID",
+			assertErr:        trace.IsBadParameter,
+		},
+		{
+			name: "resource: asset_tag empty",
+			createDev: func() *devicepb.Device {
+				d := proto.Clone(validDev).(*devicepb.Device)
+				d.AssetTag = ""
+				return d
+			},
+			createAsResource: true,
+			wantErr:          "asset_tag required",
+			assertErr:        trace.IsBadParameter,
+		},
+		{
+			name: "resource: os_type unspecified",
+			createDev: func() *devicepb.Device {
+				d := proto.Clone(validDev).(*devicepb.Device)
+				d.OsType = devicepb.OSType_OS_TYPE_UNSPECIFIED
+				return d
+			},
+			createAsResource: true,
+			wantErr:          "invalid os_type",
+			assertErr:        trace.IsBadParameter,
+		},
+		{
+			name: "resource: create_time invalid",
+			createDev: func() *devicepb.Device {
+				d := proto.Clone(validDev).(*devicepb.Device)
+				d.CreateTime = &timestamppb.Timestamp{
+					Nanos: -1,
+				}
+				d.UpdateTime = timestamppb.Now() // both timestamps must be set
+				return d
+			},
+			createAsResource: true,
+			wantErr:          "invalid create_time",
+			assertErr:        trace.IsBadParameter,
+		},
+		{
+			name: "resource: update_time invalid",
+			createDev: func() *devicepb.Device {
+				d := proto.Clone(validDev).(*devicepb.Device)
+				d.CreateTime = timestamppb.Now() // both timestamps must be set
+				d.UpdateTime = &timestamppb.Timestamp{
+					Nanos: -1,
+				}
+				return d
+			},
+			createAsResource: true,
+			wantErr:          "invalid update_time",
+			assertErr:        trace.IsBadParameter,
+		},
+		{
+			name: "resource: create_time without update_time",
+			createDev: func() *devicepb.Device {
+				d := proto.Clone(validDev).(*devicepb.Device)
+				d.CreateTime = timestamppb.Now()
+				return d
+			},
+			createAsResource: true,
+			wantErr:          "create_time and update_time",
+			assertErr:        trace.IsBadParameter,
+		},
+		{
+			name: "resource: update_time without create_time",
+			createDev: func() *devicepb.Device {
+				d := proto.Clone(validDev).(*devicepb.Device)
+				d.UpdateTime = timestamppb.Now()
+				return d
+			},
+			createAsResource: true,
+			wantErr:          "create_time and update_time",
+			assertErr:        trace.IsBadParameter,
+		},
+		{
+			name: "resource: create_time after update_time",
+			createDev: func() *devicepb.Device {
+				t := time.Now()
+				t1 := t.Add(-2 * time.Minute)
+				t2 := t.Add(-1 * time.Minute)
+
+				d := proto.Clone(validDev).(*devicepb.Device)
+				d.CreateTime = timestamppb.New(t2)
+				d.UpdateTime = timestamppb.New(t1)
+				return d
+			},
+			createAsResource: true,
+			wantErr:          "create_time cannot be more recent",
+			assertErr:        trace.IsBadParameter,
+		},
+		{
+			name: "resource: credential invalid",
+			createDev: func() *devicepb.Device {
+				d := proto.Clone(validDev).(*devicepb.Device)
+				d.Credential = &devicepb.DeviceCredential{
+					// Missing all fields.
+				}
+				return d
+			},
+			createAsResource: true,
+			wantErr:          "credential",
+			assertErr:        trace.IsBadParameter,
+		},
+		{
+			name: "resource: collected data invalid",
+			createDev: func() *devicepb.Device {
+				d := proto.Clone(validDev).(*devicepb.Device)
+				d.CollectedData = []*devicepb.DeviceCollectedData{
+					// valid
+					{
+						CollectTime:  timestamppb.Now(),
+						RecordTime:   timestamppb.Now(),
+						OsType:       d.OsType,
+						SerialNumber: d.AssetTag,
+					},
+					// missing collect_time.
+					{
+						RecordTime:   timestamppb.Now(),
+						OsType:       d.OsType,
+						SerialNumber: d.AssetTag,
+					},
+				}
+				return d
+			},
+			createAsResource: true,
+			wantErr:          "collected_data[1]",
+			assertErr:        trace.IsBadParameter,
+		},
+		{
+			name: "resource: collected data missing record_time",
+			createDev: func() *devicepb.Device {
+				d := proto.Clone(validDev).(*devicepb.Device)
+				d.CollectedData = []*devicepb.DeviceCollectedData{
+					{
+						CollectTime: timestamppb.Now(),
+						// RecordTime required for resource-like writes.
+						OsType:       d.OsType,
+						SerialNumber: d.AssetTag,
+					},
+				}
+				return d
+			},
+			createAsResource: true,
+			wantErr:          "collected_data[0]",
+			assertErr:        trace.IsBadParameter,
+		},
+		{
+			name: "resource: collected data mismatched",
+			createDev: func() *devicepb.Device {
+				d := proto.Clone(validDev).(*devicepb.Device)
+				d.CollectedData = []*devicepb.DeviceCollectedData{
+					{
+						CollectTime:  timestamppb.Now(),
+						RecordTime:   timestamppb.Now(),
+						OsType:       d.OsType,
+						SerialNumber: "incorrect-asset-tag",
+					},
+				}
+				return d
+			},
+			createAsResource: true,
+			wantErr:          "serial number mismatch",
+			assertErr:        trace.IsBadParameter,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := s.CreateDevice(ctx, test.createDev())
+			_, err := s.CreateDevice(ctx, test.createDev(), test.createAsResource)
 			assert.ErrorContains(t, err, test.wantErr, "CreateDevice error mismatch")
 			if !test.assertErr(err) {
 				t.Errorf("CreateDevice: assertErr failed: %#v", err)
@@ -395,7 +824,7 @@ func TestS_DeleteDevice(t *testing.T) {
 		dev, err := s.CreateDevice(ctx, &devicepb.Device{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: assetTag,
-		})
+		}, false /* createAsResource */)
 		if err != nil {
 			t.Fatalf("CreateDevice failed: %v", err)
 		}
@@ -493,7 +922,7 @@ func TestS_DeleteDevice_assetTagMappings(t *testing.T) {
 		&llamaWin,
 		&unrelatedDev,
 	} {
-		created, err := s.CreateDevice(ctx, *dev)
+		created, err := s.CreateDevice(ctx, *dev, false /* createAsResource */)
 		if err != nil {
 			t.Fatalf("CreateDevice failed: %v", err)
 		}
@@ -626,7 +1055,7 @@ func TestS_ListDevices(t *testing.T) {
 		dev, err := s.CreateDevice(ctx, &devicepb.Device{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: assetTag,
-		})
+		}, false /* createAsResource */)
 		if err != nil {
 			t.Fatalf("CreateDevice(%q) failed: %v", assetTag, err)
 		}
@@ -795,7 +1224,7 @@ func TestS_EnrollDevice(t *testing.T) {
 	dev, err := s.CreateDevice(ctx, &devicepb.Device{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "llama",
-	})
+	}, false /* createAsResource */)
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
@@ -894,7 +1323,7 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 	dev, err := s.CreateDevice(ctx, &devicepb.Device{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "llama",
-	})
+	}, false /* createAsResource */)
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
@@ -1276,7 +1705,7 @@ func TestS_DeviceCollectedData_crud(t *testing.T) {
 }
 
 func createAndEnroll(ctx context.Context, s *storage.S, dev *devicepb.Device) (*devicepb.Device, crypto.PrivateKey, error) {
-	dev, err := s.CreateDevice(ctx, dev)
+	dev, err := s.CreateDevice(ctx, dev, false /* createAsResource */)
 	if err != nil {
 		return nil, nil, fmt.Errorf("calling CreateDevice: %v", err)
 	}
@@ -1322,7 +1751,7 @@ func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 		dev, err := s.CreateDevice(ctx, &devicepb.Device{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: asset,
-		})
+		}, false /* createAsResource */)
 		if err != nil {
 			t.Fatalf("CreateDevice failed: %v", err)
 		}

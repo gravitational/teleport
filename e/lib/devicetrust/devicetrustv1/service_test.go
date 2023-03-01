@@ -2,15 +2,21 @@ package devicetrustv1_test
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
 	"fmt"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -254,6 +260,17 @@ func TestService_CreateDevice(t *testing.T) {
 	defer env.Close()
 	devices := env.DevicesClient
 
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey failed: %v", err)
+	}
+	pubKeyDER, err := x509.MarshalPKIXPublicKey(privKey.Public())
+	if err != nil {
+		t.Fatalf("MarshalPKIXPublicKey failed: %v", err)
+	}
+
+	const resourceDeviceTag = "A00AA0AAAA0A"
+
 	ctx := context.Background()
 	tests := []struct {
 		name string
@@ -276,6 +293,48 @@ func TestService_CreateDevice(t *testing.T) {
 					AssetTag: "alpaca",
 				},
 				CreateEnrollToken: true,
+			},
+		},
+		{
+			name: "resource-like write",
+			req: &devicepb.CreateDeviceRequest{
+				Device: &devicepb.Device{
+					ApiVersion: "v1",
+					Id:         "a6f76866-a9eb-4a23-9bb1-7980347a1bee",
+					OsType:     devicepb.OSType_OS_TYPE_MACOS,
+					AssetTag:   resourceDeviceTag,
+					CreateTime: timestamppb.New(time.Date(2023, 2, 15, 15, 28, 21, 0, time.UTC)),
+					UpdateTime: timestamppb.New(time.Date(2023, 2, 23, 22, 9, 36, 0, time.UTC)),
+					EnrollToken: &devicepb.DeviceEnrollToken{
+						Token: "i-am-ignored",
+					},
+					EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
+					Credential: &devicepb.DeviceCredential{
+						Id:           "ae2d978c-fee8-419d-a2e6-a5dd0a00c4b8",
+						PublicKeyDer: pubKeyDER,
+					},
+					CollectedData: []*devicepb.DeviceCollectedData{
+						{
+							CollectTime:  timestamppb.New(time.Date(2023, 2, 15, 15, 28, 35, 402554, time.UTC)),
+							RecordTime:   timestamppb.New(time.Date(2023, 2, 15, 15, 28, 35, 438274, time.UTC)),
+							OsType:       devicepb.OSType_OS_TYPE_MACOS,
+							SerialNumber: resourceDeviceTag,
+						},
+						{
+							CollectTime:  timestamppb.New(time.Date(2023, 2, 23, 22, 9, 12, 9985, time.UTC)),
+							RecordTime:   timestamppb.New(time.Date(2023, 2, 23, 22, 9, 12, 136163, time.UTC)),
+							OsType:       devicepb.OSType_OS_TYPE_MACOS,
+							SerialNumber: resourceDeviceTag,
+						},
+						{
+							CollectTime:  timestamppb.New(time.Date(2023, 2, 23, 22, 9, 36, 904036, time.UTC)),
+							RecordTime:   timestamppb.New(time.Date(2023, 2, 23, 22, 9, 36, 984874, time.UTC)),
+							OsType:       devicepb.OSType_OS_TYPE_MACOS,
+							SerialNumber: resourceDeviceTag,
+						},
+					},
+				},
+				CreateAsResource: true,
 			},
 		},
 	}
@@ -354,6 +413,268 @@ func TestService_CreateDevice(t *testing.T) {
 			assertEvents(t, emitter.Events(), wantEvents)
 		})
 	}
+}
+
+func TestService_CreateDevice_asResource(t *testing.T) {
+	env := testenv.NewUsingT(t)
+	defer env.Close()
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	// Create a few devices, read them in full view, delete and then re-create as
+	// a resource. This simulates an interaction similar to
+	// `tctl rm device/X | tctl create`.
+	// The final state should match the initial state, exactly.
+
+	// Create a couple of registered-only devices.
+	var allDevices []*devicepb.Device
+	for _, tag := range []string{"dev1", "dev2"} {
+		dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+			Device: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: tag,
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateDevice(%q) failed: %v", tag, err)
+		}
+		allDevices = append(allDevices, dev)
+	}
+
+	// Create a couple of enrolled devices.
+	llamaDev, llamaKey, err := createAndEnroll(ctx, devices, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama",
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+	allDevices = append(allDevices, llamaDev)
+
+	alpacaDev, alpacaKey, err := createAndEnroll(ctx, devices, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "alpaca",
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+	allDevices = append(allDevices, alpacaDev)
+
+	// Authenticate a few times to generate additional collected data.
+	if err := authenticateDevice(ctx, devices, llamaDev, llamaKey); err != nil {
+		t.Fatalf("authenticateDevice failed: %v", err)
+	}
+	if err := authenticateDevice(ctx, devices, llamaDev, llamaKey); err != nil {
+		t.Fatalf("authenticateDevice failed: %v", err)
+	}
+	if err := authenticateDevice(ctx, devices, alpacaDev, alpacaKey); err != nil {
+		t.Fatalf("authenticateDevice failed: %v", err)
+	}
+
+	// Read fresh, complete copies of all devices.
+	for i, dev := range allDevices {
+		stored, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
+			DeviceId: dev.Id,
+		})
+		if err != nil {
+			t.Fatalf("GetDevices failed: %v", err)
+		}
+		allDevices[i] = stored
+	}
+
+	// Sanity checks: make sure state is as we expect.
+	switch {
+	case allDevices[0].EnrollStatus != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED: // dev1
+		t.Fatalf("dev1 has unexpected enrollment status: %v", allDevices[0].EnrollStatus)
+	case allDevices[1].EnrollStatus != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED: // dev2
+		t.Fatalf("dev2 has unexpected enrollment status: %v", allDevices[1].EnrollStatus)
+	case allDevices[2].EnrollStatus != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED: // llama
+		t.Fatalf("llama has unexpected enrollment status: %v", allDevices[2].EnrollStatus)
+	case allDevices[2].Credential == nil:
+		t.Fatal("llama has nil credential")
+	case len(allDevices[2].CollectedData) < 3: // 1 enroll + 2 authn
+		t.Fatalf("llama has unexpected number of collected data: %v", len(allDevices[2].CollectedData))
+	case allDevices[3].EnrollStatus != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED: // alpaca
+		t.Fatalf("alpaca has unexpected enrollment status: %v", allDevices[3].EnrollStatus)
+	case allDevices[3].Credential == nil:
+		t.Fatal("alpaca has nil credential")
+	case len(allDevices[3].CollectedData) < 2: // 1 enroll + 1 authn
+		t.Fatalf("alpaca has unexpected number of collected data: %v", len(allDevices[3].CollectedData))
+	}
+
+	assertDevices := func(t *testing.T, allDevices []*devicepb.Device) {
+		t.Helper()
+
+		listReq := &devicepb.ListDevicesRequest{
+			View: devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
+		}
+
+		var got []*devicepb.Device
+		for {
+			listResp, err := devices.ListDevices(ctx, listReq)
+			if err != nil {
+				t.Fatalf("ListDevices failed: %v", err)
+			}
+			got = append(got, listResp.Devices...)
+			if listResp.NextPageToken == "" {
+				break
+			}
+			listReq.PageToken = listResp.NextPageToken
+		}
+
+		// Preserve the order of `allDevices`, it's best if we avoid writing
+		// devices in a specific order for the test.
+		want := make([]*devicepb.Device, len(allDevices))
+		copy(want, allDevices)
+
+		sort.Slice(want, func(i, j int) bool { return want[i].AssetTag < want[j].AssetTag })
+		sort.Slice(got, func(i, j int) bool { return got[i].AssetTag < got[j].AssetTag })
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Fatalf("ListDevices mismatch (-want +got):\n%s", diff)
+		}
+	}
+	// Sanity check: storage matches allDevices.
+	assertDevices(t, allDevices)
+
+	deleteAll := func(t *testing.T) {
+		t.Helper()
+
+		listReq := &devicepb.ListDevicesRequest{}
+		var deviceIDs []string
+		for {
+			listResp, err := devices.ListDevices(ctx, listReq)
+			if err != nil {
+				t.Fatalf("ListDevices failed: %v", err)
+			}
+
+			for _, dev := range listResp.Devices {
+				deviceIDs = append(deviceIDs, dev.Id)
+			}
+
+			if listResp.NextPageToken == "" {
+				break
+			}
+			listReq.PageToken = listResp.NextPageToken
+		}
+
+		for _, id := range deviceIDs {
+			_, err := devices.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
+				DeviceId: id,
+			})
+			if err != nil {
+				t.Fatalf("DeleteDevice(%q) failed: %v", id, err)
+			}
+		}
+
+		// Sanity check deletion.
+		switch listResp, err := devices.ListDevices(ctx, &devicepb.ListDevicesRequest{}); {
+		case err != nil:
+			t.Fatalf("ListDevices failed: %v", err)
+		case len(listResp.Devices) > 0:
+			t.Fatalf("ListDevices returned devices, wanted none: %v", listResp.Devices)
+		}
+	}
+
+	t.Run("CreateDevice", func(t *testing.T) {
+		deleteAll(t)
+
+		for _, dev := range allDevices {
+			created, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+				Device:           dev,
+				CreateAsResource: true,
+			})
+			if err != nil {
+				t.Fatalf("CreateDevice(%q, createAsResource=true) failed: %v", dev.AssetTag, err)
+			}
+
+			// Assert CreatteDevice's response.
+			if diff := cmp.Diff(dev, created, protocmp.Transform()); diff != "" {
+				t.Errorf("CreateDevice mismatch (-want +got):\n%s", diff)
+			}
+		}
+
+		// Assert storage.
+		assertDevices(t, allDevices)
+	})
+
+	t.Run("BulkCreateDevices", func(t *testing.T) {
+		deleteAll(t)
+
+		resp, err := devices.BulkCreateDevices(ctx, &devicepb.BulkCreateDevicesRequest{
+			Devices:          allDevices,
+			CreateAsResource: true,
+		})
+		if err != nil {
+			t.Fatalf("BulkCreateDevices failed: %v", err)
+		}
+
+		// Assert BulkCreateDevices' response.
+		want := make([]*devicepb.DeviceOrStatus, len(allDevices))
+		for i, dev := range allDevices {
+			want[i] = &devicepb.DeviceOrStatus{
+				Id: dev.Id,
+			}
+		}
+		if diff := cmp.Diff(want, resp.Devices, protocmp.Transform()); diff != "" {
+			t.Errorf("BulkCreateDevices mismatch (-want +got):\n%s", diff)
+		}
+
+		// Assert storage.
+		assertDevices(t, allDevices)
+	})
+}
+
+func authenticateDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient, dev *devicepb.Device, devKey *fakeEnclaveKey) error {
+	stream, err := devices.AuthenticateDevice(ctx)
+	if err != nil {
+		return err
+	}
+
+	// 1. Init.
+	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
+		Payload: &devicepb.AuthenticateDeviceRequest_Init{
+			Init: &devicepb.AuthenticateDeviceInit{
+				CredentialId: devKey.id,
+				DeviceData: &devicepb.DeviceCollectedData{
+					CollectTime:  timestamppb.Now(),
+					OsType:       dev.OsType,
+					SerialNumber: dev.AssetTag,
+				},
+			},
+		},
+	}); err != nil {
+		return err
+	}
+	resp, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+
+	// 2. Challenge.
+	sig, err := devKey.signChallenge(resp.GetChallenge().Challenge)
+	if err != nil {
+		return err
+	}
+	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
+		Payload: &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
+			ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{
+				Signature: sig,
+			},
+		},
+	}); err != nil {
+		return err
+	}
+	resp, err = stream.Recv()
+	if err != nil {
+		return err
+	}
+
+	// 3. Success.
+	if resp.GetUserCertificates() == nil {
+		return fmt.Errorf("got payload type %T, wanted UserCertificates", resp.Payload)
+	}
+	return nil
 }
 
 func TestService_DeleteDevice(t *testing.T) {
