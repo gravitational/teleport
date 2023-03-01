@@ -38,5 +38,8 @@
       "web/packages/teleterm",
       "e/web/**"
     ]
+  },
+  "dependencies": {
+    "loader-utils": "^1.4.2"
   }
 }
