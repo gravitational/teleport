@@ -41,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/auth"
@@ -524,6 +525,9 @@ type ProxyConfig struct {
 
 	// DisableALPNSNIListener allows turning off the ALPN Proxy listener. Used in tests.
 	DisableALPNSNIListener bool
+
+	// UI provides config options for the web UI
+	UI webclient.UIConfig
 }
 
 // ACME configures ACME automatic certificate renewal
