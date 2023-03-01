@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect, useRef, useState, isValidElement } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled, { css, useTheme } from 'styled-components';
-import { ButtonIcon, Flex, Text } from 'design';
+import { ButtonIcon, Flex, Link, Text } from 'design';
 import { Close } from 'design/Icon';
 
 import type {
@@ -27,9 +27,13 @@ import type {
 
 interface NotificationProps {
   item: NotificationItem;
+
   onRemove(): void;
+
   Icon: React.ElementType;
+
   getColor(theme): string;
+
   isAutoRemovable: boolean;
   autoRemoveDurationMs?: number;
   // Workaround until `styled` gets types.
@@ -126,7 +130,7 @@ function getRenderedContent(
 ) {
   const longerTextCss = isExpanded ? textCss : shortTextCss;
 
-  if (typeof content === 'string' || isValidElement(content)) {
+  if (typeof content === 'string') {
     return (
       <Flex alignItems="center" justifyContent="space-between" width="100%">
         <Text
@@ -175,11 +179,36 @@ function getRenderedContent(
           color="text.secondary"
           css={longerTextCss}
         >
+          {content.list && <ListRenderer list={content.list} />}
           {content.description}
         </Text>
+        {content.link && (
+          <Link href={content.link.href} target="_blank">
+            {content.link.text}
+          </Link>
+        )}
       </Flex>
     );
   }
+}
+
+function ListRenderer(props: { list: string[] }) {
+  if (props.list.length === 1) {
+    return <>{props.list[0]}</>;
+  }
+
+  return (
+    <ul
+      css={`
+        margin: 0;
+        padding-inline-start: 12px;
+      `}
+    >
+      {props.list.map((item, index) => (
+        <li key={index}>{item}</li>
+      ))}
+    </ul>
+  );
 }
 
 function isContentANotificationItemObject(

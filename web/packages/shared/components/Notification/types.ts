@@ -14,20 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { ReactNode } from 'react';
-
 export interface NotificationItem {
   content: NotificationItemContent;
   severity: 'info' | 'warn' | 'error';
   id: string;
 }
 
-export type NotificationItemContent =
-  | string
-  | ReactNode
-  | NotificationItemObjectContent;
+export type NotificationItemContent = string | NotificationItemObjectContent;
 
 export type NotificationItemObjectContent = {
   title: string;
-  description: string | ReactNode;
+  list?: string[];
+  description?: string;
+  link?: {
+    href: string;
+    text: string;
+  };
 };

@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import { Link } from 'design';
-
 import {
   askAboutUserJobRoleIfNeeded,
   setUpUsageReporting,
@@ -61,22 +58,12 @@ function notifyAboutStoredConfigErrors(
   if (errors) {
     notificationsService.notifyError({
       title: 'Encountered errors in config file',
-      description: (
-        <span>
-          <ErrorsRenderer
-            errors={errors.map(e => `${e.path[0].toString()}: ${e.message}`)}
-          />
-          {/**TODO(gzdunek): point to the properer section */}
-          <Link
-            href={
-              'https://goteleport.com/docs/connect-your-client/teleport-connect/'
-            }
-            target="_blank"
-          >
-            See documentation for the app config.
-          </Link>
-        </span>
-      ),
+      list: errors.map(e => `${e.path[0].toString()}: ${e.message}`),
+      link: {
+        // TODO(gzdunek): point to the properer section
+        href: 'https://goteleport.com/docs/connect-your-client/teleport-connect/',
+        text: 'See documentation for the app config',
+      },
     });
   }
 }
@@ -89,36 +76,12 @@ function notifyAboutDuplicatedShortcutsCombinations(
   if (duplicates) {
     notificationsService.notifyWarning({
       title: 'Shortcuts conflicts',
-      description: (
-        <ErrorsRenderer
-          errors={Object.entries(duplicates).map(
-            ([accelerator, actions]) =>
-              `${accelerator} is used for actions: ${actions.join(
-                ', '
-              )}. Only one of them will work.`
-          )}
-        />
+      list: Object.entries(duplicates).map(
+        ([accelerator, actions]) =>
+          `${accelerator} is used for actions: ${actions.join(
+            ', '
+          )}. Only one of them will work.`
       ),
     });
   }
-}
-
-function ErrorsRenderer(props: { errors: string[] }) {
-  if (props.errors.length === 1) {
-    const error = props.errors[0];
-    return <div>{error}</div>;
-  }
-  return (
-    <ul
-      css={`
-        margin: 0;
-        padding-inline-start: 13px;
-        white-space: normal;
-      `}
-    >
-      {props.errors.map(error => (
-        <li key={error}>{error}</li>
-      ))}
-    </ul>
-  );
 }
