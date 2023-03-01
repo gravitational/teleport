@@ -1303,14 +1303,14 @@
     },
     "teleport": {
       "major_version": "11",
-      "version": "11.3.2",
-      "golang": "1.19",
+      "version": "11.3.5",
+      "golang": "1.20",
       "plugin": {
-        "version": "11.3.2"
+        "version": "11.3.5"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:11.3.2",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:11.3.2"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:11.3.5",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:11.3.5"
     },
     "terraform": {
       "version": "1.0.0"
