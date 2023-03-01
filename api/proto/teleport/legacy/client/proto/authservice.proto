@@ -124,6 +124,8 @@ message Event {
     types.WebSessionV2 SAMLIdPSession = 37 [(gogoproto.jsontag) = "saml_idp_session,omitempty"];
     // UserGroup is a UserGroup resource
     types.UserGroupV1 UserGroup = 38 [(gogoproto.jsontag) = "user_group,omitempty"];
+    // UIConfig provides a way for users to adjust settings of the UI served by the proxy service.
+    types.UIConfigV1 UIConfig = 39 [(gogoproto.jsontag) = "ui_config,omitempty"];
   }
 }
 
@@ -2628,6 +2630,13 @@ service AuthService {
   rpc SetAuthPreference(types.AuthPreferenceV2) returns (google.protobuf.Empty);
   // ResetAuthPreference resets cluster auth preference to defaults.
   rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // GetUIConfig gets the configuration for the UI served by the proxy service
+  rpc GetUIConfig(google.protobuf.Empty) returns (types.UIConfigV1);
+  // SetUIConfig sets the configuration for the UI served by the proxy service
+  rpc SetUIConfig(types.UIConfigV1) returns (google.protobuf.Empty);
+  // DeleteUIConfig deletes the custom configuration for the UI served by the proxy service
+  rpc DeleteUIConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetEvents gets events from the audit log.
   rpc GetEvents(GetEventsRequest) returns (Events);
