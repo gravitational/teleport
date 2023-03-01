@@ -17,10 +17,40 @@ limitations under the License.
 package utils
 
 import (
+	"context"
 	"net"
 
 	"github.com/gravitational/trace"
 )
+
+type webContextKey string
+
+const (
+	// ClientSrcAddrContextKey is context key for client source address
+	ClientSrcAddrContextKey webContextKey = "teleport-clientSrcAddrContextKey"
+	// ClientDstAddrContextKey is context key for client destination address
+	ClientDstAddrContextKey webContextKey = "teleport-clientDstAddrContextKey"
+)
+
+// ClientAddrContext is used by server that accepts connections from clients to set incoming
+// client's connection source and destination addresses to the context, so it could be later used
+// for IP propagation purpose. It is used when we don't have other source for client source/destination
+// addresses (don't have direct access to net.Conn)
+func ClientAddrContext(ctx context.Context, src net.Addr, dst net.Addr) context.Context {
+	ctx = context.WithValue(ctx, ClientSrcAddrContextKey, src)
+	return context.WithValue(ctx, ClientDstAddrContextKey, dst)
+}
+
+// ClientAddrFromContext gets client source address and destination addresses from the context. If an address is
+// not present, nil will be returned
+func ClientAddrFromContext(ctx context.Context) (src net.Addr, dst net.Addr) {
+	if ctx == nil {
+		return nil, nil
+	}
+	src, _ = ctx.Value(ClientSrcAddrContextKey).(net.Addr)
+	dst, _ = ctx.Value(ClientDstAddrContextKey).(net.Addr)
+	return
+}
 
 // ClientIPFromConn extracts host from provided remote address.
 func ClientIPFromConn(conn net.Conn) (string, error) {

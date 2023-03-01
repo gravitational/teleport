@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -133,6 +134,8 @@ type AgentPoolConfig struct {
 	// LocalAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	LocalAuthAddresses []string
+	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
+	PROXYSigner multiplexer.PROXYHeaderSigner
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -197,7 +200,8 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentReverseTunnelAgent,
 			trace.ComponentFields: logrus.Fields{
-				"cluster": config.Cluster,
+				"targetCluster": config.Cluster,
+				"localCluster":  config.LocalCluster,
 			},
 		}),
 		runtimeConfig: newAgentPoolRuntimeConfig(),
@@ -510,6 +514,7 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 		clock:              p.Clock,
 		log:                p.log,
 		localAuthAddresses: p.LocalAuthAddresses,
+		proxySigner:        p.PROXYSigner,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -564,6 +569,7 @@ func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests
 		requestCh:           requests,
 		log:                 p.log,
 		authServers:         p.LocalAuthAddresses,
+		proxySigner:         p.PROXYSigner,
 	}
 }
 

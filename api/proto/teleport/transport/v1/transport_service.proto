@@ -14,17 +14,17 @@
 
 syntax = "proto3";
 
-package teleport.proxy.v1;
+package teleport.transport.v1;
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/proxy/v1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1";
 
-// ProxyService provides methods to proxy connections to various Teleport instances.
+// TransportService provides methods to proxy connections to various Teleport instances.
 //
 // All connections are operate on top of a bidirectional stream which transports
 // raw payloads from higher level protocols (i.e. SSH). Clients must send an initial
 // message on the stream to set up the connections accordingly. After the initial
 // request either side may freely send data in any order until the stream is terminated.
-service ProxyService {
+service TransportService {
   // GetClusterDetails provides cluster information that may affect how transport
   // should occur.
   rpc GetClusterDetails(GetClusterDetailsRequest) returns (GetClusterDetailsResponse);

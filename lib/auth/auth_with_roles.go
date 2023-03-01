@@ -3616,6 +3616,28 @@ func (a *ServerWithRoles) GetAuthPreference(ctx context.Context) (types.AuthPref
 	return a.authServer.GetAuthPreference(ctx)
 }
 
+func (a *ServerWithRoles) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
+	if err := a.action(apidefaults.Namespace, types.KindUIConfig, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cfg, err := a.authServer.GetUIConfig(ctx)
+	return cfg, trace.Wrap(err)
+}
+
+func (a *ServerWithRoles) SetUIConfig(ctx context.Context, uic types.UIConfig) error {
+	if err := a.action(apidefaults.Namespace, types.KindUIConfig, types.VerbUpdate, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.SetUIConfig(ctx, uic))
+}
+
+func (a *ServerWithRoles) DeleteUIConfig(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindUIConfig, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(a.authServer.DeleteUIConfig(ctx))
+}
+
 // GetInstaller retrieves an installer script resource
 func (a *ServerWithRoles) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
 	if err := a.action(apidefaults.Namespace, types.KindInstaller, types.VerbRead); err != nil {
