@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	"testing"
 
 	"github.com/bufbuild/connect-go"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
