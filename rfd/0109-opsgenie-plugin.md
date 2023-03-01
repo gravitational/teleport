@@ -113,10 +113,6 @@ Access requests will be mapped to Opsgenie alerts by including the Access reques
 
 Shared code between the teleport-plugins found in lib is not too extensive and the simplest method to handle this when adding the Opsgenie plugin would be to simply duplicate what is needed for now.
 
-### Note
-
-Opsgenie will only ever read Teleport state and never write it.
-
 ## Security considerations
 
 Potential for users to get access requests auto approved if they can get themselves onto the current on call rotation.
