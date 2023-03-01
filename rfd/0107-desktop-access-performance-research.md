@@ -114,8 +114,8 @@ contrast to our current RDP client, [rdp-rs](https://github.com/gravitational/rd
 
 #### RDP 7: Bitmaps with RemoteFX encoding
 
-According to Moreau's best judgement, the best bang for one's buck in terms of performance vs complexity of implementation is to go with RDP 7, which is to say
-to use bitmaps encoded by the RemoteFX codec.
+According to Moreau's best judgement, the best bang for one's buck in terms of performance vs complexity of implementation is to go with RDP 7, which added bitmaps encoded by the RemoteFX codec
+(`rdp-rs` does not currently support the RemoteFX codec, and only supports RDP's original, less performant bitmap codec).
 
 It can oftentimes be difficult to decipher precisely what RDP version does what, and what that means, just by looking at the protocol specification itself. In
 practice what "using bitmaps encoded by the RemoteFX codec" means is that your client sends the
@@ -139,3 +139,71 @@ https://user-images.githubusercontent.com/13578537/221960403-ab7ae7a2-7fe9-4391-
 IronRDP (uploaded to Google Drive because it exceeded GitHub's limit, probably because it wasn't dropping a sizeable chunk of the frames like the above):
 
 https://drive.google.com/file/d/1xyzkAWPyKu-zLQpx168zHH_i7DoqnacC/view?usp=sharing
+
+Clearly it appears that RemoteFX encoding is a sizeable improvement on the RDP default.
+I say "appears" because it's important to keep in mind that Teleport's client is a TDP client, which speaks in PNGs that have been translated from RDP bitmaps. In other words, Teleport does not speak RDP directly, there is an extra bitmap-to-PNG translation and network
+communication step as compared to IronRDP.
+Therefore, to confirm that it really is IronRDP's RemoteFX codec that's making up the majority of the performance improvement, and not the architectural differences, I tried playing the same video in a session using `FreeRDP`, with `FreeRDP` set to have the same RDP settings
+as does `rdp-rs` (bitmaps with default codec) in Teleport's system. Performance is similar to the naked eye to the unwatchable Teleport example above, suggesting that RemoteFX is indeed the critical variable for the visible improvements:
+
+https://drive.google.com/file/d/1XHHIdsSRyUw2lrftjOYrVSXTK-8URuf0/view?usp=sharing
+
+#### Technical Considerations
+
+##### Option 1
+
+Recall that Teleport's Windows desktop architecture currently looks like the following, with the `rdp-rs` RDP client and bitmap-to-PNG translation residing on the Teleport Windows Desktop Service.
+
+```
+                        Teleport Desktop Protocol                         RDP
+               ------------------------------------------        ---------------------
+               |                                        |        |                   |
++----------------------+     +------------------+  +------------------+     +------------------+
+|                      |     |                  |  | (rdp-rs & b-2-p) |     |                  |
+|  (TDP client)        |     |                  |  |    Teleport      |     |                  |
+|  User's Web Browser  ------|  Teleport Proxy -----  Windows Desktop ------|  Windows Desktop |
+|                      |     |                  |  |     Service      |     |                  |
++----------------------+     +------------------+  +------------------+     +------------------+
+```
+
+Meanwhile, IronRDP's default setup looks like this
+
+```
+                                     RDP
+               ------------------------------------------
+               |                                        |
++----------------------+     +------------------+  +------------------+
+|                      |     |                  |  |                  |
+|  (IronRDP)           |     |                  |  |                  |
+|  User's Web Browser  -------  Devolutions     ----  Windows Desktop |
+|                      |     |  Gateway         |  |                  |
++----------------------+     +------------------+  +------------------+
+```
+
+Given that `IronRDP` and `rdp-rs` are both RDP clients written in Rust, the most obvious option is to simply swap one out for the other.
+As ever, this is easier said than done for a variety of reasons including primarily that `IronRDP` is written to connect specifically to [Devolutions Gateway](https://github.com/Devolutions/devolutions-gateway),
+which means that it connects over a websocket and the connection sequence includes a [custom Devolutions PDU](https://github.com/Devolutions/IronRDP/blob/e2ee180f7ea20dc51530be4d77c7275d12121f02/ironrdp-devolutions-gateway/src/lib.rs#L24).
+Given that `IronRDP` is otherwise a general RDP client, this is not an insurmountable obstacle, but will take an open-ended amount of R&D effort to solve.
+
+Also of note is the fact that `IronRDP` doesn't yet have features like clipboard sharing and device redirection implemented, and so it will require some non-trivial amount of effort to add those to the codebase.
+
+##### Option 2
+
+Another option worth considering is throwing out TDP entirely, and just using IronRDP as an RDP client in the browser directly. Making this option especially enticing is the fact that IronRDP is being developed specifically with an eye
+towards running it in the browser, and it already has a WASM compilation target (to allow Rust to run in browser) and Svelte proof-of-concept client as part of the repository. In that case, our system diagram would look like
+
+```
+                                                 RDP
+               -----------------------------------------------------------------------
+               |                                                                     |
++----------------------+     +------------------+  +------------------+     +------------------+
+|                      |     |                  |  |                  |     |                  |
+|  (IronRDP)           |     |                  |  |    Teleport      |     |                  |
+|  User's Web Browser  ------|  Teleport Proxy -----  Windows Desktop ------|  Windows Desktop |
+|                      |     |                  |  |     Service      |     |                  |
++----------------------+     +------------------+  +------------------+     +------------------+
+```
+
+The primary problem with this option is that there's no obvious way for us to log audit events and do session recording. Currently this is all being done at the Teleport Windows Desktop Service, where the RDP client is translated to TDP
+and sent to the browser. In the proposed setup, however, the Windows Desktop Service is acting as merely another proxy, meaning that the RDP connection is not terminated there. This means that it's a non-trivial task to "unmask" the RDP
+messages at that point in the system, [particularly if we ever want to enable NLA](https://github.com/Devolutions/devolutions-gateway/issues/290).
