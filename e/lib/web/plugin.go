@@ -1,13 +1,19 @@
 package web
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
 	"net/http"
+	"net/url"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/e/api/cloud"
+	"github.com/gravitational/teleport/e/lib/idp/saml"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -47,12 +53,30 @@ func NewPlugin(cfg Config) (*Plugin, error) {
 // Plugin extends OSS auth server API with enterprise features
 type Plugin struct {
 	Config
-	h *web.Handler
+	mu sync.RWMutex
+	h  *web.Handler
+
+	// authMiddleware is the auth middleware.
+	authMiddleware *auth.Middleware
 }
 
 // GetName returns plugin name
 func (p *Plugin) GetName() string {
 	return pluginName
+}
+
+// GetProxyClient returns the proxy client.
+func (p *Plugin) GetProxyClient() auth.ClientI {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.h.GetProxyClient()
+}
+
+// GetAccessPoint returns the proxy caching access point.
+func (p *Plugin) GetAccessPoint() auth.ProxyAccessPoint {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.h.GetAccessPoint()
 }
 
 // RegisterAuthServices registers GRPC services
@@ -65,6 +89,22 @@ func (p *Plugin) RegisterAuthWebHandlers(srv interface{}) error {
 	return nil
 }
 
+// RegisterSAMLIdP will register the SAML IdP with the plugin.
+//
+//nolint:revive // Because we want this to be IdP.
+func (p *Plugin) RegisterSAMLIdP(samlIdP *saml.Service) error {
+	p.mu.RLock()
+	h := p.h
+	p.mu.RUnlock()
+	if h == nil {
+		return trace.BadParameter("the handler has not been set")
+	}
+
+	p.h.GET(fmt.Sprintf("%s/*unused", saml.IdPRoute), p.withSAMLAuth(samlIdP.ServeHTTP))
+	p.h.POST(fmt.Sprintf("%s/*unused", saml.IdPRoute), p.withSAMLAuth(samlIdP.ServeHTTP))
+	return nil
+}
+
 // RegisterProxyWebHandlers registers to proxy web handler
 func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h, ok := handler.(*web.Handler)
@@ -72,7 +112,19 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 		return trace.BadParameter("unsupported handler type %T", handler)
 	}
 
+	p.mu.Lock()
 	p.h = h
+	p.mu.Unlock()
+
+	clusterName, err := p.h.GetProxyClient().GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	p.authMiddleware = &auth.Middleware{
+		ClusterName: clusterName.GetClusterName(),
+	}
+
 	h.GET("/enterprise/authconnectors", h.WithAuth(p.getAuthConnectorsHandle))
 	h.POST("/enterprise/saml", h.WithAuth(p.upsertSAMLConnectorHandle))
 	h.PUT("/enterprise/saml/:name", h.WithAuth(p.upsertSAMLConnectorHandle))
@@ -155,6 +207,43 @@ func (p *Plugin) withCloudAuth(fn CloudHandler) httprouter.Handle {
 		}
 
 		return fn(w, r, ctx, cloudClient)
+	})
+}
+
+func (p *Plugin) withSAMLAuth(fn http.HandlerFunc) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+		// We need the middleware before we can continue
+		if p.authMiddleware == nil {
+			return nil, trace.BadParameter("the middleware is not yet ready")
+		}
+
+		sessCtx, err := p.h.AuthenticateRequest(w, r, false)
+		if err != nil {
+			p.Log.Debugf("SAML IdP authenticate failed: %v", err)
+			redirectURI := (&url.URL{
+				Scheme:   "https",
+				Host:     r.Host,
+				Path:     r.URL.Path,
+				RawQuery: url.QueryEscape(r.URL.Query().Encode()),
+			}).String()
+			http.Redirect(w, r, "/web/login?redirect_uri="+redirectURI, http.StatusSeeOther)
+			return nil, nil
+		}
+
+		cert, err := sessCtx.GetX509Certificate()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsConnState := tls.ConnectionState{
+			PeerCertificates: []*x509.Certificate{cert},
+		}
+		newCtx, err := p.authMiddleware.WrapContextWithUserFromTLSConnState(r.Context(), tlsConnState)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		fn(w, r.WithContext(newCtx))
+		return nil, nil
 	})
 }
 

@@ -28,6 +28,9 @@ const cfg = {
     recoveryStepCodes: '/web/recovery/steps/:tokenId/codes',
 
     downloadCenter: '/web/downloads',
+
+    // allow SAML IdP handlers
+    samlIdPHandler: '/enterprise/saml-idp/*',
   },
 
   api: {

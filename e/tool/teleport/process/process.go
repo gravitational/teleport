@@ -78,6 +78,18 @@ func NewTeleport(cfg *service.Config) (service.Process, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Initialize the IdP.
+	if cfg.Proxy.IdP.SAMLIdP.Enabled {
+		// We have to wait for the proxy to be finished before we can initiate the SAML IdP.
+		ossProcess.RegisterFunc("saml-idp", func() error {
+			_, err := ossProcess.WaitForEvent(ossProcess.ExitContext(), service.ProxyWebServerReady)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			return trace.Wrap(initSAMLIdP(ossProcess.ExitContext(), cfg, webPlugin))
+		})
+	}
+
 	// Only the auth service has extensions, so we're done now if not running an auth server
 	if !cfg.Auth.Enabled {
 		return ossProcess, nil
