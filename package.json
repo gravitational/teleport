@@ -41,6 +41,7 @@
   },
   "dependencies": {
     "@xmldom/xmldom": "^0.8.4",
-    "loader-utils": "^1.4.2"
+    "loader-utils": "^1.4.2",
+    "shell-quote": "^1.7.3"
   }
 }
