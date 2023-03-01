@@ -33,11 +33,6 @@ export type Desktop = {
   host_addr?: string;
 };
 
-export type DesktopsResponse = {
-  desktops: Desktop[];
-  startKey?: string;
-  totalCount?: number;
-};
 // DesktopService is a Windows Desktop Service.
 export type WindowsDesktopService = {
   // Name is name (uuid) of the windows desktop service.

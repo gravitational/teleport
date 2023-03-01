@@ -1,6 +1,6 @@
 ---
 title: Getting Started with Desktop Access
-description: Access Windows systems through Teleport using passwordless authentication.
+description: Passwordless access to Windows systems for local users
 videoBanner: 9DyKQbg4ORc
 ---
 
@@ -8,7 +8,7 @@ This guide will help you configure Teleport to provide secure, passwordless acce
 to Windows desktops. This configuration does not require an Active Directory domain.
 
 <Admonition type="note">
-Windows Access without Active Directory is an Enterprise only feature.
+Passwordless access for local users is an Enterprise-only feature.
 
 For open source Teleport, consider integrating Teleport with Active Directory
 for automatic discovery by reading [Desktop Access with Active Directory](./active-directory.mdx).
@@ -24,13 +24,13 @@ with the static host definitions described below.
   scopeOnly={true}
   min="12.0"
 >
-Windows Access without Active Directory is available starting from Teleport `v12`.
+Passwordless access for local users is available starting from Teleport `v12`.
 Previous versions of Teleport can implement Windows Access by integrating with
 an [Active Directory domain](./active-directory.mdx).
 </Details>
 
 <Admonition type="warning">
-Teleport Desktop Access is not yet compatible with Windows Server 2022.
+Passwordless access for local users is not yet compatible with Windows Server 2022.
 </Admonition>
 
 ## Prerequisites
@@ -124,7 +124,8 @@ ssh_service:
 Note that without Active Directory, Teleport cannot automatically discover your
 Desktops. Instead you must define the Windows systems configured for access through
 Teleport in your config file, or use Teleport's [API](../api/introduction.mdx)
-to build your own integration.
+to build your own integration. An example API integration is available on
+[GitHub](https://github.com/gravitational/teleport/tree/master/examples/desktop-registration).
 
 <Details title="Add labels to hosts">
 You can attach labels to your Windows hosts by matching to their hostnames.
@@ -133,7 +134,7 @@ For example, to add the `cloud: ec2` label to hosts with EC2 private IP DNS name
 ```diff
 version: v3
 teleport:
-  nodename: example.teleport.com
+  nodename: windows.teleport.example.com
   proxy_server: teleport-proxy.example.com:443
 windows_desktop_service:
   enabled: yes

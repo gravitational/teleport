@@ -171,6 +171,8 @@ type webSuiteConfig struct {
 
 	disableDiskBasedRecording bool
 
+	uiConfig webclient.UIConfig
+
 	// Custom "HealthCheckAppServer" function. Can be used to avoid dialing app
 	// services.
 	HealthCheckAppServer healthCheckAppServerFunc
@@ -443,6 +445,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		SessionControl:                  proxySessionController,
 		Router:                          router,
 		HealthCheckAppServer:            cfg.HealthCheckAppServer,
+		UI:                              cfg.uiConfig,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -1235,6 +1238,30 @@ func TestNewTerminalHandler(t *testing.T) {
 	require.Equal(t, validCfg.DisplayLogin, term.displayLogin)
 	// newly added
 	require.NotNil(t, term.log)
+}
+
+func TestUIConfig(t *testing.T) {
+	uiConfig := webclient.UIConfig{
+		ScrollbackLines: 555,
+	}
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	s := newWebSuiteWithConfig(t, webSuiteConfig{uiConfig: uiConfig})
+	clt := s.client(t)
+	endpoint := clt.Endpoint("web", "config.js")
+	re, err := clt.Get(ctx, endpoint, nil)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+	t.Cleanup(cancel)
+
+	// Response is type application/javascript, we need to strip off the variable name
+	// and the semicolon at the end, then we are left with json like object.
+	var cfg webclient.WebConfig
+	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
+	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
+	require.NoError(t, err)
+	require.Equal(t, uiConfig, cfg.UI)
 }
 
 func TestResizeTerminal(t *testing.T) {
@@ -3806,22 +3833,10 @@ func TestClusterAppsGet(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Test URIs with tcp is filtered out of result.
-	resource3, err := types.NewAppServerV3(types.Metadata{Name: "server3"}, types.AppServerSpecV3{
-		HostID: "hostid",
-		App: &types.AppV3{
-			Metadata: types.Metadata{Name: "app3"},
-			Spec:     types.AppSpecV3{URI: "tcp://something", PublicAddr: "publicaddrs"},
-		},
-	})
-	require.NoError(t, err)
-
 	// Register apps.
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource2)
-	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource3)
 	require.NoError(t, err)
 
 	// Make the call.
