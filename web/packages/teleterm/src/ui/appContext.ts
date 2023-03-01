@@ -128,7 +128,8 @@ export default class AppContext implements IAppContext {
 
   async init(): Promise<void> {
     this.setUpTshdEventSubscriptions();
-    await this.clustersService.syncRootClusters();
+    this.clustersService.syncGatewaysAndCatchErrors();
+    await this.clustersService.syncRootClustersAndCatchErrors();
     this.workspacesService.restorePersistedState();
   }
 
