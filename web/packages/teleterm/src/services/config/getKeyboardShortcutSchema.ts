@@ -19,7 +19,7 @@ import { z } from 'zod';
 import { Platform } from 'teleterm/mainProcess/types';
 
 const VALID_SHORTCUT_MESSAGE =
-  'A valid shortcut contains zero or more modifiers (like "Shift") and a single key code (like "A" or "Tab"), combined by the "+" character.';
+  'A valid shortcut contains at least one modifier and a single key code, e.g., "Control+Shift+A". Function keys do not require a modifier.';
 
 export function invalidKeyCodeIssue(wrongKeyCode: string): z.IssueData {
   return {
@@ -28,10 +28,12 @@ export function invalidKeyCodeIssue(wrongKeyCode: string): z.IssueData {
   };
 }
 
-export function invalidModifierIssue(wrongModifier: string): z.IssueData {
+export function invalidModifierIssue(wrongModifiers: string[]): z.IssueData {
   return {
     code: z.ZodIssueCode.custom,
-    message: `"${wrongModifier}" cannot be used as a modifier. ${VALID_SHORTCUT_MESSAGE}`,
+    message: `${wrongModifiers
+      .map(m => `"${m}"`)
+      .join(', ')} cannot be used as a modifier. ${VALID_SHORTCUT_MESSAGE}`,
   };
 }
 
@@ -39,6 +41,13 @@ export function duplicateModifierIssue(): z.IssueData {
   return {
     code: z.ZodIssueCode.custom,
     message: `Duplicate modifier found. ${VALID_SHORTCUT_MESSAGE}`,
+  };
+}
+
+export function missingModifierIssue(keyCode: string): z.IssueData {
+  return {
+    code: z.ZodIssueCode.custom,
+    message: `"${keyCode}" requires a modifier. ${VALID_SHORTCUT_MESSAGE}`,
   };
 }
 
@@ -104,11 +113,17 @@ function validateKeyCodeAndModifiers(
       return z.NEVER;
     }
 
-    expectedModifiers.forEach(expectedModifier => {
-      if (!allowedModifiers.includes(expectedModifier)) {
-        ctx.addIssue(invalidModifierIssue(expectedModifier));
-      }
-    });
+    const invalidModifiers = expectedModifiers.filter(
+      expectedModifier => !allowedModifiers.includes(expectedModifier)
+    );
+    if (invalidModifiers.length) {
+      ctx.addIssue(invalidModifierIssue(invalidModifiers));
+      return z.NEVER;
+    }
+
+    if (!FUNCTION_KEYS.includes(expectedKeyCode) && !expectedModifiers.length) {
+      ctx.addIssue(missingModifierIssue(expectedKeyCode));
+    }
   };
 }
 
@@ -129,9 +144,11 @@ function generateRange(start: number, end: number): string[] {
     .map((_, i) => (i + start).toString());
 }
 
+const FUNCTION_KEYS = generateRange(1, 24).map(key => `F${key}`);
+
 const ALLOWED_KEY_CODES = [
   ...generateRange(0, 9), // 0-9 range
-  ...generateRange(1, 24).map(key => `F${key}`), // F1-F24 keys
+  ...FUNCTION_KEYS,
   'A',
   'B',
   'C',

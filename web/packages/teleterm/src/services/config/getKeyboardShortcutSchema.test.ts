@@ -21,6 +21,7 @@ import {
   invalidModifierIssue,
   invalidKeyCodeIssue,
   duplicateModifierIssue,
+  missingModifierIssue,
 } from './getKeyboardShortcutSchema';
 
 const schema = z.object({
@@ -41,9 +42,14 @@ test('multi-parts accelerator is parsed correctly', () => {
   expect(parsed).toStrictEqual({ 'keymap.tab1': 'Command+Shift+1' });
 });
 
-test('single-part accelerator is parsed correctly', () => {
-  const parsed = schema.parse({ 'keymap.tab1': '1' });
-  expect(parsed).toStrictEqual({ 'keymap.tab1': '1' });
+test('single-part accelerator is allowed for function keys', () => {
+  const parsed = schema.parse({ 'keymap.tab1': 'F1' });
+  expect(parsed).toStrictEqual({ 'keymap.tab1': 'F1' });
+});
+
+test('single-part accelerator is not allowed for non-function keys', () => {
+  const parse = () => schema.parse({ 'keymap.tab1': '1' });
+  expect(parse).toThrow(getZodError(missingModifierIssue('1')));
 });
 
 test('accelerator parts are sorted in the correct order', () => {
@@ -73,7 +79,7 @@ test('parsing fails when incorrect physical key is passed', () => {
 
 test('parsing fails when multiple key codes are passed', () => {
   const parse = () => schema.parse({ 'keymap.tab1': 'Shift+Space+Tab' });
-  expect(parse).toThrow(getZodError(invalidModifierIssue('Space')));
+  expect(parse).toThrow(getZodError(invalidModifierIssue(['Space'])));
 });
 
 test('parsing fails when only modifiers are passed', () => {
