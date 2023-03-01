@@ -38,8 +38,8 @@ function getZodError(issue: any): z.ZodError {
 }
 
 test('multi-parts accelerator is parsed correctly', () => {
-  const parsed = schema.parse({ 'keymap.tab1': 'Command+Shift+1' });
-  expect(parsed).toStrictEqual({ 'keymap.tab1': 'Command+Shift+1' });
+  const parsed = schema.parse({ 'keymap.tab1': 'Cmd+Shift+1' });
+  expect(parsed).toStrictEqual({ 'keymap.tab1': 'Cmd+Shift+1' });
 });
 
 test('single-part accelerator is allowed for function keys', () => {
@@ -53,13 +53,13 @@ test('single-part accelerator is not allowed for non-function keys', () => {
 });
 
 test('accelerator parts are sorted in the correct order', () => {
-  const parsed = schema.parse({ 'keymap.tab1': 'Shift+1+Command' });
-  expect(parsed).toStrictEqual({ 'keymap.tab1': 'Command+Shift+1' });
+  const parsed = schema.parse({ 'keymap.tab1': 'Shift+1+Cmd' });
+  expect(parsed).toStrictEqual({ 'keymap.tab1': 'Cmd+Shift+1' });
 });
 
 test('accelerator with whitespaces is parsed correctly', () => {
-  const parsed = schema.parse({ 'keymap.tab1': ' Shift + 1 + Command ' });
-  expect(parsed).toStrictEqual({ 'keymap.tab1': 'Command+Shift+1' });
+  const parsed = schema.parse({ 'keymap.tab1': ' Shift + 1 + Cmd ' });
+  expect(parsed).toStrictEqual({ 'keymap.tab1': 'Cmd+Shift+1' });
 });
 
 test('empty accelerator is allowed', () => {
@@ -68,8 +68,8 @@ test('empty accelerator is allowed', () => {
 });
 
 test('lowercase single characters are allowed and converted to uppercase', () => {
-  const parsed = schema.parse({ 'keymap.tab1': 'Shift+Command+a' });
-  expect(parsed).toStrictEqual({ 'keymap.tab1': 'Command+Shift+A' });
+  const parsed = schema.parse({ 'keymap.tab1': 'Shift+Cmd+a' });
+  expect(parsed).toStrictEqual({ 'keymap.tab1': 'Cmd+Shift+A' });
 });
 
 test('parsing fails when incorrect physical key is passed', () => {
@@ -83,11 +83,11 @@ test('parsing fails when multiple key codes are passed', () => {
 });
 
 test('parsing fails when only modifiers are passed', () => {
-  const parse = () => schema.parse({ 'keymap.tab1': 'Command+Shift' });
+  const parse = () => schema.parse({ 'keymap.tab1': 'Cmd+Shift' });
   expect(parse).toThrow(getZodError(invalidKeyCodeIssue('Shift')));
 });
 
 test('parsing fails when duplicate modifiers are passed', () => {
-  const parse = () => schema.parse({ 'keymap.tab1': 'Command+I+Command' });
+  const parse = () => schema.parse({ 'keymap.tab1': 'Cmd+I+Cmd' });
   expect(parse).toThrow(getZodError(duplicateModifierIssue()));
 });

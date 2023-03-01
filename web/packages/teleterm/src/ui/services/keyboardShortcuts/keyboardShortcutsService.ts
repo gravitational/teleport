@@ -138,8 +138,8 @@ export class KeyboardShortcutsService {
     switch (this.platform) {
       case 'darwin':
         return [
-          event.metaKey && 'Command',
-          event.ctrlKey && 'Control',
+          event.metaKey && 'Cmd',
+          event.ctrlKey && 'Ctrl',
           event.altKey && 'Option',
           event.shiftKey && 'Shift',
         ];

@@ -131,7 +131,7 @@ function getSupportedModifiers(platform: Platform): string[] {
     case 'linux':
       return ['Ctrl', 'Alt', 'Shift'];
     case 'darwin':
-      return ['Command', 'Control', 'Option', 'Shift'];
+      return ['Cmd', 'Ctrl', 'Option', 'Shift'];
   }
 }
 
