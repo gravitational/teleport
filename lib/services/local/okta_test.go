@@ -129,9 +129,7 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 
 	// Fetch a paginated list of import rules
 	paginatedOut := make([]types.OktaImportRule, 0, 2)
-	numPages := 0
 	for {
-		numPages++
 		out, nextToken, err = service.ListOktaImportRules(ctx, 1, nextToken)
 		require.NoError(t, err)
 
@@ -141,7 +139,7 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 		}
 	}
 
-	require.Equal(t, 2, numPages)
+	require.Len(t, paginatedOut, 2)
 	require.Empty(t, cmp.Diff([]types.OktaImportRule{importRule1, importRule2}, paginatedOut,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
@@ -155,11 +153,11 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 
 	// Try to fetch an import rule that doesn't exist.
 	_, err = service.GetOktaImportRule(ctx, "doesnotexist")
-	require.True(t, trace.IsNotFound(err))
+	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 
 	// Try to create the same import rule.
 	err = service.CreateOktaImportRule(ctx, importRule1)
-	require.True(t, trace.IsAlreadyExists(err))
+	require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
 
 	// Update an import rule.
 	importRule1.SetExpiry(clock.Now().Add(30 * time.Minute))
@@ -183,7 +181,7 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 
 	// Try to delete an import rule that doesn't exist.
 	err = service.DeleteOktaImportRule(ctx, "doesnotexist")
-	require.True(t, trace.IsNotFound(err))
+	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 
 	// Delete all import rules.
 	err = service.DeleteAllOktaImportRules(ctx)
@@ -308,11 +306,11 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 
 	// Try to fetch an assignment that doesn't exist.
 	_, err = service.GetOktaAssignment(ctx, "doesnotexist")
-	require.True(t, trace.IsNotFound(err))
+	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 
 	// Try to create the same assignment.
 	err = service.CreateOktaAssignment(ctx, assignment1)
-	require.True(t, trace.IsAlreadyExists(err))
+	require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
 
 	// Update an assignment.
 	assignment1.SetExpiry(clock.Now().Add(30 * time.Minute))
@@ -336,7 +334,7 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 
 	// Try to delete an assignment that doesn't exist.
 	err = service.DeleteOktaAssignment(ctx, "doesnotexist")
-	require.True(t, trace.IsNotFound(err))
+	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 
 	// Delete all assignments.
 	err = service.DeleteAllOktaAssignments(ctx)
