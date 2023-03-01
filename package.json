@@ -44,6 +44,7 @@
     "immer": "^9.0.13",
     "json5": "^2.2.2",
     "loader-utils": "^1.4.2",
-    "shell-quote": "^1.7.3"
+    "shell-quote": "^1.7.3",
+    "trim": "^0.0.3"
   }
 }
