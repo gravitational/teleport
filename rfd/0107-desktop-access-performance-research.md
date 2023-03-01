@@ -105,8 +105,7 @@ During the tests, the average time it took to process messages (read, process, d
 #### Background
 
 Over the course of this feature's development, we've become aware of a RDP client written in Rust called [IronRDP](https://github.com/Devolutions/IronRDP/) which
-is actively built and maintained by [Devolutions](https://devolutions.net/). Importantly, Devolutions employs Marc-André Moreau, who is the founder of the
-[FreeRDP](https://github.com/FreeRDP/FreeRDP) project, which is the canonical open source C implementation of the protocol started back in 2011.
+is actively built and maintained by [Devolutions](https://devolutions.net/), who are experts in Windows and RDP.
 
 Presuming IronRDP provides better performance and can be hooked into our existing system without too much trouble, it's an attractive option because it's built
 in a language we're already using, and is actively maintained by a team of engineers at Devolutions, including at least one serious domain expert. This is in
@@ -114,7 +113,7 @@ contrast to our current RDP client, [rdp-rs](https://github.com/gravitational/rd
 
 #### RDP 7: Bitmaps with RemoteFX encoding
 
-According to Moreau's best judgement, the best bang for one's buck in terms of performance vs complexity of implementation is to go with RDP 7, which added bitmaps encoded by the RemoteFX codec
+According to the Devolutions team's best judgement, the best bang for one's buck in terms of performance vs complexity of implementation is to go with RDP 7, which added bitmaps encoded by the RemoteFX codec
 (`rdp-rs` does not currently support the RemoteFX codec, and only supports RDP's original, less performant bitmap codec).
 
 It can oftentimes be difficult to decipher precisely what RDP version does what, and what that means, just by looking at the protocol specification itself. In
