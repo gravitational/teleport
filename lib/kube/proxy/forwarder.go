@@ -450,11 +450,10 @@ type handlerWithAuthFuncStd func(ctx *authContext, w http.ResponseWriter, r *htt
 func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
-		"kube/Forwarder.authenticate",
+		"kube.Forwarder/authenticate",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
-			semconv.RPCMethodKey.String("GlobalRequest"),
 			semconv.RPCSystemKey.String("kube"),
 		),
 	)
@@ -536,11 +535,10 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 	return httplib.MakeStdHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request) (any, error) {
 		ctx, span := f.cfg.tracer.Start(
 			req.Context(),
-			"kube/Forwarder.withAuthStd",
+			"kube.Forwarder/withAuthStd",
 			oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 			oteltrace.WithAttributes(
 				semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
-				semconv.RPCMethodKey.String("GlobalRequest"),
 				semconv.RPCSystemKey.String("kube"),
 			),
 		)
@@ -563,11 +561,10 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, identity *authContext) error {
 	ctx, span := f.cfg.tracer.Start(
 		ctx,
-		"kube/Forwarder.acquireConnectionLockWithIdentity",
+		"kube.Forwarder/acquireConnectionLockWithIdentity",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
-			semconv.RPCMethodKey.String("GlobalRequest"),
 			semconv.RPCSystemKey.String("kube"),
 		),
 	)
@@ -611,11 +608,10 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc, opts ...authOption) ht
 	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 		ctx, span := f.cfg.tracer.Start(
 			req.Context(),
-			"kube/Forwarder.withAuth",
+			"kube.Forwarder/withAuth",
 			oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 			oteltrace.WithAttributes(
 				semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
-				semconv.RPCMethodKey.String("GlobalRequest"),
 				semconv.RPCSystemKey.String("kube"),
 			),
 		)
@@ -642,11 +638,10 @@ func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc) httprouter.
 	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 		ctx, span := f.cfg.tracer.Start(
 			req.Context(),
-			"kube/Forwarder.withAuthPassthrough",
+			"kube.Forwarder/withAuthPassthrough",
 			oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 			oteltrace.WithAttributes(
 				semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
-				semconv.RPCMethodKey.String("GlobalRequest"),
 				semconv.RPCSystemKey.String("kube"),
 			),
 		)
@@ -709,11 +704,10 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 func (f *Forwarder) setupContext(ctx context.Context, authCtx auth.Context, req *http.Request, isRemoteUser bool, clientIdentity *tlsca.Identity, kubeResource *types.KubernetesResource) (*authContext, error) {
 	ctx, span := f.cfg.tracer.Start(
 		ctx,
-		"kube/Forwarder.setupContext",
+		"kube.Forwarder/setupContext",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
-			semconv.RPCMethodKey.String("GlobalRequest"),
 			semconv.RPCSystemKey.String("kube"),
 		),
 	)
@@ -801,7 +795,7 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx auth.Context, req 
 		dialFn = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
 			_, span := f.cfg.tracer.Start(
 				ctx,
-				"kube/Forwarder.setupContext.dialFn.remote_cluster",
+				"kube.Forwarder/setupContext.dialFn.remote_cluster",
 				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 				oteltrace.WithAttributes(
 					semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
@@ -832,7 +826,7 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx auth.Context, req 
 		dialFn = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
 			_, span := f.cfg.tracer.Start(
 				ctx,
-				"kube/Forwarder.setupContext.dialFn.reverse_tunnel",
+				"kube.Forwarder/setupContext.dialFn.reverse_tunnel",
 				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 				oteltrace.WithAttributes(
 					semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
@@ -855,7 +849,7 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx auth.Context, req 
 		dialFn = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
 			ctx, span := f.cfg.tracer.Start(
 				ctx,
-				"kube/Forwarder.setupContext.dialFn.direct",
+				"kube.Forwarder/setupContext.dialFn.direct",
 				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 				oteltrace.WithAttributes(
 					semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
@@ -911,11 +905,10 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx auth.Context, req 
 func (f *Forwarder) emitAuditEvent(ctx *authContext, req *http.Request, sess *clusterSession, status int) {
 	_, span := f.cfg.tracer.Start(
 		req.Context(),
-		"kube/Forwarder.emitAuditEvent",
+		"kube.Forwarder/emitAuditEvent",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
-			semconv.RPCMethodKey.String("GlobalRequest"),
 			semconv.RPCSystemKey.String("kube"),
 		),
 	)
@@ -1076,11 +1069,10 @@ func getPodResourceFromRequest(requestURI string) *types.KubernetesResource {
 func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	ctx, span := f.cfg.tracer.Start(
 		ctx,
-		"kube/Forwarder.authorize",
+		"kube.Forwarder/authorize",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
-			semconv.RPCMethodKey.String("GlobalRequest"),
 			semconv.RPCSystemKey.String("kube"),
 		),
 	)
@@ -1617,7 +1609,7 @@ func exitCode(err error) (errMsg, code string) {
 func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
-		"kube/Forwarder.exec",
+		"kube.Forwarder/exec",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
@@ -1737,7 +1729,7 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
-		"kube/Forwarder.portForward",
+		"kube.Forwarder/portForward",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
@@ -2005,7 +1997,7 @@ func computeImpersonatedPrincipals(log logrus.FieldLogger, kubeUsers, kubeGroups
 func (f *Forwarder) catchAll(authCtx *authContext, w http.ResponseWriter, req *http.Request) (any, error) {
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
-		"kube/Forwarder.catchAll",
+		"kube.Forwarder/catchAll",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
@@ -2216,7 +2208,7 @@ func (s *clusterSession) dial(ctx context.Context, network string) (net.Conn, er
 func (f *Forwarder) newClusterSession(ctx context.Context, authCtx authContext) (*clusterSession, error) {
 	ctx, span := f.cfg.tracer.Start(
 		ctx,
-		"kube/Forwarder.newClusterSession",
+		"kube.Forwarder/newClusterSession",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
@@ -2490,7 +2482,7 @@ func (f *Forwarder) serializedRequestClientCreds(tracingCtx context.Context, aut
 func (f *Forwarder) requestCertificate(ctx context.Context, authCtx authContext) (*tls.Config, error) {
 	_, span := f.cfg.tracer.Start(
 		ctx,
-		"kube/Forwarder.requestCertificate",
+		"kube.Forwarder/requestCertificate",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
@@ -2627,7 +2619,7 @@ func (f *Forwarder) isLocalKubeCluster(sess *clusterSession) bool {
 func (f *Forwarder) listPods(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
-		"kube/Forwarder.listPods",
+		"kube.Forwarder/listPods",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
@@ -2745,7 +2737,7 @@ func (f *Forwarder) listPodsWatcher(req *http.Request, w http.ResponseWriter, se
 func (f *Forwarder) deletePodsCollection(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
-		"kube/Forwarder.deletePodsCollection",
+		"kube.Forwarder/deletePodsCollection",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
@@ -2813,7 +2805,7 @@ func (f *Forwarder) deletePodsCollection(authCtx *authContext, w http.ResponseWr
 func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authContext, memWriter *responsewriters.MemoryResponseWriter, w http.ResponseWriter) (int, error) {
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
-		"kube/Forwarder.handleDeleteCollectionReq",
+		"kube.Forwarder/handleDeleteCollectionReq",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
