@@ -52,10 +52,11 @@ $ tctl create sp-manager.yaml
 role 'saml-idp-service-provider-manager' has been created
 ```
 
-And then add the role to your user:
+And then add the role to your user. Replace `teleport-admin` with your user name:
 
 ```code
-$ tctl users update --set-roles auditor,editor,access,sp-manager teleport-admin
+$ tctl users update --set-roles $(tctl get users/<Var name="teleport-admin"/> --format=json | \
+jq -r '.[].spec.roles | join(",")'), sp-manager <Var name="teleport-admin"/>
 User teleport-admin has been updated:
 	New roles: auditor,editor,access,sp-manager
 ```
