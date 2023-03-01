@@ -21,7 +21,7 @@ GOPATH ?= $(shell go env GOPATH)
 MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
 # libbpf version required by the build.
-LIBBPF_VER := 0.7.0-teleport
+LIBBPF_VER := 1.0.1
 
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
@@ -80,7 +80,7 @@ BPF_MESSAGE := without-BPF-support
 with_bpf := no
 ifeq ("$(OS)","linux")
 ifeq ("$(ARCH)","amd64")
-ifneq ("$(wildcard /usr/include/bpf/libbpf.h /usr/libbpf-${LIBBPF_VER}/include/bpf/bpf.h)","")
+ifneq ("$(wildcard /usr/libbpf-${LIBBPF_VER}/include/bpf/bpf.h)","")
 with_bpf := yes
 BPF_TAG := bpf
 BPF_MESSAGE := with-BPF-support
