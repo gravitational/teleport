@@ -3305,3 +3305,37 @@ func (c *Client) DeleteAllUserGroups(ctx context.Context) error {
 	}
 	return nil
 }
+
+// GetLoginRule retrieves a login rule described by name.
+func (c *Client) GetLoginRule(ctx context.Context, name string) (*loginrulepb.LoginRule, error) {
+	rule, err := c.LoginRuleClient().GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
+		Name: name,
+	}, c.callOpts...)
+	return rule, trail.FromGRPC(err)
+}
+
+// CreateLoginRule creates a login rule if one with the same name does not
+// already exist, else it returns an error.
+func (c *Client) CreateLoginRule(ctx context.Context, rule *loginrulepb.LoginRule) (*loginrulepb.LoginRule, error) {
+	rule, err := c.LoginRuleClient().CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
+		LoginRule: rule,
+	}, c.callOpts...)
+	return rule, trail.FromGRPC(err)
+}
+
+// UpsertLoginRule creates a login rule if one with the same name does not
+// already exist, else it replaces the existing login rule.
+func (c *Client) UpsertLoginRule(ctx context.Context, rule *loginrulepb.LoginRule) (*loginrulepb.LoginRule, error) {
+	rule, err := c.LoginRuleClient().UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
+		LoginRule: rule,
+	}, c.callOpts...)
+	return rule, trail.FromGRPC(err)
+}
+
+// DeleteLoginRule deletes an existing login rule by name.
+func (c *Client) DeleteLoginRule(ctx context.Context, name string) error {
+	_, err := c.LoginRuleClient().DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
+		Name: name,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
