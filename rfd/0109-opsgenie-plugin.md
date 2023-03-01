@@ -25,6 +25,7 @@ plugins:
         addr: "example.app.opsgenie.com" # Address of Opsgenie
         priority: "2" # Priority to create Opsgenie alerts with
         alert_tags: ["example-tag"] # List of tags to be added to alerts created in Opsgenie
+        identity_file: "path/to/identity_file" # Identity file to be used if the Opsgenie plugin is being run independently of the auth server
 ```
 
 The logging configuration will be shared with the main Teleport process.
