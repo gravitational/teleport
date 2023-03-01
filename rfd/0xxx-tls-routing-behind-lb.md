@@ -98,36 +98,63 @@ modification does NOT apply to Teleport ALPN protocols that already do mTLS with
 
 ### When to make a connection upgrade
 
-The client can performance a test to decide if a connection upgrade is necessary. The test is done by sending a TLS
-handshake with a Teleport custom ALPN to the Proxy server:
+A new **optional** config parameter (e.g. `tsh_routing_upgrade_mode`) will be added in `proxy_service` section in the
+config yaml. This new config has no effect on how Proxy server serve incoming traffic but it will provide a hint to all
+the clients through the webapi ping:
+
 ```
-                   ┌───────────────────────────┐
-                   │     TLS Handshake         │
-                   │ALPN teleport-reversetunnel│
-                   └────┬─────────────────┬────┘
-                        │                 │
-                    ┌───▼─────┐        ┌──▼──────┐
-                    │Handshake│        │Handshake├───────────────┐
-┌───────────────────┤ Success │        │ Failed  │               │
-│                   └───┬─────┘        └┬────────┘               │
-│                       │               │                        │
-│Negotiated             │No ALPN        │remote error: tls:      │other
-│teleport-reversetunnel │Negotiated     │no application protocol │errors
-│                       │               │                        │
-│                   ┌───▼────┐          │                  ┌─────▼──┐
-│                   │Upgrade ◄──────────┘                  │  Not   │
-│                   │Required│                             │Required│
-│                   └────────┘                             └────▲───┘
-│                                                               │
-└───────────────────────────────────────────────────────────────┘
+{
+  "auth": {
+  ...
+  },
+  "proxy": {
+  ...
+    "tls_routing_enabled": true,
+    "tls_routing_upgrade_mode": "auto"
+  },
+  ...
+}
+```
+
+`auto` is the default mode where the client performances a test to decide if a connection upgrade is necessary. The test
+is done by sending a TLS handshake with a Teleport custom ALPN to the Proxy server:
+```
+                              ┌───────┐
+                         "on" │upgrade│ "off"
+ ┌────────────────────────────┤ mode  ├────────────────────────────────────┐
+ │                            └──┬────┘                                    │
+ │                               │ "auto" (default)                        │
+ │                               │                                         │
+ │                    ┌──────────▼────────────────┐                        │
+ │                    │     TLS Handshake         │                        │
+ │                    │ALPN teleport-reversetunnel│                        │
+ │                    └────┬─────────────────┬────┘                        │
+ │                         │                 │                             │
+ │                     ┌───▼─────┐        ┌──▼──────┐                      │
+ │                     │Handshake│        │Handshake├───────────────┐      │
+ │ ┌───────────────────┤ Success │        │ Failed  │               │      │
+ │ │                   └───┬─────┘        └┬────────┘               │      │
+ │ │                       │               │                        │      │
+ │ │Negotiated             │No ALPN        │remote error: tls:      │other │
+ │ │teleport-reversetunnel │Negotiated     │no application protocol │errors│
+ │ │                       │               │                        │      │
+ │ │                   ┌───▼────┐          │                  ┌─────▼──┐   │
+ │ │                   │Upgrade ◄──────────┘                  │  Not   │   │
+ └─┼───────────────────►Required│                             │Required◄───┘
+   │                   └────────┘                             └────▲───┘
+   │                                                               │
+   └───────────────────────────────────────────────────────────────┘
 ```
 Connection upgrade for TLS Routing should be required when the client and the server fail to neogiate the ALPN protocol,
 hinting there is a load balancer in the middle that terminates TLS.
 
-However, this test may not be bullet proof. Different load balancers (like the one million [Kubernetes Ingress
-Controllers](https://docs.google.com/spreadsheets/d/191WWNpjJ2za6-nbG4ZoUMXMpUK8KlCIosvQB0f-oq3k/)) can behave
-differently for the test. An environment variable (e.g. `TELEPORT_TLS_ROUTING_UPGRADE_MODE=off`) will be provided to
-overwrite the mode per client, just in case.
+However, this test may not be bullet proof. In particular, the test explicitly looks for `tls: no application protocol`
+from the remote when handshakes fails, but it is possible that a load balancer implementation decides to use a different
+text.
+
+In such cases, setting the mode to `on` can enforce the clients to always do the connection upgrade. Also, setting the
+mode `on` or `off` improves performance by skipping the auto test. An environment variable (e.g.
+`TELEPORT_TLS_ROUTING_UPGRADE_MODE=off`) can be set to overwrite the mode per client, just in case.
 
 ### Supporting all TLS Routing protocols
 
@@ -214,8 +241,9 @@ However, HTTP apps MUST use `tsh proxy app`.
 
 #### 3 - Kubernetes Access UX
 
-Using native Kubernetes clients after `tsh kube login` will NOT work as the native clients cannot upgrade the
-connection.
+When upgrade is required, using native Kubernetes clients after `tsh kube login` will NOT work as the native clients
+cannot upgrade the connection. `tsh kube login` should advertise users to run `tsh kubectl` and `tsh proxy kube` instead
+of `kubectl version`. `tsh kube credentials` should also error out and suggest using `tsh kubectl` and `tsh proxy kube`.
 
 `tsh kubectl` will automatically starts a local proxy and performs the connection upgrade when needed.
 
@@ -223,7 +251,7 @@ A new `tsh proxy kube` command will be added to support other Kubernetes clients
 and provide a config for Kubernetes clients to use:
 
 ```
-$ tsh proxy kube -p 8888
+$ tsh proxy kube cluster1 cluster2 -p 8888
 
 Started local Kubernetes server at https://localhost:8888.
 
@@ -231,15 +259,20 @@ Please use the following KUBECONFIG for your Kubernetes applications:
 export KUBECONFIG=<path to kubeconfig>
 ```
 
-A `--exec` flag will be provided to execute a command backed by the local proxy:
+`tsh proxy kube` should support all flags supported by `tsh kube login` like cluster names, `--as` etc. and can be run
+independently WITHOUT running `tsh kube login` first. If `tsh kube login` has been run perviously, `tsh proxy kube`
+should inherit the flags from the login if they are not specfied during `tsh proxy kube`.
+
+A `--exec` flag will be provided to `tsh proxy kube` to execute a command backed by the local proxy:
 ```
-$ tsh proxy kube --exec helm install my-chart
+$ tsh proxy kube --exec -- helm install my-chart
 ```
+This avoids needing two terminal sessions to run a Kubernetes application.
 
 In addition, we can provide tips to users to improve their UX by utilizing `alias`:
 ```
 alias kubectl=`tsh kubectl`
-alias helm=`tsh proxy kube --exec helm`
+alias helm=`tsh proxy kube --exec -- helm`
 ```
 
 or [`tsh` aliases](https://github.com/gravitational/teleport/blob/master/rfd/0061-tsh-aliases.md):
