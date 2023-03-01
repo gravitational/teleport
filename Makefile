@@ -220,12 +220,9 @@ TEST_LOG_DIR = ${abspath ./test-logs}
 
 
 #
-# 'make all' builds all 3 executables and places them in the current directory.
+# 'make all' builds all 4 executables and places them in the current directory.
 #
-# IMPORTANT:
-# Unless called with the `WEBASSETS_TAG` env variable set to "webassets_embed"
-# the binaries will not contain the web UI assets and `teleport` won't start
-# without setting the environment variable DEBUG=1.
+# NOTE: Works the same as `make`. Left for legacy reasons.
 .PHONY: all
 all: version
 	@echo "---> Building OSS binaries."
@@ -249,7 +246,7 @@ $(BUILDDIR)/tctl:
 
 .PHONY: $(BUILDDIR)/teleport
 $(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 # NOTE: Any changes to the `tsh` build here must be copied to `windows.go` in Dronegen until
 # 		we can use this Makefile for native Windows builds.
@@ -318,7 +315,7 @@ endif
 .PHONY:full
 full: ensure-webassets
 ifneq ("$(OS)", "windows")
-	$(MAKE) all WEBASSETS_TAG="webassets_embed"
+	$(MAKE) all
 endif
 
 #
@@ -737,7 +734,7 @@ lint-api:
 .PHONY: lint-sh
 lint-sh: SH_LINT_FLAGS ?=
 lint-sh:
-	find . -type f -name '*.sh' | xargs \
+	find . -type f -name '*.sh' -not -path "*/node_modules/*" | xargs \
 		shellcheck \
 		--exclude=SC2086 \
 		$(SH_LINT_FLAGS)

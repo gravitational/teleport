@@ -727,6 +727,19 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 			},
 			wantErr: true,
 		},
+		{
+			desc:       "empty impersonated group header ignored",
+			kubeUsers:  []string{"kube-user-a"},
+			kubeGroups: []string{},
+			inHeaders: http.Header{
+				"Host": []string{"example.com"},
+			},
+			wantHeaders: http.Header{
+				"Host":                []string{"example.com"},
+				ImpersonateUserHeader: []string{"kube-user-a"},
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		c.Log(tt.desc)
@@ -1480,6 +1493,41 @@ func TestForwarder_clientCreds_cache(t *testing.T) {
 			cachedTLSCfg = f.getClientCreds(tt.args.ctx)
 			require.NotNil(t, cachedTLSCfg)
 			require.Equal(t, tlsCfg, cachedTLSCfg)
+		})
+	}
+}
+
+func Test_copyImpersonationHeaders(t *testing.T) {
+	tests := []struct {
+		name        string
+		inHeaders   http.Header
+		wantHeaders http.Header
+	}{
+		{
+			name: "copy impersonation headers",
+			inHeaders: http.Header{
+				"Host":                 []string{"example.com"},
+				ImpersonateUserHeader:  []string{"user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-b"},
+			},
+			wantHeaders: http.Header{
+				ImpersonateUserHeader:  []string{"user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-b"},
+			},
+		},
+		{
+			name: "don't introduce empty impersonation headers",
+			inHeaders: http.Header{
+				"Host": []string{"example.com"},
+			},
+			wantHeaders: http.Header{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dst := http.Header{}
+			copyImpersonationHeaders(dst, tt.inHeaders)
+			require.Equal(t, tt.wantHeaders, dst)
 		})
 	}
 }
