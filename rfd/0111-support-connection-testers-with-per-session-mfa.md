@@ -3,7 +3,7 @@ authors: Lisa Kim (lisa@goteleport.com)
 state: draft
 ---
 
-# RFD 0111 - GenerateUserCerts accepts and validates a MFA authentication response
+# RFD 0111 - Support connection testers when per-session MFA is enabled
 
 ## What
 
