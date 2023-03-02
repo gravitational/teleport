@@ -119,7 +119,7 @@ func sendTelemetry(
 	distinctID := uuid.New().String()
 	_, err := client.SubmitTbotEvent(ctx, connect.NewRequest(&prehogv1.SubmitTbotEventRequest{
 		DistinctId: distinctID,
-		Timestamp:  timestamppb.Now(),
+		Timestamp:  timestamppb.New(start),
 		Event:      &prehogv1.SubmitTbotEventRequest_Start{Start: data},
 	}))
 	if err != nil {
