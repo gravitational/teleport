@@ -1,0 +1,67 @@
+---
+title: Telemetry
+description: An explanation of the telemetry collected by Machine ID
+---
+
+This document explains what telemetry is collected by the Machine ID `tbot`
+agent, why we want to collect this telemetry and how to opt in or out.
+
+## Why?
+
+Machine ID is an emerging part of the Teleport product and it's helpful for us
+to be able to identify the kinds of use-cases people are using it for. This
+allows us to prioritise more common usages. Whilst we try to collect this sort
+of information by talking to users directly, having a more general overview of
+the product in the wild helps us make even more informed decisions and avoid
+our decisions being solely influenced by a select few users.
+
+## Anonymous telemetry
+
+Anonymous telemetry is currently the only mode supported by `tbot`. This means
+that the collected data does not include anything which identifies:
+
+- The specific machine `tbot` is running on,
+- The cluster `tbot` is connecting to,
+- The hosts, application, databases and kubernetes clusters `tbot` connects to,
+- The user that has configured `tbot`.
+
+Whilst we do not collect data which uniquely identifies the specific machine
+`tbot` is running on, we may collect general information about the architecture
+and operating system installed on the machine.
+
+We do not assign a unique ID that identifies your `tbot` deployment across
+multiple starts. This means it is not possible for us to determine how long
+`tbot` has been installed on a machine or track changes made to a `tbot`
+configuration on a specific host over time.
+
+We do assign a unique ID that identifies events that originate from a single
+`tbot` start (you may hear this be referred to as a "session"). This allows
+us to tie together multiple events and determine how long they occur after
+`tbot` has started.
+
+### Opt-out/opt-in
+
+Anonymous telemetry in `tbot` is strictly opt-in.
+
+To opt in to this telemetry, set the opt-in environment variable to `1`:
+
+```sh
+export TELEPORT_ANONYMOUS_TELEMETRY=1
+tbot start ...
+```
+
+You can use the same environment variable to explicitly opt-out of this
+telemetry by setting the value to `0`:
+
+```sh
+export TELEPORT_ANONYMOUS_TELEMETRY=0
+tbot start ...
+```
+
+If this environment variable is not configured, `tbot` defaults to not
+collecting anonymous telemetry.
+
+### Events
+
+Anonymous telemetry
+
