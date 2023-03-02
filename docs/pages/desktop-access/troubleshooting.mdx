@@ -32,6 +32,17 @@ If the "Smart Card" service is not running, open PowerShell and run
 `gpupdate.exe /force`. This forces a Group Policy sync and should pick up the
 service changes.
 
+### Smart card not supported for Account
+
+You connect to a Windows host and get the error message: **"Signing in with a smart card isn't supported for your account."**
+or similar.
+
+**Solution:** Review the Security-Kerberos Log on the Windows host for causes.
+
+The Security-Kerberos Windows Event Log will provide information on Smart Card-based authentication attempts. This is available
+at `Event Viewer->Application and Services Logs->Microsoft->Windows->Security-Kerberos->Operational` in the Windows Event Log. By default this
+log is not enabled. Enable and attempt to connect with Teleport UI to review log entries.
+
 ### Smart card certificate not trusted
 
 You connect to a Windows host from the Teleport UI, land on the Windows login

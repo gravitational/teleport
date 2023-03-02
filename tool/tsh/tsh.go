@@ -31,6 +31,7 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/pprof"
+	runtimetrace "runtime/trace"
 	"sort"
 	"strconv"
 	"strings"
@@ -390,6 +391,9 @@ type CLIConf struct {
 	// parallel.
 	// It shouldn't be used outside testing.
 	kubeConfigPath string
+
+	// Client only version display.  Skips checking proxy version.
+	clientOnlyVersionCheck bool
 }
 
 // Stdout returns the stdout writer.
@@ -530,7 +534,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	initLogger(&cf)
 
 	moduleCfg := modules.GetModules()
-	var cpuProfile, memProfile string
+	var cpuProfile, memProfile, traceProfile string
 
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
@@ -542,6 +546,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	app.Flag("user", fmt.Sprintf("Teleport user [%s]", localUser)).Envar(userEnvVar).StringVar(&cf.Username)
 	app.Flag("mem-profile", "Write memory profile to file").Hidden().StringVar(&memProfile)
 	app.Flag("cpu-profile", "Write CPU profile to file").Hidden().StringVar(&cpuProfile)
+	app.Flag("trace-profile", "Write trace profile to file").Hidden().StringVar(&traceProfile)
 	app.Flag("option", "").Short('o').Hidden().AllowDuplicate().PreAction(func(ctx *kingpin.ParseContext) error {
 		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
 	}).String()
@@ -584,8 +589,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		EnumVar(&cf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
 
-	ver := app.Command("version", "Print the version of your tsh binary")
+	ver := app.Command("version", "Print the tsh client and Proxy server versions for the current context.")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+	ver.Flag("client", "Show the client version only (no server required).").
+		BoolVar(&cf.clientOnlyVersionCheck)
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node").Interspersed(false)
@@ -995,6 +1002,20 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		}()
 	}
 
+	if traceProfile != "" {
+		log.Debugf("writing trace profile to %v", traceProfile)
+		f, err := os.Create(traceProfile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer f.Close()
+
+		if err := runtimetrace.Start(f); err != nil {
+			return trace.Wrap(err)
+		}
+		defer runtimetrace.Stop()
+	}
+
 	switch command {
 	case ver.FullCommand():
 		err = onVersion(&cf)
@@ -1186,9 +1207,16 @@ func newTraceProvider(cf *CLIConf, command string, ignored []string) (*tracing.P
 
 // onVersion prints version info.
 func onVersion(cf *CLIConf) error {
-	proxyVersion, err := fetchProxyVersion(cf)
-	if err != nil {
-		fmt.Fprintf(cf.Stderr(), "Failed to fetch proxy version: %s\n", err)
+	proxyVersion := ""
+	proxyPublicAddr := ""
+	// Check proxy version if not in client only mode
+	if !cf.clientOnlyVersionCheck {
+		pv, ppa, err := fetchProxyVersion(cf)
+		if err != nil {
+			fmt.Fprintf(cf.Stderr(), "Failed to fetch proxy version: %s\n", err)
+		}
+		proxyVersion = pv
+		proxyPublicAddr = ppa
 	}
 
 	format := strings.ToLower(cf.Format)
@@ -1197,9 +1225,10 @@ func onVersion(cf *CLIConf) error {
 		utils.PrintVersion()
 		if proxyVersion != "" {
 			fmt.Printf("Proxy version: %s\n", proxyVersion)
+			fmt.Printf("Proxy: %s\n", proxyPublicAddr)
 		}
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeVersion(format, proxyVersion)
+		out, err := serializeVersion(format, proxyVersion, proxyPublicAddr)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1212,45 +1241,47 @@ func onVersion(cf *CLIConf) error {
 }
 
 // fetchProxyVersion returns the current version of the Teleport Proxy.
-func fetchProxyVersion(cf *CLIConf) (string, error) {
+func fetchProxyVersion(cf *CLIConf) (string, string, error) {
 	profile, _, err := client.Status(cf.HomePath, cf.Proxy)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return "", nil
+			return "", "", nil
 		}
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 
 	if profile == nil {
-		return "", nil
+		return "", "", nil
 	}
 
 	tc, err := makeClient(cf, false)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 
 	ctx, cancel := context.WithTimeout(cf.Context, time.Second*5)
 	defer cancel()
 	pingRes, err := tc.Ping(ctx)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 
-	return pingRes.ServerVersion, nil
+	return pingRes.ServerVersion, pingRes.Proxy.SSH.PublicAddr, nil
 }
 
-func serializeVersion(format string, proxyVersion string) (string, error) {
+func serializeVersion(format string, proxyVersion string, proxyPublicAddress string) (string, error) {
 	versionInfo := struct {
-		Version      string `json:"version"`
-		Gitref       string `json:"gitref"`
-		Runtime      string `json:"runtime"`
-		ProxyVersion string `json:"proxyVersion,omitempty"`
+		Version            string `json:"version"`
+		Gitref             string `json:"gitref"`
+		Runtime            string `json:"runtime"`
+		ProxyVersion       string `json:"proxyVersion,omitempty"`
+		ProxyPublicAddress string `json:"proxyPublicAddress,omitempty"`
 	}{
 		teleport.Version,
 		teleport.Gitref,
 		runtime.Version(),
 		proxyVersion,
+		proxyPublicAddress,
 	}
 	var out []byte
 	var err error
@@ -2775,9 +2806,11 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 	// Try to construct an access request for this node.
 	req, err := accessRequestForSSH(cf.Context, tc)
 	if err != nil {
-		// We can't request access to the node or it doesn't exist, return the
-		// original error but put this one in the debug log.
-		log.WithError(err).Debug("unable to request access to node")
+		// We can't request access to the node or we couldn't query the ID. Log
+		// a short debug message in case this is unexpected, but return the
+		// original AccessDenied error from the ssh attempt which is likely to
+		// be far more relevant to the user.
+		log.Debugf("Not attempting to automatically request access, reason: %v", err)
 		return trace.Wrap(origErr)
 	}
 	cf.RequestID = req.GetName()

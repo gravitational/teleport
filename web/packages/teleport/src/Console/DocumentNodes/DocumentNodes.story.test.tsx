@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import 'jest-canvas-mock';
 import { waitFor, render } from 'design/utils/testing';
 
 import {
