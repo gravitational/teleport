@@ -46,6 +46,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -54,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -3593,3 +3595,73 @@ const testEntityDescriptor = `
    </md:SPSSODescriptor>
 </md:EntityDescriptor>
 `
+
+func TestGRPCServer_GetInstallers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	server := newTestTLSServer(t)
+	grpc := server.TLSServer.grpcServer
+
+	user := TestAdmin()
+	ctx = context.WithValue(ctx, ContextUser, user.I)
+
+	tests := []struct {
+		name               string
+		inputInstallers    map[string]string
+		expectedInstallers map[string]string
+	}{
+		{
+			name: "default installers only",
+			expectedInstallers: map[string]string{
+				installers.InstallerScriptName:          installers.DefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+			},
+		},
+		{
+			name: "default and custom installers",
+			inputInstallers: map[string]string{
+				"my-custom-installer": "echo test",
+			},
+			expectedInstallers: map[string]string{
+				"my-custom-installer":                   "echo test",
+				installers.InstallerScriptName:          installers.DefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+			},
+		},
+		{
+			name: "override default installer",
+			inputInstallers: map[string]string{
+				installers.InstallerScriptName: "echo test",
+			},
+			expectedInstallers: map[string]string{
+				installers.InstallerScriptName:          "echo test",
+				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Cleanup(func() {
+				_, err := grpc.DeleteAllInstallers(ctx, &emptypb.Empty{})
+				require.NoError(t, err)
+			})
+
+			for name, script := range tc.inputInstallers {
+				installer, err := types.NewInstallerV1(name, script)
+				require.NoError(t, err)
+				_, err = grpc.SetInstaller(ctx, installer)
+				require.NoError(t, err)
+			}
+
+			outputInstallerList, err := grpc.GetInstallers(ctx, &emptypb.Empty{})
+			require.NoError(t, err)
+			outputInstallers := make(map[string]string, len(tc.expectedInstallers))
+			for _, installer := range outputInstallerList.Installers {
+				outputInstallers[installer.GetName()] = installer.GetScript()
+			}
+
+			require.Equal(t, tc.expectedInstallers, outputInstallers)
+		})
+	}
+
+}
