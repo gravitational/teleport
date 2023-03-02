@@ -26,58 +26,38 @@ const createAppConfigSchema = (platform: Platform) => {
   const defaultKeymap = getDefaultKeymap(platform);
   const defaultTerminalFont = getDefaultTerminalFont(platform);
 
+  const keyboardShortcutSchema = getKeyboardShortcutSchema(platform);
+
   // `keymap.` prefix is used in `initUi.ts` in a predicate function.
   return z.object({
     'usageReporting.enabled': z.boolean().default(false),
-    'keymap.tab1': getKeyboardShortcutSchema(platform).default(
-      defaultKeymap['tab1']
-    ),
-    'keymap.tab2': getKeyboardShortcutSchema(platform).default(
-      defaultKeymap['tab2']
-    ),
-    'keymap.tab3': getKeyboardShortcutSchema(platform).default(
-      defaultKeymap['tab3']
-    ),
-    'keymap.tab4': getKeyboardShortcutSchema(platform).default(
-      defaultKeymap['tab4']
-    ),
-    'keymap.tab5': getKeyboardShortcutSchema(platform).default(
-      defaultKeymap['tab5']
-    ),
-    'keymap.tab6': getKeyboardShortcutSchema(platform).default(
-      defaultKeymap['tab6']
-    ),
-    'keymap.tab7': getKeyboardShortcutSchema(platform).default(
-      defaultKeymap['tab7']
-    ),
-    'keymap.tab8': getKeyboardShortcutSchema(platform).default(
-      defaultKeymap['tab8']
-    ),
-    'keymap.tab9': getKeyboardShortcutSchema(platform).default(
-      defaultKeymap['tab9']
-    ),
-    'keymap.closeTab': getKeyboardShortcutSchema(platform).default(
+    'keymap.tab1': keyboardShortcutSchema.default(defaultKeymap['tab1']),
+    'keymap.tab2': keyboardShortcutSchema.default(defaultKeymap['tab2']),
+    'keymap.tab3': keyboardShortcutSchema.default(defaultKeymap['tab3']),
+    'keymap.tab4': keyboardShortcutSchema.default(defaultKeymap['tab4']),
+    'keymap.tab5': keyboardShortcutSchema.default(defaultKeymap['tab5']),
+    'keymap.tab6': keyboardShortcutSchema.default(defaultKeymap['tab6']),
+    'keymap.tab7': keyboardShortcutSchema.default(defaultKeymap['tab7']),
+    'keymap.tab8': keyboardShortcutSchema.default(defaultKeymap['tab8']),
+    'keymap.tab9': keyboardShortcutSchema.default(defaultKeymap['tab9']),
+    'keymap.closeTab': keyboardShortcutSchema.default(
       defaultKeymap['closeTab']
     ),
-    'keymap.newTab': getKeyboardShortcutSchema(platform).default(
-      defaultKeymap['newTab']
-    ),
-    'keymap.previousTab': getKeyboardShortcutSchema(platform).default(
+    'keymap.newTab': keyboardShortcutSchema.default(defaultKeymap['newTab']),
+    'keymap.previousTab': keyboardShortcutSchema.default(
       defaultKeymap['previousTab']
     ),
-    'keymap.nextTab': getKeyboardShortcutSchema(platform).default(
-      defaultKeymap['nextTab']
-    ),
-    'keymap.openConnections': getKeyboardShortcutSchema(platform).default(
+    'keymap.nextTab': keyboardShortcutSchema.default(defaultKeymap['nextTab']),
+    'keymap.openConnections': keyboardShortcutSchema.default(
       defaultKeymap['openConnections']
     ),
-    'keymap.openClusters': getKeyboardShortcutSchema(platform).default(
+    'keymap.openClusters': keyboardShortcutSchema.default(
       defaultKeymap['openClusters']
     ),
-    'keymap.openProfiles': getKeyboardShortcutSchema(platform).default(
+    'keymap.openProfiles': keyboardShortcutSchema.default(
       defaultKeymap['openProfiles']
     ),
-    'keymap.openQuickInput': getKeyboardShortcutSchema(platform).default(
+    'keymap.openQuickInput': keyboardShortcutSchema.default(
       defaultKeymap['openQuickInput']
     ),
     /**
