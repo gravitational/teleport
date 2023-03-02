@@ -168,6 +168,8 @@ message KubernetesPodMetadata {
 message SAMLIdPServiceProviderMetadata {
   // ServiceProviderEntityID is the entity ID of the service provider.
   string ServiceProviderEntityID = 1 [(gogoproto.jsontag) = "service_provider_entity_id,omitempty"];
+  // ServiceProviderShortcut is the shortcut name of a service provider.
+  string ServiceProviderShortcut = 2 [(gogoproto.jsontag) = "service_provider_shortcut,omitempty"];
 }
 
 // SessionStart is a session start event
@@ -4467,6 +4469,13 @@ message SAMLIdPAuthAttempt {
 
   // Status indicates whether the SAML IdP authentication was successful.
   Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SAMLIdPServiceProviderMetadata is common SAML IdP service provider event metadata
+  SAMLIdPServiceProviderMetadata ServiceProvider = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
