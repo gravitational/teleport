@@ -27,6 +27,6 @@ export function createMockFileStorage(): FileStorage {
       return key ? state[key] : (state as T);
     },
 
-    putAllSync() {},
+    writeSync() {},
   };
 }

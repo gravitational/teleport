@@ -92,7 +92,7 @@ function initializeApp(): void {
   app.on('will-quit', async event => {
     event.preventDefault();
 
-    appStateFileStorage.putAllSync();
+    appStateFileStorage.writeSync();
     globalShortcut.unregisterAll();
     try {
       await mainProcess.dispose();

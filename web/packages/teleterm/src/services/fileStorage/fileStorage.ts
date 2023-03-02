@@ -25,7 +25,8 @@ const logger = new Logger('FileStorage');
 export interface FileStorage {
   put(path: string, json: any): void;
 
-  putAllSync(): void;
+  /** Synchronously writes the storage state to disk. */
+  writeSync(): void;
 
   get<T>(path?: string): T;
 }
@@ -50,7 +51,7 @@ export function createFileStorage(opts: {
       : writeFile(filePath, text);
   }
 
-  function putAllSync() {
+  function writeSync(): void {
     const text = stringify(state);
     try {
       fs.writeFileSync(filePath, text);
@@ -65,7 +66,7 @@ export function createFileStorage(opts: {
 
   return {
     put,
-    putAllSync,
+    writeSync,
     get,
   };
 }

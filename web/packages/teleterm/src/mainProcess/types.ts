@@ -131,5 +131,5 @@ export enum ConfigServiceEventType {
 export enum FileStorageEventType {
   Get = 'Get',
   Put = 'Put',
-  PutAllSync = 'PutAllSync',
+  WriteSync = 'WriteSync',
 }

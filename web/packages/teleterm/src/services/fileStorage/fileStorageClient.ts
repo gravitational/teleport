@@ -32,8 +32,8 @@ export function subscribeToFileStorageEvents(configService: FileStorage): void {
           return (event.returnValue = configService.get(item.path));
         case FileStorageEventType.Put:
           return configService.put(item.path, item.json);
-        case FileStorageEventType.PutAllSync:
-          return configService.putAllSync();
+        case FileStorageEventType.WriteSync:
+          return configService.writeSync();
       }
     }
   );
@@ -50,10 +50,10 @@ export function createFileStorageClient(): FileStorage {
         path,
         json,
       }),
-    putAllSync: () =>
+    writeSync: () =>
       ipcRenderer.send(
         FileStorageEventChannel,
-        FileStorageEventType.PutAllSync,
+        FileStorageEventType.WriteSync,
         {}
       ),
   };
