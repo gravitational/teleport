@@ -44,6 +44,10 @@ const cfg = {
 
   baseUrl: window.location.origin,
 
+  ui: {
+    scrollbackLines: 1000,
+  },
+
   auth: {
     localAuthEnabled: true,
     allowPasswordless: false,
@@ -552,6 +556,10 @@ const cfg = {
     return generatePath(cfg.api.mfaCreateRegistrationChallengePath, {
       tokenId,
     });
+  },
+
+  getUIConfig() {
+    return cfg.ui;
   },
 
   init(backendConfig = {}) {
