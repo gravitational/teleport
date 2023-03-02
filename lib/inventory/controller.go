@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -144,14 +144,14 @@ type Controller struct {
 	serverTTL          time.Duration
 	instanceHBInterval time.Duration
 	maxKeepAliveErrs   int
-	usageReporter      services.UsageReporter
+	usageReporter      usagereporter.UsageReporter
 	testEvents         chan testEvent
 	closeContext       context.Context
 	cancel             context.CancelFunc
 }
 
 // NewController sets up a new controller instance.
-func NewController(auth Auth, usageReporter services.UsageReporter, opts ...ControllerOption) *Controller {
+func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ...ControllerOption) *Controller {
 	var options controllerOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -502,7 +502,7 @@ func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.Upstrea
 		svcs = append(svcs, svc.String())
 	}
 
-	if err := c.usageReporter.AnonymizeAndSubmit(&services.AgentMetadataEvent{
+	if err := c.usageReporter.AnonymizeAndSubmit(&usagereporter.AgentMetadataEvent{
 		Version:               handle.Hello().Version,
 		HostId:                handle.Hello().ServerID,
 		Services:              svcs,
