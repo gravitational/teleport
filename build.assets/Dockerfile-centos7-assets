@@ -1,5 +1,7 @@
 FROM centos:7 AS centos-devtoolset
 
+ARG DEVTOOLSET
+
 # Install required dependencies.
 RUN yum groupinstall -y 'Development Tools' && \
     yum install -y epel-release && \
@@ -11,9 +13,9 @@ RUN yum groupinstall -y 'Development Tools' && \
         # required by Clang/LLVM
         cmake3 \
         # required by libbpf and Clang
-        devtoolset-11-gcc* \
+        ${DEVTOOLSET}-gcc* \
         # required by libbpf
-        devtoolset-11-make \
+        ${DEVTOOLSET}-make \
         # required by libbpf
         elfutils-libelf-devel \
         # required by libbpf
@@ -30,6 +32,8 @@ RUN yum groupinstall -y 'Development Tools' && \
 # Use just created devtool image with newer GCC and Cmake
 FROM centos-devtoolset as clang10
 
+ARG DEVTOOLSET
+
 # Compile Clang 10.0.1 from source. It is needed to create BPF files.
 # Centos 7 doesn't provide it as a package unfortunately.
 # LLVM_INCLUDE_BENCHMARKS must be off, otherwise compilation fails,
@@ -39,7 +43,7 @@ FROM centos-devtoolset as clang10
 RUN git clone --branch llvmorg-10.0.1 --depth=1 https://github.com/llvm/llvm-project.git && \
     cd llvm-project/ && \
     mkdir build && cd build/ && \
-    scl enable devtoolset-11 'bash -c "cmake3 \
+    scl enable ${DEVTOOLSET} 'bash -c "cmake3 \
     -DCLANG_BUILD_TOOLS=ON \
     -DCLANG_ENABLE_ARCMT=OFF \
     -DCLANG_ENABLE_STATIC_ANALYZER=OFF \
