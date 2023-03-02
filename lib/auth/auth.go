@@ -4335,6 +4335,26 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 	return nil
 }
 
+// Ping gets basic info about the auth server.
+func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
+	// The Ping method does not require special permissions since it only returns
+	// basic status information.  This is an intentional design choice.  Alternative
+	// methods should be used for relaying any sensitive information.
+	cn, err := a.GetClusterName()
+	if err != nil {
+		return proto.PingResponse{}, trace.Wrap(err)
+	}
+
+	return proto.PingResponse{
+		ClusterName:     cn.GetClusterName(),
+		ServerVersion:   teleport.Version,
+		ServerFeatures:  modules.GetModules().Features().ToProto(),
+		ProxyPublicAddr: a.getProxyPublicAddr(),
+		IsBoring:        modules.GetModules().IsBoringBinary(),
+		LoadAllCAs:      a.loadAllCAs,
+	}, nil
+}
+
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
@@ -4903,6 +4923,24 @@ func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*t
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
 	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
 	return headlessAuthn, trace.Wrap(err)
+}
+
+// getProxyPublicAddr gets the server's public proxy address.
+func (a *Server) getProxyPublicAddr() string {
+	if proxies, err := a.GetProxies(); err == nil {
+		for _, p := range proxies {
+			addr := p.GetPublicAddr()
+			if addr == "" {
+				continue
+			}
+			if _, err := utils.ParseAddr(addr); err != nil {
+				log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
+				continue
+			}
+			return addr
+		}
+	}
+	return ""
 }
 
 // authKeepAliver is a keep aliver using auth server directly
