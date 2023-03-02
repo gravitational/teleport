@@ -57,7 +57,7 @@ func telemetryEnabled(envGetter envGetter) bool {
 func telemetryClient(envGetter envGetter) prehogv1c.TbotReportingServiceClient {
 	// Override the default value using TELEPORT_ANONYMOUS_TELEMETRY_ADDRESS
 	// environment variable.
-	// staging: https://reporting-staging-tbot.teleportinfra.dev
+	// staging: https://reporting-tbot-staging.teleportinfra.dev
 	endpoint := "https://reporting-tbot.teleportinfra.sh"
 	if env := envGetter(anonymousTelemetryAddressEnv); env != "" {
 		endpoint = env
