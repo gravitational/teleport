@@ -79,7 +79,11 @@ test('parsing fails when incorrect physical key is passed', () => {
 
 test('parsing fails when multiple key codes are passed', () => {
   const parse = () => schema.parse({ 'keymap.tab1': 'Shift+Space+Tab' });
-  expect(parse).toThrow(getZodError(invalidModifierIssue(['Space'])));
+  expect(parse).toThrow(
+    getZodError(
+      invalidModifierIssue(['Space'], ['Cmd', 'Ctrl', 'Option', 'Shift'])
+    )
+  );
 });
 
 test('parsing fails when only modifiers are passed', () => {

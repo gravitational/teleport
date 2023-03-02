@@ -25,12 +25,19 @@ export function invalidKeyCodeIssue(wrongKeyCode: string): z.IssueData {
   };
 }
 
-export function invalidModifierIssue(wrongModifiers: string[]): z.IssueData {
+export function invalidModifierIssue(
+  wrongModifiers: string[],
+  validModifiers: string[]
+): z.IssueData {
+  const formatList = (items: string[]) =>
+    `${items.map(m => `"${m}"`).join(', ')}`;
   return {
     code: z.ZodIssueCode.custom,
-    message: `${wrongModifiers
-      .map(m => `"${m}"`)
-      .join(', ')} cannot be used as a modifier.`,
+    message: `${formatList(
+      wrongModifiers
+    )} cannot be used as a modifier. Valid modifiers are: ${formatList(
+      validModifiers
+    )}.`,
   };
 }
 
@@ -119,7 +126,7 @@ function validateKeyCodeAndModifiers(
       modifier => !allowedModifiers.includes(modifier)
     );
     if (invalidModifiers.length) {
-      ctx.addIssue(invalidModifierIssue(invalidModifiers));
+      ctx.addIssue(invalidModifierIssue(invalidModifiers, allowedModifiers));
       return z.NEVER;
     }
 
