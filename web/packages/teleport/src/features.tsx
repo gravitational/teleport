@@ -56,6 +56,9 @@ const Sessions = React.lazy(
 const Account = React.lazy(
   () => import(/* webpackChunkName: "account" */ './Account')
 );
+const HeadlessSSO = React.lazy(
+    () => import(/* webpackChunkName: "headlessSSO" */ './HeadlessSSO')
+)
 const Applications = React.lazy(
   () => import(/* webpackChunkName: "apps" */ './Apps')
 );
