@@ -404,7 +404,7 @@ const (
 	// LoginRuleDeleteCode is the login rule delete code.
 	LoginRuleDeleteCode = "TLR01I"
 
-	// SAMLIdPAuthAttemptCode is the SAML IdP auth code.
+	// SAMLIdPAuthAttemptCode is the SAML IdP auth attempt code.
 	SAMLIdPAuthAttemptCode = "TSI000I"
 
 	// SAMLIdPServiceProviderCreateCode is the SAML IdP service provider create code.
