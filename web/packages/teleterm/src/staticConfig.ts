@@ -39,7 +39,7 @@ if (process.env.NODE_ENV === 'development') {
 
 if (process.env.NODE_ENV === 'production') {
   staticConfig = {
-    prehogAddress: '',
+    prehogAddress: 'https://reporting.teleportinfra.sh',
     feedbackAddress: 'https://usage.teleport.dev',
   };
 }
