@@ -6,8 +6,8 @@ h1: Teleport as a SAML identity provider
 
 ## How to use Teleport as an identity provider
 
-This guide will cover an example on how to use Teleport as an identity provider
-so that Teleport can be used to authenticate to external services.
+This guide details an example on how to use Teleport as an identity provider to
+authenticate to external services.
 
 ## Prerequisites
 
@@ -15,6 +15,8 @@ so that Teleport can be used to authenticate to external services.
 
 (!docs/pages/includes/tctl.mdx!)
 
+- If you're new to SAML, consider reviewing our [SAML Identity Provider
+Reference](./saml-reference.mdx) before proceeding.
 ## Example external application
 
 We'll be using [samltest.id](https://samltest.id/) to create a test consumer of
@@ -22,7 +24,7 @@ Teleport's SAML identity provider.
 
 ## Step 1/4. Configure a Teleport role with access to SAML service provider objects
 
-First we need to ensure you are logged into Teleport as a user that has permissions
+First, ensure you are logged into Teleport as a user that has permissions
 to read and modify `saml_idp_service_provider` objects. The default `editor` role
 has access to this already, but in case you are using a more customized configuration,
 create a role called `sp-manager.yaml` with the following contents:
@@ -45,14 +47,14 @@ spec:
 version: v6
 ```
 
-Create it with `tctl`:
+Create the role with `tctl`:
 
 ```code
 $ tctl create sp-manager.yaml 
 role 'saml-idp-service-provider-manager' has been created
 ```
 
-And then add the role to your user. Replace `teleport-admin` with your user name:
+Add the role to your user. Replace `teleport-admin` with your user name:
 
 ```code
 $ tctl users update --set-roles $(tctl get users/<Var name="teleport-admin"/> --format=json | \
@@ -68,24 +70,22 @@ SAML identity provider metadata. You can obtain this metadata in XML format by
 navigating to `https://<proxy-address>/enterprise/saml-idp/metadata`. Save
 it in an easy to remember file name like `teleport-metadata.xml`.
 
-Navigate to samltest.id, and click on "Upload Metadata." Next, choose to upload
+Navigate to https://samltest.id and click on "Upload Metadata." Next, choose to upload
 `teleport-metadata.xml`.
 
 ![Successful upload](../../../img/access-controls/saml-idp/samltestid-0-successful-upload.png)
 
 ## Step 3/4. Obtain the service provider metadata and add it to Teleport
 
-Download the service provider metadata from samltest.id. Run the following
-command which will save the samltest.id service provider metadata to a file
-called `saml-sp.xml`:
+Download the service provider metadata from samltest.id as `saml-sp.xml`:
 
 ```code
 $ curl -o saml-sp.xml https://samltest.id/saml/sp
 ```
 
-Next, create a file called `saml-sp.yaml` that looks like this, where the
-metadata you just downloaded is assigned to the `entity_descriptor` field
-in the `saml_idp_service_provider` object:
+Using the template below, create a file called `saml-sp.yaml`. Assign the
+metadata you just downloaded to the `entity_descriptor` field in the
+`saml_idp_service_provider` object:
 
 ```yaml
 kind: saml_idp_service_provider

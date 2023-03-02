@@ -3,13 +3,14 @@ title: SAML Identity Provider Reference
 description: Reference documentation for the SAML identity provider
 ---
 
-This page provides details on the SAML identity provider built into Teleport.
+This page provides details on the SAML identity provider, built into Teleport
+since version 12.1.
 
 ## What is the SAML identity provider?
 
-The SAML identity provider allows users to use Teleport to authenticate and
-authorize to external applications outside of Teleport that support SAML
-Single Sign-On.
+The SAML identity provider allows Teleport users to authenticate and
+authorize to external applications, both inside and outside of Teleport,
+that support SAML Single Sign-On.
 
 ## Basic definitions
 
@@ -21,7 +22,7 @@ specification documents, referenced at the bottom of this page.
 A package of information that supplies zero or more statements made by an
 identity provider. Assertions are usually made about a subject, which in
 Teleport's case will be Teleport users. These can be viewed as statements of
-fact about a user, e.g. "user *example* belongs to roles *editor*, *access*."
+fact about a user, e.g. "user *bob* belongs to roles *editor*, *access*."
 
 ### Service Provider
 
@@ -66,7 +67,8 @@ identity provider. This URL supports the following bindings:
 
 `https://<proxy-address>/enterprise/saml-idp/login/<sp-name>`
 
-This URL triggers identity provider initiated SSO.
+This URL triggers identity provider initiated SSO. `sp-name` matches the
+`metadata.name` of the service provider object for a particular service provider.
 
 ## Teleport SAML service provider object
 
