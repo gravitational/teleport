@@ -22,14 +22,14 @@ that the collected data does not include anything which identifies:
 
 - The specific machine `tbot` is running on,
 - The cluster `tbot` is connecting to,
-- The hosts, application, databases and kubernetes clusters `tbot` connects to,
+- The hosts, applications, databases and kubernetes clusters `tbot` connects to,
 - The user that has configured `tbot`.
 
 Whilst we do not collect data which uniquely identifies the specific machine
 `tbot` is running on, we may collect general information about the architecture
 and operating system installed on the machine.
 
-We do not assign a unique ID that identifies your `tbot` deployment across
+We do not assign a unique ID that identifies your `tbot` installation across
 multiple starts. This means it is not possible for us to determine how long
 `tbot` has been installed on a machine or track changes made to a `tbot`
 configuration on a specific host over time.
@@ -63,5 +63,24 @@ collecting anonymous telemetry.
 
 ### Events
 
-Anonymous telemetry
+Anonymous telemetry currently submits a single event on the start of `tbot`.
 
+This event is called `tbot.start` and contains the following attributes:
+
+- `tbot.run_mode`: one of [`one-shot`, `daemon`] depending on if `tbot` has been
+  invoked with `--oneshot`
+- `tbot.version`: the running version of `tbot`
+- `tbot.join_type`: the join method type that has been configured (such as
+  `token` or `github`)
+- `tbot.helper`: the name of the helper that has started `tbot` if one has been
+  used. For example: `gha:teleport-actions/auth`
+- `tbot.helper_version`: the version of the helper that has started `tbot` if
+  one has been used
+- `tbot.destinations_other`: a count of destinations configured that are not
+  associated with Database Access, Kubernetes Access or Application Access
+- `tbot.destinations_database`: a count of Database Access destinations
+  configured
+- `tbot.destinations_kubernetes`: a count of Kubernetes Access destinations
+  configured
+- `tbot.destinations_application`: a count of ApplicationAccess destinations
+  configured.
