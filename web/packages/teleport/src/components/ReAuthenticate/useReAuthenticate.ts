@@ -14,33 +14,44 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
 
-export default function useReAuthenticate({
-  onAuthenticated,
-  onClose,
-  actionText = defaultActionText,
-}: Props) {
+import type { MfaAuthnResponse } from 'teleport/services/mfa';
+
+export default function useReAuthenticate(props: Props) {
+  const { onClose, actionText = defaultActionText } = props;
   const { attempt, setAttempt, handleError } = useAttempt('');
 
   function submitWithTotp(secondFactorToken: string) {
+    if ('onMfaResponse' in props) {
+      props.onMfaResponse({ totpCode: secondFactorToken });
+      return;
+    }
+
     setAttempt({ status: 'processing' });
     auth
       .createPrivilegeTokenWithTotp(secondFactorToken)
-      .then(onAuthenticated)
+      .then(props.onAuthenticated)
       .catch(handleError);
   }
 
   function submitWithWebauthn() {
     setAttempt({ status: 'processing' });
+
+    if ('onMfaResponse' in props) {
+      auth
+        .getWebauthnResponse()
+        .then(webauthnResponse => props.onMfaResponse({ webauthnResponse }))
+        .catch(handleError);
+      return;
+    }
+
     auth
       .createPrivilegeTokenWithWebauthn()
-      .then(onAuthenticated)
+      .then(props.onAuthenticated)
       .catch((err: Error) => {
         // This catches a webauthn frontend error that occurs on Firefox and replaces it with a more helpful error message.
         if (
@@ -75,8 +86,7 @@ export default function useReAuthenticate({
 
 const defaultActionText = 'performing this action';
 
-export type Props = {
-  onAuthenticated: React.Dispatch<React.SetStateAction<string>>;
+type BaseProps = {
   onClose: () => void;
   /**
    * The text that will be appended to the text in the re-authentication dialog.
@@ -89,5 +99,24 @@ export type Props = {
    * */
   actionText?: string;
 };
+
+// MfaResponseProps defines a function
+// that accepts a MFA response. No
+// authentication has been done at this point.
+type MfaResponseProps = BaseProps & {
+  onMfaResponse(res: MfaAuthnResponse): void;
+  onAuthenticated?: never;
+};
+
+// Default defines a function that
+// accepts a privilegeTokenId that is only
+// obtained after MFA response has been
+// validated.
+type Default = BaseProps & {
+  onAuthenticated(privilegeTokenId: string): void;
+  onMfaResponse?: never;
+};
+
+export type Props = MfaResponseProps | Default;
 
 export type State = ReturnType<typeof useReAuthenticate>;
