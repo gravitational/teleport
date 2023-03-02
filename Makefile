@@ -20,8 +20,8 @@ GOPATH ?= $(shell go env GOPATH)
 # This directory will be the real path of the directory of the first Makefile in the list.
 MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
-# libbpf version required by the build.
-LIBBPF_VER := 0.7.0-teleport
+# If set to 1, webassets are not built.
+WEBASSETS_SKIP_BUILD ?= 0
 
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
@@ -50,6 +50,9 @@ ARCH ?= $(shell go env GOARCH)
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
+# Include common makefile shared between OSS and Ent.
+include common.mk
+
 # FIPS support must be requested at build time.
 FIPS_MESSAGE := without-FIPS-support
 ifneq ("$(FIPS)","")
@@ -69,41 +72,6 @@ else
 ifneq ("$(wildcard /usr/local/include/security/pam_appl.h)","")
 PAM_TAG := pam
 PAM_MESSAGE := with-PAM-support
-endif
-endif
-
-# BPF support will only be built into Teleport if headers exist at build time.
-BPF_MESSAGE := without-BPF-support
-
-# We don't compile BPF for anything except regular non-FIPS linux/amd64 for now, as other builds
-# have compilation issues that require fixing.
-with_bpf := no
-ifeq ("$(OS)","linux")
-ifeq ("$(ARCH)","amd64")
-ifneq ("$(wildcard /usr/include/bpf/libbpf.h /usr/libbpf-${LIBBPF_VER}/include/bpf/bpf.h)","")
-with_bpf := yes
-BPF_TAG := bpf
-BPF_MESSAGE := with-BPF-support
-CLANG ?= $(shell which clang || which clang-10)
-LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-10)
-KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/')
-INCLUDES :=
-ER_BPF_BUILDDIR := lib/bpf/bytecode
-RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
-
-# Get Clang's default includes on this system. We'll explicitly add these dirs
-# to the includes list when compiling with `-target bpf` because otherwise some
-# architecture-specific dirs will be "missing" on some architectures/distros -
-# headers such as asm/types.h, asm/byteorder.h, asm/socket.h, asm/sockios.h,
-# sys/cdefs.h etc. might be missing.
-#
-# Use '-idirafter': Don't interfere with include mechanics except where the
-# build would have failed anyways.
-CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
-	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
-
-STATIC_LIBS += -L/usr/libbpf-${LIBBPF_VER}/lib64/ -lbpf -lelf -lz
-endif
 endif
 endif
 
@@ -231,28 +199,18 @@ export
 
 TEST_LOG_DIR = ${abspath ./test-logs}
 
-# Is this build targeting the same OS & architecture it is being compiled on, or
-# will it require cross-compilation? We need to know this (especially for ARM) so we
-# can set the cross-compiler path (and possibly feature flags) correctly.
-IS_NATIVE_BUILD ?= $(if $(filter $(ARCH), $(shell go env GOARCH)),"yes","no")
-
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
-ifeq ("$(ARCH)","amd64")
-# Link static version of libraries required by Teleport (bpf, pcsc) to reduce system dependencies. Avoid dependencies on dynamic libraries if we already link the static version using --as-needed.
-CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS="-I/usr/libbpf-${LIBBPF_VER}/include" CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
-CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"
+# True if $ARCH == amd64 || $ARCH == arm64
+ifeq ("$(ARCH)","arm64")
+	ifeq ($(IS_NATIVE_BUILD),"no")
+		CGOFLAG += CC=aarch64-linux-gnu-gcc
+	endif
 else ifeq ("$(ARCH)","arm")
 # ARM builds need to specify the correct C compiler
 CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
-else ifeq ("$(ARCH)","arm64")
-# ARM64 requires CGO but does not need to do any special linkage due to its reduced featureset
-CGOFLAG = CGO_ENABLED=1
-
-# If we 're not guaranteed to be building natively on an arm64 system, then we'll
-# need to configure the cross compiler.
 ifeq ($(IS_NATIVE_BUILD),"no")
 CGOFLAG += CC=aarch64-linux-gnu-gcc
 endif

@@ -29,12 +29,22 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 		entityDescriptor string
 		entityID         string
 		errAssertion     require.ErrorAssertionFunc
+		expectedEntityID string
 	}{
 		{
 			name:             "valid entity descriptor",
 			entityDescriptor: testEntityDescriptor,
 			entityID:         "IAMShowcase",
 			errAssertion:     require.NoError,
+			expectedEntityID: "IAMShowcase",
+		},
+		{
+			// This validates that parse is not called when the entity ID is set.
+			name:             "invalid entity descriptor with valid entity ID",
+			entityDescriptor: "invalid XML",
+			entityID:         "IAMShowcase",
+			errAssertion:     require.NoError,
+			expectedEntityID: "IAMShowcase",
 		},
 		{
 			name:             "empty entity descriptor",
@@ -44,13 +54,14 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 		{
 			name:             "empty entity ID",
 			entityDescriptor: testEntityDescriptor,
-			errAssertion:     require.Error,
+			errAssertion:     require.NoError,
+			expectedEntityID: "IAMShowcase",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := NewSAMLIdPServiceProvider(Metadata{
+			sp, err := NewSAMLIdPServiceProvider(Metadata{
 				Name: "test",
 			}, SAMLIdPServiceProviderSpecV1{
 				EntityDescriptor: test.entityDescriptor,
@@ -58,6 +69,9 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			})
 
 			test.errAssertion(t, err)
+			if sp != nil {
+				require.Equal(t, test.expectedEntityID, sp.GetEntityID())
+			}
 		})
 	}
 }

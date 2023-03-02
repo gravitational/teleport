@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package web
+package usagereporter
 
 import (
 	"encoding/json"
@@ -21,25 +21,25 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	v1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 )
 
 func TestUserEventRequest_CheckAndSet(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
-		req      createUserEventRequest
+		req      CreateUserEventRequest
 		errCheck require.ErrorAssertionFunc
 	}{
 		{
 			name: "event doesn't require extra data",
-			req: createUserEventRequest{
+			req: CreateUserEventRequest{
 				Event: bannerClickEvent,
 			},
 			errCheck: require.NoError,
 		},
 		{
 			name: "event requires data and has data",
-			req: createUserEventRequest{
+			req: CreateUserEventRequest{
 				Event:     uiDiscoverStartedEvent,
 				EventData: &json.RawMessage{},
 			},
@@ -47,14 +47,14 @@ func TestUserEventRequest_CheckAndSet(t *testing.T) {
 		},
 		{
 			name: "event name is empty",
-			req: createUserEventRequest{
+			req: CreateUserEventRequest{
 				Event: "",
 			},
 			errCheck: require.Error,
 		},
 		{
 			name: "event requires data but has no data",
-			req: createUserEventRequest{
+			req: CreateUserEventRequest{
 				Event:     uiDiscoverStartedEvent,
 				EventData: nil,
 			},
@@ -76,28 +76,28 @@ func TestUserEventRequest_CheckAndSet(t *testing.T) {
 func TestConvertEventReqToUsageEvent(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
-		reqFn    func() createUserEventRequest
+		reqFn    func() CreateUserEventRequest
 		errCheck require.ErrorAssertionFunc
-		expected func() *v1.UsageEventOneOf
+		expected func() *usageeventsv1.UsageEventOneOf
 	}{
 		{
 			name: "decodes discover started event",
-			reqFn: func() createUserEventRequest {
+			reqFn: func() CreateUserEventRequest {
 				eventData := json.RawMessage(`{"id":"123", "stepStatus":"DISCOVER_STATUS_ERROR", "stepStatusError":"someerror"}`)
-				return createUserEventRequest{
+				return CreateUserEventRequest{
 					Event:     uiDiscoverStartedEvent,
 					EventData: &eventData,
 				}
 			},
 			errCheck: require.NoError,
-			expected: func() *v1.UsageEventOneOf {
-				return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverStartedEvent{
-					UiDiscoverStartedEvent: &v1.UIDiscoverStartedEvent{
-						Metadata: &v1.DiscoverMetadata{
+			expected: func() *usageeventsv1.UsageEventOneOf {
+				return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverStartedEvent{
+					UiDiscoverStartedEvent: &usageeventsv1.UIDiscoverStartedEvent{
+						Metadata: &usageeventsv1.DiscoverMetadata{
 							Id: "123",
 						},
-						Status: &v1.DiscoverStepStatus{
-							Status: v1.DiscoverStatus_DISCOVER_STATUS_ERROR,
+						Status: &usageeventsv1.DiscoverStepStatus{
+							Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_ERROR,
 							Error:  "someerror",
 						},
 					},
@@ -106,9 +106,9 @@ func TestConvertEventReqToUsageEvent(t *testing.T) {
 		},
 		{
 			name: "error when invalid stepStatus",
-			reqFn: func() createUserEventRequest {
+			reqFn: func() CreateUserEventRequest {
 				eventData := json.RawMessage(`{"id":"123", "stepStatus":"invalid", "stepStatusError":"someerror"}`)
-				return createUserEventRequest{
+				return CreateUserEventRequest{
 					Event:     uiDiscoverStartedEvent,
 					EventData: &eventData,
 				}
@@ -119,7 +119,7 @@ func TestConvertEventReqToUsageEvent(t *testing.T) {
 		},
 		{
 			name: "decodes discover resource selected event",
-			reqFn: func() createUserEventRequest {
+			reqFn: func() CreateUserEventRequest {
 				eventData := json.RawMessage(`
 				{
 					"id":"123",
@@ -128,23 +128,23 @@ func TestConvertEventReqToUsageEvent(t *testing.T) {
 					"stepStatusError":"someerror"
 				}
 				`)
-				return createUserEventRequest{
+				return CreateUserEventRequest{
 					Event:     uiDiscoverResourceSelectionEvent,
 					EventData: &eventData,
 				}
 			},
 			errCheck: require.NoError,
-			expected: func() *v1.UsageEventOneOf {
-				return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
-					UiDiscoverResourceSelectionEvent: &v1.UIDiscoverResourceSelectionEvent{
-						Metadata: &v1.DiscoverMetadata{
+			expected: func() *usageeventsv1.UsageEventOneOf {
+				return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
+					UiDiscoverResourceSelectionEvent: &usageeventsv1.UIDiscoverResourceSelectionEvent{
+						Metadata: &usageeventsv1.DiscoverMetadata{
 							Id: "123",
 						},
-						Resource: &v1.DiscoverResourceMetadata{
-							Resource: v1.DiscoverResource_DISCOVER_RESOURCE_SERVER,
+						Resource: &usageeventsv1.DiscoverResourceMetadata{
+							Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_SERVER,
 						},
-						Status: &v1.DiscoverStepStatus{
-							Status: v1.DiscoverStatus_DISCOVER_STATUS_ERROR,
+						Status: &usageeventsv1.DiscoverStepStatus{
+							Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_ERROR,
 							Error:  "someerror",
 						},
 					},
@@ -159,7 +159,7 @@ func TestConvertEventReqToUsageEvent(t *testing.T) {
 			req := tt.reqFn()
 			require.NoError(t, req.CheckAndSetDefaults())
 
-			usageEvent, err := convertUserEventRequestToUsageEvent(req)
+			usageEvent, err := ConvertUserEventRequestToUsageEvent(req)
 			tt.errCheck(t, err)
 			if err != nil {
 				return

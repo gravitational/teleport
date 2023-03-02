@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/gravitational/trace"
 )
@@ -165,4 +166,64 @@ func (c *vmClient) ListVirtualMachines(ctx context.Context, resourceGroup string
 	}
 
 	return virtualMachines, nil
+}
+
+// RunCommandRequest combines parameters for running a command on an Azure virtual machine.
+type RunCommandRequest struct {
+	// Region is the region of the VM.
+	Region string
+	// ResourceGroup is the resource group for the VM.
+	ResourceGroup string
+	// VMName is the name of the VM.
+	VMName string
+	// Script is the URI of the script for the virtual machine to execute.
+	Script string
+	// Parameters is a list of parameters for the script.
+	Parameters []string
+}
+
+// RunCommandClient is a client for Azure Run Commands.
+type RunCommandClient interface {
+	Run(ctx context.Context, req RunCommandRequest) error
+}
+
+type runCommandClient struct {
+	api *armcompute.VirtualMachineRunCommandsClient
+}
+
+// NewRunCommandClient creates a new Azure Run Command client by subscription
+// and credentials.
+func NewRunCommandClient(subscription string, cred azcore.TokenCredential, options *arm.ClientOptions) (RunCommandClient, error) {
+	runCommandAPI, err := armcompute.NewVirtualMachineRunCommandsClient(subscription, cred, options)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &runCommandClient{
+		api: runCommandAPI,
+	}, nil
+}
+
+// Run runs a command on a virtual machine.
+func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) error {
+	var params []*armcompute.RunCommandInputParameter
+	for _, value := range req.Parameters {
+		params = append(params, &armcompute.RunCommandInputParameter{
+			Value: to.Ptr(value),
+		})
+	}
+	poller, err := c.api.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.VMName, "RunShellScript", armcompute.VirtualMachineRunCommand{
+		Location: to.Ptr(req.Region),
+		Properties: &armcompute.VirtualMachineRunCommandProperties{
+			AsyncExecution: to.Ptr(false),
+			Parameters:     params,
+			Source: &armcompute.VirtualMachineRunCommandScriptSource{
+				Script: to.Ptr(req.Script),
+			},
+		},
+	}, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = poller.PollUntilDone(ctx, nil /* options */)
+	return trace.Wrap(err)
 }
