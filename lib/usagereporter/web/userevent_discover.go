@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package web
+package usagereporter
 
 import (
 	"github.com/gravitational/trace"
 
-	v1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 )
 
 // DiscoverEventData contains the required properties to create a Discover UsageEvent.
@@ -45,46 +45,46 @@ type DiscoverEventData struct {
 // ToUsageEvent converts a discoverEventData into a v1.UsageEventOneOf.
 // This is mostly copying data around, except for Enum properties.
 // Enum props are converted from its string representation to its int32 values.
-func (d *DiscoverEventData) ToUsageEvent(eventName string) (*v1.UsageEventOneOf, error) {
-	metadata := &v1.DiscoverMetadata{
+func (d *DiscoverEventData) ToUsageEvent(eventName string) (*usageeventsv1.UsageEventOneOf, error) {
+	metadata := &usageeventsv1.DiscoverMetadata{
 		Id: d.ID,
 	}
 
-	statusEnum, ok := v1.DiscoverStatus_value[d.StepStatus]
+	statusEnum, ok := usageeventsv1.DiscoverStatus_value[d.StepStatus]
 	if !ok {
 		return nil, trace.BadParameter("invalid stepStatus %s", d.StepStatus)
 	}
-	status := &v1.DiscoverStepStatus{
-		Status: v1.DiscoverStatus(statusEnum),
+	status := &usageeventsv1.DiscoverStepStatus{
+		Status: usageeventsv1.DiscoverStatus(statusEnum),
 		Error:  d.StepStatusError,
 	}
 
-	var resource *v1.DiscoverResourceMetadata
+	var resource *usageeventsv1.DiscoverResourceMetadata
 	// The uiDiscoverStartedEvent does not have a resource selected yet.
 	// This event is emitted when the user lands on the first screen of the Discover Wizard.
 	if eventName != uiDiscoverStartedEvent {
-		resourceEnum, ok := v1.DiscoverResource_value[d.Resource]
+		resourceEnum, ok := usageeventsv1.DiscoverResource_value[d.Resource]
 		if !ok {
 			return nil, trace.BadParameter("invalid resource %s", d.Resource)
 		}
 
-		resource = &v1.DiscoverResourceMetadata{
-			Resource: v1.DiscoverResource(resourceEnum),
+		resource = &usageeventsv1.DiscoverResourceMetadata{
+			Resource: usageeventsv1.DiscoverResource(resourceEnum),
 		}
 	}
 
 	switch eventName {
 	case uiDiscoverStartedEvent:
-		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverStartedEvent{
-			UiDiscoverStartedEvent: &v1.UIDiscoverStartedEvent{
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverStartedEvent{
+			UiDiscoverStartedEvent: &usageeventsv1.UIDiscoverStartedEvent{
 				Metadata: metadata,
 				Status:   status,
 			},
 		}}, nil
 
 	case uiDiscoverResourceSelectionEvent:
-		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
-			UiDiscoverResourceSelectionEvent: &v1.UIDiscoverResourceSelectionEvent{
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
+			UiDiscoverResourceSelectionEvent: &usageeventsv1.UIDiscoverResourceSelectionEvent{
 				Metadata: metadata,
 				Resource: resource,
 				Status:   status,
@@ -92,8 +92,8 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*v1.UsageEventOneOf,
 		}}, nil
 
 	case uiDiscoverDeployServiceEvent:
-		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
-			UiDiscoverDeployServiceEvent: &v1.UIDiscoverDeployServiceEvent{
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
+			UiDiscoverDeployServiceEvent: &usageeventsv1.UIDiscoverDeployServiceEvent{
 				Metadata: metadata,
 				Resource: resource,
 				Status:   status,
@@ -101,8 +101,8 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*v1.UsageEventOneOf,
 		}}, nil
 
 	case uiDiscoverDatabaseRegisterEvent:
-		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverDatabaseRegisterEvent{
-			UiDiscoverDatabaseRegisterEvent: &v1.UIDiscoverDatabaseRegisterEvent{
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseRegisterEvent{
+			UiDiscoverDatabaseRegisterEvent: &usageeventsv1.UIDiscoverDatabaseRegisterEvent{
 				Metadata: metadata,
 				Resource: resource,
 				Status:   status,
@@ -110,8 +110,8 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*v1.UsageEventOneOf,
 		}}, nil
 
 	case uiDiscoverDatabaseConfigureMTLSEvent:
-		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverDatabaseConfigureMtlsEvent{
-			UiDiscoverDatabaseConfigureMtlsEvent: &v1.UIDiscoverDatabaseConfigureMTLSEvent{
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseConfigureMtlsEvent{
+			UiDiscoverDatabaseConfigureMtlsEvent: &usageeventsv1.UIDiscoverDatabaseConfigureMTLSEvent{
 				Metadata: metadata,
 				Resource: resource,
 				Status:   status,
@@ -119,8 +119,8 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*v1.UsageEventOneOf,
 		}}, nil
 
 	case uiDiscoverDesktopActiveDirectoryToolsInstallEvent:
-		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryToolsInstallEvent{
-			UiDiscoverDesktopActiveDirectoryToolsInstallEvent: &v1.UIDiscoverDesktopActiveDirectoryToolsInstallEvent{
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryToolsInstallEvent{
+			UiDiscoverDesktopActiveDirectoryToolsInstallEvent: &usageeventsv1.UIDiscoverDesktopActiveDirectoryToolsInstallEvent{
 				Metadata: metadata,
 				Resource: resource,
 				Status:   status,
@@ -128,8 +128,8 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*v1.UsageEventOneOf,
 		}}, nil
 
 	case uiDiscoverDesktopActiveDirectoryConfigureEvent:
-		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryConfigureEvent{
-			UiDiscoverDesktopActiveDirectoryConfigureEvent: &v1.UIDiscoverDesktopActiveDirectoryConfigureEvent{
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryConfigureEvent{
+			UiDiscoverDesktopActiveDirectoryConfigureEvent: &usageeventsv1.UIDiscoverDesktopActiveDirectoryConfigureEvent{
 				Metadata: metadata,
 				Resource: resource,
 				Status:   status,
@@ -137,8 +137,8 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*v1.UsageEventOneOf,
 		}}, nil
 
 	case uiDiscoverAutoDiscoveredResourcesEvent:
-		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
-			UiDiscoverAutoDiscoveredResourcesEvent: &v1.UIDiscoverAutoDiscoveredResourcesEvent{
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
+			UiDiscoverAutoDiscoveredResourcesEvent: &usageeventsv1.UIDiscoverAutoDiscoveredResourcesEvent{
 				Metadata:       metadata,
 				Resource:       resource,
 				Status:         status,
@@ -147,8 +147,8 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*v1.UsageEventOneOf,
 		}}, nil
 
 	case uiDiscoverDatabaseConfigureIAMPolicyEvent:
-		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverDatabaseConfigureIamPolicyEvent{
-			UiDiscoverDatabaseConfigureIamPolicyEvent: &v1.UIDiscoverDatabaseConfigureIAMPolicyEvent{
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseConfigureIamPolicyEvent{
+			UiDiscoverDatabaseConfigureIamPolicyEvent: &usageeventsv1.UIDiscoverDatabaseConfigureIAMPolicyEvent{
 				Metadata: metadata,
 				Resource: resource,
 				Status:   status,
@@ -156,8 +156,8 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*v1.UsageEventOneOf,
 		}}, nil
 
 	case uiDiscoverPrincipalsConfigureEvent:
-		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverPrincipalsConfigureEvent{
-			UiDiscoverPrincipalsConfigureEvent: &v1.UIDiscoverPrincipalsConfigureEvent{
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverPrincipalsConfigureEvent{
+			UiDiscoverPrincipalsConfigureEvent: &usageeventsv1.UIDiscoverPrincipalsConfigureEvent{
 				Metadata: metadata,
 				Resource: resource,
 				Status:   status,
@@ -165,8 +165,8 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*v1.UsageEventOneOf,
 		}}, nil
 
 	case uiDiscoverTestConnectionEvent:
-		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverTestConnectionEvent{
-			UiDiscoverTestConnectionEvent: &v1.UIDiscoverTestConnectionEvent{
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverTestConnectionEvent{
+			UiDiscoverTestConnectionEvent: &usageeventsv1.UIDiscoverTestConnectionEvent{
 				Metadata: metadata,
 				Resource: resource,
 				Status:   status,
@@ -174,8 +174,8 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*v1.UsageEventOneOf,
 		}}, nil
 
 	case uiDiscoverCompletedEvent:
-		return &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverCompletedEvent{
-			UiDiscoverCompletedEvent: &v1.UIDiscoverCompletedEvent{
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverCompletedEvent{
+			UiDiscoverCompletedEvent: &usageeventsv1.UIDiscoverCompletedEvent{
 				Metadata: metadata,
 				Resource: resource,
 				Status:   status,

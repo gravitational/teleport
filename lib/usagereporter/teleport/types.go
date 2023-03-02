@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,37 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package usagereporter
 
 import (
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
-	usageevents "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// UsageAnonymizable is an event that can be anonymized.
-type UsageAnonymizable interface {
+// Anonymizable is an event that can be anonymized.
+type Anonymizable interface {
 	// Anonymize uses the given anonymizer to anonymize the event and converts
 	// it into a partially filled SubmitEventRequest.
 	Anonymize(utils.Anonymizer) prehogv1.SubmitEventRequest
 }
 
-// UsageReporter is a service that accepts Teleport usage events.
-type UsageReporter interface {
-	// SubmitAnonymizedUsageEvents submits a usage event. The payload will be
-	// anonymized by the reporter implementation.
-	SubmitAnonymizedUsageEvents(event ...UsageAnonymizable) error
-}
-
-// UsageUserLogin is an event emitted when a user logs into Teleport,
+// UserLoginEvent is an event emitted when a user logs into Teleport,
 // potentially via SSO.
-type UsageUserLogin prehogv1.UserLoginEvent
+type UserLoginEvent prehogv1.UserLoginEvent
 
-func (u *UsageUserLogin) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UserLogin{
 			UserLogin: &prehogv1.UserLoginEvent{
@@ -55,10 +48,10 @@ func (u *UsageUserLogin) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventReque
 	}
 }
 
-// UsageSSOCreate is emitted when an SSO connector has been created.
-type UsageSSOCreate prehogv1.SSOCreateEvent
+// SSOCreateEvent is emitted when an SSO connector has been created.
+type SSOCreateEvent prehogv1.SSOCreateEvent
 
-func (u *UsageSSOCreate) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *SSOCreateEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_SsoCreate{
 			SsoCreate: &prehogv1.SSOCreateEvent{
@@ -68,11 +61,11 @@ func (u *UsageSSOCreate) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventReque
 	}
 }
 
-// UsageSessionStart is an event emitted when some Teleport session has started
+// SessionStartEvent is an event emitted when some Teleport session has started
 // (ssh, etc).
-type UsageSessionStart prehogv1.SessionStartEvent
+type SessionStartEvent prehogv1.SessionStartEvent
 
-func (u *UsageSessionStart) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_SessionStartV2{
 			SessionStartV2: &prehogv1.SessionStartEvent{
@@ -83,11 +76,11 @@ func (u *UsageSessionStart) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRe
 	}
 }
 
-// UsageResourceCreate is an event emitted when various resource types have been
+// ResourceCreateEvent is an event emitted when various resource types have been
 // created.
-type UsageResourceCreate prehogv1.ResourceCreateEvent
+type ResourceCreateEvent prehogv1.ResourceCreateEvent
 
-func (u *UsageResourceCreate) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *ResourceCreateEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_ResourceCreate{
 			ResourceCreate: &prehogv1.ResourceCreateEvent{
@@ -97,10 +90,10 @@ func (u *UsageResourceCreate) Anonymize(a utils.Anonymizer) prehogv1.SubmitEvent
 	}
 }
 
-// UsageUIBannerClick is a UI event sent when a banner is clicked.
-type UsageUIBannerClick prehogv1.UIBannerClickEvent
+// UIBannerClickEvent is a UI event sent when a banner is clicked.
+type UIBannerClickEvent prehogv1.UIBannerClickEvent
 
-func (u *UsageUIBannerClick) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIBannerClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiBannerClick{
 			UiBannerClick: &prehogv1.UIBannerClickEvent{
@@ -111,11 +104,11 @@ func (u *UsageUIBannerClick) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventR
 	}
 }
 
-// UsageUIOnboardCompleteGoToDashboardClickEvent is a UI event sent when
+// UIOnboardCompleteGoToDashboardClickEvent is a UI event sent when
 // onboarding is complete.
-type UsageUIOnboardCompleteGoToDashboardClickEvent prehogv1.UIOnboardCompleteGoToDashboardClickEvent
+type UIOnboardCompleteGoToDashboardClickEvent prehogv1.UIOnboardCompleteGoToDashboardClickEvent
 
-func (u *UsageUIOnboardCompleteGoToDashboardClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIOnboardCompleteGoToDashboardClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiOnboardCompleteGoToDashboardClick{
 			UiOnboardCompleteGoToDashboardClick: &prehogv1.UIOnboardCompleteGoToDashboardClickEvent{
@@ -125,11 +118,11 @@ func (u *UsageUIOnboardCompleteGoToDashboardClickEvent) Anonymize(a utils.Anonym
 	}
 }
 
-// UsageUIOnboardAddFirstResourceClickEvent is a UI event sent when a user
+// UIOnboardAddFirstResourceClickEvent is a UI event sent when a user
 // clicks the "add first resource" button.
-type UsageUIOnboardAddFirstResourceClickEvent prehogv1.UIOnboardAddFirstResourceClickEvent
+type UIOnboardAddFirstResourceClickEvent prehogv1.UIOnboardAddFirstResourceClickEvent
 
-func (u *UsageUIOnboardAddFirstResourceClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIOnboardAddFirstResourceClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiOnboardAddFirstResourceClick{
 			UiOnboardAddFirstResourceClick: &prehogv1.UIOnboardAddFirstResourceClickEvent{
@@ -139,11 +132,11 @@ func (u *UsageUIOnboardAddFirstResourceClickEvent) Anonymize(a utils.Anonymizer)
 	}
 }
 
-// UsageUIOnboardAddFirstResourceLaterClickEvent is a UI event sent when a user
+// UIOnboardAddFirstResourceLaterClickEvent is a UI event sent when a user
 // clicks the "add first resource later" button.
-type UsageUIOnboardAddFirstResourceLaterClickEvent prehogv1.UIOnboardAddFirstResourceLaterClickEvent
+type UIOnboardAddFirstResourceLaterClickEvent prehogv1.UIOnboardAddFirstResourceLaterClickEvent
 
-func (u *UsageUIOnboardAddFirstResourceLaterClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIOnboardAddFirstResourceLaterClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiOnboardAddFirstResourceLaterClick{
 			UiOnboardAddFirstResourceLaterClick: &prehogv1.UIOnboardAddFirstResourceLaterClickEvent{
@@ -153,11 +146,11 @@ func (u *UsageUIOnboardAddFirstResourceLaterClickEvent) Anonymize(a utils.Anonym
 	}
 }
 
-// UsageUIOnboardSetCredentialSubmit is an UI event sent during registration
+// UIOnboardSetCredentialSubmitEvent is an UI event sent during registration
 // when the user configures login credentials.
-type UsageUIOnboardSetCredentialSubmit prehogv1.UIOnboardSetCredentialSubmitEvent
+type UIOnboardSetCredentialSubmitEvent prehogv1.UIOnboardSetCredentialSubmitEvent
 
-func (u *UsageUIOnboardSetCredentialSubmit) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIOnboardSetCredentialSubmitEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiOnboardSetCredentialSubmit{
 			UiOnboardSetCredentialSubmit: &prehogv1.UIOnboardSetCredentialSubmitEvent{
@@ -167,11 +160,11 @@ func (u *UsageUIOnboardSetCredentialSubmit) Anonymize(a utils.Anonymizer) prehog
 	}
 }
 
-// UsageUIOnboardRegisterChallengeSubmit is a UI event sent during registration
+// UIOnboardRegisterChallengeSubmitEvent is a UI event sent during registration
 // when the MFA challenge is completed.
-type UsageUIOnboardRegisterChallengeSubmit prehogv1.UIOnboardRegisterChallengeSubmitEvent
+type UIOnboardRegisterChallengeSubmitEvent prehogv1.UIOnboardRegisterChallengeSubmitEvent
 
-func (u *UsageUIOnboardRegisterChallengeSubmit) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIOnboardRegisterChallengeSubmitEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiOnboardRegisterChallengeSubmit{
 			UiOnboardRegisterChallengeSubmit: &prehogv1.UIOnboardRegisterChallengeSubmitEvent{
@@ -183,10 +176,10 @@ func (u *UsageUIOnboardRegisterChallengeSubmit) Anonymize(a utils.Anonymizer) pr
 	}
 }
 
-// UsageUIRecoveryCodesContinueClick is a UI event sent when a user configures recovery codes.
-type UsageUIRecoveryCodesContinueClick prehogv1.UIRecoveryCodesContinueClickEvent
+// UIRecoveryCodesContinueClickEvent is a UI event sent when a user configures recovery codes.
+type UIRecoveryCodesContinueClickEvent prehogv1.UIRecoveryCodesContinueClickEvent
 
-func (u *UsageUIRecoveryCodesContinueClick) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIRecoveryCodesContinueClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiRecoveryCodesContinueClick{
 			UiRecoveryCodesContinueClick: &prehogv1.UIRecoveryCodesContinueClickEvent{
@@ -196,10 +189,10 @@ func (u *UsageUIRecoveryCodesContinueClick) Anonymize(a utils.Anonymizer) prehog
 	}
 }
 
-// UsageUIRecoveryCodesCopyClick is a UI event sent when a user copies recovery codes.
-type UsageUIRecoveryCodesCopyClick prehogv1.UIRecoveryCodesCopyClickEvent
+// UIRecoveryCodesCopyClickEvent is a UI event sent when a user copies recovery codes.
+type UIRecoveryCodesCopyClickEvent prehogv1.UIRecoveryCodesCopyClickEvent
 
-func (u *UsageUIRecoveryCodesCopyClick) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIRecoveryCodesCopyClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiRecoveryCodesCopyClick{
 			UiRecoveryCodesCopyClick: &prehogv1.UIRecoveryCodesCopyClickEvent{
@@ -222,10 +215,10 @@ func (u *UsageUIRecoveryCodesPrintClick) Anonymize(a utils.Anonymizer) prehogv1.
 	}
 }
 
-// UsageRoleCreate is an event emitted when a custom role is created.
-type UsageRoleCreate prehogv1.RoleCreateEvent
+// RoleCreateEvent is an event emitted when a custom role is created.
+type RoleCreateEvent prehogv1.RoleCreateEvent
 
-func (u *UsageRoleCreate) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *RoleCreateEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	role := u.RoleName
 	if !slices.Contains(teleport.PresetRoles, u.RoleName) {
 		role = a.AnonymizeString(u.RoleName)
@@ -241,10 +234,10 @@ func (u *UsageRoleCreate) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequ
 	}
 }
 
-// UsageUICreateNewRoleClickEvent is a UI event sent when a user prints recovery codes.
-type UsageUICreateNewRoleClickEvent prehogv1.UICreateNewRoleClickEvent
+// UICreateNewRoleClickEvent is a UI event sent when a user prints recovery codes.
+type UICreateNewRoleClickEvent prehogv1.UICreateNewRoleClickEvent
 
-func (u *UsageUICreateNewRoleClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UICreateNewRoleClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleClick{
 			UiCreateNewRoleClick: &prehogv1.UICreateNewRoleClickEvent{
@@ -254,10 +247,10 @@ func (u *UsageUICreateNewRoleClickEvent) Anonymize(a utils.Anonymizer) prehogv1.
 	}
 }
 
-// UsageUICreateNewRoleSaveClickEvent is a UI event sent when a user prints recovery codes.
-type UsageUICreateNewRoleSaveClickEvent prehogv1.UICreateNewRoleSaveClickEvent
+// UICreateNewRoleSaveClickEvent is a UI event sent when a user prints recovery codes.
+type UICreateNewRoleSaveClickEvent prehogv1.UICreateNewRoleSaveClickEvent
 
-func (u *UsageUICreateNewRoleSaveClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UICreateNewRoleSaveClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleSaveClick{
 			UiCreateNewRoleSaveClick: &prehogv1.UICreateNewRoleSaveClickEvent{
@@ -267,10 +260,10 @@ func (u *UsageUICreateNewRoleSaveClickEvent) Anonymize(a utils.Anonymizer) preho
 	}
 }
 
-// UsageUICreateNewRoleCancelClickEvent is a UI event sent when a user prints recovery codes.
-type UsageUICreateNewRoleCancelClickEvent prehogv1.UICreateNewRoleCancelClickEvent
+// UICreateNewRoleCancelClickEvent is a UI event sent when a user prints recovery codes.
+type UICreateNewRoleCancelClickEvent prehogv1.UICreateNewRoleCancelClickEvent
 
-func (u *UsageUICreateNewRoleCancelClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UICreateNewRoleCancelClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleCancelClick{
 			UiCreateNewRoleCancelClick: &prehogv1.UICreateNewRoleCancelClickEvent{
@@ -280,10 +273,10 @@ func (u *UsageUICreateNewRoleCancelClickEvent) Anonymize(a utils.Anonymizer) pre
 	}
 }
 
-// UsageUICreateNewRoleViewDocumentationClickEvent is a UI event sent when a user prints recovery codes.
-type UsageUICreateNewRoleViewDocumentationClickEvent prehogv1.UICreateNewRoleViewDocumentationClickEvent
+// UICreateNewRoleViewDocumentationClickEvent is a UI event sent when a user prints recovery codes.
+type UICreateNewRoleViewDocumentationClickEvent prehogv1.UICreateNewRoleViewDocumentationClickEvent
 
-func (u *UsageUICreateNewRoleViewDocumentationClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UICreateNewRoleViewDocumentationClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleViewDocumentationClick{
 			UiCreateNewRoleViewDocumentationClick: &prehogv1.UICreateNewRoleViewDocumentationClickEvent{
@@ -293,11 +286,11 @@ func (u *UsageUICreateNewRoleViewDocumentationClickEvent) Anonymize(a utils.Anon
 	}
 }
 
-// UsageCertificateIssued is an event emitted when a certificate has been
+// UserCertificateIssuedEvent is an event emitted when a certificate has been
 // issued, used to track the duration and restriction.
-type UsageCertificateIssued prehogv1.UserCertificateIssuedEvent
+type UserCertificateIssuedEvent prehogv1.UserCertificateIssuedEvent
 
-func (u *UsageCertificateIssued) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UserCertificateIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UserCertificateIssuedEvent{
 			UserCertificateIssuedEvent: &prehogv1.UserCertificateIssuedEvent{
@@ -313,11 +306,11 @@ func (u *UsageCertificateIssued) Anonymize(a utils.Anonymizer) prehogv1.SubmitEv
 	}
 }
 
-// UsageKubeRequest is an event emitted when a Kubernetes API request is
+// KubeRequestEvent is an event emitted when a Kubernetes API request is
 // handled.
-type UsageKubeRequest prehogv1.KubeRequestEvent
+type KubeRequestEvent prehogv1.KubeRequestEvent
 
-func (u *UsageKubeRequest) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *KubeRequestEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_KubeRequest{
 			KubeRequest: &prehogv1.KubeRequestEvent{
@@ -327,10 +320,10 @@ func (u *UsageKubeRequest) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventReq
 	}
 }
 
-// UsageSFTP is an event emitted for each file operation in a SFTP connection.
-type UsageSFTP prehogv1.SFTPEvent
+// SFTPEvent is an event emitted for each file operation in a SFTP connection.
+type SFTPEvent prehogv1.SFTPEvent
 
-func (u *UsageSFTP) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *SFTPEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_Sftp{
 			Sftp: &prehogv1.SFTPEvent{
@@ -344,70 +337,70 @@ func (u *UsageSFTP) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
-func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername string) (UsageAnonymizable, error) {
+func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername string) (Anonymizable, error) {
 	// Note: events (especially pre-registration) that embed a username of their
 	// own should generally pass that through rather than using the identity
 	// username provided to the function. It may be the username of a Teleport
 	// component (e.g. proxy) rather than the end user.
 
 	switch e := event.GetEvent().(type) {
-	case *usageevents.UsageEventOneOf_UiBannerClick:
-		return &UsageUIBannerClick{
+	case *usageeventsv1.UsageEventOneOf_UiBannerClick:
+		return &UIBannerClickEvent{
 			UserName: identityUsername,
 			Alert:    e.UiBannerClick.Alert,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiOnboardAddFirstResourceClick:
-		return &UsageUIOnboardAddFirstResourceClickEvent{
+	case *usageeventsv1.UsageEventOneOf_UiOnboardAddFirstResourceClick:
+		return &UIOnboardAddFirstResourceClickEvent{
 			UserName: identityUsername,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiOnboardAddFirstResourceLaterClick:
-		return &UsageUIOnboardAddFirstResourceLaterClickEvent{
+	case *usageeventsv1.UsageEventOneOf_UiOnboardAddFirstResourceLaterClick:
+		return &UIOnboardAddFirstResourceLaterClickEvent{
 			UserName: identityUsername,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiOnboardCompleteGoToDashboardClick:
-		return &UsageUIOnboardCompleteGoToDashboardClickEvent{
+	case *usageeventsv1.UsageEventOneOf_UiOnboardCompleteGoToDashboardClick:
+		return &UIOnboardCompleteGoToDashboardClickEvent{
 			UserName: e.UiOnboardCompleteGoToDashboardClick.Username,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiOnboardSetCredentialSubmit:
-		return &UsageUIOnboardSetCredentialSubmit{
+	case *usageeventsv1.UsageEventOneOf_UiOnboardSetCredentialSubmit:
+		return &UIOnboardSetCredentialSubmitEvent{
 			UserName: e.UiOnboardSetCredentialSubmit.Username,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiOnboardRegisterChallengeSubmit:
-		return &UsageUIOnboardRegisterChallengeSubmit{
+	case *usageeventsv1.UsageEventOneOf_UiOnboardRegisterChallengeSubmit:
+		return &UIOnboardRegisterChallengeSubmitEvent{
 			UserName:  e.UiOnboardRegisterChallengeSubmit.Username,
 			MfaType:   e.UiOnboardRegisterChallengeSubmit.MfaType,
 			LoginFlow: e.UiOnboardRegisterChallengeSubmit.LoginFlow,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiRecoveryCodesContinueClick:
-		return &UsageUIRecoveryCodesContinueClick{
+	case *usageeventsv1.UsageEventOneOf_UiRecoveryCodesContinueClick:
+		return &UIRecoveryCodesContinueClickEvent{
 			UserName: e.UiRecoveryCodesContinueClick.Username,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiRecoveryCodesCopyClick:
-		return &UsageUIRecoveryCodesCopyClick{
+	case *usageeventsv1.UsageEventOneOf_UiRecoveryCodesCopyClick:
+		return &UIRecoveryCodesCopyClickEvent{
 			UserName: e.UiRecoveryCodesCopyClick.Username,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiRecoveryCodesPrintClick:
+	case *usageeventsv1.UsageEventOneOf_UiRecoveryCodesPrintClick:
 		return &UsageUIRecoveryCodesPrintClick{
 			UserName: e.UiRecoveryCodesPrintClick.Username,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiCreateNewRoleClick:
-		return &UsageUICreateNewRoleClickEvent{
+	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleClick:
+		return &UICreateNewRoleClickEvent{
 			UserName: identityUsername,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiCreateNewRoleSaveClick:
-		return &UsageUICreateNewRoleSaveClickEvent{
+	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleSaveClick:
+		return &UICreateNewRoleSaveClickEvent{
 			UserName: identityUsername,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiCreateNewRoleCancelClick:
-		return &UsageUICreateNewRoleCancelClickEvent{
+	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleCancelClick:
+		return &UICreateNewRoleCancelClickEvent{
 			UserName: identityUsername,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiCreateNewRoleViewDocumentationClick:
-		return &UsageUICreateNewRoleViewDocumentationClickEvent{
+	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleViewDocumentationClick:
+		return &UICreateNewRoleViewDocumentationClickEvent{
 			UserName: identityUsername,
 		}, nil
-	case *usageevents.UsageEventOneOf_UiDiscoverStartedEvent:
-		ret := &UsageUIDiscoverStartedEvent{
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverStartedEvent:
+		ret := &UIDiscoverStartedEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverStartedEvent.Metadata, identityUsername),
 			Status:   discoverStatusToPrehog(e.UiDiscoverStartedEvent.Status),
 		}
@@ -416,8 +409,8 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 		}
 
 		return ret, nil
-	case *usageevents.UsageEventOneOf_UiDiscoverResourceSelectionEvent:
-		ret := &UsageUIDiscoverResourceSelectionEvent{
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverResourceSelectionEvent:
+		ret := &UIDiscoverResourceSelectionEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverResourceSelectionEvent.Metadata, identityUsername),
 			Resource: discoverResourceToPrehog(e.UiDiscoverResourceSelectionEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverResourceSelectionEvent.Status),
@@ -427,8 +420,8 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 		}
 
 		return ret, nil
-	case *usageevents.UsageEventOneOf_UiDiscoverDeployServiceEvent:
-		ret := &UsageUIDiscoverDeployServiceEvent{
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent:
+		ret := &UIDiscoverDeployServiceEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, identityUsername),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDeployServiceEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDeployServiceEvent.Status),
@@ -438,8 +431,8 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 		}
 
 		return ret, nil
-	case *usageevents.UsageEventOneOf_UiDiscoverDatabaseRegisterEvent:
-		ret := &UsageUIDiscoverDatabaseRegisterEvent{
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseRegisterEvent:
+		ret := &UIDiscoverDatabaseRegisterEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseRegisterEvent.Metadata, identityUsername),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDatabaseRegisterEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDatabaseRegisterEvent.Status),
@@ -449,8 +442,8 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 		}
 
 		return ret, nil
-	case *usageevents.UsageEventOneOf_UiDiscoverDatabaseConfigureMtlsEvent:
-		ret := &UsageUIDiscoverDatabaseConfigureMTLSEvent{
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseConfigureMtlsEvent:
+		ret := &UIDiscoverDatabaseConfigureMTLSEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Metadata, identityUsername),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Status),
@@ -460,8 +453,8 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 		}
 
 		return ret, nil
-	case *usageevents.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryToolsInstallEvent:
-		ret := &UsageUIDiscoverDesktopActiveDirectoryToolsInstallEvent{
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryToolsInstallEvent:
+		ret := &UIDiscoverDesktopActiveDirectoryToolsInstallEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Metadata, identityUsername),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Status),
@@ -471,8 +464,8 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 		}
 
 		return ret, nil
-	case *usageevents.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryConfigureEvent:
-		ret := &UsageUIDiscoverDesktopActiveDirectoryConfigureEvent{
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryConfigureEvent:
+		ret := &UIDiscoverDesktopActiveDirectoryConfigureEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Metadata, identityUsername),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Status),
@@ -482,8 +475,8 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 		}
 
 		return ret, nil
-	case *usageevents.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent:
-		ret := &UsageUIDiscoverAutoDiscoveredResourcesEvent{
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent:
+		ret := &UIDiscoverAutoDiscoveredResourcesEvent{
 			Metadata:       discoverMetadataToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Metadata, identityUsername),
 			Resource:       discoverResourceToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Resource),
 			Status:         discoverStatusToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Status),
@@ -494,8 +487,8 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 		}
 
 		return ret, nil
-	case *usageevents.UsageEventOneOf_UiDiscoverDatabaseConfigureIamPolicyEvent:
-		ret := &UsageUIDiscoverDatabaseConfigureIAMPolicyEvent{
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseConfigureIamPolicyEvent:
+		ret := &UIDiscoverDatabaseConfigureIAMPolicyEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Metadata, identityUsername),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Status),
@@ -505,8 +498,8 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 		}
 
 		return ret, nil
-	case *usageevents.UsageEventOneOf_UiDiscoverPrincipalsConfigureEvent:
-		ret := &UsageUIDiscoverPrincipalsConfigureEvent{
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverPrincipalsConfigureEvent:
+		ret := &UIDiscoverPrincipalsConfigureEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Metadata, identityUsername),
 			Resource: discoverResourceToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Status),
@@ -516,8 +509,8 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 		}
 
 		return ret, nil
-	case *usageevents.UsageEventOneOf_UiDiscoverTestConnectionEvent:
-		ret := &UsageUIDiscoverTestConnectionEvent{
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverTestConnectionEvent:
+		ret := &UIDiscoverTestConnectionEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverTestConnectionEvent.Metadata, identityUsername),
 			Resource: discoverResourceToPrehog(e.UiDiscoverTestConnectionEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverTestConnectionEvent.Status),
@@ -527,8 +520,8 @@ func ConvertUsageEvent(event *usageevents.UsageEventOneOf, identityUsername stri
 		}
 
 		return ret, nil
-	case *usageevents.UsageEventOneOf_UiDiscoverCompletedEvent:
-		ret := &UsageUIDiscoverCompletedEvent{
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverCompletedEvent:
+		ret := &UIDiscoverCompletedEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverCompletedEvent.Metadata, identityUsername),
 			Resource: discoverResourceToPrehog(e.UiDiscoverCompletedEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverCompletedEvent.Status),
