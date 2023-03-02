@@ -323,7 +323,7 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Authenticate to Grafana with Teleport",
+              "title": "Authenticate to Grafana with Teleport SAML",
               "slug": "/access-controls/idps/saml-grafana/",
               "forScopes": ["enterprise", "cloud"]
             },
