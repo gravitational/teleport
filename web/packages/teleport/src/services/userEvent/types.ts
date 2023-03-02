@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// these constants are 1:1 with constants found in lib/usagereporter/web/userevent.go
+
 export enum CaptureEvent {
   // UserEvent types
   BannerClickEvent = 'tp.ui.banner.click',
