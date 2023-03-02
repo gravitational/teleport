@@ -385,7 +385,7 @@ func newWebSuite(t *testing.T) *WebSuite {
 
 	// Expired sessions are purged immediately
 	var sessionLingeringThreshold time.Duration
-	fs, err := NewDebugFileSystem("../../webassets/teleport")
+	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
 		Proxy:                           revTunServer,
@@ -3068,8 +3068,8 @@ func TestClusterAppsGet(t *testing.T) {
 	// Test correct response.
 	resp := testResponse{}
 	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-	require.Len(t, resp.Items, 2)
-	require.Equal(t, 2, resp.TotalCount)
+	require.Len(t, resp.Items, 3)
+	require.Equal(t, 3, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.App{{
 		Name:        resource.Spec.App.GetName(),
 		Description: resource.Spec.App.GetDescription(),
@@ -3082,6 +3082,14 @@ func TestClusterAppsGet(t *testing.T) {
 	}, {
 		Name:       "app2",
 		URI:        "uri",
+		Labels:     []ui.Label{},
+		ClusterID:  env.server.ClusterName(),
+		FQDN:       "publicaddrs",
+		PublicAddr: "publicaddrs",
+		AWSConsole: false,
+	}, {
+		Name:       "app3",
+		URI:        "tcp://something",
 		Labels:     []ui.Label{},
 		ClusterID:  env.server.ClusterName(),
 		FQDN:       "publicaddrs",
@@ -5249,7 +5257,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })
 
-	fs, err := NewDebugFileSystem("../../webassets/teleport")
+	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
 		Proxy:            revTunServer,

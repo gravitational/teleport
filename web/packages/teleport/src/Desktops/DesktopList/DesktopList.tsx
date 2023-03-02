@@ -150,8 +150,8 @@ function DesktopList(props: Props) {
 }
 
 function renderLoginCell(
-  { name }: Desktop,
-  onOpen: (serverUuid: string) => LoginItem[],
+  desktop: Desktop,
+  onOpen: (desktop: Desktop) => LoginItem[],
   onSelect: (
     e: React.SyntheticEvent,
     username: string,
@@ -159,7 +159,7 @@ function renderLoginCell(
   ) => void
 ) {
   function handleOnOpen() {
-    return onOpen(name);
+    return onOpen(desktop);
   }
 
   function handleOnSelect(e: React.SyntheticEvent, login: string) {
@@ -167,7 +167,7 @@ function renderLoginCell(
       return [];
     }
 
-    return onSelect(e, login, name);
+    return onSelect(e, login, desktop.name);
   }
 
   return (
@@ -193,7 +193,7 @@ type Props = {
   pageSize: number;
   username: string;
   clusterId: string;
-  onLoginMenuOpen(desktopName: string): { login: string; url: string }[];
+  onLoginMenuOpen(desktop: Desktop): LoginItem[];
   onLoginSelect(username: string, desktopName: string): void;
   fetchNext: () => void;
   fetchPrev: () => void;

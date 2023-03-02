@@ -777,6 +777,15 @@ func TestHandleClusterAppsGetFallback(t *testing.T) {
 			ClusterID:  "cluster-name",
 			FQDN:       "app2.dns-name",
 			AWSConsole: false,
+		},
+		// not excluding any apps now.
+		{
+			Name:       "app3",
+			URI:        "tcp://something",
+			Labels:     []ui.Label{},
+			ClusterID:  "cluster-name",
+			FQDN:       "app3.dns-name",
+			AWSConsole: false,
 		}})
 }
 
@@ -854,6 +863,10 @@ func TestHandleClusterWindowsGetFallback(t *testing.T) {
 	}
 	m.mockPing = func(ctx context.Context) (proto.PingResponse, error) {
 		return proto.PingResponse{ServerVersion: "9.1"}, nil
+	}
+
+	m.mockGetRoles = func(ctx context.Context) ([]types.Role, error) {
+		return []types.Role{}, nil
 	}
 
 	mockHTTPReq, err := http.NewRequest("", "", nil)

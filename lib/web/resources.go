@@ -457,8 +457,13 @@ func handleClusterNodesGet(clt resourcesAPIGetter, r *http.Request, clusterName 
 			return nil, trace.Wrap(err)
 		}
 
+		uiServers, err := ui.MakeServers(clusterName, servers, userRoles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return &listResourcesGetResponse{
-			Items:      ui.MakeServers(clusterName, servers, userRoles),
+			Items:      uiServers,
 			StartKey:   &resp.NextKey,
 			TotalCount: &resp.TotalCount,
 		}, nil
@@ -474,8 +479,13 @@ func handleClusterNodesGet(clt resourcesAPIGetter, r *http.Request, clusterName 
 		return nil, trace.Wrap(err)
 	}
 
+	uiServers, err := ui.MakeServers(clusterName, nodes, userRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &listResourcesGetResponse{
-		Items: ui.MakeServers(clusterName, nodes, userRoles),
+		Items: uiServers,
 	}, nil
 }
 
@@ -533,14 +543,13 @@ func handleClusterAppsGet(clt resourcesAPIGetter, r *http.Request, cfg ui.MakeAp
 			return nil, trace.Wrap(err)
 		}
 
-		apps, numExcludedApps := extractAppsWithoutTCPEndpoint(appServers)
+		apps := extractApps(appServers)
 		cfg.Apps = apps
-		totalCount := resp.TotalCount - numExcludedApps
 
 		return &listResourcesGetResponse{
 			Items:      ui.MakeApps(cfg),
 			StartKey:   &resp.NextKey,
-			TotalCount: &totalCount,
+			TotalCount: &resp.TotalCount,
 		}, nil
 	}
 
@@ -554,7 +563,7 @@ func handleClusterAppsGet(clt resourcesAPIGetter, r *http.Request, cfg ui.MakeAp
 		return nil, trace.Wrap(err)
 	}
 
-	apps, _ := extractAppsWithoutTCPEndpoint(appServers)
+	apps := extractApps(appServers)
 	cfg.Apps = types.DeduplicateApps(apps)
 
 	return &listResourcesGetResponse{
@@ -563,6 +572,10 @@ func handleClusterAppsGet(clt resourcesAPIGetter, r *http.Request, cfg ui.MakeAp
 }
 
 func handleClusterDesktopsGet(clt resourcesAPIGetter, r *http.Request) (*listResourcesGetResponse, error) {
+	roles, err := clt.GetRoles(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	resp, err := attemptListResources(clt, r, types.KindWindowsDesktop)
 	if err == nil {
 		windowsDesktops, err := types.ResourcesWithLabels(resp.Resources).AsWindowsDesktops()
@@ -570,8 +583,13 @@ func handleClusterDesktopsGet(clt resourcesAPIGetter, r *http.Request) (*listRes
 			return nil, trace.Wrap(err)
 		}
 
+		uiDesktops, err := ui.MakeDesktops(windowsDesktops, roles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return &listResourcesGetResponse{
-			Items:      ui.MakeDesktops(windowsDesktops),
+			Items:      uiDesktops,
 			StartKey:   &resp.NextKey,
 			TotalCount: &resp.TotalCount,
 		}, nil
@@ -588,8 +606,13 @@ func handleClusterDesktopsGet(clt resourcesAPIGetter, r *http.Request) (*listRes
 	}
 	windowsDesktops = types.DeduplicateDesktops(windowsDesktops)
 
+	uiDesktops, err := ui.MakeDesktops(windowsDesktops, roles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &listResourcesGetResponse{
-		Items: ui.MakeDesktops(windowsDesktops),
+		Items: uiDesktops,
 	}, nil
 }
 

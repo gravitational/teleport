@@ -36,7 +36,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -4991,26 +4990,9 @@ func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 // newHTTPFileSystem creates a new HTTP file system for the web handler.
 // It uses external configuration to make the decision
 func newHTTPFileSystem() (http.FileSystem, error) {
-	if !isDebugMode() {
-		fs, err := teleport.NewWebAssetsFilesystem() //nolint:staticcheck
-		if err != nil {                              //nolint:staticcheck
-			return nil, trace.Wrap(err)
-		}
-		return fs, nil
-	}
-
-	// Use the supplied HTTP filesystem path (defaults to the current dir).
-	assetsPath := os.Getenv(teleport.DebugAssetsPath)
-	fs, err := web.NewDebugFileSystem(assetsPath)
-	if err != nil {
+	fs, err := teleport.NewWebAssetsFilesystem() //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+	if err != nil {                              //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
 		return nil, trace.Wrap(err)
 	}
 	return fs, nil
-}
-
-// isDebugMode determines if teleport is running in a "debug" mode.
-// It looks at DEBUG environment variable
-func isDebugMode() bool {
-	v, _ := strconv.ParseBool(os.Getenv(teleport.DebugEnvVar))
-	return v
 }
