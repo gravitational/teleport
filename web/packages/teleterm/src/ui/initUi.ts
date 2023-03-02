@@ -64,11 +64,11 @@ function notifyAboutStoredConfigErrors(
       list: errors.map(e => `${e.path[0].toString()}: ${e.message}`),
       description:
         isKeymapError &&
-        'A valid shortcut contains at least one modifier and a single key code, e.g., "Ctrl+Shift+A". Function keys do not require a modifier.',
+        'A valid shortcut contains at least one modifier and a single key code, for example "Ctrl+Shift+A".\nFunction keys do not require a modifier.',
       link: {
         // TODO(gzdunek): point to the properer section
         href: 'https://goteleport.com/docs/connect-your-client/teleport-connect/',
-        text: 'See documentation for the app config',
+        text: 'See the config file documentation',
       },
     });
   }
