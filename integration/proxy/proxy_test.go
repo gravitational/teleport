@@ -879,6 +879,7 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
+		resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 	})
 }
