@@ -3434,6 +3434,21 @@ func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	})
 }
 
+// WithAuth2 ensures that a request is authenticated
+// for plain old non-AJAX requests (does not check the Bearer header).
+// It enforces CSRF checks.
+func (h *Handler) WithAuth2(fn ContextHandler) httprouter.Handle {
+	f := func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		sctx, err := h.AuthenticateRequest(w, r, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return fn(w, r, p, sctx)
+	}
+
+	return httplib.WithCSRFProtection(f)
+}
+
 // WithLimiter adds IP-based rate limiting to fn.
 func (h *Handler) WithLimiter(fn httplib.HandlerFunc) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
