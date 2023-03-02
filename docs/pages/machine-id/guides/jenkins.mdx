@@ -188,6 +188,7 @@ Type=simple
 User=teleport
 Group=teleport
 Restart=on-failure
+Environment="TELEPORT_ANONYMOUS_TELEMETRY=1"
 ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/machine-id.pid
@@ -196,6 +197,8 @@ LimitNOFILE=524288
 [Install]
 WantedBy=multi-user.target
 ```
+
+[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](./reference/telemetry.mdx)
 
 Finally, run the following commands to start Machine ID.
 

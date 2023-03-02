@@ -180,6 +180,7 @@ jobs:
       - run:
           name: "Use Machine ID to access Teleport Node"
           command: |
+            export TELEPORT_ANONYMOUS_TELEMETRY=1
             tbot start \
               --auth-server=tele.example.com:443 \
               --join-method=circleci --token=circleci-demo \
@@ -198,6 +199,8 @@ workflows:
           context:
             - teleport-access
 ```
+
+[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](./reference/telemetry.mdx)
 
 Replace `tele.example.com:443` with the public-facing address of your Teleport
 Proxy Service or cloud tenant (e.g. `example.teleport.sh`). Replace `my-node`

@@ -309,8 +309,11 @@ writing renewable certificates to `/var/lib/teleport/bot` according to your conf
 In a production environment you will want to run Machine ID in the background using a service manager like systemd. However, in this guide you will run it in the foreground to better understand how it works.
 
 ```code
+$ export TELEPORT_ANONYMOUS_TELEMETRY=1
 $ tbot start -c tbot.yaml
 ```
+
+[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](./reference/telemetry.mdx)
 
 Now that Machine ID has successfully started, let's investigate the /opt/machine-id directory to see what was written to disk.
 
