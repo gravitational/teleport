@@ -47,7 +47,7 @@ const REGEX_LATIN_KEYNAME = /^[A-Za-z]$/;
  * so it is possible for `KeyboardEvent.code` to work as a fallback.
  *
  * The rest of the keys are handled by their physical code.
- * It is common in many layouts that the user has to press a modifier to input a character,
+ * It is common in many layouts that the user has to press a modifier to input a character
  * which is available on US QWERTY without any modifiers.
  * For example, in Czech QWERTY there is no "1" key (it is on upper row) -
  * the user has to press "Shift+(plus key)" to get "1".
