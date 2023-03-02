@@ -1,8 +1,8 @@
 <Tabs>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 Run the `configure` command to generate a sample configuration. Replace
-`mytenant.teleport.sh` with the DNS name of your Teleport Cloud tenant:
+`mytenant.teleport.sh` with the DNS name of your Teleport Enterprise Cloud tenant:
 
 ```code
 $ ./teleport-event-handler configure . mytenant.teleport.sh:443
@@ -31,7 +31,7 @@ $ TELEPORT_CLUSTER_ADDRESS=mytenant.teleport.sh:443
 $ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
 ```
 
-In order to connect to Fluentd, you'll need to have the root certificate and the
+In order to export audit events, you'll need to have the root certificate and the
 client credentials available as a secret. Use the following command to create
 that secret in Kubernetes:
 
@@ -40,7 +40,7 @@ $ kubectl create secret generic teleport-event-handler-client-tls --from-file=ca
 ```
 
 This will pack the content of `ca.crt`, `client.crt`, and `client.key` into the
-secret, so the Helm Chart can mount them to their appropriate path.
+secret so the Helm chart can mount them to their appropriate path.
 
 </TabItem>
 </Tabs>
