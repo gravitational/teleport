@@ -470,6 +470,8 @@ func (i *upstreamICS) runRecvLoop(stream proto.AuthService_InventoryControlStrea
 			msg = *oneOf.GetHeartbeat()
 		case oneOf.GetPong() != nil:
 			msg = *oneOf.GetPong()
+		case oneOf.GetAgentMetadata() != nil:
+			msg = *oneOf.GetAgentMetadata()
 		default:
 			// TODO: log unknown message variants once we have a better story around
 			// logging in api/* packages.

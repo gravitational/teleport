@@ -19,6 +19,7 @@ package inventory
 import (
 	"context"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -495,11 +496,9 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 }
 
 func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.UpstreamInventoryAgentMetadata) {
-	log.Debugf("Agent metadata received: %v", m)
-
 	svcs := make([]string, 0, len(handle.Hello().Services))
 	for _, svc := range handle.Hello().Services {
-		svcs = append(svcs, svc.String())
+		svcs = append(svcs, strings.ToLower(svc.String()))
 	}
 
 	if err := c.usageReporter.AnonymizeAndSubmit(&usagereporter.AgentMetadataEvent{

@@ -2018,6 +2018,7 @@ message UpstreamInventoryOneOf {
     InventoryHeartbeat Heartbeat = 2;
     // UpstreamInventoryPong is a response to a ping (used for testing/debug).
     UpstreamInventoryPong Pong = 3;
+    // UpstreamInventoryAgentMetadata advertises instance metadata.
     UpstreamInventoryAgentMetadata AgentMetadata = 4;
   }
 }
