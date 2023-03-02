@@ -26,13 +26,7 @@ const createAppConfigSchema = (platform: Platform) => {
   const defaultKeymap = getDefaultKeymap(platform);
   const defaultTerminalFont = getDefaultTerminalFont(platform);
 
-  // Important: all keys except 'usageReporting.enabled' are currently not
-  // configurable by the user. Before we let the user configure them,
-  // we need to set up some actual validation, so that for example
-  // arbitrary CSS cannot be injected into the app through font settings.
-  //
-  // However, we want them to be in the config schema, so we included
-  // them here, but we do not read their value from the stored config.
+  // `keymap.` prefix is used in `initUi.ts` in a predicate function.
   return z.object({
     'usageReporting.enabled': z.boolean().default(false),
     'keymap.tab1': getKeyboardShortcutSchema(platform).default(
