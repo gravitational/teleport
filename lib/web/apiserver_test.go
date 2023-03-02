@@ -7467,6 +7467,141 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	require.Equal(t, accessRequestID, userContext.ConsumedAccessRequestID)
 }
 
+// TestIsMFARequired_AcceptedRequests mostly tests that requests
+// are formatted correctly.
+func TestIsMFARequired_AcceptedRequests(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "llama", nil /* roles */)
+
+	cfg, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:           constants.Local,
+		SecondFactor:   constants.SecondFactorOTP,
+		RequireMFAType: types.RequireMFAType_SESSION,
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, cfg)
+	require.NoError(t, err)
+
+	for _, test := range []struct {
+		name       string
+		wantErr    bool
+		getRequest func() isMfaRequiredRequest
+	}{
+		{
+			name: "valid db req",
+			getRequest: func() isMfaRequiredRequest {
+				return isMfaRequiredRequest{
+					Database: &isMFARequiredDatabase{
+						ServiceName: "name",
+						Protocol:    "protocol",
+					},
+				}
+			},
+		},
+		{
+			name:    "invalid db req",
+			wantErr: true,
+			getRequest: func() isMfaRequiredRequest {
+				return isMfaRequiredRequest{Database: &isMFARequiredDatabase{}}
+			},
+		},
+		{
+			name: "valid node req",
+			getRequest: func() isMfaRequiredRequest {
+				return isMfaRequiredRequest{
+					Node: &isMFARequiredNode{
+						Name:  "name",
+						Login: "login",
+					},
+				}
+			},
+		},
+		{
+			name:    "invalid node req",
+			wantErr: true,
+			getRequest: func() isMfaRequiredRequest {
+				return isMfaRequiredRequest{Node: &isMFARequiredNode{}}
+			},
+		},
+		{
+			name: "valid kube req",
+			getRequest: func() isMfaRequiredRequest {
+				return isMfaRequiredRequest{
+					KubeCluster: &isMFARequiredKube{
+						Name: "name",
+					},
+				}
+			},
+		},
+		{
+			name:    "invalid kube req",
+			wantErr: true,
+			getRequest: func() isMfaRequiredRequest {
+				return isMfaRequiredRequest{KubeCluster: &isMFARequiredKube{}}
+			},
+		},
+		{
+			name: "valid windows desktop req",
+			getRequest: func() isMfaRequiredRequest {
+				return isMfaRequiredRequest{
+					WindowsDesktop: &isMFARequiredWindowsDesktop{
+						Name:  "name",
+						Login: "login",
+					},
+				}
+			},
+		},
+		{
+			name:    "invalid windows desktop req",
+			wantErr: true,
+			getRequest: func() isMfaRequiredRequest {
+				return isMfaRequiredRequest{WindowsDesktop: &isMFARequiredWindowsDesktop{}}
+			},
+		},
+		{
+			name:    "invalid empty req",
+			wantErr: true,
+			getRequest: func() isMfaRequiredRequest {
+				return isMfaRequiredRequest{}
+			},
+		},
+		{
+			name:    "invalid multi field",
+			wantErr: true,
+			getRequest: func() isMfaRequiredRequest {
+				return isMfaRequiredRequest{
+					KubeCluster: &isMFARequiredKube{
+						Name: "name",
+					},
+					Node: &isMFARequiredNode{
+						Name:  "name",
+						Login: "login",
+					},
+				}
+			},
+		},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "mfa", "required")
+			re, err := pack.clt.PostJSON(ctx, endpoint, test.getRequest())
+
+			if test.wantErr {
+				require.True(t, trace.IsBadParameter(err))
+				return
+			}
+
+			require.NoError(t, err)
+			resp := isMfaRequiredResponse{}
+			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+			require.True(t, resp.Required)
+		})
+	}
+}
+
 func TestWithLimiterHandlerFunc(t *testing.T) {
 	const burst = 20
 	limiter, err := limiter.NewRateLimiter(limiter.Config{
