@@ -132,4 +132,6 @@ export enum FileStorageEventType {
   Get = 'Get',
   Put = 'Put',
   WriteSync = 'WriteSync',
+  Replace = 'Replace',
+  GetFilePath = 'GetFilePath',
 }
