@@ -190,7 +190,8 @@ func (a *Server) generateCertsBot(
 	case types.JoinMethodIAM,
 		types.JoinMethodGitHub,
 		types.JoinMethodCircleCI,
-		types.JoinMethodKubernetes:
+		types.JoinMethodKubernetes,
+		types.JoinMethodAzure:
 		shouldDeleteToken = false
 		renewable = false
 	default:
