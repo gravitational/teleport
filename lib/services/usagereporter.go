@@ -385,29 +385,6 @@ func (u *UsageSFTP) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	}
 }
 
-// AgentMetadataEvent is an event emitted after an agent first connects to the auth server.
-type AgentMetadataEvent prehogv1.AgentMetadataEvent
-
-func (u *AgentMetadataEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_AgentMetadataEvent{
-			AgentMetadataEvent: &prehogv1.AgentMetadataEvent{
-				Version:               u.Version,
-				HostId:                u.HostId,
-				Services:              u.Services,
-				Os:                    u.Os,
-				OsVersion:             u.OsVersion,
-				HostArchitecture:      u.HostArchitecture,
-				GlibcVersion:          u.GlibcVersion,
-				InstallMethods:        u.InstallMethods,
-				ContainerRuntime:      u.ContainerRuntime,
-				ContainerOrchestrator: u.ContainerOrchestrator,
-				CloudEnvironment:      u.CloudEnvironment,
-			},
-		},
-	}
-}
-
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
