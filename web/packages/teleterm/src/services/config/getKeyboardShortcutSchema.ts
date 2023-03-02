@@ -51,7 +51,7 @@ export function duplicateModifierIssue(): z.IssueData {
 export function missingModifierIssue(keyCode: string): z.IssueData {
   return {
     code: z.ZodIssueCode.custom,
-    message: `"${keyCode}" requires a modifier.`,
+    message: `"${keyCode}" must be used together with a modifier.`,
   };
 }
 
