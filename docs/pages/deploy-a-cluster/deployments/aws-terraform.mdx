@@ -295,12 +295,13 @@ $ terraform import aws_acm_certificate.cert <certificate_arn>
 
 ### Instances
 
-Our reference deployment will provision the following instances for your cluster by default:
+Our reference deployment will provision the following instances for your cluster by default with AWS Auto Scaling Groups (ASG):
 
 - 2 x m4.large Teleport **auth** instances in an ASG, behind an internal network load balancer, configured using DynamoDB for
   shared storage. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/auth_asg.tf#L11)
 - 2 x m4.large Teleport **proxy** instances in an ASG, behind a public-facing load balancer - NLB for LetsEncrypt, ALB for ACM. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/proxy_asg.tf#L12)
-- 1 x m4.large Teleport **node** instance in an ASG. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/node_asg.tf#L10)
+- 1 x m4.large Teleport **node** instance in an ASG. Server instances in this ASG will join with Server SSH Access enabled connected to the **auth**
+  service. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/node_asg.tf#L10)
 - 1 x m4.large monitoring server in an ASG which hosts the Grafana instance and receives monitoring data from each service in the cluster. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/monitor_asg.tf#L12)
 - 1 x t2.medium bastion server which is the only permitted source for inbound SSH traffic to the instances. This is done
   to avoid exposing each instance to the internet directly.
