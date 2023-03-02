@@ -29,7 +29,6 @@ test('correct launch url is generated for a selected role', () => {
   render(
     <AppList
       {...props}
-      totalCount={1}
       apps={[
         {
           name: 'aws-console-1',

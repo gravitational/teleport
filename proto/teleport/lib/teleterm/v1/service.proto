@@ -369,9 +369,7 @@ message CreateGatewayRequest {
   string target_subresource_name = 4;
 }
 
-message ListGatewaysRequest {
-  repeated string cluster_ids = 1;
-}
+message ListGatewaysRequest {}
 
 message ListGatewaysResponse {
   repeated Gateway gateways = 1;

@@ -413,7 +413,7 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 							optpb.packageManagerName,
 							"-bucket \"$REPO_S3_BUCKET\"",
 							"-local-bucket-path \"$BUCKET_CACHE_PATH\"",
-							"-artifact-version \"$VERSION\"",
+							"-version-channel \"$VERSION\"",
 							"-release-channel \"$RELEASE_CHANNEL\"",
 							"-artifact-path \"$ARTIFACT_PATH\"",
 							"-log-level 4", // Set this to 5 for debug logging
