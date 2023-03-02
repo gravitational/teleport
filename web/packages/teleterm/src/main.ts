@@ -47,14 +47,23 @@ function initializeApp(): void {
     filePath: path.join(settings.userDataDir, 'app_state.json'),
     debounceWrites: true,
   });
-  const appConfigFileStorage = createFileStorage({
+  const configFileStorage = createFileStorage({
     filePath: path.join(settings.userDataDir, 'app_config.json'),
     debounceWrites: false,
   });
-  const configService = createConfigService(
-    appConfigFileStorage,
-    settings.platform
-  );
+  const configJsonSchemaFileStorage = createFileStorage({
+    filePath: path.join(
+      settings.userDataDir,
+      'teleport_connect_config_schema.json'
+    ),
+    debounceWrites: false,
+  });
+
+  const configService = createConfigService({
+    configFile: configFileStorage,
+    configJsonSchemaFile: configJsonSchemaFileStorage,
+    platform: settings.platform,
+  });
   const windowsManager = new WindowsManager(appStateFileStorage, settings);
 
   process.on('uncaughtException', error => {

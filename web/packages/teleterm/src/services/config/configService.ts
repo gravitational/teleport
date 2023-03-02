@@ -21,6 +21,7 @@ import { Platform } from 'teleterm/mainProcess/types';
 
 import { createConfigStore } from './configStore';
 import { getKeyboardShortcutSchema } from './getKeyboardShortcutSchema';
+import { updateJsonSchema } from './updateJsonSchema';
 
 const createAppConfigSchema = (platform: Platform) => {
   const defaultKeymap = getDefaultKeymap(platform);
@@ -31,43 +32,74 @@ const createAppConfigSchema = (platform: Platform) => {
   // `keymap.` prefix is used in `initUi.ts` in a predicate function.
   return z.object({
     'usageReporting.enabled': z.boolean().default(false),
-    'keymap.tab1': keyboardShortcutSchema.default(defaultKeymap['tab1']),
-    'keymap.tab2': keyboardShortcutSchema.default(defaultKeymap['tab2']),
-    'keymap.tab3': keyboardShortcutSchema.default(defaultKeymap['tab3']),
-    'keymap.tab4': keyboardShortcutSchema.default(defaultKeymap['tab4']),
-    'keymap.tab5': keyboardShortcutSchema.default(defaultKeymap['tab5']),
-    'keymap.tab6': keyboardShortcutSchema.default(defaultKeymap['tab6']),
-    'keymap.tab7': keyboardShortcutSchema.default(defaultKeymap['tab7']),
-    'keymap.tab8': keyboardShortcutSchema.default(defaultKeymap['tab8']),
-    'keymap.tab9': keyboardShortcutSchema.default(defaultKeymap['tab9']),
-    'keymap.closeTab': keyboardShortcutSchema.default(
-      defaultKeymap['closeTab']
-    ),
-    'keymap.newTab': keyboardShortcutSchema.default(defaultKeymap['newTab']),
-    'keymap.previousTab': keyboardShortcutSchema.default(
-      defaultKeymap['previousTab']
-    ),
-    'keymap.nextTab': keyboardShortcutSchema.default(defaultKeymap['nextTab']),
-    'keymap.openConnections': keyboardShortcutSchema.default(
-      defaultKeymap['openConnections']
-    ),
-    'keymap.openClusters': keyboardShortcutSchema.default(
-      defaultKeymap['openClusters']
-    ),
-    'keymap.openProfiles': keyboardShortcutSchema.default(
-      defaultKeymap['openProfiles']
-    ),
-    'keymap.openQuickInput': keyboardShortcutSchema.default(
-      defaultKeymap['openQuickInput']
-    ),
+    'keymap.tab1': keyboardShortcutSchema
+      .default(defaultKeymap['tab1'])
+      .describe(getKeyboardShortcutDescription('open tab 1')),
+    'keymap.tab2': keyboardShortcutSchema
+      .default(defaultKeymap['tab2'])
+      .describe(getKeyboardShortcutDescription('open tab 2')),
+    'keymap.tab3': keyboardShortcutSchema
+      .default(defaultKeymap['tab3'])
+      .describe(getKeyboardShortcutDescription('open tab 3')),
+    'keymap.tab4': keyboardShortcutSchema
+      .default(defaultKeymap['tab4'])
+      .describe(getKeyboardShortcutDescription('open tab 4')),
+    'keymap.tab5': keyboardShortcutSchema
+      .default(defaultKeymap['tab5'])
+      .describe(getKeyboardShortcutDescription('open tab 5')),
+    'keymap.tab6': keyboardShortcutSchema
+      .default(defaultKeymap['tab6'])
+      .describe(getKeyboardShortcutDescription('open tab 6')),
+    'keymap.tab7': keyboardShortcutSchema
+      .default(defaultKeymap['tab7'])
+      .describe(getKeyboardShortcutDescription('open tab 7')),
+    'keymap.tab8': keyboardShortcutSchema
+      .default(defaultKeymap['tab8'])
+      .describe(getKeyboardShortcutDescription('open tab 8')),
+    'keymap.tab9': keyboardShortcutSchema
+      .default(defaultKeymap['tab9'])
+      .describe(getKeyboardShortcutDescription('open tab 9')),
+    'keymap.closeTab': keyboardShortcutSchema
+      .default(defaultKeymap['closeTab'])
+      .describe(getKeyboardShortcutDescription('close a tab')),
+    'keymap.newTab': keyboardShortcutSchema
+      .default(defaultKeymap['newTab'])
+      .describe(getKeyboardShortcutDescription('open a new tab')),
+    'keymap.previousTab': keyboardShortcutSchema
+      .default(defaultKeymap['previousTab'])
+      .describe(getKeyboardShortcutDescription('go to the previous tab')),
+    'keymap.nextTab': keyboardShortcutSchema
+      .default(defaultKeymap['nextTab'])
+      .describe(getKeyboardShortcutDescription('go to the next tab')),
+    'keymap.openConnections': keyboardShortcutSchema
+      .default(defaultKeymap['openConnections'])
+      .describe(getKeyboardShortcutDescription('open the connection panel')),
+    'keymap.openClusters': keyboardShortcutSchema
+      .default(defaultKeymap['openClusters'])
+      .describe(getKeyboardShortcutDescription('open the clusters panel')),
+    'keymap.openProfiles': keyboardShortcutSchema
+      .default(defaultKeymap['openProfiles'])
+      .describe(getKeyboardShortcutDescription('open the profiles panel')),
+    'keymap.openQuickInput': keyboardShortcutSchema
+      .default(defaultKeymap['openQuickInput'])
+      .describe(getKeyboardShortcutDescription('open the command bar')),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
      * in a styled component or used in CSS, as it may inject malicious CSS code.
      * Before using it, sanitize it with `CSS.escape` or pass it as a `style` prop.
      * Read more https://frontarm.com/james-k-nelson/how-can-i-use-css-in-js-securely/.
      */
-    'terminal.fontFamily': z.string().default(defaultTerminalFont),
-    'terminal.fontSize': z.number().int().min(1).max(256).default(15),
+    'terminal.fontFamily': z
+      .string()
+      .default(defaultTerminalFont)
+      .describe('Font family for the terminal.'),
+    'terminal.fontSize': z
+      .number()
+      .int()
+      .min(1)
+      .max(256)
+      .default(15)
+      .describe('Font size for the terminal.'),
   });
 };
 
@@ -168,14 +200,28 @@ function getDefaultTerminalFont(platform: Platform) {
   }
 }
 
-export function createConfigService(
-  appConfigFileStorage: FileStorage,
-  platform: Platform
-) {
-  return createConfigStore(
-    createAppConfigSchema(platform),
-    appConfigFileStorage
-  );
+function getKeyboardShortcutDescription(about: string): string {
+  return `Shortcut to ${about}. A valid shortcut contains at least one modifier and a single key code, for example "Ctrl+Shift+A". Function keys do not require a modifier.`;
+}
+
+export function createConfigService({
+  configFile,
+  configJsonSchemaFile,
+  platform,
+}: {
+  configFile: FileStorage;
+  configJsonSchemaFile: FileStorage;
+  platform: Platform;
+}) {
+  const schema = createAppConfigSchema(platform);
+
+  updateJsonSchema({
+    configSchema: schema,
+    configFile,
+    configJsonSchemaFile,
+  });
+
+  return createConfigStore(schema, configFile);
 }
 
 export type ConfigService = ReturnType<typeof createConfigService>;
