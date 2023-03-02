@@ -1136,6 +1136,8 @@ export type RawEvents = {
     typeof eventCodes.SAML_IDP_AUTH_ATTEMPT,
     {
       success: boolean;
+      service_provider_entity_id: string;
+      service_provider_shortcut: string;
     }
   >;
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE]: RawEvent<
