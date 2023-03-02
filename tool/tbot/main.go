@@ -19,16 +19,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 	"io"
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/tbot"
@@ -230,10 +229,10 @@ func onStart(botConfig *config.BotConfig) error {
 	defer cancel()
 	go handleSignals(log, reloadChan, cancel)
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
+	telemetrySentCh := make(chan struct{})
 	go func() {
-		defer wg.Done()
+		defer close(telemetrySentCh)
+
 		if err := sendTelemetry(
 			ctx, telemetryClient(os.Getenv), os.Getenv, log, botConfig,
 		); err != nil {
@@ -242,15 +241,32 @@ func onStart(botConfig *config.BotConfig) error {
 			)
 		}
 	}()
+	// Ensures telemetry finishes sending before function exits.
+	defer func() {
+		select {
+		case <-telemetrySentCh:
+			return
+		default:
+		}
+
+		waitTime := 30 * time.Second
+		log.Infof(
+			"Waiting up to %s for anonymous telemetry to finish sending before exiting. Press CTRL-C to cancel.",
+			waitTime,
+		)
+		ctx, cancel := context.WithTimeout(ctx, waitTime)
+		defer cancel()
+		select {
+		case <-ctx.Done():
+			log.Warn(
+				"Anonymous telemetry transmission cancelled due to signal or timeout.",
+			)
+		case <-telemetrySentCh:
+		}
+	}()
 
 	b := tbot.New(botConfig, log, reloadChan)
-	if err := trace.Wrap(b.Run(ctx)); err != nil {
-		return err
-	}
-
-	// Ensures telemetry finishes sending before application exits in oneshot.
-	wg.Wait()
-	return nil
+	return trace.Wrap(b.Run(ctx))
 }
 
 // handleSignals handles incoming Unix signals.
