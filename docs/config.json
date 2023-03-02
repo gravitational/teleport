@@ -323,6 +323,11 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "Authenticate to Grafana with Teleport SAML",
+              "slug": "/access-controls/idps/saml-grafana/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
               "title": "SAML Identity Provider Reference",
               "slug": "/access-controls/idps/saml-reference/",
               "forScopes": ["enterprise", "cloud"]
