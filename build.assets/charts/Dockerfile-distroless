@@ -6,11 +6,11 @@ COPY fetch-debs ./
 RUN ./fetch-debs dumb-init libpam0g libaudit1 libcap-ng0
 
 FROM debian:11 AS teleport
-# NOTE that the TELEPORT_RELEASE_SUFFIX *must* include the leading dash if set
-ARG TELEPORT_RELEASE_SUFFIX
+# NOTE that the TELEPORT_RELEASE_INFIX *must* include the leading dash if set
+ARG TELEPORT_RELEASE_INFIX
 ARG TELEPORT_VERSION
 ARG TARGETARCH
-ENV TELEPORT_DEB_FILE_NAME=teleport${TELEPORT_RELEASE_SUFFIX}_${TELEPORT_VERSION}_${TARGETARCH}.deb
+ENV TELEPORT_DEB_FILE_NAME=teleport${TELEPORT_RELEASE_INFIX}_${TELEPORT_VERSION}_${TARGETARCH}.deb
 COPY $TELEPORT_DEB_FILE_NAME ./$TELEPORT_DEB_FILE_NAME
 RUN dpkg-deb -R $TELEPORT_DEB_FILE_NAME /opt/staging && \
     mkdir -p /opt/staging/etc/teleport && \
