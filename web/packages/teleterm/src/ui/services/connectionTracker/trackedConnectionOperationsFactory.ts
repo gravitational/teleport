@@ -71,7 +71,7 @@ export class TrackedConnectionOperationsFactory {
 
         if (!srvDoc) {
           srvDoc = documentsService.createTshNodeDocument(connection.serverUri);
-          srvDoc.status = 'disconnected';
+          srvDoc.status = 'connecting';
           srvDoc.login = connection.login;
           srvDoc.title = connection.title;
 

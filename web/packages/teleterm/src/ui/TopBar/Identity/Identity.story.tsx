@@ -63,7 +63,6 @@ export function OneClusterWithNoActiveCluster() {
     userName: '',
     uri: '/clusters/localhost',
     connected: false,
-    isSyncing: false,
   };
 
   return (
@@ -85,7 +84,6 @@ export function OneClusterWithActiveCluster() {
     userName: 'alice',
     uri: '/clusters/localhost',
     connected: true,
-    isSyncing: false,
   };
 
   const cluster: tshd.Cluster = {
@@ -124,7 +122,6 @@ export function ManyClustersWithNoActiveCluster() {
     userName: 'bob',
     uri: '/clusters/orange',
     connected: true,
-    isSyncing: false,
   };
   const identityRootCluster2: IdentityRootCluster = {
     active: false,
@@ -132,7 +129,6 @@ export function ManyClustersWithNoActiveCluster() {
     userName: 'sammy',
     uri: '/clusters/violet',
     connected: true,
-    isSyncing: true,
   };
   const identityRootCluster3: IdentityRootCluster = {
     active: false,
@@ -140,7 +136,6 @@ export function ManyClustersWithNoActiveCluster() {
     userName: '',
     uri: '/clusters/green',
     connected: true,
-    isSyncing: false,
   };
 
   return (
@@ -166,7 +161,6 @@ export function ManyClustersWithActiveCluster() {
     userName: 'bob',
     uri: '/clusters/orange',
     connected: true,
-    isSyncing: true,
   };
   const identityRootCluster2: IdentityRootCluster = {
     active: true,
@@ -174,7 +168,6 @@ export function ManyClustersWithActiveCluster() {
     userName: 'sammy',
     uri: '/clusters/violet',
     connected: true,
-    isSyncing: false,
   };
   const identityRootCluster3: IdentityRootCluster = {
     active: false,
@@ -182,7 +175,6 @@ export function ManyClustersWithActiveCluster() {
     userName: '',
     uri: '/clusters/green',
     connected: true,
-    isSyncing: false,
   };
 
   const activeIdentityRootCluster = identityRootCluster2;
@@ -226,7 +218,6 @@ export function LongNamesWithManyRoles() {
     userName: 'bob',
     uri: '/clusters/orange',
     connected: true,
-    isSyncing: true,
   };
   const identityRootCluster2: IdentityRootCluster = {
     active: true,
@@ -234,7 +225,6 @@ export function LongNamesWithManyRoles() {
     userName: 'ruud-van-nistelrooy-van-der-sar',
     uri: '/clusters/psv',
     connected: true,
-    isSyncing: false,
   };
   const identityRootCluster3: IdentityRootCluster = {
     active: false,
@@ -242,7 +232,6 @@ export function LongNamesWithManyRoles() {
     userName: '',
     uri: '/clusters/green',
     connected: true,
-    isSyncing: false,
   };
 
   const activeIdentityRootCluster = identityRootCluster2;

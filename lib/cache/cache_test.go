@@ -87,6 +87,17 @@ type testPack struct {
 	userGroups              services.UserGroups
 }
 
+// testFuncs are functions to support testing an object in a cache.
+type testFuncs[T types.Resource] struct {
+	newResource func(string) (T, error)
+	create      func(context.Context, T) error
+	list        func(context.Context) ([]T, error)
+	cacheGet    func(context.Context, string) (T, error)
+	cacheList   func(context.Context) ([]T, error)
+	update      func(context.Context, T) error
+	deleteAll   func(context.Context) error
+}
+
 func (t *testPack) Close() {
 	var errors []error
 	if t.backend != nil {
@@ -106,10 +117,6 @@ func newPackForAuth(t *testing.T) *testPack {
 
 func newPackForProxy(t *testing.T) *testPack {
 	return newTestPack(t, ForProxy)
-}
-
-func newPackForNode(t *testing.T) *testPack {
-	return newTestPack(t, ForNode)
 }
 
 func newTestPack(t *testing.T, setupConfig SetupConfigFn) *testPack {
@@ -1335,664 +1342,241 @@ func TestNamespaces(t *testing.T) {
 func TestUsers(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	p := newPackForProxy(t)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	user, err := types.NewUser("bob")
-	require.NoError(t, err)
-	err = p.usersS.UpsertUser(user)
-	require.NoError(t, err)
-
-	user, err = p.usersS.GetUser(user.GetName(), false)
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err := p.cache.GetUser(user.GetName(), false)
-	require.NoError(t, err)
-	user.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(user, out))
-
-	// update user's roles
-	user.SetRoles([]string{"access"})
-	require.NoError(t, err)
-	err = p.usersS.UpsertUser(user)
-	require.NoError(t, err)
-
-	user, err = p.usersS.GetUser(user.GetName(), false)
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetUser(user.GetName(), false)
-	require.NoError(t, err)
-	user.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(user, out))
-
-	err = p.usersS.DeleteUser(ctx, user.GetName())
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	_, err = p.cache.GetUser(user.GetName(), false)
-	require.True(t, trace.IsNotFound(err))
+	testResources(t, p, testFuncs[types.User]{
+		newResource: func(name string) (types.User, error) {
+			return types.NewUser("bob")
+		},
+		create: modifyNoContext(p.usersS.UpsertUser),
+		list: func(ctx context.Context) ([]types.User, error) {
+			return p.usersS.GetUsers(false)
+		},
+		cacheList: func(ctx context.Context) ([]types.User, error) {
+			return p.cache.GetUsers(false)
+		},
+		update: modifyNoContext(p.usersS.UpsertUser),
+		deleteAll: func(_ context.Context) error {
+			return p.usersS.DeleteAllUsers()
+		},
+	})
 }
 
 // TestRoles tests caching of roles
 func TestRoles(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	p := newPackForNode(t)
+	p := newTestPack(t, ForNode)
 	t.Cleanup(p.Close)
 
-	role, err := types.NewRole("role1", types.RoleSpecV6{
-		Options: types.RoleOptions{
-			MaxSessionTTL: types.Duration(time.Hour),
+	testResources(t, p, testFuncs[types.Role]{
+		newResource: func(name string) (types.Role, error) {
+			return types.NewRole("role1", types.RoleSpecV6{
+				Options: types.RoleOptions{
+					MaxSessionTTL: types.Duration(time.Hour),
+				},
+				Allow: types.RoleConditions{
+					Logins:     []string{"root", "bob"},
+					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				},
+				Deny: types.RoleConditions{},
+			})
 		},
-		Allow: types.RoleConditions{
-			Logins:     []string{"root", "bob"},
-			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		create:    p.accessS.UpsertRole,
+		list:      p.accessS.GetRoles,
+		cacheGet:  p.cache.GetRole,
+		cacheList: p.cache.GetRoles,
+		update:    p.accessS.UpsertRole,
+		deleteAll: func(_ context.Context) error {
+			return p.accessS.DeleteAllRoles()
 		},
-		Deny: types.RoleConditions{},
 	})
-	require.NoError(t, err)
-	err = p.accessS.UpsertRole(ctx, role)
-	require.NoError(t, err)
-
-	role, err = p.accessS.GetRole(ctx, role.GetName())
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err := p.cache.GetRole(ctx, role.GetName())
-	require.NoError(t, err)
-	role.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(role, out))
-
-	// update role
-	role.SetLogins(types.Allow, []string{"admin"})
-	require.NoError(t, err)
-	err = p.accessS.UpsertRole(ctx, role)
-	require.NoError(t, err)
-
-	role, err = p.accessS.GetRole(ctx, role.GetName())
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetRole(ctx, role.GetName())
-	require.NoError(t, err)
-	role.SetResourceID(out.GetResourceID())
-	require.Empty(t, cmp.Diff(role, out))
-
-	err = p.accessS.DeleteRole(ctx, role.GetName())
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	_, err = p.cache.GetRole(ctx, role.GetName())
-	require.True(t, trace.IsNotFound(err))
 }
 
 // TestReverseTunnels tests reverse tunnels caching
 func TestReverseTunnels(t *testing.T) {
 	t.Parallel()
 
-	p := newPackForProxy(t)
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
 	t.Cleanup(p.Close)
 
-	tunnel, err := types.NewReverseTunnel("example.com", []string{"example.com:2023"})
-	require.NoError(t, err)
-	require.NoError(t, p.presenceS.UpsertReverseTunnel(tunnel))
-
-	tunnel, err = p.presenceS.GetReverseTunnel(tunnel.GetName())
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err := p.cache.GetReverseTunnels(context.Background())
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	tunnel.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(tunnel, out[0]))
-
-	// update tunnel's parameters
-	tunnel.SetClusterName("new.example.com")
-	require.NoError(t, err)
-	err = p.presenceS.UpsertReverseTunnel(tunnel)
-	require.NoError(t, err)
-
-	out, err = p.presenceS.GetReverseTunnels(context.Background())
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	tunnel = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetReverseTunnels(context.Background())
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	tunnel.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(tunnel, out[0]))
-
-	err = p.presenceS.DeleteAllReverseTunnels()
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetReverseTunnels(context.Background())
-	require.NoError(t, err)
-	require.Empty(t, out)
+	testResources(t, p, testFuncs[types.ReverseTunnel]{
+		newResource: func(name string) (types.ReverseTunnel, error) {
+			return types.NewReverseTunnel(name, []string{"example.com:2023"})
+		},
+		create: modifyNoContext(p.presenceS.UpsertReverseTunnel),
+		list: func(ctx context.Context) ([]types.ReverseTunnel, error) {
+			return p.presenceS.GetReverseTunnels(ctx)
+		},
+		cacheList: func(ctx context.Context) ([]types.ReverseTunnel, error) {
+			return p.cache.GetReverseTunnels(ctx)
+		},
+		update: modifyNoContext(p.presenceS.UpsertReverseTunnel),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllReverseTunnels()
+		},
+	})
 }
 
 // TestTunnelConnections tests tunnel connections caching
 func TestTunnelConnections(t *testing.T) {
 	t.Parallel()
 
-	p := newPackForProxy(t)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
 	clusterName := "example.com"
-	hb := time.Now().UTC()
-	conn, err := types.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
-		ClusterName:   clusterName,
-		ProxyName:     "p1",
-		LastHeartbeat: hb,
+	testResources(t, p, testFuncs[types.TunnelConnection]{
+		newResource: func(name string) (types.TunnelConnection, error) {
+			return types.NewTunnelConnection(name, types.TunnelConnectionSpecV2{
+				ClusterName:   clusterName,
+				ProxyName:     "p1",
+				LastHeartbeat: time.Now().UTC(),
+			})
+		},
+		create: modifyNoContext(p.presenceS.UpsertTunnelConnection),
+		list: func(ctx context.Context) ([]types.TunnelConnection, error) {
+			return p.presenceS.GetTunnelConnections(clusterName)
+		},
+		cacheList: func(ctx context.Context) ([]types.TunnelConnection, error) {
+			return p.cache.GetTunnelConnections(clusterName)
+		},
+		update: modifyNoContext(p.presenceS.UpsertTunnelConnection),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllTunnelConnections()
+		},
 	})
-	require.NoError(t, err)
-	require.NoError(t, p.presenceS.UpsertTunnelConnection(conn))
-
-	out, err := p.presenceS.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	conn = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	conn.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(conn, out[0]))
-
-	// update conn's parameters
-	hb = hb.Add(time.Second)
-	conn.SetLastHeartbeat(hb)
-
-	err = p.presenceS.UpsertTunnelConnection(conn)
-	require.NoError(t, err)
-
-	out, err = p.presenceS.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	conn = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	conn.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(conn, out[0]))
-
-	err = p.presenceS.DeleteTunnelConnections(clusterName)
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Empty(t, out)
 }
 
 // TestNodes tests nodes cache
 func TestNodes(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-
-	p := newPackForProxy(t)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	server := suite.NewServer(types.KindNode, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
-	_, err := p.presenceS.UpsertNode(ctx, server)
-	require.NoError(t, err)
-
-	out, err := p.presenceS.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	srv := out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	srv.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(srv, out[0]))
-
-	// update srv parameters
-	srv.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	srv.SetAddr("127.0.0.2:2033")
-
-	lease, err := p.presenceS.UpsertNode(ctx, srv)
-	require.NoError(t, err)
-
-	out, err = p.presenceS.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	srv = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	srv.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(srv, out[0]))
-
-	// update keep alive on the node and make sure
-	// it propagates
-	lease.Expires = time.Now().UTC().Add(time.Hour)
-	err = p.presenceS.KeepAliveNode(ctx, *lease)
-	require.NoError(t, err)
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	srv.SetResourceID(out[0].GetResourceID())
-	srv.SetExpiry(lease.Expires)
-	require.Empty(t, cmp.Diff(srv, out[0]))
-
-	err = p.presenceS.DeleteAllNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetNodes(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, out)
+	testResources(t, p, testFuncs[types.Server]{
+		newResource: func(name string) (types.Server, error) {
+			return suite.NewServer(types.KindNode, name, "127.0.0.1:2022", apidefaults.Namespace), nil
+		},
+		create: withKeepalive(p.presenceS.UpsertNode),
+		list: func(ctx context.Context) ([]types.Server, error) {
+			return p.presenceS.GetNodes(ctx, apidefaults.Namespace)
+		},
+		cacheGet: func(ctx context.Context, name string) (types.Server, error) {
+			return p.cache.GetNode(ctx, apidefaults.Namespace, name)
+		},
+		cacheList: func(ctx context.Context) ([]types.Server, error) {
+			return p.cache.GetNodes(ctx, apidefaults.Namespace)
+		},
+		update: withKeepalive(p.presenceS.UpsertNode),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllNodes(ctx, apidefaults.Namespace)
+		},
+	})
 }
 
 // TestProxies tests proxies cache
 func TestProxies(t *testing.T) {
 	t.Parallel()
 
-	p := newPackForProxy(t)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	server := suite.NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
-	err := p.presenceS.UpsertProxy(server)
-	require.NoError(t, err)
-
-	out, err := p.presenceS.GetProxies()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	srv := out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetProxies()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	srv.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(srv, out[0]))
-
-	// update srv parameters
-	srv.SetAddr("127.0.0.2:2033")
-
-	err = p.presenceS.UpsertProxy(srv)
-	require.NoError(t, err)
-
-	out, err = p.presenceS.GetProxies()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	srv = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetProxies()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	srv.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(srv, out[0]))
-
-	err = p.presenceS.DeleteAllProxies()
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetProxies()
-	require.NoError(t, err)
-	require.Empty(t, out)
+	testResources(t, p, testFuncs[types.Server]{
+		newResource: func(name string) (types.Server, error) {
+			return suite.NewServer(types.KindProxy, name, "127.0.0.1:2022", apidefaults.Namespace), nil
+		},
+		create: modifyNoContext(p.presenceS.UpsertProxy),
+		list: func(_ context.Context) ([]types.Server, error) {
+			return p.presenceS.GetProxies()
+		},
+		cacheList: func(_ context.Context) ([]types.Server, error) {
+			return p.cache.GetProxies()
+		},
+		update: modifyNoContext(p.presenceS.UpsertProxy),
+		deleteAll: func(_ context.Context) error {
+			return p.presenceS.DeleteAllProxies()
+		},
+	})
 }
 
 // TestAuthServers tests auth servers cache
 func TestAuthServers(t *testing.T) {
 	t.Parallel()
 
-	p := newPackForProxy(t)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	server := suite.NewServer(types.KindAuthServer, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
-	err := p.presenceS.UpsertAuthServer(server)
-	require.NoError(t, err)
-
-	out, err := p.presenceS.GetAuthServers()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	srv := out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetAuthServers()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	srv.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(srv, out[0]))
-
-	// update srv parameters
-	srv.SetAddr("127.0.0.2:2033")
-
-	err = p.presenceS.UpsertAuthServer(srv)
-	require.NoError(t, err)
-
-	out, err = p.presenceS.GetAuthServers()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	srv = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetAuthServers()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	srv.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(srv, out[0]))
-
-	err = p.presenceS.DeleteAllAuthServers()
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetAuthServers()
-	require.NoError(t, err)
-	require.Empty(t, out)
+	testResources(t, p, testFuncs[types.Server]{
+		newResource: func(name string) (types.Server, error) {
+			return suite.NewServer(types.KindAuthServer, name, "127.0.0.1:2022", apidefaults.Namespace), nil
+		},
+		create: modifyNoContext(p.presenceS.UpsertAuthServer),
+		list: func(_ context.Context) ([]types.Server, error) {
+			return p.presenceS.GetAuthServers()
+		},
+		cacheList: func(_ context.Context) ([]types.Server, error) {
+			return p.cache.GetAuthServers()
+		},
+		update: modifyNoContext(p.presenceS.UpsertAuthServer),
+		deleteAll: func(_ context.Context) error {
+			return p.presenceS.DeleteAllAuthServers()
+		},
+	})
 }
 
 // TestRemoteClusters tests remote clusters caching
 func TestRemoteClusters(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	p := newPackForProxy(t)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	clusterName := "example.com"
-	rc, err := types.NewRemoteCluster(clusterName)
-	require.NoError(t, err)
-	require.NoError(t, p.presenceS.CreateRemoteCluster(rc))
-
-	out, err := p.presenceS.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	rc = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	rc.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(rc, out[0]))
-
-	// update conn's parameters
-	meta := rc.GetMetadata()
-	meta.Labels = map[string]string{"env": "prod"}
-	rc.SetMetadata(meta)
-
-	err = p.presenceS.UpdateRemoteCluster(ctx, rc)
-	require.NoError(t, err)
-
-	out, err = p.presenceS.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff(meta.Labels, out[0].GetMetadata().Labels))
-	rc = out[0]
-
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-
-	rc.SetResourceID(out[0].GetResourceID())
-	require.Empty(t, cmp.Diff(rc, out[0]))
-
-	err = p.presenceS.DeleteAllRemoteClusters()
-	require.NoError(t, err)
-
-	select {
-	case <-p.eventsC:
-	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
-	}
-
-	out, err = p.cache.GetRemoteClusters()
-	require.NoError(t, err)
-	require.Empty(t, out)
+	testResources(t, p, testFuncs[types.RemoteCluster]{
+		newResource: func(name string) (types.RemoteCluster, error) {
+			return types.NewRemoteCluster(name)
+		},
+		create: modifyNoContext(p.presenceS.CreateRemoteCluster),
+		list: func(ctx context.Context) ([]types.RemoteCluster, error) {
+			return p.presenceS.GetRemoteClusters()
+		},
+		cacheGet: func(ctx context.Context, name string) (types.RemoteCluster, error) {
+			return p.cache.GetRemoteCluster(name)
+		},
+		cacheList: func(_ context.Context) ([]types.RemoteCluster, error) {
+			return p.cache.GetRemoteClusters()
+		},
+		update: p.presenceS.UpdateRemoteCluster,
+		deleteAll: func(_ context.Context) error {
+			return p.presenceS.DeleteAllRemoteClusters()
+		},
+	})
 }
 
 // TestKubernetes tests that CRUD operations on kubernetes clusters resources are
 // replicated from the backend to the cache.
 func TestKubernetes(t *testing.T) {
 	t.Parallel()
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
+
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	ctx := context.Background()
-
-	// Create an cluster.
-	cluster, err := types.NewKubernetesClusterV3(types.Metadata{
-		Name: "foo",
-	}, types.KubernetesClusterSpecV3{})
-	require.NoError(t, err)
-
-	err = p.kubernetes.CreateKubernetesCluster(ctx, cluster)
-	require.NoError(t, err)
-
-	// Check that the cluster is now in the backend.
-	out, err := p.kubernetes.GetKubernetesClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Wait until the information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single cluster in it.
-	out, err = p.kubernetes.GetKubernetesClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Update the cluster and upsert it into the backend again.
-	cluster.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	err = p.kubernetes.UpdateKubernetesCluster(ctx, cluster)
-	require.NoError(t, err)
-
-	// Check that the cluster is in the backend and only one exists (so an
-	// update occurred).
-	out, err = p.kubernetes.GetKubernetesClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single cluster in it.
-	out, err = p.cache.GetKubernetesClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.KubeCluster{cluster}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Remove all clusters from the backend.
-	err = p.kubernetes.DeleteAllKubernetesClusters(ctx)
-	require.NoError(t, err)
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Check that the cache is now empty.
-	out, err = p.kubernetes.GetKubernetesClusters(ctx)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	testResources(t, p, testFuncs[types.KubeCluster]{
+		newResource: func(name string) (types.KubeCluster, error) {
+			return types.NewKubernetesClusterV3(types.Metadata{
+				Name: name,
+			}, types.KubernetesClusterSpecV3{})
+		},
+		create:    p.kubernetes.CreateKubernetesCluster,
+		list:      p.kubernetes.GetKubernetesClusters,
+		cacheGet:  p.cache.GetKubernetesCluster,
+		cacheList: p.cache.GetKubernetesClusters,
+		update:    p.kubernetes.UpdateKubernetesCluster,
+		deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
+	})
 }
 
 // TestApplicationServers tests that CRUD operations on app servers are
@@ -2000,83 +1584,27 @@ func TestKubernetes(t *testing.T) {
 func TestApplicationServers(t *testing.T) {
 	t.Parallel()
 
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	ctx := context.Background()
-
-	// Upsert app server into backend.
-	app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "localhost"})
-	require.NoError(t, err)
-	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
-	require.NoError(t, err)
-
-	_, err = p.presenceS.UpsertApplicationServer(ctx, server)
-	require.NoError(t, err)
-
-	// Check that the app server is now in the backend.
-	out, err := p.presenceS.GetApplicationServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Wait until the information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single app server in it.
-	out, err = p.cache.GetApplicationServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Update the server and upsert it into the backend again.
-	server.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	_, err = p.presenceS.UpsertApplicationServer(context.Background(), server)
-	require.NoError(t, err)
-
-	// Check that the server is in the backend and only one exists (so an
-	// update occurred).
-	out, err = p.presenceS.GetApplicationServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single server in it.
-	out, err = p.cache.GetApplicationServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Remove all servers from the backend.
-	err = p.presenceS.DeleteAllApplicationServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Check that the cache is now empty.
-	out, err = p.cache.GetApplicationServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
+	testResources(t, p, testFuncs[types.AppServer]{
+		newResource: func(name string) (types.AppServer, error) {
+			app, err := types.NewAppV3(types.Metadata{Name: name}, types.AppSpecV3{URI: "localhost"})
+			require.NoError(t, err)
+			return types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+		},
+		create: withKeepalive(p.presenceS.UpsertApplicationServer),
+		list: func(ctx context.Context) ([]types.AppServer, error) {
+			return p.presenceS.GetApplicationServers(ctx, apidefaults.Namespace)
+		},
+		cacheList: func(ctx context.Context) ([]types.AppServer, error) {
+			return p.cache.GetApplicationServers(ctx, apidefaults.Namespace)
+		},
+		update: withKeepalive(p.presenceS.UpsertApplicationServer),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+		},
+	})
 }
 
 // TestApps tests that CRUD operations on application resources are
@@ -2088,81 +1616,21 @@ func TestApps(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
 
-	ctx := context.Background()
-
-	// Create an app.
-	app, err := types.NewAppV3(types.Metadata{
-		Name: "foo",
-	}, types.AppSpecV3{
-		URI: "localhost",
+	testResources(t, p, testFuncs[types.Application]{
+		newResource: func(name string) (types.Application, error) {
+			return types.NewAppV3(types.Metadata{
+				Name: "foo",
+			}, types.AppSpecV3{
+				URI: "localhost",
+			})
+		},
+		create:    p.apps.CreateApp,
+		list:      p.apps.GetApps,
+		cacheGet:  p.cache.GetApp,
+		cacheList: p.cache.GetApps,
+		update:    p.apps.UpdateApp,
+		deleteAll: p.apps.DeleteAllApps,
 	})
-	require.NoError(t, err)
-
-	err = p.apps.CreateApp(ctx, app)
-	require.NoError(t, err)
-
-	// Check that the app is now in the backend.
-	out, err := p.apps.GetApps(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Application{app}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Wait until the information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single app in it.
-	out, err = p.apps.GetApps(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Application{app}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Update the app and upsert it into the backend again.
-	app.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	err = p.apps.UpdateApp(ctx, app)
-	require.NoError(t, err)
-
-	// Check that the app is in the backend and only one exists (so an
-	// update occurred).
-	out, err = p.apps.GetApps(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Application{app}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single app in it.
-	out, err = p.cache.GetApps(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Application{app}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Remove all apps from the backend.
-	err = p.apps.DeleteAllApps(ctx)
-	require.NoError(t, err)
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Check that the cache is now empty.
-	out, err = p.apps.GetApps(ctx)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
 }
 
 // TestDatabaseServers tests that CRUD operations on database servers are
@@ -2170,201 +1638,72 @@ func TestApps(t *testing.T) {
 func TestDatabaseServers(t *testing.T) {
 	t.Parallel()
 
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	ctx := context.Background()
-
-	// Upsert database server into backend.
-	server, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: "foo",
-	}, types.DatabaseServerSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
-		Hostname: "localhost",
-		HostID:   uuid.New().String(),
+	testResources(t, p, testFuncs[types.DatabaseServer]{
+		newResource: func(name string) (types.DatabaseServer, error) {
+			return types.NewDatabaseServerV3(types.Metadata{
+				Name: name,
+			}, types.DatabaseServerSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				Hostname: "localhost",
+				HostID:   uuid.New().String(),
+			})
+		},
+		create: withKeepalive(p.presenceS.UpsertDatabaseServer),
+		list: func(ctx context.Context) ([]types.DatabaseServer, error) {
+			return p.presenceS.GetDatabaseServers(ctx, apidefaults.Namespace)
+		},
+		cacheList: func(ctx context.Context) ([]types.DatabaseServer, error) {
+			return p.cache.GetDatabaseServers(ctx, apidefaults.Namespace)
+		},
+		update: withKeepalive(p.presenceS.UpsertDatabaseServer),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
+		},
 	})
-	require.NoError(t, err)
-
-	_, err = p.presenceS.UpsertDatabaseServer(ctx, server)
-	require.NoError(t, err)
-
-	// Check that the database server is now in the backend.
-	out, err := p.presenceS.GetDatabaseServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Wait until the information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single database server in it.
-	out, err = p.cache.GetDatabaseServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Update the server and upsert it into the backend again.
-	server.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	_, err = p.presenceS.UpsertDatabaseServer(context.Background(), server)
-	require.NoError(t, err)
-
-	// Check that the server is in the backend and only one exists (so an
-	// update occurred).
-	out, err = p.presenceS.GetDatabaseServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single database server in it.
-	out, err = p.cache.GetDatabaseServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.DatabaseServer{server}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Remove all database servers from the backend.
-	err = p.presenceS.DeleteAllDatabaseServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Check that the cache is now empty.
-	out, err = p.cache.GetDatabaseServers(context.Background(), apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
 }
 
 // TestDatabaseServices tests that CRUD operations on DatabaseServices are
 // replicated from the backend to the cache.
 func TestDatabaseServices(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	// Upsert DatabaseService into backend.
-	service, err := types.NewDatabaseServiceV1(types.Metadata{
-		Name: uuid.NewString(),
-	}, types.DatabaseServiceSpecV1{
-		ResourceMatchers: []*types.DatabaseResourceMatcher{
-			{Labels: &types.Labels{"env": []string{"prod"}}},
+	testResources(t, p, testFuncs[types.DatabaseService]{
+		newResource: func(name string) (types.DatabaseService, error) {
+			return types.NewDatabaseServiceV1(types.Metadata{
+				Name: uuid.NewString(),
+			}, types.DatabaseServiceSpecV1{
+				ResourceMatchers: []*types.DatabaseResourceMatcher{
+					{Labels: &types.Labels{"env": []string{"prod"}}},
+				},
+			})
 		},
+		create: withKeepalive(p.databaseServices.UpsertDatabaseService),
+		list: func(ctx context.Context) ([]types.DatabaseService, error) {
+			listServicesResp, err := p.presenceS.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindDatabaseService,
+				Limit:        apidefaults.DefaultChunkSize,
+			})
+			require.NoError(t, err)
+			return types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+		},
+		cacheList: func(ctx context.Context) ([]types.DatabaseService, error) {
+			listServicesResp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindDatabaseService,
+				Limit:        apidefaults.DefaultChunkSize,
+			})
+			require.NoError(t, err)
+			return types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
+		},
+		update:    withKeepalive(p.databaseServices.UpsertDatabaseService),
+		deleteAll: p.databaseServices.DeleteAllDatabaseServices,
 	})
-	require.NoError(t, err)
-
-	_, err = p.databaseServices.UpsertDatabaseService(ctx, service)
-	require.NoError(t, err)
-
-	// Check that the DatabaseService is now in the backend.
-	listServicesResp, err := p.presenceS.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindDatabaseService,
-		Limit:        apidefaults.DefaultChunkSize,
-	})
-	require.NoError(t, err)
-	out, err := types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
-	require.NoError(t, err)
-
-	require.Empty(t, cmp.Diff([]types.DatabaseService{service}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Wait until the information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single DatabaseService in it.
-	listServicesResp, err = p.cache.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindDatabaseService,
-		Limit:        apidefaults.DefaultChunkSize,
-	})
-	require.NoError(t, err)
-	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.DatabaseService{service}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Update the DatabaseService and upsert it into the backend again.
-	service.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	_, err = p.databaseServices.UpsertDatabaseService(context.Background(), service)
-	require.NoError(t, err)
-
-	// Check that the DatabaseService is in the backend and only one exists (so an
-	// update occurred).
-	listServicesResp, err = p.presenceS.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindDatabaseService,
-		Limit:        apidefaults.DefaultChunkSize,
-	})
-	require.NoError(t, err)
-	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.DatabaseService{service}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single DatabaseService in it.
-	listServicesResp, err = p.cache.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindDatabaseService,
-		Limit:        apidefaults.DefaultChunkSize,
-	})
-	require.NoError(t, err)
-	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.DatabaseService{service}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Remove all DatabaseServices from the backend.
-	err = p.databaseServices.DeleteAllDatabaseServices(ctx)
-	require.NoError(t, err)
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Check that the cache is now empty.
-	listServicesResp, err = p.cache.ListResources(ctx, proto.ListResourcesRequest{
-		ResourceType: types.KindDatabaseService,
-		Limit:        apidefaults.DefaultChunkSize,
-	})
-	require.NoError(t, err)
-	out, err = types.ResourcesWithLabels(listServicesResp.Resources).AsDatabaseServices()
-	require.NoError(t, err)
-	require.Empty(t, out)
 }
 
 // TestDatabases tests that CRUD operations on database resources are
@@ -2372,96 +1711,25 @@ func TestDatabaseServices(t *testing.T) {
 func TestDatabases(t *testing.T) {
 	t.Parallel()
 
-	p, err := newPack(t.TempDir(), ForProxy)
-	require.NoError(t, err)
+	p := newTestPack(t, ForProxy)
 	t.Cleanup(p.Close)
 
-	ctx := context.Background()
-
-	// Create a database resource.
-	database, err := types.NewDatabaseV3(types.Metadata{
-		Name: "foo",
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
+	testResources(t, p, testFuncs[types.Database]{
+		newResource: func(name string) (types.Database, error) {
+			return types.NewDatabaseV3(types.Metadata{
+				Name: name,
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			})
+		},
+		create:    p.databases.CreateDatabase,
+		list:      p.databases.GetDatabases,
+		cacheGet:  p.cache.GetDatabase,
+		cacheList: p.cache.GetDatabases,
+		update:    p.databases.UpdateDatabase,
+		deleteAll: p.databases.DeleteAllDatabases,
 	})
-	require.NoError(t, err)
-
-	err = p.databases.CreateDatabase(ctx, database)
-	require.NoError(t, err)
-
-	// Check that the database is now in the backend.
-	out, err := p.databases.GetDatabases(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Database{database}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Wait until the information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single database in it.
-	out, err = p.cache.GetDatabases(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Database{database}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Update the database and upsert it into the backend again.
-	database.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	err = p.databases.UpdateDatabase(ctx, database)
-	require.NoError(t, err)
-
-	// Check that the database is in the backend and only one exists (so an
-	// update occurred).
-	out, err = p.databases.GetDatabases(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Database{database}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Make sure the cache has a single database in it.
-	out, err = p.cache.GetDatabases(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.Database{database}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
-
-	// Remove all database from the backend.
-	err = p.databases.DeleteAllDatabases(ctx)
-	require.NoError(t, err)
-
-	// Check that information has been replicated to the cache.
-	select {
-	case event := <-p.eventsC:
-		require.Equal(t, EventProcessed, event.Type)
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-
-	// Check that the cache is now empty.
-	out, err = p.cache.GetDatabases(ctx)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(out))
-}
-
-// testFuncs are functions to support testing an object in a cache.
-type testFuncs[T types.Resource] struct {
-	newResource func(string) (T, error)
-	create      func(context.Context, T) error
-	list        func(context.Context) ([]T, error)
-	cacheList   func(context.Context) ([]T, error)
-	update      func(context.Context, T) error
-	deleteAll   func(context.Context) error
 }
 
 // TestSAMLIdPServiceProviders tests that CRUD operations on SAML IdP service provider resources are
@@ -2469,8 +1737,7 @@ type testFuncs[T types.Resource] struct {
 func TestSAMLIdPServiceProviders(t *testing.T) {
 	t.Parallel()
 
-	p, err := newPack(t.TempDir(), ForAuth)
-	require.NoError(t, err)
+	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
 	testResources(t, p, testFuncs[types.SAMLIdPServiceProvider]{
@@ -2489,6 +1756,7 @@ func TestSAMLIdPServiceProviders(t *testing.T) {
 			results, _, err := p.samlIDPServiceProviders.ListSAMLIdPServiceProviders(ctx, 0, "")
 			return results, err
 		},
+		cacheGet: p.cache.GetSAMLIdPServiceProvider,
 		cacheList: func(ctx context.Context) ([]types.SAMLIdPServiceProvider, error) {
 			results, _, err := p.cache.ListSAMLIdPServiceProviders(ctx, 0, "")
 			return results, err
@@ -2503,8 +1771,7 @@ func TestSAMLIdPServiceProviders(t *testing.T) {
 func TestUserGroups(t *testing.T) {
 	t.Parallel()
 
-	p, err := newPack(t.TempDir(), ForAuth)
-	require.NoError(t, err)
+	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
 	testResources(t, p, testFuncs[types.UserGroup]{
@@ -2520,6 +1787,7 @@ func TestUserGroups(t *testing.T) {
 			results, _, err := p.userGroups.ListUserGroups(ctx, 0, "")
 			return results, err
 		},
+		cacheGet: p.cache.GetUserGroup,
 		cacheList: func(ctx context.Context) ([]types.UserGroup, error) {
 			results, _, err := p.cache.ListUserGroups(ctx, 0, "")
 			return results, err
@@ -2560,6 +1828,15 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]T{r}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// cacheGet is optional as not every resource implements it
+	if funcs.cacheGet != nil {
+		// Make sure a single cache get works.
+		getR, err := funcs.cacheGet(ctx, r.GetName())
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(r, getR,
+			cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+	}
 
 	// Update the resource and upsert it into the backend again.
 	r.SetExpiry(r.Expiry().Add(30 * time.Minute))
@@ -2884,6 +2161,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
 		types.KindClusterAuthPreference:   types.DefaultAuthPreference(),
 		types.KindSessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
+		types.KindUIConfig:                &types.UIConfigV1{},
 		types.KindStaticTokens:            &types.StaticTokensV2{},
 		types.KindToken:                   &types.ProvisionTokenV2{},
 		types.KindUser:                    &types.UserV2{},
@@ -2936,6 +2214,19 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 				require.Empty(t, cmp.Diff(resource, event.Resource))
 			}
 		})
+	}
+}
+
+func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
+	return func(ctx context.Context, resource T) error {
+		_, err := fn(ctx, resource)
+		return err
+	}
+}
+
+func modifyNoContext[T any](fn func(T) error) func(context.Context, T) error {
+	return func(_ context.Context, resource T) error {
+		return fn(resource)
 	}
 }
 

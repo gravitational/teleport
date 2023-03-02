@@ -205,7 +205,7 @@
     },
     {
       "icon": "lock",
-      "title": "Configure Access",
+      "title": "Manage Access",
       "entries": [
         {
           "title": "Introduction",
@@ -750,6 +750,10 @@
               "slug": "/server-access/guides/ansible/"
             }
           ]
+        },
+        {
+          "title": "Access Controls",
+          "slug": "/server-access/rbac/"
         }
       ]
     },
@@ -1311,7 +1315,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "11.3.4",
+      "version": "11.3.5",
       "major_version": "11",
       "sla": {
         "monthly_percentage": "99.5%",
@@ -1320,7 +1324,8 @@
     },
     "devicetrust": {
       "asset_tag": "C00AA0AAAA0A",
-      "enroll_token": "AAAAAAAAAAAAAAAAAAAAAAAA-this-is-an-example"
+      "enroll_token": "AAAAAAAAAAAAAAAAAAAAAAAA-this-is-an-example",
+      "device_id": "9cdfc0ad-64b7-4d9c-this-is-an-example"
     },
     "docker": {
       "version": "20.10.7",
