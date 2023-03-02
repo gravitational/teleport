@@ -35,7 +35,6 @@ const fullAccess: Access = {
 };
 
 const fullAcl: Acl = {
-  windowsLogins: ['Administrator'],
   tokens: fullAccess,
   appServers: fullAccess,
   kubeServers: fullAccess,

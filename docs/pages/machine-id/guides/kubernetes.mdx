@@ -202,6 +202,8 @@ $ tbot init \
     --reader-user=app
 ```
 
+(!docs/pages/includes/machine-id/machine-id-init-bot-data.mdx!)
+
 Next, you will use systemd to run Machine ID in the background on your
 bot node. Create a systemd.unit file at
 `/etc/systemd/system/machine-id.service`:
@@ -227,11 +229,7 @@ WantedBy=multi-user.target
 
 Finally, run the following commands to start Machine ID:
 
-```code
-$ sudo systemctl daemon-reload 
-$ sudo systemctl start machine-id
-$ sudo systemctl status machine-id
-```
+(!docs/pages/includes/machine-id/machine-id-service.mdx!)
 
 ## Step 3/3. Connect to your Kubernetes cluster with the Machine ID identity
 
