@@ -195,10 +195,6 @@ function getRenderedContent(
 }
 
 function List(props: { items: string[] }) {
-  if (props.items.length === 1) {
-    return <>{props.items[0]}</>;
-  }
-
   return (
     <ul
       // Ideally we'd align the bullet point to the left without using list-style-position: inside
