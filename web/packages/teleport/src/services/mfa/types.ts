@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { WebauthnAssertionResponse } from '../auth';
+
 export type MfaDevice = {
   id: string;
   name: string;
@@ -38,3 +40,52 @@ export type DeviceType = 'totp' | 'webauthn';
 
 // DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
 export type DeviceUsage = 'passwordless' | 'mfa';
+
+// MfaAuthnResponse is a response to a MFA device challenge.
+export type MfaAuthnResponse =
+  | { totpCode: string }
+  | { webauthnResponse: WebauthnAssertionResponse };
+
+export type IsMfaRequiredDatabase = {
+  database: {
+    // serviceName is the database service name.
+    serviceName: string;
+    // protocol is the type of the database protocol.
+    protocol: string;
+    // username is an optional database username.
+    username?: string;
+    // name is an optional database name.
+    name?: string;
+  };
+};
+
+export type IsMfaRequiredNode = {
+  node: {
+    // name can be node's hostname or UUID.
+    name: string;
+    // login is the OS login name.
+    login: string;
+  };
+};
+
+export type IsMfaRequiredWindowsDesktop = {
+  windowsDesktop: {
+    // name is the Windows Desktop server name.
+    name: string;
+    // login is the Windows desktop user login.
+    login: string;
+  };
+};
+
+export type IsMfaRequiredKube = {
+  kube: {
+    // name is the name of the kube cluster.
+    name: string;
+  };
+};
+
+export type IsMfaRequiredRequest =
+  | IsMfaRequiredDatabase
+  | IsMfaRequiredNode
+  | IsMfaRequiredKube
+  | IsMfaRequiredWindowsDesktop;
