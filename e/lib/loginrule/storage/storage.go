@@ -184,6 +184,7 @@ func unmarshalFromItem(item *backend.Item) (*loginrulepb.LoginRule, error) {
 	if rule.Metadata == nil {
 		return nil, trace.BadParameter("unable to unmarshal login rule metadata from storage")
 	}
+	rule.Metadata.ID = item.ID
 	expires := item.Expires
 	if !expires.IsZero() {
 		rule.Metadata.Expires = &expires

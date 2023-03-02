@@ -365,3 +365,45 @@ func TestDeleteLoginRule(t *testing.T) {
 		require.Equal(t, seededRules[ruleName].String(), rule.String())
 	}
 }
+
+// TestLoginRuleIDs asserts that the metadata.id field of the login rule changes
+// after the rule is updated. The Terraform provider relies on changes to this
+// ID to ensure that updates have been applied.
+func TestLoginRuleIDs(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newTestPack(t)
+
+	ruleSpec := &loginrulepb.LoginRule{
+		Metadata: &types.Metadata{
+			Name: "rule",
+		},
+		Version:          types.V1,
+		Priority:         1,
+		TraitsExpression: "external",
+	}
+
+	_, err := p.s.CreateLoginRule(ctx, ruleSpec)
+	require.NoError(t, err)
+
+	ruleBefore, err := p.s.GetLoginRule(ctx, ruleSpec.Metadata.Name)
+	require.NoError(t, err)
+
+	ruleSpec.Priority = 2
+
+	_, err = p.s.UpsertLoginRule(ctx, ruleSpec)
+	require.NoError(t, err)
+
+	ruleAfter, err := p.s.GetLoginRule(ctx, ruleSpec.Metadata.Name)
+	require.NoError(t, err)
+
+	require.NotEqual(t, ruleBefore.Metadata.ID, ruleAfter.Metadata.ID, "expected updated resource ID not to match original resource ID")
+
+	rulesAfter, _, err := p.s.ListLoginRules(ctx, 0 /* pageSize */, "" /* pageToken */)
+	require.NoError(t, err)
+	require.Len(t, rulesAfter, 1)
+	ruleAfter = rulesAfter[0]
+
+	require.NotEqual(t, ruleBefore.Metadata.ID, ruleAfter.Metadata.ID, "expected updated resource ID not to match original resource ID")
+}
