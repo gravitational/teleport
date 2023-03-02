@@ -201,9 +201,15 @@ function List(props: { items: string[] }) {
 
   return (
     <ul
+      // Ideally we'd align the bullet point to the left without using list-style-position: inside
+      // (because it looks bad when the list item spans multiple lines).
+      //
+      // However, it seems impossible to use padding-inline-start for that because the result looks
+      // different on Retina vs non-Retina screens, the bullet point looks cut off on the latter if
+      // padding-inline-start is set to 1em. So instead we just set it to 2em.
       css={`
         margin: 0;
-        padding-inline-start: 13px;
+        padding-inline-start: 2em;
       `}
     >
       {props.items.map((item, index) => (
