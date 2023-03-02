@@ -751,7 +751,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [mike] failed to authenticate to shortcut [shortcut] with the SAML IdP
+          User [mike] failed to authenticate to SAML service provider [shortcut]
         </td>
         <td
           style="min-width: 120px;"
@@ -788,7 +788,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [mike] failed to authenticate to entity ID [valid-entity-id] with the SAML IdP
+          User [mike] failed to authenticate to SAML service provider [valid-entity-id]
         </td>
         <td
           style="min-width: 120px;"
@@ -825,7 +825,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [mike] successfully authenticated to entity ID [valid-entity-id] with the SAML IdP
+          User [mike] successfully authenticated to SAML service provider [valid-entity-id]
         </td>
         <td
           style="min-width: 120px;"

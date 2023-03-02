@@ -1285,9 +1285,9 @@ export const formatters: Formatters = {
           ? 'failed to authenticate'
           : 'successfully authenticated';
       const id = service_provider_entity_id
-        ? `entity ID [${service_provider_entity_id}]`
-        : `shortcut [${service_provider_shortcut}]`;
-      return `User [${user}] ${desc} to ${id} with the SAML IdP`;
+        ? `[${service_provider_entity_id}]`
+        : `[${service_provider_shortcut}]`;
+      return `User [${user}] ${desc} to SAML service provider ${id}`;
     },
   },
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE]: {
