@@ -66,19 +66,20 @@ export function getKeyName(event: KeyboardEvent): string {
   key = key.replace('Key', '');
   key = key.replace('Arrow', '');
   key = key.replace('Digit', '');
-  key =
-    {
-      Comma: ',',
-      Period: '.',
-      Slash: '/',
-      Backslash: '\\',
-      IntlBackslash: '`',
-      Minus: '-',
-      Equal: '=',
-      Semicolon: ';',
-      Quote: "'",
-      BracketLeft: '[',
-      BracketRight: ']',
-    }[key] ?? key;
+  key = PHYSICAL_CODE_TO_PRINTABLE_CHARACTER[key] ?? key;
   return key;
 }
+
+const PHYSICAL_CODE_TO_PRINTABLE_CHARACTER = {
+  Comma: ',',
+  Period: '.',
+  Slash: '/',
+  Backslash: '\\',
+  IntlBackslash: '`',
+  Minus: '-',
+  Equal: '=',
+  Semicolon: ';',
+  Quote: "'",
+  BracketLeft: '[',
+  BracketRight: ']',
+};
