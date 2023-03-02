@@ -312,7 +312,7 @@ func testClientCert(p *Pack, t *testing.T) {
 		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
-			status, body, err := p.MakeRequestWithClientCert(tt.inTLSConfig, http.MethodGet, "/")
+			status, body, err := p.makeRequestWithClientCert(tt.inTLSConfig, http.MethodGet, "/")
 			require.NoError(t, err)
 			require.Equal(t, tt.outStatusCode, status)
 			require.Contains(t, body, tt.outMessage)
@@ -579,7 +579,7 @@ func TestInvalidateAppSessionsOnLogout(t *testing.T) {
 	require.NotNil(t, reqTLS)
 
 	// Issue a request to the application to guarantee everything is working correctly.
-	status, _, err = p.MakeRequestWithClientCert(reqTLS, http.MethodGet, "/")
+	status, _, err = p.makeRequestWithClientCert(reqTLS, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
@@ -602,7 +602,7 @@ func TestInvalidateAppSessionsOnLogout(t *testing.T) {
 	require.Eventually(t, func() bool {
 		// Issue another request to the application. Now, it should receive a
 		// redirect because the application sessions are gone.
-		status, _, err = p.MakeRequestWithClientCert(reqTLS, http.MethodGet, "/")
+		status, _, err = p.makeRequestWithClientCert(reqTLS, http.MethodGet, "/")
 		require.NoError(t, err)
 		return status == http.StatusForbidden
 	}, time.Second, 250*time.Millisecond)

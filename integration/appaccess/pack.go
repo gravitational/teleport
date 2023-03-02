@@ -156,10 +156,6 @@ func (p *Pack) RootAppPublicAddr() string {
 	return p.rootAppPublicAddr
 }
 
-func (p *Pack) RootTCPAppPublicAddr() string {
-	return p.rootTCPPublicAddr
-}
-
 func (p *Pack) LeafAppClusterName() string {
 	return p.leafAppClusterName
 }
@@ -496,9 +492,9 @@ func (p *Pack) MakeRequest(cookies []*http.Cookie, method string, endpoint strin
 	return p.sendRequest(req, nil)
 }
 
-// MakeRequestWithClientCert makes a request to the root cluster using the
+// makeRequestWithClientCert makes a request to the root cluster using the
 // client certificate authentication from the provided tls config.
-func (p *Pack) MakeRequestWithClientCert(tlsConfig *tls.Config, method, endpoint string) (int, string, error) {
+func (p *Pack) makeRequestWithClientCert(tlsConfig *tls.Config, method, endpoint string) (int, string, error) {
 	req, err := http.NewRequest(method, p.assembleRootProxyURL(endpoint), nil)
 	if err != nil {
 		return 0, "", trace.Wrap(err)
