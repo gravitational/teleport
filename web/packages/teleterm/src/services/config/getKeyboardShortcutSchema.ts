@@ -114,20 +114,22 @@ function validateKeyCodeAndModifiers(
         : keyCode;
     if (!ALLOWED_KEY_CODES.includes(keyCodeUppercase)) {
       ctx.addIssue(invalidKeyCodeIssue(keyCode));
-      return z.NEVER;
     }
 
     if (modifiers.length !== new Set(modifiers).size) {
       ctx.addIssue(duplicateModifierIssue());
-      return z.NEVER;
     }
 
     const invalidModifiers = modifiers.filter(
       modifier => !allowedModifiers.includes(modifier)
     );
     if (invalidModifiers.length) {
-      ctx.addIssue(invalidModifierIssue(invalidModifiers, allowedModifiers));
-      return z.NEVER;
+      ctx.addIssue(
+        invalidModifierIssue(
+          Array.from(new Set(invalidModifiers)),
+          allowedModifiers
+        )
+      );
     }
 
     if (!FUNCTION_KEYS.includes(keyCode) && !modifiers.length) {

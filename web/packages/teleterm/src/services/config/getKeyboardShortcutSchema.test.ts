@@ -28,13 +28,13 @@ const schema = z.object({
   'keymap.tab1': getKeyboardShortcutSchema('darwin'),
 });
 
-function getZodError(issue: any): z.ZodError {
-  return new ZodError([
-    {
+function getZodError(...issues: any[]): z.ZodError {
+  return new ZodError(
+    issues.map(issue => ({
       ...issue,
       path: ['keymap.tab1'],
-    },
-  ]);
+    }))
+  );
 }
 
 test('multi-parts accelerator is parsed correctly', () => {
@@ -91,7 +91,17 @@ test('parsing fails when only modifiers are passed', () => {
   expect(parse).toThrow(getZodError(invalidKeyCodeIssue('Shift')));
 });
 
-test('parsing fails when duplicate modifiers are passed', () => {
+test('parsing fails when duplicate invalid modifiers are passed', () => {
+  const parse = () => schema.parse({ 'keymap.tab1': 'Comm+Comm+1' });
+  expect(parse).toThrow(
+    getZodError(
+      duplicateModifierIssue(),
+      invalidModifierIssue(['Comm'], ['Cmd', 'Ctrl', 'Option', 'Shift'])
+    )
+  );
+});
+
+test('parsing fails when duplicate valid modifiers are passed', () => {
   const parse = () => schema.parse({ 'keymap.tab1': 'Cmd+I+Cmd' });
   expect(parse).toThrow(getZodError(duplicateModifierIssue()));
 });
