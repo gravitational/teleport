@@ -51,12 +51,12 @@ d-->h(Datadog)
 
 ![Flowchart of Teleport with events forwarded to Datadog](../../../img/management/datadog-flowchart.png)
 
-## Prereqs
+## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - A [Datadog](https://www.datadoghq.com/) account.
-- A server, virtual machine, Kubernets cluster, or Docker environment to run the
+- A server, virtual machine, Kubernetes cluster, or Docker environment to run the
   Event Handler. The instructions below assume a local Docker container for testing.
 - Fluentd version v(=fluentd.version=) or greater. The Teleport Event Handler
   will create a new `fluent.conf` file you can integrate into an existing Fluentd
@@ -214,7 +214,7 @@ plugin before starting Fluentd:
 
 ```code
 $ docker run -u $(id -u root):$(id -g root) -p 8888:8888 -v $(pwd):/keys -v \
-$(pwd)/fluent.conf:/fluentd/etc/fluent.conf --entrypoint=/bin/sh -it --tty  fluent/fluentd:edge
+$(pwd)/fluent.conf:/fluentd/etc/fluent.conf --entrypoint=/bin/sh -i --tty  fluent/fluentd:edge
 # From the container shell:
 $ gem install fluent-plugin-datadog
 $ fluentd -c /fluentd/etc/fluent.conf
@@ -247,7 +247,7 @@ Copy the API key, and use it to add a new `<match>` block to `fluent.conf`:
 
 - Add your API key to the `api_key` field.
 - Adjust the `host` value to match your Datadog site. See their [Log Collection
-  and Integrations](https://docs.datadoghq.com/logs/log_collection/?tab=host)
+  and Integrations](https://docs.datadoghq.com/logs/log_collection/?tab=host) guide
   to determine the correct value.
 - `dd_source` is an optional field you can use to filter these logs in the
   Datadog UI.
@@ -382,7 +382,7 @@ The Logs view in Datadog should now report your Teleport cluster events:
 
 Review the Fluentd output plugin for Datadog [README
 file](https://github.com/DataDog/fluent-plugin-datadog/blob/master/README.md)
-to learn how to customize the log format entering Datadog.
+to learn how to customize the format of logs entering Datadog.
 
 ## Troubleshooting connection issues
 
@@ -396,7 +396,7 @@ Teleport Cluster, ensure that:
   (`teleport-event-handler.toml`), you have provided the correct host *and* port
   for the Teleport Proxy Service or Auth Service.
 
-## Next Steps
+## Next steps
 
 Read more about
 [impersonation](https://goteleport.com/docs/access-controls/guides/impersonation/)
