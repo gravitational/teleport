@@ -902,7 +902,7 @@ if (goog.DEBUG && !COMPILED) {
  * @constructor
  */
 proto.teleport.lib.teleterm.v1.ListGatewaysRequest = function(opt_data) {
-  jspb.Message.initialize(this, opt_data, 0, -1, proto.teleport.lib.teleterm.v1.ListGatewaysRequest.repeatedFields_, null);
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
 goog.inherits(proto.teleport.lib.teleterm.v1.ListGatewaysRequest, jspb.Message);
 if (goog.DEBUG && !COMPILED) {
@@ -7783,13 +7783,6 @@ proto.teleport.lib.teleterm.v1.CreateGatewayRequest.prototype.setTargetSubresour
 
 
 
-/**
- * List of repeated fields within this message type.
- * @private {!Array<number>}
- * @const
- */
-proto.teleport.lib.teleterm.v1.ListGatewaysRequest.repeatedFields_ = [1];
-
 
 
 if (jspb.Message.GENERATE_TO_OBJECT) {
@@ -7821,7 +7814,7 @@ proto.teleport.lib.teleterm.v1.ListGatewaysRequest.prototype.toObject = function
  */
 proto.teleport.lib.teleterm.v1.ListGatewaysRequest.toObject = function(includeInstance, msg) {
   var f, obj = {
-    clusterIdsList: (f = jspb.Message.getRepeatedField(msg, 1)) == null ? undefined : f
+
   };
 
   if (includeInstance) {
@@ -7858,10 +7851,6 @@ proto.teleport.lib.teleterm.v1.ListGatewaysRequest.deserializeBinaryFromReader =
     }
     var field = reader.getFieldNumber();
     switch (field) {
-    case 1:
-      var value = /** @type {string} */ (reader.readString());
-      msg.addClusterIds(value);
-      break;
     default:
       reader.skipField();
       break;
@@ -7891,50 +7880,6 @@ proto.teleport.lib.teleterm.v1.ListGatewaysRequest.prototype.serializeBinary = f
  */
 proto.teleport.lib.teleterm.v1.ListGatewaysRequest.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getClusterIdsList();
-  if (f.length > 0) {
-    writer.writeRepeatedString(
-      1,
-      f
-    );
-  }
-};
-
-
-/**
- * repeated string cluster_ids = 1;
- * @return {!Array<string>}
- */
-proto.teleport.lib.teleterm.v1.ListGatewaysRequest.prototype.getClusterIdsList = function() {
-  return /** @type {!Array<string>} */ (jspb.Message.getRepeatedField(this, 1));
-};
-
-
-/**
- * @param {!Array<string>} value
- * @return {!proto.teleport.lib.teleterm.v1.ListGatewaysRequest} returns this
- */
-proto.teleport.lib.teleterm.v1.ListGatewaysRequest.prototype.setClusterIdsList = function(value) {
-  return jspb.Message.setField(this, 1, value || []);
-};
-
-
-/**
- * @param {string} value
- * @param {number=} opt_index
- * @return {!proto.teleport.lib.teleterm.v1.ListGatewaysRequest} returns this
- */
-proto.teleport.lib.teleterm.v1.ListGatewaysRequest.prototype.addClusterIds = function(value, opt_index) {
-  return jspb.Message.addToRepeatedField(this, 1, value, opt_index);
-};
-
-
-/**
- * Clears the list making it empty but non-null.
- * @return {!proto.teleport.lib.teleterm.v1.ListGatewaysRequest} returns this
- */
-proto.teleport.lib.teleterm.v1.ListGatewaysRequest.prototype.clearClusterIdsList = function() {
-  return this.setClusterIdsList([]);
 };
 
 

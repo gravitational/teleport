@@ -51,19 +51,22 @@ type AWSSSM struct {
 	DocumentName string
 }
 
-// InstallerParams are passed to the AWS SSM document
+// InstallerParams are passed to the AWS SSM document or installation script
 type InstallerParams struct {
 	// JoinMethod is the method to use when joining the cluster
 	JoinMethod types.JoinMethod
 	// JoinToken is the token to use when joining the cluster
 	JoinToken string
-	// ScriptName is the name of the teleport script for the EC2
+	// ScriptName is the name of the teleport script for the cloud
 	// instance to execute
 	ScriptName string
 	// InstallTeleport disables agentless discovery
 	InstallTeleport bool
 	// SSHDConfig provides the path to write sshd configuration changes
 	SSHDConfig string
+	// PublicProxyAddr is the address of the proxy the discovered node should use
+	// to connect to the cluster. Used only in Azure.
+	PublicProxyAddr string
 }
 
 // AWSMatcher matches AWS databases.
@@ -93,6 +96,8 @@ type AzureMatcher struct {
 	Regions []string
 	// ResourceTags are Azure tags to match.
 	ResourceTags types.Labels
+	// Params are passed to Azure when installing.
+	Params InstallerParams
 }
 
 // GCPMatcher matches GCP resources.
@@ -136,6 +141,7 @@ func SimplifyAzureMatchers(matchers []AzureMatcher) []AzureMatcher {
 			Regions:        regions,
 			Types:          ts,
 			ResourceTags:   m.ResourceTags,
+			Params:         m.Params,
 		})
 	}
 	return result

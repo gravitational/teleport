@@ -23,6 +23,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
+	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
@@ -118,6 +120,9 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 			&http.Transport{
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: insecure,
+				},
+				Proxy: func(req *http.Request) (*url.URL, error) {
+					return proxy.GetProxyURL(req.URL.String()), nil
 				},
 			},
 			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),

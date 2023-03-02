@@ -598,6 +598,21 @@ const (
 	// LoginRuleDeleteEvent is emitted when a login rule is deleted.
 	LoginRuleDeleteEvent = "login_rule.delete"
 
+	// SAMLIdPAuthAttemptEvent is emitted when a user has attempted to authorize against the SAML IdP.
+	SAMLIdPAuthAttemptEvent = "saml.idp.auth"
+
+	// SAMLIdPServiceProviderCreateEvent is emitted when a service provider has been created.
+	SAMLIdPServiceProviderCreateEvent = "saml.idp.service.provider.create"
+
+	// SAMLIdPServiceProviderUpdateEvent is emitted when a service provider has been updated.
+	SAMLIdPServiceProviderUpdateEvent = "saml.idp.service.provider.update"
+
+	// SAMLIdPServiceProviderDeleteEvent is emitted when a service provider has been deleted.
+	SAMLIdPServiceProviderDeleteEvent = "saml.idp.service.provider.delete"
+
+	// SAMLIdPServiceProviderDeleteAllEvent is emitted when all service providers have been deleted.
+	SAMLIdPServiceProviderDeleteAllEvent = "saml.idp.service.provider.delete_all"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )
