@@ -1180,6 +1180,21 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	return nil
 }
 
+// getInstallerProxyAddr determines the address of the proxy for discovered
+// nodes to connect to.
+func getInstallerProxyAddr(matcher AzureMatcher, fc *FileConfig) string {
+	if matcher.InstallParams.PublicProxyAddr != "" {
+		return matcher.InstallParams.PublicProxyAddr
+	}
+	if fc.ProxyServer != "" {
+		return fc.ProxyServer
+	}
+	if fc.Proxy.Enabled() && len(fc.Proxy.PublicAddr) > 0 {
+		return fc.Proxy.PublicAddr[0]
+	}
+	return ""
+}
+
 func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
 	for _, matcher := range fc.Discovery.AWSMatchers {
@@ -1199,16 +1214,23 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	for _, matcher := range fc.Discovery.AzureMatchers {
-		cfg.Discovery.AzureMatchers = append(
-			cfg.Discovery.AzureMatchers,
-			services.AzureMatcher{
-				Subscriptions:  matcher.Subscriptions,
-				ResourceGroups: matcher.ResourceGroups,
-				Types:          matcher.Types,
-				Regions:        matcher.Regions,
-				ResourceTags:   matcher.ResourceTags,
-			},
-		)
+		m := services.AzureMatcher{
+			Subscriptions:  matcher.Subscriptions,
+			ResourceGroups: matcher.ResourceGroups,
+			Types:          matcher.Types,
+			Regions:        matcher.Regions,
+			ResourceTags:   matcher.ResourceTags,
+		}
+
+		if matcher.InstallParams != nil {
+			m.Params = services.InstallerParams{
+				JoinMethod:      matcher.InstallParams.JoinParams.Method,
+				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
+				ScriptName:      matcher.InstallParams.ScriptName,
+				PublicProxyAddr: getInstallerProxyAddr(matcher, fc),
+			}
+		}
+		cfg.Discovery.AzureMatchers = append(cfg.Discovery.AzureMatchers, m)
 	}
 
 	for _, matcher := range fc.Discovery.GCPMatchers {

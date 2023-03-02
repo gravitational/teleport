@@ -17,8 +17,8 @@ package device
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -64,27 +64,42 @@ type CollectedData struct {
 // checkAndSetDefaults sanity checks Resource fields to catch simple errors, and
 // sets default values for all fields with defaults.
 func (r *Resource) checkAndSetDefaults() error {
+	// Assign defaults:
+	// - Kind = device
+	// - Metadata.Name = UUID
+	// - Spec.EnrollStatus = unspecified
+	if r.Kind == "" {
+		r.Kind = types.KindDevice
+	}
+	if r.Metadata.Name == "" {
+		r.Metadata.Name = uuid.NewString()
+	}
+	if r.Spec.EnrollStatus == "" {
+		r.Spec.EnrollStatus =
+			devicetrust.ResourceEnrollStatusToString(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED)
+	}
+
+	// Validate Metadata.
 	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if r.Kind == "" {
-		r.Kind = types.KindDevice
-		// Sanity check.
-	} else if r.Kind != types.KindDevice {
+
+	// Validate "simple" fields.
+	switch {
+	case r.Kind != types.KindDevice: // Sanity check.
 		return trace.BadParameter("unexpected resource kind %q, must be %q", r.Kind, types.KindDevice)
-	}
-
-	if _, err := devicetrust.ResourceOSTypeFromString(r.Spec.OSType); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if r.Spec.AssetTag == "" {
+	case r.Spec.OSType == "":
+		return trace.BadParameter("missing OS type")
+	case r.Spec.AssetTag == "":
 		return trace.BadParameter("missing asset tag")
 	}
 
+	// Validate enum conversions.
+	if _, err := devicetrust.ResourceOSTypeFromString(r.Spec.OSType); err != nil {
+		return trace.Wrap(err)
+	}
 	if _, err := devicetrust.ResourceEnrollStatusFromString(r.Spec.EnrollStatus); err != nil {
-		r.Spec.EnrollStatus = devicetrust.ResourceEnrollStatusToString(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED)
-		log.Debugf("Device Trust: enroll_status is not set, defaulting to %q", r.Spec.EnrollStatus)
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -160,7 +175,7 @@ func resourceToProto(r *Resource) (*devicepb.Device, error) {
 
 	collectedData := make([]*devicepb.DeviceCollectedData, 0, len(r.Spec.CollectedData))
 	for _, d := range r.Spec.CollectedData {
-		osType, err := devicetrust.ResourceOSTypeFromString(d.OSType)
+		dataOSType, err := devicetrust.ResourceOSTypeFromString(d.OSType)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -168,7 +183,7 @@ func resourceToProto(r *Resource) (*devicepb.Device, error) {
 		collectedData = append(collectedData, &devicepb.DeviceCollectedData{
 			CollectTime:  timestamppb.New(d.CollectTime),
 			RecordTime:   timestamppb.New(d.RecordTime),
-			OsType:       osType,
+			OsType:       dataOSType,
 			SerialNumber: d.SerialNumber,
 		})
 	}
