@@ -8,7 +8,7 @@ assign Teleport users to less privileged roles by default and allow them to
 temporarily escalate their privileges. Reviewers can grant or deny Access
 Requests within your organization's existing communication workflows (e.g.,
 Slack, email, and PagerDuty) using [Access Request
-plugins](../access-controls/access-request-plugins.mdx).
+plugins](../access-controls/access-request-plugins/index.mdx).
 
 You can use Teleport's API client library to build an Access Request plugin that
 integrates with your organization's unique workflows. 
@@ -17,7 +17,7 @@ In this guide, we will explore a number of Teleport's API client libraries by
 showing you how to write a plugin that lets you manage Access Requests via
 Google Sheets. The plugin lists new Access Requests in a Google Sheets
 spreadsheet, with links to allow or deny each request. You can write the plugin
-in 270 lines of Go code. 
+in 260 lines of Go code. 
 
 ![The result of the plugin](../../img/api/google-sheets.png)
 
@@ -750,4 +750,12 @@ repository on GitHub for examples of plugins developed at Teleport. You can see
 how these plugins use the packages we discuss in this guide, as well as how they
 add more complete functionality like configuraiton validation and state
 management.
+
+### Provision the plugin with short-lived credentials
+
+In this example, we used the `tctl auth sign` command to fetch credentials for
+the plugin. For production usage, we recommend provisioning short-lived
+credentials via Machine ID, which reduces the risk of these credentials becoming
+stolen. View our [Machine ID documentation](../machine-id/introduction.mdx) to
+learn more.
 
