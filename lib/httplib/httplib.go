@@ -141,12 +141,14 @@ func MakeStdHandlerWithErrorWriter(fn StdHandlerFunc, errWriter ErrorWriter) htt
 func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
 	handlerFn := MakeHandler(fn)
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		errHeader := csrf.VerifyHTTPHeader(r)
-		errForm := csrf.VerifyFormField(r)
-		if errForm != nil && errHeader != nil {
-			log.Warningf("unable to validate CSRF token: %v, %v", errHeader, errForm)
-			trace.WriteError(w, trace.AccessDenied("access denied"))
-			return
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			errHeader := csrf.VerifyHTTPHeader(r)
+			errForm := csrf.VerifyFormField(r)
+			if errForm != nil && errHeader != nil {
+				log.Warningf("unable to validate CSRF token: %v, %v", errHeader, errForm)
+				trace.WriteError(w, trace.AccessDenied("access denied"))
+				return
+			}
 		}
 		handlerFn(w, r, p)
 	}
