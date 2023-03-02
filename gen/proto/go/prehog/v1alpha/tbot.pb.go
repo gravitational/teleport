@@ -87,6 +87,8 @@ func (TbotStartEvent_RunMode) EnumDescriptor() ([]byte, []int) {
 	return file_prehog_v1alpha_tbot_proto_rawDescGZIP(), []int{0, 0}
 }
 
+// TbotStartEvent is triggered whenever tbot starts, regardless of whether tbot
+// was able to successfully connect to or authenticate with a Teleport cluster.
 type TbotStartEvent struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
