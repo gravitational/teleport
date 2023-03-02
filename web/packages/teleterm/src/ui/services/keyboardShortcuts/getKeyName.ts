@@ -37,20 +37,22 @@ const REGEX_LATIN_KEYNAME = /^[A-Za-z]$/;
 /**
  * Returns a key name in a way that makes some keys independent of their physical placement on the US QWERTY layout.
  *
- * On the beginning, we check if the printed character is from the range A-Z (case-insensitive).
+ * First, we check if the printed character is from the range A-Z (case-insensitive).
  * This check bounds the letters to the (changeable) keyboard layout, not the physical keys.
  * For example, in the Dvorak layout, the "K" and "T" keys are interchanged (compared to US QWERTY).
  * By relying on the printed character, we are independent of the layout.
- * This regex also excludes non-Latin characters, which should be handled by physical codes.
+ * This regex also excludes non-Latin characters, which should be handled by physical codes,
+ * because `KeyboardEvent.key` will be a letter from that alphabet.
+ * Most of these keyboards follow the standard US QWERTY layout,
+ * so it is possible for `KeyboardEvent.code` to work as a fallback.
  *
  * The rest of the keys are handled by their physical code.
- * It is common to many layouts that the user has to press a modifier to generate a character,
- * which is available on US QWERTY with any modifier.
- * It is true even for keys like "1".
+ * It is common in many layouts that the user has to press a modifier to input a character,
+ * which is available on US QWERTY without any modifiers.
  * For example, in Czech QWERTY there is no "1" key (it is on upper row) -
  * the user has to press "Shift+(plus key)" to get "1".
  * The resulting character is still "1" as in US QWERTY,
- * but because "Shift" was pressed we interpret it as a different shortcut ("Shift+1", not "1").
+ * but because "Shift" was pressed we would interpret it as a different shortcut ("Shift+1", not "1").
  *
  * The above mechanism is not perfect, because only A-Z keys are mapped to the active layout.
  * Keys like comma are still tied to the physical keys in the US QWERTY.
