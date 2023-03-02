@@ -19,15 +19,16 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 	"io"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/tbot"
@@ -260,7 +261,7 @@ func onStart(botConfig *config.BotConfig) error {
 		select {
 		case <-ctx.Done():
 			log.Warn(
-				"Anonymous telemetry transmission cancelled due to signal or timeout.",
+				"Anonymous telemetry transmission canceled due to signal or timeout.",
 			)
 		case <-telemetrySentCh:
 		}
