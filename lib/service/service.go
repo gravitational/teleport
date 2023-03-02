@@ -317,7 +317,7 @@ type TeleportProcess struct {
 	// backend is the process' backend
 	backend backend.Backend
 	// auditLog is the initialized audit log
-	auditLog events.IAuditLog
+	auditLog events.AuditLogSessionStreamer
 
 	// inventorySetupDelay lets us inject a one-time delay in the makeInventoryControlStream
 	// method that helps reduce log spam in the event of slow instance cert acquisition.
@@ -411,7 +411,7 @@ func (process *TeleportProcess) GetAuthServer() *auth.Server {
 }
 
 // GetAuditLog returns the process' audit log
-func (process *TeleportProcess) GetAuditLog() events.IAuditLog {
+func (process *TeleportProcess) GetAuditLog() events.AuditLogSessionStreamer {
 	return process.auditLog
 }
 
@@ -1306,9 +1306,9 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 }
 
 // initAuthExternalAuditLog initializes the auth server's audit log.
-func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAuditConfig, backend backend.Backend) (events.ExternalAuditLogger, error) {
+func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAuditConfig, backend backend.Backend) (events.AuditLogger, error) {
 	var hasNonFileLog bool
-	var loggers []events.ExternalAuditLogger
+	var loggers []events.AuditLogger
 	for _, eventsURI := range auditConfig.AuditEventsURIs() {
 		uri, err := apiutils.ParseSessionsURI(eventsURI)
 		if err != nil {

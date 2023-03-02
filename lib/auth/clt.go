@@ -1565,7 +1565,7 @@ type ClientI interface {
 	IdentityService
 	ProvisioningService
 	services.Trust
-	events.IAuditLog
+	events.AuditLogSessionStreamer
 	events.Streamer
 	apievents.Emitter
 	services.Presence

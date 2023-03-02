@@ -27,7 +27,7 @@ import (
 )
 
 // NewMultiLog returns a new instance of a multi logger
-func NewMultiLog(loggers ...ExternalAuditLogger) (*MultiLog, error) {
+func NewMultiLog(loggers ...AuditLogger) (*MultiLog, error) {
 	emitters := make([]apievents.Emitter, 0, len(loggers))
 	for _, logger := range loggers {
 		emitter, ok := logger.(apievents.Emitter)
@@ -46,7 +46,7 @@ func NewMultiLog(loggers ...ExternalAuditLogger) (*MultiLog, error) {
 // to all loggers, and performs all read and search operations
 // on the first logger that implements the operation
 type MultiLog struct {
-	loggers []ExternalAuditLogger
+	loggers []AuditLogger
 	*MultiEmitter
 }
 

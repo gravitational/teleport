@@ -756,10 +756,15 @@ type StreamEmitter interface {
 	Streamer
 }
 
-// IAuditLog is the primary (and the only external-facing) interface for AuditLogger.
-type IAuditLog interface {
-	ExternalAuditLogger
+// AuditLogSessionStreamer is the primary (and the only external-facing)
+// interface for AuditLogger and SessionStreamer.
+type AuditLogSessionStreamer interface {
+	AuditLogger
+	SessionStreamer
+}
 
+// SessionStreamer supports streaming session chunks or events.
+type SessionStreamer interface {
 	// GetSessionChunk returns a reader which can be used to read a byte stream
 	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
 	// beginning) up to maxBytes bytes.
@@ -773,14 +778,15 @@ type IAuditLog interface {
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 }
 
-// ExternalAuditLogger defines which methods need to implemented by external
-// audit loggers.
-type ExternalAuditLogger interface {
+// AuditLogger defines which methods need to implemented by audit loggers.
+type AuditLogger interface {
 	// Closer releases connection and resources associated with log if any
 	io.Closer
 
 	// EmitAuditEvent emits audit event
 	EmitAuditEvent(context.Context, apievents.AuditEvent) error
+
+	// TODO(tobiaszheller): move GetSessionEvents into SessionStreamer.
 
 	// Returns all events that happen during a session sorted by time
 	// (oldest first).

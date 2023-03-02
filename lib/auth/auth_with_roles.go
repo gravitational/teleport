@@ -58,7 +58,7 @@ import (
 // methods that focuses on authorizing every request
 type ServerWithRoles struct {
 	authServer *Server
-	alog       events.IAuditLog
+	alog       events.AuditLogSessionStreamer
 	// context holds authorization context
 	context Context
 }
@@ -5512,7 +5512,7 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
-func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {
+func NewAdminAuthServer(authServer *Server, alog events.AuditLogSessionStreamer) (ClientI, error) {
 	ctx, err := NewAdminContext()
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -151,7 +151,7 @@ var (
 )
 
 // AuditLog is a new combined facility to record Teleport events and
-// sessions. It implements IAuditLog
+// sessions. It implements AuditLogSessionStreamer
 type AuditLog struct {
 	sync.RWMutex
 	AuditLogConfig
@@ -215,7 +215,7 @@ type AuditLogConfig struct {
 	UploadHandler MultipartHandler
 
 	// ExternalLog is a pluggable external log service
-	ExternalLog ExternalAuditLogger
+	ExternalLog AuditLogger
 
 	// Context is audit log context
 	Context context.Context
@@ -999,8 +999,8 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	return c, e
 }
 
-// getLocalLog returns the local (file based) ExternalAuditLogger.
-func (l *AuditLog) getLocalLog() ExternalAuditLogger {
+// getLocalLog returns the local (file based) AuditLogger.
+func (l *AuditLog) getLocalLog() AuditLogger {
 	l.RLock()
 	defer l.RUnlock()
 
