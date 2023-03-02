@@ -25,14 +25,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// fetchOSVersionInfo returns "" if not on linux and not on darwin.
-func (c *AgentMetadataFetchConfig) fetchOSVersionInfo() string {
-	log.Warningf("fetchOSVersionInfo is not implemented for %s", runtime.GOOS)
+// fetchOSVersion returns "" if not on linux and not on darwin.
+func (c *AgentMetadataFetchConfig) fetchOSVersion() string {
+	log.Warningf("fetchOSVersion is not implemented for %s", runtime.GOOS)
 	return ""
 }
 
-// fetchGlibcVersionInfo returns "" if not on linux and not on darwin.
-func (c *AgentMetadataFetchConfig) fetchGlibcVersionInfo() string {
-	log.Warningf("fetchGlibcVersionInfo is not implemented for %s", runtime.GOOS)
+// fetchGlibcVersion returns "" if not on linux and not on darwin.
+func (c *AgentMetadataFetchConfig) fetchGlibcVersion() string {
+	log.Warningf("fetchGlibcVersion is not implemented for %s", runtime.GOOS)
 	return ""
 }

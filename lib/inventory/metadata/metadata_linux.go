@@ -19,22 +19,53 @@ limitations under the License.
 
 package metadata
 
-// fetchOSVersionInfo returns the content of '/etc/os-release'.
-func (c *AgentMetadataFetchConfig) fetchOSVersionInfo() string {
-	out, err := c.read("/etc/os-release")
+import (
+	"fmt"
+	"strings"
+)
+
+// fetchOSVersion combines the content of '/etc/os-release' to be e.g.
+// "Ubuntu 22.04".
+func (c *AgentMetadataFetchConfig) fetchOSVersion() string {
+	filename := "/etc/os-release"
+	out, err := c.read(filename)
 	if err != nil {
 		return ""
 	}
 
-	return out
+	var name string
+	var versionID string
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		parts := strings.Split(line, "=")
+		if len(parts) != 2 {
+			return ""
+		}
+
+		switch parts[0] {
+		case "NAME":
+			name = strings.Trim(parts[1], `"`)
+		case "VERSION_ID":
+			versionID = strings.Trim(parts[1], `"`)
+		}
+	}
+
+	return fmt.Sprintf("%s %s", name, versionID)
 }
 
-// fetchGlibcVersionInfo returns the output of 'ldd --version'.
-func (c *AgentMetadataFetchConfig) fetchGlibcVersionInfo() string {
+// fetchGlibcVersion parses the output of 'ldd --version' and returns e.g.
+// "2.31".
+func (c *AgentMetadataFetchConfig) fetchGlibcVersion() string {
 	out, err := c.exec("ldd", "--version")
 	if err != nil {
 		return ""
 	}
 
-	return out
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) == 0 {
+		return ""
+	}
+
+	// The glibc version is the last word on the first line.
+	parts := strings.Fields(lines[0])
+	return parts[len(parts)-1]
 }

@@ -64,7 +64,7 @@ func TestFetchHostArchitecture(t *testing.T) {
 			c := &AgentMetadataFetchConfig{
 				execCommand: tc.execCommand,
 			}
-			require.Equal(t, tc.expected, c.fetchHostArchitectureInfo())
+			require.Equal(t, tc.expected, c.fetchHostArchitecture())
 		})
 	}
 }

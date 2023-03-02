@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFetchOSVersionInfo(t *testing.T) {
+func TestFetchOSVersion(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -35,7 +35,7 @@ func TestFetchOSVersionInfo(t *testing.T) {
 		expected    string
 	}{
 		{
-			desc: "set correctly if sw_vers exists",
+			desc: "combined product name and version if sw_vers exists",
 			execCommand: func(name string, args ...string) ([]byte, error) {
 				if name != "sw_vers" {
 					return nil, trace.NotFound("command does not exist")
@@ -69,7 +69,7 @@ func TestFetchOSVersionInfo(t *testing.T) {
 			c := &AgentMetadataFetchConfig{
 				execCommand: tc.execCommand,
 			}
-			require.Equal(t, tc.expected, c.fetchOSVersionInfo())
+			require.Equal(t, tc.expected, c.fetchOSVersion())
 		})
 	}
 }

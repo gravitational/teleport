@@ -23,9 +23,9 @@ import (
 	"fmt"
 )
 
-// fetchOSVersionContent returns something equivalent to the output of
+// fetchOSVersion returns something equivalent to the output of
 // '$(sw_vers -productName) $(sw_vers -productVersion)'.
-func (c *AgentMetadataFetchConfig) fetchOSVersionInfo() string {
+func (c *AgentMetadataFetchConfig) fetchOSVersion() string {
 	productName, err := c.exec("sw_vers", "-productName")
 	if err != nil {
 		return ""
@@ -39,7 +39,7 @@ func (c *AgentMetadataFetchConfig) fetchOSVersionInfo() string {
 	return fmt.Sprintf("%s %s", productName, productVersion)
 }
 
-// fetchGlibcVersionInfo returns "" on darwin.
-func (c *AgentMetadataFetchConfig) fetchGlibcVersionInfo() string {
+// fetchGlibcVersion returns "" on darwin.
+func (c *AgentMetadataFetchConfig) fetchGlibcVersion() string {
 	return ""
 }

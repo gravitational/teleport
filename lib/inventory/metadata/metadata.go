@@ -111,9 +111,9 @@ func FetchAgentMetadata(c *AgentMetadataFetchConfig) proto.UpstreamInventoryAgen
 	c.setDefaults()
 	return proto.UpstreamInventoryAgentMetadata{
 		OS:                    c.fetchOS(),
-		OSVersionInfo:         c.fetchOSVersionInfo(),
-		HostArchitectureInfo:  c.fetchHostArchitectureInfo(),
-		GlibcVersionInfo:      c.fetchGlibcVersionInfo(),
+		OSVersion:             c.fetchOSVersion(),
+		HostArchitecture:      c.fetchHostArchitecture(),
+		GlibcVersion:          c.fetchGlibcVersion(),
 		InstallMethods:        c.fetchInstallMethods(),
 		ContainerRuntime:      c.fetchContainerRuntime(),
 		ContainerOrchestrator: c.fetchContainerOrchestrator(),
@@ -126,14 +126,14 @@ func (c *AgentMetadataFetchConfig) fetchOS() string {
 	return runtime.GOOS
 }
 
-// fetchHostArchitectureInfo returns the output of arch.
-func (c *AgentMetadataFetchConfig) fetchHostArchitectureInfo() string {
-	out, err := c.exec("arch")
+// fetchHostArchitecture returns the output of arch.
+func (c *AgentMetadataFetchConfig) fetchHostArchitecture() string {
+	arch, err := c.exec("arch")
 	if err != nil {
 		return ""
 	}
 
-	return out
+	return arch
 }
 
 // fetchInstallMethods returns the list of methods used to install the agent.
