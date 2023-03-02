@@ -246,6 +246,7 @@ func onStart(botConfig *config.BotConfig) error {
 		select {
 		case <-telemetrySentCh:
 			return
+		case <-ctx.Done():
 		default:
 		}
 
