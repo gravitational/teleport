@@ -20,6 +20,8 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha";
 
+// TbotStartEvent is triggered whenever tbot starts, regardless of whether tbot
+// was able to successfully connect to or authenticate with a Teleport cluster.
 message TbotStartEvent {
   // RunMode specifies whether or not tbot has been configured to run once
   // and output certificates, or continually renew certificates in the
