@@ -790,6 +790,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			DisconnectExpiredCert: types.NewBoolOption(false),
 			LockingMode:           constants.LockingModeBestEffort,
 			AllowPasswordless:     types.NewBoolOption(true),
+			AllowHeadless:         types.NewBoolOption(true),
 			IDP: &types.IdPOptions{
 				SAML: &types.IdPSAMLOptions{
 					Enabled: types.NewBoolOption(true),
@@ -3317,6 +3318,89 @@ func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
 			} else {
 				assert.NoError(t, err, "ApplyFileConfig mismatch")
 			}
+		})
+	}
+}
+
+func TestApplyDiscoveryConfig(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name              string
+		discoveryConfig   Discovery
+		expectedDiscovery service.DiscoveryConfig
+	}{
+		{
+			name:            "no matchers",
+			discoveryConfig: Discovery{},
+			expectedDiscovery: service.DiscoveryConfig{
+				Enabled: true,
+			},
+		},
+		{
+			name: "azure matchers",
+			discoveryConfig: Discovery{
+				AzureMatchers: []AzureMatcher{
+					{
+						Types:         []string{"aks", "vm"},
+						Subscriptions: []string{"abcd"},
+						InstallParams: &InstallParams{
+							JoinParams: JoinParams{
+								TokenName: "azure-token",
+								Method:    "azure",
+							},
+							ScriptName:      "default-installer",
+							PublicProxyAddr: "proxy.example.com",
+						},
+					},
+				},
+			},
+			expectedDiscovery: service.DiscoveryConfig{
+				Enabled: true,
+				AzureMatchers: []services.AzureMatcher{
+					{
+						Subscriptions: []string{"abcd"},
+						Types:         []string{"aks", "vm"},
+						Params: services.InstallerParams{
+							JoinMethod:      "azure",
+							JoinToken:       "azure-token",
+							ScriptName:      "default-installer",
+							PublicProxyAddr: "proxy.example.com",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "azure matchers no installer",
+			discoveryConfig: Discovery{
+				AzureMatchers: []AzureMatcher{
+					{
+						Types:         []string{"aks"},
+						Subscriptions: []string{"abcd"},
+					},
+				},
+			},
+			expectedDiscovery: service.DiscoveryConfig{
+				Enabled: true,
+				AzureMatchers: []services.AzureMatcher{
+					{
+						Subscriptions: []string{"abcd"},
+						Types:         []string{"aks"},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fc, err := ReadConfig(bytes.NewBufferString(NoServicesConfigString))
+			require.NoError(t, err)
+			fc.Discovery = tc.discoveryConfig
+			fc.Discovery.EnabledFlag = "yes"
+			cfg := service.MakeDefaultConfig()
+			require.NoError(t, applyDiscoveryConfig(fc, cfg))
+			require.Equal(t, tc.expectedDiscovery, cfg.Discovery)
 		})
 	}
 }

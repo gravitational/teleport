@@ -67,6 +67,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindClusterName, RW()),
 					types.NewRule(types.KindClusterNetworkingConfig, RW()),
 					types.NewRule(types.KindSessionRecordingConfig, RW()),
+					types.NewRule(types.KindUIConfig, RW()),
 					types.NewRule(types.KindTrustedCluster, RW()),
 					types.NewRule(types.KindRemoteCluster, RW()),
 					types.NewRule(types.KindToken, RW()),
