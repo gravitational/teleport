@@ -776,7 +776,7 @@ type SessionStreamer interface {
 	// (oldest first).
 	//
 	// after is used to return events after a specified cursor ID
-	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error)
+	GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error)
 
 	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
 	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
