@@ -1,0 +1,274 @@
+name: Build Docker image
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        description: "The name of the OSS teleport repo to checkout"
+        required: false
+        type: string
+
+      oss-teleport-ref:
+        description: 'Git SHA, tag or branch of the revision of OSS teleport to build'
+        required: true
+        type: string
+
+      source-tag:
+        description: "The semver version tag of the Teleport revision that we're building."
+        required: true
+        type: string
+
+      base-image:
+        description: "The base image to be used when building the docker image"
+        required: true
+        type: string
+ 
+      dest-image-repo:
+        description: "The destination image repository (omitting tag)"
+        required: true
+        type: string
+
+      dest-image-tag:
+        description: |
+          Tag for the testination image
+        required: false
+        type: string
+
+      teleport-release:
+        description: | 
+          The release of teleport to include on the image. Must be either `oss`
+          or `enterprise`
+        required: true
+        type: string
+
+      teleport-version:
+        description: |
+          Teleport version used for constructing the debian package filename. Must 
+          not include a leading `v` in the version tag.
+        required: true
+        type: string
+
+      dronestorage-access-role-arn:
+        description: |
+          ARN of the role used to access the dronestorage bucket, for retreiving 
+          artefacts built by Drone.
+        required: true
+        type: string
+
+      dronestorage-bucket-name:
+        description: |
+          Name of the dronestorage bucket holding the debian package artifacts
+          built by Drone
+        required: true
+        type: string
+
+      build-role-arn:
+        description: |
+          ARN of the AWS role to assume for storing and signing the OCI
+          container images
+        required: true
+        type: string
+
+      signing-key-arn:
+        description:
+          ARN of AWS KMS key to use when signing the resulting image
+        type: string
+        required: true
+
+      image-build-args:
+        description:
+          An optional string containing arbitrary extra build args to be passed
+          to `docker buildx build`. Formatted as a newline-separated list, as
+          per https://github.com/marketplace/actions/docker-setup-buildx#inputs
+        type: string
+        required: false
+
+    secrets:
+      deploy-access-app-id:
+        description: |
+          The ID of the GitHub app used to grant deployment access for repos
+          to the workflow.
+        required: true
+
+      deploy-access-app-key:
+        description: | 
+          The private key used to authenticate against the deployment access
+          GitGub app.
+        required: true
+jobs:
+  build-docker-image:
+    name: Build Multiarch OCI image
+    runs-on: ubuntu-22.04-16core
+    environment: staging
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Configure environment
+        run: |
+          DEB_RELEASE_INFIX=""
+          case "${{ inputs.teleport-release }}" in
+            "oss")
+              ;;
+
+            "enterprise")
+              DEB_RELEASE_INFIX="-ent"
+              ;;
+
+            *)
+              echo "Unsupported release type: ${{ inputs.teleport-release }}"
+              exit 1
+              ;;
+          esac
+          echo "DEB_RELEASE_INFIX=$DEB_RELEASE_INFIX" >> $GITHUB_ENV
+
+      - name: Set up Docker QEMU integration
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          driver: docker-container
+
+      # The distroless validation keywas sourced from
+      # https://github.com/GoogleContainerTools/distroless/blob/main/cosign.pub
+      - name: Install Distroless Image Validation Key 
+        run: |
+          cat << EOF > distroless-key.pub
+          -----BEGIN PUBLIC KEY-----
+          MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEWZzVzkb8A+DbgDpaJId/bOmV8n7Q
+          OqxYbK0Iro6GzSmOzxkn+N2AKawLyXi84WSwJQBK//psATakCgAQKkNTAA==
+          -----END PUBLIC KEY-----
+          EOF
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@9becc617647dfa20ae7b1151972e9b3a2c338a2b # v2.8.1
+        with:
+          cosign-release: 'v1.13.1'
+
+      # Attempt to fetch a deploy token from the GitHub App we use to broker
+      # access to private repositories. If this fails, we are in one of 2 
+      # situations:
+      #
+      # 1. The App is not installed on the target repo (e.g. public Teleport), or
+      # 2. Something is wrong with GitHub
+      #
+      # In either case, the workflow will carry on and attempt to use the
+      # default workflow token to check out the target repo, which will be
+      # fine if that repo is public.
+      #
+      - name: Fetch GitHub deploy token
+        uses: tibdex/github-app-token@v1
+        id: fetch-token
+        continue-on-error: true
+        with:
+          app_id: ${{ secrets.deploy-access-app-id }}
+          repository: ${{ inputs.oss-teleport-repo }}
+          private_key: ${{ secrets.deploy-access-app-key }}
+
+      - name: Select GitHub deploy token
+        id: select-deploy-token
+        run: |
+          TOKEN=${{ github.token }}
+          if [[ -n "${{ steps.fetch-token.outputs.token }}" ]]; then
+            TOKEN=${{ steps.fetch-token.outputs.token }}
+          fi
+          echo oss_teleport=$TOKEN >> $GITHUB_OUTPUT
+
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ inputs.oss-teleport-repo }}
+          ref: ${{ inputs.oss-teleport-ref }}
+          token: ${{ steps.select-deploy-token.outputs.oss_teleport }}
+          path: ./teleport
+
+      - name: Copy Docker Image context
+        run: |
+          mkdir ./build
+          cp -r ./teleport/build.assets/charts/* ./build
+          tree ./build
+
+      - name: Assume Legacy Drone storage AWS role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region:  us-west-2
+          role-to-assume: ${{ inputs.dronestorage-access-role-arn }}
+          role-session-name: "gha-docker-image-build-${{ github.run_number }}-${{ inputs.source-tag }}"
+          role-duration-seconds: 3600
+
+      - name: Download Teleport Debian packages
+        run: |
+          for arch in amd64 arm64; do
+            export TELEPORT_DEB_FILE_NAME=teleport${{ env.DEB_RELEASE_INFIX }}_${{ inputs.teleport-version }}_$arch.deb          
+            aws s3 cp s3://${{ inputs.dronestorage-bucket-name }}/teleport/tag/${{ inputs.teleport-version }}/$TELEPORT_DEB_FILE_NAME ./build/$TELEPORT_DEB_FILE_NAME
+          done
+          tree ./build
+
+      - name: Verify base image 
+        run: |
+          cosign verify --key ./distroless-key.pub ${{ inputs.base-image }} > validated-image.json
+          BASE_IMAGE_HASH=$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)
+          echo BASE_IMAGE_HASH=$BASE_IMAGE_HASH >> $GITHUB_ENV
+
+      - name: Assume tag build AWS role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region:  us-west-2
+          role-to-assume: ${{ inputs.build-role-arn }}
+          role-session-name: "gha-docker-image-build-${{ github.run_number }}"
+          role-duration-seconds: 3600
+
+      - name: Login to ECR
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ inputs.dest-image-repo }}
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v3
+        id: build
+        with:
+          file: ./build/Dockerfile-distroless
+          context: ./build
+          platforms: linux/arm64,linux/amd64
+          push: true
+          tags: ${{ inputs.dest-image-repo }}:${{ inputs.dest-image-tag }}
+          sbom: true
+          build-args: |
+            BASE_IMAGE=${{ inputs.base-image }}@${{ env.BASE_IMAGE_HASH }}            
+            TELEPORT_RELEASE_INFIX=${{ env.DEB_RELEASE_INFIX }}
+            ${{ inputs.image-build-args }}
+
+      - name: Sign image
+        run: |        
+          cosign sign --key awskms:///${{ inputs.signing-key-arn }} --recursive "${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
+
+  trivy-scan:
+    name: Scan Multiarch Image with Trivy
+    runs-on: ubuntu-latest
+    needs: build-docker-image
+    environment: staging
+    steps:
+      - name: Assume tag build AWS role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region:  us-west-2
+          role-to-assume: ${{ inputs.build-role-arn }}
+          role-session-name: "gha-docker-image-build-${{ github.run_number }}-trivy"
+          role-duration-seconds: 3600
+
+      - name: Login to ECR
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ inputs.dest-image-repo }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ inputs.dest-image-repo }}@${{ needs.build-docker-image.outputs.image-digest }}"
+          ignore-unfixed: true
+          format: "sarif"
+          output: "trivy-results.sarif"          
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: "trivy-results.sarif"

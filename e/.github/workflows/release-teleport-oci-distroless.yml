@@ -1,16 +1,215 @@
-# This is a placeholder workflow and will be replaced once the appropriate
-# functionality passes code review.
-#
-# Dispatching workflow calls to a GHA workflow on a branch requires that a
-# workflow file with the correct name exists in the default branch, even
-# if that workflow bears no resemblance to the target workflow
-
-name: Build Docker image
+name: Build Distroless Images
 on:
   workflow_dispatch:
+    inputs: 
+      oss-teleport-repo:
+        description: |
+          The name of the OSS teleport repo to checkout
+        required: false
+        type: string
+        default: "gravitational/teleport"
+
+      oss-teleport-ref:
+        description: |
+          Git SHA, tag or branch of the revision of OSS teleport to build
+        required: true
+        type: string
+
+      source-tag:
+        description: |
+          The semver version of Teleport that we're building for. If not set 
+          will be inferred form the `oss-teleport-ref` by assuming that it's
+          a standard Teleport release tag in the form vX.Y.Z.
+        type: string
+        default: ""
+
+      dronestorage-bucket-name:
+        description: |
+          Name of the dronestorage bucket holding the debian package artifacts
+          built by Drone
+        required: true
+        type: string
+        default: dronestorage.gravitational.io
+
+      dronestorage-access-role-arn:
+        description: |
+          ARN of the role used to access the dronestorage bucket, for retreiving 
+          artefacts built by Drone.
+        required: true
+        type: string
+        default: arn:aws:iam::126027368216:role/tf-teleport-oci-tag-build-gha
+
+      build-role-arn:
+        description: |
+          The ARN of the role used to sign and store the resulting image(s) in
+          ECR
+        required: true
+        type: string
+        default: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha
+
+      signing-key-arn:
+        description: |
+          ARN of the KMS key used to sign the resulting images. Must be
+          readable from the role specified by `build-role-arn`.
+        required: true
+        type: string
+        default: arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
+
+      dest-repo-prefix:
+        description: |
+          Registry and namespace prefix for the destination repository,
+          formatted for use with Docker (that is, like a URI, not the AWS
+          ARN). 
+        type: string
+        required: true
+        default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
+
+run-name: Build Distroless Images for Teleport ${{ inputs.source-tag }}
+
 jobs:
-  dummy:
+  configure:
+    name: Configure Build
     runs-on: ubuntu-latest
+    outputs:
+      teleport_version: ${{ steps.version.outputs.teleport_version }}
     steps:
-      - name: Greeting
-        run: echo "This is a dummy build to placate GitHub."
+      - name: Parse version tag
+        id: version
+        run: |
+          TAG=${{ inputs.source-tag }}
+          if [[ -z "$TAG" ]]; then
+            TAG=${{ inputs.oss-teleport-ref }}
+          fi
+          VERSION=${TAG#v}
+          echo teleport_version=$VERSION >> $GITHUB_OUTPUT
+
+  build-docker-images:
+    name: Build OCI container images
+    needs: configure
+    permissions:
+      id-token: write  # required for aws-actions/configure-aws-credentials
+      security-events: write # required for trivy scan
+      contents: read
+      actions: read
+    strategy:
+      matrix:
+        mode: ['debug', 'production']
+        release: ['oss', 'enterprise']
+        include:
+          - mode: 'production'
+            base-image: 'gcr.io/distroless/cc-debian11:latest'
+            repo-debug-suffix: ''
+          - mode: 'debug'
+            base-image: 'gcr.io/distroless/cc-debian11:debug'
+            repo-debug-suffix: '-debug'
+          - release: 'oss'
+            repo-enterprise-infix: ''
+          - release: 'enterprise'
+            repo-enterprise-infix: '-ent'
+    uses: ./.github/workflows/oci-image-build.yml
+    with:
+      teleport-release: ${{ matrix.release }}
+      base-image: ${{ matrix.base-image }}
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      dronestorage-bucket-name: ${{ inputs.dronestorage-bucket-name }}
+      dronestorage-access-role-arn: ${{ inputs.dronestorage-access-role-arn }}
+      source-tag: ${{ inputs.source-tag }}
+      teleport-version: ${{ needs.configure.outputs.teleport_version }}
+      dest-image-repo: ${{ inputs.dest-repo-prefix }}/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}
+      dest-image-tag: ${{ needs.configure.outputs.teleport_version }}
+      build-role-arn: ${{ inputs.build-role-arn }}
+      signing-key-arn: ${{ inputs.signing-key-arn }}
+      image-build-args: |
+        TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
+    secrets:
+      deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+      deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+               
+  smoke-tests:
+    runs-on: ubuntu-latest
+    needs: [configure, build-docker-images]
+    permissions:
+      id-token: write  # required for aws-actions/configure-aws-credentials
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        mode: ['debug', 'production']
+        release: ['oss', 'enterprise']
+        include:
+          - mode: 'production'
+            repo-debug-suffix: ''
+          - mode: 'debug'
+            repo-debug-suffix: '-debug'
+          - release: 'oss'
+            repo-enterprise-infix: ''
+          - release: 'enterprise'
+            repo-enterprise-infix: '-ent'
+    name: "Smoke test ${{ matrix.arch }}/${{ matrix.release }}/${{ matrix.mode }}"
+    steps:
+      # Attempt to fetch a deploy token from the GitHub App we use to broker
+      # access to private repositories. If this fails, we are in one of 2 
+      # situations:
+      #
+      # 1. The App is not installed on the target repo (e.g. public Teleport), or
+      # 2. Something is wrong with GitHub
+      #
+      # In either case, the workflow will carry on and attempt to use the
+      # default workflow token to check out the target repo, which will be
+      # fine if that repo is public.
+      #
+      - name: Fetch deploy token
+        uses: tibdex/github-app-token@v1
+        id: fetch-token
+        continue-on-error: true
+        with:
+          repository: ${{ inputs.oss-teleport-repo }}
+          app_id: ${{ secrets.DEPLOY_APP_ID  }}          
+          private_key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Select token
+        id: select-deploy-token
+        run: |
+          TOKEN=${{ github.token }}
+          if [[ -n "${{ steps.fetch-token.outputs.token }}" ]]; then
+            TOKEN=${{ steps.fetch-token.outputs.token }}
+          fi
+          echo oss_teleport=$TOKEN >> $GITHUB_OUTPUT
+
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ inputs.oss-teleport-repo }}
+          ref: ${{ inputs.oss-teleport-ref }}
+          token: ${{ steps.select-deploy-token.outputs.oss_teleport }}
+          path: ./teleport
+
+      - name: Set up Docker QEMU integration
+        uses: docker/setup-qemu-action@v2
+
+      - name: Assume tag build AWS role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region:  us-west-2
+          role-to-assume: ${{ inputs.build-role-arn }}
+          role-session-name: "gha-docker-image-build-${{ github.run_number }}-${{ matrix.arch }}-${{ matrix.release }}-${{ matrix.mode }}-smoke-test"
+          role-duration-seconds: 3600
+
+      - name: Login to ECR
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ inputs.dest-repo-prefix }}
+
+      # NOTE: We're referring to the image by tag here, as there is no nice way
+      #       to (de-)mux the outputs from a matrix job. The "pending" registry
+      #       has immutable tags enabled, so we're reasonably safe in assuming
+      #       that the tag referrs to the image built in the last step is the
+      #       correct one
+      - name: Smoke tests
+        run: |          
+          IMAGE_UNDER_TEST=${{ inputs.dest-repo-prefix}}/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}:${{ needs.configure.outputs.teleport_version }}
+          ./run linux/${{ matrix.arch }} $IMAGE_UNDER_TEST ${{ matrix.release }}
+        working-directory: ./teleport/build.assets/charts/smoke_tests      
