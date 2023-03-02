@@ -176,6 +176,7 @@ var allowedCertificateTypes = []string{
 	"tls-user-der",
 	"windows",
 	"db",
+	"db-der",
 	"openssh",
 	"saml-idp",
 }

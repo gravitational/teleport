@@ -201,6 +201,15 @@ func TestExportAuthorities(t *testing.T) {
 				},
 				assertSecrets: validatePrivateKeyPEMFunc,
 			},
+			{
+				name: "db-der",
+				req: ExportAuthoritiesRequest{
+					AuthType: "db-der",
+				},
+				errorCheck:      require.NoError,
+				assertNoSecrets: validateTLSCertificateDERFunc,
+				assertSecrets:   validatePrivateKeyDERFunc,
+			},
 		} {
 			t.Run(fmt.Sprintf("%s_exportSecrets_%v", tt.name, exportSecrets), func(t *testing.T) {
 				mockedClient := &mockAuthClient{
