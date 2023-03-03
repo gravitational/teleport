@@ -55,11 +55,6 @@ var (
 // We define our own version to not create dependency on the 'services' package, which causes circular references
 type CertAuthorityGetter = func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
-// CertAuthorityGetter allows to get cluster's host CA for verification of signed PROXY headers.
-//type CertAuthorityGetter interface {
-//	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
-//}
-
 // Config is a multiplexer config
 type Config struct {
 	// Listener is listener to multiplex connection on
