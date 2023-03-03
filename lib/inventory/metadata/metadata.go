@@ -126,8 +126,8 @@ func getKubeClient() kubernetes.Interface {
 	return client
 }
 
-// fetchMetadata fetches all metadata.
-func (c *fetchConfig) fetchMetadata() *Metadata {
+// fetch fetches all metadata.
+func (c *fetchConfig) fetch() *Metadata {
 	return &Metadata{
 		OS:                    c.fetchOS(),
 		OSVersion:             c.fetchOSVersion(),
