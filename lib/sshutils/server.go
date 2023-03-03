@@ -482,7 +482,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// create a new SSH server which handles the handshake (and pass the custom
 	// payload structure which will be populated only when/if this connection
 	// comes from another Teleport proxy):
-	wrappedConn := WrapConnection(wconn, s.caGetter, s.clusterName, s.clock, s.log)
+	wrappedConn := wrapConnection(wconn, s.caGetter, s.clusterName, s.clock, s.log)
 	sconn, chans, reqs, err := ssh.NewServerConn(wrappedConn, &s.cfg)
 	if err != nil {
 		// Ignore EOF as these are triggered by loadbalancer health checks
@@ -865,9 +865,9 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 
 type CertAuthorityGetter = func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
-// WrapConnection takes a network connection, wraps it into connectionWrapper
+// wrapConnection takes a network connection, wraps it into connectionWrapper
 // object (which overrides Read method) and returns the wrapper.
-func WrapConnection(conn net.Conn, caGetter CertAuthorityGetter, localClusterName string, clock clockwork.Clock, logger logrus.FieldLogger) *connectionWrapper {
+func wrapConnection(conn net.Conn, caGetter CertAuthorityGetter, localClusterName string, clock clockwork.Clock, logger logrus.FieldLogger) *connectionWrapper {
 	return &connectionWrapper{
 		Conn:        conn,
 		clientAddr:  conn.RemoteAddr(),

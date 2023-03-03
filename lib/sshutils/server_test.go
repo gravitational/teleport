@@ -345,7 +345,7 @@ func startSSHServer(t *testing.T, listener net.Listener) {
 
 	t.Cleanup(func() { nConn.Close() })
 
-	wConn := WrapConnection(nConn, nil, "", clockwork.NewRealClock(), logrus.New())
+	wConn := wrapConnection(nConn, nil, "", clockwork.NewRealClock(), logrus.New())
 
 	block, _ := pem.Decode(fixtures.LocalhostKey)
 	pkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
