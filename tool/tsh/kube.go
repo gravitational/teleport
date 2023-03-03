@@ -570,40 +570,70 @@ func newKubeCredentialsCommand(parent *kingpin.CmdClause) *kubeCredentialsComman
 }
 
 func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
+	// client.LoadKeysToKubeFromStore function is used to speed up the credentials
+	// loading process since Teleport Store transverses the entire store to find the keys.
+	// This operation takes a long time when the store has a lot of keys and when
+	// we call the function multiple times in parallel.
+	// Although client.LoadKeysToKubeFromStore function speeds up the process
+	// since it removes all transversals, it still has to read 4 different files:
+	// - $TSH_HOME/current_profile
+	// - $TSH_HOME/$profile.yaml
+	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
+	// - $TSH_HOME/keys/$PROXY/$USER
+	if kubeCert, privKey, err := client.LoadKeysToKubeFromStore(
+		cf.HomePath,
+		c.teleportCluster,
+		c.kubeCluster,
+	); err == nil {
+		crt, _ := tlsca.ParseCertificatePEM(kubeCert)
+		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
+			log.Debugf("Re-using existing TLS cert for Kubernetes cluster %q", c.kubeCluster)
+			return c.writeByteResponse(cf.Stdout(), kubeCert, privKey, crt.NotAfter)
+		}
+	}
+
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/GetKey")
 	// Try loading existing keys.
 	k, err := tc.LocalAgent().GetKey(c.teleportCluster, client.WithKubeCerts{})
+	span.End()
+
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 	// Loaded existing credentials and have a cert for this cluster? Return it
 	// right away.
 	if err == nil {
+		_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/KubeTLSCertificate")
 		crt, err := k.KubeTLSCertificate(c.kubeCluster)
+		span.End()
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
 			log.Debugf("Re-using existing TLS cert for Kubernetes cluster %q", c.kubeCluster)
-			return c.writeResponse(cf.Stdout(), k, c.kubeCluster)
+			return c.writeKeyResponse(cf.Stdout(), k, c.kubeCluster)
 		}
 		// Otherwise, cert for this k8s cluster is missing or expired. Request
 		// a new one.
 	}
 
 	log.Debugf("Requesting TLS cert for Kubernetes cluster %q", c.kubeCluster)
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+
+	ctx, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/RetryWithRelogin")
+	err = client.RetryWithRelogin(ctx, tc, func() error {
 		var err error
-		k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+		k, err = tc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 			RouteToCluster:    c.teleportCluster,
 			KubernetesCluster: c.kubeCluster,
 		}, nil /*applyOpts*/)
 		return err
 	})
+	span.End()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -620,7 +650,7 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	return c.writeResponse(cf.Stdout(), k, c.kubeCluster)
+	return c.writeKeyResponse(cf.Stdout(), k, c.kubeCluster)
 }
 
 // checkIfCertsAreAllowedToAccessCluster evaluates if the new cert created by the user
@@ -665,7 +695,7 @@ func checkIfCertHasKubeGroupsAndUsers(certB []byte) (bool, error) {
 	return false, nil
 }
 
-func (c *kubeCredentialsCommand) writeResponse(output io.Writer, key *client.Key, kubeClusterName string) error {
+func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, key *client.Key, kubeClusterName string) error {
 	crt, err := key.KubeTLSCertificate(kubeClusterName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -683,10 +713,27 @@ func (c *kubeCredentialsCommand) writeResponse(output io.Writer, key *client.Key
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	return trace.Wrap(c.writeResponse(output, key.KubeTLSCerts[kubeClusterName], rsaKeyPEM, expiry))
+}
+
+// writeByteResponse writes the exec credential response to the output stream.
+func (c *kubeCredentialsCommand) writeByteResponse(output io.Writer, kubeTLSCert, rsaKeyPEM []byte, expiry time.Time) error {
+	// Indicate slightly earlier expiration to avoid the cert expiring
+	// mid-request, if possible.
+	if time.Until(expiry) > time.Minute {
+		expiry = expiry.Add(-1 * time.Minute)
+	}
+
+	return trace.Wrap(c.writeResponse(output, kubeTLSCert, rsaKeyPEM, expiry))
+}
+
+// writeResponse writes the exec credential response to the output stream.
+func (c *kubeCredentialsCommand) writeResponse(output io.Writer, kubeTLSCert, rsaKeyPEM []byte, expiry time.Time) error {
 	resp := &clientauthentication.ExecCredential{
 		Status: &clientauthentication.ExecCredentialStatus{
 			ExpirationTimestamp:   &metav1.Time{Time: expiry},
-			ClientCertificateData: string(key.KubeTLSCerts[kubeClusterName]),
+			ClientCertificateData: string(kubeTLSCert),
 			ClientKeyData:         string(rsaKeyPEM),
 		},
 	}

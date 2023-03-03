@@ -332,6 +332,9 @@ const (
 	// KindOktaAssignment is a set of actions to apply to Okta.
 	KindOktaAssignment = "okta_assignment"
 
+	// KindHeadlessAuthentication is a headless authentication resource.
+	KindHeadlessAuthentication = "headless_authentication"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
@@ -427,6 +430,14 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
+	// SubscriptionIDLabel is used to identify virtual machines by Azure
+	// subscription ID found via automatic discovery, to avoid re-running
+	// installation commands on the node.
+	SubscriptionIDLabel = TeleportNamespace + "/subscription-id"
+	// VMIDLabel is used to identify virtual machines by ID found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	VMIDLabel = TeleportNamespace + "/vm-id"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
