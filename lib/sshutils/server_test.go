@@ -35,7 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -337,7 +337,7 @@ func getProxyHelloSignaturePayload(t *testing.T) []byte {
 	payloadJSON, err := json.Marshal(hp)
 	require.NoError(t, err)
 
-	return []byte(fmt.Sprintf("%s%s\x00", teleport.ProxyHelloSignature, payloadJSON))
+	return []byte(fmt.Sprintf("%s%s\x00", constants.ProxyHelloSignature, payloadJSON))
 }
 
 func startSSHServer(t *testing.T, listener net.Listener) {

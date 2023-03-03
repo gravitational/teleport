@@ -39,6 +39,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -501,7 +502,7 @@ var (
 	ProxyV2Prefix    = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
 	sshPrefix        = []byte{'S', 'S', 'H'}
 	tlsPrefix        = []byte{0x16}
-	proxyHelloPrefix = []byte(teleport.ProxyHelloSignature)
+	proxyHelloPrefix = []byte(constants.ProxyHelloSignature)
 )
 
 // This section defines Postgres wire protocol messages detected by Teleport:
