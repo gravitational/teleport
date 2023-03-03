@@ -654,9 +654,18 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
 
-	if !rc.force {
-		return trace.AlreadyExists("nodes cannot be created, only upserted")
+	name := server.GetName()
+	_, err = client.GetNode(ctx, server.GetNamespace(), name)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+	if !rc.IsForced() && exists {
+		return trace.AlreadyExists("node %q already exists, use -f flag to override", name)
 	}
 
 	_, err = client.UpsertNode(ctx, server)

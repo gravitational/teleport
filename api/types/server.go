@@ -18,12 +18,14 @@ package types
 
 import (
 	"fmt"
+	"net/netip"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -392,11 +394,38 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	// defaults.ServerAnnounceTTL).
 	s.setStaticFields()
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+		// if the server is a registered OpenSSH node, allow the name
+		// to be randomly generated
+		if s.SubKind == KindOpenSSHNode && trace.UserMessage(err) == "missing parameter Name" {
+			s.Metadata.Name = uuid.New().String()
+			if err := s.Metadata.CheckAndSetDefaults(); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			return trace.Wrap(err)
+		}
 	}
 
 	if s.Kind == "" {
 		return trace.BadParameter("server Kind is empty")
+	}
+	if s.SubKind == "" {
+		s.SubKind = KindTeleportNode
+	} else if s.SubKind == KindOpenSSHNode {
+		if s.Spec.Addr == "" {
+			return trace.BadParameter(`Addr must be set when server SubKind is "openssh"`)
+		}
+		if s.Spec.PublicAddr != "" {
+			return trace.BadParameter(`PublicAddr must not be set when server SubKind is "openssh"`)
+		}
+		if s.Spec.Hostname == "" {
+			return trace.BadParameter(`Hostname must be set when server SubKind is "openssh"`)
+		}
+
+		_, err := netip.ParseAddrPort(s.Spec.Addr)
+		if err != nil {
+			return trace.BadParameter("invalid Addr: %v", err)
+		}
 	}
 
 	for key := range s.Spec.CmdLabels {
