@@ -131,6 +131,7 @@ func (h *downstreamHandle) closing() bool {
 // with the auth server).
 func (h *downstreamHandle) autoEmitMetadata() {
 	metadata := metadata.Get(h.CloseContext())
+	log.Debugf("autoEmitMetadata install methods: %+v", metadata.InstallMethods)
 	msg := proto.UpstreamInventoryAgentMetadata{
 		OS:                    metadata.OS,
 		OSVersion:             metadata.OSVersion,

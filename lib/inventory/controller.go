@@ -501,6 +501,8 @@ func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.Upstrea
 		svcs = append(svcs, strings.ToLower(svc.String()))
 	}
 
+	log.Debugf("handleAgentMetadata install methods: %+v", m.InstallMethods)
+
 	if err := c.usageReporter.AnonymizeAndSubmit(&usagereporter.AgentMetadataEvent{
 		Version:               handle.Hello().Version,
 		HostId:                handle.Hello().ServerID,

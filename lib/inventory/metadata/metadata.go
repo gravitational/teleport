@@ -170,12 +170,15 @@ func (c *fetchConfig) fetchInstallMethods() []string {
 	if c.systemctlInstallMethod() {
 		installMethods = append(installMethods, "systemctl")
 	}
+	log.Debugf("fetchInstallMethods install methods: %+v", installMethods)
 	return installMethods
 }
 
 // dockerfileInstallMethod returns true if the instance was installed using our
 // Dockerfile.
 func (c *fetchConfig) dockerfileInstallMethod() bool {
+	log.Debugf("dockerfileInstallMethod c.getenv: %+v", c.getenv("TELEPORT_INSTALL_METHOD_DOCKERFILE"))
+	log.Debugf("dockerfileInstallMethod os.Getenv: %+v", os.Getenv("TELEPORT_INSTALL_METHOD_DOCKERFILE"))
 	return c.getenv("TELEPORT_INSTALL_METHOD_DOCKERFILE") == "true"
 }
 
