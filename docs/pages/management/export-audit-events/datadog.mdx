@@ -7,9 +7,7 @@ Datadog is a SAAS monitoring and security platform. In this guide, we'll explain
 how to forward Teleport audit events to Datadog using Fluentd.
 
 The Teleport Event Handler is designed to communicate with Fluentd using mTLS
-to establish a secure channel. While we can use this same configuration to connect
-directly to [Splunk](./splunk.mdx) or [Elastic](./elastic-stack.mdx), Datadog uses
-an API endpoint with keys, so we will use Fluentd as an intermediary.
+to establish a secure channel. In this setup, the Event Handler sends events to Fluentd, which forwards them to Datadog using an API key to authenticate.
 
 {/*
 The Graph below is made with this mermaidjs logic:
