@@ -32,6 +32,8 @@ var fetchOnce sync.Once
 // The resulting metadata is cached, so subsequent calls will be fast.
 // Note that the context used to retrieve the metadata is the one passed in to
 // the first `Get` call.
+// The return value of Get might be shared between callers and should not be
+// modified.
 func Get(ctx context.Context) *Metadata {
 	fetchOnce.Do(func() {
 		defaultFetcher := &fetchConfig{context: ctx}
