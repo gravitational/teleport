@@ -43,21 +43,21 @@ test('duplicate accelerators are returned', () => {
   const service = new KeyboardShortcutsService(
     'darwin',
     createMockConfigService({
-      'keymap.tab1': 'Cmd+1',
-      'keymap.tab2': 'Cmd+1',
-      'keymap.tab3': 'Cmd+2',
+      'keymap.tab1': 'Command+1',
+      'keymap.tab2': 'Command+1',
+      'keymap.tab3': 'Command+2',
     })
   );
 
   expect(service.getDuplicateAccelerators()).toStrictEqual({
-    'Cmd+1': ['tab1', 'tab2'],
+    'Command+1': ['tab1', 'tab2'],
   });
 });
 
 function getTestSetup() {
   const service = new KeyboardShortcutsService(
     'darwin',
-    createMockConfigService({ 'keymap.tab1': 'Cmd+1' })
+    createMockConfigService({ 'keymap.tab1': 'Command+1' })
   );
   const subscriber = jest.fn();
   service.subscribeToEvents(subscriber);

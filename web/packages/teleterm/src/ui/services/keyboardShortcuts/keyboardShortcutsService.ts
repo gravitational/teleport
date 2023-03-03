@@ -136,14 +136,18 @@ export class KeyboardShortcutsService {
     return this.acceleratorsToActions.get(accelerator)?.[0];
   }
 
+  /**
+   * It is important that these modifiers are in the same order as in `getKeyboardShortcutSchema#getSupportedModifiers`.
+   * Consider creating "one source of truth" for them.
+   */
   private getPlatformModifierKeys(event: KeyboardEvent): string[] {
     switch (this.platform) {
       case 'darwin':
         return [
-          event.metaKey && 'Cmd',
-          event.ctrlKey && 'Ctrl',
+          event.ctrlKey && 'Control',
           event.altKey && 'Option',
           event.shiftKey && 'Shift',
+          event.metaKey && 'Command',
         ];
       default:
         return [

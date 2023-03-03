@@ -68,8 +68,8 @@ function formatAccelerator(options: {
     case 'darwin':
       return options.accelerator
         .replaceAll('+', options.useWhitespaceSeparator ? ' ' : '')
-        .replace('Cmd', '⌘')
-        .replace('Ctrl', '⌃')
+        .replace('Command', '⌘')
+        .replace('Control', '⌃')
         .replace('Option', '⌥')
         .replace('Shift', '⇧');
     default:

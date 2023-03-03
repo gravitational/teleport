@@ -138,14 +138,16 @@ function validateKeyCodeAndModifiers(
   };
 }
 
-/** Returns allowed modifiers for a given platform in the correct order. */
+/** Returns allowed modifiers for a given platform in the correct order.
+ * https://developer.apple.com/design/human-interface-guidelines/inputs/keyboards/#custom-keyboard-shortcuts
+ */
 function getSupportedModifiers(platform: Platform): string[] {
   switch (platform) {
     case 'win32':
     case 'linux':
       return ['Ctrl', 'Alt', 'Shift'];
     case 'darwin':
-      return ['Cmd', 'Ctrl', 'Option', 'Shift'];
+      return ['Control', 'Option', 'Shift', 'Command'];
   }
 }
 
