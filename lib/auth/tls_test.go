@@ -1700,11 +1700,13 @@ func TestGetCertAuthority(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeClt.Close()) })
 
-	// node is authorized to fetch CA without secrets
-	ca, err := nodeClt.GetCertAuthority(ctx, types.CertAuthID{
+	hostCAID := types.CertAuthID{
 		DomainName: tt.server.ClusterName(),
 		Type:       types.HostCA,
-	}, false)
+	}
+
+	// node is authorized to fetch CA without secrets
+	ca, err := nodeClt.GetCertAuthority(ctx, hostCAID, false)
 	require.NoError(t, err)
 	for _, keyPair := range ca.GetActiveKeys().TLS {
 		require.Nil(t, keyPair.Key)
@@ -1714,10 +1716,7 @@ func TestGetCertAuthority(t *testing.T) {
 	}
 
 	// node is not authorized to fetch CA with secrets
-	_, err = nodeClt.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
-		Type:       types.HostCA,
-	}, true)
+	_, err = nodeClt.GetCertAuthority(ctx, hostCAID, true)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// generate server keys for proxy
@@ -1731,11 +1730,8 @@ func TestGetCertAuthority(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, proxyClt.Close()) })
 
 	// proxy can't fetch the host CA with secrets
-	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
-		Type:       types.HostCA,
-	}, true)
-	require.Error(t, err)
+	_, err = proxyClt.GetCertAuthority(ctx, hostCAID, true)
+	require.True(t, trace.IsAccessDenied(err))
 
 	// proxy can fetch SAML IdP CA with secrets
 	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
@@ -1749,7 +1745,7 @@ func TestGetCertAuthority(t *testing.T) {
 		DomainName: tt.server.ClusterName(),
 		Type:       types.DatabaseCA,
 	}, true)
-	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
 
 	// non-admin users are not allowed to get access to private key material
 	user, err := types.NewUser("bob")
@@ -1769,17 +1765,20 @@ func TestGetCertAuthority(t *testing.T) {
 	defer userClt.Close()
 
 	// user is authorized to fetch CA without secrets
-	_, err = userClt.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
-		Type:       types.HostCA,
-	}, false)
+	_, err = userClt.GetCertAuthority(ctx, hostCAID, false)
 	require.NoError(t, err)
 
 	// user is not authorized to fetch CA with secrets
-	_, err = userClt.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
-		Type:       types.HostCA,
-	}, true)
+	_, err = userClt.GetCertAuthority(ctx, hostCAID, true)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// user gets a not found message if a CA doesn't exist
+	require.NoError(t, tt.server.Auth().DeleteCertAuthority(hostCAID))
+	_, err = userClt.GetCertAuthority(ctx, hostCAID, false)
+	require.True(t, trace.IsNotFound(err))
+
+	// user is not authorized to fetch CA with secrets, even if CA doesn't exist
+	_, err = userClt.GetCertAuthority(ctx, hostCAID, true)
 	require.True(t, trace.IsAccessDenied(err))
 }
 

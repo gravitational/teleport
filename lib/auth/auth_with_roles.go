@@ -623,17 +623,22 @@ func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAut
 		readVerb = types.VerbRead
 	}
 
-	ca, err := a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
+	// Create a minimum CA for calculating access to the cert authority.
+	contextCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        id.Type,
+		ClusterName: id.DomainName,
+	})
 	if err != nil {
-		log.WithError(err).Warn("error getting cert authority")
-		return nil, trace.AccessDenied("access denied")
+		return nil, trace.Wrap(err)
 	}
-	sctx := &services.Context{User: a.context.User, Resource: ca}
+
+	sctx := &services.Context{User: a.context.User, Resource: contextCA}
 	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindCertAuthority, readVerb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ca, nil
+	ca, err := a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
+	return ca, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) GetDomainName(ctx context.Context) (string, error) {
