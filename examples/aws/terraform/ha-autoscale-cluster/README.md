@@ -22,7 +22,7 @@ We recommend familiarizing yourself with the following resources prior to review
 
 - [Teleport Architecture](https://goteleport.com/docs/architecture/overview/)
 - [Admin Guide](https://goteleport.com/docs/management/admin/)
-- AWS HA Teleport Terraform Guide: [Running Teleport Enterprise in High Availability mode on AWS](https://goteleport.com/docs/deploy-a-cluster/deployments/aws-terraform/)
+- [Running Teleport Enterprise in High Availability mode on AWS](https://goteleport.com/docs/deploy-a-cluster/deployments/aws-terraform/)
 
 In order to spin up AWS resources using these Terraform examples, you need the following software:
 
