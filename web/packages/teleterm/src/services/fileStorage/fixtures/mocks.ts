@@ -36,7 +36,7 @@ export function createMockFileStorage(opts?: {
     },
 
     getFilePath(): string {
-      return opts?.filePath;
+      return opts?.filePath || '';
     },
   };
 }
