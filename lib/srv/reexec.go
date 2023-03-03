@@ -513,7 +513,7 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 			// The service group doesn't exist. Auto-provision is disabled, do nothing.
 			return nil
 		}
-		return trace.Wrap(err)
+		return nil //trace.Wrap(err)
 	}
 
 	groups, err := localUser.GroupIds()
