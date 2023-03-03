@@ -359,12 +359,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            177
+            178
           </strong>
            of
            
           <strong>
-            177
+            178
           </strong>
         </div>
         <button
@@ -751,7 +751,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [mike] failed to authenticate with the SAML IdP
+          User [mike] failed to authenticate to SAML service provider [shortcut]
         </td>
         <td
           style="min-width: 120px;"
@@ -788,7 +788,44 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [mike] successfully authenticated with the SAML IdP
+          User [mike] failed to authenticate to SAML service provider [valid-entity-id]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SAML IdP authentication
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [mike] successfully authenticated to SAML service provider [valid-entity-id]
         </td>
         <td
           style="min-width: 120px;"
