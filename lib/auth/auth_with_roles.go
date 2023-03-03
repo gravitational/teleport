@@ -911,7 +911,7 @@ Outer:
 	for _, alert := range alerts {
 		// skip acknowledged alerts
 		for _, ack := range acks {
-			if ack.AlertID == alert.Metadata.Name && ack.Severity >= alert.Spec.Severity {
+			if ack.AlertID == alert.Metadata.Name {
 				continue Outer
 			}
 		}
@@ -994,10 +994,6 @@ func (a *ServerWithRoles) CreateAlertAck(ctx context.Context, ack types.AlertAck
 	// if use of cluster alerts becomes more widespread.
 	if !a.hasBuiltinRole(types.RoleAdmin) {
 		return trace.AccessDenied("alert ack is admin-only")
-	}
-
-	if ack.Severity >= types.AlertSeverity_HIGH {
-		return trace.AccessDenied("ack of high severity alerts is not permitted")
 	}
 
 	return a.authServer.CreateAlertAck(ctx, ack)
