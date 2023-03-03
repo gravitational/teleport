@@ -92,7 +92,7 @@ resource "aws_security_group_rule" "auth_ingress_allow_cidr_traffic" {
 // is not marked with security group ID and rules using the security group ids do not work,
 // so CIDR ranges are necessary.
 resource "aws_security_group_rule" "auth_ingress_allow_node_cidr_traffic" {
-  description       = "Allow traffic from nodes to auth servers in order to allow Teleport nodes heartbeat presence to auth server"
+  description       = "Allow traffic from nodes to auth servers in order to allow Teleport nodes heartbeat presence to auth server "
   type              = "ingress"
   from_port         = 3025
   to_port           = 3025

@@ -23,7 +23,7 @@ on:
 
 jobs:
   terraform-lint:
-    uses: gravitational/shared-workflows/.github/workflows/terraform-lint.yaml@main
+    uses: gravitational/shared-workflows/.github/workflows/terraform-lint.yaml@edf4063ccd2a1a4623dcae3be443adcefaa3b851
     permissions:
       actions: read
       contents: read
