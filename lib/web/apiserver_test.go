@@ -7532,6 +7532,11 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		component = teleport.ComponentKube
 	}
 
+	proxySigner := &mockPROXYSigner{}
+	if cfg.serviceType == kubeproxy.KubeService {
+		proxySigner = nil
+	}
+
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
 			Namespace:         apidefaults.Namespace,
@@ -7549,6 +7554,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			Component:         component,
 			LockWatcher:       proxyLockWatcher,
 			ReverseTunnelSrv:  cfg.revTunnel,
+			PROXYSigner:       proxySigner,
 			// skip Impersonation validation
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
 				return nil
@@ -7856,6 +7862,14 @@ func TestForwardingTraces(t *testing.T) {
 			tt.assertion(t, clt.spans, err, recorder.Code)
 		})
 	}
+}
+
+type mockPROXYSigner struct {
+}
+
+func (m *mockPROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, error) {
+	return nil, nil
+
 }
 
 type mockTraceClient struct {

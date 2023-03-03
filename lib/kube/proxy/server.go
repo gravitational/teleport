@@ -199,6 +199,9 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout * 2,
 			TLSConfig:         cfg.TLS,
 			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
+			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+				return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
+			},
 		},
 		heartbeats: make(map[string]*srv.Heartbeat),
 		monitoredKubeClusters: monitoredKubeClusters{
@@ -215,6 +218,9 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 
 // Serve takes TCP listener, upgrades to TLS using config and starts serving
 func (t *TLSServer) Serve(listener net.Listener) error {
+	caGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+		return t.CachingAuthClient.GetCertAuthority(ctx, id, loadKeys)
+	}
 	// Wrap listener with a multiplexer to get Proxy Protocol support.
 	mux, err := multiplexer.New(multiplexer.Config{
 		Context:                     t.Context,
@@ -222,6 +228,8 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 		Clock:                       t.Clock,
 		EnableExternalProxyProtocol: true,
 		ID:                          t.Component,
+		CertAuthorityGetter:         caGetter,
+		LocalClusterName:            t.ClusterName,
 		// Increases deadline until the agent receives the first byte to 10s.
 		// It's required to accommodate setups with high latency and where the time
 		// between the TCP being accepted and the time for the first byte is longer
