@@ -211,12 +211,8 @@ else ifeq ("$(ARCH)","arm")
 CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
-ifeq ($(IS_NATIVE_BUILD),"no")
-CGOFLAG += CC=aarch64-linux-gnu-gcc
 endif
-
-endif
-endif
+endif # OS == linux
 
 # Windows requires extra parameters to cross-compile with CGO.
 ifeq ("$(OS)","windows")
