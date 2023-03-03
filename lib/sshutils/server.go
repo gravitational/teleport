@@ -855,12 +855,12 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 					c.logger.WithFields(logrus.Fields{
 						"src_addr": c.Conn.RemoteAddr(),
 						"dst_addr": c.Conn.LocalAddr(),
-					}).Warnf("Could not verify PROXY signature for connection - could not get host CA")
+					}).Warn("Could not verify PROXY signature for connection - could not get host CA")
 				} else if strings.Contains(err.Error(), "signing certificate is not signed by local cluster CA") {
 					c.logger.WithFields(logrus.Fields{
 						"src_addr": c.Conn.RemoteAddr(),
 						"dst_addr": c.Conn.LocalAddr(),
-					}).Warnf("Could not verify PROXY signature for connection - signed by non local cluster")
+					}).Warn("Could not verify PROXY signature for connection - signed by non local cluster")
 				} else {
 					return 0, trace.Wrap(err)
 				}
