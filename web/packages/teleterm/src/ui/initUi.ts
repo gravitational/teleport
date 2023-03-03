@@ -21,6 +21,7 @@ import {
 import { IAppContext } from 'teleterm/ui/types';
 import { ConfigService } from 'teleterm/services/config';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 
 /**
  * Runs after the UI becomes visible.
@@ -43,6 +44,10 @@ export async function initUi(ctx: IAppContext): Promise<void> {
   await setUpUsageReporting(configService, ctx.modalsService);
   ctx.workspacesService.restorePersistedState();
   notifyAboutStoredConfigErrors(configService, ctx.notificationsService);
+  notifyAboutDuplicatedShortcutsCombinations(
+    ctx.keyboardShortcutsService,
+    ctx.notificationsService
+  );
 }
 
 function notifyAboutStoredConfigErrors(
@@ -51,11 +56,38 @@ function notifyAboutStoredConfigErrors(
 ): void {
   const errors = configService.getStoredConfigErrors();
   if (errors) {
+    const isKeymapError = errors.some(e =>
+      e.path[0].toString().startsWith('keymap.')
+    );
     notificationsService.notifyError({
       title: 'Encountered errors in config file',
-      description: errors
-        .map(error => `${error.path[0]}: ${error.message}`)
-        .join('\n'),
+      list: errors.map(e => `${e.path[0].toString()}: ${e.message}`),
+      description:
+        isKeymapError &&
+        'A valid shortcut contains at least one modifier and a single key code, for example "Shift+Tab".\nFunction keys do not require a modifier.',
+      link: {
+        // TODO(gzdunek): point to the properer section
+        href: 'https://goteleport.com/docs/connect-your-client/teleport-connect/',
+        text: 'See the config file documentation',
+      },
+    });
+  }
+}
+
+function notifyAboutDuplicatedShortcutsCombinations(
+  keyboardShortcutsService: KeyboardShortcutsService,
+  notificationsService: NotificationsService
+): void {
+  const duplicates = keyboardShortcutsService.getDuplicateAccelerators();
+  if (Object.keys(duplicates).length) {
+    notificationsService.notifyError({
+      title: 'Shortcuts conflicts',
+      list: Object.entries(duplicates).map(
+        ([accelerator, actions]) =>
+          `${accelerator} is used for actions: ${actions.join(
+            ', '
+          )}. Only one of them will work.`
+      ),
     });
   }
 }

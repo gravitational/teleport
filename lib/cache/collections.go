@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -1351,38 +1352,27 @@ func (s *databaseService) erase(ctx context.Context) error {
 }
 
 func (s *databaseService) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := client.GetResourcesWithFilters(ctx, s.Presence, proto.ListResourcesRequest{ResourceType: types.KindDatabaseService})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return func(ctx context.Context) error {
 		if err := s.erase(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 
-		nextKey := ""
-		for {
-			listResp, err := s.Presence.ListResources(ctx, proto.ListResourcesRequest{
-				ResourceType: types.KindDatabaseService,
-				Limit:        apidefaults.DefaultChunkSize,
-				StartKey:     nextKey,
-			})
-			if err != nil {
+		for _, resource := range resources {
+			dbsvc, ok := resource.(types.DatabaseService)
+			if !ok {
+				return trace.BadParameter("unexpected resource %T", resource)
+			}
+
+			if _, err := s.databaseServicesCache.UpsertDatabaseService(ctx, dbsvc); err != nil {
 				return trace.Wrap(err)
-			}
-
-			databaseServices, err := types.ResourcesWithLabels(listResp.Resources).AsDatabaseServices()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			for _, resource := range databaseServices {
-				if _, err := s.databaseServicesCache.UpsertDatabaseService(ctx, resource); err != nil {
-					return trace.Wrap(err)
-				}
-			}
-
-			nextKey = listResp.NextKey
-			if nextKey == "" || len(listResp.Resources) == 0 {
-				break
 			}
 		}
+
 		return nil
 	}, nil
 }
