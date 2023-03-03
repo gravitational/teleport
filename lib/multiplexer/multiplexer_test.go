@@ -941,14 +941,6 @@ func TestMux(t *testing.T) {
 	})
 }
 
-//type mockCAsGetter struct {
-//	HostCA types.CertAuthority
-//}
-//
-//func (m *mockCAsGetter) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
-//	return m.HostCA, nil
-//}
-
 func TestProtocolString(t *testing.T) {
 	for i := -1; i < len(protocolStrings)+1; i++ {
 		got := Protocol(i).String()
