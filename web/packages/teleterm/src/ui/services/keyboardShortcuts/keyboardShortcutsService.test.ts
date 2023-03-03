@@ -21,7 +21,7 @@ import { KeyboardShortcutsService } from './keyboardShortcutsService';
 test('call subscriber on event', () => {
   const { subscriber } = getTestSetup();
   dispatchEventCommand1();
-  expect(subscriber).toHaveBeenCalledWith({ type: 'tab-1' });
+  expect(subscriber).toHaveBeenCalledWith({ action: 'tab1' });
 });
 
 test('do not call subscriber on unknown event', () => {
@@ -42,7 +42,7 @@ test('do not call subscriber after it has been unsubscribed', () => {
 function getTestSetup() {
   const service = new KeyboardShortcutsService(
     'darwin',
-    createMockConfigService({ 'keymap.tab1': 'Command-1' })
+    createMockConfigService({ 'keymap.tab1': 'Command+1' })
   );
   const subscriber = jest.fn();
   service.subscribeToEvents(subscriber);
