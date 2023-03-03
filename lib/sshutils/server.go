@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -841,17 +842,31 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	if bytes.HasPrefix(buff, multiplexer.ProxyV2Prefix) {
 		reader := bufio.NewReader(io.MultiReader(bytes.NewBuffer(buff), c.Conn))
 
-		newProxyLine, err := multiplexer.ReadProxyLineV2(reader)
+		proxyLine, err := multiplexer.ReadProxyLineV2(reader)
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
-		if newProxyLine.IsSigned() && c.caGetter != nil {
-			err = newProxyLine.VerifySignature(context.Background(), c.caGetter, c.clusterName, c.clock)
+		if proxyLine != nil && proxyLine.IsSigned() && c.caGetter != nil {
+			err = proxyLine.VerifySignature(context.Background(), c.caGetter, c.clusterName, c.clock)
+			// NOTE(anton): Temporarily using string comparison here to not create circular references.
+			// Will be refactored after #21835 is resolved.
 			if err != nil {
-				return 0, trace.Wrap(err)
+				if strings.Contains(err.Error(), "could not get specified host CA to verify signed PROXY header") {
+					c.logger.WithFields(logrus.Fields{
+						"src_addr": c.Conn.RemoteAddr(),
+						"dst_addr": c.Conn.LocalAddr(),
+					}).Warnf("Could not verify PROXY signature for connection - could not get host CA")
+				} else if strings.Contains(err.Error(), "signing certificate is not signed by local cluster CA") {
+					c.logger.WithFields(logrus.Fields{
+						"src_addr": c.Conn.RemoteAddr(),
+						"dst_addr": c.Conn.LocalAddr(),
+					}).Warnf("Could not verify PROXY signature for connection - signed by non local cluster")
+				} else {
+					return 0, trace.Wrap(err)
+				}
 			}
-			if newProxyLine != nil {
-				c.clientAddr = &newProxyLine.Source
+			if proxyLine.IsVerified {
+				c.clientAddr = &proxyLine.Source
 			}
 		}
 
