@@ -14,17 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package usagereporter
 
 import (
 	"github.com/gravitational/trace"
 
-	usageevents "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func discoverMetadataToPrehog(u *usageevents.DiscoverMetadata, identityUsername string) *prehogv1.DiscoverMetadata {
+func discoverMetadataToPrehog(u *usageeventsv1.DiscoverMetadata, identityUsername string) *prehogv1.DiscoverMetadata {
 	return &prehogv1.DiscoverMetadata{
 		Id:       u.Id,
 		UserName: identityUsername,
@@ -43,7 +43,7 @@ func validateDiscoverMetadata(u *prehogv1.DiscoverMetadata) error {
 	return nil
 }
 
-func discoverResourceToPrehog(u *usageevents.DiscoverResourceMetadata) *prehogv1.DiscoverResourceMetadata {
+func discoverResourceToPrehog(u *usageeventsv1.DiscoverResourceMetadata) *prehogv1.DiscoverResourceMetadata {
 	return &prehogv1.DiscoverResourceMetadata{
 		Resource: prehogv1.DiscoverResource(u.Resource),
 	}
@@ -61,7 +61,7 @@ func validateDiscoverResourceMetadata(u *prehogv1.DiscoverResourceMetadata) erro
 	return nil
 }
 
-func discoverStatusToPrehog(u *usageevents.DiscoverStepStatus) *prehogv1.DiscoverStepStatus {
+func discoverStatusToPrehog(u *usageeventsv1.DiscoverStepStatus) *prehogv1.DiscoverStepStatus {
 	return &prehogv1.DiscoverStepStatus{
 		Status: prehogv1.DiscoverStatus(u.Status),
 		Error:  u.Error,
@@ -100,10 +100,10 @@ func validateDiscoverBaseEventFields(md *prehogv1.DiscoverMetadata, res *prehogv
 	return nil
 }
 
-// UsageUIDiscoverStartedEvent is a UI event sent when a user starts the Discover Wizard.
-type UsageUIDiscoverStartedEvent prehogv1.UIDiscoverStartedEvent
+// UIDiscoverStartedEvent is a UI event sent when a user starts the Discover Wizard.
+type UIDiscoverStartedEvent prehogv1.UIDiscoverStartedEvent
 
-func (u *UsageUIDiscoverStartedEvent) CheckAndSetDefaults() error {
+func (u *UIDiscoverStartedEvent) CheckAndSetDefaults() error {
 	if err := validateDiscoverMetadata(u.Metadata); err != nil {
 		return trace.Wrap(err)
 	}
@@ -114,7 +114,7 @@ func (u *UsageUIDiscoverStartedEvent) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (u *UsageUIDiscoverStartedEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIDiscoverStartedEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiDiscoverStartedEvent{
 			UiDiscoverStartedEvent: &prehogv1.UIDiscoverStartedEvent{
@@ -128,14 +128,14 @@ func (u *UsageUIDiscoverStartedEvent) Anonymize(a utils.Anonymizer) prehogv1.Sub
 	}
 }
 
-// UsageUIDiscoverResourceSelectionEvent is a UI event sent when a user starts the Discover Wizard.
-type UsageUIDiscoverResourceSelectionEvent prehogv1.UIDiscoverResourceSelectionEvent
+// UIDiscoverResourceSelectionEvent is a UI event sent when a user starts the Discover Wizard.
+type UIDiscoverResourceSelectionEvent prehogv1.UIDiscoverResourceSelectionEvent
 
-func (u *UsageUIDiscoverResourceSelectionEvent) CheckAndSetDefaults() error {
+func (u *UIDiscoverResourceSelectionEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UsageUIDiscoverResourceSelectionEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIDiscoverResourceSelectionEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiDiscoverResourceSelectionEvent{
 			UiDiscoverResourceSelectionEvent: &prehogv1.UIDiscoverResourceSelectionEvent{
@@ -150,20 +150,20 @@ func (u *UsageUIDiscoverResourceSelectionEvent) Anonymize(a utils.Anonymizer) pr
 	}
 }
 
-// UsageUIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
+// UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
 // For SSH this is the Teleport 'install-node' script.
 //
 // For Kubernetes this is the teleport-agent helm chart installation.
 //
 // For Database Access this step is the installation of the teleport 'install-db' script.
 // It can be skipped if the cluster already has a Database Service capable of proxying the database.
-type UsageUIDiscoverDeployServiceEvent prehogv1.UIDiscoverDeployServiceEvent
+type UIDiscoverDeployServiceEvent prehogv1.UIDiscoverDeployServiceEvent
 
-func (u *UsageUIDiscoverDeployServiceEvent) CheckAndSetDefaults() error {
+func (u *UIDiscoverDeployServiceEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UsageUIDiscoverDeployServiceEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIDiscoverDeployServiceEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiDiscoverDeployServiceEvent{
 			UiDiscoverDeployServiceEvent: &prehogv1.UIDiscoverDeployServiceEvent{
@@ -178,15 +178,15 @@ func (u *UsageUIDiscoverDeployServiceEvent) Anonymize(a utils.Anonymizer) prehog
 	}
 }
 
-// UsageUIDiscoverDatabaseRegisterEvent is emitted when a user registers a database resource
+// UIDiscoverDatabaseRegisterEvent is emitted when a user registers a database resource
 // and goes to the next step.
-type UsageUIDiscoverDatabaseRegisterEvent prehogv1.UIDiscoverDatabaseRegisterEvent
+type UIDiscoverDatabaseRegisterEvent prehogv1.UIDiscoverDatabaseRegisterEvent
 
-func (u *UsageUIDiscoverDatabaseRegisterEvent) CheckAndSetDefaults() error {
+func (u *UIDiscoverDatabaseRegisterEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UsageUIDiscoverDatabaseRegisterEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIDiscoverDatabaseRegisterEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiDiscoverDatabaseRegisterEvent{
 			UiDiscoverDatabaseRegisterEvent: &prehogv1.UIDiscoverDatabaseRegisterEvent{
@@ -201,15 +201,15 @@ func (u *UsageUIDiscoverDatabaseRegisterEvent) Anonymize(a utils.Anonymizer) pre
 	}
 }
 
-// UsageUIDiscoverDatabaseConfigureMTLSEvent is emitted when a user configures mutual TLS for self-hosted database
+// UIDiscoverDatabaseConfigureMTLSEvent is emitted when a user configures mutual TLS for self-hosted database
 // and goes to the next step.
-type UsageUIDiscoverDatabaseConfigureMTLSEvent prehogv1.UIDiscoverDatabaseConfigureMTLSEvent
+type UIDiscoverDatabaseConfigureMTLSEvent prehogv1.UIDiscoverDatabaseConfigureMTLSEvent
 
-func (u *UsageUIDiscoverDatabaseConfigureMTLSEvent) CheckAndSetDefaults() error {
+func (u *UIDiscoverDatabaseConfigureMTLSEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UsageUIDiscoverDatabaseConfigureMTLSEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIDiscoverDatabaseConfigureMTLSEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiDiscoverDatabaseConfigureMtlsEvent{
 			UiDiscoverDatabaseConfigureMtlsEvent: &prehogv1.UIDiscoverDatabaseConfigureMTLSEvent{
@@ -224,15 +224,15 @@ func (u *UsageUIDiscoverDatabaseConfigureMTLSEvent) Anonymize(a utils.Anonymizer
 	}
 }
 
-// UsageUIDiscoverDesktopActiveDirectoryToolsInstallEvent is emitted when the user is asked to run the install Active Directory tools script.
+// UIDiscoverDesktopActiveDirectoryToolsInstallEvent is emitted when the user is asked to run the install Active Directory tools script.
 // This happens on the Desktop flow.
-type UsageUIDiscoverDesktopActiveDirectoryToolsInstallEvent prehogv1.UIDiscoverDesktopActiveDirectoryToolsInstallEvent
+type UIDiscoverDesktopActiveDirectoryToolsInstallEvent prehogv1.UIDiscoverDesktopActiveDirectoryToolsInstallEvent
 
-func (u *UsageUIDiscoverDesktopActiveDirectoryToolsInstallEvent) CheckAndSetDefaults() error {
+func (u *UIDiscoverDesktopActiveDirectoryToolsInstallEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UsageUIDiscoverDesktopActiveDirectoryToolsInstallEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIDiscoverDesktopActiveDirectoryToolsInstallEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiDiscoverDesktopActiveDirectoryToolsInstallEvent{
 			UiDiscoverDesktopActiveDirectoryToolsInstallEvent: &prehogv1.UIDiscoverDesktopActiveDirectoryToolsInstallEvent{
@@ -247,15 +247,15 @@ func (u *UsageUIDiscoverDesktopActiveDirectoryToolsInstallEvent) Anonymize(a uti
 	}
 }
 
-// UsageUIDiscoverDesktopActiveDirectoryConfigureEvent is emitted when the user is asked to run the Configure Active Directory script.
+// UIDiscoverDesktopActiveDirectoryConfigureEvent is emitted when the user is asked to run the Configure Active Directory script.
 // This happens on the Desktop flow.
-type UsageUIDiscoverDesktopActiveDirectoryConfigureEvent prehogv1.UIDiscoverDesktopActiveDirectoryConfigureEvent
+type UIDiscoverDesktopActiveDirectoryConfigureEvent prehogv1.UIDiscoverDesktopActiveDirectoryConfigureEvent
 
-func (u *UsageUIDiscoverDesktopActiveDirectoryConfigureEvent) CheckAndSetDefaults() error {
+func (u *UIDiscoverDesktopActiveDirectoryConfigureEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UsageUIDiscoverDesktopActiveDirectoryConfigureEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIDiscoverDesktopActiveDirectoryConfigureEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiDiscoverDesktopActiveDirectoryConfigureEvent{
 			UiDiscoverDesktopActiveDirectoryConfigureEvent: &prehogv1.UIDiscoverDesktopActiveDirectoryConfigureEvent{
@@ -270,18 +270,18 @@ func (u *UsageUIDiscoverDesktopActiveDirectoryConfigureEvent) Anonymize(a utils.
 	}
 }
 
-// UsageUIDiscoverAutoDiscoveredResourcesEvent is emitted when the user is presented with the list of auto discovered resources.
+// UIDiscoverAutoDiscoveredResourcesEvent is emitted when the user is presented with the list of auto discovered resources.
 // resources_count field must contain the number of discovered resources when the user leaves the screen.
-type UsageUIDiscoverAutoDiscoveredResourcesEvent prehogv1.UIDiscoverAutoDiscoveredResourcesEvent
+type UIDiscoverAutoDiscoveredResourcesEvent prehogv1.UIDiscoverAutoDiscoveredResourcesEvent
 
-func (u *UsageUIDiscoverAutoDiscoveredResourcesEvent) CheckAndSetDefaults() error {
+func (u *UIDiscoverAutoDiscoveredResourcesEvent) CheckAndSetDefaults() error {
 	if u.ResourcesCount < 0 {
 		return trace.BadParameter("resources count must be 0 or more")
 	}
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UsageUIDiscoverAutoDiscoveredResourcesEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIDiscoverAutoDiscoveredResourcesEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiDiscoverAutoDiscoveredResourcesEvent{
 			UiDiscoverAutoDiscoveredResourcesEvent: &prehogv1.UIDiscoverAutoDiscoveredResourcesEvent{
@@ -297,15 +297,15 @@ func (u *UsageUIDiscoverAutoDiscoveredResourcesEvent) Anonymize(a utils.Anonymiz
 	}
 }
 
-// UsageUIDiscoverDatabaseConfigureIAMPolicyEvent is emitted when a user configured IAM for RDS database
+// UIDiscoverDatabaseConfigureIAMPolicyEvent is emitted when a user configured IAM for RDS database
 // and proceeded to the next step.
-type UsageUIDiscoverDatabaseConfigureIAMPolicyEvent prehogv1.UIDiscoverDatabaseConfigureIAMPolicyEvent
+type UIDiscoverDatabaseConfigureIAMPolicyEvent prehogv1.UIDiscoverDatabaseConfigureIAMPolicyEvent
 
-func (u *UsageUIDiscoverDatabaseConfigureIAMPolicyEvent) CheckAndSetDefaults() error {
+func (u *UIDiscoverDatabaseConfigureIAMPolicyEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UsageUIDiscoverDatabaseConfigureIAMPolicyEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIDiscoverDatabaseConfigureIAMPolicyEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiDiscoverDatabaseConfigureIamPolicyEvent{
 			UiDiscoverDatabaseConfigureIamPolicyEvent: &prehogv1.UIDiscoverDatabaseConfigureIAMPolicyEvent{
@@ -320,15 +320,15 @@ func (u *UsageUIDiscoverDatabaseConfigureIAMPolicyEvent) Anonymize(a utils.Anony
 	}
 }
 
-// UsageUIDiscoverPrincipalsConfigureEvent emitted on "Setup Access" screen when user has updated their principals
+// UIDiscoverPrincipalsConfigureEvent emitted on "Setup Access" screen when user has updated their principals
 // and proceeded to the next step.
-type UsageUIDiscoverPrincipalsConfigureEvent prehogv1.UIDiscoverPrincipalsConfigureEvent
+type UIDiscoverPrincipalsConfigureEvent prehogv1.UIDiscoverPrincipalsConfigureEvent
 
-func (u *UsageUIDiscoverPrincipalsConfigureEvent) CheckAndSetDefaults() error {
+func (u *UIDiscoverPrincipalsConfigureEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UsageUIDiscoverPrincipalsConfigureEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIDiscoverPrincipalsConfigureEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiDiscoverPrincipalsConfigureEvent{
 			UiDiscoverPrincipalsConfigureEvent: &prehogv1.UIDiscoverPrincipalsConfigureEvent{
@@ -343,15 +343,15 @@ func (u *UsageUIDiscoverPrincipalsConfigureEvent) Anonymize(a utils.Anonymizer) 
 	}
 }
 
-// UsageUIDiscoverTestConnectionEvent emitted on the "Test Connection" screen
+// UIDiscoverTestConnectionEvent emitted on the "Test Connection" screen
 // when the user clicked tested connection to their resource.
-type UsageUIDiscoverTestConnectionEvent prehogv1.UIDiscoverTestConnectionEvent
+type UIDiscoverTestConnectionEvent prehogv1.UIDiscoverTestConnectionEvent
 
-func (u *UsageUIDiscoverTestConnectionEvent) CheckAndSetDefaults() error {
+func (u *UIDiscoverTestConnectionEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UsageUIDiscoverTestConnectionEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIDiscoverTestConnectionEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiDiscoverTestConnectionEvent{
 			UiDiscoverTestConnectionEvent: &prehogv1.UIDiscoverTestConnectionEvent{
@@ -366,14 +366,14 @@ func (u *UsageUIDiscoverTestConnectionEvent) Anonymize(a utils.Anonymizer) preho
 	}
 }
 
-// UsageUIDiscoverCompletedEvent is emitted when user completes the Discover wizard.
-type UsageUIDiscoverCompletedEvent prehogv1.UIDiscoverCompletedEvent
+// UIDiscoverCompletedEvent is emitted when user completes the Discover wizard.
+type UIDiscoverCompletedEvent prehogv1.UIDiscoverCompletedEvent
 
-func (u *UsageUIDiscoverCompletedEvent) CheckAndSetDefaults() error {
+func (u *UIDiscoverCompletedEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UsageUIDiscoverCompletedEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *UIDiscoverCompletedEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UiDiscoverCompletedEvent{
 			UiDiscoverCompletedEvent: &prehogv1.UIDiscoverCompletedEvent{
