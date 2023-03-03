@@ -572,7 +572,7 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Export Audit Events with Datadog",
+              "title": "Export Audit Events to Datadog",
               "slug": "/management/export-audit-events/datadog/",
               "forScopes": ["enterprise", "cloud"]
             },
