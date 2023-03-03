@@ -1274,12 +1274,20 @@ export const formatters: Formatters = {
   [eventCodes.SAML_IDP_AUTH_ATTEMPT]: {
     type: 'saml.idp.auth',
     desc: 'SAML IdP authentication',
-    format: ({ user, success }) => {
+    format: ({
+      user,
+      success,
+      service_provider_entity_id,
+      service_provider_shortcut,
+    }) => {
       const desc =
         success === false
           ? 'failed to authenticate'
           : 'successfully authenticated';
-      return `User [${user}] ${desc} with the SAML IdP`;
+      const id = service_provider_entity_id
+        ? `[${service_provider_entity_id}]`
+        : `[${service_provider_shortcut}]`;
+      return `User [${user}] ${desc} to SAML service provider ${id}`;
     },
   },
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE]: {

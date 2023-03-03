@@ -2700,6 +2700,7 @@ export const events = [
     user: 'mike',
     session_id: '123456',
     success: true,
+    service_provider_entity_id: 'valid-entity-id',
   },
   {
     code: 'TSI000I',
@@ -2708,6 +2709,17 @@ export const events = [
     user: 'mike',
     session_id: '123456',
     success: false,
+    service_provider_entity_id: 'valid-entity-id',
+    service_provider_shortcut: 'shortcut',
+  },
+  {
+    code: 'TSI000I',
+    event: 'saml.idp.auth',
+    time: '2023-01-25T19:21:36.144Z',
+    user: 'mike',
+    session_id: '123456',
+    success: false,
+    service_provider_shortcut: 'shortcut',
   },
   {
     code: 'TSI001I',
