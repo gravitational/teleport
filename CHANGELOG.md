@@ -1,5 +1,24 @@
 # Changelog
 
+## 12.0.5
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with `tsh` not respecting HTTPS_PROXY in some cases. [#22492](https://github.com/gravitational/teleport/pull/22492)
+* Fixed issue with config validation in Helm charts scratch mode. [#22423](https://github.com/gravitational/teleport/pull/22423)
+* Added IAM joining support for Azure VMs. [#22204](https://github.com/gravitational/teleport/pull/22204)
+* Added auto-discovery support for Azure VMs. [#22521](https://github.com/gravitational/teleport/pull/22521)
+* Added support for `ap-southeast-4` AWS region for IAM joining. [#22486](https://github.com/gravitational/teleport/pull/22486)
+* Added ability to specify web terminal scrollback length in proxy config. [#22422](https://github.com/gravitational/teleport/pull/22422)
+* Added support for PuTTY's `winadj` channel requests. [#22420](https://github.com/gravitational/teleport/pull/22420)
+* Added `--trace-profile` flag to `tsh` that allows generating runtime trace profiles. [#22406](https://github.com/gravitational/teleport/pull/22406)
+* Added enhanced session recording support for arm64 architectures. [#22550](https://github.com/gravitational/teleport/pull/22550)
+* Updated `tctl alert ack` to allow acknowledging alerts of any severity. [#22582](https://github.com/gravitational/teleport/pull/22582)
+* Updated Windows desktop access to display only applicable logins. [#22333](https://github.com/gravitational/teleport/pull/22333)
+* Improved Kubernetes access performance when using `kubectl`. [#22508](https://github.com/gravitational/teleport/pull/22508)
+* Improved Teleport Connect performance when connecting to large clusters. [#22316](https://github.com/gravitational/teleport/pull/22316)
+* Improved performance and scalability in large clusters. [#21495](https://github.com/gravitational/teleport/pull/21495)
+
 ## 12.0.4
 
 This release of Teleport contains multiple security fixes, improvements and bug fixes.
