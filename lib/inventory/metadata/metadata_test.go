@@ -135,10 +135,21 @@ func TestFetchInstallMethods(t *testing.T) {
 				if len(args) != 2 {
 					return nil, trace.NotFound("command does not exist")
 				}
-				if args[0] != "is-active" || args[1] != "teleport.service" {
+				if args[0] != "status" || args[1] != "teleport.service" {
 					return nil, trace.NotFound("command does not exist")
 				}
-				return []byte("active"), nil
+				output := `
+● teleport.service - Teleport SSH Service
+Loaded: loaded (/lib/systemd/system/teleport.service; enabled; vendor preset: enabled)
+Active: active (running) since Wed 2022-11-09 10:52:49 UTC; 3 months 22 days ago
+Main PID: 1815 (teleport)
+	Tasks: 12 (limit: 1143)
+Memory: 55.6M
+	CPU: 2h 2min 27.181s
+CGroup: /system.slice/teleport.service
+		└─1815 /usr/local/bin/teleport start --pid-file=/run/teleport.pid
+`
+				return []byte(output), nil
 			},
 			expected: []string{
 				"systemctl",

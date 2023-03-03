@@ -179,12 +179,12 @@ func (c *AgentMetadataFetchConfig) nodeScriptInstallMethod() bool {
 
 // systemctlInstallMethod returns true if the agent is running using systemctl.
 func (c *AgentMetadataFetchConfig) systemctlInstallMethod() bool {
-	out, err := c.exec("systemctl", "is-active", "teleport.service")
+	out, err := c.exec("systemctl", "status", "teleport.service")
 	if err != nil {
 		return false
 	}
 
-	return out == "active"
+	return strings.Contains(out, "active (running)")
 }
 
 // fetchContainerRuntime returns "docker" if the file "/.dockerenv" exists.
