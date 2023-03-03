@@ -55,9 +55,9 @@ type Metadata struct {
 	CloudEnvironment string
 }
 
-// MetadataFetchConfig contains the configuration used by the FetchMetadata method.
-type MetadataFetchConfig struct {
-	Context context.Context
+// metadataFetchConfig contains the configuration used by the FetchMetadata method.
+type metadataFetchConfig struct {
+	context context.Context
 	// getenv is the method called to retrieve an environment
 	// variable.
 	// It is configurable so that it can be mocked in tests.
@@ -80,9 +80,9 @@ type MetadataFetchConfig struct {
 // setDefaults sets the values of several methods used to read files, execute
 // commands, performing http requests, etc.
 // Having these methods configurable allows us to mock them in tests.
-func (c *MetadataFetchConfig) setDefaults() {
-	if c.Context == nil {
-		c.Context = context.Background()
+func (c *metadataFetchConfig) setDefaults() {
+	if c.context == nil {
+		c.context = context.Background()
 	}
 	if c.getenv == nil {
 		c.getenv = os.Getenv
@@ -126,15 +126,8 @@ func getKubeClient() kubernetes.Interface {
 	return client
 }
 
-// FetchMetadata fetches and calculates all metadata we are interested in
-// tracking. Note that the resulting metadata is not cached.
-func FetchMetadata(c *MetadataFetchConfig) *Metadata {
-	c.setDefaults()
-	return c.fetchMetadata()
-}
-
 // fetchMetadata fetches all metadata.
-func (c *MetadataFetchConfig) fetchMetadata() *Metadata {
+func (c *metadataFetchConfig) fetchMetadata() *Metadata {
 	return &Metadata{
 		OS:                    c.fetchOS(),
 		OSVersion:             c.fetchOSVersion(),
@@ -148,12 +141,12 @@ func (c *MetadataFetchConfig) fetchMetadata() *Metadata {
 }
 
 // fetchOS returns the value of GOOS.
-func (c *MetadataFetchConfig) fetchOS() string {
+func (c *metadataFetchConfig) fetchOS() string {
 	return runtime.GOOS
 }
 
 // fetchHostArchitecture returns the output of arch.
-func (c *MetadataFetchConfig) fetchHostArchitecture() string {
+func (c *metadataFetchConfig) fetchHostArchitecture() string {
 	arch, err := c.exec("arch")
 	if err != nil {
 		return ""
@@ -163,7 +156,7 @@ func (c *MetadataFetchConfig) fetchHostArchitecture() string {
 }
 
 // fetchInstallMethods returns the list of methods used to install the instance.
-func (c *MetadataFetchConfig) fetchInstallMethods() []string {
+func (c *metadataFetchConfig) fetchInstallMethods() []string {
 	var installMethods []string
 	if c.dockerfileInstallMethod() {
 		installMethods = append(installMethods, "dockerfile")
@@ -182,24 +175,24 @@ func (c *MetadataFetchConfig) fetchInstallMethods() []string {
 
 // dockerfileInstallMethod returns true if the instance was installed using our
 // Dockerfile.
-func (c *MetadataFetchConfig) dockerfileInstallMethod() bool {
+func (c *metadataFetchConfig) dockerfileInstallMethod() bool {
 	return c.getenv("TELEPORT_INSTALL_METHOD_DOCKERFILE") == "true"
 }
 
 // helmKubeAgentInstallMethod returns true if the instance was installed using our
 // Helm chart.
-func (c *MetadataFetchConfig) helmKubeAgentInstallMethod() bool {
+func (c *metadataFetchConfig) helmKubeAgentInstallMethod() bool {
 	return c.getenv("TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT") == "true"
 }
 
 // nodeScriptInstallMethod returns true if the instance was installed using our
 // install-node.sh script.
-func (c *MetadataFetchConfig) nodeScriptInstallMethod() bool {
+func (c *metadataFetchConfig) nodeScriptInstallMethod() bool {
 	return c.getenv("TELEPORT_INSTALL_METHOD_NODE_SCRIPT") == "true"
 }
 
 // systemctlInstallMethod returns true if the instance is running using systemctl.
-func (c *MetadataFetchConfig) systemctlInstallMethod() bool {
+func (c *metadataFetchConfig) systemctlInstallMethod() bool {
 	out, err := c.exec("systemctl", "status", "teleport.service")
 	if err != nil {
 		return false
@@ -209,7 +202,7 @@ func (c *MetadataFetchConfig) systemctlInstallMethod() bool {
 }
 
 // fetchContainerRuntime returns "docker" if the file "/.dockerenv" exists.
-func (c *MetadataFetchConfig) fetchContainerRuntime() string {
+func (c *metadataFetchConfig) fetchContainerRuntime() string {
 	_, err := c.read("/.dockerenv")
 	if err != nil {
 		return ""
@@ -221,7 +214,7 @@ func (c *MetadataFetchConfig) fetchContainerRuntime() string {
 
 // fetchContainerOrchestrator returns kubernetes-${GIT_VERSION} if the instance is
 // running on kubernetes.
-func (c *MetadataFetchConfig) fetchContainerOrchestrator() string {
+func (c *metadataFetchConfig) fetchContainerOrchestrator() string {
 	if c.kubeClient == nil {
 		return ""
 	}
@@ -236,7 +229,7 @@ func (c *MetadataFetchConfig) fetchContainerOrchestrator() string {
 
 // fetchCloudEnvironment returns aws, gpc or azure if the instance is running on
 // such cloud environments.
-func (c *MetadataFetchConfig) fetchCloudEnvironment() string {
+func (c *metadataFetchConfig) fetchCloudEnvironment() string {
 	if c.awsHTTPGetSuccess() {
 		return "aws"
 	}
@@ -252,9 +245,9 @@ func (c *MetadataFetchConfig) fetchCloudEnvironment() string {
 // awsHTTPGetSuccess hits the AWS metadata endpoint in order to detect whether
 // the instance is running on AWS.
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
-func (c *MetadataFetchConfig) awsHTTPGetSuccess() bool {
+func (c *metadataFetchConfig) awsHTTPGetSuccess() bool {
 	url := "http://169.254.169.254/latest/meta-data/"
-	req, err := http.NewRequestWithContext(c.Context, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
 		log.Debugf("Failed to create AWS http GET request '%s': %s", url, err)
 		return false
@@ -266,9 +259,9 @@ func (c *MetadataFetchConfig) awsHTTPGetSuccess() bool {
 // gcpHTTPGetSuccess hits the GCP metadata endpoint in order to detect whether
 // the instance is running on GCP.
 // https://cloud.google.com/compute/docs/metadata/overview#parts-of-a-request
-func (c *MetadataFetchConfig) gcpHTTPGetSuccess() bool {
+func (c *metadataFetchConfig) gcpHTTPGetSuccess() bool {
 	url := "http://metadata.google.internal/computeMetadata/v1"
-	req, err := http.NewRequestWithContext(c.Context, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
 		log.Debugf("Failed to create GCP http GET request '%s': %s", url, err)
 		return false
@@ -281,9 +274,9 @@ func (c *MetadataFetchConfig) gcpHTTPGetSuccess() bool {
 // azureHTTPGetSuccess hits the Azure metadata endpoint in order to detect whether
 // the instance is running on Azure.
 // https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service
-func (c *MetadataFetchConfig) azureHTTPGetSuccess() bool {
+func (c *metadataFetchConfig) azureHTTPGetSuccess() bool {
 	url := "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
-	req, err := http.NewRequestWithContext(c.Context, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
 		log.Debugf("Failed to create Azure http GET request '%s': %s", url, err)
 		return false
@@ -294,7 +287,7 @@ func (c *MetadataFetchConfig) azureHTTPGetSuccess() bool {
 }
 
 // exec runs a command and returns its output.
-func (c *MetadataFetchConfig) exec(name string, args ...string) (string, error) {
+func (c *metadataFetchConfig) exec(name string, args ...string) (string, error) {
 	out, err := c.execCommand(name, args...)
 	if err != nil {
 		log.Debugf("Failed to execute command '%s': %s", name, err)
@@ -305,7 +298,7 @@ func (c *MetadataFetchConfig) exec(name string, args ...string) (string, error) 
 }
 
 // read reads a file and returns its content.
-func (c *MetadataFetchConfig) read(name string) (string, error) {
+func (c *metadataFetchConfig) read(name string) (string, error) {
 	out, err := c.readFile(name)
 	if err != nil {
 		log.Debugf("Failed to read file '%s': %s", name, err)
@@ -317,7 +310,7 @@ func (c *MetadataFetchConfig) read(name string) (string, error) {
 
 // httpReqSuccess performs an http request, returning true if the status code
 // is 200.
-func (c *MetadataFetchConfig) httpReqSuccess(req *http.Request) bool {
+func (c *metadataFetchConfig) httpReqSuccess(req *http.Request) bool {
 	resp, err := c.httpDo(req)
 	if err != nil {
 		log.Debugf("Failed to perform http GET request: %s", err)

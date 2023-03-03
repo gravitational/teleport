@@ -17,6 +17,7 @@ limitations under the License.
 package metadata
 
 import (
+	"context"
 	"sync"
 )
 
@@ -29,9 +30,11 @@ var fetchOnce sync.Once
 // GetMetadata fetches the instance metadata.
 // The first call can take some time as all metadata will be retrieved.
 // The resulting metadata is cached, so subsequent calls will be fast.
-func GetMetadata() *Metadata {
+// Note that the context used to retrieve the metadata is the one passed in to
+// the first `GetMetadata` call.
+func GetMetadata(ctx context.Context) *Metadata {
 	fetchOnce.Do(func() {
-		defaultFetcher := &MetadataFetchConfig{}
+		defaultFetcher := &metadataFetchConfig{context: ctx}
 		defaultFetcher.setDefaults()
 		metadata = defaultFetcher.fetchMetadata()
 	})
