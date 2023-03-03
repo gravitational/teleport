@@ -26,13 +26,13 @@ import (
 )
 
 // fetchOSVersion returns "" if not on linux and not on darwin.
-func (c *metadataFetchConfig) fetchOSVersion() string {
+func (c *fetchConfig) fetchOSVersion() string {
 	log.Warningf("fetchOSVersion is not implemented for %s", runtime.GOOS)
 	return ""
 }
 
 // fetchGlibcVersion returns "" if not on linux and not on darwin.
-func (c *metadataFetchConfig) fetchGlibcVersion() string {
+func (c *fetchConfig) fetchGlibcVersion() string {
 	log.Warningf("fetchGlibcVersion is not implemented for %s", runtime.GOOS)
 	return ""
 }

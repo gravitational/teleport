@@ -26,7 +26,7 @@ import (
 
 // fetchOSVersion combines the content of '/etc/os-release' to be e.g.
 // "Ubuntu 22.04".
-func (c *metadataFetchConfig) fetchOSVersion() string {
+func (c *fetchConfig) fetchOSVersion() string {
 	filename := "/etc/os-release"
 	out, err := c.read(filename)
 	if err != nil {
@@ -54,7 +54,7 @@ func (c *metadataFetchConfig) fetchOSVersion() string {
 
 // fetchGlibcVersion parses the output of 'ldd --version' and returns e.g.
 // "2.31".
-func (c *metadataFetchConfig) fetchGlibcVersion() string {
+func (c *fetchConfig) fetchGlibcVersion() string {
 	out, err := c.exec("ldd", "--version")
 	if err != nil {
 		return ""

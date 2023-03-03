@@ -34,7 +34,7 @@ var fetchOnce sync.Once
 // the first `GetMetadata` call.
 func GetMetadata(ctx context.Context) *Metadata {
 	fetchOnce.Do(func() {
-		defaultFetcher := &metadataFetchConfig{context: ctx}
+		defaultFetcher := &fetchConfig{context: ctx}
 		defaultFetcher.setDefaults()
 		metadata = defaultFetcher.fetchMetadata()
 	})

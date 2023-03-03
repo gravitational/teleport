@@ -92,7 +92,7 @@ BUG_REPORT_URL="https://bugs.debian.org/"
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			c := &metadataFetchConfig{
+			c := &fetchConfig{
 				readFile: tc.readFile,
 			}
 			require.Equal(t, tc.expected, c.fetchOSVersion())
@@ -146,7 +146,7 @@ Written by Roland McGrath and Ulrich Drepper.
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			c := &metadataFetchConfig{
+			c := &fetchConfig{
 				execCommand: tc.execCommand,
 			}
 			require.Equal(t, tc.expected, c.fetchGlibcVersion())
