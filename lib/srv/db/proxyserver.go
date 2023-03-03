@@ -181,10 +181,16 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	clustername, err := config.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	server := &ProxyServer{
 		cfg: config,
 		middleware: &auth.Middleware{
-			AccessPoint:   config.AccessPoint,
+			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
 		closeCtx: ctx,
@@ -348,7 +354,7 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	case defaults.ProtocolSQLServer:
 		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
 	}
-	serviceConn, err := s.Connect(s.closeCtx, proxyCtx)
+	serviceConn, err := s.Connect(s.closeCtx, proxyCtx, conn.RemoteAddr(), conn.LocalAddr())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -430,7 +436,7 @@ func (s *ProxyServer) SQLServerProxy() *sqlserver.Proxy {
 // decoded from the client certificate by auth.Middleware.
 //
 // Implements common.Service.
-func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext) (net.Conn, error) {
+func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
 	// There may be multiple database servers proxying the same database. If
 	// we get a connection problem error trying to dial one of them, likely
 	// the database server is down so try the next one.
@@ -440,12 +446,14 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnel.DialParams{
-			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@db-proxy"},
-			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
-			ServerID: fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
-			ConnType: types.DatabaseTunnel,
-			ProxyIDs: server.GetProxyIDs(),
+			From:                  clientSrcAddr,
+			To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
+			OriginalClientDstAddr: clientDstAddr,
+			ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
+			ConnType:              types.DatabaseTunnel,
+			ProxyIDs:              server.GetProxyIDs(),
 		})
 		if err != nil {
 			// If an agent is down, we'll retry on the next one (if available).
@@ -608,7 +616,7 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 		identity.RouteToDatabase.Database = params.Database
 	}
 	if params.ClientIP != "" {
-		identity.ClientIP = params.ClientIP
+		identity.LoginIP = params.ClientIP
 	}
 	cluster, servers, err := s.getDatabaseServers(ctx, identity)
 	if err != nil {

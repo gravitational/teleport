@@ -19,6 +19,8 @@ import { makeServer } from 'teleterm/ui/services/clusters';
 
 import { useServerSideResources } from '../useServerSideResources';
 
+import type * as uri from 'teleterm/ui/uri';
+
 export function useServers() {
   const appContext = useAppContext();
 
@@ -29,7 +31,7 @@ export function useServers() {
         appContext.resourcesService.fetchServers(params)
     );
 
-  function getSshLogins(serverUri: string): string[] {
+  function getSshLogins(serverUri: uri.ServerUri): string[] {
     const cluster = appContext.clustersService.findClusterByResource(serverUri);
     return cluster?.loggedInUser?.sshLoginsList || [];
   }

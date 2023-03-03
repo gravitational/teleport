@@ -1,0 +1,47 @@
+```yaml
+kind: device
+version: v1
+metadata:
+  # name is a unique random identifier for the device in the cluster.
+  name: 5ff09619-527c-4a17-973f-cd9cd5c93990
+spec:
+  # asset_tag is a user controlled identifier for the device. This is usually a device serial number.
+  asset_tag: HD6M74XNCK
+
+  # collected_data is a list of data recently collected from the device.
+  # Each list item is an object containing event and device metadata..
+  collected_data:
+    # collect_time is the device-recorded timestamp of when the data was collected.
+  - collect_time: "2023-02-22T21:04:26.312862Z"
+
+    # os_type is the operating system type of the device.
+    os_type: macos
+
+    # record_time is the Teleport-recorded timestamp of when the data was received.
+    record_time: "2023-02-22T21:04:26.396471Z"
+
+    # serial_number is the serial number of the device, usually matching the asset tag.
+    serial_number: HD6M74XNCK
+
+  # create_time is a timestamp of when the device was created and enrolled with Teleport.
+  create_time: "2023-02-22T21:04:20.87721Z"
+
+  # update_time is a timestamp of when the device was last updated.
+  update_time: "2023-02-22T21:04:26.396471Z"
+
+  # os_type is the operating system type of the device.
+  # This must be one of "linux", "windows", or "macos".
+  os_type: macos
+
+  # credential is the device credential used by the device to authenticate with Teleport.
+  credential:
+    # id is the unique identifier of the credential.
+    id: ebe41e2b-5dbb-40a0-82fb-cded7d3373dd
+
+    # public_key_der is the base64-encoded DER-formatted public part of the asymmetric keypair used to verify authenticity.
+    public_key_der: MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEhO73Q5+DWIg9nXFc/Nv38cI9iog9nnlwDmdtZXBtRNc6P0WajDG3cWn3NWttkHTKDSxywOOmupliKA8q1VxvfQ==
+  
+  # enroll_status is the current enrollment status of the device.
+  # This must be one of "enrolled", "not_enrolled", or "unspecified".
+  enroll_status: enrolled
+```

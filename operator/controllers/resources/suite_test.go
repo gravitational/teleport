@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//nolint:gci // Remove when GCI is fixed upstream https://github.com/daixiang0/gci/issues/135
 package resources
 
 import (
@@ -152,11 +153,7 @@ func (s *testSetup) startKubernetesOperator(t *testing.T) {
 	}).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
-	err = (&UserReconciler{
-		Client:                 s.k8sClient,
-		Scheme:                 k8sManager.GetScheme(),
-		TeleportClientAccessor: clientAccessor,
-	}).SetupWithManager(k8sManager)
+	err = NewUserReconciler(s.k8sClient, clientAccessor).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
 	err = NewGithubConnectorReconciler(s.k8sClient, clientAccessor).SetupWithManager(k8sManager)

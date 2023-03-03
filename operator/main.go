@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//nolint:goimports,gci // goimports disagree with gci on blank imports. Remove when GCI is fixed upstream https://github.com/daixiang0/gci/issues/135
 package main
 
-//nolint:goimports // goimports disagree with gci on blank imports
 import (
 	"flag"
 	"os"
@@ -141,11 +141,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&resourcescontrollers.UserReconciler{
-		Client:                 mgr.GetClient(),
-		Scheme:                 mgr.GetScheme(),
-		TeleportClientAccessor: bot.GetClient,
-	}).SetupWithManager(mgr); err != nil {
+	if err = resourcescontrollers.NewUserReconciler(mgr.GetClient(), bot.GetClient).
+		SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "TeleportUser")
 		os.Exit(1)
 	}

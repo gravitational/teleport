@@ -31,6 +31,8 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -136,63 +138,85 @@ func (l databaseListings) Swap(i, j int) {
 }
 
 func listDatabasesAllClusters(cf *CLIConf) error {
-	// Fetch database listings for profiles in parallel. Set an arbitrary limit
-	// just in case.
-	group, groupCtx := errgroup.WithContext(cf.Context)
-	group.SetLimit(4)
-
-	// mu guards access to dbListings
-	var mu sync.Mutex
-	var dbListings databaseListings
-
-	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
-		group.Go(func() error {
-			proxy, err := tc.ConnectToProxy(groupCtx)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			defer proxy.Close()
-
-			sites, err := proxy.GetSites(groupCtx)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			for _, site := range sites {
-				databases, err := proxy.FindDatabasesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				roleSet, err := fetchRoleSetForCluster(groupCtx, profile, proxy, site.Name)
-				if err != nil {
-					log.Debugf("Failed to fetch user roles: %v.", err)
-				}
-
-				localDBListings := make(databaseListings, 0, len(databases))
-				for _, database := range databases {
-					localDBListings = append(localDBListings, databaseListing{
-						Proxy:    profile.ProxyURL.Host,
-						Cluster:  site.Name,
-						roleSet:  roleSet,
-						Database: database,
-					})
-				}
-				mu.Lock()
-				dbListings = append(dbListings, localDBListings...)
-				mu.Unlock()
-			}
-
-			return nil
-		})
-		return nil
-	})
+	tracer := cf.TracingProvider.Tracer(teleport.ComponentTSH)
+	clusters, err := getClusterClients(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	defer func() {
+		// close all clients
+		for _, cluster := range clusters {
+			_ = cluster.Close()
+		}
+	}()
+
+	// Fetch database listings for all clusters in parallel with an upper limit
+	group, groupCtx := errgroup.WithContext(cf.Context)
+	group.SetLimit(10)
+
+	// mu guards access to dbListings
+	var (
+		mu         sync.Mutex
+		dbListings databaseListings
+		errors     []error
+	)
+	for _, cluster := range clusters {
+		cluster := cluster
+		if cluster.connectionError != nil {
+			mu.Lock()
+			errors = append(errors, cluster.connectionError)
+			mu.Unlock()
+			continue
+		}
+
+		group.Go(func() error {
+			ctx, span := tracer.Start(
+				groupCtx,
+				"ListDatabases",
+				oteltrace.WithAttributes(attribute.String("cluster", cluster.name)))
+			defer span.End()
+
+			logger := log.WithField("cluster", cluster.name)
+			databases, err := cluster.proxy.FindDatabasesByFiltersForCluster(ctx, cluster.req, cluster.name)
+			if err != nil {
+				logger.Errorf("Failed to get databases: %v.", err)
+
+				mu.Lock()
+				errors = append(errors, trace.ConnectionProblem(err, "failed to list databases for cluster %s: %v", cluster.name, err))
+				mu.Unlock()
+				return nil
+			}
+
+			roleSet, err := fetchRoleSetForCluster(ctx, cluster.profile, cluster.proxy, cluster.name)
+			if err != nil {
+				log.Debugf("Failed to fetch user roles: %v.", err)
+			}
+
+			localDBListings := make(databaseListings, 0, len(databases))
+			for _, database := range databases {
+				localDBListings = append(localDBListings, databaseListing{
+					Proxy:    cluster.profile.ProxyURL.Host,
+					Cluster:  cluster.name,
+					roleSet:  roleSet,
+					Database: database,
+				})
+			}
+			mu.Lock()
+			dbListings = append(dbListings, localDBListings...)
+			mu.Unlock()
+
+			return nil
+
+		})
+	}
+
 	if err := group.Wait(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if len(dbListings) == 0 && len(errors) > 0 {
+		return trace.NewAggregate(errors...)
 	}
 
 	sort.Sort(dbListings)
@@ -219,7 +243,8 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
-	return nil
+
+	return trace.NewAggregate(errors...)
 }
 
 // onDatabaseLogin implements "tsh db login" command.
@@ -554,15 +579,15 @@ func serializeDatabaseConfig(configInfo *dbConfigInfo, format string) (string, e
 func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	tc *client.TeleportClient, profile *client.ProfileStatus,
 	route *tlsca.RouteToDatabase, db types.Database, rootClusterName string,
-	req *dbLocalProxyRequirement,
+	requires *dbLocalProxyRequirement,
 ) ([]dbcmd.ConnectCommandFunc, error) {
-	if !req.localProxy {
+	if !requires.localProxy {
 		return nil, nil
 	}
-	if req.tunnel {
-		log.Debugf("Starting local proxy tunnel because: %v", strings.Join(req.tunnelReasons, ", "))
+	if requires.tunnel {
+		log.Debugf("Starting local proxy tunnel because: %v", strings.Join(requires.tunnelReasons, ", "))
 	} else {
-		log.Debugf("Starting local proxy because: %v", strings.Join(req.localProxyReasons, ", "))
+		log.Debugf("Starting local proxy because: %v", strings.Join(requires.localProxyReasons, ", "))
 	}
 
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -577,7 +602,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 		routeToDatabase:  route,
 		database:         db,
 		listener:         listener,
-		localProxyTunnel: req.tunnel,
+		localProxyTunnel: requires.tunnel,
 		rootClusterName:  rootClusterName,
 	})
 	if err != nil {
@@ -608,7 +633,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	cmdOpts := []dbcmd.ConnectCommandFunc{
 		dbcmd.WithLocalProxy(host, addr.Port(0), profile.CACertPathForCluster(rootClusterName)),
 	}
-	if req.tunnel {
+	if requires.tunnel {
 		cmdOpts = append(cmdOpts, dbcmd.WithNoTLS())
 	}
 	return cmdOpts, nil
@@ -633,11 +658,10 @@ type localProxyConfig struct {
 func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
 	certFile := arg.cliConf.LocalProxyCertFile
 	keyFile := arg.cliConf.LocalProxyKeyFile
-	if arg.routeToDatabase.Protocol == defaults.ProtocolSQLServer ||
-		arg.routeToDatabase.Protocol == defaults.ProtocolCassandra ||
-		(arg.localProxyTunnel && certFile == "") {
-		// For SQL Server and Cassandra connections, local proxy must be configured with the
-		// client certificate that will be used to route connections.
+	if arg.localProxyTunnel && certFile == "" && keyFile == "" {
+		// --tunnel implies the local proxy is configured with db certs.
+		// If db certs are not specified but exist in the user profile, load
+		// them from the profile.
 		certFile = arg.profile.DatabaseCertPathForCluster(arg.teleportClient.SiteName, arg.routeToDatabase.ServiceName)
 		keyFile = arg.profile.KeyPath()
 	}
@@ -646,7 +670,8 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
 		if !arg.localProxyTunnel {
 			return nil, trace.Wrap(err)
 		}
-		// local proxy with tunnel monitors its certs, so it's ok if a cert file can't be loaded.
+		// local proxy with --tunnel monitors and reissue its certs,
+		// so it's ok if certs can't be loaded here.
 		certs = nil
 	}
 
@@ -728,7 +753,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.BadParameter(formatDbCmdUnsupportedDBProtocol(cf, route))
 	}
 
-	requires := getDBLocalProxyRequirement(tc, route, withConnectRequirements(tc, route))
+	requires := getDBLocalProxyRequirement(tc, route, withConnectRequirements(cf.Context, tc, route))
 	if err := maybeDatabaseLogin(cf, tc, profile, route, requires); err != nil {
 		return trace.Wrap(err)
 	}
@@ -835,7 +860,12 @@ func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.D
 	return databases[0], nil
 }
 
-func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
+func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route *tlsca.RouteToDatabase, profile *client.ProfileStatus, requires *dbLocalProxyRequirement) (bool, error) {
+	if (requires.localProxy && requires.tunnel) || isLocalProxyTunnelRequested(cf) {
+		// We don't need to login if using a local proxy tunnel,
+		// because a local proxy tunnel will handle db login itself.
+		return false, nil
+	}
 	found := false
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
 	if err != nil {
@@ -868,13 +898,8 @@ func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route *tlsca.Ro
 
 // maybeDatabaseLogin checks if cert is still valid. If not valid, trigger db login logic.
 // returns a true/false indicating whether database login was triggered.
-func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, route *tlsca.RouteToDatabase, req *dbLocalProxyRequirement) error {
-	if req.localProxy && req.tunnel {
-		// We only need to (possibly) login if not using a local proxy tunnel,
-		// because a local proxy tunnel will handle db login itself.
-		return nil
-	}
-	reloginNeeded, err := needDatabaseRelogin(cf, tc, route, profile)
+func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, route *tlsca.RouteToDatabase, requires *dbLocalProxyRequirement) error {
+	reloginNeeded, err := needDatabaseRelogin(cf, tc, route, profile, requires)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1053,22 +1078,22 @@ type dbLocalProxyRequirement struct {
 	localProxy bool
 	// localProxyReasons is a list of reasons for why local proxy is required.
 	localProxyReasons []string
-	// localProxy is whether a local proxy tunnel is required to connect.
+	// tunnel is whether a local proxy tunnel is required to connect.
 	tunnel bool
 	// tunnelReasons is a list of reasons for why a tunnel is required.
 	tunnelReasons []string
 }
 
-// requireLocalProxy sets the local proxy requirement and appends reasons.
-func (r *dbLocalProxyRequirement) requireLocalProxy(reasons ...string) {
+// addLocalProxy sets the local proxy requirement and appends reasons.
+func (r *dbLocalProxyRequirement) addLocalProxy(reasons ...string) {
 	r.localProxy = true
 	r.localProxyReasons = append(r.localProxyReasons, reasons...)
 }
 
-// requireLocalProxyWithTunnel sets the local proxy and tunnel requirements,
+// addLocalProxyWithTunnel sets the local proxy and tunnel requirements,
 // and appends reasons for both.
-func (r *dbLocalProxyRequirement) requireLocalProxyWithTunnel(reasons ...string) {
-	r.requireLocalProxy(reasons...)
+func (r *dbLocalProxyRequirement) addLocalProxyWithTunnel(reasons ...string) {
+	r.addLocalProxy(reasons...)
 	r.tunnel = true
 	r.tunnelReasons = append(r.tunnelReasons, reasons...)
 }
@@ -1083,18 +1108,19 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route *tlsca.RouteToD
 	var out dbLocalProxyRequirement
 	switch tc.PrivateKeyPolicy {
 	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
-		out.requireLocalProxyWithTunnel(formatKeyPolicyReason(tc.PrivateKeyPolicy))
+		out.addLocalProxyWithTunnel(formatKeyPolicyReason(tc.PrivateKeyPolicy))
 	}
 
-	// Some protocols (Snowflake, DynamoDB) only works in the local tunnel mode.
 	switch route.Protocol {
-	case defaults.ProtocolSnowflake, defaults.ProtocolDynamoDB:
-		out.requireLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
-	case defaults.ProtocolSQLServer, defaults.ProtocolCassandra:
-		out.requireLocalProxy(formatDBProtocolReason(route.Protocol))
+	case defaults.ProtocolSnowflake,
+		defaults.ProtocolDynamoDB,
+		defaults.ProtocolSQLServer,
+		defaults.ProtocolCassandra:
+		// Some protocols only work in the local tunnel mode.
+		out.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
 	case defaults.ProtocolMySQL:
 		if tc.TLSRoutingEnabled {
-			out.requireLocalProxy(fmt.Sprintf("%v and %v",
+			out.addLocalProxy(fmt.Sprintf("%v and %v",
 				formatDBProtocolReason(route.Protocol),
 				formatTLSRoutingReason(tc.SiteName)))
 		}
@@ -1107,17 +1133,33 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route *tlsca.RouteToD
 }
 
 // withConnectRequirements is requirement option fn that adds requirements specific to "tsh db connect".
-func withConnectRequirements(tc *client.TeleportClient, route *tlsca.RouteToDatabase) requireOpt {
+func withConnectRequirements(ctx context.Context, tc *client.TeleportClient, route *tlsca.RouteToDatabase) requireOpt {
 	return func(r *dbLocalProxyRequirement) {
 		if !r.localProxy && tc.TLSRoutingEnabled {
-			r.requireLocalProxy(formatTLSRoutingReason(tc.SiteName))
+			r.addLocalProxy(formatTLSRoutingReason(tc.SiteName))
 		}
 		switch route.Protocol {
 		case defaults.ProtocolElasticsearch:
 			// ElasticSearch access can work without a local proxy tunnel, but not
 			// via `tsh db connect`.
 			// (elasticsearch-sql-cli cannot be configured to use specific certs).
-			r.requireLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
+			r.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
+		}
+		if r.localProxy && r.tunnel {
+			// don't check if MFA is required, because a local proxy tunnel is
+			// already required. this avoids an extra API call.
+			return
+		}
+		// Call API and check if a user needs to use MFA to connect to the database.
+		mfaRequired, err := isMFADatabaseAccessRequired(ctx, tc, route)
+		if err != nil {
+			log.WithError(err).Debugf("error getting MFA requirement for database %v",
+				route.ServiceName)
+		} else if mfaRequired {
+			// When MFA is required, we should require a local proxy tunnel,
+			// because the local proxy tunnel can hold database MFA certs in-memory
+			// without a restricted 1-minute TTL. This is better for user experience.
+			r.addLocalProxyWithTunnel("MFA is required to connect to the database")
 		}
 	}
 }

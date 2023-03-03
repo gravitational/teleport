@@ -178,7 +178,7 @@ func (c *LockV2) CheckAndSetDefaults() error {
 
 // IsEmpty returns true if none of the target's fields is set.
 func (t LockTarget) IsEmpty() bool {
-	return protoEqual(&t, &LockTarget{})
+	return protoKnownFieldsEqual(&t, &LockTarget{})
 }
 
 // IntoMap returns the target attributes in the form of a map.
@@ -201,28 +201,14 @@ func (t LockTarget) Match(lock Lock) bool {
 		return false
 	}
 	lockTarget := lock.Target()
-	if t.User != "" && lockTarget.User != t.User {
-		return false
-	}
-	if t.Role != "" && lockTarget.Role != t.Role {
-		return false
-	}
-	if t.Login != "" && lockTarget.Login != t.Login {
-		return false
-	}
-	if t.Node != "" && lockTarget.Node != t.Node {
-		return false
-	}
-	if t.MFADevice != "" && lockTarget.MFADevice != t.MFADevice {
-		return false
-	}
-	if t.WindowsDesktop != "" && lockTarget.WindowsDesktop != t.WindowsDesktop {
-		return false
-	}
-	if t.AccessRequest != "" && lockTarget.AccessRequest != t.AccessRequest {
-		return false
-	}
-	return true
+	return (t.User == "" || lockTarget.User == t.User) &&
+		(t.Role == "" || lockTarget.Role == t.Role) &&
+		(t.Login == "" || lockTarget.Login == t.Login) &&
+		(t.Node == "" || lockTarget.Node == t.Node) &&
+		(t.MFADevice == "" || lockTarget.MFADevice == t.MFADevice) &&
+		(t.WindowsDesktop == "" || lockTarget.WindowsDesktop == t.WindowsDesktop) &&
+		(t.AccessRequest == "" || lockTarget.AccessRequest == t.AccessRequest) &&
+		(t.Device == "" || lockTarget.Device == t.Device)
 }
 
 // String returns string representation of the LockTarget.

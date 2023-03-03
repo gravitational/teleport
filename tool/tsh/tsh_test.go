@@ -2562,17 +2562,19 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSOLoginFunc {
 	return func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*auth.SSHLoginResponse, error) {
 		// generate certificates for our user
+		clusterName, err := authServer.GetClusterName()
+		require.NoError(t, err)
 		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
 			priv.MarshalSSHPublicKey(), user.GetName(), time.Hour,
 			constants.CertificateFormatStandard,
-			"localhost", "",
+			clusterName.GetClusterName(), "",
 		)
 		require.NoError(t, err)
 
 		// load CA cert
 		authority, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
-			DomainName: "localhost",
+			DomainName: clusterName.GetClusterName(),
 		}, false)
 		require.NoError(t, err)
 
@@ -2640,7 +2642,8 @@ func TestSerializeVersion(t *testing.T) {
 		name     string
 		expected string
 
-		proxyVersion string
+		proxyVersion       string
+		proxyPublicAddress string
 	}{
 		{
 			name: "no proxy version provided",
@@ -2650,18 +2653,19 @@ func TestSerializeVersion(t *testing.T) {
 			),
 		},
 		{
-			name:         "proxy version provided",
-			proxyVersion: "1.33.7",
+			name:               "proxy version provided",
+			proxyVersion:       "1.33.7",
+			proxyPublicAddress: "teleport.example.com:443",
 			expected: fmt.Sprintf(
-				`{"version": %q, "gitref": %q, "runtime": %q, "proxyVersion": %q}`,
-				teleport.Version, teleport.Gitref, runtime.Version(), "1.33.7"),
+				`{"version": %q, "gitref": %q, "runtime": %q, "proxyVersion": %q, "proxyPublicAddress": %q}`,
+				teleport.Version, teleport.Gitref, runtime.Version(), "1.33.7", "teleport.example.com:443"),
 		},
 	}
 
 	for _, tC := range testCases {
 		t.Run(tC.name, func(t *testing.T) {
 			testSerialization(t, tC.expected, func(fmt string) (string, error) {
-				return serializeVersion(fmt, tC.proxyVersion)
+				return serializeVersion(fmt, tC.proxyVersion, tC.proxyPublicAddress)
 			})
 		})
 	}

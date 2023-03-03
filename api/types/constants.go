@@ -112,6 +112,9 @@ const (
 	// KindSnowflakeSession represents a Snowflake specific web session.
 	KindSnowflakeSession = "snowflake_session"
 
+	// KindSAMLIdPSession represents a SAML IdP session.
+	KindSAMLIdPSession = "saml_idp_session"
+
 	// KindEvent is structured audit logging event
 	KindEvent = "event"
 
@@ -194,6 +197,10 @@ const (
 	// MetaNameClusterAuditConfig is the exact name of the singleton resource holding
 	// cluster audit configuration.
 	MetaNameClusterAuditConfig = "cluster-audit-config"
+
+	// MetaNameUIConfig is the exact name of the singleton resource holding
+	// proxy service UI configuration.
+	MetaNameUIConfig = "ui-config"
 
 	// KindClusterNetworkingConfig is the resource that holds cluster networking configuration.
 	KindClusterNetworkingConfig = "cluster_networking_config"
@@ -287,6 +294,10 @@ const (
 	// used to install teleport on discovered nodes
 	KindInstaller = "installer"
 
+	// KindUIConfig is a resource that holds configuration for the UI
+	// served by the proxy service
+	KindUIConfig = "ui_config"
+
 	// KindClusterAlert is a resource that conveys a cluster-level alert message.
 	KindClusterAlert = "cluster_alert"
 
@@ -311,6 +322,18 @@ const (
 
 	// KindSAMLIdPServiceProvider is a SAML service provider for the built in Teleport IdP.
 	KindSAMLIdPServiceProvider = "saml_idp_service_provider"
+
+	// KindUserGroup is an externally sourced user group.
+	KindUserGroup = "user_group"
+
+	// KindOktaImportRule is a rule for importing Okta objects.
+	KindOktaImportRule = "okta_import_rule"
+
+	// KindOktaAssignment is a set of actions to apply to Okta.
+	KindOktaAssignment = "okta_assignment"
+
+	// KindHeadlessAuthentication is a headless authentication resource.
+	KindHeadlessAuthentication = "headless_authentication"
 
 	// V6 is the sixth version of resources.
 	V6 = "v6"
@@ -407,6 +430,14 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
+	// SubscriptionIDLabel is used to identify virtual machines by Azure
+	// subscription ID found via automatic discovery, to avoid re-running
+	// installation commands on the node.
+	SubscriptionIDLabel = TeleportNamespace + "/subscription-id"
+	// VMIDLabel is used to identify virtual machines by ID found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	VMIDLabel = TeleportNamespace + "/vm-id"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"

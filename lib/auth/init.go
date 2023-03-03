@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -184,6 +185,9 @@ type InitConfig struct {
 	// SAMLIdPServiceProviders is a service that manages SAML IdP service providers.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
 
+	// UserGroups is a service that manages user groups.
+	UserGroups services.UserGroups
+
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 
@@ -209,7 +213,7 @@ type InitConfig struct {
 	FIPS bool
 
 	// UsageReporter is a service that forwards cluster usage events.
-	UsageReporter services.UsageReporter
+	UsageReporter usagereporter.UsageReporter
 }
 
 // Init instantiates and configures an instance of AuthServer

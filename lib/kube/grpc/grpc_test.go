@@ -20,12 +20,13 @@ import (
 	"net"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/testing/protocmp"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
@@ -35,7 +36,6 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestListKubernetesResources(t *testing.T) {
@@ -101,6 +101,8 @@ func TestListKubernetesResources(t *testing.T) {
 		searchAsRoles  bool
 		namespace      string
 		searchKeywords []string
+		sortBy         *types.SortBy
+		startKey       string
 	}
 	tests := []struct {
 		name      string
@@ -269,6 +271,70 @@ func TestListKubernetesResources(t *testing.T) {
 			},
 			assertErr: require.NoError,
 		},
+		{
+			name: "user with no access listing dev namespace using search as roles and sort",
+			args: args{
+				user:          userNoAccess,
+				searchAsRoles: true,
+				namespace:     "dev",
+				sortBy: &types.SortBy{
+					Field:  "name",
+					IsDesc: true,
+				},
+			},
+			want: &proto.ListKubernetesResourcesResponse{
+				TotalCount: 2,
+				Resources: []*types.KubernetesResourceV1{
+					{
+						Kind: "pod",
+						Metadata: types.Metadata{
+							Name: "nginx-2",
+						},
+						Spec: types.KubernetesResourceSpecV1{
+							Namespace: "dev",
+						},
+					},
+					{
+						Kind: "pod",
+						Metadata: types.Metadata{
+							Name: "nginx-1",
+						},
+						Spec: types.KubernetesResourceSpecV1{
+							Namespace: "dev",
+						},
+					},
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "user with no access listing dev namespace using search as roles and sort with start key",
+			args: args{
+				user:          userNoAccess,
+				searchAsRoles: true,
+				namespace:     "dev",
+				sortBy: &types.SortBy{
+					Field:  "name",
+					IsDesc: true,
+				},
+				startKey: "nginx-1",
+			},
+			want: &proto.ListKubernetesResourcesResponse{
+				TotalCount: 2,
+				Resources: []*types.KubernetesResourceV1{
+					{
+						Kind: "pod",
+						Metadata: types.Metadata{
+							Name: "nginx-1",
+						},
+						Spec: types.KubernetesResourceSpecV1{
+							Namespace: "dev",
+						},
+					},
+				},
+			},
+			assertErr: require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -290,6 +356,8 @@ func TestListKubernetesResources(t *testing.T) {
 					KubernetesNamespace: tt.args.namespace,
 					UseSearchAsRoles:    tt.args.searchAsRoles,
 					SearchKeywords:      tt.args.searchKeywords,
+					SortBy:              tt.args.sortBy,
+					StartKey:            tt.args.startKey,
 				},
 			)
 			tt.assertErr(t, err)
@@ -300,7 +368,7 @@ func TestListKubernetesResources(t *testing.T) {
 					require.NoError(t, err)
 				}
 			}
-			require.Equal(t, tt.want, rsp)
+			require.Empty(t, cmp.Diff(rsp, tt.want, protocmp.Transform()))
 		})
 	}
 }
@@ -318,25 +386,26 @@ func initGRPCServer(t *testing.T, testCtx *kubeproxy.TestContext, listener net.L
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		AccessPoint:   testCtx.AuthClient,
+		ClusterName:   clusterName,
 		Limiter:       limiter,
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}
 
+	tlsConf := copyAndConfigureTLS(tlsConfig, logrus.New(), testCtx.AuthClient, clusterName)
+	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
+		TransportCredentials: credentials.NewTLS(tlsConf),
+		UserGetter:           authMiddleware,
+	})
+	require.NoError(t, err)
+
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			utils.GRPCServerUnaryErrorInterceptor,
-			otelgrpc.UnaryServerInterceptor(),
 			authMiddleware.UnaryInterceptor(),
 		),
 		grpc.ChainStreamInterceptor(
-			utils.GRPCServerStreamErrorInterceptor,
-			otelgrpc.StreamServerInterceptor(),
 			authMiddleware.StreamInterceptor(),
 		),
-		grpc.Creds(credentials.NewTLS(
-			copyAndConfigureTLS(tlsConfig, logrus.New(), testCtx.AuthClient, clusterName),
-		)),
+		grpc.Creds(creds),
 	)
 	t.Cleanup(grpcServer.GracefulStop)
 	// Auth client, lock watcher and authorizer for Kube proxy.

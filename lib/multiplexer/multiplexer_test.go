@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -44,7 +43,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -146,111 +144,80 @@ func TestMux(t *testing.T) {
 		}
 		require.NotNil(t, err)
 	})
-
 	// ProxyLine tests proxy line protocol
-	t.Run("ProxyLine", func(t *testing.T) {
+	t.Run("ProxyLines", func(t *testing.T) {
 		t.Parallel()
-		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		require.NoError(t, err)
 
-		mux, err := New(Config{
-			Listener:                    listener,
-			EnableExternalProxyProtocol: true,
-		})
-		require.NoError(t, err)
-		go mux.Serve()
-		defer mux.Close()
-
-		backend1 := &httptest.Server{
-			Listener: mux.TLS(),
-			Config: &http.Server{
-				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					fmt.Fprintf(w, r.RemoteAddr)
-				}),
+		testCases := []struct {
+			desc            string
+			proxyLine       []byte
+			expectedAddress string
+		}{
+			{
+				desc:            "PROXY protocol v1",
+				proxyLine:       []byte(sampleProxyV1Line),
+				expectedAddress: "127.0.0.1:12345",
+			},
+			{
+				desc:            "PROXY protocol v2 LOCAL command",
+				proxyLine:       sampleProxyV2LineLocal,
+				expectedAddress: "", // Shouldn't be changed
+			},
+			{
+				desc:            "PROXY protocol v2 PROXY command",
+				proxyLine:       sampleProxyV2Line,
+				expectedAddress: "127.0.0.1:12345",
 			},
 		}
-		backend1.StartTLS()
-		defer backend1.Close()
 
-		remoteAddr := net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8000}
-		proxyLine := ProxyLine{
-			Protocol:    TCP4,
-			Source:      remoteAddr,
-			Destination: net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9000},
+		for _, tt := range testCases {
+			t.Run(tt.desc, func(t *testing.T) {
+				listener, err := net.Listen("tcp", "127.0.0.1:0")
+				require.NoError(t, err)
+
+				mux, err := New(Config{
+					Listener:                    listener,
+					EnableExternalProxyProtocol: true,
+				})
+				require.NoError(t, err)
+				go mux.Serve()
+				defer mux.Close()
+
+				backend1 := &httptest.Server{
+					Listener: mux.TLS(),
+					Config: &http.Server{
+						Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							fmt.Fprintf(w, r.RemoteAddr)
+						}),
+					},
+				}
+				backend1.StartTLS()
+				defer backend1.Close()
+
+				parsedURL, err := url.Parse(backend1.URL)
+				require.NoError(t, err)
+
+				conn, err := net.Dial("tcp", parsedURL.Host)
+				require.NoError(t, err)
+				defer conn.Close()
+				// send proxy line first before establishing TLS connection
+				_, err = conn.Write(tt.proxyLine)
+				require.NoError(t, err)
+
+				// upgrade connection to TLS
+				tlsConn := tls.Client(conn, clientConfig(backend1))
+				defer tlsConn.Close()
+
+				// make sure the TLS call succeeded and we got remote address correctly
+				out, err := utils.RoundtripWithConn(tlsConn)
+				require.NoError(t, err)
+				if tt.expectedAddress != "" {
+					require.Equal(t, out, tt.expectedAddress)
+				} else {
+					require.Equal(t, out, tlsConn.LocalAddr().String())
+				}
+			})
 		}
-
-		parsedURL, err := url.Parse(backend1.URL)
-		require.NoError(t, err)
-
-		conn, err := net.Dial("tcp", parsedURL.Host)
-		require.NoError(t, err)
-		defer conn.Close()
-		// send proxy line first before establishing TLS connection
-		_, err = fmt.Fprint(conn, proxyLine.String())
-		require.NoError(t, err)
-
-		// upgrade connection to TLS
-		tlsConn := tls.Client(conn, clientConfig(backend1))
-		defer tlsConn.Close()
-
-		// make sure the TLS call succeeded and we got remote address
-		// correctly
-		out, err := utils.RoundtripWithConn(tlsConn)
-		require.NoError(t, err)
-		require.Equal(t, out, remoteAddr.String())
-	})
-
-	// ProxyLineV2 tests proxy protocol v2
-	t.Run("ProxyLineV2", func(t *testing.T) {
-		t.Parallel()
-		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		require.NoError(t, err)
-
-		mux, err := New(Config{
-			Listener:                    listener,
-			EnableExternalProxyProtocol: true,
-		})
-		require.NoError(t, err)
-		go mux.Serve()
-		defer mux.Close()
-
-		backend1 := &httptest.Server{
-			Listener: mux.TLS(),
-			Config: &http.Server{
-				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					fmt.Fprintf(w, r.RemoteAddr)
-				}),
-			},
-		}
-		backend1.StartTLS()
-		defer backend1.Close()
-
-		parsedURL, err := url.Parse(backend1.URL)
-		require.NoError(t, err)
-
-		conn, err := net.Dial("tcp", parsedURL.Host)
-		require.NoError(t, err)
-		defer conn.Close()
-		// send proxy header + addresses before establishing TLS connection
-		_, err = conn.Write([]byte{
-			0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A, // signature
-			0x21, 0x11, // version/command, family
-			0x00, 12, // address length
-			0x7F, 0x00, 0x00, 0x01, // source address: 127.0.0.1
-			0x7F, 0x00, 0x00, 0x01, // destination address: 127.0.0.1
-			0x1F, 0x40, 0x23, 0x28, // source port: 8000, destination port: 9000
-		})
-		require.NoError(t, err)
-
-		// upgrade connection to TLS
-		tlsConn := tls.Client(conn, clientConfig(backend1))
-		defer tlsConn.Close()
-
-		// make sure the TLS call succeeded and we got remote address
-		// correctly
-		out, err := utils.RoundtripWithConn(tlsConn)
-		require.NoError(t, err)
-		require.Equal(t, out, "127.0.0.1:8000")
 	})
 
 	// TestDisabledProxy makes sure the connection gets dropped
@@ -735,73 +702,6 @@ func TestMux(t *testing.T) {
 		require.Equal(t, "db listener", string(dbBytes))
 	})
 
-	t.Run("SSHProxyHelloSignature", func(t *testing.T) {
-		// Ensures SSH connections fronted with the ProxyHelloSignature are
-		// detected as SSH connections.
-		t.Parallel()
-		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		require.NoError(t, err)
-
-		mux, err := New(Config{
-			Listener:                    listener,
-			EnableExternalProxyProtocol: true,
-		})
-		require.NoError(t, err)
-		go mux.Serve()
-		defer mux.Close()
-
-		// Record the remote addr from the point of view of the ssh handler
-		// so we can confirm that the header is parsed properly.
-		calledWithRemoteAddr := ""
-		sshHandler := sshutils.NewChanHandlerFunc(func(_ context.Context, c *sshutils.ConnectionContext, nch ssh.NewChannel) {
-			calledWithRemoteAddr = c.ServerConn.RemoteAddr().String()
-			err := nch.Reject(ssh.Prohibited, "nothing to see here")
-			require.NoError(t, err)
-		})
-
-		srv, err := sshutils.NewServer(
-			"test",
-			utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-			sshHandler,
-			[]ssh.Signer{signer},
-			sshutils.AuthMethods{Password: pass("abc123")},
-		)
-		require.NoError(t, err)
-		go srv.Serve(mux.SSH())
-		defer srv.Close()
-
-		// Manually create client conn so we can inject the ProxyHelloSignature
-		conn, err := net.DialTimeout("tcp", listener.Addr().String(), time.Second)
-		remoteAddr := "6.6.6.6:1337"
-		require.NoError(t, err)
-		hp := &apisshutils.HandshakePayload{
-			ClientAddr: remoteAddr,
-		}
-		payloadJSON, err := json.Marshal(hp)
-		require.NoError(t, err)
-		payload := fmt.Sprintf("%s%s\x00", apisshutils.ProxyHelloSignature, payloadJSON)
-		_, err = conn.Write([]byte(payload))
-		require.NoError(t, err)
-		c, chans, reqs, err := ssh.NewClientConn(conn, listener.Addr().String(), &ssh.ClientConfig{
-			Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
-			Timeout:         time.Second,
-			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
-		})
-		require.NoError(t, err)
-		clt := ssh.NewClient(c, chans, reqs)
-		defer clt.Close()
-
-		// call new session to initiate opening new channel
-		_, err = clt.NewSession()
-		require.EqualError(t, err, "ssh: rejected: administratively prohibited (nothing to see here)")
-		// make sure the channel handler was called OK
-		require.Equal(t, remoteAddr, calledWithRemoteAddr)
-
-		// Close mux, new requests should fail
-		mux.Close()
-		mux.Wait()
-	})
-
 	// Ensures that we can correctly send and verify signed PROXY header
 	t.Run("signed PROXYv2 headers", func(t *testing.T) {
 		t.Parallel()
@@ -864,7 +764,7 @@ func TestMux(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			signedHeader, err := GetSignedPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
+			signedHeader, err := signPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
 			require.NoError(t, err)
 
 			_, err = conn.Write(signedHeader)
@@ -885,7 +785,7 @@ func TestMux(t *testing.T) {
 
 			defer conn.Close()
 
-			signedHeader, err := GetSignedPROXYHeader(&addrV6, &addrV6, clusterName, tlsProxyCert, jwtSigner)
+			signedHeader, err := signPROXYHeader(&addrV6, &addrV6, clusterName, tlsProxyCert, jwtSigner)
 			require.NoError(t, err)
 
 			_, err = conn.Write(signedHeader)
@@ -902,7 +802,7 @@ func TestMux(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			signedHeader, err := GetSignedPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
+			signedHeader, err := signPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
 			require.NoError(t, err)
 
 			_, err = conn.Write(signedHeader)
@@ -920,9 +820,9 @@ func TestMux(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			signedHeader, err := GetSignedPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
+			signedHeader, err := signPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
 			require.NoError(t, err)
-			signedHeader2, err := GetSignedPROXYHeader(&addr2, &addr1, clusterName+"wrong", tlsProxyCert, jwtSigner)
+			signedHeader2, err := signPROXYHeader(&addr2, &addr1, clusterName+"wrong", tlsProxyCert, jwtSigner)
 			require.NoError(t, err)
 
 			_, err = conn.Write(signedHeader)
@@ -940,7 +840,7 @@ func TestMux(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			signedHeader, err := GetSignedPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
+			signedHeader, err := signPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
 			require.NoError(t, err)
 
 			pl := ProxyLine{
@@ -968,7 +868,7 @@ func TestMux(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			signedHeader, err := GetSignedPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
+			signedHeader, err := signPROXYHeader(&addr1, &addr2, clusterName, tlsProxyCert, jwtSigner)
 			require.NoError(t, err)
 
 			pl := ProxyLine{
@@ -1017,7 +917,7 @@ func TestMux(t *testing.T) {
 		})
 	})
 	// Ensures that we can correctly send and verify signed PROXY header
-	t.Run("is ignored if signed PROXY header can't be verified (wrong cluster)", func(t *testing.T) {
+	t.Run("signed PROXY header is ignored if signed by wrong cluster", func(t *testing.T) {
 		t.Parallel()
 
 		const clusterName = "teleport-test"
@@ -1059,7 +959,7 @@ func TestMux(t *testing.T) {
 		sAddr := net.TCPAddr{IP: net.ParseIP(ip), Port: 444}
 		dAddr := net.TCPAddr{IP: net.ParseIP(ip), Port: 555}
 
-		signedHeader, err := GetSignedPROXYHeader(&sAddr, &dAddr, clusterName, tlsProxyCert, jwtSigner)
+		signedHeader, err := signPROXYHeader(&sAddr, &dAddr, clusterName, tlsProxyCert, jwtSigner)
 		require.NoError(t, err)
 
 		_, err = conn.Write(signedHeader)
@@ -1174,7 +1074,7 @@ func TestIsHTTP(t *testing.T) {
 	}
 }
 
-func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, CertAuthorityGetter, PROXYSigner) {
+func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, CertAuthorityGetter, JWTPROXYSigner) {
 	t.Helper()
 	caPriv, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName: clusterName, Organization: []string{clusterName}}, []string{clusterName}, time.Hour)
@@ -1251,7 +1151,7 @@ func BenchmarkMux_ProxyV2Signature(b *testing.B) {
 
 	b.Run("simulation of signing and verifying PROXY header", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
-			token, err := jwtSigner.SignPROXY(jwt.PROXYSignParams{
+			token, err := jwtSigner.SignPROXYJWT(jwt.PROXYSignParams{
 				ClusterName:        clusterName,
 				SourceAddress:      sAddr.String(),
 				DestinationAddress: dAddr.String(),
@@ -1302,4 +1202,43 @@ func BenchmarkMux_ProxyV2Signature(b *testing.B) {
 				"IP addresses in PROXY header don't match JWT")
 		}
 	})
+}
+
+func Test_GetTcpAddr(t *testing.T) {
+	testCases := []struct {
+		input    net.Addr
+		expected string
+	}{
+		{
+			input: &utils.NetAddr{
+				Addr:        "127.0.0.1:24998",
+				AddrNetwork: "tcp",
+				Path:        "",
+			},
+			expected: "127.0.0.1:24998",
+		},
+		{
+			input:    nil,
+			expected: ":0",
+		},
+		{
+			input: &net.TCPAddr{
+				IP:   net.ParseIP("8.8.8.8"),
+				Port: 25000,
+			},
+			expected: "8.8.8.8:25000",
+		},
+		{
+			input: &net.TCPAddr{
+				IP:   net.ParseIP("::1"),
+				Port: 25000,
+			},
+			expected: "[::1]:25000",
+		},
+	}
+
+	for _, tt := range testCases {
+		result := getTCPAddr(tt.input)
+		require.Equal(t, tt.expected, result.String())
+	}
 }

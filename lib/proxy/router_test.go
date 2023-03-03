@@ -313,7 +313,7 @@ func (r testRemoteSite) Dial(reversetunnel.DialParams) (net.Conn, error) {
 	return r.conn, r.err
 }
 
-func (r testRemoteSite) DialAuthServer() (net.Conn, error) {
+func (r testRemoteSite) DialAuthServer(reversetunnel.DialParams) (net.Conn, error) {
 	return r.conn, r.err
 }
 
@@ -405,7 +405,7 @@ func TestRouter_DialHost(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			conn, err := tt.router.DialHost(ctx, &utils.NetAddr{}, "host", "0", "test", nil, nil)
+			conn, _, err := tt.router.DialHost(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", nil, nil)
 			tt.assertion(t, conn, err)
 		})
 	}
@@ -502,7 +502,7 @@ func TestRouter_DialSite(t *testing.T) {
 				tracer:      tracing.NoopTracer(cluster),
 			}
 
-			conn, err := router.DialSite(ctx, tt.cluster)
+			conn, err := router.DialSite(ctx, tt.cluster, nil, nil)
 			tt.assertion(t, conn, err)
 		})
 	}

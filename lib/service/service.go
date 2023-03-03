@@ -36,7 +36,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -90,7 +89,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
-	"github.com/gravitational/teleport/lib/jwt"
 	kubegprc "github.com/gravitational/teleport/lib/kube/grpc"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
@@ -733,7 +731,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 	// so not all connections can be kept forever.
 	timeoutCtx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 	defer cancel()
-	srv.Shutdown(timeoutCtx)
+	srv.Shutdown(services.ProcessReloadContext(timeoutCtx))
 	if timeoutCtx.Err() == context.DeadlineExceeded {
 		// The new service can start initiating connections to the old service
 		// keeping it from shutting down gracefully, or some external
@@ -1672,7 +1670,7 @@ func (process *TeleportProcess) initAuthService() error {
 	// clean up unused descriptors passed for proxy, but not used by it
 	warnOnErr(process.closeImportedDescriptors(teleport.ComponentAuth), log)
 	if cfg.Auth.EnableProxyProtocol {
-		log.Infof("Starting Auth service with PROXY protocol support.")
+		log.Infof("Starting Auth service with external PROXY protocol support.")
 	}
 
 	// use multiplexer to leverage support for proxy protocol.
@@ -1905,30 +1903,33 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	}
 
 	return cache.New(cfg.setup(cache.Config{
-		Context:          process.ExitContext(),
-		Backend:          reporter,
-		Events:           cfg.services,
-		ClusterConfig:    cfg.services,
-		Provisioner:      cfg.services,
-		Trust:            cfg.services,
-		Users:            cfg.services,
-		Access:           cfg.services,
-		DynamicAccess:    cfg.services,
-		Presence:         cfg.services,
-		Restrictions:     cfg.services,
-		Apps:             cfg.services,
-		Kubernetes:       cfg.services,
-		DatabaseServices: cfg.services,
-		Databases:        cfg.services,
-		AppSession:       cfg.services,
-		SnowflakeSession: cfg.services,
-		WindowsDesktops:  cfg.services,
-		WebSession:       cfg.services.WebSessions(),
-		WebToken:         cfg.services.WebTokens(),
-		Component:        teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
-		MetricComponent:  teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
-		Tracer:           process.TracingProvider.Tracer(teleport.ComponentCache),
-		Unstarted:        cfg.unstarted,
+		Context:                 process.ExitContext(),
+		Backend:                 reporter,
+		Events:                  cfg.services,
+		ClusterConfig:           cfg.services,
+		Provisioner:             cfg.services,
+		Trust:                   cfg.services,
+		Users:                   cfg.services,
+		Access:                  cfg.services,
+		DynamicAccess:           cfg.services,
+		Presence:                cfg.services,
+		Restrictions:            cfg.services,
+		Apps:                    cfg.services,
+		Kubernetes:              cfg.services,
+		DatabaseServices:        cfg.services,
+		Databases:               cfg.services,
+		AppSession:              cfg.services,
+		SnowflakeSession:        cfg.services,
+		SAMLIdPSession:          cfg.services,
+		WindowsDesktops:         cfg.services,
+		SAMLIdPServiceProviders: cfg.services,
+		UserGroups:              cfg.services,
+		WebSession:              cfg.services.WebSessions(),
+		WebToken:                cfg.services.WebTokens(),
+		Component:               teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
+		MetricComponent:         teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
+		Tracer:                  process.TracingProvider.Tracer(teleport.ComponentCache),
+		Unstarted:               cfg.unstarted,
 	}))
 }
 
@@ -2364,9 +2365,20 @@ func (process *TeleportProcess) initSSH() error {
 			utils.Consolef(cfg.Console, log, teleport.ComponentNode, "Service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, cfg.SSH.Addr.Addr)
 
+			sshListener, err := multiplexer.NewPROXYEnabledListener(multiplexer.Config{
+				Listener:                    listener,
+				Context:                     process.ExitContext(),
+				EnableExternalProxyProtocol: false,
+				ID:                          teleport.Component(teleport.ComponentNode, fmt.Sprintf("%d", time.Now().Unix())),
+				CertAuthorityGetter:         conn.Client,
+				LocalClusterName:            clusterName.GetClusterName(),
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			// Start the SSH server. This kicks off updating labels, starting the
 			// heartbeat, and accepting connections.
-			go s.Serve(limiter.WrapListener(listener))
+			go s.Serve(limiter.WrapListener(sshListener))
 		} else {
 			// Start the SSH server. This kicks off updating labels and starting the
 			// heartbeat.
@@ -2957,8 +2969,9 @@ func (process *TeleportProcess) initProxy() error {
 }
 
 type proxyListeners struct {
-	mux *multiplexer.Mux
-	tls *multiplexer.WebListener
+	mux    *multiplexer.Mux
+	sshMux *multiplexer.Mux
+	tls    *multiplexer.WebListener
 	// ssh receives SSH traffic that is multiplexed on the Proxy SSH Port. When TLS routing
 	// is enabled only traffic with the TLS ALPN protocol common.ProtocolProxySSH is received.
 	ssh net.Listener
@@ -2970,7 +2983,7 @@ type proxyListeners struct {
 	kube          net.Listener
 	db            dbListeners
 	alpn          net.Listener
-	proxy         net.Listener
+	proxyPeer     net.Listener
 	// grpcPublic receives gRPC traffic that has the TLS ALPN protocol common.ProtocolProxyGRPCInsecure. This
 	// listener is only enabled when TLS routing is enabled and does not enforce mTLS authentication since
 	// it's used to handle cluster join requests.
@@ -3020,6 +3033,9 @@ func (l *proxyListeners) Close() {
 	if l.mux != nil {
 		l.mux.Close()
 	}
+	if l.sshMux != nil {
+		l.sshMux.Close()
+	}
 	if l.tls != nil {
 		l.tls.Close()
 	}
@@ -3041,8 +3057,8 @@ func (l *proxyListeners) Close() {
 	if l.grpcMTLS != nil {
 		l.grpcMTLS.Close()
 	}
-	if l.proxy != nil {
-		l.proxy.Close()
+	if l.proxyPeer != nil {
+		l.proxyPeer.Close()
 	}
 	if l.reverseTunnelMux != nil {
 		l.reverseTunnelMux.Close()
@@ -3053,7 +3069,7 @@ func (l *proxyListeners) Close() {
 }
 
 // setupProxyListeners sets up web proxy listeners based on the configuration
-func (process *TeleportProcess) setupProxyListeners(networkingConfig types.ClusterNetworkingConfig) (*proxyListeners, error) {
+func (process *TeleportProcess) setupProxyListeners(networkingConfig types.ClusterNetworkingConfig, accessPoint auth.ProxyAccessPoint, clusterName string) (*proxyListeners, error) {
 	cfg := process.Config
 	process.log.Debugf("Setup Proxy: Web Proxy Address: %v, Reverse Tunnel Proxy Address: %v", cfg.Proxy.WebAddr.Addr, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 	var err error
@@ -3069,11 +3085,14 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			Listener:                    l,
 			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			ID:                          teleport.Component(teleport.ComponentProxy, "ssh"),
+			CertAuthorityGetter:         accessPoint,
+			LocalClusterName:            clusterName,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
+		listeners.sshMux = mux
 		listeners.ssh = mux.SSH()
 		listeners.sshGRPC = mux.TLS()
 		go func() {
@@ -3143,7 +3162,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			return nil, trace.Wrap(err)
 		}
 
-		listeners.proxy = listener
+		listeners.proxyPeer = listener
 	}
 
 	switch {
@@ -3160,6 +3179,8 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			Listener:                    listener,
 			ID:                          teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
+			CertAuthorityGetter:         accessPoint,
+			LocalClusterName:            clusterName,
 		})
 		if err != nil {
 			listener.Close()
@@ -3188,6 +3209,8 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			Listener:                    listener,
 			ID:                          teleport.Component(teleport.ComponentProxy, "web", process.id),
+			CertAuthorityGetter:         accessPoint,
+			LocalClusterName:            clusterName,
 		})
 		if err != nil {
 			listener.Close()
@@ -3240,6 +3263,8 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 					EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 					Listener:                    listener,
 					ID:                          teleport.Component(teleport.ComponentProxy, "web", process.id),
+					CertAuthorityGetter:         accessPoint,
+					LocalClusterName:            clusterName,
 				})
 				if err != nil {
 					listener.Close()
@@ -3314,6 +3339,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	cfg := process.Config
 	var tlsConfigWeb *tls.Config
 
+	clusterName := conn.ServerIdentity.ClusterName
+
 	proxyLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3340,7 +3367,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	listeners, err := process.setupProxyListeners(clusterNetworkConfig)
+	listeners, err := process.setupProxyListeners(clusterNetworkConfig, accessPoint, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3355,8 +3382,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentReverseTunnelServer, process.id),
 	})
-
-	clusterName := conn.ServerIdentity.ClusterName
 
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
@@ -3432,6 +3457,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	proxySigner, err := process.getPROXYSigner(conn.ServerIdentity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
@@ -3439,7 +3468,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	var peerClient *peer.Client
 
 	if !process.Config.Proxy.DisableReverseTunnel {
-		if listeners.proxy != nil {
+		if listeners.proxyPeer != nil {
 			peerClient, err = peer.NewClient(peer.ClientConfig{
 				Context:     process.ExitContext(),
 				ID:          process.Config.HostUUID,
@@ -3483,6 +3512,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				CircuitBreakerConfig:          process.Config.CircuitBreakerConfig,
 				LocalAuthAddresses:            utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
 				IngressReporter:               ingressReporter,
+				PROXYSigner:                   proxySigner,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3604,6 +3634,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Context:          process.ExitContext(),
 			StaticFS:         fs,
 			ClusterFeatures:  process.getClusterFeatures(),
+			UI:               cfg.Proxy.UI,
 			ProxySettings:    proxySettings,
 			PublicProxyAddr:  process.proxyPublicAddr().Addr,
 			ALPNHandler:      alpnHandlerForWeb.HandleConnection,
@@ -3611,6 +3642,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			TraceClient:      traceClt,
 			Router:           proxyRouter,
 			SessionControl:   sessionController,
+			PROXYSigner:      proxySigner,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
@@ -3643,6 +3675,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
 				ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 				ConnState:         ingress.HTTPConnStateReporter(ingress.Web, ingressReporter),
+				ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+					return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
+				},
 			},
 			Handler: webHandler,
 			Log:     log,
@@ -3684,7 +3719,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var peerAddrString string
 	var proxyServer *peer.Server
-	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxy != nil {
+	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxyPeer != nil {
 		peerAddr, err := process.Config.Proxy.publicPeerAddr()
 		if err != nil {
 			return trace.Wrap(err)
@@ -3692,7 +3727,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		peerAddrString = peerAddr.String()
 		proxyServer, err = peer.NewServer(peer.ServerConfig{
 			AccessCache:   accessPoint,
-			Listener:      listeners.proxy,
+			Listener:      listeners.proxyPeer,
 			TLSConfig:     serverTLSConfig,
 			ClusterDialer: clusterdial.NewClusterDialer(tsrv),
 			Log:           log,
@@ -3707,7 +3742,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return nil
 			}
 
-			log.Infof("Peer proxy service is starting on %s", listeners.proxy.Addr().String())
+			log.Infof("Peer proxy service is starting on %s", listeners.proxyPeer.Addr().String())
 			err := proxyServer.Serve()
 			if err != nil {
 				return trace.Wrap(err)
@@ -3746,7 +3781,34 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetTracerProvider(process.TracingProvider),
 		regular.SetSessionController(sessionController),
 		regular.SetIngressReporter(ingress.SSH, ingressReporter),
+		regular.SetPROXYSigner(proxySigner),
 	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// authMiddleware authenticates request assuming TLS client authentication
+	// adds authentication information to the context
+	// and passes it to the API server
+	authMiddleware := &auth.Middleware{
+		ClusterName: clusterName,
+	}
+
+	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
+		TransportCredentials: credentials.NewTLS(serverTLSConfig),
+		UserGetter:           authMiddleware,
+		Authorizer:           authorizer,
+		Enforcer:             sessionController,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3760,7 +3822,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			utils.GRPCServerStreamErrorInterceptor,
 			otelgrpc.StreamServerInterceptor(),
 		),
-		grpc.Creds(credentials.NewTLS(serverTLSConfig)),
+		grpc.Creds(creds),
 	)
 
 	process.RegisterCriticalFunc("proxy.ssh", func() error {
@@ -3777,7 +3839,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		// start grpc server
 		go func() {
-			if err := sshGRPCServer.Serve(proxyLimiter.WrapListener(listeners.sshGRPC)); !errors.Is(err, grpc.ErrServerStopped) {
+			if err := sshGRPCServer.Serve(proxyLimiter.WrapListener(listeners.sshGRPC)); err != nil && !utils.IsOKNetworkError(err) && !errors.Is(err, grpc.ErrServerStopped) {
 				log.WithError(err).Error("SSH gRPC server terminated unexpectedly")
 			}
 		}()
@@ -3803,6 +3865,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		FIPS:                process.Config.FIPS,
 		Log:                 rcWatchLog,
 		LocalAuthAddresses:  utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
+		PROXYSigner:         proxySigner,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4013,16 +4076,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
-		jwtSigner, err := process.getJWTSigner(conn.ServerIdentity)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 		authDialerService := alpnproxyauth.NewAuthProxyDialerService(
 			tsrv,
 			clusterName,
 			utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
-			jwtSigner,
-			conn.ServerIdentity.XCert.Raw)
+			proxySigner,
+			process.log,
+			process.TracingProvider.Tracer(teleport.ComponentProxy))
 
 		alpnRouter.Add(alpnproxy.HandlerDecs{
 			MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolAuth)),
@@ -4139,7 +4199,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	return nil
 }
 
-func (process *TeleportProcess) getJWTSigner(ident *auth.Identity) (*jwt.Key, error) {
+func (process *TeleportProcess) getPROXYSigner(ident *auth.Identity) (multiplexer.PROXYHeaderSigner, error) {
 	signer, err := utils.ParsePrivateKeyPEM(ident.KeyBytes)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not parse identity's private key")
@@ -4150,7 +4210,11 @@ func (process *TeleportProcess) getJWTSigner(ident *auth.Identity) (*jwt.Key, er
 		return nil, trace.Wrap(err, "could not create JWT signer")
 	}
 
-	return jwtSigner, nil
+	proxySigner, err := multiplexer.NewPROXYSigner(ident.XCert, jwtSigner)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not create PROXY signer")
+	}
+	return proxySigner, nil
 }
 
 func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListeners, tlsConfigWeb *tls.Config, cfg *Config, webConfig web.Config, log *logrus.Entry) (*web.Server, error) {
@@ -4709,8 +4773,13 @@ func (process *TeleportProcess) initApps() {
 
 		// Execute this when process is asked to exit.
 		process.OnExit("apps.stop", func(payload interface{}) {
-			log.Infof("Shutting down.")
-			warnOnErr(appServer.Close(), log)
+			if payload == nil {
+				log.Infof("Shutting down immediately.")
+				warnOnErr(appServer.Close(), log)
+			} else {
+				log.Infof("Shutting down gracefully.")
+				warnOnErr(appServer.Shutdown(payloadContext(payload, log)), log)
+			}
 			if asyncEmitter != nil {
 				warnOnErr(asyncEmitter.Close(), log)
 			}
@@ -4804,6 +4873,11 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	// imported listeners that haven't been used so far
 	warnOnErr(process.closeImportedDescriptors(""), process.log)
 	warnOnErr(process.stopListeners(), process.log)
+
+	// populate context values
+	if len(process.getForkedPIDs()) > 0 {
+		ctx = services.ProcessForkedContext(ctx)
+	}
 
 	process.BroadcastEvent(Event{Name: TeleportExitEvent, Payload: ctx})
 	localCtx, cancel := context.WithCancel(ctx)
@@ -5009,28 +5083,11 @@ func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
 // newHTTPFileSystem creates a new HTTP file system for the web handler.
 // It uses external configuration to make the decision
 func newHTTPFileSystem() (http.FileSystem, error) {
-	if !isDebugMode() {
-		fs, err := teleport.NewWebAssetsFilesystem() //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-		if err != nil {                              //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-			return nil, trace.Wrap(err)
-		}
-		return fs, nil
-	}
-
-	// Use the supplied HTTP filesystem path (defaults to the current dir).
-	assetsPath := os.Getenv(teleport.DebugAssetsPath)
-	fs, err := web.NewDebugFileSystem(assetsPath)
-	if err != nil {
+	fs, err := teleport.NewWebAssetsFilesystem() //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+	if err != nil {                              //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
 		return nil, trace.Wrap(err)
 	}
 	return fs, nil
-}
-
-// isDebugMode determines if teleport is running in a "debug" mode.
-// It looks at DEBUG environment variable
-func isDebugMode() bool {
-	v, _ := strconv.ParseBool(os.Getenv(teleport.DebugEnvVar))
-	return v
 }
 
 // readOrGenerateHostID tries to read the `host_uuid` from Kubernetes storage (if available) or local storage.
@@ -5065,7 +5122,8 @@ func readOrGenerateHostID(ctx context.Context, cfg *Config, kubeBackend kubernet
 				types.JoinMethodIAM,
 				types.JoinMethodCircleCI,
 				types.JoinMethodKubernetes,
-				types.JoinMethodGitHub:
+				types.JoinMethodGitHub,
+				types.JoinMethodAzure:
 				// Checking error instead of the usual uuid.New() in case uuid generation
 				// fails due to not enough randomness. It's been known to happen happen when
 				// Teleport starts very early in the node initialization cycle and /dev/urandom
@@ -5250,25 +5308,28 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		AccessPoint:   cfg.accessPoint,
+		ClusterName:   clusterName,
 		Limiter:       cfg.limiter,
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}
 
+	tlsConf := copyAndConfigureTLS(serverTLSConfig, process.log, cfg.accessPoint, clusterName)
+	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
+		TransportCredentials: credentials.NewTLS(tlsConf),
+		UserGetter:           authMiddleware,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	server := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			utils.GRPCServerUnaryErrorInterceptor,
-			otelgrpc.UnaryServerInterceptor(),
 			authMiddleware.UnaryInterceptor(),
 		),
 		grpc.ChainStreamInterceptor(
-			utils.GRPCServerStreamErrorInterceptor,
-			otelgrpc.StreamServerInterceptor(),
 			authMiddleware.StreamInterceptor(),
 		),
-		grpc.Creds(credentials.NewTLS(
-			copyAndConfigureTLS(serverTLSConfig, process.log, cfg.accessPoint, clusterName),
-		)),
+		grpc.Creds(creds),
 	)
 
 	kubeServer, err := kubegprc.New(kubegprc.Config{

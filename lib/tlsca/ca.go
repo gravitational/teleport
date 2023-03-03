@@ -158,8 +158,10 @@ type Identity struct {
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	PreviousIdentityExpires time.Time
-	// ClientIP is an observed IP of the client that this Identity represents.
-	ClientIP string
+	// LoginIP is an observed IP of the client that this Identity represents.
+	LoginIP string
+	// PinnedIP is an IP the certificate is pinned to.
+	PinnedIP string
 	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
 	AWSRoleARNs []string
 	// AzureIdentities is a list of allowed Azure identities user can assume.
@@ -310,7 +312,7 @@ func (id *Identity) GetEventIdentity() events.Identity {
 		DatabaseUsers:           id.DatabaseUsers,
 		MFADeviceUUID:           id.MFAVerified,
 		PreviousIdentityExpires: id.PreviousIdentityExpires,
-		ClientIP:                id.ClientIP,
+		ClientIP:                id.LoginIP,
 		AWSRoleARNs:             id.AWSRoleARNs,
 		AzureIdentities:         id.AzureIdentities,
 		GCPServiceAccounts:      id.GCPServiceAccounts,
@@ -370,9 +372,9 @@ var (
 	// the MFAVerified flag into certificates.
 	MFAVerifiedASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 8}
 
-	// ClientIPASN1ExtensionOID is an extension ID used when encoding/decoding
-	// the client IP into certificates.
-	ClientIPASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 9}
+	// LoginIPASN1ExtensionOID is an extension ID used when encoding/decoding
+	// the client's login IP into certificates.
+	LoginIPASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 9}
 
 	// AppNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// application name into a certificate.
@@ -474,6 +476,10 @@ var (
 	// LicenseOID is an extension OID signaling the license type of Teleport build.
 	// It should take values "oss" or "ent" (the values returned by modules.GetModules().BuildType())
 	LicenseOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 14}
+
+	// PinnedIPASN1ExtensionOID is an extension ID used when encoding/decoding
+	// the IP the certificate is pinned to.
+	PinnedIPASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 15}
 )
 
 // Device Trust OIDs.
@@ -645,11 +651,18 @@ func (id *Identity) Subject() (pkix.Name, error) {
 				Value: id.PreviousIdentityExpires.Format(time.RFC3339),
 			})
 	}
-	if id.ClientIP != "" {
+	if id.LoginIP != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
-				Type:  ClientIPASN1ExtensionOID,
-				Value: id.ClientIP,
+				Type:  LoginIPASN1ExtensionOID,
+				Value: id.LoginIP,
+			})
+	}
+	if id.PinnedIP != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  PinnedIPASN1ExtensionOID,
+				Value: id.PinnedIP,
 			})
 	}
 
@@ -903,10 +916,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				}
 				id.PreviousIdentityExpires = asTime
 			}
-		case attr.Type.Equal(ClientIPASN1ExtensionOID):
+		case attr.Type.Equal(LoginIPASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
-				id.ClientIP = val
+				id.LoginIP = val
 			}
 		case attr.Type.Equal(DatabaseServiceNameASN1ExtensionOID):
 			val, ok := attr.Value.(string)
@@ -995,6 +1008,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if val, ok := attr.Value.(string); ok {
 				id.DeviceExtensions.CredentialID = val
 			}
+		case attr.Type.Equal(PinnedIPASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.PinnedIP = val
+			}
 		}
 	}
 
@@ -1082,13 +1099,10 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 	}
 
 	log.WithFields(logrus.Fields{
-		"not_after":   req.NotAfter,
-		"dns_names":   req.DNSNames,
-		"common_name": req.Subject.CommonName,
-		"org":         req.Subject.Organization,
-		"org_unit":    req.Subject.OrganizationalUnit,
-		"locality":    req.Subject.Locality,
-	}).Infof("Generating TLS certificate %v.", req)
+		"not_after": req.NotAfter,
+		"dns_names": req.DNSNames,
+		"key_usage": req.KeyUsage,
+	}).Infof("Generating TLS certificate %v", req.Subject.String())
 
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,

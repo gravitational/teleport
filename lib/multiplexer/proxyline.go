@@ -85,6 +85,8 @@ var (
 	ErrIncorrectRole = errors.New("could not find required system role on the signing certificate")
 	// ErrNonLocalCluster is returned when we received signed PROXY header, which signing certificate is from remote cluster.
 	ErrNonLocalCluster = errors.New("signing certificate is not signed by local cluster CA")
+	// ErrNoHostCA is returned when CAGetter could not get host CA, for example if auth server is not available
+	ErrNoHostCA = errors.New("could not get specified host CA to verify signed PROXY header")
 )
 
 // ProxyLine implements PROXY protocol version 1 and 2
@@ -483,7 +485,8 @@ func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthorityG
 		return trace.Wrap(err)
 	}
 	if identity.TeleportCluster != localClusterName {
-		return trace.Wrap(ErrNonLocalCluster, "signing certificate cluster name: %s", identity.TeleportCluster)
+		return trace.Wrap(ErrNonLocalCluster, "signing certificate cluster name: %s, local cluster name: %s",
+			identity.TeleportCluster, localClusterName)
 	}
 
 	hostCA, err := caGetter.GetCertAuthority(ctx, types.CertAuthID{
@@ -491,7 +494,7 @@ func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthorityG
 		DomainName: localClusterName,
 	}, false)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(ErrNoHostCA, "CA cluster name: %s", localClusterName)
 	}
 	hostCACerts := services.GetTLSCerts(hostCA)
 

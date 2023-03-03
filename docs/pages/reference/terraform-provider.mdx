@@ -31,28 +31,30 @@ terraform {
 
 The provider supports the following options:
 
-| Name                  | Type   | Description                                                                     | Environment Variable              |
-|-----------------------|--------|---------------------------------------------------------------------------------|-----------------------------------|
-| `addr`                | string | Teleport auth or proxy address in "host:port" format.                           | `TF_TELEPORT_ADDR`                |
-| `cert_path`           | string | Path to Teleport certificate file.                                              | `TF_TELEPORT_CERT`                |
-| `cert_base64`         | string | Teleport certificate as base64.                                                 | `TF_TELEPORT_CERT_BASE64`         |
-| `identity_file_path`  | string | Path to Teleport identity file.                                                 | `TF_TELEPORT_IDENTITY_FILE_PATH`  |
-| `key_path`            | string | Path to Teleport key file.                                                      | `TF_TELEPORT_KEY`                 |
-| `key_base64`          | string | Teleport key as base64.                                                         | `TF_TELEPORT_KEY_BASE64`          |
-| `profile_dir`         | string | Teleport profile path.                                                          | `TF_TELEPORT_PROFILE_PATH`        |
-| `profile_name`        | string | Teleport profile name.                                                          | `TF_TELEPORT_PROFILE_NAME`        |
-| `root_ca_path`        | string | Path to Teleport CA file.                                                       | `TF_TELEPORT_ROOT_CA`             |
-| `root_ca_base64`      | string | Teleport CA as base64.                                                          | `TF_TELEPORT_ROOT_CA_BASE64`      |
-| `retry_base_duration` | string | Base duration between retries. [Format](https://pkg.go.dev/time#ParseDuration) | `TF_TELEPORT_RETRY_BASE_DURATION` |
-| `retry_cap_duration`  | string | Max duration between retries. [Format](https://pkg.go.dev/time#ParseDuration)   | `TF_TELEPORT_RETRY_CAP_DURATION`  |
-| `retry_max_tries`     | string | Max number of retries.                                                          | `TF_TELEPORT_RETRY_MAX_TRIES`     |
+
+| Name                   | Type   | Description                                                                    | Environment Variable               |
+| ---------------------- | ------ | ------------------------------------------------------------------------------ | ---------------------------------- |
+| `addr`                 | string | Teleport auth or proxy address in "host:port" format.                          | `TF_TELEPORT_ADDR`                 |
+| `cert_path`            | string | Path to Teleport certificate file.                                             | `TF_TELEPORT_CERT`                 |
+| `cert_base64`          | string | Teleport certificate as base64.                                                | `TF_TELEPORT_CERT_BASE64`          |
+| `identity_file_path`   | string | Path to Teleport identity file.                                                | `TF_TELEPORT_IDENTITY_FILE_PATH`   |
+| `identity_file_base64` | string | Teleport identity file as base64.                                              | `TF_TELEPORT_IDENTITY_FILE_BASE64` |
+| `key_path`             | string | Path to Teleport key file.                                                     | `TF_TELEPORT_KEY`                  |
+| `key_base64`           | string | Teleport key as base64.                                                        | `TF_TELEPORT_KEY_BASE64`           |
+| `profile_dir`          | string | Teleport profile path.                                                         | `TF_TELEPORT_PROFILE_PATH`         |
+| `profile_name`         | string | Teleport profile name.                                                         | `TF_TELEPORT_PROFILE_NAME`         |
+| `root_ca_path`         | string | Path to Teleport CA file.                                                      | `TF_TELEPORT_ROOT_CA`              |
+| `root_ca_base64`       | string | Teleport CA as base64.                                                         | `TF_TELEPORT_ROOT_CA_BASE64`       |
+| `retry_base_duration`  | string | Base duration between retries. [Format](https://pkg.go.dev/time#ParseDuration) | `TF_TELEPORT_RETRY_BASE_DURATION`  |
+| `retry_cap_duration`   | string | Max duration between retries. [Format](https://pkg.go.dev/time#ParseDuration)  | `TF_TELEPORT_RETRY_CAP_DURATION`   |
+| `retry_max_tries`      | string | Max number of retries.                                                         | `TF_TELEPORT_RETRY_MAX_TRIES`      |
 
 
 You need to specify at least one of:
 
 - `cert_path`, `key_path`,`root_ca_path` and `addr` to connect using key files.
 - `cert_base64`, `key_base64`,`root_ca_base64` and `addr` to connect using a base64-encoded key.
-- `identity_file_path` and `addr` to connect using identity file.
+- `identity_file_path` or `identity_file_base64` and `addr` to connect using an identity file.
 - `profile_name` and `profile_dir` (both can be empty) and Teleport will try to connect using current profile from `~/.tsh`
 
 The `retry_*` values are used to retry the API calls to Teleport when the cache is stale.
@@ -189,7 +191,7 @@ Metadata specifies a resource name, description, labels and optional expiry date
 
 **version**
 
-`version` is an optional string that specifies the role version (default `v3`).
+`version` is an optional string that specifies the role version (default `v6`).
 
 **spec**
 
@@ -203,6 +205,7 @@ Role specification consists of two sections: `allow` and `deny`. They are identi
 |                 `db_users`| string list | List of database users this role is allowed to connect as       |
 |        `kubernetes_groups`| string list | List of Kubernetes groups                                       |
 |         `kubernetes_users`| string list | List of Kubernetes users to impersonate                         |
+|     `kubernetes_resources`|         set | List of Kubernetes Resources the Role applies to                |
 |                   `logins`| string list | Logins is a list of *nix system logins                          |
 |               `app_labels`|         map | Application labels                                              |
 |           `app_labels.key`|      string | Application name                                                |
@@ -228,6 +231,15 @@ Role specification consists of two sections: `allow` and `deny`. They are identi
 |          `rules.resources`| string list | List of resources                                               |
 |              `rules.verbs`| string list | List of verbs                                                   |
 |              `rules.where`|      string | Additional advanced matcher                                     |
+
+
+**spec.allow.kubernetes_resources** and **spec.deny.kubernetes_resources**
+
+Kubernetes resources represents the resources the role allows/denies access to. The following fields are supported:
+
+|                `kind`|      string | Resource kind. Supported values: `pod`                                          |
+|                `name`|      string | Resource name in the Kubernetes cluster. Supports regular expressions and wildcards (`*`)       |
+|           `namespace`|      string | Resource namespace in the Kubernetes cluster. Supports regular expressions and wildcards (`*`)  |
 
 **spec.allow.request and spec.deny.request**
 
@@ -289,7 +301,7 @@ resource "teleport_role" "example" {
   metadata = {
     name = "example"
   }
-  
+
   spec = {
     options = {
       forward_agent           = false
@@ -322,6 +334,14 @@ resource "teleport_role" "example" {
         env = ["prod"]
         example = ["a", "b"]
       }
+
+      kubernetes_resources = [
+        {
+          kind      = "pod"
+          name      = "*"
+          namespace = "myns"
+        }
+      ]
     }
 
     deny = {

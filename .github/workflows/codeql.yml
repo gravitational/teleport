@@ -1,18 +1,8 @@
 name: "CodeQL"
 
 on:
-  push:
-    branches:
-      - master
-      - branch/*
-  pull_request:
-    branches:
-      - master
-      - branch/*
-    paths-ignore:
-      - 'docs/**'
-      - 'rfd/**'
-      - '**.md'
+  schedule:
+    - cron: '0 13 * * *' # At 1:00 PM UTC every day
 
 jobs:
   analyze:
@@ -59,4 +49,4 @@ jobs:
       uses: github/codeql-action/analyze@v2
       with:
         category: "/language:${{matrix.language}}"
-      timeout-minutes: 30
+      timeout-minutes: 240

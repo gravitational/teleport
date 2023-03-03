@@ -63,7 +63,7 @@ func TestReadProxyLine(t *testing.T) {
 		require.ErrorIs(t, err, io.EOF)
 	})
 	t.Run("malformed line", func(t *testing.T) {
-		_, err := ReadProxyLine(bufio.NewReader(bytes.NewReader([]byte("JIBBERISH\r\n"))))
+		_, err := ReadProxyLine(bufio.NewReader(bytes.NewReader([]byte("GIBBERISH\r\n"))))
 		require.ErrorIs(t, err, trace.BadParameter("malformed PROXY line protocol string"))
 	})
 	t.Run("successfully read proxy v1 line", func(t *testing.T) {
@@ -423,21 +423,21 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 	sAddr := net.TCPAddr{IP: net.ParseIP(ip), Port: 444}
 	dAddr := net.TCPAddr{IP: net.ParseIP(ip), Port: 555}
 
-	signature, err := jwtSigner.SignPROXY(jwt.PROXYSignParams{
+	signature, err := jwtSigner.SignPROXYJWT(jwt.PROXYSignParams{
 		ClusterName:        clusterName,
 		SourceAddress:      sAddr.String(),
 		DestinationAddress: dAddr.String(),
 	})
 	require.NoError(t, err)
 
-	wrongClusterSignature, err := jwtSigner.SignPROXY(jwt.PROXYSignParams{
+	wrongClusterSignature, err := jwtSigner.SignPROXYJWT(jwt.PROXYSignParams{
 		ClusterName:        "wrong-cluster",
 		SourceAddress:      sAddr.String(),
 		DestinationAddress: dAddr.String(),
 	})
 	require.NoError(t, err)
 
-	wrongSourceSignature, err := jwtSigner.SignPROXY(jwt.PROXYSignParams{
+	wrongSourceSignature, err := jwtSigner.SignPROXYJWT(jwt.PROXYSignParams{
 		ClusterName:        clusterName,
 		SourceAddress:      "4.3.2.1:1234",
 		DestinationAddress: dAddr.String(),
