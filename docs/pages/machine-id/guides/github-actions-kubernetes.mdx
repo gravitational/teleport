@@ -184,9 +184,13 @@ jobs:
           token: github-token
           # Use the name of your Kubernetes cluster
           kubernetes-cluster: my-kubernetes-cluster
+          # Enable the submission of anonymous usage telemetry.
+          anonymous-telemetry: 1
       - name: List pods
         run: kubectl get pods -A
 ```
+
+[More information about `anonymous-telemetry`.](../reference/telemetry.mdx)
 
 The `auth-k8s` action sets the `KUBECONFIG` for future steps to the credentials
 it has fetched from Teleport. This means that most existing tooling for
