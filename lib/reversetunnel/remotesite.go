@@ -870,6 +870,7 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		TargetID:        params.ServerID,
 		TargetAddr:      params.To.String(),
 		TargetHostname:  params.Address,
+		TargetServer:    params.TargetServer,
 		Clock:           s.clock,
 	}
 	remoteServer, err := forward.New(serverConfig)

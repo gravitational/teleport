@@ -162,6 +162,11 @@ type Server struct {
 	tracerProvider oteltrace.TracerProvider
 
 	targetID, targetAddr, targetHostname string
+
+	// targetServer is the host that the connection is being established for.
+	// It **MUST** only be populated when the target is a teleport ssh server
+	// or an agentless server.
+	targetServer types.Server
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -220,6 +225,11 @@ type ServerConfig struct {
 	TracerProvider oteltrace.TracerProvider
 
 	TargetID, TargetAddr, TargetHostname string
+
+	// TargetServer is the host that the connection is being established for.
+	// It **MUST** only be populated when the target is a teleport ssh server
+	// or an agentless server.
+	TargetServer types.Server
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -307,6 +317,7 @@ func New(c ServerConfig) (*Server, error) {
 		targetID:        c.TargetID,
 		targetAddr:      c.TargetAddr,
 		targetHostname:  c.TargetHostname,
+		targetServer:    c.TargetServer,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -325,12 +336,13 @@ func New(c ServerConfig) (*Server, error) {
 
 	// Common auth handlers.
 	authHandlerConfig := srv.AuthHandlerConfig{
-		Server:      s,
-		Component:   teleport.ComponentForwardingNode,
-		Emitter:     c.Emitter,
-		AccessPoint: c.AuthClient,
-		FIPS:        c.FIPS,
-		Clock:       c.Clock,
+		Server:       s,
+		Component:    teleport.ComponentForwardingNode,
+		Emitter:      c.Emitter,
+		AccessPoint:  c.AuthClient,
+		TargetServer: c.TargetServer,
+		FIPS:         c.FIPS,
+		Clock:        c.Clock,
 	}
 
 	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)

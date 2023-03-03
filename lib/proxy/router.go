@@ -187,7 +187,6 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 		tracer:         cfg.TracerProvider.Tracer("Router"),
 		serverResolver: cfg.serverResolver,
 	}, nil
-
 }
 
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
@@ -268,10 +267,11 @@ func (r *Router) DialHost(ctx context.Context, from net.Addr, host, port, cluste
 		To:           &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
 		GetUserAgent: agentGetter,
 		Address:      host,
+		Principals:   principals,
 		ServerID:     serverID,
 		ProxyIDs:     proxyIDs,
-		Principals:   principals,
 		ConnType:     types.NodeTunnel,
+		TargetServer: target,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -419,7 +419,6 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 	}
 
 	return server, nil
-
 }
 
 // DialSite establishes a connection to the auth server in the provided
