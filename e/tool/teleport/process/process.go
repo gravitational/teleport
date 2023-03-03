@@ -79,7 +79,7 @@ func NewTeleport(cfg *service.Config) (service.Process, error) {
 	}
 
 	// Initialize the IdP.
-	if cfg.Proxy.IdP.SAMLIdP.Enabled {
+	if cfg.Proxy.IdP.SAMLIdP.Enabled && cfg.Proxy.Enabled && !cfg.Proxy.DisableWebService {
 		// We have to wait for the proxy to be finished before we can initiate the SAML IdP.
 		ossProcess.RegisterFunc("saml-idp", func() error {
 			_, err := ossProcess.WaitForEvent(ossProcess.ExitContext(), service.ProxyWebServerReady)
