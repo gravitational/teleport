@@ -56,9 +56,9 @@ type AgentMetadataFetchConfig struct {
 	kubeClient kubernetes.Interface
 }
 
-// setDefaults sets the values of readFile and execCommand to the ones in the
-// standard library. Having these two methods configurable allows us to mock
-// them in tests.
+// setDefaults sets the values of several methods used to read files, execute
+// commands, performing http requests, etc.
+// Having these methods configurable allows us to mock them in tests.
 func (c *AgentMetadataFetchConfig) setDefaults() {
 	if c.Context == nil {
 		c.Context = context.Background()
@@ -154,25 +154,25 @@ func (c *AgentMetadataFetchConfig) fetchInstallMethods() []string {
 	return installMethods
 }
 
-// dockerfileInstallMethod returns whether the agent was installed using our
+// dockerfileInstallMethod returns true if the agent was installed using our
 // Dockerfile.
 func (c *AgentMetadataFetchConfig) dockerfileInstallMethod() bool {
 	return c.getenv("TELEPORT_INSTALL_METHOD_DOCKERFILE") == "true"
 }
 
-// helmKubeAgentInstallMethod returns whether the agent was installed using our
+// helmKubeAgentInstallMethod returns true if the agent was installed using our
 // Helm chart.
 func (c *AgentMetadataFetchConfig) helmKubeAgentInstallMethod() bool {
 	return c.getenv("TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT") == "true"
 }
 
-// nodeScriptInstallMethod returns whether the agent was installed using our
+// nodeScriptInstallMethod returns true if the agent was installed using our
 // install-node.sh script.
 func (c *AgentMetadataFetchConfig) nodeScriptInstallMethod() bool {
 	return c.getenv("TELEPORT_INSTALL_METHOD_NODE_SCRIPT") == "true"
 }
 
-// systemctlInstallMethod returns whether the agent is running using systemctl.
+// systemctlInstallMethod returns true if the agent is running using systemctl.
 func (c *AgentMetadataFetchConfig) systemctlInstallMethod() bool {
 	out, err := c.exec("systemctl", "is-active", "teleport.service")
 	if err != nil {
@@ -267,7 +267,7 @@ func (c *AgentMetadataFetchConfig) azureHTTPGetSuccess() bool {
 	return c.httpReqSuccess(req)
 }
 
-// exec runs a command and validates its output using the parse function.
+// exec runs a command and returns its output.
 func (c *AgentMetadataFetchConfig) exec(name string, args ...string) (string, error) {
 	out, err := c.execCommand(name, args...)
 	if err != nil {
@@ -278,7 +278,7 @@ func (c *AgentMetadataFetchConfig) exec(name string, args ...string) (string, er
 	return strings.TrimSpace(string(out)), nil
 }
 
-// read reads a file and validates its content using the parse function.
+// read reads a file and returns its content.
 func (c *AgentMetadataFetchConfig) read(name string) (string, error) {
 	out, err := c.readFile(name)
 	if err != nil {
