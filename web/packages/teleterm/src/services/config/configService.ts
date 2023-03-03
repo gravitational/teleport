@@ -20,70 +20,45 @@ import { FileStorage } from 'teleterm/services/fileStorage';
 import { Platform } from 'teleterm/mainProcess/types';
 
 import { createConfigStore } from './configStore';
+import { getKeyboardShortcutSchema } from './getKeyboardShortcutSchema';
 
 const createAppConfigSchema = (platform: Platform) => {
   const defaultKeymap = getDefaultKeymap(platform);
   const defaultTerminalFont = getDefaultTerminalFont(platform);
 
-  // Important: all keys except 'usageReporting.enabled' are currently not
-  // configurable by the user. Before we let the user configure them,
-  // we need to set up some actual validation, so that for example
-  // arbitrary CSS cannot be injected into the app through font settings.
-  //
-  // However, we want them to be in the config schema, so we included
-  // them here, but we do not read their value from the stored config.
+  const keyboardShortcutSchema = getKeyboardShortcutSchema(platform);
+
+  // `keymap.` prefix is used in `initUi.ts` in a predicate function.
   return z.object({
     'usageReporting.enabled': z.boolean().default(false),
-    'keymap.tab1': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab1'])
+    'keymap.tab1': keyboardShortcutSchema.default(defaultKeymap['tab1']),
+    'keymap.tab2': keyboardShortcutSchema.default(defaultKeymap['tab2']),
+    'keymap.tab3': keyboardShortcutSchema.default(defaultKeymap['tab3']),
+    'keymap.tab4': keyboardShortcutSchema.default(defaultKeymap['tab4']),
+    'keymap.tab5': keyboardShortcutSchema.default(defaultKeymap['tab5']),
+    'keymap.tab6': keyboardShortcutSchema.default(defaultKeymap['tab6']),
+    'keymap.tab7': keyboardShortcutSchema.default(defaultKeymap['tab7']),
+    'keymap.tab8': keyboardShortcutSchema.default(defaultKeymap['tab8']),
+    'keymap.tab9': keyboardShortcutSchema.default(defaultKeymap['tab9']),
+    'keymap.closeTab': keyboardShortcutSchema.default(
+      defaultKeymap['closeTab']
     ),
-    'keymap.tab2': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab2'])
+    'keymap.newTab': keyboardShortcutSchema.default(defaultKeymap['newTab']),
+    'keymap.previousTab': keyboardShortcutSchema.default(
+      defaultKeymap['previousTab']
     ),
-    'keymap.tab3': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab3'])
+    'keymap.nextTab': keyboardShortcutSchema.default(defaultKeymap['nextTab']),
+    'keymap.openConnections': keyboardShortcutSchema.default(
+      defaultKeymap['openConnections']
     ),
-    'keymap.tab4': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab4'])
+    'keymap.openClusters': keyboardShortcutSchema.default(
+      defaultKeymap['openClusters']
     ),
-    'keymap.tab5': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab5'])
+    'keymap.openProfiles': keyboardShortcutSchema.default(
+      defaultKeymap['openProfiles']
     ),
-    'keymap.tab6': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab6'])
-    ),
-    'keymap.tab7': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab7'])
-    ),
-    'keymap.tab8': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab8'])
-    ),
-    'keymap.tab9': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab9'])
-    ),
-    'keymap.closeTab': omitStoredConfigValue(
-      z.string().default(defaultKeymap['closeTab'])
-    ),
-    'keymap.newTab': omitStoredConfigValue(
-      z.string().default(defaultKeymap['newTab'])
-    ),
-    'keymap.previousTab': omitStoredConfigValue(
-      z.string().default(defaultKeymap['previousTab'])
-    ),
-    'keymap.nextTab': omitStoredConfigValue(
-      z.string().default(defaultKeymap['nextTab'])
-    ),
-    'keymap.openConnections': omitStoredConfigValue(
-      z.string().default(defaultKeymap['openConnections'])
-    ),
-    'keymap.openClusters': omitStoredConfigValue(
-      z.string().default(defaultKeymap['openClusters'])
-    ),
-    'keymap.openProfiles': omitStoredConfigValue(
-      z.string().default(defaultKeymap['openProfiles'])
-    ),
-    'keymap.openQuickInput': omitStoredConfigValue(
-      z.string().default(defaultKeymap['openQuickInput'])
+    'keymap.openQuickInput': keyboardShortcutSchema.default(
+      defaultKeymap['openQuickInput']
     ),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
@@ -96,16 +71,8 @@ const createAppConfigSchema = (platform: Platform) => {
   });
 };
 
-const omitStoredConfigValue = <T>(schema: z.ZodType<T>) =>
-  z.preprocess(() => undefined, schema);
-
 export type AppConfig = z.infer<ReturnType<typeof createAppConfigSchema>>;
 
-/**
- * Modifier keys must be defined in the following order:
- * Command-Control-Option-Shift for macOS
- * Ctrl-Alt-Shift for other platforms
- */
 export type KeyboardShortcutAction =
   | 'tab1'
   | 'tab2'
