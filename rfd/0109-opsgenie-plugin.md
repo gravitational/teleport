@@ -35,7 +35,10 @@ plugins:
         addr: "example.app.opsgenie.com" # Address of Opsgenie
         priority: "2" # Priority to create Opsgenie alerts with
         alert_tags: ["example-tag"] # List of tags to be added to alerts created in Opsgenie
-        identity_file: "path/to/identity_file" # Identity file to be used
+    identity_file: "path/to/identity_file" # Identity file to be used
+    client_key: "/var/lib/teleport/plugins/pagerduty/auth.key" # Teleport GRPC client secret key
+    client_crt: "/var/lib/teleport/plugins/pagerduty/auth.crt" # Teleport GRPC client certificate
+    root_cas: "/var/lib/teleport/plugins/pagerduty/auth.cas"   # Teleport cluster CA certs
 ```
 
 The logging configuration will be shared with the main Teleport process.
