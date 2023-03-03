@@ -1392,10 +1392,12 @@ func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
 				InstanceID: database.GCP.InstanceID,
 			},
 			AD: service.DatabaseAD{
-				KeytabFile: database.AD.KeytabFile,
-				Krb5File:   database.AD.Krb5File,
-				Domain:     database.AD.Domain,
-				SPN:        database.AD.SPN,
+				KeytabFile:  database.AD.KeytabFile,
+				Krb5File:    database.AD.Krb5File,
+				Domain:      database.AD.Domain,
+				SPN:         database.AD.SPN,
+				LDAPCert:    database.AD.LDAPCert,
+				KDCHostName: database.AD.KDCHostName,
 			},
 			Azure: service.DatabaseAzure{
 				ResourceID:    database.Azure.ResourceID,

@@ -304,6 +304,34 @@ func TestCheckDatabase(t *testing.T) {
 			outErr: true,
 		},
 		{
+			desc: "SQL Server missing LDAP Cert",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					Domain:      "test-domain",
+					SPN:         "test-spn",
+					KDCHostName: "test-domain",
+				},
+			},
+			outErr: true,
+		},
+		{
+			desc: "SQL Server missing KDC Hostname",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					Domain:   "test-domain",
+					SPN:      "test-spn",
+					LDAPCert: "random-content",
+				},
+			},
+			outErr: true,
+		},
+		{
 			desc: "MySQL with server version",
 			inDatabase: Database{
 				Name:     "mysql-foo",
