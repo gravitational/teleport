@@ -102,9 +102,14 @@ const (
 	hbv2Start hbv2TestEvent = "hb-start"
 	hbv2Close hbv2TestEvent = "hb-close"
 
-	hbv2AnnounceInterval = "hb-announce-interval"
+	hbv2AnnounceInterval hbv2TestEvent = "hb-announce-interval"
 
-	hbv2FallbackBackoff = "hb-fallback-backoff"
+	hbv2FallbackBackoff hbv2TestEvent = "hb-fallback-backoff"
+
+	hbv2NoFallback hbv2TestEvent = "no-fallback"
+
+	hbv2OnHeartbeatOk  = "on-heartbeat-ok"
+	hbv2OnHeartbeatErr = "on-heartbeat-err"
 )
 
 // newHeartbeatV2 configures a new HeartbeatV2 instance to wrap a given implementation.
@@ -169,8 +174,9 @@ type heartbeatV2Config struct {
 
 	// -- below values only used in tests
 
-	fallbackBackoff time.Duration
-	testEvents      chan hbv2TestEvent
+	fallbackBackoff       time.Duration
+	testEvents            chan hbv2TestEvent
+	degradedCheckInterval time.Duration
 }
 
 func (c *heartbeatV2Config) SetDefaults() {
@@ -186,6 +192,12 @@ func (c *heartbeatV2Config) SetDefaults() {
 	if c.fallbackBackoff == 0 {
 		// only set externally during tests
 		c.fallbackBackoff = time.Minute
+	}
+
+	if c.degradedCheckInterval == 0 {
+		// a lot of integration tests rely on overriding ServerKeepAliveTTL to modify how
+		// quickly teleport detects that it is in a degraded state.
+		c.degradedCheckInterval = apidefaults.ServerKeepAliveTTL()
 	}
 }
 
@@ -223,7 +235,7 @@ func (h *HeartbeatV2) run() {
 	// interval when we don't have a healthy control stream.
 	// TODO(fspmarshall): find a more elegant solution to this problem.
 	h.degradedCheck = interval.New(interval.Config{
-		Duration: apidefaults.ServerKeepAliveTTL(),
+		Duration: h.degradedCheckInterval,
 	})
 	defer h.degradedCheck.Stop()
 
@@ -234,29 +246,33 @@ func (h *HeartbeatV2) run() {
 		// outer loop performs announcement via the fallback method (used for backwards compatibility
 		// with older auth servers). Not all drivers support fallback.
 
-		if h.shouldAnnounce && h.inner.SupportsFallback() {
-			if time.Now().After(h.fallbackBackoffTime) {
-				if ok := h.inner.FallbackAnnounce(h.closeContext); ok {
-					h.testEvent(hbv2FallbackOk)
-					// reset announce interval and state on successful announce
-					h.announce.Reset()
-					h.degradedCheck.Reset()
-					h.shouldAnnounce = false
-					h.onHeartbeat(nil)
+		if h.shouldAnnounce {
+			if h.inner.SupportsFallback() {
+				if time.Now().After(h.fallbackBackoffTime) {
+					if ok := h.inner.FallbackAnnounce(h.closeContext); ok {
+						h.testEvent(hbv2FallbackOk)
+						// reset announce interval and state on successful announce
+						h.announce.Reset()
+						h.degradedCheck.Reset()
+						h.shouldAnnounce = false
+						h.onHeartbeat(nil)
 
-					// unblock tests waiting on an announce operation
-					for _, waiter := range h.announceWaiters {
-						close(waiter)
+						// unblock tests waiting on an announce operation
+						for _, waiter := range h.announceWaiters {
+							close(waiter)
+						}
+						h.announceWaiters = nil
+					} else {
+						h.testEvent(hbv2FallbackErr)
+						// announce failed, enter a backoff state.
+						h.fallbackBackoffTime = time.Now().Add(utils.SeventhJitter(h.fallbackBackoff))
+						h.onHeartbeat(h.fallbackFailed)
 					}
-					h.announceWaiters = nil
 				} else {
-					h.testEvent(hbv2FallbackErr)
-					// announce failed, enter a backoff state.
-					h.fallbackBackoffTime = time.Now().Add(utils.SeventhJitter(h.fallbackBackoff))
-					h.onHeartbeat(h.fallbackFailed)
+					h.testEvent(hbv2FallbackBackoff)
 				}
 			} else {
-				h.testEvent(hbv2FallbackBackoff)
+				h.testEvent(hbv2NoFallback)
 			}
 		}
 
@@ -388,6 +404,11 @@ func (h *HeartbeatV2) ForceSend(timeout time.Duration) error {
 }
 
 func (h *HeartbeatV2) onHeartbeat(err error) {
+	if err != nil {
+		h.testEvent(hbv2OnHeartbeatErr)
+	} else {
+		h.testEvent(hbv2OnHeartbeatOk)
+	}
 	if h.onHeartbeatInner == nil {
 		return
 	}
