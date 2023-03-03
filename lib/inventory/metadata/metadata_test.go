@@ -182,7 +182,7 @@ CGroup: /system.slice/teleport.service
 			execCommand: func(name string, args ...string) ([]byte, error) {
 				return nil, trace.NotFound("command does not exist")
 			},
-			expected: nil,
+			expected: []string{},
 		},
 	}
 

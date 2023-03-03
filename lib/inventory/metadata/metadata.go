@@ -157,7 +157,7 @@ func (c *fetchConfig) fetchHostArchitecture() string {
 
 // fetchInstallMethods returns the list of methods used to install the instance.
 func (c *fetchConfig) fetchInstallMethods() []string {
-	var installMethods []string
+	installMethods := []string{}
 	if c.dockerfileInstallMethod() {
 		installMethods = append(installMethods, "dockerfile")
 	}
