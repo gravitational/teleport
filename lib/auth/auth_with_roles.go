@@ -625,7 +625,8 @@ func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAut
 
 	ca, err := a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		log.WithError(err).Warn("error getting cert authority")
+		return nil, trace.AccessDenied("access denied")
 	}
 	sctx := &services.Context{User: a.context.User, Resource: ca}
 	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindCertAuthority, readVerb); err != nil {
