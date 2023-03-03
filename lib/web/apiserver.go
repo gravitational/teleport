@@ -1630,8 +1630,9 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		return nil, trace.Wrap(err)
 	}
 
+	feats := modules.GetModules().Features()
 	teleportPackage := teleport.ComponentTeleport
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+	if modules.GetModules().BuildType() == modules.BuildEnterprise || feats.Cloud {
 		teleportPackage = fmt.Sprintf("%s-%s", teleport.ComponentTeleport, modules.BuildEnterprise)
 	}
 
