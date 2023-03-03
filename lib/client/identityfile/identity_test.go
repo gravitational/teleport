@@ -141,7 +141,6 @@ func TestWrite(t *testing.T) {
 
 	wantArr := [][]byte{
 		key.PrivateKeyPEM(),
-		[]byte("\n"),
 		key.Cert,
 		key.TLSCert,
 		bytes.Join(key.TLSCAs(), []byte{}),
