@@ -409,7 +409,6 @@ func TestRouter_DialHost(t *testing.T) {
 			tt.assertion(t, conn, err)
 		})
 	}
-
 }
 
 func TestRouter_DialSite(t *testing.T) {
