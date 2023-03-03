@@ -1,0 +1,95 @@
+/*
+Copyright 2023 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package metadata
+
+import (
+	"sync"
+
+	"github.com/gravitational/teleport/api/client/proto"
+)
+
+// metadata is a cache of all agent metadata.
+var metadata *proto.UpstreamInventoryAgentMetadata
+
+// fetchOnce ensures that the agent metadata is fetched at most once.
+var fetchOnce sync.Once
+
+// getMetadata fetches the agent metadata, caching the resulting metadata.
+func getMetadata() *proto.UpstreamInventoryAgentMetadata {
+	fetchOnce.Do(func() {
+		defaultFetcher := &AgentMetadataFetchConfig{}
+		defaultFetcher.setDefaults()
+		metadata = defaultFetcher.fetchMetadata()
+	})
+	return metadata
+}
+
+// GetOS returns the agent OS.
+// The first call can take some time as all agent metadata will be retrieved.
+// The resulting metadata is cached, so subsequent calls will be fast.
+func GetOS() string {
+	return getMetadata().OS
+}
+
+// GetOSVersion returns the agent OS version.
+// The first call can take some time as all agent metadata will be retrieved.
+// The resulting metadata is cached, so subsequent calls will be fast.
+func GetOSVersion() string {
+	return getMetadata().OSVersion
+}
+
+// GetHostArchitecture returns the agent host architecture (if available).
+// The first call can take some time as all agent metadata will be retrieved.
+// The resulting metadata is cached, so subsequent calls will be fast.
+func GetHostArchitecture() string {
+	return getMetadata().HostArchitecture
+}
+
+// GetGlibcVersion returns the agent glibc version (if available).
+// The first call can take some time as all agent metadata will be retrieved.
+// The resulting metadata is cached, so subsequent calls will be fast.
+func GetGlibcVersion() string {
+	return getMetadata().GlibcVersion
+}
+
+// GetInstallMethods returns the agent install methods (if available).
+// The first call can take some time as all agent metadata will be retrieved.
+// The resulting metadata is cached, so subsequent calls will be fast.
+func GetInstallMethods() []string {
+	return getMetadata().InstallMethods
+}
+
+// GetContainerRuntime returns the agent container runtime (if available).
+// The first call can take some time as all agent metadata will be retrieved.
+// The resulting metadata is cached, so subsequent calls will be fast.
+func GetContainerRuntime() string {
+	return getMetadata().ContainerRuntime
+}
+
+// GetContainerOrchestrator returns the agent container orchestrator (if available).
+// The first call can take some time as all agent metadata will be retrieved.
+// The resulting metadata is cached, so subsequent calls will be fast.
+func GetContainerOrchestrator() string {
+	return getMetadata().ContainerOrchestrator
+}
+
+// GetContainerOrchestrator returns the agent cloud environment (if available).
+// The first call can take some time as all agent metadata will be retrieved.
+// The resulting metadata is cached, so subsequent calls will be fast.
+func GetCloudEnvironment() string {
+	return getMetadata().CloudEnvironment
+}

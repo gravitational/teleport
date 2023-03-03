@@ -105,11 +105,16 @@ func getKubeClient() kubernetes.Interface {
 	return client
 }
 
-// FetchAgentMetadata fetches and calculates all agent metadata we are interested
-// in tracking.
+// FetchAgentMetadata fetches and calculates all agent metadata we are
+// interested in tracking. Note that the resulting metadata is not cached.
 func FetchAgentMetadata(c *AgentMetadataFetchConfig) proto.UpstreamInventoryAgentMetadata {
 	c.setDefaults()
-	return proto.UpstreamInventoryAgentMetadata{
+	return *c.fetchMetadata()
+}
+
+// fetchMetadata fetches all agent metadata.
+func (c *AgentMetadataFetchConfig) fetchMetadata() *proto.UpstreamInventoryAgentMetadata {
+	return &proto.UpstreamInventoryAgentMetadata{
 		OS:                    c.fetchOS(),
 		OSVersion:             c.fetchOSVersion(),
 		HostArchitecture:      c.fetchHostArchitecture(),
