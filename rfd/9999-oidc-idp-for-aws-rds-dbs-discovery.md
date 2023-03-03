@@ -3,7 +3,7 @@ authors: Marco Dinis (marco.dinis@goteleport.com)
 state: draft
 ---
 
-# RFD 999 - OIDC IdP for AWS resource discovery
+# RFD 999 - OIDC IdP for AWS RDS DBs discovery
 
 ## Required Approvals
 
@@ -13,7 +13,7 @@ state: draft
 
 ## What
 
-Discover AWS resources without manual configuration.
+Discover AWS RDS Databases without manual configuration.
 
 #### Goals
 
@@ -26,10 +26,13 @@ That initiative can be tracked [here](https://github.com/gravitational/teleport/
 
 Automatically onboard AWS RDS Databases into Teleport.
 
+Discovering other AWS resources is out of scope.
+
 ## Terminology
 
 * OIDC: OpenID Connect is a protocol that works on top of OAuth2 and provides identity information.
 * IdP: Identity Provider is a system that manages identities.
+* JWT: JSON Web Token is a json encoded token that contains a set of claims signed by an entity.
 * JWKS: JSON Web Key Set is a set of public keys that IdP consumers must use to validate a signed JWT.
 
 ## Why
@@ -37,13 +40,29 @@ Automatically onboard AWS RDS Databases into Teleport.
 Our current discovery process for AWS resources requires multiple steps before the user gets to the "aha moment".
 Some of those steps are a little complicated and require the user to know some Teleport specific internals.
 
-We can reduce the number of steps and remove most of the Teleport specific configuration by creating an OIDC IdP in teleport.
+We can reduce the number of steps and remove most of the Teleport specific configuration by creating an OIDC IdP in Teleport.
 
 ## How
-AWS allows the set up of an IdP using OIDC providers.
+
+AWS allows the [set up](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) of an IdP using OIDC providers.
 Each provider has a set of roles, which limit their access.
 
-Turning Teleport into an OIDC IdP, and asking the user to create a new OIDC IdP that consumes the teleport OIDC endpoints, allows us to easily call AWS API endpoints to, for instance, list RDS instances and their details.
+Turning Teleport into an OIDC IdP, and asking the user to create a new OIDC IdP that consumes the Teleport OIDC endpoints, allows us to easily call AWS API endpoints to, for instance, list RDS instances and their details.
+
+When configuring the provider, we'll need an AWS Role which Teleport uses to issue API Calls.
+
+To store the configuration above, we'll create a new resource Kind: `Integration`.
+It'll leverage the `subkind` prop to distinguish future integrations.
+
+```yaml
+kind: integration
+subkind: aws-oidc
+version: v1
+metadata:
+	name: some-name
+spec:
+	aws_role: <aws role>
+```
 
 ### High Level Flow
 Simplified flow of interactions between User, Teleport and AWS:
@@ -67,7 +86,7 @@ User────────────┤                                     
                         │  │            │       │                     │
                         │  │  ┌─────────▼┐      │                     │
                         │  │  │ CA KeySet│      │                     │
-                        │  │  │  RSA Key │      │                     │
+                        │  │  │ +RSA Key │      │                     │
                         │  │  └─────────▲┘      │                     │
                         │  │6           │7      │                     │
                         │  │     ┌──────┴────┐  │                     │
@@ -81,10 +100,9 @@ User────────────┤                                     
 
 #### User's Point of View
 When the user adds a new resource, using the Discover Wizard, they'll be asked where the resource lives.
+Choosing an RDS DB, the user is presented with the following flow:
 
-The flow from the user's point of view should be the following:
-
-1. User chooses to Add resources from AWS, and is then prompted to setup an OIDC Identity Provider pointing to its teleport instance's url.
+1. User is prompted to setup an OIDC Identity Provider pointing to its Teleport instance's url.
 2. User opens AWS, selects IAM and then, under `Access Management`, selects `Identity providers`.
 3. Configures the Teleport instance as an OIDC IdP:
    1. Clicks `Add provider` of type `OpenID Connect`.
@@ -95,19 +113,19 @@ The flow from the user's point of view should be the following:
    1. The user is asked to create or assign an existing role.
    2. The role's `Policies` must be filled with the required Policies (described down below).
    3. The role's `Trust relationships` must target the Identity Provider they just created (described down below).
-6. The user will be greeted with a message saying that the configuration was successful. 
+6. The user will be greeted with a message in Teleport saying that the configuration was successful.
 
 To ease the necessary manual steps, the Discover wizard will provide a small video demoing what the user must do for the previous steps.
 
+At this point, the integration is configured and the user is able to discover RDS DBs without leaving Teleport.
+
 #### System's Point of View
-As for the flow that happens automatically, we have the following:
-
 The first interaction between AWS and Teleport happens when the user clicks on `Get Thumbprint` (step 4 of the User's Point of View flow).
-This will trigger a request started by AWS to Teleport hitting the OpenID Configuration endpoint and subsequently the JSON Web Key Set endpoint (3).
+This will trigger a request started by AWS to Teleport hitting the OpenID Configuration endpoint and subsequently the JSON Web Key Set endpoint.
 
-After this step, when the user tries to list a resource (eg, RDS databases), Teleport generates a token and issues the API call.
+After this step, when the user tries to list RDS DBs, Teleport generates a token and issues the API call.
 
-To generate a token, Teleport creates a JWT with the claims described above and sign it with the private key (the public is provided in the public JWKS endpoint).
+To generate a token, Teleport creates a JWT with the claims described above and the configured role, and signs it with the private key (the public is provided in the public JWKS endpoint).
 
 AWS receives the request and validates the token against the public key provided by OIDC IdP (ie, Teleport) at the `jwks_uri`.
 If authenticated and authorized for the api call, AWS returns the response to the API call.
@@ -117,10 +135,13 @@ If authenticated and authorized for the api call, AWS returns the response to th
 #### Signing Key
 One of the requirements to be an OIDC provider is to provide the public key in a known HTTP endpoint and sign a JSON object (with claims) with the private key.
 
-We'll re-use the RSA key that exists to sign JWT tokens for App Access.
+We'll create a new RSA 2048 Key type and add it to the CertAuthority.
+This will be very similar to the JWTSigner key type used for App access.
+
+A single signing key will be used for this flow even if multiple AWS integrations are created (eg, multiple regions).
 
 #### HTTP Endpoints
-We'll use two HTTP endpoints:
+The following endpoints will be used during OIDC IdP set up:
 
 ##### OpenID Configuration
 According to the [spec](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig) the Identity Provider must provide an endpoint at `<providerURL>/.well-known/openid-configuration` that returns the provider's configuration.
@@ -131,7 +152,7 @@ So, a new endpoint at `<teleportProviderURL>/.well-known/openid-configuration` w
 
 {
   "issuer": "<teleportProviderURL>", 
-  "jwks_uri": "<teleportPublicAddr>/.well-known/jwks.json",
+  "jwks_uri": "<teleportProviderURL>/.well-known/jwks-oidc",
   "claims": ["iss", "sub", "aud", "jti", "iat", "exp", "nbf"],
   "id_token_signing_alg_values_supported": ["RS256"],
   "response_types_supported": ["id_token"],
@@ -161,7 +182,7 @@ This endpoint returns a list of public keys (usually only one key, except for pe
 
 This endpoint URI must be equal to `jwks_uri` defined in the previous section.
 
-As an example, `<teleportProviderURL>/.well-known/jwks.json`.
+As an example, `<teleportProviderURL>/.well-known/jwks-oidc`.
 
 It should return the following:
 
@@ -182,12 +203,22 @@ It should return the following:
 
 This must respect the RFC7517 (eg of a key can be found at https://www.rfc-editor.org/rfc/rfc7517#appendix-A.1).
 
-We'll re-use the current endpoint located at `https://<teleportPublicAddr>/.well-known/jwks.json`.
+Obtaining this key should be possible using
+```golang
+GetCertAuthority(
+	ctx,
+	types.CertAuthID{
+		Type:       types.OIDCSigner, // new key type
+		DomainName: clusterName,
+	},
+	false /*loadKeys*/,
+)
+```
 
 #### AWS Role for Teleport OIDC IdP
 
-The user will create or associate a role to the Teleport OIDC IdP.
-This role must have access to list RDS Databases and have that Identity Provider as a trusted policy.
+The user will create or associate an AWS Role to the Teleport OIDC IdP.
+This role must have access to list RDS Databases and have a policy that trusts Teleport as an Identity Provider.
 
 At least a policy allowing the following must be part of the role:
 ```json
@@ -203,7 +234,8 @@ At least a policy allowing the following must be part of the role:
 }
 ```
 
-Trusted relationship:
+The AWS Role must trust Teleport as an IdP.
+To do so, the user must add the following Trusted relationship:
 ```json
 {
     "Version": "2012-10-17",
@@ -227,7 +259,7 @@ Trusted relationship:
 ### Security
 
 #### Rotation
-JWT Signging keys can be rotated using `tctl auth rotate --type=jwt`.
+JWT Signing keys can be rotated using `tctl auth rotate --type=oidc`.
 
 JWKS endpoint returns a list of public keys, so the old and the new key are provided for a seamless migration.
 
@@ -244,10 +276,10 @@ We don't think this is a scenario we should focus on this RFD.
 We'll be able to call `DescribeDBInstances` AWS endpoint, however we must ensure that this is protected by RBAC.
 
 In order to do so, we'll re-use the `db` resource with the `list` verb to allow listing RDS Databases.
+
 ```yaml
 kind: role
 metadata:
-  description: Edit cluster configuration
   name: editor
 spec:
   allow:
