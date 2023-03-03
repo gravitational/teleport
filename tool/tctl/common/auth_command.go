@@ -147,7 +147,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authLS = auth.Command("ls", "List connected auth servers")
 	a.authLS.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&a.format)
 
-	a.authCRL = auth.Command("crl", "Export certificate revocation list (CRL) for certificates authorities")
+	a.authCRL = auth.Command("crl", "Export certificate revocation list (CRL) for certificate authorities")
 	a.authCRL.Flag("type", "certificate authority type").EnumVar(&a.caType, allowedCRLCertificateTypes...)
 }
 
