@@ -577,12 +577,12 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Export Audit Events with the Elastic Stack",
+              "title": "Export Audit Events to the Elastic Stack",
               "slug": "/management/export-audit-events/elastic-stack/",
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Export Audit Events with Splunk",
+              "title": "Export Audit Events to Splunk",
               "slug": "/management/export-audit-events/splunk/",
               "forScopes": ["enterprise", "cloud"]
             }
