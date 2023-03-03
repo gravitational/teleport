@@ -130,7 +130,11 @@ func (h *downstreamHandle) closing() bool {
 // autoEmitMetadata sends the agent metadata once per stream (i.e. connection
 // with the auth server).
 func (h *downstreamHandle) autoEmitMetadata() {
-	metadata := metadata.Get(h.CloseContext())
+	metadata, ok := metadata.Get(h.CloseContext())
+	if !ok {
+		// The context has been cancelled, so we return.
+		return
+	}
 	msg := proto.UpstreamInventoryAgentMetadata{
 		OS:                    metadata.OS,
 		OSVersion:             metadata.OSVersion,

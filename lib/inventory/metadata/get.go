@@ -24,21 +24,29 @@ import (
 // metadata is a cache of all instance metadata.
 var metadata *Metadata
 
+// metadataReady is a channel that is closed when the metadata has been fetched.
+var metadataReady chan (struct{})
+
 // fetchOnce ensures that the instance metadata is fetched at most once.
 var fetchOnce sync.Once
 
 // Get fetches the instance metadata.
 // The first call can take some time as all metadata will be retrieved.
 // The resulting metadata is cached, so subsequent calls will be fast.
-// Note that the context used to retrieve the metadata is the one passed in to
-// the first `Get` call.
 // The return value of Get might be shared between callers and should not be
 // modified.
-func Get(ctx context.Context) *Metadata {
+func Get(ctx context.Context) (*Metadata, bool) {
 	fetchOnce.Do(func() {
-		defaultFetcher := &fetchConfig{context: ctx}
+		defaultFetcher := &fetchConfig{}
 		defaultFetcher.setDefaults()
 		metadata = defaultFetcher.fetch()
+		close(metadataReady)
 	})
-	return metadata
+
+	select {
+	case <-metadataReady:
+		return metadata, true
+	case <-ctx.Done():
+		return nil, false
+	}
 }
