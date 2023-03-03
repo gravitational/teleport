@@ -40,18 +40,15 @@ var SeventhJitter = retryutils.NewSeventhJitter()
 // any usecases that might scale with cluster size or request count.
 var FullJitter = retryutils.NewFullJitter()
 
-// NewDefaultLinear creates a linear retry using a half jitter, 10s step, and maxing out
-// at 1 minute. These values were selected by reviewing commonly used parameters elsewhere
-// in the code base, which (at the time of writing) seem to converge on approximately this
-// configuration for "critical but potentially load-inducing" operations like cache watcher
-// registration and auth connector setup. It also includes an auto-reset value of 5m. Auto-reset
-// is less commonly used, and if used should probably be shorter, but 5m is a reasonable
-// safety net to reduce the impact of accidental misuse.
+// NewDefaultLinear creates a linear retry with reasonable default parameters for
+// attempting to restart "critical but potentially load-inducing" operations, such
+// as watcher or control stream resume. Exact parameters are subject to change,
+// but this retry will always be configured for automatic reset.
 func NewDefaultLinear() *retryutils.Linear {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:     HalfJitter(time.Second * 5),
-		Step:      time.Second * 10,
-		Max:       time.Minute,
+		First:     FullJitter(time.Second * 10),
+		Step:      time.Second * 15,
+		Max:       time.Second * 90,
 		Jitter:    retryutils.NewHalfJitter(),
 		AutoReset: 5,
 	})
