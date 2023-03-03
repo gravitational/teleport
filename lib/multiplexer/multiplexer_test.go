@@ -102,7 +102,7 @@ func TestMux(t *testing.T) {
 		require.NoError(t, err)
 		defer clt.Close()
 
-		// Make sure SSH connection work correctly
+		// Make sure the SSH connection works correctly
 		ok, response, err := clt.SendRequest("echo", true, []byte("beep"))
 		require.NoError(t, err)
 		require.True(t, ok)
