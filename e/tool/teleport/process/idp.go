@@ -75,6 +75,7 @@ func initSAMLIdP(ctx context.Context, cfg *service.Config, plugin *web.Plugin) e
 		AccessPoint: accessPoint,
 		Authorizer:  authorizer,
 		BaseURL:     publicAddr,
+		Emitter:     authClient,
 	})
 	if err != nil {
 		return trace.Wrap(err)

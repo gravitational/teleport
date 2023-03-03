@@ -36,9 +36,77 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+func TestAuth(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+	svcs := samlTestService(ctx, t, clock)
+
+	user := setupUser(t, svcs, clock.Now().Add(time.Hour))
+
+	// No user.
+	path := path.Join(IdPRoute, "metadata")
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, path, nil).WithContext(ctx)
+
+	svcs.samlIdP.ServeHTTP(w, r)
+	require.Equal(t, http.StatusNotFound, w.Code)
+
+	expectAuthAttemptEvent(t, svcs.emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+		require.False(t, event.Success)
+		require.Empty(t, event.User)
+		require.Empty(t, event.ServiceProviderEntityID)
+	})
+
+	// Disable access to the IdP.
+	authPref, err := svcs.clusterService.GetAuthPreference(ctx)
+	require.NoError(t, err)
+	authPref.SetSAMLIdPEnabled(false)
+	require.NoError(t, svcs.clusterService.SetAuthPreference(ctx, authPref))
+
+	w = httptest.NewRecorder()
+	r = httptest.NewRequest(http.MethodGet, path, nil)
+	r = r.WithContext(context.WithValue(r.Context(), auth.ContextUser, user))
+
+	svcs.samlIdP.ServeHTTP(w, r)
+	require.Equal(t, http.StatusNotFound, w.Code)
+
+	expectAuthAttemptEvent(t, svcs.emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+		require.False(t, event.Success)
+		require.Equal(t, user.Username, event.User)
+		require.Equal(t, "SAML IdP is disabled at the cluster level", event.Error)
+		require.Empty(t, event.ServiceProviderEntityID)
+	})
+
+	// Reenable the SAML IdP.
+	authPref.SetSAMLIdPEnabled(true)
+	require.NoError(t, svcs.clusterService.SetAuthPreference(ctx, authPref))
+
+	w = httptest.NewRecorder()
+
+	svcs.samlIdP.ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// User is expired.
+	user.Identity.Expires = clock.Now().Add(-30 * time.Minute)
+	w = httptest.NewRecorder()
+	r = httptest.NewRequest(http.MethodGet, path, nil)
+	r = r.WithContext(context.WithValue(r.Context(), auth.ContextUser, user))
+
+	svcs.samlIdP.ServeHTTP(w, r)
+	require.Equal(t, http.StatusNotFound, w.Code)
+
+	expectAuthAttemptEvent(t, svcs.emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+		require.False(t, event.Success)
+		require.Equal(t, user.Username, event.User)
+		require.Equal(t, "identity is expired", event.Error)
+		require.Empty(t, event.ServiceProviderEntityID)
+	})
+}
 
 func TestMetadata(t *testing.T) {
 	ctx := context.Background()
@@ -59,67 +127,37 @@ func TestMetadata(t *testing.T) {
 }
 
 func TestSSOGET(t *testing.T) {
-	ctx := context.Background()
-	clock := clockwork.NewRealClock()
-	svcs := samlTestService(ctx, t, clock)
+	testSSO(t, http.MethodGet, func(r *http.Request, authnRequest saml.AuthnRequest) {
+		var buf bytes.Buffer
+		require.NoError(t, xml.NewEncoder(&buf).Encode(authnRequest))
 
-	user := setupUser(t, svcs, clock.Now().Add(time.Hour))
+		var compressedBuf bytes.Buffer
+		flateWriter, err := flate.NewWriter(&compressedBuf, flate.DefaultCompression)
+		flateWriter.Write(buf.Bytes())
+		require.NoError(t, flateWriter.Close())
 
-	sp1, err := types.NewSAMLIdPServiceProvider(
-		types.Metadata{
-			Name: "sp1",
-		},
-		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: newTestEntityDescriptor("sp1"),
-			EntityID:         "sp1",
-		},
-	)
-	require.NoError(t, err)
-	require.NoError(t, svcs.spService.CreateSAMLIdPServiceProvider(ctx, sp1))
+		encodedRequest := base64.StdEncoding.EncodeToString(compressedBuf.Bytes())
+		require.NoError(t, err)
 
-	authnRequest := saml.AuthnRequest{
-		ID:           "auth-id",
-		Version:      "2.0",
-		IssueInstant: clock.Now(),
-		Issuer: &saml.Issuer{
-			Value: "sp1",
-		},
-	}
-	var buf bytes.Buffer
-	require.NoError(t, xml.NewEncoder(&buf).Encode(authnRequest))
-
-	var compressedBuf bytes.Buffer
-	flateWriter, err := flate.NewWriter(&compressedBuf, flate.DefaultCompression)
-	flateWriter.Write(buf.Bytes())
-	require.NoError(t, flateWriter.Close())
-
-	encodedRequest := base64.StdEncoding.EncodeToString(compressedBuf.Bytes())
-	require.NoError(t, err)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", path.Join(IdPRoute, "sso"), nil)
-	r = r.WithContext(context.WithValue(r.Context(), auth.ContextUser, user))
-
-	values := r.URL.Query()
-	values.Add("SAMLRequest", encodedRequest)
-	r.URL.RawQuery = values.Encode()
-
-	svcs.samlIdP.ServeHTTP(w, r)
-	require.Equal(t, http.StatusOK, w.Code)
-	node, err := html.Parse(w.Body)
-	require.NoError(t, err)
-
-	formNode := findNode(node, "form")
-	require.NotNil(t, formNode)
-	require.Equal(t, "method", formNode.Attr[0].Key)
-	require.Equal(t, "post", formNode.Attr[0].Val)
-	require.Equal(t, "action", formNode.Attr[1].Key)
-	require.Equal(t, "https://sptest.iamshowcase.com/acs", formNode.Attr[1].Val)
-	require.Equal(t, "id", formNode.Attr[2].Key)
-	require.Equal(t, "SAMLResponseForm", formNode.Attr[2].Val)
+		values := r.URL.Query()
+		values.Add("SAMLRequest", encodedRequest)
+		r.URL.RawQuery = values.Encode()
+	})
 }
 
 func TestSSOPOST(t *testing.T) {
+	testSSO(t, http.MethodPost, func(r *http.Request, authnRequest saml.AuthnRequest) {
+		var buf bytes.Buffer
+		require.NoError(t, xml.NewEncoder(&buf).Encode(authnRequest))
+
+		encodedRequest := base64.StdEncoding.EncodeToString(buf.Bytes())
+
+		r.PostForm = url.Values{}
+		r.PostForm.Add("SAMLRequest", encodedRequest)
+	})
+}
+
+func testSSO(t *testing.T, method string, addRequest func(*http.Request, saml.AuthnRequest)) {
 	ctx := context.Background()
 	clock := clockwork.NewRealClock()
 	svcs := samlTestService(ctx, t, clock)
@@ -146,21 +184,22 @@ func TestSSOPOST(t *testing.T) {
 			Value: "sp1",
 		},
 	}
-	var buf bytes.Buffer
-	require.NoError(t, xml.NewEncoder(&buf).Encode(authnRequest))
-
-	encodedRequest := base64.StdEncoding.EncodeToString(buf.Bytes())
-	require.NoError(t, err)
-
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPost, path.Join(IdPRoute, "sso"), nil)
+	r := httptest.NewRequest(method, path.Join(IdPRoute, "sso"), nil)
 	r = r.WithContext(context.WithValue(r.Context(), auth.ContextUser, user))
 
-	r.PostForm = url.Values{}
-	r.PostForm.Add("SAMLRequest", encodedRequest)
+	addRequest(r, authnRequest)
 
 	svcs.samlIdP.ServeHTTP(w, r)
 	require.Equal(t, http.StatusOK, w.Code)
+
+	expectAuthAttemptEvent(t, svcs.emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+		require.True(t, event.Success)
+		require.Equal(t, user.Username, event.User)
+		require.Empty(t, event.Error)
+		require.Equal(t, "sp1", event.ServiceProviderEntityID)
+	})
+
 	node, err := html.Parse(w.Body)
 	require.NoError(t, err)
 
@@ -174,7 +213,16 @@ func TestSSOPOST(t *testing.T) {
 	require.Equal(t, "SAMLResponseForm", formNode.Attr[2].Val)
 }
 
-func TestIDPInitiatedLoginGET(t *testing.T) {
+func TestIdPInitiatedLoginGET(t *testing.T) {
+	testIdPInitiatedLogin(t, http.MethodGet)
+}
+
+func TestIdPInitiatedLoginPOST(t *testing.T) {
+	testIdPInitiatedLogin(t, http.MethodPost)
+}
+
+//nolint:revive // Because we want this to be IdP.
+func testIdPInitiatedLogin(t *testing.T, method string) {
 	ctx := context.Background()
 	clock := clockwork.NewRealClock()
 	svcs := samlTestService(ctx, t, clock)
@@ -194,11 +242,18 @@ func TestIDPInitiatedLoginGET(t *testing.T) {
 	require.NoError(t, svcs.spService.CreateSAMLIdPServiceProvider(ctx, sp1))
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodGet, path.Join(IdPRoute, "login", "shortcut-name"), nil)
+	r := httptest.NewRequest(method, path.Join(IdPRoute, "login", "shortcut-name"), nil)
 	r = r.WithContext(context.WithValue(r.Context(), auth.ContextUser, user))
 
 	svcs.samlIdP.ServeHTTP(w, r)
 	require.Equal(t, http.StatusOK, w.Code)
+
+	expectAuthAttemptEvent(t, svcs.emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+		require.True(t, event.Success)
+		require.Equal(t, user.Username, event.User)
+		require.Empty(t, event.Error)
+		require.Equal(t, "sp1", event.ServiceProviderEntityID)
+	})
 
 	node, err := html.Parse(w.Body)
 	require.NoError(t, err)
@@ -211,45 +266,21 @@ func TestIDPInitiatedLoginGET(t *testing.T) {
 	require.Equal(t, "https://sptest.iamshowcase.com/acs", formNode.Attr[1].Val)
 	require.Equal(t, "id", formNode.Attr[2].Key)
 	require.Equal(t, "SAMLResponseForm", formNode.Attr[2].Val)
-}
 
-func TestIDPInitiatedLoginPOST(t *testing.T) {
-	ctx := context.Background()
-	clock := clockwork.NewRealClock()
-	svcs := samlTestService(ctx, t, clock)
-
-	user := setupUser(t, svcs, clock.Now().Add(time.Hour))
-
-	sp1, err := types.NewSAMLIdPServiceProvider(
-		types.Metadata{
-			Name: "shortcut-name",
-		},
-		types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: newTestEntityDescriptor("sp1"),
-			EntityID:         "sp1",
-		},
-	)
-	require.NoError(t, err)
-	require.NoError(t, svcs.spService.CreateSAMLIdPServiceProvider(ctx, sp1))
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPost, path.Join(IdPRoute, "login", "shortcut-name"), nil)
+	w = httptest.NewRecorder()
+	r = httptest.NewRequest(method, path.Join(IdPRoute, "login/doesntexist"), nil)
 	r = r.WithContext(context.WithValue(r.Context(), auth.ContextUser, user))
 
 	svcs.samlIdP.ServeHTTP(w, r)
-	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, http.StatusNotFound, w.Code)
 
-	node, err := html.Parse(w.Body)
-	require.NoError(t, err)
-
-	formNode := findNode(node, "form")
-	require.NotNil(t, formNode)
-	require.Equal(t, "method", formNode.Attr[0].Key)
-	require.Equal(t, "post", formNode.Attr[0].Val)
-	require.Equal(t, "action", formNode.Attr[1].Key)
-	require.Equal(t, "https://sptest.iamshowcase.com/acs", formNode.Attr[1].Val)
-	require.Equal(t, "id", formNode.Attr[2].Key)
-	require.Equal(t, "SAMLResponseForm", formNode.Attr[2].Val)
+	expectAuthAttemptEvent(t, svcs.emitter, func(event *apievents.SAMLIdPAuthAttempt) {
+		require.False(t, event.Success)
+		require.Equal(t, user.Username, event.User)
+		require.Equal(t, "saml_idp_service_provider \"doesntexist\" doesn't exist", event.Error)
+		require.Empty(t, "", event.ServiceProviderEntityID)
+		require.Equal(t, "doesntexist", event.ServiceProviderShortcut)
+	})
 }
 
 func TestLockUser(t *testing.T) {

@@ -29,7 +29,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -53,6 +55,8 @@ type Config struct {
 	Authorizer auth.Authorizer
 	// BaseURL is the base URL for the SAML IdP
 	BaseURL string
+	// Emitter emits audit events.
+	Emitter apievents.Emitter
 }
 
 // Check makes sure the SAML identity provider service configuration is valid.
@@ -74,6 +78,9 @@ func (c *Config) Check() error {
 	}
 	if c.BaseURL == "" {
 		return trace.BadParameter("base URL is missing")
+	}
+	if c.Emitter == nil {
+		return trace.BadParameter("emitter is missing")
 	}
 	return nil
 }
@@ -124,6 +131,7 @@ type Service struct {
 	idpHandler  http.Handler
 	client      IdPAuthClient
 	accessPoint IdPAccessPoint
+	emitter     apievents.Emitter
 }
 
 // New creates a new SAML identity provider service.
@@ -183,6 +191,7 @@ func New(ctx context.Context, cfg Config) (*Service, error) {
 		authorizer:  cfg.Authorizer,
 		client:      cfg.Client,
 		accessPoint: cfg.AccessPoint,
+		emitter:     cfg.Emitter,
 	}
 
 	service.idp = saml.IdentityProvider{
@@ -203,4 +212,39 @@ func New(ctx context.Context, cfg Config) (*Service, error) {
 	}
 
 	return service, nil
+}
+
+// emitAuthAttemptEvent will emit an auth attempt event to the audit log.
+func (s *Service) emitAuthAttemptEvent(ctx context.Context, user, sessionID, entityID, shortcut string, sourceErr error) {
+	success := true
+	var errorMsg string
+	if sourceErr != nil {
+		success = false
+		errorMsg = sourceErr.Error()
+	}
+
+	event := &apievents.SAMLIdPAuthAttempt{
+		Metadata: apievents.Metadata{
+			Type: events.SAMLIdPAuthAttemptEvent,
+			Code: events.SAMLIdPAuthAttemptCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: user,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: sessionID,
+		},
+		Status: apievents.Status{
+			Success: success,
+			Error:   errorMsg,
+		},
+		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
+			ServiceProviderEntityID: entityID,
+			ServiceProviderShortcut: shortcut,
+		},
+	}
+
+	if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
+		s.log.WithError(emitErr).Warnf("Failed to emit SAML IdP auth attempt event: %v", event)
+	}
 }

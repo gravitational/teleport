@@ -26,13 +26,40 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (s *Service) GetSession(w http.ResponseWriter, r *http.Request, _ *saml.IdpAuthnRequest) *saml.Session {
+func (s *Service) GetSession(w http.ResponseWriter, r *http.Request, req *saml.IdpAuthnRequest) *saml.Session {
 	session, err := s.getSession(w, r)
 	if err != nil {
 		s.log.WithError(err).Error("Failed to get session.")
 		s.writeError(w, trace.ErrorToCode(err))
-		return nil
 	}
+
+	// Getting metadata for the audit event.
+	user, userErr := getUsernameFromCtx(r.Context())
+	if userErr != nil {
+		s.log.Warnf("error getting username from context: %v", userErr)
+	}
+
+	var sessionID string
+	if session != nil {
+		sessionID = session.ID
+	}
+
+	var entityID string
+	if req != nil && req.ServiceProviderMetadata != nil {
+		entityID = req.ServiceProviderMetadata.EntityID
+	}
+
+	// If the entity ID is still empty, try to retrieve it from the context.
+	// This will happen during an IdP initiated SSO flow.
+	if entityID == "" {
+		var ctxErr error
+		entityID, ctxErr = getSPEntityIDFromCtx(r.Context())
+		if ctxErr != nil {
+			s.log.Debugf("error getting service provider entity ID from the context, continuing: %v", err)
+		}
+	}
+
+	s.emitAuthAttemptEvent(r.Context(), user, sessionID, entityID, "", err)
 
 	return session
 }
@@ -40,7 +67,7 @@ func (s *Service) GetSession(w http.ResponseWriter, r *http.Request, _ *saml.Idp
 // GetSession is an implementation of crewjam's ServiceProviderProvider which injects Teleport native
 // properties into the resulting session. This has been largely adapted from crewjam/saml's implementation.
 func (s *Service) getSession(w http.ResponseWriter, r *http.Request) (*saml.Session, error) {
-	identity, err := s.getIdentityFromCtx(r.Context())
+	identity, err := getIdentityFromCtx(r.Context())
 	if err != nil {
 		s.log.Debugf("error getting identity from context: %v", err)
 		return nil, trace.AccessDenied("access denied")
@@ -100,5 +127,14 @@ func (s *Service) GetServiceProvider(r *http.Request, serviceProviderID string) 
 		}
 	}
 
-	return nil, trace.NotFound("could not find service provider %s", serviceProviderID)
+	// Getting metadata for the audit event.
+	user, err := getUsernameFromCtx(r.Context())
+	if err != nil {
+		s.log.Warnf("error getting username from context: %v", err)
+	}
+
+	err = trace.NotFound("could not find service provider")
+	s.emitAuthAttemptEvent(r.Context(), user, "", serviceProviderID, "", err)
+
+	return nil, err
 }

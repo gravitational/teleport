@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -44,6 +45,7 @@ type testServices struct {
 	userService    *local.IdentityService
 	accessService  *local.AccessService
 	eventService   *local.EventsService
+	emitter        *eventstest.ChannelEmitter
 }
 
 type testClient struct {
@@ -148,6 +150,8 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 	})
 	require.NoError(t, err)
 
+	emitter := eventstest.NewChannelEmitter(1)
+
 	//nolint:revive // Because we want this to be IdP.
 	samlIdP, err := New(ctx, Config{
 		Log:         logrus.NewEntry(logrus.New()),
@@ -156,6 +160,7 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 		AccessPoint: client,
 		Authorizer:  authorizer,
 		BaseURL:     baseURL,
+		Emitter:     emitter,
 	})
 	require.NoError(t, err)
 
@@ -167,6 +172,7 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 		userService:    userService,
 		accessService:  accessService,
 		eventService:   eventService,
+		emitter:        emitter,
 	}
 }
 

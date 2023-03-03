@@ -36,7 +36,8 @@ const (
 	//nolint:revive // Because we want this to be IdP.
 	IdPRoute = "/enterprise/saml-idp"
 
-	identityContextKey idpContextKey = "saml-idp-identity"
+	identityContextKey   idpContextKey = "saml-idp-identity"
+	spEntityIDContextKey idpContextKey = "saml-idp-sp-entity-id"
 )
 
 // ServeHTTP serves the IdP endpoints.
@@ -76,10 +77,16 @@ func (s *Service) withAuthCtx(fn httprouter.Handle) httprouter.Handle {
 			if !trace.IsAccessDenied(err) { // access denied are expected
 				s.log.Errorf("error authorizing user for SAML IdP: %s", err.Error())
 			}
+
+			var user string
+			if identity != nil {
+				user = identity.Username
+			}
+			s.emitAuthAttemptEvent(r.Context(), user, "", "", "", err)
 			s.writeError(w, http.StatusNotFound)
 			return
 		}
-		fn(w, r.WithContext(s.ctxWithIdentity(r.Context(), identity)), p)
+		fn(w, r.WithContext(ctxWithIdentity(r.Context(), identity)), p)
 	}
 }
 
@@ -89,28 +96,29 @@ func (s *Service) authorize(ctx context.Context) (*tlsca.Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	authPref, err := s.accessPoint.GetAuthPreference(ctx)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	// If the auth preference is not found, the CheckAccessToSAMLIdP function will handle it.
-	if err := authCtx.Checker.CheckAccessToSAMLIdP(authPref); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Only allow local users to use the SAML IdP.
 	var identity tlsca.Identity
 	switch user := authCtx.Identity.(type) {
 	case auth.LocalUser:
 		identity = user.GetIdentity()
 	default:
-		return nil, trace.BadParameter("unsupported user type: %T", user)
+		identity = user.GetIdentity()
+		return &identity, trace.BadParameter("unsupported user type: %T", user)
+	}
+
+	authPref, err := s.accessPoint.GetAuthPreference(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return &identity, trace.Wrap(err)
+	}
+
+	// If the auth preference is not found, the CheckAccessToSAMLIdP function will handle it.
+	if err := authCtx.Checker.CheckAccessToSAMLIdP(authPref); err != nil {
+		return &identity, trace.Wrap(err)
 	}
 
 	// If the user's cert is expired, return immediately.
 	if s.clock.Now().After(identity.Expires) {
-		return nil, trace.AccessDenied("identity is expired")
+		return &identity, trace.AccessDenied("identity is expired")
 	}
 
 	return &identity, nil
@@ -134,31 +142,41 @@ func (s *Service) handleSSO(w http.ResponseWriter, r *http.Request, p httprouter
 //
 //nolint:revive // Because we want this to be IdP.
 func (s *Service) handleIdPInitiatedLogin(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	user, err := getUsernameFromCtx(r.Context())
+	if err != nil {
+		s.log.Warnf("error getting username from context: %v", err)
+	}
 	shortcutName := p.ByName("shortcut")
+
+	// It looks like this case isn't possible because the httprouter won't let this resolve
+	// without the shortcut, but we'll check here just to be sure.
 	if shortcutName == "" {
-		s.log.Error("IdP initiated SSO is missing the shortcut parameter")
-		s.writeError(w, http.StatusBadRequest)
+		s.emitAuthAttemptEvent(r.Context(), user, "", "", "", trace.NotFound("shortcut is empty"))
+		s.writeError(w, http.StatusInternalServerError)
 		return
 	}
 
 	sp, err := s.accessPoint.GetSAMLIdPServiceProvider(r.Context(), shortcutName)
 	if err != nil {
-		s.log.Errorf("Unable to find service provider %s: %v", shortcutName, err)
-		s.writeError(w, http.StatusInternalServerError)
+		s.emitAuthAttemptEvent(r.Context(), user, "", "", shortcutName, err)
+		s.writeError(w, http.StatusNotFound)
 		return
 	}
 
+	// embed the entity ID in the context because IdP initiated SSO doesn't put the
+	// entity ID into the authnRequest until after the session is retrieved, which means
+	// audit event emitted in the session provider doesn't have access to the entity ID.
+	r = r.WithContext(ctxWithSPEntityID(r.Context(), sp.GetEntityID()))
+
 	// TODO (mdwn): Implement configurable relay state.
+	// The saml.IdentityProvider does the response handling here.
 	s.idpMutex.RLock()
 	defer s.idpMutex.RUnlock()
-	// The saml.IdentityProvider does the response handling here.
 	s.idp.ServeIDPInitiated(w, r, sp.GetEntityID(), "" /* empty relay state for now */)
 }
 
 // handler returns the HTTP handler for the identity provider.
 func (s *Service) handler() http.Handler {
-	s.idpMutex.RLock()
-	defer s.idpMutex.RUnlock()
 	return s.idpHandler
 }
 
@@ -168,16 +186,38 @@ func (s *Service) writeError(w http.ResponseWriter, code int) {
 }
 
 // ctxWithIdentity will return the context with the given identity.
-func (s *Service) ctxWithIdentity(ctx context.Context, identity *tlsca.Identity) context.Context {
+func ctxWithIdentity(ctx context.Context, identity *tlsca.Identity) context.Context {
 	return context.WithValue(ctx, identityContextKey, identity)
 }
 
 // getIdentityFromCtx will return the identity from the given context.
-func (s *Service) getIdentityFromCtx(ctx context.Context) (*tlsca.Identity, error) {
+func getIdentityFromCtx(ctx context.Context) (*tlsca.Identity, error) {
 	identity, ok := ctx.Value(identityContextKey).(*tlsca.Identity)
 	if !ok {
-		s.log.Debugf("identity is not the expected type, got %T", identity)
-		return nil, trace.NotFound("identity not found")
+		return nil, trace.BadParameter("identity is not the expected type, got %T", identity)
 	}
 	return identity, nil
+}
+
+// getUsernameFromCtx will return the username from the given context.
+func getUsernameFromCtx(ctx context.Context) (string, error) {
+	identity, err := getIdentityFromCtx(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return identity.Username, nil
+}
+
+// ctxWithSPEntityID will return the context with the service provider entity id.
+func ctxWithSPEntityID(ctx context.Context, entityID string) context.Context {
+	return context.WithValue(ctx, spEntityIDContextKey, entityID)
+}
+
+// getSPEntityIDFromCtx will return the service provider entity ID from the given context.
+func getSPEntityIDFromCtx(ctx context.Context) (string, error) {
+	entityID, ok := ctx.Value(spEntityIDContextKey).(string)
+	if !ok {
+		return "", trace.NotFound("entityID is not the expected type, got %T", entityID)
+	}
+	return entityID, nil
 }
