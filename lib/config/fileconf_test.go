@@ -805,7 +805,7 @@ func TestDiscoveryConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:          "Azure section is filled with defaults",
+			desc:          "Azure section is filled with defaults (aks)",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
 			mutate: func(cfg cfgMap) {
@@ -1021,7 +1021,7 @@ func TestDiscoveryConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:          "Azure section is filled with defaults",
+			desc:          "Azure section is filled with defaults (vm)",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
 			mutate: func(cfg cfgMap) {
@@ -1048,9 +1048,88 @@ func TestDiscoveryConfig(t *testing.T) {
 						ResourceTags: map[string]apiutils.Strings{
 							"discover_teleport": []string{"yes"},
 						},
+						InstallParams: &InstallParams{
+							JoinParams: JoinParams{
+								TokenName: "azure-discovery-token",
+								Method:    "azure",
+							},
+							ScriptName: "default-installer",
+						},
 					},
 				},
 			},
+		},
+		{
+			desc:          "Azure section is filled with custom config",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+					{"types": []string{"vm"},
+						"regions":         []string{"westcentralus"},
+						"resource_groups": []string{"rg1"},
+						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"token_name": "custom-azure-token",
+								"method":     "azure",
+							},
+							"script_name":       "custom-installer",
+							"public_proxy_addr": "teleport.example.com",
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				AzureMatchers: []AzureMatcher{
+					{
+						Types:          []string{"vm"},
+						Regions:        []string{"westcentralus"},
+						ResourceGroups: []string{"rg1"},
+						Subscriptions:  []string{"88888888-8888-8888-8888-888888888888"},
+						ResourceTags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+						InstallParams: &InstallParams{
+							JoinParams: JoinParams{
+								TokenName: "custom-azure-token",
+								Method:    "azure",
+							},
+							ScriptName:      "custom-installer",
+							PublicProxyAddr: "teleport.example.com",
+						},
+					},
+				},
+			},
+		},
+		{
+			desc:          "Azure section is filled with invalid join method",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
+					{"types": []string{"vm"},
+						"regions":         []string{"westcentralus"},
+						"resource_groups": []string{"rg1"},
+						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+						"install": cfgMap{
+							"join_params": cfgMap{
+								"token_name": "custom-azure-token",
+								"method":     "token",
+							},
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{},
 		},
 	}
 	for _, testCase := range testCases {

@@ -51,7 +51,7 @@ export function TabHost({ ctx }: { ctx: IAppContext }) {
     localClusterUri:
       ctx.workspacesService.getActiveWorkspace()?.localClusterUri,
   });
-  const { getLabelWithShortcut } = useKeyboardShortcutFormatters();
+  const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
 
   useTabShortcuts({
     documentsService,
@@ -108,8 +108,8 @@ export function TabHost({ ctx }: { ctx: IAppContext }) {
           onMoved={handleTabMoved}
           disableNew={false}
           onNew={openClusterTab}
-          newTabTooltip={getLabelWithShortcut('New Tab', 'tab-new')}
-          closeTabTooltip={getLabelWithShortcut('Close', 'tab-close')}
+          newTabTooltip={getLabelWithAccelerator('New Tab', 'newTab')}
+          closeTabTooltip={getLabelWithAccelerator('Close', 'closeTab')}
         />
       </Flex>
       <DocumentsRenderer />

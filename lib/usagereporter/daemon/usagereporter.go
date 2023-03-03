@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package daemon
+package usagereporter
 
 import (
 	"context"
@@ -23,9 +23,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
-	prehogapi "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
-	prehogclient "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
-	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	prehogv1c "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
+	teletermv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/usagereporter"
 	"github.com/gravitational/teleport/lib/utils"
@@ -60,12 +60,18 @@ const (
 	retryAttempts = 2
 )
 
-func NewConnectUsageReporter(ctx context.Context, prehogAddr string) (*usagereporter.UsageReporter[prehogapi.SubmitConnectEventRequest], error) {
+type (
+	UsageReporter  = usagereporter.UsageReporter[prehogv1.SubmitConnectEventRequest]
+	SubmitFunc     = usagereporter.SubmitFunc[prehogv1.SubmitConnectEventRequest]
+	SubmittedEvent = usagereporter.SubmittedEvent[prehogv1.SubmitConnectEventRequest]
+)
+
+func NewConnectUsageReporter(ctx context.Context, prehogAddr string) (*UsageReporter, error) {
 	submitter, err := newPrehogSubmitter(ctx, prehogAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return usagereporter.NewUsageReporter(&usagereporter.Options[prehogapi.SubmitConnectEventRequest]{
+	return usagereporter.NewUsageReporter(&usagereporter.Options[prehogv1.SubmitConnectEventRequest]{
 		Submit:        submitter,
 		MinBatchSize:  minBatchSize,
 		MaxBatchSize:  maxBatchSize,
@@ -76,7 +82,7 @@ func NewConnectUsageReporter(ctx context.Context, prehogAddr string) (*usagerepo
 	}), nil
 }
 
-func newPrehogSubmitter(ctx context.Context, prehogEndpoint string) (usagereporter.SubmitFunc[prehogapi.SubmitConnectEventRequest], error) {
+func newPrehogSubmitter(ctx context.Context, prehogEndpoint string) (SubmitFunc, error) {
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			ForceAttemptHTTP2:   true,
@@ -91,10 +97,10 @@ func newPrehogSubmitter(ctx context.Context, prehogEndpoint string) (usagereport
 		Timeout: 5 * time.Second,
 	}
 
-	client := prehogclient.NewConnectReportingServiceClient(httpClient, prehogEndpoint)
+	client := prehogv1c.NewConnectReportingServiceClient(httpClient, prehogEndpoint)
 
-	return func(reporter *usagereporter.UsageReporter[prehogapi.SubmitConnectEventRequest], events []*usagereporter.SubmittedEvent[prehogapi.SubmitConnectEventRequest]) ([]*usagereporter.SubmittedEvent[prehogapi.SubmitConnectEventRequest], error) {
-		var failed []*usagereporter.SubmittedEvent[prehogapi.SubmitConnectEventRequest]
+	return func(reporter *UsageReporter, events []*SubmittedEvent) ([]*SubmittedEvent, error) {
+		var failed []*SubmittedEvent
 		var errors []error
 
 		// Note: the backend doesn't support batching at the moment.
@@ -112,21 +118,12 @@ func newPrehogSubmitter(ctx context.Context, prehogEndpoint string) (usagereport
 	}, nil
 }
 
-func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
-	prehogEvent, err := getAnonymizedPrehogEvent(req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	s.usageReporter.AddEventsToQueue(prehogEvent)
-	return nil
-}
-
-func getAnonymizedPrehogEvent(req *api.ReportUsageEventRequest) (*prehogapi.SubmitConnectEventRequest, error) {
+func GetAnonymizedPrehogEvent(req *teletermv1.ReportUsageEventRequest) (*prehogv1.SubmitConnectEventRequest, error) {
 	prehogEvent := req.PrehogReq
 
 	// non-anonymized
 	switch prehogEvent.GetEvent().(type) {
-	case *prehogapi.SubmitConnectEventRequest_UserJobRoleUpdate:
+	case *prehogv1.SubmitConnectEventRequest_UserJobRoleUpdate:
 		return prehogEvent, nil
 	}
 
@@ -136,27 +133,27 @@ func getAnonymizedPrehogEvent(req *api.ReportUsageEventRequest) (*prehogapi.Subm
 		return nil, trace.Wrap(err)
 	}
 	switch e := prehogEvent.GetEvent().(type) {
-	case *prehogapi.SubmitConnectEventRequest_ClusterLogin:
+	case *prehogv1.SubmitConnectEventRequest_ClusterLogin:
 		e.ClusterLogin.ClusterName = anonymizer.AnonymizeString(e.ClusterLogin.ClusterName)
 		e.ClusterLogin.UserName = anonymizer.AnonymizeString(e.ClusterLogin.UserName)
 		return prehogEvent, nil
-	case *prehogapi.SubmitConnectEventRequest_ProtocolUse:
+	case *prehogv1.SubmitConnectEventRequest_ProtocolUse:
 		e.ProtocolUse.ClusterName = anonymizer.AnonymizeString(e.ProtocolUse.ClusterName)
 		e.ProtocolUse.UserName = anonymizer.AnonymizeString(e.ProtocolUse.UserName)
 		return prehogEvent, nil
-	case *prehogapi.SubmitConnectEventRequest_AccessRequestCreate:
+	case *prehogv1.SubmitConnectEventRequest_AccessRequestCreate:
 		e.AccessRequestCreate.ClusterName = anonymizer.AnonymizeString(e.AccessRequestCreate.ClusterName)
 		e.AccessRequestCreate.UserName = anonymizer.AnonymizeString(e.AccessRequestCreate.UserName)
 		return prehogEvent, nil
-	case *prehogapi.SubmitConnectEventRequest_AccessRequestReview:
+	case *prehogv1.SubmitConnectEventRequest_AccessRequestReview:
 		e.AccessRequestReview.ClusterName = anonymizer.AnonymizeString(e.AccessRequestReview.ClusterName)
 		e.AccessRequestReview.UserName = anonymizer.AnonymizeString(e.AccessRequestReview.UserName)
 		return prehogEvent, nil
-	case *prehogapi.SubmitConnectEventRequest_AccessRequestAssumeRole:
+	case *prehogv1.SubmitConnectEventRequest_AccessRequestAssumeRole:
 		e.AccessRequestAssumeRole.ClusterName = anonymizer.AnonymizeString(e.AccessRequestAssumeRole.ClusterName)
 		e.AccessRequestAssumeRole.UserName = anonymizer.AnonymizeString(e.AccessRequestAssumeRole.UserName)
 		return prehogEvent, nil
-	case *prehogapi.SubmitConnectEventRequest_FileTransferRun:
+	case *prehogv1.SubmitConnectEventRequest_FileTransferRun:
 		e.FileTransferRun.ClusterName = anonymizer.AnonymizeString(e.FileTransferRun.ClusterName)
 		e.FileTransferRun.UserName = anonymizer.AnonymizeString(e.FileTransferRun.UserName)
 		return prehogEvent, nil

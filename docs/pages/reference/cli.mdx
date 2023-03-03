@@ -1512,13 +1512,14 @@ $ tctl users add [<flags>] <account>
 | - | - | - | - |
 | `--roles` | none | Comma-separated strings | List of Teleport roles to assign to the new user |
 | `--logins` | none | Comma-separated strings | List of allowed SSH logins for the new user |
-| `--azure-identities` | none | Comma-separated strings | List of Azure managed identities to allow the user to assume. Must be the full URIs of the identities |
 | `--kubernetes-groups` | none | Comma-separated strings | Kubernetes groups to assign to a user, e.g. `system:masters` |
 | `--kubernetes-users` | none | Comma-separated strings | Kubernetes user to assign to a user, e.g. `jenkins` |
 | `--db-users` | none | Comma-separated strings | List of allowed database users for the new user |
 | `--db-names` | none | Comma-separated strings | List of allowed database names for the new user |
 | `--windows-logins` | none | Comma-separated strings | List of allowed Windows logins for the new user |
 | `--aws-role-arns` | none | Comma-separated strings | List of allowed AWS role ARNs for the new user |
+| `--gcp-service-accounts` | none | Comma-separated strings | List of allowed GCP service accounts for the new user |
+| `--azure-identities` | none | Comma-separated strings | List of Azure managed identities to allow the user to assume. Must be the full URIs of the identities |
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token |
 
 #### Global flags

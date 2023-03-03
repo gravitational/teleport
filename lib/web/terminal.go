@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -120,6 +121,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		interactiveCommand: cfg.InteractiveCommand,
 		term:               cfg.Term,
 		router:             cfg.Router,
+		proxySigner:        cfg.PROXYSigner,
 		tracer:             cfg.tracer,
 		participantMode:    cfg.ParticipantMode,
 	}, nil
@@ -150,6 +152,8 @@ type TerminalHandlerConfig struct {
 	Router *proxy.Router
 	// TracerProvider is used to create the tracer
 	TracerProvider oteltrace.TracerProvider
+	// ProxySigner is used to sign PROXY header and securely propagate client IP information
+	PROXYSigner multiplexer.PROXYHeaderSigner
 	// tracer is used to create spans
 	tracer oteltrace.Tracer
 	// ParticipantMode is the mode that determines what you can do when you join an active session.
@@ -242,6 +246,9 @@ type TerminalHandler struct {
 
 	// router is used to dial the host
 	router *proxy.Router
+
+	// proxySigner is used to sign PROXY header and securely propagate client IP information
+	proxySigner multiplexer.PROXYHeaderSigner
 
 	// tracer creates spans
 	tracer oteltrace.Tracer
@@ -621,7 +628,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		return teleagent.NopCloser(tc.LocalAgent()), nil
 	}
 
-	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, agentGetter)
+	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, agentGetter)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
 
@@ -691,7 +698,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		sshConfig.Auth = tc.AuthMethods
 
 		// connect to the node again with the new certs
-		conn, err = t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, agentGetter)
+		conn, _, err = t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, agentGetter)
 		if err != nil {
 			t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host")
 			t.writeError(err)
