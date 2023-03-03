@@ -824,12 +824,12 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	skip := 0
 
 	// are we reading from a Teleport proxy?
-	if bytes.HasPrefix(buff, []byte(sshutils.ProxyHelloSignature)) {
+	if bytes.HasPrefix(buff, []byte(teleport.ProxyHelloSignature)) {
 		// the JSON payload ends with a binary zero:
 		payloadBoundary := bytes.IndexByte(buff, 0x00)
 		if payloadBoundary > 0 {
 			var hp sshutils.HandshakePayload
-			payload := buff[len(sshutils.ProxyHelloSignature):payloadBoundary]
+			payload := buff[len(teleport.ProxyHelloSignature):payloadBoundary]
 			if err = json.Unmarshal(payload, &hp); err != nil {
 				c.logger.Error(err)
 			} else {

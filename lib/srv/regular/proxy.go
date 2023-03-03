@@ -306,7 +306,7 @@ func (t *proxySubsys) doHandshake(ctx context.Context, clientAddr net.Addr, clie
 			t.log.Error(err)
 		} else {
 			// send a JSON payload sandwiched between 'teleport proxy signature' and 0x00:
-			payload := fmt.Sprintf("%s%s\x00", apisshutils.ProxyHelloSignature, payloadJSON)
+			payload := fmt.Sprintf("%s%s\x00", teleport.ProxyHelloSignature, payloadJSON)
 			_, err = serverConn.Write([]byte(payload))
 			if err != nil {
 				t.log.Error(err)

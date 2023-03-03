@@ -800,6 +800,13 @@ const UserSingleUseCertTTL = time.Minute
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
 
+// ProxyHelloSignature is a string which Teleport proxy will send
+// right after the initial SSH "handshake/version" message if it detects
+// talking to a Teleport server.
+//
+// This is also leveraged by tsh to propagate its tracing span ID.
+const ProxyHelloSignature = "Teleport-Proxy"
+
 const (
 	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
 	// call.
