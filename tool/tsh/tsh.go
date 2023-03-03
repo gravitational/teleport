@@ -31,6 +31,7 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/pprof"
+	runtimetrace "runtime/trace"
 	"sort"
 	"strconv"
 	"strings"
@@ -423,6 +424,9 @@ type CLIConf struct {
 
 	// Client only version display.  Skips checking proxy version.
 	clientOnlyVersionCheck bool
+
+	// tracer is the tracer used to trace tsh commands.
+	tracer oteltrace.Tracer
 }
 
 // Stdout returns the stdout writer.
@@ -557,7 +561,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	initLogger(&cf)
 
 	moduleCfg := modules.GetModules()
-	var cpuProfile, memProfile string
+	var cpuProfile, memProfile, traceProfile string
 
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
@@ -569,6 +573,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	app.Flag("user", fmt.Sprintf("Teleport user [%s]", localUser)).Envar(userEnvVar).StringVar(&cf.Username)
 	app.Flag("mem-profile", "Write memory profile to file").Hidden().StringVar(&memProfile)
 	app.Flag("cpu-profile", "Write CPU profile to file").Hidden().StringVar(&cpuProfile)
+	app.Flag("trace-profile", "Write trace profile to file").Hidden().StringVar(&traceProfile)
 	app.Flag("option", "").Short('o').Hidden().AllowDuplicate().PreAction(func(ctx *kingpin.ParseContext) error {
 		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
 	}).String()
@@ -1068,6 +1073,20 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 				return
 			}
 		}()
+	}
+
+	if traceProfile != "" {
+		log.Debugf("writing trace profile to %v", traceProfile)
+		f, err := os.Create(traceProfile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer f.Close()
+
+		if err := runtimetrace.Start(f); err != nil {
+			return trace.Wrap(err)
+		}
+		defer runtimetrace.Stop()
 	}
 
 	switch command {
@@ -3196,6 +3215,9 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		cf.TracingProvider = tracing.NoopProvider()
 	}
 	c.Tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
+	cf.tracer = c.Tracer
+	ctx, span := c.Tracer.Start(cf.Context, "makeClientForProxy/init")
+	defer span.End()
 
 	// ProxyJump is an alias of Proxy flag
 	if cf.ProxyJump != "" {
@@ -3238,7 +3260,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	c.ExplicitUsername = cf.ExplicitUsername
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
-	if err := setClientWebProxyAddr(cf, c); err != nil {
+	if err := setClientWebProxyAddr(ctx, cf, c); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3381,7 +3403,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// Handle gracefully if the profile is empty, the key cannot
 	// be found, or the key isn't supported as an agent key.
 	if profileSiteName != "" {
-		if err := tc.LoadKeyForCluster(profileSiteName); err != nil {
+		if err := tc.LoadKeyForCluster(ctx, profileSiteName); err != nil {
 			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -3545,7 +3567,9 @@ var defaultWebProxyPorts = []int{
 // or command-line options will be deduced if necessary.
 //
 // If successful, setClientWebProxyAddr will modify the client Config in-place.
-func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
+func setClientWebProxyAddr(ctx context.Context, cf *CLIConf, c *client.Config) error {
+	ctx, span := cf.tracer.Start(ctx, "makeClientForProxy/setClientWebProxyAddr")
+	defer span.End()
 	// If the user has specified a proxy on the command line, and one has not
 	// already been specified from configuration...
 
@@ -3558,7 +3582,7 @@ func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
 		proxyAddress := parsedAddrs.WebProxyAddr
 		if parsedAddrs.UsingDefaultWebProxyPort {
 			log.Debug("Web proxy port was not set. Attempting to detect port number to use.")
-			timeout, cancel := context.WithTimeout(context.Background(), proxyDefaultResolutionTimeout)
+			timeout, cancel := context.WithTimeout(ctx, proxyDefaultResolutionTimeout)
 			defer cancel()
 
 			proxyAddress, err = pickDefaultAddr(

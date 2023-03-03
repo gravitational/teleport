@@ -54,17 +54,18 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
 
 FROM buildpack-deps:18.04 AS libbpf
 
-# Install libbpf
+# Install required dependencies
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
         libelf-dev
 
 ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt &&  \
+    curl -Lf https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    make && \
-    make install
+    make &&  \
+    BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install
 
 ## BUILDBOX ###################################################################
 #
@@ -153,12 +154,12 @@ RUN apt-get -y update && \
 
 # Install gcloud SDK and Firestore emulator.
 ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
-RUN (curl -sSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \
+RUN (curl -sSLf https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \
     gcloud components install cloud-firestore-emulator beta && \
     rm -rf /opt/google-cloud-sdk/.install/.backup
 
 # Install etcd.
-RUN curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
+RUN curl -Lf https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
     rm -rf etcd-v3.3.9-linux-${BUILDARCH}
 
@@ -200,13 +201,13 @@ ENV PATH="$PATH:${NODE_PATH}/bin"
 RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo "arm64"; fi) && \
     export NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" && \
     mkdir -p ${NODE_PATH} && \
-    curl -o /tmp/nodejs.tar.xz -L ${NODE_URL} && \
+    curl -o /tmp/nodejs.tar.xz -Lf ${NODE_URL} && \
     tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
 RUN corepack enable yarn
 
 # Install Go.
 ARG GOLANG_VERSION
-RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && curl -Lf https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -221,20 +222,20 @@ RUN make -C /opt/pam_teleport install
 ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
 # Install bats.
-RUN curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
+RUN curl -Lf https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
     cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
     rm -r bats-core-1.2.1
 
 # Install shellcheck.
 RUN scversion='v0.9.0' && \
-    curl -sSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
+    curl -sSLf "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
         tar -xJv && \
     cp "shellcheck-$scversion/shellcheck" /usr/local/bin/ && \
     shellcheck --version
 
 # Install helm.
 RUN mkdir -p helm-tarball && \
-    curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
+    curl -Lf https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
 # TODO(hugoShaka): remove this backward compatible hack with teleportv13 buildbox
@@ -259,7 +260,7 @@ ARG GOGO_PROTO_TAG
 ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 
 RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
-     curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
+     curl -Lf -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
      chmod -R a+r /usr/local/include/google/protobuf && \
      chmod -R a+xr /usr/local/bin/protoc && \
@@ -283,16 +284,15 @@ RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.1
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.14.0" && \
-      curl -sSL \
+    VERSION="1.15.0" && \
+      curl -sSLf \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
       chmod +x "${BIN}/buf"
 
 # Copy BPF libraries.
-COPY --from=libbpf /usr/include/bpf /usr/include/bpf
-COPY --from=libbpf /usr/lib64/ /usr/lib64/
-RUN cd /usr/local/lib && ldconfig
+ARG LIBBPF_VERSION
+COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Copy libfido2 libraries.
 # Do this near the end to take better advantage of the multi-stage build.

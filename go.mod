@@ -22,7 +22,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.0
 	github.com/ThalesIgnite/crypto11 v1.2.5
 	github.com/alicebob/miniredis/v2 v2.30.0
-	github.com/aquasecurity/libbpfgo v0.2.5-libbpf-0.7.0
+	github.com/aquasecurity/libbpfgo v0.4.5-libbpf-1.0.1
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.44.180
 	github.com/aws/aws-sdk-go-v2 v1.17.3
@@ -58,6 +58,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // replaced
 	github.com/golang-jwt/jwt/v4 v4.4.3
 	github.com/google/btree v1.1.2
+	github.com/google/go-attestation v0.4.3
 	github.com/google/go-cmp v0.5.9
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.3.0
@@ -248,9 +249,11 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
+	github.com/google/certificate-transparency-go v1.1.1 // indirect
 	github.com/google/flatbuffers v22.11.23+incompatible // indirect
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/go-tpm v0.3.3 // indirect
+	github.com/google/go-tspi v0.2.1-0.20190423175329-115dea689aad // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/renameio/v2 v2.0.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.0 // indirect
