@@ -191,6 +191,7 @@ func SetClock(clock clockwork.Clock) ServerOption {
 	}
 }
 
+// SetCAGetter sets the cert authority getter
 func SetCAGetter(caGetter CertAuthorityGetter) ServerOption {
 	return func(s *Server) error {
 		s.caGetter = caGetter
