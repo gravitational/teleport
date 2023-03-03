@@ -18,7 +18,7 @@ package metadata
 
 import (
 	"context"
-	"sync"
+	"sync/atomic"
 )
 
 // metadata is a cache of all instance metadata.
@@ -27,8 +27,8 @@ var metadata *Metadata
 // metadataReady is a channel that is closed when the metadata has been fetched.
 var metadataReady chan (struct{})
 
-// fetchOnce ensures that the instance metadata is fetched at most once.
-var fetchOnce sync.Once
+// fetched is used to ensure that the instance metadata is fetched at most once.
+var fetched atomic.Bool
 
 // Get fetches the instance metadata.
 // The first call can take some time as all metadata will be retrieved.
@@ -36,12 +36,18 @@ var fetchOnce sync.Once
 // The return value of Get might be shared between callers and should not be
 // modified.
 func Get(ctx context.Context) (*Metadata, bool) {
-	fetchOnce.Do(func() {
-		defaultFetcher := &fetchConfig{}
-		defaultFetcher.setDefaults()
-		metadata = defaultFetcher.fetch()
-		close(metadataReady)
-	})
+	if !fetched.Swap(true) {
+		// Spawn a goroutine responsible for fetching the metadata if we're the
+		// first Get caller.
+		go func() {
+			defaultFetcher := &fetchConfig{}
+			defaultFetcher.setDefaults()
+			metadata = defaultFetcher.fetch()
+
+			// Signal that the metadata is ready.
+			close(metadataReady)
+		}()
+	}
 
 	select {
 	case <-metadataReady:
