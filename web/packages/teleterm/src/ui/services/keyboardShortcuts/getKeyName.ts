@@ -75,7 +75,7 @@ const PHYSICAL_CODE_TO_PRINTABLE_CHARACTER = {
   Period: '.',
   Slash: '/',
   Backslash: '\\',
-  IntlBackslash: '`',
+  Backquote: '`',
   Minus: '-',
   Equal: '=',
   Semicolon: ';',

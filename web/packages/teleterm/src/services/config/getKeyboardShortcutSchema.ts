@@ -166,6 +166,6 @@ const ALLOWED_KEY_CODES = [
   'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
   'Space', 'Tab', 'CapsLock', 'NumLock', 'ScrollLock', 'Backspace', 'Delete', 'Insert', 'Enter',
   'Up', 'Down', 'Left', 'Right',
-  'Home', 'End', 'PageUp', 'PageDown', 'Escape',
+  'Home', 'End', 'PageUp', 'PageDown', 'Escape', 'IntlBackslash',
   ',', '.', '/', '\\', '`', '-', '=', ';', "'", '[', ']',
 ];
