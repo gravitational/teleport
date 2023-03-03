@@ -77,7 +77,7 @@ exports[`render DocumentNodes 1`] = `
   font-size: 14px;
 }
 
-.c36 {
+.c35 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -161,13 +161,6 @@ exports[`render DocumentNodes 1`] = `
   width: 100%;
   display: flex;
   justify-content: flex-end;
-}
-
-.c34 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
 }
 
 .c28 {
@@ -286,28 +279,28 @@ exports[`render DocumentNodes 1`] = `
   cursor: pointer;
 }
 
-.c35 {
+.c34 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c35 .c24 {
+.c34 .c24 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c35:hover .c24,
-.c35:focus .c24 {
+.c34:hover .c24,
+.c34:focus .c24 {
   opacity: 1;
 }
 
-.c35:disabled {
+.c34:disabled {
   cursor: default;
 }
 
-.c35:disabled .c24 {
+.c34:disabled .c24 {
   opacity: 0.1;
 }
 
@@ -931,9 +924,9 @@ exports[`render DocumentNodes 1`] = `
             <div
               class="c27"
               color="primary.contrastText"
-              style="white-space: nowrap;"
+              style="text-transform: uppercase;"
             >
-              SHOWING 
+              Showing 
               <strong>
                 1
               </strong>
@@ -1215,28 +1208,26 @@ exports[`render DocumentNodes 1`] = `
           width="100%"
         >
           <div
-            class="c34"
-          />
-          <div
             class="c26"
           >
             <button
-              class="c35"
+              class="c34"
               disabled=""
               title="Previous page"
             >
               <span
-                class="c24 c36 icon icon-arrow-left-circle "
+                class="c24 c35 icon icon-arrow-left-circle "
                 color="light"
                 font-size="3"
               />
             </button>
             <button
-              class="c35"
+              class="c34"
+              disabled=""
               title="Next page"
             >
               <span
-                class="c24 c36 icon icon-arrow-right-circle "
+                class="c24 c35 icon icon-arrow-right-circle "
                 color="light"
                 font-size="3"
               />

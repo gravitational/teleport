@@ -27,22 +27,19 @@ import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import NodeList from 'teleport/components/NodeList';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import useTeleport from 'teleport/useTeleport';
-import useStickyClusterId from 'teleport/useStickyClusterId';
-
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
-import useNodes, { State } from './useNodes';
+import { useNodes, State } from './useNodes';
 
 export default function Container() {
   const teleCtx = useTeleport();
-  const stickyCluster = useStickyClusterId();
-  const state = useNodes(teleCtx, stickyCluster);
+  const state = useNodes(teleCtx);
   return <Nodes {...state} />;
 }
 
 export function Nodes(props: State) {
   const {
-    results,
+    fetchedData,
     getNodeLoginOptions,
     startSshSession,
     attempt,
@@ -51,17 +48,15 @@ export function Nodes(props: State) {
     clusterId,
     fetchNext,
     fetchPrev,
-    from,
-    to,
-    pageSize,
     params,
+    pageSize,
     setParams,
-    startKeys,
     setSort,
     pathname,
     replaceHistory,
     fetchStatus,
     isSearchEmpty,
+    pageIndicators,
     onLabelClick,
   } = props;
 
@@ -74,7 +69,10 @@ export function Nodes(props: State) {
     startSshSession(login, serverId);
   }
 
-  const hasNoNodes = results.nodes.length === 0 && isSearchEmpty;
+  const hasNoNodes =
+    attempt.status === 'success' &&
+    fetchedData.agents.length === 0 &&
+    isSearchEmpty;
 
   return (
     <FeatureBox>
@@ -102,19 +100,16 @@ export function Nodes(props: State) {
       )}
       {attempt.status !== 'processing' && !hasNoNodes && (
         <NodeList
-          nodes={results.nodes}
-          totalCount={results.totalCount}
+          nodes={fetchedData.agents}
           onLoginMenuOpen={getNodeLoginOptions}
           onLoginSelect={onLoginSelect}
           fetchNext={fetchNext}
           fetchPrev={fetchPrev}
           fetchStatus={fetchStatus}
-          from={from}
-          to={to}
           pageSize={pageSize}
+          pageIndicators={pageIndicators}
           params={params}
           setParams={setParams}
-          startKeys={startKeys}
           setSort={setSort}
           pathname={pathname}
           replaceHistory={replaceHistory}
