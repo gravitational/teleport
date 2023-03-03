@@ -18,12 +18,13 @@ import React, { useContext, useState, FC } from 'react';
 
 import { FileTransferDialogDirection } from './FileTransferStateless';
 
-const FileTransferContext = React.createContext<{
-  openedDialog: FileTransferDialogDirection;
-  openDownloadDialog(): void;
-  openUploadDialog(): void;
-  closeDialog(): void;
-}>(null);
+const FileTransferContext =
+  React.createContext<{
+    openedDialog: FileTransferDialogDirection;
+    openDownloadDialog(): void;
+    openUploadDialog(): void;
+    closeDialog(): void;
+  }>(null);
 
 export const FileTransferContextProvider: FC<{
   openedDialog?: FileTransferDialogDirection;
