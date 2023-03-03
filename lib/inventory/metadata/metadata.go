@@ -128,9 +128,9 @@ func getKubeClient() kubernetes.Interface {
 
 // FetchMetadata fetches and calculates all metadata we are interested in
 // tracking. Note that the resulting metadata is not cached.
-func FetchMetadata(c *MetadataFetchConfig) Metadata {
+func FetchMetadata(c *MetadataFetchConfig) *Metadata {
 	c.setDefaults()
-	return *c.fetchMetadata()
+	return c.fetchMetadata()
 }
 
 // fetchMetadata fetches all metadata.
