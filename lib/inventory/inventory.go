@@ -130,11 +130,21 @@ func (h *downstreamHandle) closing() bool {
 // autoEmitMetadata sends the agent metadata once per stream (i.e. connection
 // with the auth server).
 func (h *downstreamHandle) autoEmitMetadata() {
-	metadata := metadata.FetchAgentMetadata(&metadata.AgentMetadataFetchConfig{Context: h.CloseContext()})
+	metadata := metadata.FetchMetadata(&metadata.MetadataFetchConfig{Context: h.CloseContext()})
+	msg := proto.UpstreamInventoryAgentMetadata{
+		OS:                    metadata.OS,
+		OSVersion:             metadata.OSVersion,
+		HostArchitecture:      metadata.HostArchitecture,
+		GlibcVersion:          metadata.GlibcVersion,
+		InstallMethods:        metadata.InstallMethods,
+		ContainerRuntime:      metadata.ContainerRuntime,
+		ContainerOrchestrator: metadata.ContainerOrchestrator,
+		CloudEnvironment:      metadata.CloudEnvironment,
+	}
 	for {
 		select {
 		case sender := <-h.Sender(): // wait for stream to be opened
-			if err := sender.Send(h.CloseContext(), metadata); err != nil { // send metadata
+			if err := sender.Send(h.CloseContext(), msg); err != nil { // send metadata
 				log.Warnf("Failed to send agent metadata: %v", err)
 			}
 			select {

@@ -61,7 +61,7 @@ func TestFetchHostArchitecture(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			c := &AgentMetadataFetchConfig{
+			c := &MetadataFetchConfig{
 				execCommand: tc.execCommand,
 			}
 			require.Equal(t, tc.expected, c.fetchHostArchitecture())
@@ -188,7 +188,7 @@ CGroup: /system.slice/teleport.service
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			c := &AgentMetadataFetchConfig{
+			c := &MetadataFetchConfig{
 				getenv:      tc.getenv,
 				execCommand: tc.execCommand,
 			}
@@ -226,7 +226,7 @@ func TestFetchContainerRuntime(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			c := &AgentMetadataFetchConfig{
+			c := &MetadataFetchConfig{
 				readFile: tc.readFile,
 			}
 			require.Equal(t, tc.expected, c.fetchContainerRuntime())
@@ -285,7 +285,7 @@ func TestFetchContainerOrchestrator(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			c := &AgentMetadataFetchConfig{
+			c := &MetadataFetchConfig{
 				kubeClient: tc.kubeClient,
 			}
 			require.Equal(t, tc.expected, c.fetchContainerOrchestrator())
@@ -368,7 +368,7 @@ func TestFetchCloudEnvironment(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			c := &AgentMetadataFetchConfig{
+			c := &MetadataFetchConfig{
 				Context: context.Background(),
 				httpDo:  tc.httpDo,
 			}

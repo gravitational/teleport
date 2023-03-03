@@ -30,12 +30,33 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// AgentMetadataFetchConfig contains the configuration used by the FetchAgentMetadata method.
-type AgentMetadataFetchConfig struct {
+// Metadata contains the instance "system" metadata.
+// We expect each of these values to not change for the lifetime of the instance.
+type Metadata struct {
+	// OS advertises the instance OS ("darwin" or "linux").
+	OS string
+	// OSVersion advertises the instance OS version (e.g. "Ubuntu 22.04").
+	OSVersion string
+	// HostArchitecture advertises the instance host architecture (e.g. "x86_64" or "arm64").
+	HostArchitecture string
+	// GlibcVersion advertises the instance glibc version of linux instances (e.g. "2.35").
+	GlibcVersion string
+	// InstallMethods advertises the install methods used for the instance (e.g. "dockerfile").
+	InstallMethods []string
+	// ContainerRuntime advertises the container runtime for the instance, if any (e.g. "docker").
+	ContainerRuntime string
+	// ContainerOrchestrator advertises the container orchestrator for the instance, if any
+	// (e.g. "kubernetes-v1.24.8-eks-ffeb93d").
+	ContainerOrchestrator string
+	// CloudEnvironment advertises the cloud environment for the instance, if any (e.g. "aws").
+	CloudEnvironment string
+}
+
+// MetadataFetchConfig contains the configuration used by the FetchMetadata method.
+type MetadataFetchConfig struct {
 	Context context.Context
 	// getenv is the method called to retrieve an environment
 	// variable.
@@ -59,7 +80,7 @@ type AgentMetadataFetchConfig struct {
 // setDefaults sets the values of several methods used to read files, execute
 // commands, performing http requests, etc.
 // Having these methods configurable allows us to mock them in tests.
-func (c *AgentMetadataFetchConfig) setDefaults() {
+func (c *MetadataFetchConfig) setDefaults() {
 	if c.Context == nil {
 		c.Context = context.Background()
 	}
@@ -89,7 +110,7 @@ func (c *AgentMetadataFetchConfig) setDefaults() {
 	}
 }
 
-// getKubeClient returns a kubernetes client in case the agent is running on
+// getKubeClient returns a kubernetes client in case the instance is running on
 // kubernetes. It returns nil otherwise.
 func getKubeClient() kubernetes.Interface {
 	config, err := rest.InClusterConfig()
@@ -105,16 +126,16 @@ func getKubeClient() kubernetes.Interface {
 	return client
 }
 
-// FetchAgentMetadata fetches and calculates all agent metadata we are
-// interested in tracking. Note that the resulting metadata is not cached.
-func FetchAgentMetadata(c *AgentMetadataFetchConfig) proto.UpstreamInventoryAgentMetadata {
+// FetchMetadata fetches and calculates all metadata we are interested in
+// tracking. Note that the resulting metadata is not cached.
+func FetchMetadata(c *MetadataFetchConfig) Metadata {
 	c.setDefaults()
 	return *c.fetchMetadata()
 }
 
-// fetchMetadata fetches all agent metadata.
-func (c *AgentMetadataFetchConfig) fetchMetadata() *proto.UpstreamInventoryAgentMetadata {
-	return &proto.UpstreamInventoryAgentMetadata{
+// fetchMetadata fetches all metadata.
+func (c *MetadataFetchConfig) fetchMetadata() *Metadata {
+	return &Metadata{
 		OS:                    c.fetchOS(),
 		OSVersion:             c.fetchOSVersion(),
 		HostArchitecture:      c.fetchHostArchitecture(),
@@ -127,12 +148,12 @@ func (c *AgentMetadataFetchConfig) fetchMetadata() *proto.UpstreamInventoryAgent
 }
 
 // fetchOS returns the value of GOOS.
-func (c *AgentMetadataFetchConfig) fetchOS() string {
+func (c *MetadataFetchConfig) fetchOS() string {
 	return runtime.GOOS
 }
 
 // fetchHostArchitecture returns the output of arch.
-func (c *AgentMetadataFetchConfig) fetchHostArchitecture() string {
+func (c *MetadataFetchConfig) fetchHostArchitecture() string {
 	arch, err := c.exec("arch")
 	if err != nil {
 		return ""
@@ -141,8 +162,8 @@ func (c *AgentMetadataFetchConfig) fetchHostArchitecture() string {
 	return arch
 }
 
-// fetchInstallMethods returns the list of methods used to install the agent.
-func (c *AgentMetadataFetchConfig) fetchInstallMethods() []string {
+// fetchInstallMethods returns the list of methods used to install the instance.
+func (c *MetadataFetchConfig) fetchInstallMethods() []string {
 	var installMethods []string
 	if c.dockerfileInstallMethod() {
 		installMethods = append(installMethods, "dockerfile")
@@ -159,26 +180,26 @@ func (c *AgentMetadataFetchConfig) fetchInstallMethods() []string {
 	return installMethods
 }
 
-// dockerfileInstallMethod returns true if the agent was installed using our
+// dockerfileInstallMethod returns true if the instance was installed using our
 // Dockerfile.
-func (c *AgentMetadataFetchConfig) dockerfileInstallMethod() bool {
+func (c *MetadataFetchConfig) dockerfileInstallMethod() bool {
 	return c.getenv("TELEPORT_INSTALL_METHOD_DOCKERFILE") == "true"
 }
 
-// helmKubeAgentInstallMethod returns true if the agent was installed using our
+// helmKubeAgentInstallMethod returns true if the instance was installed using our
 // Helm chart.
-func (c *AgentMetadataFetchConfig) helmKubeAgentInstallMethod() bool {
+func (c *MetadataFetchConfig) helmKubeAgentInstallMethod() bool {
 	return c.getenv("TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT") == "true"
 }
 
-// nodeScriptInstallMethod returns true if the agent was installed using our
+// nodeScriptInstallMethod returns true if the instance was installed using our
 // install-node.sh script.
-func (c *AgentMetadataFetchConfig) nodeScriptInstallMethod() bool {
+func (c *MetadataFetchConfig) nodeScriptInstallMethod() bool {
 	return c.getenv("TELEPORT_INSTALL_METHOD_NODE_SCRIPT") == "true"
 }
 
-// systemctlInstallMethod returns true if the agent is running using systemctl.
-func (c *AgentMetadataFetchConfig) systemctlInstallMethod() bool {
+// systemctlInstallMethod returns true if the instance is running using systemctl.
+func (c *MetadataFetchConfig) systemctlInstallMethod() bool {
 	out, err := c.exec("systemctl", "status", "teleport.service")
 	if err != nil {
 		return false
@@ -188,7 +209,7 @@ func (c *AgentMetadataFetchConfig) systemctlInstallMethod() bool {
 }
 
 // fetchContainerRuntime returns "docker" if the file "/.dockerenv" exists.
-func (c *AgentMetadataFetchConfig) fetchContainerRuntime() string {
+func (c *MetadataFetchConfig) fetchContainerRuntime() string {
 	_, err := c.read("/.dockerenv")
 	if err != nil {
 		return ""
@@ -198,9 +219,9 @@ func (c *AgentMetadataFetchConfig) fetchContainerRuntime() string {
 	return "docker"
 }
 
-// fetchContainerOrchestrator returns kubernetes-${GIT_VERSION} if the agent is
+// fetchContainerOrchestrator returns kubernetes-${GIT_VERSION} if the instance is
 // running on kubernetes.
-func (c *AgentMetadataFetchConfig) fetchContainerOrchestrator() string {
+func (c *MetadataFetchConfig) fetchContainerOrchestrator() string {
 	if c.kubeClient == nil {
 		return ""
 	}
@@ -213,9 +234,9 @@ func (c *AgentMetadataFetchConfig) fetchContainerOrchestrator() string {
 	return fmt.Sprintf("kubernetes-%s", version.GitVersion)
 }
 
-// fetchCloudEnvironment returns aws, gpc or azure if the agent is running on
+// fetchCloudEnvironment returns aws, gpc or azure if the instance is running on
 // such cloud environments.
-func (c *AgentMetadataFetchConfig) fetchCloudEnvironment() string {
+func (c *MetadataFetchConfig) fetchCloudEnvironment() string {
 	if c.awsHTTPGetSuccess() {
 		return "aws"
 	}
@@ -229,9 +250,9 @@ func (c *AgentMetadataFetchConfig) fetchCloudEnvironment() string {
 }
 
 // awsHTTPGetSuccess hits the AWS metadata endpoint in order to detect whether
-// the agent is running on AWS.
+// the instance is running on AWS.
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
-func (c *AgentMetadataFetchConfig) awsHTTPGetSuccess() bool {
+func (c *MetadataFetchConfig) awsHTTPGetSuccess() bool {
 	url := "http://169.254.169.254/latest/meta-data/"
 	req, err := http.NewRequestWithContext(c.Context, http.MethodGet, url, nil)
 	if err != nil {
@@ -243,9 +264,9 @@ func (c *AgentMetadataFetchConfig) awsHTTPGetSuccess() bool {
 }
 
 // gcpHTTPGetSuccess hits the GCP metadata endpoint in order to detect whether
-// the agent is running on GCP.
+// the instance is running on GCP.
 // https://cloud.google.com/compute/docs/metadata/overview#parts-of-a-request
-func (c *AgentMetadataFetchConfig) gcpHTTPGetSuccess() bool {
+func (c *MetadataFetchConfig) gcpHTTPGetSuccess() bool {
 	url := "http://metadata.google.internal/computeMetadata/v1"
 	req, err := http.NewRequestWithContext(c.Context, http.MethodGet, url, nil)
 	if err != nil {
@@ -258,9 +279,9 @@ func (c *AgentMetadataFetchConfig) gcpHTTPGetSuccess() bool {
 }
 
 // azureHTTPGetSuccess hits the Azure metadata endpoint in order to detect whether
-// the agent is running on Azure.
+// the instance is running on Azure.
 // https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service
-func (c *AgentMetadataFetchConfig) azureHTTPGetSuccess() bool {
+func (c *MetadataFetchConfig) azureHTTPGetSuccess() bool {
 	url := "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
 	req, err := http.NewRequestWithContext(c.Context, http.MethodGet, url, nil)
 	if err != nil {
@@ -273,7 +294,7 @@ func (c *AgentMetadataFetchConfig) azureHTTPGetSuccess() bool {
 }
 
 // exec runs a command and returns its output.
-func (c *AgentMetadataFetchConfig) exec(name string, args ...string) (string, error) {
+func (c *MetadataFetchConfig) exec(name string, args ...string) (string, error) {
 	out, err := c.execCommand(name, args...)
 	if err != nil {
 		log.Debugf("Failed to execute command '%s': %s", name, err)
@@ -284,7 +305,7 @@ func (c *AgentMetadataFetchConfig) exec(name string, args ...string) (string, er
 }
 
 // read reads a file and returns its content.
-func (c *AgentMetadataFetchConfig) read(name string) (string, error) {
+func (c *MetadataFetchConfig) read(name string) (string, error) {
 	out, err := c.readFile(name)
 	if err != nil {
 		log.Debugf("Failed to read file '%s': %s", name, err)
@@ -296,7 +317,7 @@ func (c *AgentMetadataFetchConfig) read(name string) (string, error) {
 
 // httpReqSuccess performs an http request, returning true if the status code
 // is 200.
-func (c *AgentMetadataFetchConfig) httpReqSuccess(req *http.Request) bool {
+func (c *MetadataFetchConfig) httpReqSuccess(req *http.Request) bool {
 	resp, err := c.httpDo(req)
 	if err != nil {
 		log.Debugf("Failed to perform http GET request: %s", err)

@@ -25,7 +25,7 @@ import (
 
 // fetchOSVersion returns something equivalent to the output of
 // '$(sw_vers -productName) $(sw_vers -productVersion)'.
-func (c *AgentMetadataFetchConfig) fetchOSVersion() string {
+func (c *MetadataFetchConfig) fetchOSVersion() string {
 	productName, err := c.exec("sw_vers", "-productName")
 	if err != nil {
 		return ""
@@ -40,6 +40,6 @@ func (c *AgentMetadataFetchConfig) fetchOSVersion() string {
 }
 
 // fetchGlibcVersion returns "" on darwin.
-func (c *AgentMetadataFetchConfig) fetchGlibcVersion() string {
+func (c *MetadataFetchConfig) fetchGlibcVersion() string {
 	return ""
 }

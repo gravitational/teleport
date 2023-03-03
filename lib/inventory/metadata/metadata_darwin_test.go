@@ -66,7 +66,7 @@ func TestFetchOSVersion(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			c := &AgentMetadataFetchConfig{
+			c := &MetadataFetchConfig{
 				execCommand: tc.execCommand,
 			}
 			require.Equal(t, tc.expected, c.fetchOSVersion())
