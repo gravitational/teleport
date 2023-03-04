@@ -103,7 +103,7 @@ resource "aws_launch_configuration" "monitor" {
   iam_instance_profile        = aws_iam_instance_profile.monitor.id
 }
 
-// Monitors support traffic comming from internal cluster subnets and expose 8443 for grafana
+// Monitors support traffic coming from internal cluster subnets and expose 8443 for grafana
 resource "aws_security_group" "monitor" {
   name   = "${var.cluster_name}-monitor"
   vpc_id = local.vpc_id
@@ -167,7 +167,7 @@ resource "aws_security_group_rule" "monitor_egress_allow_all_traffic" {
 
 // Network load balancer for influxdb collector
 // Notice that in this case it is in the single subnet
-// because network load balancers only distriute traffic
+// because network load balancers only distribute traffic
 // in the same AZ, and this example does not have HA InfluxDB setup
 resource "aws_lb" "monitor" {
   name               = "${var.cluster_name}-monitor"
