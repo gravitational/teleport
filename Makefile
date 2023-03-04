@@ -588,7 +588,7 @@ test-go-prepare: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDE
 # Runs base unit tests
 .PHONY: test-go-unit
 test-go-unit: FLAGS ?= -race -shuffle on
-test-go-unit: SUBJECT ?= $(shell go list ./... | grep -v -e integration -e tool/tsh -e operator )
+test-go-unit: SUBJECT ?= $(shell go list ./... | grep -v -e integration -e tool/tsh -e integrations/operator )
 test-go-unit:
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
@@ -643,7 +643,7 @@ UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
 test-go-root: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
 test-go-root: FLAGS ?= -race -shuffle on
-test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e integration -e operator)
+test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e integration -e integrations/operator)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit-root.json \
@@ -667,7 +667,7 @@ test-api:
 #
 .PHONY: test-operator
 test-operator:
-	make -C operator test
+	make -C integrations/operator test
 
 #
 # Runs cargo test on our Rust modules.
