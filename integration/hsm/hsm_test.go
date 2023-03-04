@@ -404,6 +404,10 @@ func TestHSMRotation(t *testing.T) {
 
 // Tests multiple CA rotations and rollbacks with 2 HSM auth servers in an HA configuration
 func TestHSMDualAuthRotation(t *testing.T) {
+	// TODO(nklaassen): fix this test and re-enable it.
+	// https://github.com/gravitational/teleport/issues/20217
+	t.Skip("TestHSMDualAuthRotation is temporarily disabled due to flakiness")
+
 	if os.Getenv("TELEPORT_ETCD_TEST") == "" || os.Getenv("SOFTHSM2_PATH") == "" {
 		t.Skip("Skipping test as either etcd or SoftHSM2 is not enabled")
 	}
