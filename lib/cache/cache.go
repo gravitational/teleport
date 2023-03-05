@@ -78,6 +78,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUIConfig},
 		{Kind: types.KindStaticTokens},
 		{Kind: types.KindToken},
 		{Kind: types.KindUser},
@@ -126,6 +127,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUIConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		{Kind: types.KindNamespace},
@@ -818,7 +820,7 @@ func New(config Config) (*Cache, error) {
 // Start the cache. Should only be called once.
 func (c *Cache) Start() error {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.HalfJitter(c.MaxRetryPeriod / 10),
+		First:  utils.FullJitter(c.MaxRetryPeriod / 10),
 		Step:   c.MaxRetryPeriod / 5,
 		Max:    c.MaxRetryPeriod,
 		Jitter: retryutils.NewHalfJitter(),
@@ -1560,6 +1562,20 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 		return cachedName.Clone(), nil
 	}
 	return rg.clusterConfig.GetClusterName(opts...)
+}
+
+func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetUIConfig")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	uiconfig, err := rg.clusterConfig.GetUIConfig(ctx)
+	return uiconfig, trace.Wrap(err)
 }
 
 // GetInstaller gets the installer script resource for the cluster

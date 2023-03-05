@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package web
+package usagereporter
 
 import (
 	"testing"
@@ -20,7 +20,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	v1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 )
 
 func TestDiscoverEventDataToUsageEvent(t *testing.T) {
@@ -29,7 +29,7 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 		event    string
 		req      DiscoverEventData
 		errCheck require.ErrorAssertionFunc
-		expected *v1.UsageEventOneOf
+		expected *usageeventsv1.UsageEventOneOf
 	}{
 		{
 			name:     uiDiscoverStartedEvent + "/success",
@@ -39,10 +39,10 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 				ID:         "someid",
 				StepStatus: "DISCOVER_STATUS_SUCCESS",
 			},
-			expected: &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverStartedEvent{
-				UiDiscoverStartedEvent: &v1.UIDiscoverStartedEvent{
-					Metadata: &v1.DiscoverMetadata{Id: "someid"},
-					Status:   &v1.DiscoverStepStatus{Status: v1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+			expected: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverStartedEvent{
+				UiDiscoverStartedEvent: &usageeventsv1.UIDiscoverStartedEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Status:   &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 				},
 			}},
 		},
@@ -56,12 +56,12 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 				StepStatus:      "DISCOVER_STATUS_ERROR",
 				StepStatusError: "Failed to fetch available resources",
 			},
-			expected: &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
-				UiDiscoverResourceSelectionEvent: &v1.UIDiscoverResourceSelectionEvent{
-					Metadata: &v1.DiscoverMetadata{Id: "someid"},
-					Resource: &v1.DiscoverResourceMetadata{Resource: v1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
-					Status: &v1.DiscoverStepStatus{
-						Status: v1.DiscoverStatus_DISCOVER_STATUS_ERROR,
+			expected: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
+				UiDiscoverResourceSelectionEvent: &usageeventsv1.UIDiscoverResourceSelectionEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource: &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status: &usageeventsv1.DiscoverStepStatus{
+						Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_ERROR,
 						Error:  "Failed to fetch available resources",
 					},
 				},
@@ -103,12 +103,12 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 				StepStatus:                 "DISCOVER_STATUS_SUCCESS",
 				AutoDiscoverResourcesCount: 3,
 			},
-			expected: &v1.UsageEventOneOf{Event: &v1.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
-				UiDiscoverAutoDiscoveredResourcesEvent: &v1.UIDiscoverAutoDiscoveredResourcesEvent{
-					Metadata: &v1.DiscoverMetadata{Id: "someid"},
-					Resource: &v1.DiscoverResourceMetadata{Resource: v1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
-					Status: &v1.DiscoverStepStatus{
-						Status: v1.DiscoverStatus_DISCOVER_STATUS_SUCCESS,
+			expected: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
+				UiDiscoverAutoDiscoveredResourcesEvent: &usageeventsv1.UIDiscoverAutoDiscoveredResourcesEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource: &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status: &usageeventsv1.DiscoverStepStatus{
+						Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS,
 					},
 					ResourcesCount: 3,
 				},

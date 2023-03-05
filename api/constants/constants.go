@@ -157,6 +157,33 @@ const (
 
 	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
 	SSHRSAType = "ssh-rsa"
+
+	// OktaAssignmentActionStatusPending is represents a pending status for an Okta action.
+	OktaAssignmentActionStatusPending = "pending"
+
+	// OktaAssignmentActionStatusSuccessful is represents a successfully applied Okta action.
+	OktaAssignmentActionStatusSuccessful = "successful"
+
+	// OktaAssignmentActionStatusFailed is represents an Okta action which failed to apply. It will be retried.
+	OktaAssignmentActionStatusFailed = "failed"
+
+	// OktaAssignmentActionStatusCleanedUp is represents an Okta action which was cleaned up successfully.
+	OktaAssignmentActionStatusCleanedUp = "cleaned_up"
+
+	// OktaAssignmentActionStatusCleanupFailed is represents an Okta action which was not cleaned up successfully. It will not be retried.
+	OktaAssignmentActionStatusCleanupFailed = "cleanup_failed"
+
+	// OktaAssignmentActionStatusPending is represents a unknown status for an Okta action.
+	OktaAssignmentActionStatusUnknown = "unknown"
+
+	// OktaAssignmentActionTargetApplication is an application target of an Okta assignment action.
+	OktaAssignmentActionTargetApplication = "application"
+
+	// OktaAssignmentActionTargetGroup is a group target of an Okta assignment action.
+	OktaAssignmentActionTargetGroup = "group"
+
+	// OktaAssignmentActionTargetUnknown is an unknown target of an Okta assignment action.
+	OktaAssignmentActionTargetUnknown = "unknown"
 )
 
 // SystemConnectors lists the names of the system-reserved connectors.

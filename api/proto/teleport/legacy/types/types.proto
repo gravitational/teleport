@@ -4595,6 +4595,26 @@ message Participant {
   ];
 }
 
+// UIConfigV1 represents the configuration for the web UI served by the proxy service
+message UIConfigV1 {
+  // Header is the resource header for the UI configuration.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Spec is the resource spec.
+  UIConfigSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// UIConfigSpecV1 is the specification for a UIConfig
+message UIConfigSpecV1 {
+  int32 ScrollbackLines = 1 [(gogoproto.jsontag) = "scrollback_lines"];
+}
+
 // InstallerV1 represents an installer script resource. Used to
 // provide a script to install teleport on discovered nodes.
 message InstallerV1 {
@@ -4813,10 +4833,11 @@ message AlertAcknowledgement {
   // Reason describes the reason why the alert can be considered
   // acknowledged (e.g. 'alice will fix next week').
   string Reason = 2 [(gogoproto.jsontag) = "reason,omitempty"];
-  // Severity is the maximum severity for which the acknowledgement will
-  // perform suppression (e.g. an ack with severity MEDIUM will suppress
-  // alerts with severity MEDIUM or lower, but not alerts with severity HIGH).
-  AlertSeverity Severity = 3 [(gogoproto.jsontag) = "severity,omitempty"];
+
+  // 3 is reserved for the previously used alert acknowledgement "severity"
+  reserved 3;
+  reserved "Severity";
+
   // Expires is the time after which the acknowledgement expires.
   google.protobuf.Timestamp Expires = 4 [
     (gogoproto.jsontag) = "expires,omitempty",
@@ -5052,4 +5073,154 @@ message UserGroupV1 {
     (gogoproto.jsontag) = "",
     (gogoproto.embed) = true
   ];
+}
+
+// OktaImportRuleSpecV1 is a Okta import rule specification.
+message OktaImportRuleSpecV1 {
+  // Priority represents the priority of the rule application. Lower numbered rules will be applied first.
+  int32 Priority = 1 [(gogoproto.jsontag) = "priority"];
+  // Mappings is a list of matches that will map match conditions to labels.
+  repeated OktaImportRuleMappingV1 Mappings = 2 [(gogoproto.jsontag) = "mappings"];
+}
+
+// OktaImportRuleMappingV1 is a list of matches that map match rules to labels.
+message OktaImportRuleMappingV1 {
+  // Match is a set of matching rules for this mapping. If any of these match, then the mapping will be applied.
+  repeated OktaImportRuleMatchV1 Match = 1 [(gogoproto.jsontag) = "match"];
+  // AddLabels specifies which labels to add if any of the previous matches match.
+  map<string, string> AddLabels = 2 [(gogoproto.jsontag) = "add_labels"];
+}
+
+// OktaImportRuleV1 is a representation of labeling rules for importing of Okta objects.
+message OktaImportRuleV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header for the SAML IdP service provider.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+
+  // Spec is the specification for the Okta import rule.
+  OktaImportRuleSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// OktaImportRuleMatchV1 is a match rule for a mapping.
+message OktaImportRuleMatchV1 {
+  // AppIDs is a list of app IDs to match against.
+  repeated string AppIDs = 1 [(gogoproto.jsontag) = "app_ids,omitempty"];
+  // GroupIDs is a list of group IDs to match against.
+  repeated string GroupIDs = 2 [(gogoproto.jsontag) = "group_ids,omitempty"];
+}
+
+// OktaAssignmentV1 is a representation of an action or set of actions taken by Teleport to assign Okta users to applications or groups.
+message OktaAssignmentV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header for the Okta assignment.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+
+  // Spec is the specification for the Okta assignment.
+  OktaAssignmentSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// OktaAssignmentSpecV1 is a Okta assignment specification.
+message OktaAssignmentSpecV1 {
+  // User is the user that these actions will be applied to.
+  string User = 1 [(gogoproto.jsontag) = "user"];
+  // Actions is a list of Okta actions to take on a user.
+  repeated OktaAssignmentActionV1 Actions = 2 [(gogoproto.jsontag) = "actions"];
+}
+
+// OktaAssignmentActionV1 is a Okta assignment action.
+message OktaAssignmentActionV1 {
+  // OktaAssignmentStatus represents the status of an action in an Okta assignment.
+  enum OktaAssignmentActionStatus {
+    // UNKNOWN indicates the status is not set.
+    UNKNOWN = 0;
+    // PENDING indicates the action has not yet been applied.
+    PENDING = 1;
+    // SUCCESSFUL indicates the action was applied successfully.
+    SUCCESSFUL = 2;
+    // FAILED indicates the action was not applied successfully. It will be retried.
+    FAILED = 3;
+    // CLEANED_UP indicates the action was cleaned up successfully.
+    CLEANED_UP = 4;
+    // CLEANUP_FAILED indicates the action was not cleaned up successfully. It will not be retried.
+    CLEANUP_FAILED = 5;
+  }
+
+  // Status is the status of the action.
+  OktaAssignmentActionStatus status = 1 [(gogoproto.jsontag) = "status"];
+  // Target is the target of the assignment action.
+  OktaAssignmentActionTargetV1 target = 2 [(gogoproto.jsontag) = "target"];
+}
+
+// OktaAssignmentActionTargetV1 is the target of an Okta assignment action.
+message OktaAssignmentActionTargetV1 {
+  // OktaAssignmentActionTargetType is the type of Okta object that an action is targeting.
+  enum OktaAssignmentActionTargetType {
+    // UNKNOWN indicates the target is unknown.
+    UNKNOWN = 0;
+    // APPLICATION indicates the target is an application.
+    APPLICATION = 1;
+    // GROUP indicates the target is a group.
+    GROUP = 2;
+  }
+
+  // Type is the type of Okta resource this assignment action is targeting.
+  OktaAssignmentActionTargetType type = 1 [(gogoproto.jsontag) = "type"];
+  // ID is the ID of the Okta resource that's being targeted.
+  string id = 2 [(gogoproto.jsontag) = "id"];
+}
+
+// HeadlessAuthentication holds data for an ongoing headless authentication attempt.
+message HeadlessAuthentication {
+  // Header is the resource header.
+  ResourceHeader header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true
+  ];
+
+  // User is a teleport user name.
+  string user = 2;
+
+  // PublicKey is an ssh public key to sign in case of successful auth.
+  bytes public_key = 3;
+
+  // State is the headless authentication request state.
+  HeadlessAuthenticationState state = 4;
+
+  // MFADevice is the mfa device used to approve the request in case of successful auth.
+  types.MFADevice mfa_device = 5;
+
+  // ClientIPAddress is the IP address of the client being authenticated.
+  string client_ip_address = 6;
+}
+
+// HeadlessAuthenticationState is a headless authentication state.
+enum HeadlessAuthenticationState {
+  HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED = 0;
+
+  // authentication pending.
+  HEADLESS_AUTHENTICATION_STATE_PENDING = 1;
+
+  // authentication denied.
+  HEADLESS_AUTHENTICATION_STATE_DENIED = 2;
+
+  // authentication approved.
+  HEADLESS_AUTHENTICATION_STATE_APPROVED = 3;
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package services
+package usagereporter
 
 import (
 	"testing"
@@ -20,7 +20,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	usageevents "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -33,17 +33,17 @@ func TestConvertUsageEvent(t *testing.T) {
 
 	for _, tt := range []struct {
 		name             string
-		event            *usageevents.UsageEventOneOf
+		event            *usageeventsv1.UsageEventOneOf
 		identityUsername string
 		errCheck         require.ErrorAssertionFunc
 		expected         *prehogv1.SubmitEventRequest
 	}{
 		{
 			name: "discover started event",
-			event: &usageevents.UsageEventOneOf{Event: &usageevents.UsageEventOneOf_UiDiscoverStartedEvent{
-				UiDiscoverStartedEvent: &usageevents.UIDiscoverStartedEvent{
-					Metadata: &usageevents.DiscoverMetadata{Id: "someid"},
-					Status:   &usageevents.DiscoverStepStatus{Status: usageevents.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverStartedEvent{
+				UiDiscoverStartedEvent: &usageeventsv1.UIDiscoverStartedEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Status:   &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 				},
 			}},
 			identityUsername: "myuser",
@@ -60,11 +60,11 @@ func TestConvertUsageEvent(t *testing.T) {
 		},
 		{
 			name: "discover resource selection event",
-			event: &usageevents.UsageEventOneOf{Event: &usageevents.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
-				UiDiscoverResourceSelectionEvent: &usageevents.UIDiscoverResourceSelectionEvent{
-					Metadata: &usageevents.DiscoverMetadata{Id: "someid"},
-					Resource: &usageevents.DiscoverResourceMetadata{Resource: usageevents.DiscoverResource_DISCOVER_RESOURCE_SERVER},
-					Status:   &usageevents.DiscoverStepStatus{Status: usageevents.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
+				UiDiscoverResourceSelectionEvent: &usageeventsv1.UIDiscoverResourceSelectionEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource: &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:   &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 				},
 			}},
 			identityUsername: "myuser",
@@ -82,11 +82,11 @@ func TestConvertUsageEvent(t *testing.T) {
 		},
 		{
 			name: "error when discover metadata dones't have id",
-			event: &usageevents.UsageEventOneOf{Event: &usageevents.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
-				UiDiscoverResourceSelectionEvent: &usageevents.UIDiscoverResourceSelectionEvent{
-					Metadata: &usageevents.DiscoverMetadata{Id: ""},
-					Resource: &usageevents.DiscoverResourceMetadata{Resource: usageevents.DiscoverResource_DISCOVER_RESOURCE_SERVER},
-					Status:   &usageevents.DiscoverStepStatus{Status: usageevents.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
+				UiDiscoverResourceSelectionEvent: &usageeventsv1.UIDiscoverResourceSelectionEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: ""},
+					Resource: &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:   &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 				},
 			}},
 			identityUsername: "myuser",
@@ -96,11 +96,11 @@ func TestConvertUsageEvent(t *testing.T) {
 		},
 		{
 			name: "error when discover metadata resource",
-			event: &usageevents.UsageEventOneOf{Event: &usageevents.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
-				UiDiscoverResourceSelectionEvent: &usageevents.UIDiscoverResourceSelectionEvent{
-					Metadata: &usageevents.DiscoverMetadata{Id: "someid"},
-					Resource: &usageevents.DiscoverResourceMetadata{Resource: 0},
-					Status:   &usageevents.DiscoverStepStatus{Status: usageevents.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
+				UiDiscoverResourceSelectionEvent: &usageeventsv1.UIDiscoverResourceSelectionEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource: &usageeventsv1.DiscoverResourceMetadata{Resource: 0},
+					Status:   &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 				},
 			}},
 			identityUsername: "myuser",
@@ -110,11 +110,11 @@ func TestConvertUsageEvent(t *testing.T) {
 		},
 		{
 			name: "error when discover has stepStatus=ERROR but no error message",
-			event: &usageevents.UsageEventOneOf{Event: &usageevents.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
-				UiDiscoverResourceSelectionEvent: &usageevents.UIDiscoverResourceSelectionEvent{
-					Metadata: &usageevents.DiscoverMetadata{Id: "someid"},
-					Resource: &usageevents.DiscoverResourceMetadata{Resource: usageevents.DiscoverResource_DISCOVER_RESOURCE_SERVER},
-					Status:   &usageevents.DiscoverStepStatus{Status: usageevents.DiscoverStatus_DISCOVER_STATUS_ERROR},
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
+				UiDiscoverResourceSelectionEvent: &usageeventsv1.UIDiscoverResourceSelectionEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource: &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:   &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_ERROR},
 				},
 			}},
 			identityUsername: "myuser",
@@ -124,11 +124,11 @@ func TestConvertUsageEvent(t *testing.T) {
 		},
 		{
 			name: "when discover has resources count and its values is zero: no error",
-			event: &usageevents.UsageEventOneOf{Event: &usageevents.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
-				UiDiscoverAutoDiscoveredResourcesEvent: &usageevents.UIDiscoverAutoDiscoveredResourcesEvent{
-					Metadata:       &usageevents.DiscoverMetadata{Id: "someid"},
-					Resource:       &usageevents.DiscoverResourceMetadata{Resource: usageevents.DiscoverResource_DISCOVER_RESOURCE_SERVER},
-					Status:         &usageevents.DiscoverStepStatus{Status: usageevents.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
+				UiDiscoverAutoDiscoveredResourcesEvent: &usageeventsv1.UIDiscoverAutoDiscoveredResourcesEvent{
+					Metadata:       &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource:       &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:         &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 					ResourcesCount: 0,
 				},
 			}},
@@ -148,11 +148,11 @@ func TestConvertUsageEvent(t *testing.T) {
 		},
 		{
 			name: "when discover has resources count and its values is positive: no error",
-			event: &usageevents.UsageEventOneOf{Event: &usageevents.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
-				UiDiscoverAutoDiscoveredResourcesEvent: &usageevents.UIDiscoverAutoDiscoveredResourcesEvent{
-					Metadata:       &usageevents.DiscoverMetadata{Id: "someid"},
-					Resource:       &usageevents.DiscoverResourceMetadata{Resource: usageevents.DiscoverResource_DISCOVER_RESOURCE_SERVER},
-					Status:         &usageevents.DiscoverStepStatus{Status: usageevents.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
+				UiDiscoverAutoDiscoveredResourcesEvent: &usageeventsv1.UIDiscoverAutoDiscoveredResourcesEvent{
+					Metadata:       &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource:       &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:         &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 					ResourcesCount: 2,
 				},
 			}},
@@ -172,11 +172,11 @@ func TestConvertUsageEvent(t *testing.T) {
 		},
 		{
 			name: "when discover has resources count and its values is negative: bad parameter error",
-			event: &usageevents.UsageEventOneOf{Event: &usageevents.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
-				UiDiscoverAutoDiscoveredResourcesEvent: &usageevents.UIDiscoverAutoDiscoveredResourcesEvent{
-					Metadata:       &usageevents.DiscoverMetadata{Id: "someid"},
-					Resource:       &usageevents.DiscoverResourceMetadata{Resource: usageevents.DiscoverResource_DISCOVER_RESOURCE_SERVER},
-					Status:         &usageevents.DiscoverStepStatus{Status: usageevents.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent{
+				UiDiscoverAutoDiscoveredResourcesEvent: &usageeventsv1.UIDiscoverAutoDiscoveredResourcesEvent{
+					Metadata:       &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource:       &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:         &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 					ResourcesCount: -2,
 				},
 			}},
