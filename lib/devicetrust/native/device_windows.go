@@ -205,7 +205,7 @@ func getDeviceSerial() (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	return string(bytes.ReplaceAll(out, []byte(" "), nil)), nil
+	return strings.TrimSpace(string(bytes.ReplaceAll(out, []byte(" "), nil))), nil
 }
 
 func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
