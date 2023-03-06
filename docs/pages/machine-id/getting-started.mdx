@@ -163,6 +163,7 @@ the foreground to better understand how it works.
   <ScopedBlock scope={["oss", "enterprise"]}>
 
   ```code
+  $ export TELEPORT_ANONYMOUS_TELEMETRY=1
   $ tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
@@ -176,6 +177,7 @@ the foreground to better understand how it works.
   <ScopedBlock scope={["cloud"]}>
 
   ```code
+  $ export TELEPORT_ANONYMOUS_TELEMETRY=1
   $ tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
@@ -193,6 +195,7 @@ the foreground to better understand how it works.
   <ScopedBlock scope={["oss", "enterprise"]}>
 
   ```code
+  $ export TELEPORT_ANONYMOUS_TELEMETRY=1
   $ tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
@@ -206,6 +209,7 @@ the foreground to better understand how it works.
   <ScopedBlock scope={["cloud"]}>
 
   ```code
+  $ export TELEPORT_ANONYMOUS_TELEMETRY=1
   $ tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
@@ -219,6 +223,10 @@ the foreground to better understand how it works.
 
   </TabItem>
 </Tabs>
+
+`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
+telemetry. This helps us shape the future development of `tbot`. You can disable
+this by omitting this.
 
 Replace the following fields with values from your own cluster.
 
@@ -327,3 +335,5 @@ use-case, for example:
 - [Machine ID with Ansible](./guides/ansible.mdx)
 - [Machine ID with Jenkins](./guides/jenkins.mdx)
 - [Machine ID with Databases](./guides/databases.mdx)
+
+[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](./reference/telemetry.mdx)
