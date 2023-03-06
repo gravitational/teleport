@@ -489,7 +489,7 @@ exports[`auth2faType: optional rendering 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -928,7 +928,7 @@ exports[`auth2faType: otp rendering 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -1381,7 +1381,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -1887,7 +1887,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 .c17 .react-select__control,
 .c17 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
