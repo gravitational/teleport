@@ -1905,13 +1905,6 @@ waitLoop:
 				continue
 			}
 
-			// Server resources may have subkind set, but the backend
-			// generating this delete event doesn't know the subkind.
-			// Set it to prevent the check below from failing.
-			if event.Resource.GetKind() == types.KindNode || event.Resource.GetKind() == types.KindProxy {
-				event.Resource.SetSubKind(resource.GetSubKind())
-			}
-
 			require.Empty(t, cmp.Diff(resource, event.Resource))
 			break waitLoop
 		}

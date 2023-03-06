@@ -138,6 +138,11 @@ func (s *ServerV2) GetKind() string {
 
 // GetSubKind returns resource sub kind
 func (s *ServerV2) GetSubKind() string {
+	// if the server is a node subkind isn't set, this is a teleport node.
+	if s.Kind == KindNode && s.SubKind == "" {
+		return SubKindTeleportNode
+	}
+
 	return s.SubKind
 }
 
@@ -407,10 +412,12 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	if s.Kind == "" {
 		return trace.BadParameter("server Kind is empty")
 	}
+	if s.Kind != KindNode && s.SubKind != "" {
+		return trace.BadParameter(`server SubKind must only be set when Kind is "node"`)
+	}
+
 	switch s.SubKind {
-	case "":
-		s.SubKind = SubKindTeleportNode
-	case SubKindTeleportNode:
+	case "", SubKindTeleportNode:
 		// allow but do nothing
 	case SubKindOpenSSHNode:
 		if s.Spec.Addr == "" {

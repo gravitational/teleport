@@ -164,7 +164,6 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				require.NoError(t, err)
 				expectedServer := &ServerV2{
 					Kind:    KindNode,
-					SubKind: SubKindTeleportNode,
 					Version: V2,
 					Metadata: Metadata{
 						Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
