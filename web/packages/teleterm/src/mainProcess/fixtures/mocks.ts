@@ -27,7 +27,7 @@ export class MockMainProcessClient implements MainProcessClient {
   constructor(private runtimeSettings: Partial<RuntimeSettings> = {}) {
     this.configService = createConfigService({
       configFile: createMockFileStorage(),
-      configJsonSchemaFile: createMockFileStorage(),
+      jsonSchemaFile: createMockFileStorage(),
       platform: this.getRuntimeSettings().platform,
     });
   }

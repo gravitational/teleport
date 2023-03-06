@@ -25,11 +25,11 @@ import { FileStorage } from 'teleterm/services/fileStorage';
 export function updateJsonSchema({
   configSchema,
   configFile,
-  configJsonSchemaFile,
+  jsonSchemaFile,
 }: {
   configSchema: z.AnyZodObject;
   configFile: FileStorage;
-  configJsonSchemaFile: FileStorage;
+  jsonSchemaFile: FileStorage;
 }): void {
   //adds $schema field to the original schema to prevent marking it as a not allowed property
   const configSchemaWithSchemaField = configSchema.extend({
@@ -37,10 +37,10 @@ export function updateJsonSchema({
   });
   const jsonSchema = zodToJsonSchema(configSchemaWithSchemaField);
 
-  configJsonSchemaFile.replace(jsonSchema);
+  jsonSchemaFile.replace(jsonSchema);
   linkToJsonSchemaIfNeeded(
     configFile,
-    path.basename(configJsonSchemaFile.getFilePath())
+    path.basename(jsonSchemaFile.getFilePath())
   );
 }
 

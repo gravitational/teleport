@@ -206,11 +206,11 @@ function getShortcutDesc(actionDesc: string): string {
 
 export function createConfigService({
   configFile,
-  configJsonSchemaFile,
+  jsonSchemaFile,
   platform,
 }: {
   configFile: FileStorage;
-  configJsonSchemaFile: FileStorage;
+  jsonSchemaFile: FileStorage;
   platform: Platform;
 }) {
   const schema = createAppConfigSchema(platform);
@@ -218,7 +218,7 @@ export function createConfigService({
   updateJsonSchema({
     configSchema: schema,
     configFile,
-    configJsonSchemaFile,
+    jsonSchemaFile,
   });
 
   return createConfigStore(schema, configFile);

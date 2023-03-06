@@ -58,7 +58,7 @@ function initializeApp(): void {
 
   const configService = createConfigService({
     configFile: configFileStorage,
-    configJsonSchemaFile: configJsonSchemaFileStorage,
+    jsonSchemaFile: configJsonSchemaFileStorage,
     platform: settings.platform,
   });
   const windowsManager = new WindowsManager(appStateFileStorage, settings);

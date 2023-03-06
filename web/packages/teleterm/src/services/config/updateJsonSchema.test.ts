@@ -54,7 +54,7 @@ test('field linking to the schema and the schema itself are updated', () => {
   updateJsonSchema({
     configSchema: schema,
     configFile: configFile,
-    configJsonSchemaFile: configJsonSchemaFile,
+    jsonSchemaFile: configJsonSchemaFile,
   });
 
   expect(configFile.get('$schema')).toBe('config_schema.json');
