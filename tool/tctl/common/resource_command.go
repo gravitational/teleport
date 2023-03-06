@@ -665,7 +665,11 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, 
 	}
 	exists := (err == nil)
 	if !rc.IsForced() && exists {
-		return trace.AlreadyExists("node %q already exists, use -f flag to override", name)
+		return trace.AlreadyExists("node %q with Hostname %q and Addr %q already exists, use --force flag to override",
+			name,
+			server.GetHostname(),
+			server.GetAddr(),
+		)
 	}
 
 	_, err = client.UpsertNode(ctx, server)

@@ -124,14 +124,15 @@ const (
 	// KindProxy is proxy resource
 	KindProxy = "proxy"
 
-	// KindNode is node resource
+	// KindNode is node resource. It can be either a Teleport node or
+	// a registered OpenSSH (agentless) node.
 	KindNode = "node"
 
-	// KindOpenSSHNode is a Teleport node.
-	KindTeleportNode = "teleport"
+	// SubKindTeleportNode is a Teleport node.
+	SubKindTeleportNode = "teleport"
 
-	// KindOpenSSHNode is a registered OpenSSH (agentless) node.
-	KindOpenSSHNode = "openssh"
+	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
+	SubKindOpenSSHNode = "openssh"
 
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"

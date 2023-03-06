@@ -393,25 +393,26 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	// TODO(awly): default s.Metadata.Expiry if not set (use
 	// defaults.ServerAnnounceTTL).
 	s.setStaticFields()
+
+	// if the server is a registered OpenSSH node, allow the name to be
+	// randomly generated
+	if s.SubKind == SubKindOpenSSHNode && s.Metadata.Name == "" {
+		s.Metadata.Name = uuid.New().String()
+	}
+
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
-		// if the server is a registered OpenSSH node, allow the name
-		// to be randomly generated
-		if s.SubKind == KindOpenSSHNode && trace.UserMessage(err) == "missing parameter Name" {
-			s.Metadata.Name = uuid.New().String()
-			if err := s.Metadata.CheckAndSetDefaults(); err != nil {
-				return trace.Wrap(err)
-			}
-		} else {
-			return trace.Wrap(err)
-		}
+		return trace.Wrap(err)
 	}
 
 	if s.Kind == "" {
 		return trace.BadParameter("server Kind is empty")
 	}
-	if s.SubKind == "" {
-		s.SubKind = KindTeleportNode
-	} else if s.SubKind == KindOpenSSHNode {
+	switch s.SubKind {
+	case "":
+		s.SubKind = SubKindTeleportNode
+	case SubKindTeleportNode:
+		// allow but do nothing
+	case SubKindOpenSSHNode:
 		if s.Spec.Addr == "" {
 			return trace.BadParameter(`Addr must be set when server SubKind is "openssh"`)
 		}
@@ -424,8 +425,10 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 
 		_, err := netip.ParseAddrPort(s.Spec.Addr)
 		if err != nil {
-			return trace.BadParameter("invalid Addr: %v", err)
+			return trace.BadParameter("invalid Addr %q: %v", s.Spec.Addr, err)
 		}
+	default:
+		return trace.BadParameter("invalid SubKind %q", s.SubKind)
 	}
 
 	for key := range s.Spec.CmdLabels {
