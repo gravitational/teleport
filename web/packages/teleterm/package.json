@@ -56,7 +56,7 @@
     "winston": "^3.3.3",
     "xterm": "^5.0.0",
     "xterm-addon-fit": "^0.7.0",
-    "zod": "^3.20.6",
+    "zod": "^3.21.2",
     "zod-to-json-schema": "^3.20.4"
   },
   "productName": "Teleport Connect"
