@@ -77,7 +77,7 @@ func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 
 // EventsSuite is a conformance test suite to verify external event backends
 type EventsSuite struct {
-	Log        events.IAuditLog
+	Log        events.AuditLogger
 	Clock      clockwork.Clock
 	QueryDelay time.Duration
 }
