@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-//nolint:goimports // Ignored because of inline comments.
 package db
 
+//nolint:goimports // Ignored because of inline comments.
 import (
 	"context"
 	"crypto/tls"

@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-//nolint:gci // Remove when GCI is fixed upstream https://github.com/daixiang0/gci/issues/135
 package resources
 
 import (

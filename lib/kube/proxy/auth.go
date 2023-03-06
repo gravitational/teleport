@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//nolint:goimports // goimports disagree with gci on blank imports
 package proxy
 
+//nolint:goimports // Ignored because of inline comments.
 import (
 	"context"
 	"fmt"
