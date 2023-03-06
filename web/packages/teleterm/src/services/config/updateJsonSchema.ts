@@ -23,33 +23,24 @@ import zodToJsonSchema from 'zod-to-json-schema';
 import { FileStorage } from 'teleterm/services/fileStorage';
 
 export function updateJsonSchema({
-  configSchema,
+  schema,
   configFile,
   jsonSchemaFile,
 }: {
-  configSchema: z.AnyZodObject;
+  schema: z.AnyZodObject;
   configFile: FileStorage;
   jsonSchemaFile: FileStorage;
 }): void {
-  //adds $schema field to the original schema to prevent marking it as a not allowed property
-  const configSchemaWithSchemaField = configSchema.extend({
-    $schema: z.string(),
-  });
-  const jsonSchema = zodToJsonSchema(configSchemaWithSchemaField);
+  const jsonSchema = zodToJsonSchema(
+    // Add $schema field to prevent marking it as a not allowed property.
+    schema.extend({ $schema: z.string() })
+  );
+  const jsonSchemaFileName = path.basename(jsonSchemaFile.getFilePath());
+  const jsonSchemaFileNameInConfig = configFile.get('$schema');
 
   jsonSchemaFile.replace(jsonSchema);
-  linkToJsonSchemaIfNeeded(
-    configFile,
-    path.basename(jsonSchemaFile.getFilePath())
-  );
-}
 
-function linkToJsonSchemaIfNeeded(
-  configFileStorage: FileStorage,
-  jsonSchemaFilename: string
-): void {
-  const schemaField = configFileStorage.get('$schema');
-  if (schemaField !== jsonSchemaFilename) {
-    configFileStorage.put('$schema', jsonSchemaFilename);
+  if (jsonSchemaFileNameInConfig !== jsonSchemaFileName) {
+    configFile.put('$schema', jsonSchemaFileName);
   }
 }

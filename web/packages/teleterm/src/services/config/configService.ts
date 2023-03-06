@@ -216,7 +216,7 @@ export function createConfigService({
   const schema = createAppConfigSchema(platform);
 
   updateJsonSchema({
-    configSchema: schema,
+    schema,
     configFile,
     jsonSchemaFile,
   });

@@ -47,16 +47,16 @@ const generatedJsonSchema = {
 
 test('field linking to the schema and the schema itself are updated', () => {
   const configFile = createMockFileStorage();
-  const configJsonSchemaFile = createMockFileStorage({
+  const jsonSchemaFile = createMockFileStorage({
     filePath: '~/config_schema.json',
   });
 
   updateJsonSchema({
-    configSchema: schema,
-    configFile: configFile,
-    jsonSchemaFile: configJsonSchemaFile,
+    schema,
+    configFile,
+    jsonSchemaFile,
   });
 
   expect(configFile.get('$schema')).toBe('config_schema.json');
-  expect(configJsonSchemaFile.get()).toEqual(generatedJsonSchema);
+  expect(jsonSchemaFile.get()).toEqual(generatedJsonSchema);
 });
