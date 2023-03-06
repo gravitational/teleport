@@ -3323,7 +3323,7 @@ func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
 	}
 }
 
-func TestAuthPlugins(t *testing.T) {
+func TestAuthHostedPlugins(t *testing.T) {
 	t.Parallel()
 
 	badParameter := func(t require.TestingT, err error, msgAndArgs ...interface{}) {
@@ -3348,7 +3348,7 @@ func TestAuthPlugins(t *testing.T) {
 		config   string
 		readErr  require.ErrorAssertionFunc
 		applyErr require.ErrorAssertionFunc
-		assert   func(t *testing.T, p service.PluginsConfig)
+		assert   func(t *testing.T, p service.HostedPluginsConfig)
 	}{
 		{
 			desc: "Plugins disabled by default",
@@ -3358,7 +3358,7 @@ func TestAuthPlugins(t *testing.T) {
 			}, "\n"),
 			readErr:  require.NoError,
 			applyErr: require.NoError,
-			assert: func(t *testing.T, p service.PluginsConfig) {
+			assert: func(t *testing.T, p service.HostedPluginsConfig) {
 				require.False(t, p.Enabled)
 			},
 		},
@@ -3367,7 +3367,7 @@ func TestAuthPlugins(t *testing.T) {
 			config: strings.Join([]string{
 				"auth_service:",
 				"  enabled: yes",
-				"  plugins:",
+				"  hosted_plugins:",
 				"    enabled: yes",
 			}, "\n"),
 			readErr:  require.NoError,
@@ -3378,7 +3378,7 @@ func TestAuthPlugins(t *testing.T) {
 			config: strings.Join([]string{
 				"auth_service:",
 				"  enabled: yes",
-				"  plugins:",
+				"  hosted_plugins:",
 				"    enabled: yes",
 				"    oauth_providers:",
 				"      acmecorp:",
@@ -3393,7 +3393,7 @@ func TestAuthPlugins(t *testing.T) {
 			config: strings.Join([]string{
 				"auth_service:",
 				"  enabled: yes",
-				"  plugins:",
+				"  hosted_plugins:",
 				"    enabled: yes",
 				"    oauth_providers:",
 				"      slack:",
@@ -3407,7 +3407,7 @@ func TestAuthPlugins(t *testing.T) {
 			config: strings.Join([]string{
 				"auth_service:",
 				"  enabled: yes",
-				"  plugins:",
+				"  hosted_plugins:",
 				"    enabled: yes",
 				"    oauth_providers:",
 				"      slack:",
@@ -3422,7 +3422,7 @@ func TestAuthPlugins(t *testing.T) {
 				"auth_service:",
 				"  enabled: yes",
 				"",
-				"  plugins:",
+				"  hosted_plugins:",
 				"    enabled: yes",
 				"    oauth_providers:",
 				"      slack:",
@@ -3431,7 +3431,7 @@ func TestAuthPlugins(t *testing.T) {
 			}, "\n"),
 			readErr:  require.NoError,
 			applyErr: require.NoError,
-			assert: func(t *testing.T, p service.PluginsConfig) {
+			assert: func(t *testing.T, p service.HostedPluginsConfig) {
 				require.True(t, p.Enabled)
 				require.NotNil(t, p.OAuthProviders.Slack)
 				require.Equal(t, "foo", p.OAuthProviders.Slack.ID)
@@ -3444,7 +3444,7 @@ func TestAuthPlugins(t *testing.T) {
 				"auth_service:",
 				"  enabled: yes",
 				"",
-				"  plugins:",
+				"  hosted_plugins:",
 				"    enabled: yes",
 				"    oauth_providers:",
 				"      slack:",
@@ -3460,7 +3460,7 @@ func TestAuthPlugins(t *testing.T) {
 				"auth_service:",
 				"  enabled: yes",
 				"",
-				"  plugins:",
+				"  hosted_plugins:",
 				"    enabled: yes",
 				"    oauth_providers:",
 				"      slack:",
@@ -3469,7 +3469,7 @@ func TestAuthPlugins(t *testing.T) {
 			}, "\n"),
 			readErr:  require.NoError,
 			applyErr: require.NoError,
-			assert: func(t *testing.T, p service.PluginsConfig) {
+			assert: func(t *testing.T, p service.HostedPluginsConfig) {
 				require.True(t, p.Enabled)
 				require.NotNil(t, p.OAuthProviders.Slack)
 				require.Equal(t, "foo", p.OAuthProviders.Slack.ID)
@@ -3487,7 +3487,7 @@ func TestAuthPlugins(t *testing.T) {
 			err = ApplyFileConfig(conf, cfg)
 			tc.applyErr(t, err)
 			if tc.assert != nil {
-				tc.assert(t, cfg.Auth.Plugins)
+				tc.assert(t, cfg.Auth.HostedPlugins)
 			}
 		})
 	}

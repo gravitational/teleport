@@ -984,8 +984,9 @@ type Auth struct {
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
 
-	// Plugins configures the hosted plugins runtime
-	Plugins Plugins `yaml:"plugins,omitempty"`
+	// HostedPlugins configures the hosted plugins runtime.
+	// This is currently Cloud-specific.
+	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
 }
 
 // hasCustomNetworkingConfig returns true if any of the networking
@@ -1304,8 +1305,8 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 	}, nil
 }
 
-// Plugins defines 'auth_service/plugins' Enterprise extension
-type Plugins struct {
+// HostedPlugins defines 'auth_service/plugins' Enterprise extension
+type HostedPlugins struct {
 	Enabled        bool                 `yaml:"enabled"`
 	OAuthProviders PluginOAuthProviders `yaml:"oauth_providers,omitempty"`
 }

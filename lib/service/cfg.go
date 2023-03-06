@@ -727,8 +727,8 @@ type AuthConfig struct {
 	// instead of just the host CA for the current cluster.
 	LoadAllCAs bool
 
-	// Plugins configures the Enterprise hosted plugin runtime
-	Plugins PluginsConfig
+	// HostedPlugins configures the Enterprise hosted plugin runtime
+	HostedPlugins HostedPluginsConfig
 }
 
 // SSHConfig configures SSH server node role
@@ -1484,8 +1484,8 @@ func (d DiscoveryConfig) IsEmpty() bool {
 		len(d.AzureMatchers) == 0 && len(d.GCPMatchers) == 0
 }
 
-// PluginsConfig configures the hosted plugin runtime.
-type PluginsConfig struct {
+// HostedPluginsConfig configures the hosted plugin runtime.
+type HostedPluginsConfig struct {
 	Enabled        bool
 	OAuthProviders PluginOAuthProviders
 }
