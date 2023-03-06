@@ -64,6 +64,11 @@ type DialParams struct {
 	// Only used when connecting through a tunnel.
 	ConnType types.TunnelType
 
+	// TargetServer is the host that the connection is being established for.
+	// It **MUST** only be populated when the target is a teleport ssh server
+	// or an agentless server.
+	TargetServer types.Server
+
 	// FromPeerProxy indicates that the dial request is being tunneled from
 	// a peer proxy.
 	FromPeerProxy bool

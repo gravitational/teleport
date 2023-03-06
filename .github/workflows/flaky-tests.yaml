@@ -7,12 +7,12 @@ on:
       - '**.go'
 
 env:
-  ATTEMPTS: 30
+  ATTEMPTS: 100
 
 jobs:
   test:
     name: Flaky tests detector
-    runs-on: ubuntu-22.04-32core
+    runs-on: ubuntu-latest # do not use large runner to catch more issues
 
     permissions:
       contents: read
