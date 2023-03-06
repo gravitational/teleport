@@ -1,0 +1,136 @@
+name: Promote Docker image
+on:
+  workflow_call:
+    inputs:
+      pending-registry:
+        description: |
+          The address of the pending image registry 
+        required: true
+        type: string
+
+      pending-repository:
+        description: |
+          The namespace and repository name holding the pending image
+        required: true
+        type: string
+
+      pending-tag:
+        description: |
+          Tag or digest identifying the pending image (or image list) to
+          promote from the pending repository
+        required: true
+        type: string
+
+      production-registry:
+        description: |
+          The registry that will receive the production image
+        required: true
+        type: string
+
+      production-registry-region:
+        description: |
+          The AWS region containing the production registry
+        required: true
+        type: string
+
+      production-repository:
+        description: |
+          The namespace and name of the repository that will receive the
+          promoted image
+        required: true
+        type: string
+
+      production-tags:
+        description: |
+          Space-delimited list of tags to give the released image
+        required: true
+        type: string
+
+      promotion-role-arn:
+        description: |
+          ARN of the role that grants promotion rights
+        required: true
+        type: string
+
+      validation-key-url:
+        description: |
+          URL of the key used to validate internal Teleport images, in the
+          format expected by `cosign`.
+        required: true
+        type: string
+
+      production-signing-key-url:
+        description: |
+          URL of the key used to sign the production images as Official
+          Teleport images, in the format expected by `cosign`.
+        required: true
+        type: string
+
+run-name: "Promote OCI image ${{ inputs.pending-repository }}:${{ inputs.pending-tag }}"
+
+jobs:
+  promote-image: 
+    name: "Promote ${{ inputs.pending-tag }}"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install cosign
+        uses: sigstore/cosign-installer@9becc617647dfa20ae7b1151972e9b3a2c338a2b # v2.8.1
+        with:
+          cosign-release: 'v1.13.1'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          driver: docker-container
+       
+      - name: Assume AWS Promotion Role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region:  us-west-2
+          role-to-assume: ${{ inputs.promotion-role-arn }}
+          role-session-name: "gha-docker-image-promotion-${{ github.run_number }}"
+          # Promotion should take roughly a minute, so 15 mins gives us plenty
+          # of leeway (and is the miminum value we can ask for).
+          role-duration-seconds: 900
+     
+      - name: Login to Pending ECR Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ inputs.pending-registry }}
+
+      - name: Validate pending image signature
+        shell: bash
+        run: |
+          cosign verify --key ${{ inputs.validation-key-url }} ${{ inputs.pending-registry }}/${{ inputs.pending-repository }}:${{ inputs.pending-tag }} > validated-image.json
+          TELEPORT_IMAGE_LIST_HASH=$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)
+          echo TELEPORT_IMAGE_LIST_HASH=$TELEPORT_IMAGE_LIST_HASH >> $GITHUB_ENV
+
+      # From this point we should only refer to the source image by digest rather 
+      # than by tag. Referring to an image by tag across multiple operations is 
+      # racy, as someone could retag the image underneath us while we're busy.
+      #
+      # In practice, all of our `pending` repositories are ECR repos with tag
+      # immutability enabled so this shouldn't happen, but better to have 
+      # defence in depth.
+
+      - name: Login to Production ECR Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ inputs.production-registry }}
+        env:
+          AWS_REGION: ${{ inputs.production-registry-region }}
+          DEFAULT_AWS_REGION: ${{ inputs.production-registry-region }}
+
+      - name: Copy multiarch image to production repository
+        shell: bash
+        run: |
+          SRC_IMAGE="${{ inputs.pending-registry }}/${{ inputs.pending-repository }}@${{ env.TELEPORT_IMAGE_LIST_HASH }}"
+          DST_REPO="${{ inputs.production-registry }}/${{ inputs.production-repository }}"
+          for tag in ${{ inputs.production-tags }}; do
+            docker buildx imagetools create --tag $DST_REPO:$tag $SRC_IMAGE
+          done
+
+      - name: Sign production images
+        shell: bash
+        run: |
+          cosign sign --recursive --key ${{ inputs.production-signing-key-url }} ${{ inputs.production-registry }}/${{ inputs.production-repository }}@${{ env.TELEPORT_IMAGE_LIST_HASH }}
