@@ -27,60 +27,60 @@ const createAppConfigSchema = (platform: Platform) => {
   const defaultKeymap = getDefaultKeymap(platform);
   const defaultTerminalFont = getDefaultTerminalFont(platform);
 
-  const keyboardShortcutSchema = getKeyboardShortcutSchema(platform);
+  const shortcutSchema = getKeyboardShortcutSchema(platform);
 
   // `keymap.` prefix is used in `initUi.ts` in a predicate function.
   return z.object({
     'usageReporting.enabled': z.boolean().default(false),
-    'keymap.tab1': keyboardShortcutSchema
+    'keymap.tab1': shortcutSchema
       .default(defaultKeymap['tab1'])
       .describe(getShortcutDesc('open tab 1')),
-    'keymap.tab2': keyboardShortcutSchema
+    'keymap.tab2': shortcutSchema
       .default(defaultKeymap['tab2'])
       .describe(getShortcutDesc('open tab 2')),
-    'keymap.tab3': keyboardShortcutSchema
+    'keymap.tab3': shortcutSchema
       .default(defaultKeymap['tab3'])
       .describe(getShortcutDesc('open tab 3')),
-    'keymap.tab4': keyboardShortcutSchema
+    'keymap.tab4': shortcutSchema
       .default(defaultKeymap['tab4'])
       .describe(getShortcutDesc('open tab 4')),
-    'keymap.tab5': keyboardShortcutSchema
+    'keymap.tab5': shortcutSchema
       .default(defaultKeymap['tab5'])
       .describe(getShortcutDesc('open tab 5')),
-    'keymap.tab6': keyboardShortcutSchema
+    'keymap.tab6': shortcutSchema
       .default(defaultKeymap['tab6'])
       .describe(getShortcutDesc('open tab 6')),
-    'keymap.tab7': keyboardShortcutSchema
+    'keymap.tab7': shortcutSchema
       .default(defaultKeymap['tab7'])
       .describe(getShortcutDesc('open tab 7')),
-    'keymap.tab8': keyboardShortcutSchema
+    'keymap.tab8': shortcutSchema
       .default(defaultKeymap['tab8'])
       .describe(getShortcutDesc('open tab 8')),
-    'keymap.tab9': keyboardShortcutSchema
+    'keymap.tab9': shortcutSchema
       .default(defaultKeymap['tab9'])
       .describe(getShortcutDesc('open tab 9')),
-    'keymap.closeTab': keyboardShortcutSchema
+    'keymap.closeTab': shortcutSchema
       .default(defaultKeymap['closeTab'])
       .describe(getShortcutDesc('close a tab')),
-    'keymap.newTab': keyboardShortcutSchema
+    'keymap.newTab': shortcutSchema
       .default(defaultKeymap['newTab'])
       .describe(getShortcutDesc('open a new tab')),
-    'keymap.previousTab': keyboardShortcutSchema
+    'keymap.previousTab': shortcutSchema
       .default(defaultKeymap['previousTab'])
       .describe(getShortcutDesc('go to the previous tab')),
-    'keymap.nextTab': keyboardShortcutSchema
+    'keymap.nextTab': shortcutSchema
       .default(defaultKeymap['nextTab'])
       .describe(getShortcutDesc('go to the next tab')),
-    'keymap.openConnections': keyboardShortcutSchema
+    'keymap.openConnections': shortcutSchema
       .default(defaultKeymap['openConnections'])
       .describe(getShortcutDesc('open the connection panel')),
-    'keymap.openClusters': keyboardShortcutSchema
+    'keymap.openClusters': shortcutSchema
       .default(defaultKeymap['openClusters'])
       .describe(getShortcutDesc('open the clusters panel')),
-    'keymap.openProfiles': keyboardShortcutSchema
+    'keymap.openProfiles': shortcutSchema
       .default(defaultKeymap['openProfiles'])
       .describe(getShortcutDesc('open the profiles panel')),
-    'keymap.openQuickInput': keyboardShortcutSchema
+    'keymap.openQuickInput': shortcutSchema
       .default(defaultKeymap['openQuickInput'])
       .describe(getShortcutDesc('open the command bar')),
     /**
