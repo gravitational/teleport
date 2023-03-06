@@ -52,10 +52,7 @@ function initializeApp(): void {
     debounceWrites: false,
   });
   const configJsonSchemaFileStorage = createFileStorage({
-    filePath: path.join(
-      settings.userDataDir,
-      'teleport_connect_config_schema.json'
-    ),
+    filePath: path.join(settings.userDataDir, 'schema_app_config.json'),
     debounceWrites: false,
   });
 
