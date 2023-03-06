@@ -107,13 +107,13 @@ func NewTeleport(cfg Config) (*Process, error) {
 		services.Identity
 		services.Access
 		services.StatusInternal
-		events.IAuditLog
+		events.AuditLogSessionStreamer
 	}{
-		Identity:       identity,
-		Presence:       presence,
-		Access:         access,
-		StatusInternal: local.NewStatusService(process.GetBackend()),
-		IAuditLog:      process.GetAuditLog(),
+		Identity:                identity,
+		Presence:                presence,
+		Access:                  access,
+		StatusInternal:          local.NewStatusService(process.GetBackend()),
+		AuditLogSessionStreamer: process.GetAuditLog(),
 	}
 	usageReporter, err := usagereporter.New(usagereporter.Config{
 		Log:            cfg.Log,
