@@ -2,7 +2,7 @@
 # by other Makefiles
 # These values may need to be updated in `dronegen/container_image_products.go` if
 # they change here
-BUILDBOX_VERSION ?= teleport11
+BUILDBOX_VERSION ?= teleport11-dev-go.1.19.5
 BUILDBOX_BASE_NAME ?= public.ecr.aws/gravitational/teleport-buildbox
 
 BUILDBOX=$(BUILDBOX_BASE_NAME):$(BUILDBOX_VERSION)
