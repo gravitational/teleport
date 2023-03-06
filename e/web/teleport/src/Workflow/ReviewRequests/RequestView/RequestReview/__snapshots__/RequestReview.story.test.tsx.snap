@@ -145,7 +145,7 @@ exports[`failed state 1`] = `
 .c7 .react-select__control,
 .c7 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -440,7 +440,7 @@ exports[`loaded state 1`] = `
 .c6 .react-select__control,
 .c6 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;

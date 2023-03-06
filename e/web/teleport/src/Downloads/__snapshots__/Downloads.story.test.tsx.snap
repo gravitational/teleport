@@ -174,7 +174,7 @@ exports[`renders loaded linux 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -249,7 +249,7 @@ exports[`renders loaded linux 1`] = `
 .c11 .react-select__control,
 .c11 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -426,7 +426,7 @@ exports[`renders loaded linux 1`] = `
 .c13 .react-select__control,
 .c13 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -1287,7 +1287,7 @@ exports[`renders loaded macOS 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -1362,7 +1362,7 @@ exports[`renders loaded macOS 1`] = `
 .c11 .react-select__control,
 .c11 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -1539,7 +1539,7 @@ exports[`renders loaded macOS 1`] = `
 .c13 .react-select__control,
 .c13 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -2304,7 +2304,7 @@ exports[`renders loaded windows 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -2379,7 +2379,7 @@ exports[`renders loaded windows 1`] = `
 .c11 .react-select__control,
 .c11 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -2556,7 +2556,7 @@ exports[`renders loaded windows 1`] = `
 .c13 .react-select__control,
 .c13 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -3330,7 +3330,7 @@ exports[`renders when license failed 1`] = `
 .c13 .react-select__control,
 .c13 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -3405,7 +3405,7 @@ exports[`renders when license failed 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -3582,7 +3582,7 @@ exports[`renders when license failed 1`] = `
 .c14 .react-select__control,
 .c14 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -4449,7 +4449,7 @@ exports[`renders when license is loading 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -4524,7 +4524,7 @@ exports[`renders when license is loading 1`] = `
 .c11 .react-select__control,
 .c11 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -4701,7 +4701,7 @@ exports[`renders when license is loading 1`] = `
 .c13 .react-select__control,
 .c13 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;

@@ -211,7 +211,7 @@ exports[`render failed 1`] = `
 .c9 .react-select__control,
 .c9 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -586,7 +586,7 @@ exports[`render loaded 1`] = `
 .c8 .react-select__control,
 .c8 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -955,7 +955,7 @@ exports[`render processing 1`] = `
 .c8 .react-select__control,
 .c8 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;

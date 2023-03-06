@@ -202,7 +202,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -841,7 +841,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -1250,7 +1250,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -1617,7 +1617,7 @@ exports[`render form for authenticating with multi option 1`] = `
 .c11 .react-select__control,
 .c11 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -2198,7 +2198,7 @@ exports[`render form for authenticating with totp 1`] = `
 .c11 .react-select__control,
 .c11 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -2578,7 +2578,7 @@ exports[`render form for authenticating with webauthn 1`] = `
 .c11 .react-select__control,
 .c11 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;

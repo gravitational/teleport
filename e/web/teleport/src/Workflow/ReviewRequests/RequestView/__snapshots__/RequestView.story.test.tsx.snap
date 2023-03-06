@@ -1866,7 +1866,7 @@ exports[`loaded pending role based request state 1`] = `
 .c30 .react-select__control,
 .c30 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -2777,7 +2777,7 @@ exports[`loaded pending search based request state 1`] = `
 .c34 .react-select__control,
 .c34 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;

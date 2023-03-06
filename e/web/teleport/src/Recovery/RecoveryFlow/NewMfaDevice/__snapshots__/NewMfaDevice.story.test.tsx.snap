@@ -221,7 +221,7 @@ exports[`render correct form to add TOTP device 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -647,7 +647,7 @@ exports[`render correct form to add Webauthn device 1`] = `
 .c10 .react-select__control,
 .c10 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -1034,7 +1034,7 @@ exports[`render correct form to add with multi option 1`] = `
 .c10 .react-select__control,
 .c10 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -1443,7 +1443,7 @@ exports[`render failed state for form to add with multi option 1`] = `
 .c11 .react-select__control,
 .c11 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
