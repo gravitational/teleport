@@ -668,6 +668,18 @@ test-api:
 .PHONY: test-operator
 test-operator:
 	make -C integrations/operator test
+#
+# Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
+#
+.PHONY: test-kube-agent-updater
+test-kube-agent-updater: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
+test-kube-agent-updater: FLAGS ?= -race -shuffle on
+test-kube-agent-updater: SUBJECT ?= $(shell cd integrations/kube-agent-updater && go list ./...)
+test-kube-agent-updater:
+	cd integrations/kube-agent-updater && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		| tee $(TEST_LOG_DIR)/kube-agent-updater.json \
+		| ${RENDER_TESTS}
+>>>>>>> df20ae6e68 (kube-updater: add root makefile target and dedicated difftest job)
 
 #
 # Runs cargo test on our Rust modules.
