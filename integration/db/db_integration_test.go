@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
@@ -58,11 +59,11 @@ import (
 func TestDatabaseAccess(t *testing.T) {
 	pack := SetupDatabaseTest(t,
 		// set tighter rotation intervals
-		WithLeafConfig(func(config *service.Config) {
+		WithLeafConfig(func(config *servicecfg.Config) {
 			config.PollingPeriod = 5 * time.Second
 			config.RotationConnectionInterval = 2 * time.Second
 		}),
-		WithRootConfig(func(config *service.Config) {
+		WithRootConfig(func(config *servicecfg.Config) {
 			config.PollingPeriod = 5 * time.Second
 			config.RotationConnectionInterval = 2 * time.Second
 		}),
@@ -770,7 +771,7 @@ func (p *DatabasePack) testPostgresSeparateListener(t *testing.T) {
 func TestDatabaseAccessPostgresSeparateListenerTLSDisabled(t *testing.T) {
 	pack := SetupDatabaseTest(t,
 		WithListenerSetupDatabaseTest(helpers.SeparatePostgresPortSetup),
-		WithRootConfig(func(config *service.Config) {
+		WithRootConfig(func(config *servicecfg.Config) {
 			config.Proxy.DisableTLS = true
 		}),
 	)
@@ -924,7 +925,7 @@ func (p *DatabasePack) testAgentState(t *testing.T) {
 	}{
 		"WithStaticDatabases": {
 			agentParams: databaseAgentStartParams{
-				databases: []service.Database{
+				databases: []servicecfg.Database{
 					{Name: "mysql", Protocol: defaults.ProtocolMySQL, URI: "localhost:3306"},
 					{Name: "pg", Protocol: defaults.ProtocolPostgres, URI: "localhost:5432"},
 				},

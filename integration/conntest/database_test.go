@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client/conntest"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -74,7 +74,7 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 	databaseResourceName := "mypsqldb"
 	databaseDBName := "dbname"
 	databaseDBUser := "dbuser"
-	helpers.MakeTestDatabaseServer(t, *proxyAddr, provisionToken, nil /* resource matchers */, service.Database{
+	helpers.MakeTestDatabaseServer(t, *proxyAddr, provisionToken, nil /* resource matchers */, servicecfg.Database{
 		Name:     databaseResourceName,
 		Protocol: defaults.ProtocolPostgres,
 		URI:      net.JoinHostPort("localhost", postgresTestServer.Port()),

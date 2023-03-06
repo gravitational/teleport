@@ -51,7 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/pam"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
@@ -195,7 +195,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		}
 	}
 
-	conf := service.MakeDefaultConfig()
+	conf := servicecfg.MakeDefaultConfig()
 
 	var g Global
 
@@ -293,7 +293,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	return fc, nil
 }
 
-func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) (SSH, error) {
+func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (SSH, error) {
 	var s SSH
 	if enabled {
 		s.EnabledFlag = "yes"
@@ -317,7 +317,7 @@ func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) 
 	return s, nil
 }
 
-func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool) Auth {
+func makeSampleAuthConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) Auth {
 	var a Auth
 	if enabled {
 		a.ListenAddress = conf.Auth.ListenAddr.Addr
@@ -339,7 +339,7 @@ func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool)
 	return a
 }
 
-func makeSampleProxyConfig(conf *service.Config, flags SampleFlags, enabled bool) (Proxy, error) {
+func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (Proxy, error) {
 	var p Proxy
 	if enabled {
 		p.EnabledFlag = "yes"
@@ -381,7 +381,7 @@ func makeSampleProxyConfig(conf *service.Config, flags SampleFlags, enabled bool
 	return p, nil
 }
 
-func makeSampleAppsConfig(conf *service.Config, flags SampleFlags, enabled bool) (Apps, error) {
+func makeSampleAppsConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (Apps, error) {
 	var apps Apps
 	// assume users want app role if they added app name and/or uri but didn't add app role
 	if enabled || flags.AppURI != "" || flags.AppName != "" {
@@ -841,8 +841,8 @@ func (c *CachePolicy) Enabled() bool {
 }
 
 // Parse parses cache policy from Teleport config
-func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
-	out := service.CachePolicy{
+func (c *CachePolicy) Parse() (*servicecfg.CachePolicy, error) {
+	out := servicecfg.CachePolicy{
 		Enabled: c.Enabled(),
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
@@ -1317,8 +1317,8 @@ type PluginOAuthProviders struct {
 	Slack *OAuthClientCredentials `yaml:"slack,omitempty"`
 }
 
-func (p *PluginOAuthProviders) Parse() (service.PluginOAuthProviders, error) {
-	out := service.PluginOAuthProviders{}
+func (p *PluginOAuthProviders) Parse() (servicecfg.PluginOAuthProviders, error) {
+	out := servicecfg.PluginOAuthProviders{}
 	if p.Slack == nil {
 		return out, trace.BadParameter("when plugin runtime is enabled, at least one plugin provider must be specified")
 	}
@@ -2008,9 +2008,9 @@ type ACME struct {
 }
 
 // Parse parses ACME section values
-func (a ACME) Parse() (*service.ACME, error) {
+func (a ACME) Parse() (*servicecfg.ACME, error) {
 	// ACME is disabled by default
-	out := service.ACME{}
+	out := servicecfg.ACME{}
 	if a.EnabledFlag == "" {
 		return &out, nil
 	}

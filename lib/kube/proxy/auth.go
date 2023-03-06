@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+
 	// Load kubeconfig auth plugins for gcp and azure.
 	// Without this, users can't provide a kubeconfig using those.
 	//
@@ -39,12 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 )
-
-// ImpersonationPermissionsChecker describes a function that can be used to check
-// for the required impersonation permissions on a Kubernetes cluster. Return nil
-// to indicate success.
-type ImpersonationPermissionsChecker func(ctx context.Context, clusterName string,
-	sarClient authztypes.SelfSubjectAccessReviewInterface) error
 
 // getKubeDetails fetches the kubernetes API credentials.
 //
