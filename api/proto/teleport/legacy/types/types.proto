@@ -1138,6 +1138,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2Kubernetes Kubernetes = 10 [(gogoproto.jsontag) = "kubernetes,omitempty"];
   // Azure allows the configuration of options specific to the "azure" join method.
   ProvisionTokenSpecV2Azure Azure = 11 [(gogoproto.jsontag) = "azure,omitempty"];
+  // GitLab allows the configuration of options specific to the "gitlab" join method.
+  ProvisionTokenSpecV2GitLab GitLab = 12 [(gogoproto.jsontag) = "gitlab,omitempty"];
 }
 
 // ProvisionTokenSpecV2Github contains the GitHub-specific part of the
@@ -1180,6 +1182,20 @@ message ProvisionTokenSpecV2GitHub {
   // include the scheme or a path. The instance must be accessible over HTTPS
   // at this hostname and the certificate must be trusted by the Auth Server.
   string EnterpriseServerHost = 2 [(gogoproto.jsontag) = "enterprise_server_host,omitempty"];
+}
+
+// ProvisionTokenSpecV2GitLab contains the GitLab-specific part of the
+// ProvisionTokenSpecV2
+message ProvisionTokenSpecV2GitLab {
+  message Rule {
+    // Sub also known as Subject is a string that roughly uniquely identifies
+    // the workload. The format of this varies depending on the type of
+    // github action run.
+    string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
 }
 
 // ProvisionTokenSpecV2CircleCI contains the CircleCI-specific part of the
