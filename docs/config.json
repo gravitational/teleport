@@ -312,7 +312,29 @@
             }
           ]
         },
-		{
+        {
+          "title": "Teleport as an IdP",
+          "slug": "/access-controls/idps/",
+          "forScopes": ["enterprise", "cloud"],
+          "entries": [
+            {
+              "title": "SAML Identity Provider Guide",
+              "slug": "/access-controls/idps/saml-guide/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Authenticate to Grafana with Teleport SAML",
+              "slug": "/access-controls/idps/saml-grafana/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "SAML Identity Provider Reference",
+              "slug": "/access-controls/idps/saml-reference/",
+              "forScopes": ["enterprise", "cloud"]
+            }
+          ]
+        },
+        {
           "title": "Login Rules",
           "slug": "/access-controls/login-rules/",
           "forScopes": ["enterprise", "oss", "cloud"],
@@ -327,8 +349,8 @@
               "slug": "/access-controls/login-rules/reference/",
               "forScopes": ["enterprise", "cloud"]
             }
-		  ]
-		},
+          ]
+        },
         {
           "title": "Access Requests",
           "slug": "/access-controls/access-requests/",
