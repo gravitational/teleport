@@ -20,10 +20,10 @@ being solely influenced by a select few users.
 Anonymous telemetry is currently the only mode supported by `tbot`. This means
 that the collected data does not include anything which identifies:
 
-- The specific machine `tbot` is running on,
-- The cluster `tbot` is connecting to,
-- The hosts, applications, databases and kubernetes clusters `tbot` connects to,
-- The user that has configured `tbot`.
+- the specific machine `tbot` is running on
+- the cluster `tbot` is connecting to
+- the hosts, applications, databases and kubernetes clusters `tbot` connects to
+- the user that has configured `tbot`
 
 If we introduce further events to Machine ID's anonymous telemetry in future,
 we will abide by the above guidelines and ensure that changes are explicitly
@@ -87,4 +87,4 @@ This event is called `tbot.start` and contains the following attributes:
 - `tbot.destinations_kubernetes`: a count of Kubernetes Access destinations
   configured
 - `tbot.destinations_application`: a count of Application Access destinations
-  configured.
+  configured
