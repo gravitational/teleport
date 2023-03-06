@@ -47,6 +47,8 @@ type PROXYHeaderSigner interface {
 }
 
 // CertAuthorityGetter allows to get cluster's host CA for verification of signed PROXY headers.
+// We define our own version to avoid circular dependencies in multiplexer package (it can't depend on 'services'),
+// where this function is used.
 type CertAuthorityGetter = func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
