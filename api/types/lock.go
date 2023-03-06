@@ -44,6 +44,10 @@ type Lock interface {
 	LockExpiry() *time.Time
 	// SetLockExpiry sets the lock's expiry.
 	SetLockExpiry(*time.Time)
+	// SetCreatedOn sets the lock's created time.
+	SetCreatedOn(*time.Time)
+	// SetCreatedBy sets the lock's creator.
+	SetCreatedBy(string)
 
 	// IsInForce returns whether the lock is in force at a particular time.
 	IsInForce(time.Time) bool
@@ -146,6 +150,14 @@ func (c *LockV2) LockExpiry() *time.Time {
 // SetLockExpiry sets the lock's expiry.
 func (c *LockV2) SetLockExpiry(expiry *time.Time) {
 	c.Spec.Expires = expiry
+}
+
+func (c *LockV2) SetCreatedOn(t *time.Time) {
+	c.Spec.CreatedOn = t
+}
+
+func (c *LockV2) SetCreatedBy(user string) {
+	c.Spec.CreatedBy = user
 }
 
 // IsInForce returns whether the lock is in force at a particular time.

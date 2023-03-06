@@ -75,6 +75,16 @@ func (c *LockCommand) CreateLock(ctx context.Context, client auth.ClientI) error
 		return trace.Wrap(err)
 	}
 	c.spec.Expires = lockExpiry
+
+	now := time.Now().UTC()
+	c.spec.CreatedOn = &now
+
+	user, err := client.GetCurrentUser(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.spec.CreatedBy = user.GetName()
+
 	lock, err := types.NewLock(uuid.New().String(), c.spec)
 	if err != nil {
 		return trace.Wrap(err)

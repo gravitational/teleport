@@ -4210,6 +4210,12 @@ message LockSpecV2 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expires,omitempty"
   ];
+  google.protobuf.Timestamp CreatedOn = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "created_on,omitempty"
+  ];
+  string CreatedBy = 5 [(gogoproto.jsontag) = "created_by,omitempty"];
 }
 
 // LockTarget lists the attributes of interactions to be disabled.
