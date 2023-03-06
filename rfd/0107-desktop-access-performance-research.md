@@ -97,3 +97,24 @@ While decompression is already done in the Rust library, the encoding of bitmaps
 The best performance can be achieved by moving the PNG encoding procedure from the Go client to the Rust library. It'll also simplify the way we encode and decode PNG TDP messages.
 During the tests, the average time it took to process messages (read, process, decompress, and encode) when the encoding took place in the Go side was around 500μs. After moving the encoding of bitmaps into PNGs to the Rust library, the time it took to process a message went down to 50μs.
 
+
+
+### Remote Desktop Protocol: Graphics Pipeline Extension  [MS-RDPEGFX](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/da5c75f9-cd99-450c-98c4-014a496942b0)
+
+
+The [MS-RDPEGFX] extension introduces a new way of drawing data by creating surfaces and using commands that utilize these surfaces to draw frames rather than just rendering bitmap data on the screen. This extension efficiently encode and transmit graphic display data from the server to the client. It alsow allows caching data locally to improve performance, can use different, newer, and more performant codecs to encode data e.g:
+- RemoteFX
+- ClearCodec
+- MPEG-4 AVC/H.264
+
+
+In essence, this protocol works in this way:
+- create surfaces
+- associate surfaces to the portions of graphics output buffer (this is what an user sees) that can be of different sizes
+- decode graphic data for surface and render it on the graphics output buffer
+
+There is already one implementation of the extension in the Rust language: [ironrdp-gui-client](https://github.com/Devolutions/IronRDP/tree/master/ironrdp-gui-client), but it is using native gui for rendering by utilising opengl. 
+
+We could implement it in the Desktop Access by creating a renderer that is responsible for maintaining the surfaces mapping and decoding of graphic data, and then it would utilise the png messages to render that data in the browser.
+
+However, while this extension brings a lot of  performance improvements with the h.264/AVC codec it requires support for a hardware encoding, an GPU, and is available only in the RDP 10.
