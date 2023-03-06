@@ -851,7 +851,7 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
-		if proxyLine != nil && proxyLine.IsSigned() && c.caGetter != nil {
+		if c.caGetter != nil && proxyLine != nil && proxyLine.IsSigned() {
 			ctx, cancel := context.WithTimeout(context.Background(), caGetterTimeout)
 			defer cancel()
 
