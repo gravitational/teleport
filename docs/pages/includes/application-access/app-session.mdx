@@ -1,6 +1,6 @@
 Teleport records the HTTP activity within an Application Session. Only metadata
 such as path and status code from the HTTP activity is recorded, not the data
-sent or recieved by the application client.
+sent or received by the application client.
 
 Within the Audit Log the `session_chunk_id` of the `App Session Data` record is
 the session id that activity is recorded against.  Once the `Session Uploaded`
@@ -8,7 +8,7 @@ record is uploaded with that session id the activity is retrievable.
 
 ![Application Access Audit Log Activity](../../../img/application-access/guides/application-access-auditlog.png)
 
-To retrieve the activity use the `tsh play` of the session id with a format of `json` or `yaml`.
+Retrieve the activity with `tsh play`, providing the session ID and a format of `json` or `yaml`.
 
 ```code
 $ tsh play session-id --format=json
