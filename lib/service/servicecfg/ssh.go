@@ -15,9 +15,7 @@
 package servicecfg
 
 import (
-	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
@@ -35,16 +33,16 @@ type SSHConfig struct {
 	PermitUserEnvironment bool
 
 	// PAM holds PAM configuration for Teleport.
-	PAM *pam.Config
+	PAM *PAMConfig
 
 	// PublicAddrs affects the SSH host principals and DNS names added to the SSH and TLS certs.
 	PublicAddrs []utils.NetAddr
 
 	// BPF holds BPF configuration for Teleport.
-	BPF *bpf.Config
+	BPF *BPFConfig
 
 	// RestrictedSession holds kernel objects restrictions for Teleport.
-	RestrictedSession *bpf.RestrictedSessionConfig
+	RestrictedSession *RestrictedSessionConfig
 
 	// AllowTCPForwarding indicates that TCP port forwarding is allowed on this node
 	AllowTCPForwarding bool

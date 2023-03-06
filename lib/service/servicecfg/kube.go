@@ -17,11 +17,11 @@ package servicecfg
 import (
 	"context"
 
+	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 )
 
 // KubeConfig specifies configuration for Teleport's Kubernetes service

@@ -35,11 +35,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -210,7 +208,7 @@ type Config struct {
 	SkipVersionCheck bool
 
 	// BPFConfig holds configuration for the BPF service.
-	BPFConfig *bpf.Config
+	BPFConfig *BPFConfig
 
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
@@ -485,9 +483,9 @@ func ApplyDefaults(cfg *Config) {
 	cfg.SSH.Enabled = true
 	cfg.SSH.Shell = defaults.DefaultShell
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
-	cfg.SSH.PAM = &pam.Config{Enabled: false} // TODO(zmb3) we might have to move these
-	cfg.SSH.BPF = &bpf.Config{Enabled: false}
-	cfg.SSH.RestrictedSession = &bpf.RestrictedSessionConfig{Enabled: false}
+	cfg.SSH.PAM = &PAMConfig{Enabled: false}
+	cfg.SSH.BPF = &BPFConfig{Enabled: false}
+	cfg.SSH.RestrictedSession = &RestrictedSessionConfig{Enabled: false}
 	cfg.SSH.AllowTCPForwarding = true
 	cfg.SSH.AllowFileCopying = true
 
