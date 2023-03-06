@@ -9079,6 +9079,30 @@ volumes:
   temp: {}
 
 ---
+kind: pipeline
+type: kubernetes
+name: build-teleport-oci-distroless-images
+environment:
+  DEBIAN_FRONTEND: noninteractive
+trigger:
+  event:
+    include:
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+depends_on:
+- clean-up-previous-build
+steps:
+
+---
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
