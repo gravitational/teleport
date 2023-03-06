@@ -367,6 +367,9 @@ type Config struct {
 	// MockSSOLogin is used in tests for mocking the SSO login response.
 	MockSSOLogin SSOLoginFunc
 
+	// MockConnectToProxy is used in tests to override connection to proxy
+	MockConnectToProxy ConnectToProxyFunc
+
 	// HomePath is where tsh stores profiles
 	HomePath string
 
@@ -1037,7 +1040,14 @@ func (tc *TeleportClient) ProfileStatus() (*ProfileStatus, error) {
 
 // LoadKeyForCluster fetches a cluster-specific SSH key and loads it into the
 // SSH agent.
-func (tc *TeleportClient) LoadKeyForCluster(clusterName string) error {
+func (tc *TeleportClient) LoadKeyForCluster(ctx context.Context, clusterName string) error {
+	_, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/LoadKeyForCluster",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(attribute.String("cluster", clusterName)),
+	)
+	defer span.End()
 	if tc.localAgent == nil {
 		return trace.BadParameter("TeleportClient.LoadKeyForCluster called on a client without localAgent")
 	}
@@ -1058,7 +1068,7 @@ func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clus
 	)
 	defer span.End()
 
-	err := tc.LoadKeyForCluster(clusterName)
+	err := tc.LoadKeyForCluster(ctx, clusterName)
 	if err == nil {
 		return nil
 	}
@@ -2647,10 +2657,17 @@ func formatConnectToProxyErr(err error) error {
 	return err
 }
 
+// ConnectToProxyFunc is used in tests to override connection to proxy function.
+type ConnectToProxyFunc func(ctx context.Context) (*ProxyClient, error)
+
 // ConnectToProxy will dial to the proxy server and return a ProxyClient when
 // successful. If the passed in context is canceled, this function will return
 // a trace.ConnectionProblem right away.
 func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, error) {
+	if tc.Config.MockConnectToProxy != nil {
+		return tc.Config.MockConnectToProxy(ctx)
+	}
+
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ConnectToProxy",

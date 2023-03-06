@@ -40,6 +40,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
@@ -880,6 +881,10 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.PeerAddr = *addr
 	}
 
+	if fc.Proxy.UI != nil {
+		cfg.Proxy.UI = webclient.UIConfig(*fc.Proxy.UI)
+	}
+
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.
 	if fc.Proxy.KeyFile != "" || fc.Proxy.CertFile != "" {
@@ -1183,6 +1188,21 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	return nil
 }
 
+// getInstallerProxyAddr determines the address of the proxy for discovered
+// nodes to connect to.
+func getInstallerProxyAddr(matcher AzureMatcher, fc *FileConfig) string {
+	if matcher.InstallParams.PublicProxyAddr != "" {
+		return matcher.InstallParams.PublicProxyAddr
+	}
+	if fc.ProxyServer != "" {
+		return fc.ProxyServer
+	}
+	if fc.Proxy.Enabled() && len(fc.Proxy.PublicAddr) > 0 {
+		return fc.Proxy.PublicAddr[0]
+	}
+	return ""
+}
+
 func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
 	for _, matcher := range fc.Discovery.AWSMatchers {
@@ -1202,16 +1222,23 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	for _, matcher := range fc.Discovery.AzureMatchers {
-		cfg.Discovery.AzureMatchers = append(
-			cfg.Discovery.AzureMatchers,
-			services.AzureMatcher{
-				Subscriptions:  matcher.Subscriptions,
-				ResourceGroups: matcher.ResourceGroups,
-				Types:          matcher.Types,
-				Regions:        matcher.Regions,
-				ResourceTags:   matcher.ResourceTags,
-			},
-		)
+		m := services.AzureMatcher{
+			Subscriptions:  matcher.Subscriptions,
+			ResourceGroups: matcher.ResourceGroups,
+			Types:          matcher.Types,
+			Regions:        matcher.Regions,
+			ResourceTags:   matcher.ResourceTags,
+		}
+
+		if matcher.InstallParams != nil {
+			m.Params = services.InstallerParams{
+				JoinMethod:      matcher.InstallParams.JoinParams.Method,
+				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
+				ScriptName:      matcher.InstallParams.ScriptName,
+				PublicProxyAddr: getInstallerProxyAddr(matcher, fc),
+			}
+		}
+		cfg.Discovery.AzureMatchers = append(cfg.Discovery.AzureMatchers, m)
 	}
 
 	for _, matcher := range fc.Discovery.GCPMatchers {

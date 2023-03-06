@@ -72,6 +72,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAuthPreferenceParser()
 		case types.KindSessionRecordingConfig:
 			parser = newSessionRecordingConfigParser()
+		case types.KindUIConfig:
+			parser = newUIConfigParser()
 		case types.KindClusterName:
 			parser = newClusterNameParser()
 		case types.KindNamespace:
@@ -483,6 +485,40 @@ func (p *authPreferenceParser) parse(event backend.Event) (types.Resource, error
 		return h, nil
 	case types.OpPut:
 		ap, err := services.UnmarshalAuthPreference(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ap, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newUIConfigParser() *uiConfigParser {
+	return &uiConfigParser{
+		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, uiPrefix)),
+	}
+}
+
+type uiConfigParser struct {
+	baseParser
+}
+
+func (p *uiConfigParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindUIConfig, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameUIConfig)
+		return h, nil
+	case types.OpPut:
+		ap, err := services.UnmarshalUIConfig(
 			event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),

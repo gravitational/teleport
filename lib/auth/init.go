@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -153,7 +154,7 @@ type InitConfig struct {
 	AuthPreference types.AuthPreference
 
 	// AuditLog is used for emitting events to audit log.
-	AuditLog events.IAuditLog
+	AuditLog events.AuditLogSessionStreamer
 
 	// ClusterAuditConfig holds cluster audit configuration.
 	ClusterAuditConfig types.ClusterAuditConfig
@@ -212,7 +213,7 @@ type InitConfig struct {
 	FIPS bool
 
 	// UsageReporter is a service that forwards cluster usage events.
-	UsageReporter services.UsageReporter
+	UsageReporter usagereporter.UsageReporter
 }
 
 // Init instantiates and configures an instance of AuthServer

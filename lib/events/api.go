@@ -598,6 +598,21 @@ const (
 	// LoginRuleDeleteEvent is emitted when a login rule is deleted.
 	LoginRuleDeleteEvent = "login_rule.delete"
 
+	// SAMLIdPAuthAttemptEvent is emitted when a user has attempted to authorize against the SAML IdP.
+	SAMLIdPAuthAttemptEvent = "saml.idp.auth"
+
+	// SAMLIdPServiceProviderCreateEvent is emitted when a service provider has been created.
+	SAMLIdPServiceProviderCreateEvent = "saml.idp.service.provider.create"
+
+	// SAMLIdPServiceProviderUpdateEvent is emitted when a service provider has been updated.
+	SAMLIdPServiceProviderUpdateEvent = "saml.idp.service.provider.update"
+
+	// SAMLIdPServiceProviderDeleteEvent is emitted when a service provider has been deleted.
+	SAMLIdPServiceProviderDeleteEvent = "saml.idp.service.provider.delete"
+
+	// SAMLIdPServiceProviderDeleteAllEvent is emitted when all service providers have been deleted.
+	SAMLIdPServiceProviderDeleteAllEvent = "saml.idp.service.provider.delete_all"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )
@@ -756,22 +771,37 @@ type StreamEmitter interface {
 	Streamer
 }
 
-// IAuditLog is the primary (and the only external-facing) interface for AuditLogger.
-// If you wish to implement a different kind of logger (not filesystem-based), you
-// have to implement this interface
-type IAuditLog interface {
-	// Closer releases connection and resources associated with log if any
-	io.Closer
+// AuditLogSessionStreamer is the primary (and the only external-facing)
+// interface for AuditLogger and SessionStreamer.
+type AuditLogSessionStreamer interface {
+	AuditLogger
+	SessionStreamer
+}
 
-	// EmitAuditEvent emits audit event
-	EmitAuditEvent(context.Context, apievents.AuditEvent) error
-
+// SessionStreamer supports streaming session chunks or events.
+type SessionStreamer interface {
 	// GetSessionChunk returns a reader which can be used to read a byte stream
 	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
 	// beginning) up to maxBytes bytes.
 	//
 	// If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
 	GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error)
+
+	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
+	// The event channel is not closed on error to prevent race conditions in downstream select statements.
+	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
+}
+
+// AuditLogger defines which methods need to implemented by audit loggers.
+type AuditLogger interface {
+	// Closer releases connection and resources associated with log if any
+	io.Closer
+
+	// EmitAuditEvent emits audit event
+	EmitAuditEvent(context.Context, apievents.AuditEvent) error
+
+	// TODO(tobiaszheller): move GetSessionEvents into SessionStreamer.
 
 	// Returns all events that happen during a session sorted by time
 	// (oldest first).
@@ -798,11 +828,6 @@ type IAuditLog interface {
 	//
 	// This function may never return more than 1 MiB of event data.
 	SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error)
-
-	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
-	// The event channel is not closed on error to prevent race conditions in downstream select statements.
-	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 }
 
 // EventFields instance is attached to every logged event
@@ -815,7 +840,6 @@ func (f EventFields) AsString() string {
 		f.GetString(EventLogin),
 		f.GetInt(EventCursor),
 		f.GetInt(SessionPrintEventBytes))
-
 }
 
 // GetType returns the type (string) of the event

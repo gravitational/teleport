@@ -89,6 +89,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
@@ -208,7 +209,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.TraceClient = tracing.NewNoopClient()
 	}
 	if cfg.UsageReporter == nil {
-		cfg.UsageReporter = services.NewDiscardUsageReporter()
+		cfg.UsageReporter = usagereporter.DiscardUsageReporter{}
 	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
@@ -251,7 +252,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Kubernetes:              cfg.Kubernetes,
 		Databases:               cfg.Databases,
 		DatabaseServices:        cfg.DatabaseServices,
-		IAuditLog:               cfg.AuditLog,
+		AuditLogSessionStreamer: cfg.AuditLog,
 		Events:                  cfg.Events,
 		WindowsDesktops:         cfg.WindowsDesktops,
 		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
@@ -349,9 +350,9 @@ type Services struct {
 	services.Enforcer
 	services.ConnectionsDiagnostic
 	services.StatusInternal
-	services.UsageReporter
+	usagereporter.UsageReporter
 	types.Events
-	events.IAuditLog
+	events.AuditLogSessionStreamer
 }
 
 // GetWebSession returns existing web session described by req.
@@ -645,6 +646,7 @@ func (a *Server) runPeriodicOperations() {
 		FirstDuration: firstReleaseCheck,
 		Jitter:        retryutils.NewFullJitter(),
 	})
+	defer releaseCheck.Stop()
 
 	// more frequent release check that just re-calculates alerts based on previously
 	// pulled versioning info.
@@ -653,7 +655,27 @@ func (a *Server) runPeriodicOperations() {
 		FirstDuration: utils.HalfJitter(time.Second * 10),
 		Jitter:        retryutils.NewHalfJitter(),
 	})
-	defer releaseCheck.Stop()
+	defer localReleaseCheck.Stop()
+
+	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
+	go func() {
+		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
+		remoteClustersRefresh := interval.New(interval.Config{
+			Duration: time.Second * 40,
+			Jitter:   retryutils.NewSeventhJitter(),
+		})
+		defer remoteClustersRefresh.Stop()
+
+		for {
+			select {
+			case <-a.closeCtx.Done():
+				return
+			case <-remoteClustersRefresh.Next():
+				a.refreshRemoteClusters(ctx, r)
+			}
+		}
+	}()
+
 	for {
 		select {
 		case <-a.closeCtx.Done():
@@ -909,6 +931,57 @@ func (a *Server) updateVersionMetrics() {
 	}
 }
 
+var (
+	// remoteClusterRefreshLimit is the maximum number of backend updates that will be performed
+	// during periodic remote cluster connection status refresh.
+	remoteClusterRefreshLimit = 50
+
+	// remoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
+	// of all remote clusters if their number exceeds remoteClusterRefreshLimit × remoteClusterRefreshBuckets.
+	remoteClusterRefreshBuckets = 12
+)
+
+// refreshRemoteClusters updates connection status of all remote clusters.
+func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Rand) {
+	remoteClusters, err := a.Services.GetRemoteClusters()
+	if err != nil {
+		log.WithError(err).Error("Failed to load remote clusters for status refresh")
+		return
+	}
+
+	netConfig, err := a.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		log.WithError(err).Error("Failed to load networking config for remote cluster status refresh")
+		return
+	}
+
+	// randomize the order to optimize for multiple auth servers running in parallel
+	rnd.Shuffle(len(remoteClusters), func(i, j int) {
+		remoteClusters[i], remoteClusters[j] = remoteClusters[j], remoteClusters[i]
+	})
+
+	// we want to limit the number of backend updates performed on each refresh to avoid overwhelming the backend.
+	updateLimit := remoteClusterRefreshLimit
+	if dynamicLimit := (len(remoteClusters) / remoteClusterRefreshBuckets) + 1; dynamicLimit > updateLimit {
+		// if the number of remote clusters is larger than remoteClusterRefreshLimit × remoteClusterRefreshBuckets,
+		// bump the limit to make sure all remote clusters will be updated within reasonable time.
+		updateLimit = dynamicLimit
+	}
+
+	var updateCount int
+	for _, remoteCluster := range remoteClusters {
+		if updated, err := a.updateRemoteClusterStatus(ctx, netConfig, remoteCluster); err != nil {
+			log.WithError(err).Error("Failed to perform remote cluster status refresh")
+		} else if updated {
+			updateCount++
+		}
+
+		if updateCount >= updateLimit {
+			break
+		}
+	}
+}
+
 func (a *Server) Close() error {
 	a.cancelFunc()
 
@@ -940,8 +1013,8 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 }
 
 // SetAuditLog sets the server's audit log
-func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
-	a.Services.IAuditLog = auditLog
+func (a *Server) SetAuditLog(auditLog events.AuditLogSessionStreamer) {
+	a.Services.AuditLogSessionStreamer = auditLog
 }
 
 // GetEmitter fetches the current audit log emitter implementation.
@@ -962,7 +1035,7 @@ func (a *Server) SetEnforcer(enforcer services.Enforcer) {
 
 // SetUsageReporter sets the server's usage reporter. Note that this is only
 // safe to use before server start.
-func (a *Server) SetUsageReporter(reporter services.UsageReporter) {
+func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
 	a.Services.UsageReporter = reporter
 }
 
@@ -1625,7 +1698,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 		user = req.impersonator
 	}
 
-	if err := a.AnonymizeAndSubmit(&services.UsageCertificateIssued{
+	if err := a.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
 		UserName:        user,
 		Ttl:             durationpb.New(req.ttl),
 		IsBot:           bot,
@@ -3979,7 +4052,7 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 		return trace.Wrap(err)
 	}
 
-	event, err := services.ConvertUsageEvent(req.GetEvent(), username)
+	event, err := usagereporter.ConvertUsageEvent(req.GetEvent(), username)
 	if err != nil {
 		return trace.Wrap(err)
 	}

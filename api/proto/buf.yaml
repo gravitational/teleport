@@ -47,7 +47,7 @@ lint:
     UNARY_RPC:
       - teleport/devicetrust/v1/devicetrust_service.proto
       - teleport/legacy/client/proto/joinservice.proto
-      - teleport/proxy/v1/proxy_service.proto
+      - teleport/transport/v1/transport_service.proto
 breaking:
   use:
     - FILE

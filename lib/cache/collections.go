@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -94,6 +95,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
 			collections[resourceKind] = &installerConfig{watch: watch, Cache: c}
+		case types.KindUIConfig:
+			if c.ClusterConfig == nil {
+				return nil, trace.BadParameter("missing parameter ClusterConfig")
+			}
+			collections[resourceKind] = &uiConfig{watch: watch, Cache: c}
 		case types.KindUser:
 			if c.Users == nil {
 				return nil, trace.BadParameter("missing parameter Users")
@@ -1346,38 +1352,27 @@ func (s *databaseService) erase(ctx context.Context) error {
 }
 
 func (s *databaseService) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := client.GetResourcesWithFilters(ctx, s.Presence, proto.ListResourcesRequest{ResourceType: types.KindDatabaseService})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return func(ctx context.Context) error {
 		if err := s.erase(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 
-		nextKey := ""
-		for {
-			listResp, err := s.Presence.ListResources(ctx, proto.ListResourcesRequest{
-				ResourceType: types.KindDatabaseService,
-				Limit:        apidefaults.DefaultChunkSize,
-				StartKey:     nextKey,
-			})
-			if err != nil {
+		for _, resource := range resources {
+			dbsvc, ok := resource.(types.DatabaseService)
+			if !ok {
+				return trace.BadParameter("unexpected resource %T", resource)
+			}
+
+			if _, err := s.databaseServicesCache.UpsertDatabaseService(ctx, dbsvc); err != nil {
 				return trace.Wrap(err)
-			}
-
-			databaseServices, err := types.ResourcesWithLabels(listResp.Resources).AsDatabaseServices()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			for _, resource := range databaseServices {
-				if _, err := s.databaseServicesCache.UpsertDatabaseService(ctx, resource); err != nil {
-					return trace.Wrap(err)
-				}
-			}
-
-			nextKey = listResp.NextKey
-			if nextKey == "" || len(listResp.Resources) == 0 {
-				break
 			}
 		}
+
 		return nil
 	}, nil
 }
@@ -2291,6 +2286,74 @@ func (c *clusterNetworkingConfig) processEvent(ctx context.Context, event types.
 }
 
 func (c *clusterNetworkingConfig) watchKind() types.WatchKind {
+	return c.watch
+}
+
+type uiConfig struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (c *uiConfig) erase(ctx context.Context) error {
+	if err := c.clusterConfigCache.DeleteUIConfig(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *uiConfig) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	var noConfig bool
+	resource, err := c.ClusterConfig.GetUIConfig(ctx)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		noConfig = true
+	}
+	return func(ctx context.Context) error {
+		// either zero or one instance exists, so we either erase or
+		// update, but not both.
+		if noConfig {
+			if err := c.erase(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}
+
+		if err := c.clusterConfigCache.SetUIConfig(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}, nil
+}
+
+func (c *uiConfig) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := c.clusterConfigCache.DeleteUIConfig(ctx)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				c.Logger.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.UIConfig)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if err := c.clusterConfigCache.SetUIConfig(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (c *uiConfig) watchKind() types.WatchKind {
 	return c.watch
 }
 
