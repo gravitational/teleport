@@ -74,10 +74,6 @@ func runCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	}
 
 	// 2. Challenge.
-	if err := enrollDeviceMacOS(stream, resp); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// No default case is provided here; see the guard at the beginning of this function.
 	switch osType {
 	case devicepb.OSType_OS_TYPE_MACOS:

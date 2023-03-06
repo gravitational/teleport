@@ -15,32 +15,120 @@
 package native
 
 import (
+	"bytes"
 	"crypto"
+	"crypto/rand"
 	"crypto/x509"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"path"
+	"strings"
+
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/trace"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/google/uuid"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+const (
+	akFile    = "ak.ref"
+	appSuffix = "-app.ref"
+)
+
+// keyConfig contains the parameters for the generated application keys.
+// These have been picked for maximum compatibility.
 var keyConfig = &attest.KeyConfig{
 	Algorithm: attest.RSA,
 	Size:      2048,
 }
 
-// TODO(joel): implement
+// TODO(joel): pass state from tsh profile
+func tpmFilePath(elem ...string) string {
+	fullElems := append([]string{profile.FullProfilePath(""), "tpm"}, elem...)
+	return path.Join(fullElems...)
+}
+
 func getOrCreateAK(tpm *attest.TPM) (*attest.AK, error) {
-	return nil, nil
+	path := tpmFilePath(akFile)
+	if ref, err := os.ReadFile(path); err == nil {
+		ak, err := tpm.LoadAK(ref)
+		if err == nil {
+			return ak, nil
+		}
+
+		return ak, nil
+	}
+
+	ak, err := tpm.NewAK(nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ref, err := ak.Marshal()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = os.WriteFile(path, ref, 0644)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ak, nil
 }
 
-// TODO(joel): implement
 func getOrCreateAppKey(tpm *attest.TPM, ak *attest.AK) (uuid.UUID, *attest.Key, error) {
-	return uuid.UUID{}, nil, nil
+	entries, err := ioutil.ReadDir(tpmFilePath(""))
+	if err != nil {
+		return uuid.UUID{}, nil, trace.Wrap(err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), appSuffix) {
+			ref, err := os.ReadFile(entry.Name())
+			if err != nil {
+				return uuid.UUID{}, nil, trace.Wrap(err)
+			}
+
+			key, err := tpm.LoadKey(ref)
+			if err != nil {
+				return uuid.UUID{}, nil, trace.Wrap(err)
+			}
+
+			id, err := uuid.Parse(strings.TrimSuffix(entry.Name(), appSuffix))
+			if err != nil {
+				return uuid.UUID{}, nil, trace.Wrap(err)
+			}
+
+			return id, key, nil
+		}
+	}
+
+	key, err := tpm.NewKey(ak, keyConfig)
+	if err != nil {
+		return uuid.UUID{}, nil, trace.Wrap(err)
+	}
+
+	id := uuid.New()
+	ref, err := key.Marshal()
+	if err != nil {
+		return uuid.UUID{}, nil, trace.Wrap(err)
+	}
+
+	path := tpmFilePath(id.String() + appSuffix)
+	err = os.WriteFile(path, ref, 0644)
+	if err != nil {
+		return uuid.UUID{}, nil, trace.Wrap(err)
+	}
+
+	return id, key, nil
 }
 
-func getEKPkix(tpm *attest.TPM) ([]byte, error) {
+func getEKPKIX(tpm *attest.TPM) ([]byte, error) {
 	eks, err := tpm.EKs()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -64,7 +152,7 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	}
 	defer tpm.Close()
 
-	ekPublic, err := getEKPkix(tpm)
+	ekPublic, err := getEKPKIX(tpm)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -107,12 +195,33 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	}, nil
 }
 
+// getLikelyDeviceSerial returns the serial number of the device using
+// PowerShell to grab the correct WMI objects. Getting it without
+// calling into PS is possible, but requires interfacing with the ancient Win32 COM APIs.
+func getDeviceSerial() (string, error) {
+	cmd := exec.Command("powershell", "-NoProfile", "Get-WmiObject win32_bios | Select -ExpandProperty Serialnumber")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return string(bytes.ReplaceAll(out, []byte(" "), nil)), nil
+}
+
 func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
+	serial, err := getDeviceSerial()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &devicepb.DeviceCollectedData{
-		CollectTime: timestamppb.Now(),
-		OsType:      devicepb.OSType_OS_TYPE_WINDOWS,
-		// TODO(joel): collect proper serial here
-		SerialNumber: "",
+		CollectTime:  timestamppb.Now(),
+		OsType:       devicepb.OSType_OS_TYPE_WINDOWS,
+		SerialNumber: serial,
 	}, nil
 }
 
@@ -138,12 +247,14 @@ func signChallenge(chal []byte) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// This bit of code is rather deceptive.
+	// The crypto.Signer interface actually calls into the TPM here transparently to sign the challenge using the key.
 	signer, ok := priv.(crypto.Signer)
 	if !ok {
-		return nil, trace.BadParameter("private key is not a crypto.Signer")
+		return nil, trace.BadParameter("private key is not a crypto.Signer. cannot complete signing challenge")
 	}
 
-	sig, err := signer.Sign(nil, chal, crypto.SHA256)
+	sig, err := signer.Sign(rand.Reader, chal, crypto.SHA256)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
