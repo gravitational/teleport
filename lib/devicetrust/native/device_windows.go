@@ -48,7 +48,7 @@ var keyConfig = &attest.KeyConfig{
 
 // TODO(joel): pass state from tsh profile
 func tpmFilePath(elem ...string) string {
-	fullElems := append([]string{profile.FullProfilePath(""), "tpm"}, elem...)
+	fullElems := append([]string{profile.FullProfilePath("")}, elem...)
 	return path.Join(fullElems...)
 }
 
