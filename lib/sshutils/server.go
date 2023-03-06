@@ -131,6 +131,10 @@ const (
 	// TrueClientAddrVar environment variable is used by the web UI to pass
 	// the remote IP (user's IP) from the browser/HTTP session into an SSH session
 	TrueClientAddrVar = "TELEPORT_CLIENT_ADDR"
+
+	// caGetterTimeout is the timeout on getting host cert authority, that is used in
+	// signed PROXY headers verification.
+	caGetterTimeout = 5 * time.Second
 )
 
 // ServerOption is a functional argument for server
@@ -848,7 +852,10 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 			return 0, trace.Wrap(err)
 		}
 		if proxyLine != nil && proxyLine.IsSigned() && c.caGetter != nil {
-			err = proxyLine.VerifySignature(context.Background(), c.caGetter, c.clusterName, c.clock)
+			ctx, cancel := context.WithTimeout(context.Background(), caGetterTimeout)
+			defer cancel()
+
+			err = proxyLine.VerifySignature(ctx, c.caGetter, c.clusterName, c.clock)
 			// NOTE(anton): Temporarily using string comparison here to not create circular references.
 			// Will be refactored after #21835 is resolved.
 			if err != nil {
