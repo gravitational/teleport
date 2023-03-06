@@ -201,7 +201,7 @@ function getDefaultTerminalFont(platform: Platform) {
 }
 
 function getShortcutDesc(actionDesc: string): string {
-  return `Shortcut to ${actionDesc}. A valid shortcut contains at least one modifier and a single key code, for example "Ctrl+Shift+A". Function keys do not require a modifier.`;
+  return `Shortcut to ${actionDesc}. A valid shortcut contains at least one modifier and a single key code, for example "Shift+Tab". Function keys do not require a modifier.`;
 }
 
 export function createConfigService({
