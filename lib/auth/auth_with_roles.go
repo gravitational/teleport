@@ -59,7 +59,7 @@ import (
 // methods that focuses on authorizing every request
 type ServerWithRoles struct {
 	authServer *Server
-	alog       events.IAuditLog
+	alog       events.AuditLogSessionStreamer
 	// context holds authorization context
 	context Context
 }
@@ -929,7 +929,7 @@ Outer:
 	for _, alert := range alerts {
 		// skip acknowledged alerts
 		for _, ack := range acks {
-			if ack.AlertID == alert.Metadata.Name && ack.Severity >= alert.Spec.Severity {
+			if ack.AlertID == alert.Metadata.Name {
 				continue Outer
 			}
 		}
@@ -1012,10 +1012,6 @@ func (a *ServerWithRoles) CreateAlertAck(ctx context.Context, ack types.AlertAck
 	// if use of cluster alerts becomes more widespread.
 	if !a.hasBuiltinRole(types.RoleAdmin) {
 		return trace.AccessDenied("alert ack is admin-only")
-	}
-
-	if ack.Severity >= types.AlertSeverity_HIGH {
-		return trace.AccessDenied("ack of high severity alerts is not permitted")
 	}
 
 	return a.authServer.CreateAlertAck(ctx, ack)
@@ -5798,7 +5794,7 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
-func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {
+func NewAdminAuthServer(authServer *Server, alog events.AuditLogSessionStreamer) (ClientI, error) {
 	ctx, err := NewAdminContext()
 	if err != nil {
 		return nil, trace.Wrap(err)

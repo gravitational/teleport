@@ -278,7 +278,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initAuthAuditLog(context.Background(), auditConfig, backend)
+			loggers, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend)
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
