@@ -19,6 +19,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/google/go-attestation/attest"
+	"github.com/google/go-tpm/tpm2"
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -50,6 +52,33 @@ var keyConfig = &attest.KeyConfig{
 func tpmFilePath(elem ...string) string {
 	fullElems := append([]string{profile.FullProfilePath("")}, elem...)
 	return path.Join(fullElems...)
+}
+
+type windowsCmdChannel struct {
+	io.ReadWriteCloser
+}
+
+func (cc *windowsCmdChannel) MeasurementLog() ([]byte, error) {
+	return nil, nil
+}
+
+func openTPM() (*attest.TPM, error) {
+	rawConn, err := tpm2.OpenTPM()
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := &attest.OpenConfig{
+		TPMVersion:     attest.TPMVersion20,
+		CommandChannel: &windowsCmdChannel{rawConn},
+	}
+
+	tpm, err := attest.OpenTPM(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tpm, nil
 }
 
 func getOrCreateAK(tpm *attest.TPM) (*attest.AK, error) {
@@ -146,7 +175,7 @@ func getEKPKIX(tpm *attest.TPM) ([]byte, error) {
 }
 
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	tpm, err := attest.OpenTPM(nil)
+	tpm, err := openTPM()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -222,7 +251,7 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 }
 
 func signChallenge(chal []byte) ([]byte, error) {
-	tpm, err := attest.OpenTPM(nil)
+	tpm, err := openTPM()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -259,7 +288,7 @@ func signChallenge(chal []byte) ([]byte, error) {
 }
 
 func tpmEnrollChallenge(encrypted []byte, credential []byte) ([]byte, error) {
-	tpm, err := attest.OpenTPM(nil)
+	tpm, err := openTPM()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -282,7 +311,7 @@ func tpmEnrollChallenge(encrypted []byte, credential []byte) ([]byte, error) {
 }
 
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
-	tpm, err := attest.OpenTPM(nil)
+	tpm, err := openTPM()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
