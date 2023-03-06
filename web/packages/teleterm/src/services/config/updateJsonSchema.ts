@@ -33,7 +33,8 @@ export function updateJsonSchema({
 }): void {
   const jsonSchema = zodToJsonSchema(
     // Add $schema field to prevent marking it as a not allowed property.
-    schema.extend({ $schema: z.string() })
+    schema.extend({ $schema: z.string() }),
+    { $refStrategy: 'none' }
   );
   const jsonSchemaFileName = path.basename(jsonSchemaFile.getFilePath());
   const jsonSchemaFileNameInConfig = configFile.get('$schema');
