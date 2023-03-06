@@ -405,11 +405,17 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	}
 
 	// check if the user has permission to log into the node.
-	switch {
-	case h.c.Component == teleport.ComponentForwardingNode:
-		err = h.canLoginWithoutRBAC(cert, clusterName.GetClusterName(), teleportUser, conn.User())
-	default:
-		err = h.canLoginWithRBAC(cert, clusterName.GetClusterName(), teleportUser, conn.User())
+	if h.c.Component == teleport.ComponentForwardingNode {
+		// If we are forwarding the connection, the target node
+		// exists and it is an agentless node, preform an RBAC check.
+		// Otherwise if the target node does not exist the node is
+		// probably an unregistered SSH node; do not preform an RBAC check
+		if h.c.TargetServer != nil && h.c.TargetServer.GetSubKind() == types.SubKindOpenSSHNode {
+			err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.TargetServer, teleportUser, conn.User())
+		}
+	} else {
+		// the SSH server is a Teleport node, preform an RBAC check now
+		err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), teleportUser, conn.User())
 	}
 	if err != nil {
 		log.Errorf("Permission denied: %v", err)
