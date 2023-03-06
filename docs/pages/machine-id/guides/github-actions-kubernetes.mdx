@@ -190,7 +190,9 @@ jobs:
         run: kubectl get pods -A
 ```
 
-[More information about `anonymous-telemetry`.](../reference/telemetry.mdx)
+`anonymous-telemetry` enables the submission of anonymous usage telemetry. This
+helps us shape the future development of `tbot`. You can disable this by
+omitting this.
 
 The `auth-k8s` action sets the `KUBECONFIG` for future steps to the credentials
 it has fetched from Teleport. This means that most existing tooling for
@@ -229,3 +231,5 @@ You can find out more about the `teleport-action/setup` and
 
 For more information about GitHub Actions itself, read
 [their documentation](https://docs.github.com/en/actions).
+
+[More information about `anonymous-telemetry`.](../reference/telemetry.mdx)

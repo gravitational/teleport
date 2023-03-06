@@ -110,7 +110,9 @@ jobs:
         run: tsh -i ${{ steps.auth.outputs.identity-file }} ssh username@hostname "echo $GITHUB_SHA >> ~/github_run_log"
 ```
 
-[More information about `anonymous-telemetry`.](../reference/telemetry.mdx)
+`anonymous-telemetry` enables the submission of anonymous usage telemetry. This
+helps us shape the future development of `tbot`. You can disable this by
+omitting this.
 
 From Teleport 11.1.0, the `-i` parameter for configuring the identity file of
 `tsh` is not necessary and `-i ${{ steps.auth.outputs.identity-file }}` can be
@@ -152,3 +154,6 @@ You can find out more about the `teleport-action/setup` and
 
 For more information about GitHub Actions itself, read
 [their documentation](https://docs.github.com/en/actions).
+
+[More information about `anonymous-telemetry`.](../reference/telemetry.mdx)
+

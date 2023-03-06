@@ -154,7 +154,9 @@ LimitNOFILE=524288
 WantedBy=multi-user.target
 ```
 
-[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)
+`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
+telemetry. This helps us shape the future development of `tbot`. You can disable
+this by omitting this.
 
 Finally, run the following commands to start Machine ID:
 
@@ -292,3 +294,5 @@ has been configured to use both the client certificate and key.
   your bot may access.
 - Configure [JWTs](../../application-access/jwt/introduction.mdx) for your
   Application to remove the need for additional login credentials.
+
+[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)
