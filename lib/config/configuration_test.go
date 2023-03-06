@@ -19,6 +19,7 @@ package config
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -3329,6 +3330,18 @@ func TestAuthPlugins(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err), `expected "bad parameter", but got %v`, err)
 	}
+	notExist := func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		require.Error(t, err)
+		require.True(t, errors.Is(err, os.ErrNotExist), `expected "does not exist", but got %v`)
+	}
+
+	tmpDir := t.TempDir()
+	clientIDFile := filepath.Join(tmpDir, "id")
+	clientSecretFile := filepath.Join(tmpDir, "secret")
+	err := os.WriteFile(clientIDFile, []byte("foo\n"), 0o777)
+	require.NoError(t, err)
+	err = os.WriteFile(clientSecretFile, []byte("bar\n"), 0o777)
+	require.NoError(t, err)
 
 	tests := []struct {
 		desc     string
@@ -3415,6 +3428,44 @@ func TestAuthPlugins(t *testing.T) {
 				"      slack:",
 				"        client_id: foo",
 				"        client_secret: bar",
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: require.NoError,
+			assert: func(t *testing.T, p service.PluginsConfig) {
+				require.True(t, p.Enabled)
+				require.NotNil(t, p.OAuthProviders.Slack)
+				require.Equal(t, "foo", p.OAuthProviders.Slack.ID)
+				require.Equal(t, "bar", p.OAuthProviders.Slack.Secret)
+			},
+		},
+		{
+			desc: "OAuth provider in non-existent file",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"",
+				"  plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      slack:",
+				"        client_id: /tmp/this-does-not-exist",
+				"        client_secret: " + clientSecretFile,
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: notExist,
+		},
+		{
+			desc: "OAuth provider in existent files",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"",
+				"  plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      slack:",
+				"        client_id: " + clientIDFile,
+				"        client_secret: " + clientSecretFile,
 			}, "\n"),
 			readErr:  require.NoError,
 			applyErr: require.NoError,

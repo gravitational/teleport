@@ -1305,9 +1305,28 @@ func (o *OAuthClientCredentials) Parse() (*oauth2.ClientCredentials, error) {
 	if o.ClientID == "" || o.ClientSecret == "" {
 		return nil, trace.BadParameter("Both client_id and client_secret must be specified")
 	}
+	clientID := o.ClientID
+	clientSecret := o.ClientSecret
+
+	// If the values look like filepaths, try to read from the paths
+	if strings.HasPrefix(clientID, "/") {
+		content, err := os.ReadFile(clientID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		clientID = strings.TrimSpace(string(content))
+	}
+	if strings.HasPrefix(clientSecret, "/") {
+		content, err := os.ReadFile(clientSecret)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		clientSecret = strings.TrimSpace(string(content))
+	}
+
 	return &oauth2.ClientCredentials{
-		ID:     o.ClientID,
-		Secret: o.ClientSecret,
+		ID:     clientID,
+		Secret: clientSecret,
 	}, nil
 }
 
