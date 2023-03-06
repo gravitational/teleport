@@ -112,7 +112,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	mfaResponse, err := req.MFAResponse.getMFAResponseProtoReq()
+	mfaResponse, err := req.MFAResponse.GetOptionalMFAResponseProtoReq()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

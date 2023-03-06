@@ -22,40 +22,11 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/client"
 )
-
-type MfaResponse struct {
-	// TotpCode is a code for a otp device.
-	TotpCode string `json:"totpCode"`
-	// WebauthnResponse is a response from a webauthn device.
-	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthnResponse"`
-}
-
-func (r *MfaResponse) getMFAResponseProtoReq() (*proto.MFAAuthenticateResponse, error) {
-	if r.TotpCode != "" && r.WebauthnResponse != nil {
-		return nil, trace.BadParameter("only one MFA response field can be set")
-	}
-
-	if r.TotpCode != "" {
-		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
-			TOTP: &proto.TOTPResponse{Code: r.TotpCode},
-		}}, nil
-	}
-
-	if r.WebauthnResponse != nil {
-		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wanlib.CredentialAssertionResponseToProto(r.WebauthnResponse),
-		}}, nil
-	}
-
-	// Can be nil since it's optional.
-	return nil, nil
-}
 
 // TestConnectionRequest contains
 // - the identification of the resource kind and resource name to test
@@ -63,7 +34,7 @@ func (r *MfaResponse) getMFAResponseProtoReq() (*proto.MFAAuthenticateResponse, 
 // As an example, for SSH Node it also includes the User/Principal that will be used to login.
 type TestConnectionRequest struct {
 	// MFAResponse is an optional field that holds a response to a MFA device challenge.
-	MFAResponse MfaResponse `json:"mfa_response"`
+	MFAResponse client.MFAChallengeResponse `json:"mfa_response,omitempty"`
 	// ResourceKind describes the type of resource to test.
 	ResourceKind string `json:"resource_kind"`
 	// ResourceName is the identification of the resource's instance to test.

@@ -5647,7 +5647,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		SSHPrincipal: osUsername,
 		// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
 		DialTimeout: time.Second,
-		MFAResponse: conntest.MfaResponse{TotpCode: totpCode},
+		MFAResponse: client.MFAChallengeResponse{TOTPCode: totpCode},
 	})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.Code())
@@ -6136,7 +6136,7 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 		// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
 		DialTimeout:             time.Second,
 		KubernetesImpersonation: conntest.KubernetesImpersonation{},
-		MFAResponse:             conntest.MfaResponse{TotpCode: totpCode},
+		MFAResponse:             client.MFAChallengeResponse{TOTPCode: totpCode},
 	})
 
 	require.NoError(t, err)
@@ -7487,13 +7487,13 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 
 	for _, test := range []struct {
 		name       string
-		wantErr    bool
-		getRequest func() isMfaRequiredRequest
+		errMsg     string
+		getRequest func() isMFARequiredRequest
 	}{
 		{
 			name: "valid db req",
-			getRequest: func() isMfaRequiredRequest {
-				return isMfaRequiredRequest{
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
 					Database: &isMFARequiredDatabase{
 						ServiceName: "name",
 						Protocol:    "protocol",
@@ -7502,83 +7502,83 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 			},
 		},
 		{
-			name:    "invalid db req",
-			wantErr: true,
-			getRequest: func() isMfaRequiredRequest {
-				return isMfaRequiredRequest{Database: &isMFARequiredDatabase{}}
+			name:   "invalid db req",
+			errMsg: "missing service_name",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{Database: &isMFARequiredDatabase{}}
 			},
 		},
 		{
 			name: "valid node req",
-			getRequest: func() isMfaRequiredRequest {
-				return isMfaRequiredRequest{
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
 					Node: &isMFARequiredNode{
-						Name:  "name",
-						Login: "login",
+						NodeName: "name",
+						Login:    "login",
 					},
 				}
 			},
 		},
 		{
-			name:    "invalid node req",
-			wantErr: true,
-			getRequest: func() isMfaRequiredRequest {
-				return isMfaRequiredRequest{Node: &isMFARequiredNode{}}
+			name:   "invalid node req",
+			errMsg: "missing login",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{Node: &isMFARequiredNode{}}
 			},
 		},
 		{
 			name: "valid kube req",
-			getRequest: func() isMfaRequiredRequest {
-				return isMfaRequiredRequest{
-					KubeCluster: &isMFARequiredKube{
-						Name: "name",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
+					Kube: &isMFARequiredKube{
+						ClusterName: "name",
 					},
 				}
 			},
 		},
 		{
-			name:    "invalid kube req",
-			wantErr: true,
-			getRequest: func() isMfaRequiredRequest {
-				return isMfaRequiredRequest{KubeCluster: &isMFARequiredKube{}}
+			name:   "invalid kube req",
+			errMsg: "missing cluster_name",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{Kube: &isMFARequiredKube{}}
 			},
 		},
 		{
 			name: "valid windows desktop req",
-			getRequest: func() isMfaRequiredRequest {
-				return isMfaRequiredRequest{
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
 					WindowsDesktop: &isMFARequiredWindowsDesktop{
-						Name:  "name",
-						Login: "login",
+						DesktopName: "name",
+						Login:       "login",
 					},
 				}
 			},
 		},
 		{
-			name:    "invalid windows desktop req",
-			wantErr: true,
-			getRequest: func() isMfaRequiredRequest {
-				return isMfaRequiredRequest{WindowsDesktop: &isMFARequiredWindowsDesktop{}}
+			name:   "invalid windows desktop req",
+			errMsg: "missing desktop_name",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{WindowsDesktop: &isMFARequiredWindowsDesktop{}}
 			},
 		},
 		{
-			name:    "invalid empty req",
-			wantErr: true,
-			getRequest: func() isMfaRequiredRequest {
-				return isMfaRequiredRequest{}
+			name:   "invalid empty req",
+			errMsg: "missing target",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{}
 			},
 		},
 		{
-			name:    "invalid multi field",
-			wantErr: true,
-			getRequest: func() isMfaRequiredRequest {
-				return isMfaRequiredRequest{
-					KubeCluster: &isMFARequiredKube{
-						Name: "name",
+			name:   "invalid multi field",
+			errMsg: "only one target is allowed",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
+					Kube: &isMFARequiredKube{
+						ClusterName: "name",
 					},
 					Node: &isMFARequiredNode{
-						Name:  "name",
-						Login: "login",
+						NodeName: "name",
+						Login:    "login",
 					},
 				}
 			},
@@ -7589,15 +7589,16 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "mfa", "required")
 			re, err := pack.clt.PostJSON(ctx, endpoint, test.getRequest())
 
-			if test.wantErr {
-				require.True(t, trace.IsBadParameter(err))
+			if test.errMsg != "" {
+				require.True(t, trace.IsBadParameter(err), "isMFARequired returned err = %v (%T), wanted trace.BadParameter", err, err)
+				require.ErrorContains(t, err, test.errMsg)
 				return
 			}
 
 			require.NoError(t, err)
 			resp := isMfaRequiredResponse{}
 			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
-			require.True(t, resp.Required)
+			require.True(t, resp.Required, "isMFARequired returned response with unexpected value for Required field")
 		})
 	}
 }

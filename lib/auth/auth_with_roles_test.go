@@ -28,6 +28,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -49,8 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/pquerna/otp/totp"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -68,7 +67,7 @@ func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
 	for _, test := range []struct {
 		desc           string
 		getMFAResponse func() *proto.MFAAuthenticateResponse
-		wantErr        bool
+		wantErr        string
 	}{
 		{
 			desc: "valid mfa response",
@@ -92,7 +91,7 @@ func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
 		},
 		{
 			desc:    "invalid mfa response",
-			wantErr: true,
+			wantErr: "invalid totp token",
 			getMFAResponse: func() *proto.MFAAuthenticateResponse {
 				return &proto.MFAAuthenticateResponse{
 					Response: &proto.MFAAuthenticateResponse_TOTP{
@@ -113,8 +112,9 @@ func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
 			})
 
 			switch {
-			case test.wantErr:
-				require.True(t, trace.IsAccessDenied(err))
+			case test.wantErr != "":
+				require.True(t, trace.IsAccessDenied(err), "GenerateUserCerts returned err = %v (%T), wanted trace.AccessDenied", err, err)
+				require.ErrorContains(t, err, test.wantErr)
 				return
 			default:
 				require.NoError(t, err)
@@ -126,9 +126,9 @@ func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
 
 			switch {
 			case mfaResponse == nil:
-				require.Empty(t, mfaVerified)
+				require.Empty(t, mfaVerified, "GenerateUserCerts returned certificate with non-empty CertExtensionMFAVerified")
 			default:
-				require.Equal(t, mfaVerified, u.totpDev.MFA.Id)
+				require.Equal(t, mfaVerified, u.totpDev.MFA.Id, "GenerateUserCerts returned certificate with unexpected CertExtensionMFAVerified")
 			}
 		})
 	}

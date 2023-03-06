@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -302,8 +303,8 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 		// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
 		DialTimeout:        time.Second,
 		InsecureSkipVerify: true,
-		MFAResponse: conntest.MfaResponse{
-			TotpCode: validToken,
+		MFAResponse: client.MFAChallengeResponse{
+			TOTPCode: validToken,
 		},
 	}
 	resp, err := webPack.DoRequest(http.MethodPost, diagnoseConnectionEndpoint, diagnoseReq)

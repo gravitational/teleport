@@ -109,7 +109,7 @@ func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConne
 		return nil, trace.Wrap(err)
 	}
 
-	mfaResponse, err := req.MFAResponse.getMFAResponseProtoReq()
+	mfaResponse, err := req.MFAResponse.GetOptionalMFAResponseProtoReq()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
