@@ -34,55 +34,55 @@ const createAppConfigSchema = (platform: Platform) => {
     'usageReporting.enabled': z.boolean().default(false),
     'keymap.tab1': keyboardShortcutSchema
       .default(defaultKeymap['tab1'])
-      .describe(getKeyboardShortcutDescription('open tab 1')),
+      .describe(getShortcutDesc('open tab 1')),
     'keymap.tab2': keyboardShortcutSchema
       .default(defaultKeymap['tab2'])
-      .describe(getKeyboardShortcutDescription('open tab 2')),
+      .describe(getShortcutDesc('open tab 2')),
     'keymap.tab3': keyboardShortcutSchema
       .default(defaultKeymap['tab3'])
-      .describe(getKeyboardShortcutDescription('open tab 3')),
+      .describe(getShortcutDesc('open tab 3')),
     'keymap.tab4': keyboardShortcutSchema
       .default(defaultKeymap['tab4'])
-      .describe(getKeyboardShortcutDescription('open tab 4')),
+      .describe(getShortcutDesc('open tab 4')),
     'keymap.tab5': keyboardShortcutSchema
       .default(defaultKeymap['tab5'])
-      .describe(getKeyboardShortcutDescription('open tab 5')),
+      .describe(getShortcutDesc('open tab 5')),
     'keymap.tab6': keyboardShortcutSchema
       .default(defaultKeymap['tab6'])
-      .describe(getKeyboardShortcutDescription('open tab 6')),
+      .describe(getShortcutDesc('open tab 6')),
     'keymap.tab7': keyboardShortcutSchema
       .default(defaultKeymap['tab7'])
-      .describe(getKeyboardShortcutDescription('open tab 7')),
+      .describe(getShortcutDesc('open tab 7')),
     'keymap.tab8': keyboardShortcutSchema
       .default(defaultKeymap['tab8'])
-      .describe(getKeyboardShortcutDescription('open tab 8')),
+      .describe(getShortcutDesc('open tab 8')),
     'keymap.tab9': keyboardShortcutSchema
       .default(defaultKeymap['tab9'])
-      .describe(getKeyboardShortcutDescription('open tab 9')),
+      .describe(getShortcutDesc('open tab 9')),
     'keymap.closeTab': keyboardShortcutSchema
       .default(defaultKeymap['closeTab'])
-      .describe(getKeyboardShortcutDescription('close a tab')),
+      .describe(getShortcutDesc('close a tab')),
     'keymap.newTab': keyboardShortcutSchema
       .default(defaultKeymap['newTab'])
-      .describe(getKeyboardShortcutDescription('open a new tab')),
+      .describe(getShortcutDesc('open a new tab')),
     'keymap.previousTab': keyboardShortcutSchema
       .default(defaultKeymap['previousTab'])
-      .describe(getKeyboardShortcutDescription('go to the previous tab')),
+      .describe(getShortcutDesc('go to the previous tab')),
     'keymap.nextTab': keyboardShortcutSchema
       .default(defaultKeymap['nextTab'])
-      .describe(getKeyboardShortcutDescription('go to the next tab')),
+      .describe(getShortcutDesc('go to the next tab')),
     'keymap.openConnections': keyboardShortcutSchema
       .default(defaultKeymap['openConnections'])
-      .describe(getKeyboardShortcutDescription('open the connection panel')),
+      .describe(getShortcutDesc('open the connection panel')),
     'keymap.openClusters': keyboardShortcutSchema
       .default(defaultKeymap['openClusters'])
-      .describe(getKeyboardShortcutDescription('open the clusters panel')),
+      .describe(getShortcutDesc('open the clusters panel')),
     'keymap.openProfiles': keyboardShortcutSchema
       .default(defaultKeymap['openProfiles'])
-      .describe(getKeyboardShortcutDescription('open the profiles panel')),
+      .describe(getShortcutDesc('open the profiles panel')),
     'keymap.openQuickInput': keyboardShortcutSchema
       .default(defaultKeymap['openQuickInput'])
-      .describe(getKeyboardShortcutDescription('open the command bar')),
+      .describe(getShortcutDesc('open the command bar')),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
      * in a styled component or used in CSS, as it may inject malicious CSS code.
@@ -200,8 +200,8 @@ function getDefaultTerminalFont(platform: Platform) {
   }
 }
 
-function getKeyboardShortcutDescription(about: string): string {
-  return `Shortcut to ${about}. A valid shortcut contains at least one modifier and a single key code, for example "Ctrl+Shift+A". Function keys do not require a modifier.`;
+function getShortcutDesc(actionDesc: string): string {
+  return `Shortcut to ${actionDesc}. A valid shortcut contains at least one modifier and a single key code, for example "Ctrl+Shift+A". Function keys do not require a modifier.`;
 }
 
 export function createConfigService({
