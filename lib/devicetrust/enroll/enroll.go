@@ -45,7 +45,8 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 func runCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, enrollToken string) (*devicepb.Device, error) {
 	// Start by checking the OSType, this lets us exit early with a nicer message
 	// for non-supported OSes.
-	if getOSType() == devicepb.OSType_OS_TYPE_UNSPECIFIED {
+	osType := getOSType()
+	if osType != devicepb.OSType_OS_TYPE_MACOS && osType != devicepb.OSType_OS_TYPE_WINDOWS {
 		return nil, trace.BadParameter("device enrollment not supported for current OS (%v)", runtime.GOOS)
 	}
 
@@ -76,14 +77,13 @@ func runCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	if err := enrollDeviceMacOS(stream, resp); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch getOSType() {
+
+	// No default case is provided here; see the guard at the beginning of this function.
+	switch osType {
 	case devicepb.OSType_OS_TYPE_MACOS:
 		err = enrollDeviceMacOS(stream, resp)
 	case devicepb.OSType_OS_TYPE_WINDOWS:
 		err = enrollDeviceWindows(stream, resp)
-	case devicepb.OSType_OS_TYPE_LINUX:
-		// TODO(joel): implement & test
-		panic("not implemented")
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
