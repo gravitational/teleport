@@ -251,7 +251,7 @@ func onStart(botConfig *config.BotConfig) error {
 		default:
 		}
 
-		waitTime := 30 * time.Second
+		waitTime := 10 * time.Second
 		log.Infof(
 			"Waiting up to %s for anonymous telemetry to finish sending before exiting. Press CTRL-C to cancel.",
 			waitTime,
