@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "@gravitational/build": "^1.0.0",
-    "@types/google-protobuf": "^3.7.2"
+    "@types/google-protobuf": "^3.10.0"
   },
   "private": true,
   "workspaces": {
