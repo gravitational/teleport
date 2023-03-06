@@ -31,7 +31,10 @@ const createAppConfigSchema = (platform: Platform) => {
 
   // `keymap.` prefix is used in `initUi.ts` in a predicate function.
   return z.object({
-    'usageReporting.enabled': z.boolean().default(false),
+    'usageReporting.enabled': z
+      .boolean()
+      .default(false)
+      .describe('Enables collecting of anonymous usage data.'),
     'keymap.tab1': shortcutSchema
       .default(defaultKeymap['tab1'])
       .describe(getShortcutDesc('open tab 1')),
