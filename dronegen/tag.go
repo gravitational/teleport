@@ -203,7 +203,7 @@ func tagPipelines() []pipeline {
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
 		buildType:      buildType{os: "linux", fips: false},
 		trigger:        triggerTag,
-		pipelineName:   "build-teleport-oci-distroless",
+		pipelineName:   "build-teleport-oci-distroless-images",
 		ghaWorkflow:    "release-teleport-oci-distroless.yml",
 		srcRefVar:      "DRONE_TAG",
 		workflowRefVar: "DRONE_TAG",

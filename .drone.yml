@@ -1222,11 +1222,6 @@ volumes:
 kind: pipeline
 type: kubernetes
 name: push-build-linux-arm64
-environment:
-  BUILDBOX_VERSION: teleport13
-  GID: "1000"
-  RUNTIME: go1.20.1
-  UID: "1000"
 trigger:
   event:
     include:
@@ -1244,6 +1239,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -1267,9 +1264,9 @@ steps:
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow
-    release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input upload-artifacts=false -input oss-teleport-repo="${DRONE_REPO}"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -workflow release-linux-arm64.yml -workflow-ref ${DRONE_BRANCH}
+    -input oss-teleport-repo="${DRONE_REPO}" -input oss-teleport-ref=${DRONE_COMMIT} '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -4943,11 +4940,6 @@ volumes:
 kind: pipeline
 type: kubernetes
 name: build-linux-arm64
-environment:
-  BUILDBOX_VERSION: teleport13
-  GID: "1000"
-  RUNTIME: go1.20.1
-  UID: "1000"
 trigger:
   event:
     include:
@@ -4962,6 +4954,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4985,9 +4979,10 @@ steps:
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow
-    release-linux-arm64.yml -workflow-ref=${DRONE_TAG} -input oss-teleport-ref=${DRONE_TAG}
-    -input upload-artifacts=true -input oss-teleport-repo="${DRONE_REPO}"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -workflow release-linux-arm64.yml -workflow-ref ${DRONE_TAG} -input
+    oss-teleport-repo="${DRONE_REPO}" -input oss-teleport-ref=${DRONE_TAG} -input
+    "upload-artifacts=true" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -9079,11 +9074,15 @@ volumes:
   temp: {}
 
 ---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+################################################
+
 kind: pipeline
 type: kubernetes
 name: build-teleport-oci-distroless-images
-environment:
-  DEBIAN_FRONTEND: noninteractive
 trigger:
   event:
     include:
@@ -9101,6 +9100,34 @@ clone:
 depends_on:
 - clean-up-previous-build
 steps:
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -workflow release-teleport-oci-distroless.yml -workflow-ref ${DRONE_TAG}
+    -input oss-teleport-repo="${DRONE_REPO}" -input oss-teleport-ref=${DRONE_TAG} '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 
 ---
 ################################################
@@ -18949,6 +18976,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: bc40ded3c6c520d2f5f3578625115b2acb610f79565ec98abab420b955c0737b
+hmac: b75116297b9e3ed81e2d08784f6fefe3413f9213855ee8fd8625a3627bb9589f
 
 ...
