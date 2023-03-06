@@ -1929,6 +1929,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Component:               teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
 		MetricComponent:         teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
 		Tracer:                  process.TracingProvider.Tracer(teleport.ComponentCache),
+		MaxRetryPeriod:          process.Config.CachePolicy.MaxRetryPeriod,
 		Unstarted:               cfg.unstarted,
 	}))
 }
