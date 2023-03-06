@@ -1267,7 +1267,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow
     release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input upload-artifacts=false
+    -input upload-artifacts=false -input oss-teleport-repo="${DRONE_REPO}"
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -4985,7 +4985,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow
     release-linux-arm64.yml -workflow-ref=${DRONE_TAG} -input oss-teleport-ref=${DRONE_TAG}
-    -input upload-artifacts=true
+    -input upload-artifacts=true -input oss-teleport-repo="${DRONE_REPO}"
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -18293,6 +18293,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: aad8a7e55b8ed12a764bafa4dfea2eb6dada0954e0e1e59c900f313e99f505e6
+hmac: c363a28820a238e3396f7986b41e6a1eab8b0baeee374ec7c9f5f1c214694e51
 
 ...
