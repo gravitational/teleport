@@ -1,5 +1,14 @@
 # Changelog
 
+## 12.1.0
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Added ability for Teleport to function as SAML IdP (Enterprise edition only).
+* Downgraded Go to `v1.19.6` to resolve memory leak issues. [#22691](https://github.com/gravitational/teleport/pull/22691)
+* Fixed issue with `tsh scp` overriding copied file permissions without `-p` flag. [#22609](https://github.com/gravitational/teleport/pull/22609)
+* Improved performance of fetching remote clusters. [#22575](https://github.com/gravitational/teleport/pull/22575)
+
 ## 12.0.5
 
 This release of Teleport contains multiple improvements and bug fixes.
