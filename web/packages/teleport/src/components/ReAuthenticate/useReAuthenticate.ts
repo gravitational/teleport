@@ -27,7 +27,7 @@ export default function useReAuthenticate(props: Props) {
 
   function submitWithTotp(secondFactorToken: string) {
     if ('onMfaResponse' in props) {
-      props.onMfaResponse({ totpCode: secondFactorToken });
+      props.onMfaResponse({ totp_code: secondFactorToken });
       return;
     }
 
@@ -44,7 +44,9 @@ export default function useReAuthenticate(props: Props) {
     if ('onMfaResponse' in props) {
       auth
         .getWebauthnResponse()
-        .then(webauthnResponse => props.onMfaResponse({ webauthnResponse }))
+        .then(webauthnResponse =>
+          props.onMfaResponse({ webauthn_response: webauthnResponse })
+        )
         .catch(handleError);
       return;
     }

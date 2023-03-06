@@ -139,7 +139,7 @@ export function getMfaRequest(
       return {
         node: {
           login: req.sshPrincipal,
-          name: req.resourceName,
+          node_name: req.resourceName,
         },
       };
 
@@ -147,7 +147,7 @@ export function getMfaRequest(
       const state = resourceState as Database;
       return {
         database: {
-          serviceName: req.resourceName,
+          service_name: req.resourceName,
           protocol: getDatabaseProtocol(state.engine),
           name: req.dbTester?.name,
           username: req.dbTester?.user,
@@ -157,7 +157,7 @@ export function getMfaRequest(
     case 'kube_cluster':
       return {
         kube: {
-          name: req.resourceName,
+          cluster_name: req.resourceName,
         },
       };
   }
