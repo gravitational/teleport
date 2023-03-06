@@ -8,18 +8,18 @@ state: draft
 ## Required Approvals
 
 * Engineering: @smallinsky && @r0mant
-* Product: @xin || @klizhentas
+* Product: @xinding33 || @klizhentas
 * Security: @reedloden
 
 ## What
 
 This RFD details how to support [TLS
-Routing](https://github.com/gravitational/teleport/blob/master/rfd/0039-sni-alpn-teleport-proxy-routing.md) behind load
-balancers.
+Routing](https://github.com/gravitational/teleport/blob/master/rfd/0039-sni-alpn-teleport-proxy-routing.md) behind layer
+7 load balancers for client protocols supported by Teleport.
 
 ## Why
 
-Allows simple single-port Teleport deployment when Telport needs to sit behind a load balancer.
+Allows simple single-port Teleport deployment when Teleport needs to sit behind a layer 7 load balancer.
 
 ## Details
 
@@ -116,8 +116,8 @@ the clients through the webapi ping:
 }
 ```
 
-`auto` is the default mode where the client performances a test to decide if a connection upgrade is necessary. The test
-is done by sending a TLS handshake with a Teleport custom ALPN to the Proxy server:
+`auto` is the default mode where the client performs a test to decide if a connection upgrade is necessary. The test is
+done by sending a TLS handshake with a Teleport custom ALPN to the Proxy server:
 ```
                               ┌───────┐
                          "on" │upgrade│ "off"
@@ -145,8 +145,8 @@ is done by sending a TLS handshake with a Teleport custom ALPN to the Proxy serv
    │                                                               │
    └───────────────────────────────────────────────────────────────┘
 ```
-Connection upgrade for TLS Routing should be required when the client and the server fail to neogiate the ALPN protocol,
-hinting there is a load balancer in the middle that terminates TLS.
+Connection upgrade for TLS Routing should be required when the client and the server fail to negotiate the ALPN
+protocol, hinting there is a load balancer in the middle that terminates TLS.
 
 However, this test may not be bullet proof. In particular, the test explicitly looks for `tls: no application protocol`
 from the remote when handshakes fails, but it is possible that a load balancer implementation decides to use a different
@@ -237,7 +237,17 @@ Application Access through Teleport Webapp is NOT affected by the issue of inter
 On the `tsh` side, TCP, AWS, Azure, and GCP apps always use a local proxy so they will automatically perform the
 connection upgrade when needed. No UX change to these.
 
-However, HTTP apps MUST use `tsh proxy app`.
+However, HTTP apps MUST use `tsh proxy app`. For example:
+```
+$ tsh apps login my-app
+Logged into app my-app. Start the local proxy for it:
+
+  tsh proxy app my-app -p 8080
+
+Then connect to the application through this proxy:
+
+  curl http://127.0.0.1:8080
+```
 
 #### 3 - Kubernetes Access UX
 
@@ -298,7 +308,7 @@ authentication remains the same as if there is no connection upgrade.
 
 The downside doing the connection upgrade is the performance penalty.
 
-The connection is already double encrypted with TLS Routing, and now it is tripple encrypted with connection upgrade.
+The connection is already double encrypted with TLS Routing, and now it is triple encrypted with connection upgrade.
 Mordern processors should have no trouble doing the job, but concurrent TLS Routing requests with connection upgrades
 may affect CPU usage.
 
@@ -306,7 +316,7 @@ The more noticeable impact is likely the latency incurred by the **extra roundtr
 API call throub connection upgrade by `tsh` may take double the time as before, since the latency between `tsh` and
 Teleport Proxy is usually more significant than the latency within the Teleport agents.
 
-Some ideas for improving performance includes implementing resuable upgraded connections and multiplexing concurrent TLS
+Some ideas for improving performance includes implementing reusable upgraded connections and multiplexing concurrent TLS
 Routing requests. This RFD should be updated once we have more detailed plans on performance improvements.
 
 ### Keepalive
