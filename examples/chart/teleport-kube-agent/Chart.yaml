@@ -1,4 +1,4 @@
-.version: &version "11.3.5-dev.tcsc.01"
+.version: &version "11.3.5-dev.tcsc.02"
 
 name: teleport-kube-agent
 apiVersion: v2
