@@ -273,7 +273,7 @@ func signChallenge(chal []byte) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	priv, err := appKey.Private(appKey.Public)
+	priv, err := appKey.Private(appKey.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
