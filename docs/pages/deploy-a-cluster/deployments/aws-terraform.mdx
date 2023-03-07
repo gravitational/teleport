@@ -203,7 +203,7 @@ Our Terraform setup requires you to have your domain provisioned in AWS Route 53
 DNS records for [`route53_domain`](#route53\_domain) as set up below. You can list these with this command:
 
 ```code
-$ aws route53 list-hosted-zones --query "HostedZones[*].Name" --output text
+$ aws route53 list-hosted-zones --query "HostedZones[*].Name" --output json
 [
     "example.com.",
     "testing.net.",
