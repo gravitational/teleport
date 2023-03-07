@@ -51,10 +51,29 @@ import (
 // See the following for the structure:
 // https://docs.gitlab.com/ee/ci/cloud_services/#how-it-works
 type IDTokenClaims struct {
-	// Sub also known as Subject is a string that roughly uniquely identifies
-	// the workload. The format of this varies depending on the type of
-	// github action run.
+	// Sub roughly uniquely identifies the workload. Example:
+	// `project_path:mygroup/my-project:ref_type:branch:ref:main`
+	// project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}
 	Sub string `json:"sub"`
+	// Git ref for this job
+	Ref string `json:"ref"`
+	// Git ref type. Example:
+	// `branch` or `tag`
+	RefType string `json:"ref_type"`
+	// Use this to scope to group or user level namespace by path. Example:
+	// `mygroup`
+	NamespacePath string `json:"namespace_path"`
+	// Use this to scope to project by path. Example:
+	// `mygroup/myproject`
+	ProjectPath string `json:"project_path"`
+	// Username of the user executing the job
+	UserLogin string `json:"user_login"`
+	// Pipeline source.
+	// https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules
+	// Example: `web`
+	PipelineSource string `json:"pipeline_source"`
+	// Environment this job deploys to (if one is associated)
+	Environment string `json:"environment"`
 }
 
 // JoinAuditAttributes returns a series of attributes that can be inserted into

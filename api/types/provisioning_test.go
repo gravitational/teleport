@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"github.com/gravitational/teleport/api/defaults"
 	"testing"
 	"time"
 
@@ -448,6 +449,93 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 			expectedErr: &trace.BadParameterError{},
 		},
+		{
+			desc: "gitlab empty allow rules",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab: &ProvisionTokenSpecV2GitLab{
+						Allow: []*ProvisionTokenSpecV2GitLab_Rule{},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "gitlab missing config",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab:     nil,
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "gitlab empty allow rule",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab: &ProvisionTokenSpecV2GitLab{
+						Allow: []*ProvisionTokenSpecV2GitLab_Rule{
+							{},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "gitlab defaults",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab: &ProvisionTokenSpecV2GitLab{
+						Allow: []*ProvisionTokenSpecV2GitLab_Rule{
+							{
+								Sub: "asub",
+							},
+						},
+					},
+				},
+			},
+			expected: &ProvisionTokenV2{
+				Kind:    KindToken,
+				Version: V2,
+				Metadata: Metadata{
+					Name:      "test",
+					Namespace: defaults.Namespace,
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab: &ProvisionTokenSpecV2GitLab{
+						Allow: []*ProvisionTokenSpecV2GitLab_Rule{
+							{
+								Sub: "asub",
+							},
+						},
+						Domain: defaultGitLabDomain,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range testcases {
@@ -459,7 +547,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			}
 			require.NoError(t, err)
 			if tc.expected != nil {
-				require.Equal(t, tc.token, tc.expected)
+				require.Equal(t, tc.expected, tc.token)
 			}
 		})
 	}
