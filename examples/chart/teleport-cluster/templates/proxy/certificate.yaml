@@ -1,4 +1,4 @@
-{{- $proxy := mustMergeOverwrite .Values .Values.proxy -}}
+{{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- if $proxy.highAvailability.certManager.enabled }}
   {{- $domain := (required "clusterName is required in chartValues when certManager is enabled" $proxy.clusterName) }}
   {{- $domainWildcard := printf "*.%s" (required "clusterName is required in chartValues when certManager is enabled" $proxy.clusterName) }}

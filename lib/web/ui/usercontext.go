@@ -17,12 +17,9 @@ limitations under the License.
 package ui
 
 import (
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -80,8 +77,6 @@ type userACL struct {
 	KubeServers access `json:"kubeServers"`
 	// Desktops defines access to desktops.
 	Desktops access `json:"desktops"`
-	// WindowsLogins defines access to logins on windows desktop servers.
-	WindowsLogins []string `json:"windowsLogins"`
 	// AccessRequests defines access to access requests.
 	AccessRequests access `json:"accessRequests"`
 	// Billing defines access to billing information.
@@ -124,26 +119,6 @@ type UserContext struct {
 	// ConsumedAccessRequestID is the request ID of the access request from which the assumed role was
 	// obtained
 	ConsumedAccessRequestID string `json:"accessRequestId,omitempty"`
-}
-
-func getWindowsDesktopLogins(roleSet services.RoleSet) []string {
-	allowed := []string{}
-	denied := []string{}
-	for _, role := range roleSet {
-		denied = append(denied, role.GetWindowsLogins(types.Deny)...)
-		allowed = append(allowed, role.GetWindowsLogins(types.Allow)...)
-	}
-
-	allowed = apiutils.Deduplicate(allowed)
-	denied = apiutils.Deduplicate(denied)
-	desktopLogins := []string{}
-	for _, login := range allowed {
-		if isDenied := slices.Contains(denied, login); !isDenied {
-			desktopLogins = append(desktopLogins, login)
-		}
-	}
-
-	return desktopLogins
 }
 
 func hasAccess(roleSet services.RoleSet, ctx *services.Context, kind string, verbs ...string) bool {
@@ -217,7 +192,6 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	}
 
 	accessStrategy := getAccessStrategy(userRoles)
-	windowsLogins := getWindowsDesktopLogins(userRoles)
 	clipboard := userRoles.DesktopClipboard()
 	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
 	directorySharing := userRoles.DesktopDirectorySharing()
@@ -237,7 +211,6 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		ActiveSessions:          activeSessionAccess,
 		Roles:                   roleAccess,
 		Events:                  eventAccess,
-		WindowsLogins:           windowsLogins,
 		Users:                   userAccess,
 		Tokens:                  tokenAccess,
 		Nodes:                   nodeAccess,

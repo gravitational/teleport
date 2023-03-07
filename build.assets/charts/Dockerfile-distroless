@@ -1,0 +1,25 @@
+ARG BASE_IMAGE=gcr.io/distroless/cc-debian11
+
+FROM debian:11 AS staging
+RUN apt-get update 
+COPY fetch-debs ./
+RUN ./fetch-debs dumb-init libpam0g libaudit1 libcap-ng0
+
+FROM debian:11 AS teleport
+# NOTE that the TELEPORT_RELEASE_INFIX *must* include the leading dash if set
+ARG TELEPORT_RELEASE_INFIX
+ARG TELEPORT_VERSION
+ARG TARGETARCH
+ENV TELEPORT_DEB_FILE_NAME=teleport${TELEPORT_RELEASE_INFIX}_${TELEPORT_VERSION}_${TARGETARCH}.deb
+COPY $TELEPORT_DEB_FILE_NAME ./$TELEPORT_DEB_FILE_NAME
+RUN dpkg-deb -R $TELEPORT_DEB_FILE_NAME /opt/staging && \
+    mkdir -p /opt/staging/etc/teleport && \
+    mkdir -p /opt/staging/var/lib/dpkg/status.d/ && \
+    mv /opt/staging/DEBIAN/control /opt/staging/var/lib/dpkg/status.d/teleport && \
+    rm -rf /opt/staging/DEBIAN
+
+FROM $BASE_IMAGE
+COPY --from=teleport /opt/staging /
+COPY --from=staging /opt/staging/root /
+COPY --from=staging /opt/staging/status /var/lib/dpkg/status.d
+ENTRYPOINT ["/usr/bin/dumb-init", "/usr/local/bin/teleport", "start", "-c", "/etc/teleport/teleport.yaml"]

@@ -652,11 +652,10 @@ export default function createClient(
       abortSignal: types.TshAbortSignal
     ) {
       const req = new api.FileTransferRequest()
+        .setServerUri(options.serverUri)
         .setLogin(options.login)
         .setSource(options.source)
         .setDestination(options.destination)
-        .setHostname(options.hostname)
-        .setClusterUri(options.clusterUri)
         .setDirection(options.direction);
 
       return createFileTransferStream(tshd.transferFile(req), abortSignal);

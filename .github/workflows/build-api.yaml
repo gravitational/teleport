@@ -4,11 +4,13 @@ run-name: Build API Module
 on:
   pull_request:
     paths:
+      - .github/workflows/build-api.yaml
       - 'api/**/*.go'
       - 'api/go.mod'
       - 'api/go.sum'
   merge_group:
     paths:
+      - .github/workflows/build-api.yaml
       - 'api/**/*.go'
       - 'api/go.mod'
       - 'api/go.sum'
@@ -32,5 +34,8 @@ jobs:
           # use the version declared in API's go.mod
           go-version-file: api/go.mod
 
+      - name: Init workspace
+        run: go work init . ./api/
+        
       - name: Build
         run: go build ./api/...

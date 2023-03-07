@@ -1,0 +1,93 @@
+ssh_service:
+    # Turns 'ssh' role on. Default is 'yes'
+    enabled: yes
+
+    # IP and the port for SSH service to bind to.
+    listen_addr: 0.0.0.0:3022
+
+    # The optional public address the SSH service. This is useful if
+    # administrators want to allow users to connect to nodes directly,
+    # bypassing a Teleport proxy.
+    public_addr: node.example.com:3022
+
+    # See the explanation of labels in the "Labels" page
+    # (https://goteleport.com/docs/setup/admin/labels).
+    labels:
+        role: leader
+        type: postgres
+
+    # List of the commands to periodically execute. Their output will be used
+    # as node labels.
+    # See the "Labels" page for more information and more examples
+    # (https://goteleport.com/docs/setup/admin/labels).
+    commands:
+    # this command will add a label 'arch=x86_64' to a node
+    - name: arch
+      command: ['/bin/uname', '-p']
+      period: 1h0m0s
+
+    # Enables reading ~/.tsh/environment on the server before creating a session.
+    # Disabled by default. Can be enabled here or via the `--permit-user-env` flag.
+    permit_user_env: false
+
+    # Disables automatic creation of host users on this SSH node.
+    # Set to false by default.
+    disable_create_host_user: true
+
+    # Enhanced Session Recording
+    # see https://goteleport.com/docs/features/enhanced-session-recording/
+    enhanced_recording:
+       # Enable or disable enhanced auditing for this node. Default value:
+       # false.
+       enabled: false
+
+       # command_buffer_size is optional with a default value of 8 pages.
+       command_buffer_size: 8
+
+       # disk_buffer_size is optional with default value of 128 pages.
+       disk_buffer_size: 128
+
+       # network_buffer_size is optional with default value of 8 pages.
+       network_buffer_size: 8
+
+       # Controls where cgroupv2 hierarchy is mounted. Default value:
+       # /cgroup2.
+       cgroup_path: /cgroup2
+
+    # Configures PAM integration. See our PAM guide for more details
+    # (https://goteleport.com/docs/features/ssh-pam/).
+    pam:
+        # "no" by default
+        enabled: yes
+        # use /etc/pam.d/sshd configuration (the default)
+        service_name: "sshd"
+        # use the "auth" modules in the PAM config
+        # "false" by default
+        use_pam_auth: true
+
+    # Enables/disables TCP forwarding. Default is 'true'
+    port_forwarding: true
+
+    # When x11.enabled is set to yes, users with the "permit_x11_forwarding"
+    # role option will be able to request X11 forwarding sessions with
+    # "tsh ssh -X".
+    #
+    # X11 forwarding will only work if the server has the "xauth" binary
+    # installed and the Teleport Node can open Unix sockets.
+    # e.g. "$TEMP/.X11-unix/X[display_number]."
+    x11:
+      # no by default
+      enabled: yes
+      # display_offset can be used to specify the start of the range of X11
+      # displays the server will use when granting X11 forwarding sessions
+      # 10 by default
+      display_offset: 10
+      # max_display can be set to specify the end of the range of X11 displays
+      # to use when granting X11 forwarding sessions
+      # display_offset + 1000 by default
+      max_display: 1010
+
+    # Enables/disables remote file operations via SCP/SFTP for this Node. Default
+    # value: true
+    ssh_file_copy: true
+

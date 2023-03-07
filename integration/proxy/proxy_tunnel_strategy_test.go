@@ -437,7 +437,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 		},
 	}
 
-	_, role, err := auth.CreateUserAndRole(p.auth.Process.GetAuthServer(), p.username, []string{p.username})
+	_, role, err := auth.CreateUserAndRole(p.auth.Process.GetAuthServer(), p.username, []string{p.username}, nil)
 	require.NoError(t, err)
 
 	role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
