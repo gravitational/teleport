@@ -1,5 +1,19 @@
 # Changelog
 
+## 11.3.6
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with `tsh scp` overriding file permissions without `-p` flag. [#22610](https://github.com/gravitational/teleport/pull/22610)
+* Fixed issue with `tsh` not respecting `HTTPS_PROXY` in some cases. [#22491](https://github.com/gravitational/teleport/pull/22491)
+* Fixed issue with PuTTY's `winadj` channel messages not being handled correctly. [#22419](https://github.com/gravitational/teleport/pull/22419)
+* Downgraded Go to `v1.19.7` to resolve memory leak issues. [#22719](https://github.com/gravitational/teleport/pull/22719)
+* Added ability to acknowledge alert of any severity with `tctl alert ack`. [#22583](https://github.com/gravitational/teleport/pull/22583)
+* Added support for IAM joining for `ap-southeast-4` region. [#22487](https://github.com/gravitational/teleport/pull/22487)
+* Added `--trace-profile` flag to `tsh` allowing to generate runtime trace profiles [#22407](https://github.com/gravitational/teleport/pull/22407)
+* Improved performance when fetching remote clusters using `tctl` or API. [#22574](https://github.com/gravitational/teleport/pull/22574)
+* Improved cluster connect performance in Teleport Connect. [#22319](https://github.com/gravitational/teleport/pull/22319)
+
 ## 11.3.5
 
 This release of Teleport contains a security fix as well as multiple improvements and bug fixes.
