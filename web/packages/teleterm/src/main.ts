@@ -66,7 +66,8 @@ async function initializeApp(): Promise<void> {
     settings,
     logger,
     configService,
-    fileStorage: appStateFileStorage,
+    appStateFileStorage,
+    configFileStorage,
     windowsManager,
   });
 

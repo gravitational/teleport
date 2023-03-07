@@ -72,6 +72,8 @@ export type MainProcessClient = {
    * prompt. The promise gets rejected if osascript encountered an error.
    */
   removeTshSymlinkMacOs(): Promise<boolean>;
+
+  openConfigFile(): void;
 };
 
 export type ChildProcessAddresses = {

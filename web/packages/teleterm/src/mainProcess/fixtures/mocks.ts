@@ -64,6 +64,8 @@ export class MockMainProcessClient implements MainProcessClient {
   async removeTshSymlinkMacOs() {
     return true;
   }
+
+  openConfigFile() {}
 }
 
 const defaultRuntimeSettings = {
