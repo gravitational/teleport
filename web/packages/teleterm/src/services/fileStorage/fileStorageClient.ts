@@ -38,6 +38,8 @@ export function subscribeToFileStorageEvents(configService: FileStorage): void {
           return configService.replace(item.json);
         case FileStorageEventType.GetFilePath:
           return configService.getFilePath();
+        case FileStorageEventType.GetFileLoadingError:
+          return configService.getFileLoadingError();
       }
     }
   );
@@ -68,6 +70,12 @@ export function createFileStorageClient(): FileStorage {
       ipcRenderer.sendSync(
         FileStorageEventChannel,
         FileStorageEventType.GetFilePath,
+        {}
+      ),
+    getFileLoadingError: () =>
+      ipcRenderer.sendSync(
+        FileStorageEventChannel,
+        FileStorageEventType.GetFileLoadingError,
         {}
       ),
   };

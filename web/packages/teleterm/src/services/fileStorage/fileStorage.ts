@@ -37,6 +37,9 @@ export interface FileStorage {
 
   /** Returns the file path used to create the storage. */
   getFilePath(): string;
+
+  /** Returns the error that could occur while reading and parsing the file. */
+  getFileLoadingError(): Error | undefined;
 }
 
 export function createFileStorage(opts: {
@@ -48,7 +51,7 @@ export function createFileStorage(opts: {
   }
 
   const { filePath } = opts;
-  let state = loadState(opts.filePath);
+  let { state, error } = loadState(opts.filePath);
 
   function put(key: string, json: any): void {
     state[key] = json;
@@ -77,6 +80,10 @@ export function createFileStorage(opts: {
     return opts.filePath;
   }
 
+  function getFileLoadingError(): Error | undefined {
+    return error;
+  }
+
   function stringifyAndWrite(): void {
     const text = stringify(state);
 
@@ -91,19 +98,25 @@ export function createFileStorage(opts: {
     get,
     replace,
     getFilePath,
+    getFileLoadingError,
   };
 }
 
-function loadState(filePath: string) {
+function loadState(filePath: string): { state: any; error: Error | undefined } {
   try {
     if (!existsSync(filePath)) {
       writeFileSync(filePath, '{}');
     }
-
-    return JSON.parse(readFileSync(filePath, { encoding: 'utf-8' }));
+    return {
+      state: JSON.parse(readFileSync(filePath, { encoding: 'utf-8' })),
+      error: undefined,
+    };
   } catch (error) {
     logger.error(`Cannot read ${filePath} file`, error);
-    return {};
+    return {
+      state: {},
+      error: error,
+    };
   }
 }
 

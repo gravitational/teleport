@@ -35,8 +35,12 @@ export function createMockFileStorage(opts?: {
       state = json;
     },
 
-    getFilePath(): string {
+    getFilePath() {
       return opts?.filePath || '';
+    },
+
+    getFileLoadingError() {
+      return undefined;
     },
   };
 }
