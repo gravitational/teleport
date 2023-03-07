@@ -22,7 +22,7 @@ import {
   invalidKeyCodeIssue,
   duplicateModifierIssue,
   missingModifierIssue,
-} from './getKeyboardShortcutSchema';
+} from './keyboardShortcutSchema';
 
 const schema = z.object({
   'keymap.tab1': getKeyboardShortcutSchema('darwin'),

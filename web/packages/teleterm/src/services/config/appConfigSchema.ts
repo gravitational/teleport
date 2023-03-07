@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { Platform } from 'teleterm/mainProcess/types';
 
-import { getKeyboardShortcutSchema } from './getKeyboardShortcutSchema';
+import { getKeyboardShortcutSchema } from './keyboardShortcutSchema';
 
 export type AppConfigSchema = ReturnType<typeof createAppConfigSchema>;
 export type AppConfig = z.infer<AppConfigSchema>;

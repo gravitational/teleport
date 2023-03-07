@@ -27,7 +27,7 @@ import {
   createAppConfigSchema,
   AppConfigSchema,
   AppConfig,
-} from './createAppConfigSchema';
+} from './appConfigSchema';
 
 const logger = new Logger('ConfigService');
 
