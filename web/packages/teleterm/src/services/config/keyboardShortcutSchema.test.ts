@@ -17,7 +17,7 @@
 import { z, ZodError } from 'zod';
 
 import {
-  getKeyboardShortcutSchema,
+  createKeyboardShortcutSchema,
   invalidModifierIssue,
   invalidKeyCodeIssue,
   duplicateModifierIssue,
@@ -25,7 +25,7 @@ import {
 } from './keyboardShortcutSchema';
 
 const schema = z.object({
-  'keymap.tab1': getKeyboardShortcutSchema('darwin'),
+  'keymap.tab1': createKeyboardShortcutSchema('darwin'),
 });
 
 function getZodError(...issues: any[]): z.ZodError {

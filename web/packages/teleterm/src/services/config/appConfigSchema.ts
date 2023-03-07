@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { Platform } from 'teleterm/mainProcess/types';
 
-import { getKeyboardShortcutSchema } from './keyboardShortcutSchema';
+import { createKeyboardShortcutSchema } from './keyboardShortcutSchema';
 
 export type AppConfigSchema = ReturnType<typeof createAppConfigSchema>;
 export type AppConfig = z.infer<AppConfigSchema>;
@@ -11,7 +11,7 @@ export const createAppConfigSchema = (platform: Platform) => {
   const defaultKeymap = getDefaultKeymap(platform);
   const defaultTerminalFont = getDefaultTerminalFont(platform);
 
-  const shortcutSchema = getKeyboardShortcutSchema(platform);
+  const shortcutSchema = createKeyboardShortcutSchema(platform);
 
   // `keymap.` prefix is used in `initUi.ts` in a predicate function.
   return z.object({
