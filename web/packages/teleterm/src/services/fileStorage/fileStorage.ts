@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import fs, { existsSync, readFileSync, writeFileSync } from 'fs';
+import fs from 'fs';
 
 import { debounce } from 'shared/utils/highbar';
 
@@ -42,18 +42,18 @@ export interface FileStorage {
   getFileLoadingError(): Error | undefined;
 }
 
-export function createFileStorage(opts: {
+export async function createFileStorage(opts: {
   filePath: string;
   debounceWrites: boolean;
   /** Prevents state updates when the file has not been loaded correctly, so its content will not be overwritten. */
   discardUpdatesWhenLoadingFileFailed?: boolean;
-}): FileStorage {
+}): Promise<FileStorage> {
   if (!opts || !opts.filePath) {
     throw Error('missing filePath');
   }
 
   const { filePath } = opts;
-  let { state, error } = loadState(opts.filePath);
+  let { state, error } = await loadState(opts.filePath);
   const discardUpdates = error && opts.discardUpdatesWhenLoadingFileFailed;
 
   function put(key: string, json: any): void {
@@ -114,13 +114,13 @@ export function createFileStorage(opts: {
   };
 }
 
-function loadState(filePath: string): { state: any; error: Error | undefined } {
+async function loadState(
+  filePath: string
+): Promise<{ state: any; error: Error | undefined }> {
   try {
-    if (!existsSync(filePath)) {
-      writeFileSync(filePath, '{}');
-    }
+    const file = await readOrCreateFile(filePath);
     return {
-      state: JSON.parse(readFileSync(filePath, { encoding: 'utf-8' })),
+      state: JSON.parse(file),
       error: undefined,
     };
   } catch (error) {
@@ -129,6 +129,19 @@ function loadState(filePath: string): { state: any; error: Error | undefined } {
       state: {},
       error: error,
     };
+  }
+}
+
+async function readOrCreateFile(filePath: string): Promise<string> {
+  try {
+    return await fs.promises.readFile(filePath, { encoding: 'utf-8' });
+  } catch (error) {
+    const defaultValue = '{}';
+    if (error?.code === 'ENOENT') {
+      await fs.promises.writeFile(filePath, defaultValue);
+      return defaultValue;
+    }
+    throw error;
   }
 }
 

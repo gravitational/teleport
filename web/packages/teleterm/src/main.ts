@@ -39,23 +39,15 @@ if (app.requestSingleInstanceLock()) {
   app.exit(1);
 }
 
-function initializeApp(): void {
+async function initializeApp(): Promise<void> {
   let devRelaunchScheduled = false;
   const settings = getRuntimeSettings();
   const logger = initMainLogger(settings);
-  const appStateFileStorage = createFileStorage({
-    filePath: path.join(settings.userDataDir, 'app_state.json'),
-    debounceWrites: true,
-  });
-  const configFileStorage = createFileStorage({
-    filePath: path.join(settings.userDataDir, 'app_config.json'),
-    debounceWrites: false,
-    discardUpdatesWhenLoadingFileFailed: true,
-  });
-  const configJsonSchemaFileStorage = createFileStorage({
-    filePath: path.join(settings.userDataDir, 'schema_app_config.json'),
-    debounceWrites: false,
-  });
+  const {
+    appStateFileStorage,
+    configFileStorage,
+    configJsonSchemaFileStorage,
+  } = await createFileStorages(settings.userDataDir);
 
   const configService = createConfigService({
     configFile: configFileStorage,
@@ -204,4 +196,26 @@ function initMainLogger(settings: types.RuntimeSettings) {
   Logger.init(service);
 
   return new Logger('Main');
+}
+
+function createFileStorages(userDataDir: string) {
+  return Promise.all([
+    createFileStorage({
+      filePath: path.join(userDataDir, 'app_state.json'),
+      debounceWrites: true,
+    }),
+    createFileStorage({
+      filePath: path.join(userDataDir, 'app_config.json'),
+      debounceWrites: false,
+      discardUpdatesWhenLoadingFileFailed: true,
+    }),
+    createFileStorage({
+      filePath: path.join(userDataDir, 'schema_app_config.json'),
+      debounceWrites: false,
+    }),
+  ]).then(storages => ({
+    appStateFileStorage: storages[0],
+    configFileStorage: storages[1],
+    configJsonSchemaFileStorage: storages[2],
+  }));
 }
