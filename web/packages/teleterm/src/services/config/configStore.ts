@@ -14,50 +14,50 @@
  * limitations under the License.
  */
 
-import { z, ZodIssue } from 'zod';
+import { ZodIssue } from 'zod';
 
 import { FileStorage } from 'teleterm/services/fileStorage';
 import Logger from 'teleterm/logger';
+import { Platform } from 'teleterm/mainProcess/types';
 
-const logger = new Logger('ConfigStore');
+import { createAppConfigSchema, AppConfig } from './createAppConfigSchema';
 
-export function createConfigStore<
-  Schema extends z.ZodTypeAny,
-  Shape = z.infer<Schema>
->(schema: Schema, fileStorage: FileStorage) {
+const logger = new Logger('ConfigService');
+
+export interface ConfigService {
+  get<K extends keyof AppConfig>(
+    key: K
+  ): { value: AppConfig[K]; metadata: { isStored: boolean } };
+
+  set<K extends keyof AppConfig>(key: K, value: AppConfig[K]): void;
+
+  getStoredConfigErrors(): ZodIssue[] | undefined;
+}
+
+export function createConfigService({
+  configFile,
+  jsonSchemaFile,
+  platform,
+}: {
+  configFile: FileStorage;
+  jsonSchemaFile: FileStorage;
+  platform: Platform;
+}): ConfigService {
+  const schema = createAppConfigSchema(platform);
   const { storedConfig, configWithDefaults, errors } = validateStoredConfig();
 
-  function get<K extends keyof Shape>(
-    key: K
-  ): { value: Shape[K]; metadata: { isStored: boolean } } {
-    return {
-      value: configWithDefaults[key],
-      metadata: { isStored: storedConfig[key] !== undefined },
-    };
-  }
-
-  function set<K extends keyof Shape>(key: K, value: Shape[K]): void {
-    fileStorage.put(key as string, value);
-    configWithDefaults[key] = value;
-    storedConfig[key] = value;
-  }
-
-  function getStoredConfigErrors(): ZodIssue[] | undefined {
-    return errors;
-  }
-
-  function parse(data: Partial<Shape>) {
+  function parse(data: Partial<AppConfig>) {
     return schema.safeParse(data);
   }
 
   //TODO (gzdunek): syntax errors of the JSON file are silently ignored, report
   // them to the user too
   function validateStoredConfig(): {
-    storedConfig: Partial<Shape>;
-    configWithDefaults: Shape;
+    storedConfig: Partial<AppConfig>;
+    configWithDefaults: AppConfig;
     errors: ZodIssue[] | undefined;
   } {
-    const storedConfig = fileStorage.get<Partial<Shape>>();
+    const storedConfig = configFile.get<Partial<AppConfig>>();
     const parsed = parse(storedConfig);
     if (parsed.success === true) {
       return {
@@ -88,5 +88,16 @@ export function createConfigStore<
     };
   }
 
-  return { get, set, getStoredConfigErrors };
+  return {
+    get: key => ({
+      value: configWithDefaults[key],
+      metadata: { isStored: storedConfig[key] !== undefined },
+    }),
+    set: (key, value) => {
+      configFile.put(key as string, value);
+      configWithDefaults[key] = value;
+      storedConfig[key] = value;
+    },
+    getStoredConfigErrors: () => errors,
+  };
 }

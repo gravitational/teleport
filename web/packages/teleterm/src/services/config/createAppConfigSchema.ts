@@ -1,29 +1,12 @@
-/**
- * Copyright 2023 Gravitational, Inc
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import { z } from 'zod';
 
-import { FileStorage } from 'teleterm/services/fileStorage';
 import { Platform } from 'teleterm/mainProcess/types';
 
-import { createConfigStore } from './configStore';
 import { getKeyboardShortcutSchema } from './getKeyboardShortcutSchema';
-import { updateJsonSchema } from './updateJsonSchema';
 
-const createAppConfigSchema = (platform: Platform) => {
+export type AppConfig = z.infer<ReturnType<typeof createAppConfigSchema>>;
+
+export const createAppConfigSchema = (platform: Platform) => {
   const defaultKeymap = getDefaultKeymap(platform);
   const defaultTerminalFont = getDefaultTerminalFont(platform);
 
@@ -105,8 +88,6 @@ const createAppConfigSchema = (platform: Platform) => {
       .describe('Font size for the terminal.'),
   });
 };
-
-export type AppConfig = z.infer<ReturnType<typeof createAppConfigSchema>>;
 
 export type KeyboardShortcutAction =
   | 'tab1'
@@ -206,25 +187,3 @@ function getDefaultTerminalFont(platform: Platform) {
 function getShortcutDesc(actionDesc: string): string {
   return `Shortcut to ${actionDesc}. A valid shortcut contains at least one modifier and a single key code, for example "Shift+Tab". Function keys do not require a modifier.`;
 }
-
-export function createConfigService({
-  configFile,
-  jsonSchemaFile,
-  platform,
-}: {
-  configFile: FileStorage;
-  jsonSchemaFile: FileStorage;
-  platform: Platform;
-}) {
-  const schema = createAppConfigSchema(platform);
-
-  updateJsonSchema({
-    schema,
-    configFile,
-    jsonSchemaFile,
-  });
-
-  return createConfigStore(schema, configFile);
-}
-
-export type ConfigService = ReturnType<typeof createConfigService>;
