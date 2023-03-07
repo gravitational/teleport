@@ -42,13 +42,6 @@ const (
 	appSuffix = "-app.ref"
 )
 
-// keyConfig contains the parameters for the generated application keys.
-// These have been picked for maximum compatibility.
-var keyConfig = &attest.KeyConfig{
-	Algorithm: attest.RSA,
-	Size:      2048,
-}
-
 func tpmFilePath(elem ...string) string {
 	user, err := user.Current()
 	if err != nil {
@@ -143,7 +136,7 @@ func getOrCreateAppKey(tpm *attest.TPM, ak *attest.AK) (uuid.UUID, *attest.Key, 
 		}
 	}
 
-	key, err := tpm.NewKey(ak, keyConfig)
+	key, err := tpm.NewKey(ak, nil)
 	if err != nil {
 		return uuid.UUID{}, nil, trace.Wrap(err)
 	}
