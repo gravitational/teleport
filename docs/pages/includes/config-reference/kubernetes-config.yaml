@@ -37,5 +37,9 @@ kubernetes_service:
        period: "5s"
     # Get cluster name on GKE.
     - name: cluster-name
-      command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
+      command: 
+        - 'curl'
+        - 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name'
+        - '-H'
+        - 'Metadata-Flavor: Google'
       period: 1m0s
