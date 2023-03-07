@@ -43,7 +43,7 @@ import (
 type APIConfig struct {
 	PluginRegistry plugin.Registry
 	AuthServer     *Server
-	AuditLog       events.IAuditLog
+	AuditLog       events.AuditLogSessionStreamer
 	Authorizer     Authorizer
 	Emitter        apievents.Emitter
 	// KeepAlivePeriod defines period between keep alives
@@ -931,12 +931,8 @@ func (s *APIServer) getSessionEvents(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		afterN = 0
 	}
-	includePrintEvents, err := strconv.ParseBool(r.URL.Query().Get("print"))
-	if err != nil {
-		includePrintEvents = false
-	}
 
-	return auth.GetSessionEvents(namespace, *sid, afterN, includePrintEvents)
+	return auth.GetSessionEvents(namespace, *sid, afterN)
 }
 
 type upsertNamespaceReq struct {
