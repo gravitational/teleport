@@ -23,12 +23,12 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/user"
 	"path"
 	"path/filepath"
 	"strings"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/trace"
 
 	"github.com/google/go-attestation/attest"
@@ -49,9 +49,13 @@ var keyConfig = &attest.KeyConfig{
 	Size:      2048,
 }
 
-// TODO(joel): pass state from tsh profile
 func tpmFilePath(elem ...string) string {
-	fullElems := append([]string{profile.FullProfilePath("")}, elem...)
+	user, err := user.Current()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	fullElems := append([]string{user.HomeDir}, elem...)
 	return path.Join(fullElems...)
 }
 
