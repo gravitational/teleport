@@ -211,6 +211,8 @@ $ tbot init \
     --reader-user=app
 ```
 
+(!docs/pages/includes/machine-id/machine-id-init-bot-data.mdx!)
+
 Next, you will use systemd to run Machine ID in the background on your
 bot node. Create a systemd.unit file at
 `/etc/systemd/system/machine-id.service`:
@@ -225,6 +227,7 @@ Type=simple
 User=teleport
 Group=teleport
 Restart=on-failure
+Environment="TELEPORT_ANONYMOUS_TELEMETRY=1"
 ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/machine-id.pid
@@ -236,11 +239,7 @@ WantedBy=multi-user.target
 
 Finally, run the following commands to start Machine ID:
 
-```code
-$ sudo systemctl daemon-reload 
-$ sudo systemctl start machine-id
-$ sudo systemctl status machine-id
-```
+(!docs/pages/includes/machine-id/machine-id-service.mdx!)
 
 ## Step 3/3. Connect to your Kubernetes cluster with the Machine ID identity
 
@@ -268,3 +267,7 @@ This `kubeconfig.yaml` can also be passed to any other Kubernetes API clients
 that support credential provider plugins, including those built with 
 [`kubernetes/client-go`](https://github.com/kubernetes/client-go) and most other
 language libraries.
+
+## Next steps
+
+[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)

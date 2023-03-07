@@ -86,6 +86,11 @@ type AuthPreference interface {
 	// SetAllowPasswordless sets the value of the allow passwordless setting.
 	SetAllowPasswordless(b bool)
 
+	// GetAllowHeadless returns if headless is allowed by cluster settings.
+	GetAllowHeadless() bool
+	// SetAllowHeadless sets the value of the allow headless setting.
+	SetAllowHeadless(b bool)
+
 	// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
 	GetRequireMFAType() RequireMFAType
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
@@ -116,6 +121,11 @@ type AuthPreference interface {
 	GetDeviceTrust() *DeviceTrust
 	// SetDeviceTrust sets the cluster device trust settings.
 	SetDeviceTrust(*DeviceTrust)
+
+	// IsSAMLIdPEnabled returns true if the SAML IdP is enabled.
+	IsSAMLIdPEnabled() bool
+	// SetSAMLIdPEnabled sets the SAML IdP to enabled.
+	SetSAMLIdPEnabled(bool)
 
 	// String represents a human readable version of authentication settings.
 	String() string
@@ -336,6 +346,14 @@ func (c *AuthPreferenceV2) SetAllowPasswordless(b bool) {
 	c.Spec.AllowPasswordless = NewBoolOption(b)
 }
 
+func (c *AuthPreferenceV2) GetAllowHeadless() bool {
+	return c.Spec.AllowHeadless != nil && c.Spec.AllowHeadless.Value
+}
+
+func (c *AuthPreferenceV2) SetAllowHeadless(b bool) {
+	c.Spec.AllowHeadless = NewBoolOption(b)
+}
+
 // GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
 func (c *AuthPreferenceV2) GetRequireMFAType() RequireMFAType {
 	return c.Spec.RequireMFAType
@@ -407,6 +425,16 @@ func (c *AuthPreferenceV2) SetDeviceTrust(dt *DeviceTrust) {
 	c.Spec.DeviceTrust = dt
 }
 
+// IsSAMLIdPEnabled returns true if the SAML IdP is enabled.
+func (c *AuthPreferenceV2) IsSAMLIdPEnabled() bool {
+	return c.Spec.IDP.SAML.Enabled.Value
+}
+
+// SetSAMLIdPEnabled sets the SAML IdP to enabled.
+func (c *AuthPreferenceV2) SetSAMLIdPEnabled(enabled bool) {
+	c.Spec.IDP.SAML.Enabled = NewBoolOption(enabled)
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (c *AuthPreferenceV2) setStaticFields() {
 	c.Kind = KindClusterAuthPreference
@@ -444,12 +472,10 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	switch c.Spec.Type {
-	case constants.Local:
-		if !c.Spec.AllowLocalAuth.Value {
-			log.Warn("Ignoring local_auth=false when authentication.type=local")
-			c.Spec.AllowLocalAuth.Value = true
-		}
-	case constants.OIDC, constants.SAML, constants.Github:
+	case constants.Local, constants.OIDC, constants.SAML, constants.Github:
+		// Note that "type:local" and "local_auth:false" is considered a valid
+		// setting, as it is a common idiom for clusters that rely on dynamic
+		// configuration.
 	default:
 		return trace.BadParameter("authentication type %q not supported", c.Spec.Type)
 	}
@@ -522,6 +548,14 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing required Webauthn configuration for passwordless=true")
 	}
 
+	// Set/validate AllowHeadless. We need Webauthn first to do this properly.
+	switch {
+	case c.Spec.AllowHeadless == nil:
+		c.Spec.AllowHeadless = NewBoolOption(hasWebauthn)
+	case !hasWebauthn && c.Spec.AllowHeadless.Value:
+		return trace.BadParameter("missing required Webauthn configuration for headless=true")
+	}
+
 	// Validate connector name for type=local.
 	if c.Spec.Type == constants.Local {
 		switch connectorName := c.Spec.ConnectorName; connectorName {
@@ -529,6 +563,10 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		case constants.PasswordlessConnector:
 			if !c.Spec.AllowPasswordless.Value {
 				return trace.BadParameter("invalid local connector %q, passwordless not allowed by cluster settings", connectorName)
+			}
+		case constants.HeadlessConnector:
+			if !c.Spec.AllowHeadless.Value {
+				return trace.BadParameter("invalid local connector %q, headless not allowed by cluster settings", connectorName)
 			}
 		default:
 			return trace.BadParameter("invalid local connector %q", connectorName)
@@ -552,13 +590,20 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		}
 	}
 
+	// Make sure the IdP section is populated.
 	if c.Spec.IDP == nil {
+		c.Spec.IDP = &IdPOptions{}
+	}
+
+	// Make sure the SAML section is populated.
+	if c.Spec.IDP.SAML == nil {
+		c.Spec.IDP.SAML = &IdPSAMLOptions{}
+	}
+
+	// Make sure the SAML enabled field is populated.
+	if c.Spec.IDP.SAML.Enabled == nil {
 		// Enable the IdP by default.
-		c.Spec.IDP = &IdPOptions{
-			SAML: &IdPSAMLOptions{
-				Enabled: NewBoolOption(true),
-			},
-		}
+		c.Spec.IDP.SAML.Enabled = NewBoolOption(true)
 	}
 
 	return nil

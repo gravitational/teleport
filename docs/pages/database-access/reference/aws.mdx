@@ -154,6 +154,14 @@ policies for each discovery type are shown below.
   </TabItem>
 </Tabs>
 
+<Admonition type="note">
+Teleport uses `rds:ModifyDBInstance` and `rds:DescribeDBClusters` to
+automatically enable [IAM
+authentication](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html)
+on the RDS instance and the Aurora cluster, respectively. You can omit these
+permissions if IAM authentication is already enabled.
+</Admonition>
+
 ### RDS Proxy
 
 <Tabs>

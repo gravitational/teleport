@@ -23,12 +23,11 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/types"
-	prehogapi "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/usagereporter"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
 const (
@@ -47,7 +46,7 @@ func New(cfg Config) (*Service, error) {
 
 	closeContext, cancel := context.WithCancel(context.Background())
 
-	connectUsageReporter, err := NewConnectUsageReporter(closeContext, cfg.PrehogAddr)
+	connectUsageReporter, err := usagereporter.NewConnectUsageReporter(closeContext, cfg.PrehogAddr)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -529,6 +528,15 @@ func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clus
 	return response, nil
 }
 
+func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
+	prehogEvent, err := usagereporter.GetAnonymizedPrehogEvent(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.usageReporter.AddEventsToQueue(prehogEvent)
+	return nil
+}
+
 // Stop terminates all cluster open connections
 func (s *Service) Stop() {
 	s.mu.RLock()
@@ -582,7 +590,7 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 }
 
 func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress clusters.FileTransferProgressSender) error {
-	cluster, err := s.ResolveCluster(request.GetClusterUri())
+	cluster, err := s.ResolveCluster(request.GetServerUri())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -603,7 +611,7 @@ type Service struct {
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways map[string]*gateway.Gateway
 	// usageReporter batches the events and sends them to prehog
-	usageReporter *usagereporter.UsageReporter[prehogapi.SubmitConnectEventRequest]
+	usageReporter *usagereporter.UsageReporter
 }
 
 type CreateGatewayParams struct {

@@ -43,7 +43,7 @@ import (
 type APIConfig struct {
 	PluginRegistry plugin.Registry
 	AuthServer     *Server
-	AuditLog       events.IAuditLog
+	AuditLog       events.AuditLogSessionStreamer
 	Authorizer     Authorizer
 	Emitter        apievents.Emitter
 	// KeepAlivePeriod defines period between keep alives
@@ -522,6 +522,9 @@ func (s *APIServer) upsertUser(auth ClientI, w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
+	if err := services.ValidateUserRoles(r.Context(), user, auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	err = auth.UpsertUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -42,6 +42,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport"
@@ -82,8 +83,10 @@ func TestRequestCertificate(t *testing.T) {
 	require.NoError(t, err)
 	f := &Forwarder{
 		cfg: ForwarderConfig{
-			Keygen:     testauthority.New(),
-			AuthClient: cl,
+			Keygen:         testauthority.New(),
+			AuthClient:     cl,
+			TracerProvider: otel.GetTracerProvider(),
+			tracer:         otel.Tracer(teleport.ComponentKube),
 		},
 		log: logrus.NewEntry(logrus.New()),
 	}
@@ -100,7 +103,7 @@ func TestRequestCertificate(t *testing.T) {
 		},
 	}
 
-	b, err := f.requestCertificate(ctx)
+	b, err := f.requestCertificate(context.Background(), ctx)
 	require.NoError(t, err)
 	// All fields except b.key are predictable.
 	require.Empty(t, cmp.Diff(b.Certificates[0].Certificate[0], cl.lastCert.Raw))
@@ -156,6 +159,8 @@ func TestAuthenticate(t *testing.T) {
 		cfg: ForwarderConfig{
 			ClusterName:       "local",
 			CachingAuthClient: ap,
+			TracerProvider:    otel.GetTracerProvider(),
+			tracer:            otel.Tracer(teleport.ComponentKube),
 		},
 	}
 
@@ -774,6 +779,19 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			},
 			errAssertion: require.NoError,
 		},
+		{
+			desc:       "empty impersonated group header ignored",
+			kubeUsers:  []string{"kube-user-a"},
+			kubeGroups: []string{},
+			inHeaders: http.Header{
+				"Host": []string{"example.com"},
+			},
+			wantHeaders: http.Header{
+				"Host":                []string{"example.com"},
+				ImpersonateUserHeader: []string{"kube-user-a"},
+			},
+			errAssertion: require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Log(tt.desc)
@@ -844,21 +862,21 @@ func TestNewClusterSessionLocal(t *testing.T) {
 
 	// Fail when kubeCluster is not specified
 	authCtx.kubeClusterName = ""
-	_, err := f.newClusterSession(authCtx)
+	_, err := f.newClusterSession(ctx, authCtx)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 	require.Empty(t, 0, f.clientCredentials.Len())
 
 	// Fail when creds aren't available
 	authCtx.kubeClusterName = "other"
-	_, err = f.newClusterSession(authCtx)
+	_, err = f.newClusterSession(ctx, authCtx)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 	require.Empty(t, 0, f.clientCredentials.Len())
 
 	// Succeed when creds are available
 	authCtx.kubeClusterName = "local"
-	sess, err := f.newClusterSession(authCtx)
+	sess, err := f.newClusterSession(ctx, authCtx)
 	require.NoError(t, err)
 	require.Equal(t, []kubeClusterEndpoint{{addr: f.clusterDetails["local"].getTargetAddr()}}, sess.kubeClusterEndpoints)
 
@@ -881,7 +899,7 @@ func TestNewClusterSessionRemote(t *testing.T) {
 	authCtx := mockAuthCtx(ctx, t, "kube-cluster", true)
 
 	// Succeed on remote cluster session
-	sess, err := f.newClusterSession(authCtx)
+	sess, err := f.newClusterSession(ctx, authCtx)
 	require.NoError(t, err)
 	require.Equal(t, []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}}, sess.kubeClusterEndpoints)
 
@@ -929,7 +947,7 @@ func TestNewClusterSessionDirect(t *testing.T) {
 	f.cfg.CachingAuthClient = mockAccessPoint{
 		kubeServers: []types.KubeServer{otherKubeService, otherKubeService, otherKubeService},
 	}
-	_, err := f.newClusterSession(authCtx)
+	_, err := f.newClusterSession(ctx, authCtx)
 	require.Error(t, err)
 
 	// multiple kube services for kube cluster
@@ -939,7 +957,7 @@ func TestNewClusterSessionDirect(t *testing.T) {
 	f.cfg.CachingAuthClient = mockAccessPoint{
 		kubeServers: []types.KubeServer{publicKubeService, otherKubeService, tunnelKubeService, otherKubeService},
 	}
-	sess, err := f.newClusterSession(authCtx)
+	sess, err := f.newClusterSession(ctx, authCtx)
 	require.NoError(t, err)
 	require.Equal(t, []kubeClusterEndpoint{publicEndpoint, tunnelEndpoint}, sess.kubeClusterEndpoints)
 
@@ -1043,7 +1061,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 	}
 
 	authCtx.kubeClusterName = "local"
-	sess, err := f.newClusterSession(authCtx)
+	sess, err := f.newClusterSession(ctx, authCtx)
 	require.NoError(t, err)
 	t.Cleanup(sess.close)
 	require.Equal(t, []kubeClusterEndpoint{{addr: f.clusterDetails["local"].getTargetAddr()}}, sess.kubeClusterEndpoints)
@@ -1085,13 +1103,15 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 
 	return &Forwarder{
 		log:    logrus.NewEntry(logrus.New()),
-		router: *httprouter.New(),
+		router: httprouter.New(),
 		cfg: ForwarderConfig{
 			Keygen:            testauthority.New(),
 			AuthClient:        csrClient,
 			CachingAuthClient: mockAccessPoint{},
 			Clock:             clockwork.NewFakeClock(),
 			Context:           ctx,
+			TracerProvider:    otel.GetTracerProvider(),
+			tracer:            otel.Tracer(teleport.ComponentKube),
 		},
 		clientCredentials: clientCreds,
 		activeRequests:    make(map[string]context.Context),
@@ -1263,7 +1283,7 @@ func (m *mockWatcher) Done() <-chan struct{} {
 func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
 	return &Forwarder{
 		log:            logrus.NewEntry(logrus.New()),
-		router:         *httprouter.New(),
+		router:         httprouter.New(),
 		cfg:            cfg,
 		activeRequests: make(map[string]context.Context),
 		ctx:            ctx,
@@ -1353,6 +1373,8 @@ func TestKubernetesConnectionLimit(t *testing.T) {
 			forwarder := newTestForwarder(ctx, ForwarderConfig{
 				AuthClient:        client,
 				CachingAuthClient: client,
+				TracerProvider:    otel.GetTracerProvider(),
+				tracer:            otel.Tracer(teleport.ComponentKube),
 			})
 
 			identity := &authContext{
@@ -1396,9 +1418,11 @@ func TestForwarder_clientCreds_cache(t *testing.T) {
 
 	f := &Forwarder{
 		cfg: ForwarderConfig{
-			Keygen:     testauthority.New(),
-			AuthClient: cl,
-			Clock:      clockwork.NewFakeClockAt(time.Now().Add(-2 * time.Minute)),
+			Keygen:         testauthority.New(),
+			AuthClient:     cl,
+			Clock:          clockwork.NewFakeClockAt(time.Now().Add(-2 * time.Minute)),
+			TracerProvider: otel.GetTracerProvider(),
+			tracer:         otel.Tracer(teleport.ComponentKube),
 		},
 		clientCredentials: cache,
 		log:               logrus.New(),
@@ -1546,7 +1570,7 @@ func TestForwarder_clientCreds_cache(t *testing.T) {
 			require.Nil(t, cachedTLSCfg)
 
 			// request a new cert
-			tlsCfg, err := f.requestCertificate(tt.args.ctx)
+			tlsCfg, err := f.requestCertificate(context.Background(), tt.args.ctx)
 			require.NoError(t, err)
 
 			// store the certificate in cache
@@ -1600,6 +1624,41 @@ func Test_getPodResourceFromRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := getPodResourceFromRequest(tt.requestURI)
 			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func Test_copyImpersonationHeaders(t *testing.T) {
+	tests := []struct {
+		name        string
+		inHeaders   http.Header
+		wantHeaders http.Header
+	}{
+		{
+			name: "copy impersonation headers",
+			inHeaders: http.Header{
+				"Host":                 []string{"example.com"},
+				ImpersonateUserHeader:  []string{"user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-b"},
+			},
+			wantHeaders: http.Header{
+				ImpersonateUserHeader:  []string{"user-a"},
+				ImpersonateGroupHeader: []string{"kube-group-b"},
+			},
+		},
+		{
+			name: "don't introduce empty impersonation headers",
+			inHeaders: http.Header{
+				"Host": []string{"example.com"},
+			},
+			wantHeaders: http.Header{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dst := http.Header{}
+			copyImpersonationHeaders(dst, tt.inHeaders)
+			require.Equal(t, tt.wantHeaders, dst)
 		})
 	}
 }

@@ -128,6 +128,8 @@ $ tbot init \
     --reader-user=app
 ```
 
+(!docs/pages/includes/machine-id/machine-id-init-bot-data.mdx!)
+
 Next, you will use systemd to run Machine ID in the background on your
 bot node. Create a systemd.unit file at
 `/etc/systemd/system/machine-id.service`:
@@ -142,6 +144,7 @@ Type=simple
 User=teleport
 Group=teleport
 Restart=on-failure
+Environment="TELEPORT_ANONYMOUS_TELEMETRY=1"
 ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/machine-id.pid
@@ -151,13 +154,13 @@ LimitNOFILE=524288
 WantedBy=multi-user.target
 ```
 
+`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
+telemetry. This helps us shape the future development of `tbot`. You can disable
+this by omitting this.
+
 Finally, run the following commands to start Machine ID:
 
-```code
-$ sudo systemctl daemon-reload 
-$ sudo systemctl start machine-id
-$ sudo systemctl status machine-id
-```
+(!docs/pages/includes/machine-id/machine-id-service.mdx!)
 
 ## Step 3/3. Connect to your web application with the Machine ID identity
 
@@ -291,3 +294,5 @@ has been configured to use both the client certificate and key.
   your bot may access.
 - Configure [JWTs](../../application-access/jwt/introduction.mdx) for your
   Application to remove the need for additional login credentials.
+
+[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)

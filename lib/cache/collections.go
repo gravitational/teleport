@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -94,6 +95,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
 			collections[resourceKind] = &installerConfig{watch: watch, Cache: c}
+		case types.KindUIConfig:
+			if c.ClusterConfig == nil {
+				return nil, trace.BadParameter("missing parameter ClusterConfig")
+			}
+			collections[resourceKind] = &uiConfig{watch: watch, Cache: c}
 		case types.KindUser:
 			if c.Users == nil {
 				return nil, trace.BadParameter("missing parameter Users")
@@ -161,6 +167,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 					return nil, trace.BadParameter("missing parameter SnowflakeSession")
 				}
 				collections[resourceKind] = &snowflakeSession{watch: watch, Cache: c}
+			case types.KindSAMLIdPSession:
+				if c.SAMLIdPSession == nil {
+					return nil, trace.BadParameter("missing parameter SAMLIdPSession")
+				}
+				collections[resourceKind] = &samlIdPSession{watch: watch, Cache: c}
 			case types.KindWebSession:
 				if c.WebSession == nil {
 					return nil, trace.BadParameter("missing parameter WebSession")
@@ -235,6 +246,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter SAMLIdPServiceProviders")
 			}
 			collections[resourceKind] = &samlIDPServiceProviders{watch: watch, Cache: c}
+		case types.KindUserGroup:
+			if c.UserGroups == nil {
+				return nil, trace.BadParameter("missing parameter UserGroups")
+			}
+			collections[resourceKind] = &userGroups{watch: watch, Cache: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -1336,38 +1352,27 @@ func (s *databaseService) erase(ctx context.Context) error {
 }
 
 func (s *databaseService) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := client.GetResourcesWithFilters(ctx, s.Presence, proto.ListResourcesRequest{ResourceType: types.KindDatabaseService})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return func(ctx context.Context) error {
 		if err := s.erase(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 
-		nextKey := ""
-		for {
-			listResp, err := s.Presence.ListResources(ctx, proto.ListResourcesRequest{
-				ResourceType: types.KindDatabaseService,
-				Limit:        apidefaults.DefaultChunkSize,
-				StartKey:     nextKey,
-			})
-			if err != nil {
+		for _, resource := range resources {
+			dbsvc, ok := resource.(types.DatabaseService)
+			if !ok {
+				return trace.BadParameter("unexpected resource %T", resource)
+			}
+
+			if _, err := s.databaseServicesCache.UpsertDatabaseService(ctx, dbsvc); err != nil {
 				return trace.Wrap(err)
-			}
-
-			databaseServices, err := types.ResourcesWithLabels(listResp.Resources).AsDatabaseServices()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			for _, resource := range databaseServices {
-				if _, err := s.databaseServicesCache.UpsertDatabaseService(ctx, resource); err != nil {
-					return trace.Wrap(err)
-				}
-			}
-
-			nextKey = listResp.NextKey
-			if nextKey == "" || len(listResp.Resources) == 0 {
-				break
 			}
 		}
+
 		return nil
 	}, nil
 }
@@ -1746,6 +1751,83 @@ func (a *snowflakeSession) processEvent(ctx context.Context, event types.Event) 
 }
 
 func (a *snowflakeSession) watchKind() types.WatchKind {
+	return a.watch
+}
+
+//nolint:revive // Because we want this to be IdP.
+type samlIdPSession struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (a *samlIdPSession) erase(ctx context.Context) error {
+	if err := a.samlIdPSessionCache.DeleteAllSAMLIdPSessions(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (a *samlIdPSession) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	var resources []types.WebSession
+	var nextToken string
+	for {
+		var sessions []types.WebSession
+		var err error
+		sessions, nextToken, err = a.SAMLIdPSession.ListSAMLIdPSessions(ctx, 0, nextToken, "")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, sessions...)
+		if nextToken == "" {
+			break
+		}
+	}
+
+	return func(ctx context.Context) error {
+		if err := a.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, resource := range resources {
+			if err := a.samlIdPSessionCache.UpsertSAMLIdPSession(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (a *samlIdPSession) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := a.samlIdPSessionCache.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{
+			SessionID: event.Resource.GetName(),
+		})
+		if err != nil {
+			// Resource could be missing in the cache expired or not created, if the
+			// first consumed event is deleted.
+			if !trace.IsNotFound(err) {
+				a.Logger.WithError(err).Warnf("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.WebSession)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if err := a.samlIdPSessionCache.UpsertSAMLIdPSession(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		a.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (a *samlIdPSession) watchKind() types.WatchKind {
 	return a.watch
 }
 
@@ -2207,6 +2289,74 @@ func (c *clusterNetworkingConfig) watchKind() types.WatchKind {
 	return c.watch
 }
 
+type uiConfig struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (c *uiConfig) erase(ctx context.Context) error {
+	if err := c.clusterConfigCache.DeleteUIConfig(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *uiConfig) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	var noConfig bool
+	resource, err := c.ClusterConfig.GetUIConfig(ctx)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		noConfig = true
+	}
+	return func(ctx context.Context) error {
+		// either zero or one instance exists, so we either erase or
+		// update, but not both.
+		if noConfig {
+			if err := c.erase(ctx); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}
+
+		if err := c.clusterConfigCache.SetUIConfig(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	}, nil
+}
+
+func (c *uiConfig) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := c.clusterConfigCache.DeleteUIConfig(ctx)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				c.Logger.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.UIConfig)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		if err := c.clusterConfigCache.SetUIConfig(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (c *uiConfig) watchKind() types.WatchKind {
+	return c.watch
+}
+
 type sessionRecordingConfig struct {
 	*Cache
 	watch types.WatchKind
@@ -2647,7 +2797,7 @@ type samlIDPServiceProviders struct {
 }
 
 func (s *samlIDPServiceProviders) erase(ctx context.Context) error {
-	if err := s.samlIdpServiceProvidersCache.DeleteAllSAMLIdPServiceProviders(ctx); err != nil {
+	if err := s.samlIdPServiceProvidersCache.DeleteAllSAMLIdPServiceProviders(ctx); err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -2679,9 +2829,9 @@ func (s *samlIDPServiceProviders) fetch(ctx context.Context) (apply func(ctx con
 		}
 
 		for _, resource := range resources {
-			err = s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
+			err = s.samlIdPServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
 			if trace.IsAlreadyExists(err) {
-				err = s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource)
+				err = s.samlIdPServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource)
 			}
 			if err != nil {
 				return trace.Wrap(err)
@@ -2694,7 +2844,7 @@ func (s *samlIDPServiceProviders) fetch(ctx context.Context) (apply func(ctx con
 func (s *samlIDPServiceProviders) processEvent(ctx context.Context, event types.Event) error {
 	switch event.Type {
 	case types.OpDelete:
-		err := s.samlIdpServiceProvidersCache.DeleteSAMLIdPServiceProvider(ctx, event.Resource.GetName())
+		err := s.samlIdPServiceProvidersCache.DeleteSAMLIdPServiceProvider(ctx, event.Resource.GetName())
 		if err != nil && !trace.IsNotFound(err) {
 			s.Logger.WithError(err).Warn("Failed to delete resource.")
 			return trace.Wrap(err)
@@ -2704,9 +2854,9 @@ func (s *samlIDPServiceProviders) processEvent(ctx context.Context, event types.
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		err := s.samlIdpServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
+		err := s.samlIdPServiceProvidersCache.CreateSAMLIdPServiceProvider(ctx, resource)
 		if trace.IsAlreadyExists(err) {
-			err = s.samlIdpServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource)
+			err = s.samlIdPServiceProvidersCache.UpdateSAMLIdPServiceProvider(ctx, resource)
 		}
 		return trace.Wrap(err)
 	default:
@@ -2716,5 +2866,83 @@ func (s *samlIDPServiceProviders) processEvent(ctx context.Context, event types.
 }
 
 func (s *samlIDPServiceProviders) watchKind() types.WatchKind {
+	return s.watch
+}
+
+type userGroups struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (s *userGroups) erase(ctx context.Context) error {
+	if err := s.userGroupsCache.DeleteAllUserGroups(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (s *userGroups) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	var resources []types.UserGroup
+
+	nextKey := ""
+	for {
+		var userGroups []types.UserGroup
+		var err error
+		userGroups, nextKey, err = s.UserGroups.ListUserGroups(ctx, 0, nextKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, userGroups...)
+		if nextKey == "" {
+			break
+		}
+	}
+
+	return func(ctx context.Context) error {
+		if err := s.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			err = s.userGroupsCache.CreateUserGroup(ctx, resource)
+			if trace.IsAlreadyExists(err) {
+				err = s.userGroupsCache.UpdateUserGroup(ctx, resource)
+			}
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (s *userGroups) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := s.userGroupsCache.DeleteUserGroup(ctx, event.Resource.GetName())
+		if err != nil && !trace.IsNotFound(err) {
+			s.Logger.WithError(err).Warn("Failed to delete resource.")
+			return trace.Wrap(err)
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.UserGroup)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		err := s.userGroupsCache.CreateUserGroup(ctx, resource)
+		if trace.IsAlreadyExists(err) {
+			err = s.userGroupsCache.UpdateUserGroup(ctx, resource)
+		}
+		return trace.Wrap(err)
+	default:
+		s.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (s *userGroups) watchKind() types.WatchKind {
 	return s.watch
 }

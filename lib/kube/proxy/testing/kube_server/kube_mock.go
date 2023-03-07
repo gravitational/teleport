@@ -173,7 +173,7 @@ func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr err
 	}
 }
 
-func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
+func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
 	q := req.URL.Query()
 
 	request := remoteCommandRequest{
@@ -524,7 +524,7 @@ func v4WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) err
 	}
 }
 
-func (s *KubeMockServer) selfSubjectAccessReviews(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
+func (s *KubeMockServer) selfSubjectAccessReviews(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
 	s1 := &v1.SelfSubjectAccessReview{
 		Spec: v1.SelfSubjectAccessReviewSpec{
 			ResourceAttributes: &v1.ResourceAttributes{
@@ -543,7 +543,7 @@ func (s *KubeMockServer) selfSubjectAccessReviews(w http.ResponseWriter, req *ht
 
 // portforward supports SPDY protocols only. Teleport always uses SPDY when
 // portforwarding to upstreams even if the original request is WebSocket.
-func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
+func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	_, err := httpstream.Handshake(req, w, []string{portForwardProtocolV1Name})
 	if err != nil {
 		return nil, trace.Wrap(err)

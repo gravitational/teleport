@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -76,6 +77,11 @@ func (c *transportConfig) Check() error {
 	}
 
 	return nil
+}
+
+// isRemoteApp returns true if the route to app points at remote cluster.
+func (c *transportConfig) isRemoteApp() bool {
+	return c.clusterName != c.identity.RouteToApp.ClusterName
 }
 
 // transport is a rewriting http.RoundTripper that can forward requests to
@@ -139,7 +145,56 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// When proxying app in leaf cluster, the app will have PublicAddr
+	// possibly unreachable to the clients connecting to the root cluster.
+	// We want to rewrite any redirects to that PublicAddr to equivalent redirect for root cluster.
+	if err = t.rewriteRedirect(resp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return resp, nil
+}
+
+// rewriteRedirect rewrites redirect to a public address of downstream app.
+func (t *transport) rewriteRedirect(resp *http.Response) error {
+	if !t.c.isRemoteApp() {
+		// Not a downstream app, short circuit.
+		return nil
+	}
+
+	if !utils.IsRedirect(resp.StatusCode) {
+		return nil
+	}
+
+	location := resp.Header.Get("Location")
+	// nothing to do without Location.
+	if location == "" {
+		return nil
+	}
+
+	// Parse the "Location" header.
+	u, err := url.Parse(location)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	host, _, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		host = u.Host
+	}
+
+	// If this is a redirect to a public addr of a leaf cluster, rewrite it.
+	// We want the rewrite to happen using our own public address.
+	if host == t.c.identity.RouteToApp.PublicAddr {
+		// drop scheme and host, leaving only the relative path.
+		// since the path can be an empty string, canonicalize it as "/".
+		if u.Path == "" {
+			resp.Header.Set("Location", "/")
+		} else {
+			resp.Header.Set("Location", u.Path)
+		}
+	}
+	return nil
 }
 
 // rewriteRequest applies any rewriting rules to the request before it's forwarded.
@@ -182,7 +237,7 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (net.Conn, err
 		}
 
 		var dialErr error
-		conn, dialErr = dialAppServer(t.c.proxyClient, t.c.identity.RouteToApp.ClusterName, appServer)
+		conn, dialErr = dialAppServer(ctx, t.c.proxyClient, t.c.identity.RouteToApp.ClusterName, appServer)
 		if dialErr != nil {
 			if isReverseTunnelDownError(dialErr) {
 				t.c.log.Warnf("Failed to connect to application server %q: %v.", serverID, dialErr)
@@ -223,24 +278,28 @@ func (t *transport) DialWebsocket(network, address string) (net.Conn, error) {
 
 // dialAppServer dial and connect to the application service over the reverse
 // tunnel subsystem.
-func dialAppServer(proxyClient reversetunnel.Tunnel, clusterName string, server types.AppServer) (net.Conn, error) {
+func dialAppServer(ctx context.Context, proxyClient reversetunnel.Tunnel, clusterName string, server types.AppServer) (net.Conn, error) {
 	clusterClient, err := proxyClient.GetSite(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	conn, err := clusterClient.Dial(reversetunnel.DialParams{
-		From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"},
-		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
-		ServerID: fmt.Sprintf("%v.%v", server.GetHostID(), clusterName),
-		ConnType: types.AppTunnel,
-		ProxyIDs: server.GetProxyIDs(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var from net.Addr
+	from = &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"}
+	clientSrcAddr, originalDst := utils.ClientAddrFromContext(ctx)
+	if clientSrcAddr != nil {
+		from = clientSrcAddr
 	}
 
-	return conn, nil
+	conn, err := clusterClient.Dial(reversetunnel.DialParams{
+		From:                  from,
+		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
+		OriginalClientDstAddr: originalDst,
+		ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), clusterName),
+		ConnType:              types.AppTunnel,
+		ProxyIDs:              server.GetProxyIDs(),
+	})
+	return conn, trace.Wrap(err)
 }
 
 // configureTLS creates and configures a *tls.Config that will be used for

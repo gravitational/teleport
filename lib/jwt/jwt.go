@@ -226,8 +226,8 @@ type PROXYSignParams struct {
 
 const expirationPROXY = time.Second * 60
 
-// SignPROXY will create short lived signed JWT that is used in signed PROXY header
-func (k *Key) SignPROXY(p PROXYSignParams) (string, error) {
+// SignPROXYJwt will create short lived signed JWT that is used in signed PROXY header
+func (k *Key) SignPROXYJWT(p PROXYSignParams) (string, error) {
 	claims := Claims{
 		Claims: jwt.Claims{
 			Subject:   p.SourceAddress,

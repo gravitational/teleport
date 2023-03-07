@@ -62,7 +62,7 @@ we recommend using a [configuration file](https://goteleport.com/docs/reference/
 | - | - | - | - |
 | `-d, --debug` | none | none | enable verbose logging to stderr |
 | `--insecure-no-tls` | `false` | `true` or `false` | Tells proxy to not generate default self-signed TLS certificates. This is useful when running Teleport on kubernetes (behind reverse proxy) or behind things like AWS ELBs, GCP LBs or Azure Load Balancers where SSL termination is provided externally. |
-| `-r, --roles` | `proxy`, `node`, `auth`, `app`, `db`, `kube`, `windowsdesktop` | **string** comma-separated list of `proxy, auth, node, db, app` or `windowsdesktop` | start listed services/roles. These roles are explained in the [Core Concepts](../core-concepts.mdx) document. |
+| `-r, --roles` | `proxy`, `node`, `auth` | **string** comma-separated list of `proxy`, `node`, `auth`, `db`, or `app` | start listed services/roles. These roles are explained in the [Core Concepts](../core-concepts.mdx) document. |
 | `--pid-file` | none | **string** filepath | create a PID file at the path |
 | `--advertise-ip` | none | **string** IP | advertise IP to clients, often used behind NAT |
 | `-l, --listen-ip` | `0.0.0.0` | [**net. IP**](https://golang.org/pkg/net/#IP) | binds services to IP |
@@ -94,7 +94,6 @@ The `--roles` flag when used with `teleport --start` instructs Teleport on which
 | [Proxy](../architecture/proxy.mdx) | `proxy` | The gateway that clients use to connect to the Auth Service or resources managed by Teleport. |
 | [App](../application-access/introduction.mdx) | `app` | Provides access to applications. |
 | [Database](../database-access/reference.mdx) | `db` | Provides access to databases. |
-| [Windows Desktop](../desktop-access/getting-started.mdx) | `windowsdesktop` | Provides Windows Desktop access. |
 
 <Notice type="tip" scope={["cloud"]}>
 
@@ -159,10 +158,47 @@ $ tsh help
 
 ### tsh version
 
-Print the version of your `tsh` binary:
+Prints the version of your `tsh` binary and the Teleport Proxy Service in the current `tsh` profile
+
+```code
+$ tsh version [<flags>]
+```
+
+| Name           | Default Value(s) | Allowed Value(s) | Description                                        |
+|----------------|------------------|------------------|----------------------------------------------------|
+| `-f, --format` | `text`           | text, json, yaml | Format for version output                          |
+| `--client`     | none             | none             | Show the client version only (no server required). |
+
+#### Examples
 
 ```code
 $ tsh version
+Teleport v(=teleport.version=) git: go(=teleport.golang=)
+Proxy version: (=teleport.version=)
+Proxy: teleport.example.com:443
+```
+
+Display in JSON format:
+
+```code
+$ tsh version --format=json
+```
+
+```json
+{
+  "version": "(=teleport.version=)",
+  "gitref": "",
+  "runtime": "go(=teleport.golang=)",
+  "proxyVersion": "(=teleport.version=)",
+  "proxyPublicAddress": "teleport.example.com:443"
+}
+```
+
+Only display the `tsh` binary version:
+
+```code
+$ tsh version --client
+Teleport v(=teleport.version=) git: go(=teleport.golang=)
 ```
 
 ### tsh ssh
@@ -645,7 +681,7 @@ To run the local proxy server, one of the user's roles must include the
 `spec.allow.azure_identities` field with one of the identities used by the
 Application Service. To learn how to set up secure access to Azure via
 Teleport, read [Protect the Azure CLI with Teleport Application
-Access](../application-access/guides/azure.mdx).
+Access](../application-access/cloud-apis/azure.mdx).
 
 #### Arguments
 
@@ -1335,7 +1371,7 @@ DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.g
 ## tctl
 
 `tctl` is a CLI tool that allows a cluster administrator to manage all resources
-in a cluster, including nodes, users, tokens, and certificates.
+in a cluster, including nodes, users, tokens, certificates, and devices.
 
 `tctl` can also be used to modify the dynamic configuration of the cluster, such as
 creating new user roles or connecting Trusted Clusters.
@@ -1476,13 +1512,14 @@ $ tctl users add [<flags>] <account>
 | - | - | - | - |
 | `--roles` | none | Comma-separated strings | List of Teleport roles to assign to the new user |
 | `--logins` | none | Comma-separated strings | List of allowed SSH logins for the new user |
-| `--azure-identities` | none | Comma-separated strings | List of Azure managed identities to allow the user to assume. Must be the full URIs of the identities |
 | `--kubernetes-groups` | none | Comma-separated strings | Kubernetes groups to assign to a user, e.g. `system:masters` |
 | `--kubernetes-users` | none | Comma-separated strings | Kubernetes user to assign to a user, e.g. `jenkins` |
 | `--db-users` | none | Comma-separated strings | List of allowed database users for the new user |
 | `--db-names` | none | Comma-separated strings | List of allowed database names for the new user |
 | `--windows-logins` | none | Comma-separated strings | List of allowed Windows logins for the new user |
 | `--aws-role-arns` | none | Comma-separated strings | List of allowed AWS role ARNs for the new user |
+| `--gcp-service-accounts` | none | Comma-separated strings | List of allowed GCP service accounts for the new user |
+| `--azure-identities` | none | Comma-separated strings | List of Azure managed identities to allow the user to assume. Must be the full URIs of the identities |
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token |
 
 #### Global flags
@@ -1806,7 +1843,7 @@ $ tctl auth export [<flags>]
 | `--keys` | none | none | if set, only exports private keys |
 | `--fingerprint` | none | **string** e.g. `SHA256:<fingerprint>` | filter authority by fingerprint |
 | `--compat` | none | version number | export certificates compatible with specific version of Teleport |
-| `--type` | none | `user, host` or `tls` | certificate type |
+| `--type` | none | `user`, `host`, `tls-host`, `tls-user`, `tls-user-der`, `windows`, `db`, `openssh`, `saml-idp` | certificate type |
 
 #### Global flags
 
@@ -2263,11 +2300,52 @@ $ tctl sso configure saml -p okta -r group,dev,access -e https://dev-123456.okta
 $ tctl sso configure saml -p okta -r group,developer,access -e entity-desc.xml | tctl sso test
 ```
 
+### tctl login_rule test
+
+Test a Login Rule resource without installing it in the cluster.
+
+#### Arguments
+
+- `<traits-file>` input traits file in JSON or YAML format. Empty for stdin.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--resource-file` | none | **string** filepath | Path to Login Rule resource path, can be repeated for multiple files |
+| `--load-from-cluster` | `false` | `true, false` | When true, all Login Rules currently installed in the cluster will be loaded for the test. Can be combined with `--resource-file` to test interactions. |
+| `--format` | `yaml` | `yaml, json` | Output format for traits |
+
+#### Global flags
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](#tctl-global-flags).
+
+#### Examples
+
+Test evaluation of the Login Rules from rule1.yaml and rule2.yaml with input traits from traits.json
+
+```code
+$tctl login_rule test --resource-file rule1.yaml --resource-file rule2.yaml traits.json
+```
+
+Test the Login Rule in rule.yaml along with all Login Rules already present in the cluster
+
+```code
+$ tctl login_rule test --resource-file rule.yaml --load-from-cluster traits.json
+```
+
+Read the input traits from stdin
+
+```code
+$ echo '{"groups": ["example"]}' | tctl login_rule test --resource-file rule.yaml
+```
+
 ### tctl create
 
 Create or update a Teleport resource from a YAML file.
 
-The supported resource types are: user, node, cluster, role, connector.
+The supported resource types are: user, node, cluster, role, connector, and device.
 See the [Resources Reference](./resources.mdx) for complete docs on how to build these yaml files.
 
 ```code
@@ -2311,7 +2389,7 @@ $ tctl rm <resource-type/resource-name>
 #### Arguments
 
 - `<resource-type/resource-name>` Resource to delete
-  - `<resource type>` Type of a resource \[for example: `saml,oidc,github,user,cluster,tokens`]
+  - `<resource type>` Type of a resource \[for example: `saml,oidc,github,user,cluster,tokens,device`]
   - `<resource name>` Resource name to delete
 
 #### Examples
@@ -2335,7 +2413,7 @@ $ tctl get [<flags>] <resource-type/resource-name>,...
 #### Arguments
 
 - `<resource-type/resource-name>` The resource to get
-  - `<resource type>` The type of the resource \[for example: `user,cluster,token`]
+  - `<resource type>` The type of the resource \[for example: `user,cluster,token,device`]
   - `<resource name>` The name of the resource
 
 #### Flags
