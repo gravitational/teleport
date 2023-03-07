@@ -3991,6 +3991,30 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 	return nil
 }
 
+func (a *Server) ExportMaintenanceWindows(ctx context.Context, req proto.ExportMaintenanceWindowsRequest) (proto.ExportMaintenanceWindowsResponse, error) {
+	var rsp proto.ExportMaintenanceWindowsResponse
+	switch req.UpgraderKind {
+	case types.UpgraderKindKubeController:
+		if sched := os.Getenv("TELEPORT_UNSTABLE_KUBE_UPGRADE_SCHEDULE"); sched != "" {
+			rsp.KubeControllerSchedule = sched
+		}
+
+		// TODO(fspmarshall): integrate maintenance window config object
+
+		return rsp, nil
+	case types.UpgraderKindSystemdUnit:
+		if sched := os.Getenv("TELEPORT_UNSTABLE_SYSTEMD_UPGRADE_SCHEDULE"); sched != "" {
+			rsp.SystemdUnitSchedule = sched
+		}
+
+		// TODO(fspmarshall): integrate maintenance window config object
+
+		return rsp, nil
+	default:
+		return rsp, trace.NotImplemented("unsupported upgrader kind %q in maintenance window export request", req.UpgraderKind)
+	}
+}
+
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {

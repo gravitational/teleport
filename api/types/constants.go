@@ -318,6 +318,13 @@ const (
 	// KindUserGroup is an externally sourced user group.
 	KindUserGroup = "user_group"
 
+	// KindMaintenanceWindow determines maintenance times for the cluster.
+	KindMaintenanceWindow = "maintenance-window"
+
+	// MetaNameMaintenanceWindow is the only allowed metadata.name value for the maintenance
+	// window singleton resource.
+	MetaNameMaintenanceWindow = "maintenance-window"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 

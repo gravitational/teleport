@@ -4941,6 +4941,52 @@ func (g *GRPCServer) DeleteAllUserGroups(ctx context.Context, _ *emptypb.Empty) 
 	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllUserGroups(ctx))
 }
 
+func (g *GRPCServer) ExportMaintenanceWindows(ctx context.Context, req *proto.ExportMaintenanceWindowsRequest) (*proto.ExportMaintenanceWindowsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.ExportMaintenanceWindows(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &rsp, nil
+}
+
+func (g *GRPCServer) GetMaintenanceWindow(ctx context.Context, _ *emptypb.Empty) (*types.MaintenanceWindowV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mw, err := auth.GetMaintenanceWindow(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, ok := mw.(*types.MaintenanceWindowV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected maintenance window type %T", mw)
+	}
+
+	return rsp, nil
+}
+
+func (g *GRPCServer) UpdateMaintenanceWindow(ctx context.Context, mw *types.MaintenanceWindowV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.UpdateMaintenanceWindow(ctx, mw); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration

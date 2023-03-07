@@ -5041,6 +5041,38 @@ message KubernetesResourceSpecV1 {
   string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
 }
 
+// MaintenanceWindowV1 is a config singleton used to determine the appropirate window
+// for performing infrequent periodics that have the potential to degrade service.
+message MaintenanceWindowV1 {
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  MaintenanceWindowSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// MaintenanceWindowSpecV1 encodes the parameters of the upgrade window config object.
+message MaintenanceWindowSpecV1 {
+  // Nonce is used to protect against concurrent modification of the maintenance
+  // window. Clients should treat nonces as opaque.
+  uint64 Nonce = 1 [(gogoproto.jsontag) = "nonce"];
+
+  // AgentUpgrades encodes the agent upgrade window.
+  AgentUpgradeWindow AgentUpgrades = 2 [(gogoproto.jsontag) = "agent_upgrades,omitempty"];
+}
+
+message AgentUpgradeWindow {
+  // UTCStartHour is the start hour of the maintenance window in UTC.
+  uint32 UTCStartHour = 1 [(gogoproto.jsontag) = "utc_start_hour"];
+  // Weekdays is an optional list of weekdays. If not specified, an agent upgrade window
+  // occurs every day.
+  repeated string Weekdays = 2 [(gogoproto.jsontag) = "weekdays,omitempty"];
+}
+
 // UserGroupV1 is a representation of an externally sourced user group.
 message UserGroupV1 {
   option (gogoproto.goproto_stringer) = false;
