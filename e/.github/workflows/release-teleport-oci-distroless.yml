@@ -64,9 +64,22 @@ on:
         required: true
         default: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational
 
+      workflow-tag:
+        description: |
+          Tag used to identify workflow runs spawned by this event
+        type: string
+        default: ""
+
 run-name: Build Distroless Images for Teleport ${{ inputs.source-tag }}
 
 jobs:
+  identity:
+    runs-on: ubuntu-latest
+    if: inputs.workflow-tag != ''
+    steps:
+      - name: ${{ inputs.workflow-tag }}
+        run: echo ${{ inputs.workflow-tag }}
+
   configure:
     name: Configure Build
     runs-on: ubuntu-latest

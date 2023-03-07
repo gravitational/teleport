@@ -37,9 +37,22 @@ on:
         type: string
         default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-production-signing
 
+      workflow-tag:
+        description: |
+          Tag used to identify workflow runs spawned by this event
+        type: string
+        default: ""
+
 run-name: 'Promote OCI images for Teleport ${{ inputs.release-source-tag }}'
 
 jobs:
+  identity:
+    runs-on: ubuntu-latest
+    if: inputs.workflow-tag != ''
+    steps:
+      - name: ${{ inputs.workflow-tag }}
+        run: echo ${{ inputs.workflow-tag }}
+
   configure:
     name: Configure Build
     runs-on: ubuntu-latest
