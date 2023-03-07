@@ -17,7 +17,7 @@
 import Logger, { NullService } from 'teleterm/logger';
 import { createMockFileStorage } from 'teleterm/services/fileStorage/fixtures/mocks';
 
-import { createConfigService } from './configStore';
+import { createConfigService } from './configService';
 
 beforeAll(() => {
   Logger.init(new NullService());
