@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -395,19 +394,10 @@ func (l *FileLog) Close() error {
 	return err
 }
 
-func (l *FileLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	return nil, trace.NotImplemented("not implemented")
-}
-
-func (l *FileLog) GetSessionEvents(namespace string, sid session.ID, after int, fetchPrintEvents bool) ([]EventFields, error) {
-	return nil, trace.NotImplemented("not implemented")
-}
-
 // mightNeedRotation checks if the current log file looks older than a given duration,
 // used by rotateLog to decide if it should acquire a write lock.  Must be called under
 // read lock.
 func (l *FileLog) mightNeedRotation() bool {
-
 	if l.file == nil {
 		return true
 	}
@@ -421,7 +411,6 @@ func (l *FileLog) mightNeedRotation() bool {
 // rotateLog checks if the current log file is older than a given duration,
 // and if it is, closes it and opens a new one.  Must be called under write lock.
 func (l *FileLog) rotateLog() (err error) {
-
 	// determine the timestamp for the current log file rounded to the day.
 	fileTime := l.Clock.Now().UTC().Truncate(24 * time.Hour)
 
@@ -429,7 +418,7 @@ func (l *FileLog) rotateLog() (err error) {
 		fileTime.Format(defaults.AuditLogTimeFormat)+LogfileExt)
 
 	openLogFile := func() error {
-		l.file, err = os.OpenFile(logFilename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0640)
+		l.file, err = os.OpenFile(logFilename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o640)
 		if err != nil {
 			log.Error(err)
 		}
@@ -613,15 +602,6 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 	}
 
 	return retval, nil
-}
-
-// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
-// The event channel is not closed on error to prevent race conditions in downstream select statements.
-func (l *FileLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-	e <- trace.NotImplemented("not implemented")
-	return c, e
 }
 
 type eventFile struct {

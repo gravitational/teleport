@@ -151,7 +151,7 @@ var (
 )
 
 // AuditLog is a new combined facility to record Teleport events and
-// sessions. It implements IAuditLog
+// sessions. It implements AuditLogSessionStreamer
 type AuditLog struct {
 	sync.RWMutex
 	AuditLogConfig
@@ -215,7 +215,7 @@ type AuditLogConfig struct {
 	UploadHandler MultipartHandler
 
 	// ExternalLog is a pluggable external log service
-	ExternalLog IAuditLog
+	ExternalLog AuditLogger
 
 	// Context is audit log context
 	Context context.Context
@@ -454,7 +454,7 @@ func readSessionIndex(dataDir string, authServers []string, namespace string, si
 	}
 	for _, authServer := range authServers {
 		indexFileName := filepath.Join(dataDir, authServer, SessionLogsDir, namespace, fmt.Sprintf("%v.index", sid))
-		indexFile, err := os.OpenFile(indexFileName, os.O_RDONLY, 0640)
+		indexFile, err := os.OpenFile(indexFileName, os.O_RDONLY, 0o640)
 		err = trace.ConvertSystemError(err)
 		if err != nil {
 			if !trace.IsNotFound(err) {
@@ -561,7 +561,7 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 	}
 	start := time.Now()
 	l.log.Debugf("Starting download of %v.", sid)
-	tarball, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
+	tarball, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o640)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -714,16 +714,16 @@ func (l *AuditLog) unpackFile(fileName string) (readSeekCloser, error) {
 		}
 		// no new data has been added
 		if unpackedInfo.ModTime().Unix() >= packedInfo.ModTime().Unix() {
-			return os.OpenFile(unpackedFile, os.O_RDONLY, 0640)
+			return os.OpenFile(unpackedFile, os.O_RDONLY, 0o640)
 		}
 	}
 
 	start := l.Clock.Now()
-	dest, err := os.OpenFile(unpackedFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
+	dest, err := os.OpenFile(unpackedFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o640)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	source, err := os.OpenFile(fileName, os.O_RDONLY, 0640)
+	source, err := os.OpenFile(fileName, os.O_RDONLY, 0o640)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -784,22 +784,12 @@ func (l *AuditLog) getSessionChunk(namespace string, sid session.ID, offsetBytes
 //
 // Can be filtered by 'after' (cursor value to return events newer than)
 
-func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]EventFields, error) {
-	l.log.WithFields(log.Fields{"sid": string(sid), "afterN": afterN, "printEvents": includePrintEvents}).Debugf("GetSessionEvents.")
+func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int) ([]EventFields, error) {
+	l.log.WithFields(log.Fields{"sid": string(sid), "afterN": afterN}).Debugf("GetSessionEvents.")
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
-	// Print events are stored in the context of the downloaded session
-	// so pull them
-	if !includePrintEvents && l.ExternalLog != nil {
-		events, err := l.ExternalLog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
-		// some loggers (e.g. FileLog) do not support retrieving session only print events,
-		// in this case rely on local fallback to download the session,
-		// unpack it and use local search
-		if !trace.IsNotImplemented(err) {
-			return events, err
-		}
-	}
+
 	// If code has to fetch print events (for playback) it has to download
 	// the playback from external storage first
 	if err := l.downloadSession(namespace, sid); err != nil {
@@ -829,7 +819,7 @@ func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int
 }
 
 func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventFields, error) {
-	logFile, err := os.OpenFile(fileName, os.O_RDONLY, 0640)
+	logFile, err := os.OpenFile(fileName, os.O_RDONLY, 0o640)
 	if err != nil {
 		// no file found? this means no events have been logged yet
 		if os.IsNotExist(err) {
@@ -941,7 +931,7 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 		defer cancel()
 	}
 
-	rawSession, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
+	rawSession, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0o640)
 	if err != nil {
 		e <- trace.Wrap(err)
 		return c, e
@@ -999,8 +989,8 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 	return c, e
 }
 
-// getLocalLog returns the local (file based) audit log.
-func (l *AuditLog) getLocalLog() IAuditLog {
+// getLocalLog returns the local (file based) AuditLogger.
+func (l *AuditLog) getLocalLog() AuditLogger {
 	l.RLock()
 	defer l.RUnlock()
 
