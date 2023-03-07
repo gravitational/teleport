@@ -188,7 +188,7 @@ func TestUsageReporterBatchSubmit(t *testing.T) {
 	defer cancel()
 
 	// Create enough events to fill a batch and then some.
-	events := createDummyEvents(0, 10)
+	events := createDummyEvents(0, testMaxBatchSize+testMinBatchSize)
 	reporter.AddEventsToQueue(events...)
 
 	// Block until events have been processed.
@@ -197,18 +197,11 @@ func TestUsageReporterBatchSubmit(t *testing.T) {
 	// Receive the first batch.
 	select {
 	case e := <-batchChan:
-		require.Len(t, e, testMaxBatchSize)
-		compareUsageEvents(t, reporter, events[:5], e)
+		compareUsageEvents(t, reporter, events[:testMaxBatchSize], e)
+		events = events[testMaxBatchSize:]
 	case <-time.After(time.Second):
 		t.Fatalf("Did not receive expected events.")
 	}
-
-	// Submit an extra event to trigger an early send
-	extra := createDummyEvents(9, 1)
-	reporter.AddEventsToQueue(extra...)
-	events = append(events, extra...)
-
-	<-rx
 
 	// Make sure the minimum delay is enforced for the subsequent batch.
 	select {
@@ -220,17 +213,23 @@ func TestUsageReporterBatchSubmit(t *testing.T) {
 
 	// Wait for submission to complete due to the submission delay.
 	fakeSubmitClock.BlockUntil(1)
-	fakeClock.BlockUntil(1)
 	advanceClocks(testSubmitDelay, fakeClock, fakeSubmitClock)
 
 	// Receive the 2nd batch.
 	select {
 	case e := <-batchChan:
-		require.Len(t, e, testMaxBatchSize)
-		compareUsageEvents(t, reporter, events[5:10], e)
+		compareUsageEvents(t, reporter, events[:testMinBatchSize], e)
+		events = events[testMinBatchSize:]
 	case <-time.After(time.Second):
 		t.Fatalf("Did not receive expected events.")
 	}
+
+	// Submit an extra event now
+	extra := createDummyEvents(100, 1)
+	reporter.AddEventsToQueue(extra...)
+	events = append(events, extra...)
+
+	<-rx
 
 	// Let the submission delay pass.
 	fakeSubmitClock.BlockUntil(1)
@@ -245,13 +244,12 @@ func TestUsageReporterBatchSubmit(t *testing.T) {
 		// Nothing to see yet.
 	}
 
-	fakeClock.BlockUntil(1)
 	advanceClocks(testMaxBatchAge, fakeClock, fakeSubmitClock)
 
 	select {
 	case e := <-batchChan:
 		require.Len(t, e, 1)
-		compareUsageEvents(t, reporter, events[10:], e)
+		compareUsageEvents(t, reporter, events, e)
 	case <-time.After(time.Second):
 		t.Fatalf("Did not receive expected events.")
 	}
@@ -323,8 +321,9 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 	defer cancel()
 
 	// Create enough events to fill the buffer.
-	events := createDummyEvents(0, 10)
+	events := createDummyEvents(0, testMaxBatchSize*2)
 	reporter.AddEventsToQueue(events...)
+	events, events2 := events[:testMaxBatchSize], events[testMaxBatchSize:]
 	<-rx
 
 	var prev []*SubmittedEvent[TestEvent]
@@ -332,9 +331,7 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 	// Receive the first (failed) batch.
 	select {
 	case e := <-batchChan:
-		require.Len(t, e, testMaxBatchSize)
-		compareUsageEvents(t, reporter, events[:5], e)
-
+		compareUsageEvents(t, reporter, events, e)
 		prev = e
 	case <-time.After(time.Second):
 		t.Fatalf("Did not receive expected events.")
@@ -345,7 +342,6 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 
 	// The submission fails, so events are reenqueued. This triggers an early
 	// send at the submit delay rather than the full batch send interval.
-	fakeClock.BlockUntil(1)
 	fakeSubmitClock.BlockUntil(1)
 
 	// Before continuing, check the last batch's retry counter. We need to check
@@ -359,8 +355,7 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 	// Receive the second batch.
 	select {
 	case e := <-batchChan:
-		require.Len(t, e, testMaxBatchSize)
-		compareUsageEvents(t, reporter, events[5:10], e)
+		compareUsageEvents(t, reporter, events2, e)
 
 		prev = e
 	case <-time.After(time.Second):
@@ -370,9 +365,7 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 	// Ack rx again.
 	<-rx
 
-	fakeClock.BlockUntil(1)
 	fakeSubmitClock.BlockUntil(1)
-
 	// As above, check the retry counter. These events still have only failed
 	// once.
 	for _, event := range prev {
@@ -384,19 +377,14 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 	// Receive the first batch again, since it was reenqueued.
 	select {
 	case e := <-batchChan:
-		require.Len(t, e, testMaxBatchSize)
-		compareUsageEvents(t, reporter, events[:5], e)
+		compareUsageEvents(t, reporter, events, e)
 
 		prev = e
 	case <-time.After(time.Second):
 		t.Fatalf("Did not receive expected events.")
 	}
 
-	<-rx
-
-	fakeClock.BlockUntil(1)
 	fakeSubmitClock.BlockUntil(1)
-
 	// Now that it's been resubmitted once, retry attempts is lower.
 	for _, event := range prev {
 		require.Equal(t, 0, event.retriesRemaining)
@@ -407,18 +395,14 @@ func TestUsageReporterErrorReenqueue(t *testing.T) {
 	// Receive the second batch again, since it was reenqueued.
 	select {
 	case e := <-batchChan:
-		require.Len(t, e, testMaxBatchSize)
-		compareUsageEvents(t, reporter, events[5:10], e)
+		compareUsageEvents(t, reporter, events2, e)
 
 		prev = e
 	case <-time.After(time.Second):
 		t.Fatalf("Did not receive expected events.")
 	}
 
-	<-rx
-	fakeClock.BlockUntil(1)
 	fakeSubmitClock.BlockUntil(1)
-
 	// Now that it's been resubmitted once, retry attempts is lower.
 	for _, event := range prev {
 		require.Equal(t, 0, event.retriesRemaining)
