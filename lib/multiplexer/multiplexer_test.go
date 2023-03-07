@@ -1235,7 +1235,7 @@ func Test_GetTcpAddr(t *testing.T) {
 	}
 }
 
-func Test_IsDifferentTCPVersion(t *testing.T) {
+func TestIsDifferentTCPVersion(t *testing.T) {
 	testCases := []struct {
 		addr1    string
 		addr2    string
