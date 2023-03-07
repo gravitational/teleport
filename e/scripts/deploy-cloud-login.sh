@@ -5,7 +5,7 @@
 
 TELEPORT_PROXY=${TELEPORT_PROXY:-platform.teleport.sh}
 TELEPORT_USER=${TELEPORT_USER:-$(git config user.email)}
-KUBE_CLUSTER=${KUBE_CLUSTER:-teleport-cloud-staging-us-west-2}
+KUBE_TENANT_CLUSTER=${KUBE_TENANT_CLUSTER:-tc-staging-management}
 TARGET_IMAGE_REPO=${TARGET_IMAGE_REPO:-599519581022.dkr.ecr.us-west-2.amazonaws.com/teleport-local-build}
 AWS_SSO_PROFILE=${AWS_SSO_PROFILE:-tc-stage-core}
 AWS_PROFILE=${AWS_PROFILE:-tc-stage-ecr}
@@ -74,9 +74,9 @@ if [[ -z $tsh_proxy ]]; then
     fail_on_exit_code "Failed to login to teleport cluster at: $TELEPORT_PROXY"
 fi
 
-echo "Selecting kubernetes cluster \"$KUBE_CLUSTER\"..."
-tsh kube login $KUBE_CLUSTER
-fail_on_exit_code "Failed to select kubernetes cluster: $KUBE_CLUSTER"
+echo "Selecting kubernetes cluster \"$KUBE_TENANT_CLUSTER\"..."
+tsh kube login $KUBE_TENANT_CLUSTER
+fail_on_exit_code "Failed to select kubernetes cluster: $KUBE_TENANT_CLUSTER"
 
 echo "Searching for tenant namespace in k8s cluster..."
 ns_prefix="namespace/cloud-gravitational-io-"
@@ -86,6 +86,6 @@ tenant=${ns/$ns_prefix/} # strip namespace prefix
 ns=$(cut -d "/" -f 2 <<< $ns) # strip resource kind prefix
 echo "Checking for permissions to patch tenant..."
 kres=$(kubectl auth can-i patch tenant/$tenant -n $ns) && [[ "${kres}" == "yes" ]]
-fail_on_exit_code "Insufficient k8s API permissions on cluster \"$KUBE_CLUSTER\" - cannot patch tenant \"$tenant\""
+fail_on_exit_code "Insufficient k8s API permissions on cluster \"$KUBE_TENANT_CLUSTER\" - cannot patch tenant \"$tenant\""
 
 echo_color $green "Success!"

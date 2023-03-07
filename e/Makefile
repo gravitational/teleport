@@ -10,7 +10,6 @@ GITTAG ?= v$(VERSION)
 DOCKER_IMAGE ?= teleport-ent
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
 BINARIES ?= $(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
-CLOUD_DOCKERFILE ?= ../build.assets/charts/Dockerfile
 
 # When TELEPORT_DEBUG is true, set flags so produce
 # debugger-friendly builds.
@@ -246,19 +245,19 @@ clean:
 # tenant in the staging cluster.
 .PHONY: deploy-cloud
 deploy-cloud:
-	@echo "---> Building teleport binaries for deployment to cloud tenant."
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -buildvcs=false -tags "webassets_embed webassets_ent" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
-	@if [ "$(CLOUD_DOCKERFILE)" != "-" ]; then \
-		echo "---> Building tbot, tctl and tsh."; \
-		GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -buildvcs=false -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl; \
-		GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -buildvcs=false -o $(BUILDDIR)/tsh $(BUILDFLAGS) ../tool/tsh; \
-		GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -buildvcs=false -o $(BUILDDIR)/tbot $(BUILDFLAGS) ../tool/tbot; \
-	else \
-		echo "---> Skipping tbot, tctl and tsh."; \
+ifneq ($(CLOUD_SKIP_BUILD),)
+	@echo "---> Skipping build - use existing teleport binary \"$(BUILDDIR)/teleport\"."
+	@if [[ ! -f "$(BUILDDIR)/teleport" ]]; then \
+		echo "No teleport binary found!"; \
+		exit 1; \
 	fi
-	$(MAKE) build-archive ent-deb OS=linux GITTAG=v99.99.99-DEV VERSION=99.99.99-DEV ARCH=amd64 TARBALL_PATH_SECTION="-s \"$(shell pwd)\"" TARGET=teleport
+else
+	$(MAKE) -C ../ ensure-webassets-e
+	@echo "---> Building teleport binary."
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -buildvcs=false -tags "webassets_embed webassets_ent" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport;
+endif
 	@echo "---> Building docker image and deploying to cloud tenant."
-	BASE_DOCKERFILE=$(CLOUD_DOCKERFILE) DOCKERFILE_TARGET="teleport" DEB_PATH="./teleport-ent_99.99.99-DEV_amd64.deb" ./scripts/deploy-cloud.sh
+	./scripts/deploy-cloud.sh
 
 # make deploy-cloud-login - Ensures access to all services required to deploy
 # an image to a cloud tenant in the staging cluster.

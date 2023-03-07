@@ -20,6 +20,7 @@ The following systems need to be accessible:
 The following CLI tools need to be available:
 - aws (v2+ required)
 - docker
+- jq
 - kubectl
 - tsh
 
@@ -86,26 +87,37 @@ TELEPORT_USER=first.last@goteleport.com make deploy-cloud-login
 
 ### `deploy-cloud`
 
-Minimally, provide a tenant name in the flag `TENANT`.
+Minimally, provide a tenant name in the flag `TENANT`. The tenant name is the subdomain of your teleport cluster (e.g. for `mytenant.cloud.gravitational.io` provide `TENANT=mytenant`)
 
 ```
 make TENANT=yourtenant deploy-cloud
 ```
 
-The docker repository is located is us-west-2. If uploads are slow, use a base image instead of a Dockerfile - only the `teleport` binary will be transferred after the first push. This cuts down upload time by ~2/3rds.
+This make target will build the `teleport` binary and copy it into an base release image. The tag for the base image is derived from `version.go`. If you've branched from `master` and no base image is available yet for a new major version, override by providing `BASE_IMAGE_TAG`. The default docker repo is `public.ecr.aws/teleport-ent` (override with `BASE_IMAGE_REPO`).
 
 ```
-make TENANT=yourtenant CLOUD_DOCKERFILE=- BASE_IMAGE_TAG=10.1.4 deploy-cloud
+make TENANT=yourtenant BASE_IMAGE_TAG=10.1.4 deploy-cloud
 ```
 
-Base images come from the `teleport-ent` repo on quay.io by default. To override, provide a value for "BASE_IMAGE_REPO" along with the image tag.
+Linux workstations having a recent `glibc` version will produce binaries incompatible with our release images (script will warn & fail). Generate binaries using dockerized build then include the flag `CLOUD_SKIP_BUILD` to use the existing binary.
 
 ```
-make TENANT=yourtenant CLOUD_DOCKERFILE=- BASE_IMAGE_REPO=public.ecr.aws/gravitational/teleport-ent BASE_IMAGE_TAG=10.1.4 deploy-cloud
+make -C ../build.assets release-centos7
+make TENANT=yourtenant CLOUD_SKIP_BUILD=1 deploy-cloud
 ```
 
-If the build fails with `cgo` errors, provide a C compiler that targets `x86_64/linux`.
+Flag variables are available to skip deployment and monitoring stages:
+- `CLOUD_SKIP_DEPLOY=1`: new docker image will be pushed, but the tenant will not be modified to use the new image.
+- `CLOUD_SKIP_ROLLOUT=1`: skip monitoring of new pod rollout, deploy script terminates after tenant is modified.
 
+If the build fails with `cgo` errors, provide a C compiler that targets `x86_64/linux`:
 ```
+# compiler in PATH
+CC=x86_64-unknown-linux-gnu-gcc make TENANT=yourtenant deploy-cloud
+
+# darwin/arm64 w/homebrew messense/macos-cross-toolchains
 CC=/opt/homebrew/bin/x86_64-unknown-linux-gnu-gcc make TENANT=yourtenant deploy-cloud
+
+# darwin/x86 w/homebrew messense/macos-cross-toolchains
+CC=/usr/local/bin/x86_64-unknown-linux-gnu-gcc make TENANT=yourtenant deploy-cloud
 ```
