@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"github.com/coreos/go-oidc"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"time"
 )
 
 type clusterNameGetter interface {
-	GetClusterName() (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 type IDTokenValidatorConfig struct {

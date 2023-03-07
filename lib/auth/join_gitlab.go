@@ -46,8 +46,8 @@ func (a *Server) checkGitLabJoinRequest(ctx context.Context, req *types.Register
 		return nil, trace.BadParameter("gitlab join method only supports ProvisionTokenV2, '%T' was provided", pt)
 	}
 
-	claims, err := a.ghaIDTokenValidator.Validate(
-		ctx, domain, req.IDToken,
+	claims, err := a.gitlabIDTokenValidator.Validate(
+		ctx, token.Spec.GitLab.Domain, req.IDToken,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
