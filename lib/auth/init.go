@@ -154,7 +154,7 @@ type InitConfig struct {
 	AuthPreference types.AuthPreference
 
 	// AuditLog is used for emitting events to audit log.
-	AuditLog events.IAuditLog
+	AuditLog events.AuditLogSessionStreamer
 
 	// ClusterAuditConfig holds cluster audit configuration.
 	ClusterAuditConfig types.ClusterAuditConfig

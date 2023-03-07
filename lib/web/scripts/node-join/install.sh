@@ -880,6 +880,11 @@ install_from_repo() {
         yum install -y yum-utils
         yum-config-manager --add-repo \
         "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/${REPO_CHANNEL}/teleport.repo")"
+
+        # Remove metadata cache to prevent cache from other channel (eg, prior version)
+        # See: https://github.com/gravitational/teleport/issues/22581
+        yum --disablerepo="*" --enablerepo="teleport" clean metadata
+        
         yum install -y ${TELEPORT_PACKAGE_NAME}
     else
         echo "Unsupported distro: $ID"
