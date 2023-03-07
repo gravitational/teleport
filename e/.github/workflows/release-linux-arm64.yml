@@ -38,9 +38,22 @@ on:
         type: string
         default: ""
 
+      workflow-tag:
+        description: |
+          Tag used to identify workflow runs spawned by this event
+        type: string
+        default: ""
+
 run-name: "Build ARM64 Release Artifacts for ${{ inputs.oss-teleport-repo }} ${{ inputs.oss-teleport-ref }}"
 
 jobs:
+  identity:
+    runs-on: ubuntu-latest
+    if: inputs.workflow-tag != ''
+    steps:
+      - name: ${{ inputs.workflow-tag }}
+        run: echo ${{ inputs.workflow-tag }}
+        
   build-artifacts:
     name: Build Artifacts    
     strategy:
