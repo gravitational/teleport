@@ -532,15 +532,6 @@ func (rc *ResourceCommand) createLock(ctx context.Context, client auth.ClientI, 
 		return trace.AlreadyExists("lock %q already exists", name)
 	}
 
-	now := time.Now().UTC()
-	lock.SetCreatedOn(&now)
-
-	user, err := client.GetCurrentUser(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	lock.SetCreatedBy(user.GetName())
-
 	if err := client.UpsertLock(ctx, lock); err != nil {
 		return trace.Wrap(err)
 	}
