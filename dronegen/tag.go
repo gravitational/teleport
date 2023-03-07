@@ -195,6 +195,7 @@ func tagPipelines() []pipeline {
 		ghaWorkflow:    "release-linux-arm64.yml",
 		srcRefVar:      "DRONE_TAG",
 		workflowRefVar: "DRONE_TAG",
+		dependsOn:      []string{tagCleanupPipelineName},
 		inputs: map[string]string{
 			"upload-artifacts": "true",
 		},
@@ -208,6 +209,7 @@ func tagPipelines() []pipeline {
 		srcRefVar:      "DRONE_TAG",
 		workflowRefVar: "DRONE_TAG",
 		dependsOn: []string{
+			tagCleanupPipelineName,
 			"build-linux-amd64-deb",
 			"build-linux-arm64-deb",
 		},

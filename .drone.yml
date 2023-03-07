@@ -1239,8 +1239,6 @@ workspace:
   path: /go
 clone:
   disable: true
-depends_on:
-- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -1266,7 +1264,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -workflow release-linux-arm64.yml -workflow-ref ${DRONE_BRANCH}
-    -input oss-teleport-repo="${DRONE_REPO}" -input oss-teleport-ref=${DRONE_COMMIT} '
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT} '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -4981,8 +4979,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -workflow release-linux-arm64.yml -workflow-ref ${DRONE_TAG} -input
-    oss-teleport-repo="${DRONE_REPO}" -input oss-teleport-ref=${DRONE_TAG} -input
-    "upload-artifacts=true" '
+    oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} -input "upload-artifacts=true" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -7694,6 +7691,61 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
+# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: promote-teleport-oci-distroless-images
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+    - promote-distroless
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -workflow .github/workflows/promote-teleport-oci-distroless.yml
+    -workflow-ref ${DRONE_TAG} -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
 # Generated at dronegen/mac.go (main.newDarwinPipeline)
 ################################################
 
@@ -9099,6 +9151,8 @@ clone:
   disable: true
 depends_on:
 - clean-up-previous-build
+- build-linux-amd64-deb
+- build-linux-arm64-deb
 steps:
 - name: Check out code
   image: docker:git
@@ -9124,7 +9178,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -workflow release-teleport-oci-distroless.yml -workflow-ref ${DRONE_TAG}
-    -input oss-teleport-repo="${DRONE_REPO}" -input oss-teleport-ref=${DRONE_TAG} '
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -18881,6 +18935,7 @@ depends_on:
 - teleport-container-images-branch-promote
 - publish-apt-new-repos
 - publish-yum-new-repos
+- promote-teleport-oci-distroless-images
 steps:
 - name: Check if commit is tagged
   image: alpine
@@ -18976,6 +19031,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: b75116297b9e3ed81e2d08784f6fefe3413f9213855ee8fd8625a3627bb9589f
+hmac: 08656c988c13fd02f644140f2fcde1960d984a94713a252e748a66d7ceb24362
 
 ...

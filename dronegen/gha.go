@@ -35,7 +35,7 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 	p := newKubePipeline(b.pipelineName)
 	p.Trigger = b.trigger
 	p.Workspace = workspace{Path: "/go"}
-	p.DependsOn = append(p.DependsOn, tagCleanupPipelineName)
+	p.DependsOn = append(p.DependsOn, b.dependsOn...)
 
 	var cmd strings.Builder
 	cmd.WriteString(`go run ./cmd/gh-trigger-workflow `)
@@ -45,7 +45,7 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 	fmt.Fprintf(&cmd, `-workflow %s `, b.ghaWorkflow)
 	fmt.Fprintf(&cmd, `-workflow-ref ${%s} `, b.workflowRefVar)
 
-	cmd.WriteString(`-input oss-teleport-repo="${DRONE_REPO}" `)
+	cmd.WriteString(`-input oss-teleport-repo=${DRONE_REPO} `)
 	fmt.Fprintf(&cmd, `-input oss-teleport-ref=${%s} `, b.srcRefVar)
 
 	for k, v := range b.inputs {
