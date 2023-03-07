@@ -413,7 +413,7 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI auth.Clien
 }
 
 // GenerateCRLForCA generates a certificate revocation list for a certificate
-// authoritity.
+// authority.
 func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI auth.ClientI) error {
 	certType := types.CertAuthType(a.caType)
 	if err := certType.Check(); err != nil {
