@@ -1234,3 +1234,59 @@ func Test_GetTcpAddr(t *testing.T) {
 		require.Equal(t, tt.expected, result.String())
 	}
 }
+
+func TestIsDifferentTCPVersion(t *testing.T) {
+	testCases := []struct {
+		addr1    string
+		addr2    string
+		expected bool
+	}{
+		{
+			addr1:    "8.8.8.8:42",
+			addr2:    "8.8.8.8:42",
+			expected: false,
+		},
+		{
+			addr1:    "[2601:602:8700:4470:a3:813c:1d8c:30b9]:42",
+			addr2:    "[2607:f8b0:4005:80a::200e]:42",
+			expected: false,
+		},
+		{
+			addr1:    "127.0.0.1:42",
+			addr2:    "[::1]:42",
+			expected: true,
+		},
+		{
+			addr1:    "[::1]:42",
+			addr2:    "127.0.0.1:42",
+			expected: true,
+		},
+		{
+			addr1:    "::ffff:39.156.68.48:42",
+			addr2:    "39.156.68.48:42",
+			expected: true,
+		},
+		{
+			addr1:    "[2607:f8b0:4005:80a::200e]:42",
+			addr2:    "1.1.1.1:42",
+			expected: true,
+		},
+		{
+			addr1:    "127.0.0.1:42",
+			addr2:    "[2607:f8b0:4005:80a::200e]:42",
+			expected: true,
+		},
+		{
+			addr1:    "::ffff:39.156.68.48:42",
+			addr2:    "[2607:f8b0:4005:80a::200e]:42",
+			expected: false,
+		},
+	}
+
+	for _, tt := range testCases {
+		addr1 := getTCPAddr(utils.MustParseAddr(tt.addr1))
+		addr2 := getTCPAddr(utils.MustParseAddr(tt.addr2))
+		require.Equal(t, tt.expected, isDifferentTCPVersion(addr1, addr2),
+			fmt.Sprintf("Unexpected result for %q, %q", tt.addr1, tt.addr2))
+	}
+}
