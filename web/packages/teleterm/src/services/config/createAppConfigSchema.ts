@@ -4,7 +4,8 @@ import { Platform } from 'teleterm/mainProcess/types';
 
 import { getKeyboardShortcutSchema } from './getKeyboardShortcutSchema';
 
-export type AppConfig = z.infer<ReturnType<typeof createAppConfigSchema>>;
+export type AppConfigSchema = ReturnType<typeof createAppConfigSchema>;
+export type AppConfig = z.infer<AppConfigSchema>;
 
 export const createAppConfigSchema = (platform: Platform) => {
   const defaultKeymap = getDefaultKeymap(platform);

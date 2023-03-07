@@ -23,7 +23,11 @@ import { FileStorage } from 'teleterm/services/fileStorage';
 import Logger from 'teleterm/logger';
 import { Platform } from 'teleterm/mainProcess/types';
 
-import { createAppConfigSchema, AppConfig } from './createAppConfigSchema';
+import {
+  createAppConfigSchema,
+  AppConfigSchema,
+  AppConfig,
+} from './createAppConfigSchema';
 
 const logger = new Logger('ConfigService');
 
@@ -49,49 +53,10 @@ export function createConfigService({
   const schema = createAppConfigSchema(platform);
   updateJsonSchema({ schema, configFile, jsonSchemaFile });
 
-  const { storedConfig, configWithDefaults, errors } = validateStoredConfig();
-
-  function parse(data: Partial<AppConfig>) {
-    return schema.safeParse(data);
-  }
-
-  //TODO (gzdunek): syntax errors of the JSON file are silently ignored, report
-  // them to the user too
-  function validateStoredConfig(): {
-    storedConfig: Partial<AppConfig>;
-    configWithDefaults: AppConfig;
-    errors: ZodIssue[] | undefined;
-  } {
-    const storedConfig = configFile.get<Partial<AppConfig>>();
-    const parsed = parse(storedConfig);
-    if (parsed.success === true) {
-      return {
-        storedConfig,
-        configWithDefaults: parsed.data,
-        errors: undefined,
-      };
-    }
-    const withoutInvalidKeys = { ...storedConfig };
-    parsed.error.issues.forEach(error => {
-      // remove only top-level keys
-      delete withoutInvalidKeys[error.path[0]];
-      logger.info(
-        `Invalid config key, error: ${error.message} at ${error.path.join('.')}`
-      );
-    });
-    const reParsed = parse(withoutInvalidKeys);
-    if (reParsed.success === false) {
-      // it can happen when a default value does not pass validation
-      throw new Error(
-        `Re-parsing config file failed \n${reParsed.error.message}`
-      );
-    }
-    return {
-      storedConfig: withoutInvalidKeys,
-      configWithDefaults: reParsed.data,
-      errors: parsed.error.issues,
-    };
-  }
+  const { storedConfig, configWithDefaults, errors } = validateStoredConfig(
+    schema,
+    configFile
+  );
 
   return {
     get: key => ({
@@ -112,7 +77,7 @@ function updateJsonSchema({
   configFile,
   jsonSchemaFile,
 }: {
-  schema: z.AnyZodObject;
+  schema: AppConfigSchema;
   configFile: FileStorage;
   jsonSchemaFile: FileStorage;
 }): void {
@@ -129,4 +94,47 @@ function updateJsonSchema({
   if (jsonSchemaFileNameInConfig !== jsonSchemaFileName) {
     configFile.put('$schema', jsonSchemaFileName);
   }
+}
+
+//TODO (gzdunek): syntax errors of the JSON file are silently ignored, report
+// them to the user too
+function validateStoredConfig(
+  schema: AppConfigSchema,
+  configFile: FileStorage
+): {
+  storedConfig: Partial<AppConfig>;
+  configWithDefaults: AppConfig;
+  errors: ZodIssue[] | undefined;
+} {
+  const parse = (data: Partial<AppConfig>) => schema.safeParse(data);
+
+  const storedConfig = configFile.get<Partial<AppConfig>>();
+  const parsed = parse(storedConfig);
+  if (parsed.success === true) {
+    return {
+      storedConfig,
+      configWithDefaults: parsed.data,
+      errors: undefined,
+    };
+  }
+  const withoutInvalidKeys = { ...storedConfig };
+  parsed.error.issues.forEach(error => {
+    // remove only top-level keys
+    delete withoutInvalidKeys[error.path[0]];
+    logger.info(
+      `Invalid config key, error: ${error.message} at ${error.path.join('.')}`
+    );
+  });
+  const reParsed = parse(withoutInvalidKeys);
+  if (reParsed.success === false) {
+    // it can happen when a default value does not pass validation
+    throw new Error(
+      `Re-parsing config file failed \n${reParsed.error.message}`
+    );
+  }
+  return {
+    storedConfig: withoutInvalidKeys,
+    configWithDefaults: reParsed.data,
+    errors: parsed.error.issues,
+  };
 }
