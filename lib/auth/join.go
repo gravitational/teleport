@@ -189,6 +189,7 @@ func (a *Server) generateCertsBot(
 		renewable = true
 	case types.JoinMethodIAM,
 		types.JoinMethodGitHub,
+		types.JoinMethodGitLab,
 		types.JoinMethodCircleCI,
 		types.JoinMethodKubernetes,
 		types.JoinMethodAzure:

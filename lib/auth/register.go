@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/x509"
+	"github.com/gravitational/teleport/lib/gitlab"
 	"os"
 	"time"
 
@@ -211,6 +212,11 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		}
 	} else if params.JoinMethod == types.JoinMethodGitHub {
 		params.IDToken, err = githubactions.NewIDTokenSource().GetIDToken(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else if params.JoinMethod == types.JoinMethodGitLab {
+		params.IDToken, err = gitlab.NewIDTokenSource(os.Getenv).GetIDToken()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

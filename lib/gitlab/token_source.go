@@ -2,10 +2,12 @@ package gitlab
 
 import "github.com/gravitational/trace"
 
+type envGetter func(key string) string
+
 // IDTokenSource allows a GitLab ID token to be fetched whilst executing
 // within the context of a GitLab actions workflow.
 type IDTokenSource struct {
-	getEnv func(key string) string
+	getEnv envGetter
 }
 
 func (its *IDTokenSource) GetIDToken() (string, error) {
@@ -17,4 +19,10 @@ func (its *IDTokenSource) GetIDToken() (string, error) {
 	}
 
 	return tok, nil
+}
+
+func NewIDTokenSource(getEnv envGetter) *IDTokenSource {
+	return &IDTokenSource{
+		getEnv,
+	}
 }

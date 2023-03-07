@@ -272,6 +272,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 		case types.JoinMethodToken,
 			types.JoinMethodIAM,
 			types.JoinMethodGitHub,
+			types.JoinMethodGitLab,
 			types.JoinMethodCircleCI:
 		default:
 			return nil, trace.BadParameter(
@@ -280,6 +281,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 					types.JoinMethodToken,
 					types.JoinMethodIAM,
 					types.JoinMethodGitHub,
+					types.JoinMethodGitLab,
 					types.JoinMethodCircleCI,
 				})
 		}
