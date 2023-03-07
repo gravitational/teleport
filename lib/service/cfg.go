@@ -414,6 +414,9 @@ func (cfg *Config) DebugDumpToYAML() string {
 type CachePolicy struct {
 	// Enabled enables or disables caching
 	Enabled bool
+	// MaxRetryPeriod is maximum period cache waits before retrying on failure.
+	// Not exposed through the config file, used in tests.
+	MaxRetryPeriod time.Duration
 }
 
 // CheckAndSetDefaults checks and sets default values

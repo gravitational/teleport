@@ -59,7 +59,7 @@ import (
 // methods that focuses on authorizing every request
 type ServerWithRoles struct {
 	authServer *Server
-	alog       events.IAuditLog
+	alog       events.AuditLogSessionStreamer
 	// context holds authorization context
 	context Context
 }
@@ -3374,7 +3374,7 @@ func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offs
 	return a.alog.GetSessionChunk(namespace, sid, offsetBytes, maxBytes)
 }
 
-func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]events.EventFields, error) {
+func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int) ([]events.EventFields, error) {
 	if err := a.actionForKindSession(namespace, sid); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3391,7 +3391,7 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 		return nil, trace.Wrap(err)
 	}
 
-	return a.alog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
+	return a.alog.GetSessionEvents(namespace, sid, afterN)
 }
 
 func (a *ServerWithRoles) findSessionEndEvent(namespace string, sid session.ID) (apievents.AuditEvent, error) {
@@ -5794,7 +5794,7 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
-func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {
+func NewAdminAuthServer(authServer *Server, alog events.AuditLogSessionStreamer) (ClientI, error) {
 	ctx, err := NewAdminContext()
 	if err != nil {
 		return nil, trace.Wrap(err)

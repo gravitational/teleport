@@ -77,7 +77,7 @@ export const StyledSelect = styled.div`
   .react-select__control,
   .react-select__control--is-focused {
     min-height: 40px;
-    height: 40px;
+    height: fit-content;
     background-color: transparent;
     border-color: transparent;
     border-radius: 4px;
