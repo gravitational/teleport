@@ -43,7 +43,7 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 	cmd.WriteString(`-repo teleport.e `)
 	cmd.WriteString(`-tag-workflow `)
 	fmt.Fprintf(&cmd, `-workflow %s `, b.ghaWorkflow)
-	fmt.Fprintf(&cmd, `-workflow-ref ${%s} `, b.workflowRefVar)
+	fmt.Fprintf(&cmd, `-workflow-ref=${%s} `, b.workflowRefVar)
 
 	cmd.WriteString(`-input oss-teleport-repo=${DRONE_REPO} `)
 	fmt.Fprintf(&cmd, `-input oss-teleport-ref=${%s} `, b.srcRefVar)
