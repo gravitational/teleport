@@ -378,6 +378,70 @@ func TestAppResource(t *testing.T) {
 	))
 }
 
+func TestCreateLock(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
+	_, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{
+			User: "bad@actor",
+		},
+		Message: "I am a message",
+	})
+	require.NoError(t, err)
+
+	var locks []*types.LockV2
+
+	// Ensure there are no locks to start
+	buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &locks)
+	require.Len(t, locks, 0)
+
+	// Create the locks
+	lockYAMLPath := filepath.Join(t.TempDir(), "lock.yaml")
+	require.NoError(t, os.WriteFile(lockYAMLPath, []byte(lockYAML), 0644))
+	_, err = runResourceCommand(t, fileConfig, []string{"create", lockYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the locks
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &locks)
+	require.Len(t, locks, 1)
+
+	expected, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{
+			User: "bad@actor",
+		},
+		Message: "Come see me",
+	})
+	expected.SetCreatedBy("admin")
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff([]*types.LockV2{expected.(*types.LockV2)}, locks,
+		cmpopts.IgnoreFields(types.LockV2{}, "Metadata", "Spec.CreatedOn")))
+}
+
 // TestCreateDatabaseInInsecureMode connects to auth server with --insecure mode and creates a DB resource.
 func TestCreateDatabaseInInsecureMode(t *testing.T) {
 	dynAddr := newDynamicServiceAddr(t)
@@ -451,6 +515,15 @@ metadata:
   name: appB
 spec:
   uri: "localhost2"`
+
+	lockYAML = `kind: lock
+version: v2
+metadata:
+  name: "test-lock"
+spec:
+  target:
+    user: "bad@actor"
+  message: "Come see me"`
 )
 
 func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {

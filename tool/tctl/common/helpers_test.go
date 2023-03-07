@@ -116,6 +116,12 @@ func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts
 	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
 }
 
+func runLockCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
+	command := &LockCommand{}
+	args = append([]string{"lock"}, args...)
+	return runCommand(t, fc, command, args, opts...)
+}
+
 func runTokensCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &TokensCommand{
