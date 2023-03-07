@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import { ZodIssue } from 'zod';
+import path from 'path';
+
+import { z, ZodIssue } from 'zod';
+import zodToJsonSchema from 'zod-to-json-schema';
 
 import { FileStorage } from 'teleterm/services/fileStorage';
 import Logger from 'teleterm/logger';
@@ -44,6 +47,8 @@ export function createConfigService({
   platform: Platform;
 }): ConfigService {
   const schema = createAppConfigSchema(platform);
+  updateJsonSchema({ schema, configFile, jsonSchemaFile });
+
   const { storedConfig, configWithDefaults, errors } = validateStoredConfig();
 
   function parse(data: Partial<AppConfig>) {
@@ -100,4 +105,28 @@ export function createConfigService({
     },
     getStoredConfigErrors: () => errors,
   };
+}
+
+function updateJsonSchema({
+  schema,
+  configFile,
+  jsonSchemaFile,
+}: {
+  schema: z.AnyZodObject;
+  configFile: FileStorage;
+  jsonSchemaFile: FileStorage;
+}): void {
+  const jsonSchema = zodToJsonSchema(
+    // Add $schema field to prevent marking it as a not allowed property.
+    schema.extend({ $schema: z.string() }),
+    { $refStrategy: 'none' }
+  );
+  const jsonSchemaFileName = path.basename(jsonSchemaFile.getFilePath());
+  const jsonSchemaFileNameInConfig = configFile.get('$schema');
+
+  jsonSchemaFile.replace(jsonSchema);
+
+  if (jsonSchemaFileNameInConfig !== jsonSchemaFileName) {
+    configFile.put('$schema', jsonSchemaFileName);
+  }
 }

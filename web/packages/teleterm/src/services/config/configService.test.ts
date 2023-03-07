@@ -85,3 +85,21 @@ test('calling set updated the value in store', () => {
   expect(usageReportingEnabled.value).toBe(true);
   expect(usageReportingEnabled.metadata.isStored).toBe(true);
 });
+
+test('field linking to the json schema and the json schema itself are updated', () => {
+  const configFile = createMockFileStorage();
+  const jsonSchemaFile = createMockFileStorage({
+    filePath: '~/config_schema.json',
+  });
+
+  jest.spyOn(jsonSchemaFile, 'replace');
+
+  createConfigService({
+    configFile,
+    jsonSchemaFile,
+    platform: 'darwin',
+  });
+
+  expect(configFile.get('$schema')).toBe('config_schema.json');
+  expect(jsonSchemaFile.replace).toHaveBeenCalledTimes(1);
+});
