@@ -121,7 +121,8 @@ type UsageReporter[T any] struct {
 	// maxBatchSize is the maximum size of a batch that may be sent at once.
 	maxBatchSize int
 
-	// maxBatchAge is the
+	// maxBatchAge is the maximum time we're going to wait before we send a
+	// batch, no matter how small it is.
 	maxBatchAge time.Duration
 
 	// maxBufferSize is the maximum number of events that can be queued in the
@@ -205,11 +206,12 @@ func (r *UsageReporter[T]) runSubmit(ctx context.Context) {
 }
 
 // enqueueBatch prepares a batch for submission, removing it from the buffer and
-// adding it to the submission queue.
-func (r *UsageReporter[T]) enqueueBatch() {
+// adding it to the submission queue. Returns true if a batch was successfully
+// submitted.
+func (r *UsageReporter[T]) enqueueBatch() bool {
 	if len(r.buf) == 0 {
 		// Nothing to do.
-		return
+		return false
 	}
 
 	var events []*SubmittedEvent[T]
@@ -234,10 +236,11 @@ func (r *UsageReporter[T]) enqueueBatch() {
 		usageBatchesTotal.Inc()
 
 		r.WithField("batch_size", len(events)).Debug("enqueued batch of usage events")
+		return true
 	default:
 		// The queue is full, we'll try again later. Leave the existing buf in
 		// place.
-		r.WithField("batch_size", len(r.buf)).Debug("waiting to submit batch due to full queue")
+		return false
 	}
 }
 
@@ -307,17 +310,19 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 			if r.receiveFunc != nil {
 				r.receiveFunc()
 			}
-
-			// If we've accumulated enough events to trigger an early send, do
-			// so and reset the timer.
-			if len(r.buf) >= r.minBatchSize {
-				if !timer.Stop() {
-					<-timer.Chan()
-				}
-				timer.Reset(r.maxBatchAge)
-				r.enqueueBatch()
-			}
 		}
+
+		// If we've accumulated enough events to trigger an early send, do
+		// so and reset the timer.
+		if len(r.buf) >= r.minBatchSize {
+			for len(r.buf) >= r.minBatchSize && r.enqueueBatch() {
+			}
+			if !timer.Stop() {
+				<-timer.Chan()
+			}
+			timer.Reset(r.maxBatchAge)
+		}
+
 	}
 }
 
@@ -350,7 +355,7 @@ func (r *UsageReporter[T]) submitEvents(events []*SubmittedEvent[T]) {
 
 type Options[T any] struct {
 	Log logrus.FieldLogger
-	//Submit is a func that submits a batch of usage events.
+	// Submit is a func that submits a batch of usage events.
 	Submit SubmitFunc[T]
 	// MinBatchSize determines the size at which a batch is sent
 	// regardless of elapsed time.
@@ -415,5 +420,4 @@ func NewUsageReporter[T any](options *Options[T]) *UsageReporter[T] {
 	reporter.wg.Add(1)
 
 	return reporter
-
 }
