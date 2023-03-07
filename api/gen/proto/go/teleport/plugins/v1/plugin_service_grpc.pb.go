@@ -36,6 +36,9 @@ type PluginServiceClient interface {
 	SetPluginCredentials(ctx context.Context, in *SetPluginCredentialsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// SetPluginCredentials sets the status for the given plugin.
 	SetPluginStatus(ctx context.Context, in *SetPluginStatusRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// GetAvailablePluginTypes returns the types of plugins
+	// that the auth server supports onboarding.
+	GetAvailablePluginTypes(ctx context.Context, in *GetAvailablePluginTypesRequest, opts ...grpc.CallOption) (*GetAvailablePluginTypesResponse, error)
 }
 
 type pluginServiceClient struct {
@@ -100,6 +103,15 @@ func (c *pluginServiceClient) SetPluginStatus(ctx context.Context, in *SetPlugin
 	return out, nil
 }
 
+func (c *pluginServiceClient) GetAvailablePluginTypes(ctx context.Context, in *GetAvailablePluginTypesRequest, opts ...grpc.CallOption) (*GetAvailablePluginTypesResponse, error) {
+	out := new(GetAvailablePluginTypesResponse)
+	err := c.cc.Invoke(ctx, "/teleport.plugins.v1.PluginService/GetAvailablePluginTypes", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PluginServiceServer is the server API for PluginService service.
 // All implementations must embed UnimplementedPluginServiceServer
 // for forward compatibility
@@ -116,6 +128,9 @@ type PluginServiceServer interface {
 	SetPluginCredentials(context.Context, *SetPluginCredentialsRequest) (*emptypb.Empty, error)
 	// SetPluginCredentials sets the status for the given plugin.
 	SetPluginStatus(context.Context, *SetPluginStatusRequest) (*emptypb.Empty, error)
+	// GetAvailablePluginTypes returns the types of plugins
+	// that the auth server supports onboarding.
+	GetAvailablePluginTypes(context.Context, *GetAvailablePluginTypesRequest) (*GetAvailablePluginTypesResponse, error)
 	mustEmbedUnimplementedPluginServiceServer()
 }
 
@@ -140,6 +155,9 @@ func (UnimplementedPluginServiceServer) SetPluginCredentials(context.Context, *S
 }
 func (UnimplementedPluginServiceServer) SetPluginStatus(context.Context, *SetPluginStatusRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetPluginStatus not implemented")
+}
+func (UnimplementedPluginServiceServer) GetAvailablePluginTypes(context.Context, *GetAvailablePluginTypesRequest) (*GetAvailablePluginTypesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAvailablePluginTypes not implemented")
 }
 func (UnimplementedPluginServiceServer) mustEmbedUnimplementedPluginServiceServer() {}
 
@@ -262,6 +280,24 @@ func _PluginService_SetPluginStatus_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PluginService_GetAvailablePluginTypes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAvailablePluginTypesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PluginServiceServer).GetAvailablePluginTypes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/teleport.plugins.v1.PluginService/GetAvailablePluginTypes",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PluginServiceServer).GetAvailablePluginTypes(ctx, req.(*GetAvailablePluginTypesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PluginService_ServiceDesc is the grpc.ServiceDesc for PluginService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -292,6 +328,10 @@ var PluginService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetPluginStatus",
 			Handler:    _PluginService_SetPluginStatus_Handler,
+		},
+		{
+			MethodName: "GetAvailablePluginTypes",
+			Handler:    _PluginService_GetAvailablePluginTypes_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
