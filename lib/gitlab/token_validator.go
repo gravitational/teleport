@@ -5,15 +5,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/coreos/go-oidc"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"time"
 )
 
+type clusterNameGetter interface {
+	GetClusterName() (types.ClusterName, error)
+}
+
 type IDTokenValidatorConfig struct {
 	// Clock is used by the validator when checking expiry and issuer times of
 	// tokens. If omitted, a real clock will be used.
 	Clock clockwork.Clock
+	// ClusterNameGetter is used to get the cluster name in order to identify
+	// the correct audience for the token.
+	ClusterNameGetter clusterNameGetter
 	// insecure configures the validator to use HTTP rather than HTTPS. This
 	// is not exported as this is only used in the test for now.
 	insecure bool
@@ -23,14 +31,22 @@ type IDTokenValidator struct {
 	IDTokenValidatorConfig
 }
 
-func NewIDTokenValidator(cfg IDTokenValidatorConfig) *IDTokenValidator {
+func NewIDTokenValidator(
+	cfg IDTokenValidatorConfig,
+) (*IDTokenValidator, error) {
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 
+	if cfg.ClusterNameGetter == nil {
+		return nil, trace.BadParameter(
+			"ClusterNameGetter must be configured",
+		)
+	}
+
 	return &IDTokenValidator{
 		IDTokenValidatorConfig: cfg,
-	}
+	}, nil
 }
 
 func (id *IDTokenValidator) issuerURL(domain string) string {
@@ -42,7 +58,9 @@ func (id *IDTokenValidator) issuerURL(domain string) string {
 	return fmt.Sprintf("%s://%s", scheme, domain)
 }
 
-func (id *IDTokenValidator) Validate(ctx context.Context, domain string, token string) (*IDTokenClaims, error) {
+func (id *IDTokenValidator) Validate(
+	ctx context.Context, domain string, token string,
+) (*IDTokenClaims, error) {
 	p, err := oidc.NewProvider(
 		ctx,
 		id.issuerURL(domain),
@@ -51,9 +69,13 @@ func (id *IDTokenValidator) Validate(ctx context.Context, domain string, token s
 		return nil, trace.Wrap(err)
 	}
 
+	clusterNameResource, err := id.ClusterNameGetter.GetClusterName()
+	if err != nil {
+		return nil, err
+	}
+
 	verifier := p.Verifier(&oidc.Config{
-		// TODO: Insert real cluster name
-		ClientID: "todo",
+		ClientID: clusterNameResource.GetClusterName(),
 		Now:      id.Clock.Now,
 	})
 
@@ -64,7 +86,9 @@ func (id *IDTokenValidator) Validate(ctx context.Context, domain string, token s
 
 	// `go-oidc` does not implement not before check, so we need to manually
 	// perform this
-	if err := checkNotBefore(id.Clock.Now(), time.Minute*2, idToken); err != nil {
+	if err := checkNotBefore(
+		id.Clock.Now(), time.Minute*2, idToken,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -79,7 +103,9 @@ func (id *IDTokenValidator) Validate(ctx context.Context, domain string, token s
 // https://www.rfc-editor.org/rfc/rfc7519#section-4.1.5
 // 4.1.5.  "nbf" (Not Before) Claim
 // TODO(strideynet): upstream support for `nbf` into the go-oidc lib.
-func checkNotBefore(now time.Time, leeway time.Duration, token *oidc.IDToken) error {
+func checkNotBefore(
+	now time.Time, leeway time.Duration, token *oidc.IDToken,
+) error {
 	claims := struct {
 		NotBefore *jsonTime `json:"nbf"`
 	}{}
@@ -98,7 +124,8 @@ func checkNotBefore(now time.Time, leeway time.Duration, token *oidc.IDToken) er
 	return nil
 }
 
-// jsonTime unmarshaling sourced from https://github.com/gravitational/go-oidc/blob/master/oidc.go#L295
+// jsonTime unmarshaling sourced from
+// https://github.com/gravitational/go-oidc/blob/master/oidc.go#L295
 // TODO(strideynet): upstream support for `nbf` into the go-oidc lib.
 type jsonTime time.Time
 

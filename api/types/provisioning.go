@@ -605,7 +605,11 @@ func (a *ProvisionTokenSpecV2GitLab) checkAndSetDefaults() error {
 	if a.Domain == "" {
 		a.Domain = defaultGitLabDomain
 	} else {
-		// TODO: Ensure domain does not include scheme or path
+		if strings.Contains(a.Domain, "/") {
+			return trace.BadParameter(
+				"'spec.gitlab.domain' should not contain the scheme or path",
+			)
+		}
 	}
 	return nil
 }
