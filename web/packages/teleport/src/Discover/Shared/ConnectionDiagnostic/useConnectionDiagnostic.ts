@@ -43,18 +43,16 @@ export function useConnectionDiagnostic() {
 
   const [showMfaDialog, setShowMfaDialog] = useState(false);
 
-  // runConnectionDiagnostic will initially make a call to check if
-  // resource target requires MFA authentication. After this initial
-  // check depending on if user successfully authenticated or not (
-  // determined by the presence of the token field), will make a call
-  // to test connection.
-  //
-  // Each test connection request will require a MFA check since the
-  // fields for the request may have changed eg: for nodes, the login
-  // field may change.
+  // runConnectionDiagnostic depending on the value of `mfaAuthnResponse` does the following:
+  //   1) If param `mfaAuthnResponse` is undefined or null, it will check if MFA is required.
+  //      - If MFA is required, it sets a flag that indicates a users
+  //        MFA credentials are required, and skips the request to test connection.
+  //      - If MFA is NOT required, it makes the request to test connection.
+  //   2) If param `mfaAuthnResponse` is defined, it skips checking if MFA is required,
+  //      and makes the request to test connection.
   async function runConnectionDiagnostic(
     req: ConnectionDiagnosticRequest,
-    mfaAuthnResponse: MfaAuthnResponse
+    mfaAuthnResponse?: MfaAuthnResponse
   ) {
     setDiagnosis(null); // reset since user's can re-test connection.
     setRanDiagnosis(true);
@@ -90,7 +88,7 @@ export function useConnectionDiagnostic() {
             trace => `[${trace.traceType}] ${trace.error} (${trace.details})`
           )
           .join('\n');
-        emitErrorEvent(`testing failed: ${errors}`);
+        emitErrorEvent(`diagnosis returned with errors: ${errors}`);
       } else {
         emitEvent({ stepStatus: DiscoverEventStatus.Success });
       }
@@ -130,10 +128,7 @@ export function useConnectionDiagnostic() {
   };
 }
 
-export function getMfaRequest(
-  req: ConnectionDiagnosticRequest,
-  resourceState: any
-) {
+function getMfaRequest(req: ConnectionDiagnosticRequest, resourceState: any) {
   switch (req.resourceKind) {
     case 'node':
       return {

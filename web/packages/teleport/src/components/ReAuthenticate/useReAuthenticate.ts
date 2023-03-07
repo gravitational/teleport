@@ -21,6 +21,17 @@ import auth from 'teleport/services/auth';
 
 import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
+// useReAuthenticate will have different "submit" behaviors depending on:
+//  - If prop field `onMfaResponse` is defined, after a user submits, the
+//    function `onMfaResponse` is called with the user's MFA response.
+//  - If prop field `onAuthenticated` is defined, after a user submits, the
+//    user's MFA response are submitted with the request to get a privilege
+//    token, and after successfully obtaining the token, the function
+//    `onAuthenticated` will be called with this token.
+//
+// In both scenarios, after the user submits, the control is passed back
+// to the caller who is reponsible for rendering the `ReAuthenticate`
+// component.
 export default function useReAuthenticate(props: Props) {
   const { onClose, actionText = defaultActionText } = props;
   const { attempt, setAttempt, handleError } = useAttempt('');
