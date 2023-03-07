@@ -45,6 +45,8 @@ export interface FileStorage {
 export function createFileStorage(opts: {
   filePath: string;
   debounceWrites: boolean;
+  /** Prevents state updates when the file has not been loaded correctly, so its content will not be overwritten. */
+  discardUpdatesWhenLoadingFileFailed?: boolean;
 }): FileStorage {
   if (!opts || !opts.filePath) {
     throw Error('missing filePath');
@@ -52,13 +54,20 @@ export function createFileStorage(opts: {
 
   const { filePath } = opts;
   let { state, error } = loadState(opts.filePath);
+  const discardUpdates = error && opts.discardUpdatesWhenLoadingFileFailed;
 
   function put(key: string, json: any): void {
+    if (discardUpdates) {
+      return;
+    }
     state[key] = json;
     stringifyAndWrite();
   }
 
   function writeSync(): void {
+    if (discardUpdates) {
+      return;
+    }
     const text = stringify(state);
     try {
       fs.writeFileSync(filePath, text);
@@ -67,13 +76,16 @@ export function createFileStorage(opts: {
     }
   }
 
-  function get<T>(key?: string): T {
-    return key ? state[key] : (state as T);
-  }
-
   function replace(json: any): void {
+    if (discardUpdates) {
+      return;
+    }
     state = json;
     stringifyAndWrite();
+  }
+
+  function get<T>(key?: string): T {
+    return key ? state[key] : (state as T);
   }
 
   function getFilePath(): string {

@@ -50,6 +50,7 @@ function initializeApp(): void {
   const configFileStorage = createFileStorage({
     filePath: path.join(settings.userDataDir, 'app_config.json'),
     debounceWrites: false,
+    discardUpdatesWhenLoadingFileFailed: true,
   });
   const configJsonSchemaFileStorage = createFileStorage({
     filePath: path.join(settings.userDataDir, 'schema_app_config.json'),
