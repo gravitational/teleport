@@ -75,7 +75,7 @@ spec:
                     nullable: true
                     type: array
                   db_users:
-                    description: DatabaseUsers is a list of databaes users this role
+                    description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
                     items:
                       type: string
@@ -458,7 +458,7 @@ spec:
                     nullable: true
                     type: array
                   db_users:
-                    description: DatabaseUsers is a list of databaes users this role
+                    description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
                     items:
                       type: string
@@ -1082,7 +1082,7 @@ spec:
                     nullable: true
                     type: array
                   db_users:
-                    description: DatabaseUsers is a list of databaes users this role
+                    description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
                     items:
                       type: string
@@ -1465,7 +1465,7 @@ spec:
                     nullable: true
                     type: array
                   db_users:
-                    description: DatabaseUsers is a list of databaes users this role
+                    description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
                     items:
                       type: string
