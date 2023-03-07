@@ -3017,7 +3017,7 @@ func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 		afterN = 0
 	}
 
-	e, err := clt.GetSessionEvents(apidefaults.Namespace, *sessionID, afterN, true)
+	e, err := clt.GetSessionEvents(apidefaults.Namespace, *sessionID, afterN)
 	if err != nil {
 		h.log.WithError(err).Debugf("Unable to find events for session %v.", sessionID)
 		if trace.IsNotFound(err) {

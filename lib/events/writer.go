@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -50,14 +49,6 @@ type WriterLog struct {
 // Close releases connection and resources associated with log if any
 func (w *WriterLog) Close() error {
 	return w.w.Close()
-}
-
-// Returns all events that happen during a session sorted by time
-// (oldest first).
-//
-// after is used to return events after a specified cursor ID
-func (w *WriterLog) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error) {
-	return nil, trace.NotImplemented("not implemented")
 }
 
 // SearchEvents is a flexible way to find events.
