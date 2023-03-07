@@ -31,6 +31,18 @@ import {
 
 const logger = new Logger('ConfigService');
 
+type FileLoadingError = {
+  source: 'file-loading';
+  error: Error;
+};
+
+type ValidationError = {
+  source: 'validation';
+  errors: ZodIssue[];
+};
+
+type ConfigError = FileLoadingError | ValidationError;
+
 export interface ConfigService {
   get<K extends keyof AppConfig>(
     key: K
@@ -38,7 +50,12 @@ export interface ConfigService {
 
   set<K extends keyof AppConfig>(key: K, value: AppConfig[K]): void;
 
-  getStoredConfigErrors(): ZodIssue[] | undefined;
+  /**
+   * Returns validation errors or an error that occurred during loading the config file (this means IO and syntax errors).
+   * If validation errors occur, the incorrect values are replaced with the defaults.
+   * In case of an error coming from loading the file, all values are replaced with the defaults.
+   * */
+  getConfigError(): ConfigError | undefined;
 }
 
 export function createConfigService({
@@ -53,10 +70,11 @@ export function createConfigService({
   const schema = createAppConfigSchema(platform);
   updateJsonSchema({ schema, configFile, jsonSchemaFile });
 
-  const { storedConfig, configWithDefaults, errors } = validateStoredConfig(
-    schema,
-    configFile
-  );
+  const {
+    storedConfig,
+    configWithDefaults,
+    errors: validationErrors,
+  } = validateStoredConfig(schema, configFile);
 
   return {
     get: key => ({
@@ -68,7 +86,21 @@ export function createConfigService({
       configWithDefaults[key] = value;
       storedConfig[key] = value;
     },
-    getStoredConfigErrors: () => errors,
+    getConfigError: () => {
+      const fileLoadingError = configFile.getFileLoadingError();
+      if (fileLoadingError) {
+        return {
+          source: 'file-loading',
+          error: fileLoadingError,
+        };
+      }
+      if (validationErrors) {
+        return {
+          source: 'validation',
+          errors: validationErrors,
+        };
+      }
+    },
   };
 }
 
@@ -96,8 +128,6 @@ function updateJsonSchema({
   }
 }
 
-//TODO (gzdunek): syntax errors of the JSON file are silently ignored, report
-// them to the user too
 function validateStoredConfig(
   schema: AppConfigSchema,
   configFile: FileStorage
