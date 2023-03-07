@@ -3106,23 +3106,39 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
-	clientMeta := clientMetaFromReq(r)
-
-	var cert *auth.SSHLoginResponse
+	authReq := auth.AuthenticateUserRequest{
+		Username:       req.User,
+		PublicKey:      req.PubKey,
+		ClientMetadata: clientMetaFromReq(r),
+	}
 
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
-		cert, err = h.auth.GetCertificateWithoutOTP(r.Context(), req, clientMeta)
+		authReq.Pass = &auth.PassCreds{
+			Password: []byte(req.Password),
+		}
 	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
-		cert, err = h.auth.GetCertificateWithOTP(r.Context(), req, clientMeta)
+		authReq.OTP = &auth.OTPCreds{
+			Password: []byte(req.Password),
+			Token:    req.OTPToken,
+		}
 	default:
-		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
+		return nil, trace.AccessDenied("unsupported second factor type: %q", cap.GetSecondFactor())
 	}
+
+	loginResp, err := authClient.AuthenticateSSHUser(r.Context(), auth.AuthenticateSSHRequest{
+		AuthenticateUserRequest: authReq,
+		CompatibilityMode:       req.Compatibility,
+		TTL:                     req.TTL,
+		RouteToCluster:          req.RouteToCluster,
+		KubernetesCluster:       req.KubernetesCluster,
+		AttestationStatement:    req.AttestationStatement,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return cert, nil
+	return loginResp, nil
 }
 
 // validateTrustedCluster validates the token for a trusted cluster and returns it's own host and user certificate authority.
