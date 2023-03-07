@@ -281,7 +281,8 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-r.eventsClosed:
-			r.enqueueBatch()
+			for r.enqueueBatch() {
+			}
 			return
 		case <-timer.Chan():
 			// Once the timer triggers, send any non-empty batch.
@@ -402,8 +403,10 @@ func NewUsageReporter[T any](options *Options[T]) *UsageReporter[T] {
 			trace.Component,
 			teleport.Component(teleport.ComponentUsageReporting),
 		),
-		events:          make(chan []*SubmittedEvent[T], 1),
-		submissionQueue: make(chan []*SubmittedEvent[T], 1),
+		events: make(chan []*SubmittedEvent[T], 1),
+		// submissionQueue has size 2 so that the behavior when we have slightly
+		// more than MaxBatchSize events is more consistent
+		submissionQueue: make(chan []*SubmittedEvent[T], 2),
 		eventsClosed:    make(chan struct{}),
 		submit:          options.Submit,
 		clock:           options.Clock,

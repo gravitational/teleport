@@ -18,7 +18,6 @@ package usagereporter
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -37,7 +36,7 @@ const (
 )
 
 type TestEvent struct {
-	count string
+	count int
 }
 
 // newTestSubmitter creates a submitter that reports batches to a channel.
@@ -77,7 +76,7 @@ func newTestingUsageReporter(
 		receiveChan <- struct{}{}
 	}
 
-	reporter := NewUsageReporter[TestEvent](&Options[TestEvent]{
+	reporter := NewUsageReporter(&Options[TestEvent]{
 		Submit:        submitter,
 		Clock:         clock,
 		SubmitClock:   submitClock,
@@ -105,7 +104,7 @@ func createDummyEvents(start, count int) []*TestEvent {
 
 	for i := 0; i < count; i++ {
 		ret = append(ret, &TestEvent{
-			count: fmt.Sprintf("%d", start+i),
+			count: start + i,
 		})
 	}
 
@@ -284,11 +283,11 @@ func TestUsageReporterDiscard(t *testing.T) {
 		t.Fatalf("Did not receive expected events.")
 	}
 
-	// Wait the regular submit delay (to ensure submit finishes) _and_ the
-	// maxBatchAge (to allow the next submission).
+	// Wait the regular submit delay (to ensure submit finishes), as we have
+	// enough events to fill two batches.
 	fakeClock.BlockUntil(1)
 	fakeSubmitClock.BlockUntil(1)
-	advanceClocks(testSubmitDelay+testMaxBatchAge, fakeClock, fakeSubmitClock)
+	advanceClocks(testSubmitDelay, fakeClock, fakeSubmitClock)
 
 	// Receive the final batch.
 	select {
