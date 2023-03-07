@@ -584,6 +584,8 @@ func (a *ProvisionTokenSpecV2Azure) checkAndSetDefaults() error {
 	return nil
 }
 
+const defaultGitLabDomain = "gitlab.com"
+
 func (a *ProvisionTokenSpecV2GitLab) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
 		return trace.BadParameter(
@@ -598,6 +600,10 @@ func (a *ProvisionTokenSpecV2GitLab) checkAndSetDefaults() error {
 				JoinMethodGitLab,
 			)
 		}
+	}
+
+	if a.Domain == "" {
+		a.Domain = defaultGitLabDomain
 	}
 	return nil
 }

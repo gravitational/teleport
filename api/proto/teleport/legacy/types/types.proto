@@ -1196,6 +1196,10 @@ message ProvisionTokenSpecV2GitLab {
   // Allow is a list of TokenRules, nodes using this token must match one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // Domain is the domain of your GitLab instance. This will default to
+  // `gitlab.com` - but can be set to the domain of your self-hosted GitLab
+  // e.g `gitlab.example.com`.
+  string Domain = 2 [(gogoproto.jsontag) = "domain,omitempty"];
 }
 
 // ProvisionTokenSpecV2CircleCI contains the CircleCI-specific part of the
