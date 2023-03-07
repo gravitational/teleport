@@ -25,7 +25,7 @@ import (
 var metadata *Metadata
 
 // metadataReady is a channel that is closed when the metadata has been fetched.
-var metadataReady chan (struct{})
+var metadataReady chan (struct{}) = make(chan struct{})
 
 // fetched is used to ensure that the instance metadata is fetched at most once.
 var fetched atomic.Bool
