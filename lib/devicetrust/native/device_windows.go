@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -111,14 +112,15 @@ func getOrCreateAK(tpm *attest.TPM) (*attest.AK, error) {
 }
 
 func getOrCreateAppKey(tpm *attest.TPM, ak *attest.AK) (uuid.UUID, *attest.Key, error) {
-	entries, err := ioutil.ReadDir(tpmFilePath(""))
+	basePath := tpmFilePath("")
+	entries, err := ioutil.ReadDir(basePath)
 	if err != nil {
 		return uuid.UUID{}, nil, trace.Wrap(err)
 	}
 
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), appSuffix) {
-			ref, err := os.ReadFile(entry.Name())
+			ref, err := os.ReadFile(filepath.Join(basePath, entry.Name()))
 			if err != nil {
 				return uuid.UUID{}, nil, trace.Wrap(err)
 			}
