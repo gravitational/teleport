@@ -679,7 +679,6 @@ test-kube-agent-updater:
 	cd integrations/kube-agent-updater && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/kube-agent-updater.json \
 		| ${RENDER_TESTS}
->>>>>>> df20ae6e68 (kube-updater: add root makefile target and dedicated difftest job)
 
 #
 # Runs cargo test on our Rust modules.
