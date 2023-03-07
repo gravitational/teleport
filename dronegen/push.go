@@ -121,7 +121,7 @@ func pushPipeline(b buildType) pipeline {
 	}
 	p.Trigger = triggerPush
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = []volume{volumeDocker}
+	p.Volumes = dockerVolumes()
 	p.Services = []service{
 		dockerService(),
 	}
@@ -139,7 +139,7 @@ func pushPipeline(b buildType) pipeline {
 			Name:        "Build artifacts",
 			Image:       "docker",
 			Environment: pushEnvironment,
-			Volumes:     []volumeRef{volumeRefDocker},
+			Volumes:     dockerVolumeRefs(),
 			Commands:    pushBuildCommands(b),
 		},
 		sendErrorToSlackStep(),

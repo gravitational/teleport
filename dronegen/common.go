@@ -86,6 +86,25 @@ var (
 		Name: "awsconfig",
 		Path: "/root/.aws",
 	}
+
+	// volumeDockerConfig is a temporary volume for storing docker
+	// credentials for use with the Docker-in-Docker service we use
+	// to isolate the host machines docker daemon from the one used
+	// during the build. Mount this any tome you use `volumeDocker`
+	//
+	// Drone claims to destroy the the temp volumes after a workflow
+	// has run, so it should be safe to write credentials etc.
+	volumeDockerConfig = volume{
+		Name: "dockerConfig",
+		Temp: &volumeTemp{},
+	}
+
+	// volumeRefDockerConfig is how you reference the docker config
+	// volume in a workflow step
+	volumeRefDockerConfig = volumeRef{
+		Name: "dockerConfig",
+		Path: "/root/.docker",
+	}
 )
 
 var buildboxVersion value
@@ -245,13 +264,13 @@ func dockerRegistryService() service {
 // dockerVolumes returns a slice of volumes
 // It includes the Docker socket volume by default, plus any extra volumes passed in
 func dockerVolumes(v ...volume) []volume {
-	return append(v, volumeDocker)
+	return append(v, volumeDocker, volumeDockerConfig)
 }
 
 // dockerVolumeRefs returns a slice of volumeRefs
 // It includes the Docker socket volumeRef as a default, plus any extra volumeRefs passed in
 func dockerVolumeRefs(v ...volumeRef) []volumeRef {
-	return append(v, volumeRefDocker)
+	return append(v, volumeRefDocker, volumeRefDockerConfig)
 }
 
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos combo
@@ -285,8 +304,13 @@ func waitForDockerStep() step {
 		Image: "docker",
 		Commands: []string{
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
+			`printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin`,
 		},
-		Volumes: []volumeRef{volumeRefDocker},
+		Volumes: dockerVolumeRefs(),
+		Environment: map[string]value{
+			"DOCKERHUB_USERNAME": {fromSecret: "DOCKERHUB_USERNAME"},
+			"DOCKERHUB_PASSWORD": {fromSecret: "DOCKERHUB_READONLY_TOKEN"},
+		},
 	}
 }
 

@@ -272,7 +272,7 @@ func tagPipeline(b buildType) pipeline {
 			Name:        "Build artifacts",
 			Image:       "docker",
 			Environment: tagEnvironment,
-			Volumes:     []volumeRef{volumeRefDocker},
+			Volumes:     dockerVolumeRefs(),
 			Commands:    tagBuildCommands(b),
 		},
 		{
@@ -445,14 +445,8 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		environment["OSS_TARBALL_PATH"] = value{raw: "/go/artifacts"}
 	}
 
-	packageDockerVolumes := []volume{
-		volumeDocker,
-		volumeAwsConfig,
-	}
-	packageDockerVolumeRefs := []volumeRef{
-		volumeRefDocker,
-		volumeRefAwsConfig,
-	}
+	packageDockerVolumes := dockerVolumes(volumeAwsConfig)
+	packageDockerVolumeRefs := dockerVolumeRefs(volumeRefAwsConfig)
 	packageDockerService := dockerService()
 
 	switch packageType {
