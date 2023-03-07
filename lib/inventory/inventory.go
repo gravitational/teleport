@@ -132,7 +132,7 @@ func (h *downstreamHandle) closing() bool {
 func (h *downstreamHandle) autoEmitMetadata() {
 	metadata, ok := metadata.Get(h.CloseContext())
 	if !ok {
-		// The context has been cancelled, so we return.
+		// The context has been canceled, so we return.
 		return
 	}
 	msg := proto.UpstreamInventoryAgentMetadata{
