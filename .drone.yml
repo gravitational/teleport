@@ -8914,9 +8914,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v13-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13 --build-arg
-    COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13
+    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v13-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v13-amd64-builder"
@@ -8951,9 +8951,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v13-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v13-arm-builder"
   - rm -rf "/tmp/teleport-operator-v13-arm-builder"
@@ -8988,9 +8988,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v13-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v13-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v13-arm64-builder"
@@ -12890,9 +12890,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v12-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13 --build-arg
-    COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13
+    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v12-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v12-amd64-builder"
@@ -12929,9 +12929,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v12-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v12-arm-builder"
   - rm -rf "/tmp/teleport-operator-v12-arm-builder"
@@ -12968,9 +12968,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v12-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v12-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v12-arm64-builder"
@@ -15583,9 +15583,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13 --build-arg
-    COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13
+    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v11-amd64-builder"
@@ -15622,9 +15622,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm-builder"
@@ -15661,9 +15661,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm64-builder"
@@ -18276,9 +18276,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13 --build-arg
-    COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13
+    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v10-amd64-builder"
@@ -18315,9 +18315,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-arm-builder"
   - rm -rf "/tmp/teleport-operator-v10-arm-builder"
@@ -18354,9 +18354,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v10-arm64-builder"
@@ -19031,6 +19031,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 08656c988c13fd02f644140f2fcde1960d984a94713a252e748a66d7ceb24362
+hmac: 2e8636f58393aaa60dabdb277cb76751a656cf8e39769a40238ecafb2036831a
 
 ...
