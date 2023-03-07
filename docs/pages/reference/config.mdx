@@ -787,6 +787,14 @@ proxy_service:
     #  enabled: yes
     #  email: user@example.com
 
+    # Identity provider configuration. Provides detailed configuration for
+    # Teleport's identity providers. At present, only SAML is supported.
+    idp:
+      # SAML identity provider configuration.
+      saml:
+        # Turns the SAML identity provider on. Defaults is 'yes'.
+        enabled: yes
+
 # This section configures the 'application service'
 app_service:
     # Turns 'app' role on. Default is 'no'
