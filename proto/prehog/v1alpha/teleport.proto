@@ -381,15 +381,22 @@ message SubmitEventRequest {
     SFTPEvent sftp = 37;
     AgentMetadataEvent agent_metadata_event = 38;
   }
+
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
 }
 message SubmitEventResponse {}
+
+message SubmitEventsRequest {
+  repeated SubmitEventRequest events = 1;
+}
+message SubmitEventsResponse {}
 
 message HelloTeleportRequest {}
 message HelloTeleportResponse {}
 
 service TeleportReportingService {
   rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {}
+  rpc SubmitEvents(SubmitEventsRequest) returns (SubmitEventsResponse) {}
   rpc HelloTeleport(HelloTeleportRequest) returns (HelloTeleportResponse) {}
 }
