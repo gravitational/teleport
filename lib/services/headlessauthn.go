@@ -34,8 +34,6 @@ func ValidateHeadlessAuthentication(h *types.HeadlessAuthentication) error {
 	}
 
 	switch {
-	case h.Metadata.Expires == nil:
-		return trace.BadParameter("headless authentication resource must have non-empty header.metadata.expires")
 	case h.Version != types.V1:
 		return trace.BadParameter("unsupported headless authentication resource version %q, current supported version is %s", h.Version, types.V1)
 	case h.User == "":
