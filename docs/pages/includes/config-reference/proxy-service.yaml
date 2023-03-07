@@ -132,7 +132,7 @@ proxy_service:
         # Turns the SAML identity provider on. Defaults is 'yes'.
         enabled: yes
 
-    # Configuration options for the Web UI served by the proxy service.
+    # Configuration options for the Web UI served by the Proxy Service.
     ui_config:
       # The amount of scrollback in the terminal. Scrollback is the amount of
       # rows that are retained when lines are scrolled beyond the initial
