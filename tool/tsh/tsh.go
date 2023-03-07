@@ -3462,7 +3462,6 @@ func proxyHostsErrorMsgDefault(proxyAddress string, ports []int) string {
 		buf.WriteString(":")
 		buf.WriteString(strconv.Itoa(port))
 	}
-	buf.WriteString(". Confirm address and connectivity. ")
 
 	return buf.String()
 }
