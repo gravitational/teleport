@@ -1355,6 +1355,66 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 	return c.APIClient.ListReleases(ctx, &proto.ListReleasesRequest{})
 }
 
+// ListOktaImportRules returns a paginated list of all Okta import rule resources.
+func (c *Client) ListOktaImportRules(ctx context.Context, pageSize int, pageToken string) ([]types.OktaImportRule, string, error) {
+	return c.APIClient.ListOktaImportRules(ctx, pageSize, pageToken)
+}
+
+// GetOktaImportRule returns the specified Okta import rule resources.
+func (c *Client) GetOktaImportRule(ctx context.Context, name string) (types.OktaImportRule, error) {
+	return c.APIClient.GetOktaImportRule(ctx, name)
+}
+
+// CreateOktaImportRule creates a new Okta import rule resource.
+func (c *Client) CreateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) error {
+	return c.APIClient.CreateOktaImportRule(ctx, importRule)
+}
+
+// UpdateOktaImportRule updates an existing Okta import rule resource.
+func (c *Client) UpdateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) error {
+	return c.APIClient.UpdateOktaImportRule(ctx, importRule)
+}
+
+// DeleteOktaImportRule removes the specified Okta import rule resource.
+func (c *Client) DeleteOktaImportRule(ctx context.Context, name string) error {
+	return c.APIClient.DeleteOktaImportRule(ctx, name)
+}
+
+// DeleteAllOktaImportRules removes all Okta import rules.
+func (c *Client) DeleteAllOktaImportRules(ctx context.Context) error {
+	return c.APIClient.DeleteAllOktaImportRules(ctx)
+}
+
+// ListOktaAssignments returns a paginated list of all Okta assignment resources.
+func (c *Client) ListOktaAssignments(ctx context.Context, pageSize int, pageToken string) ([]types.OktaAssignment, string, error) {
+	return c.APIClient.ListOktaAssignments(ctx, pageSize, pageToken)
+}
+
+// GetOktaAssignmentreturns the specified Okta assignment resources.
+func (c *Client) GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error) {
+	return c.APIClient.GetOktaAssignment(ctx, name)
+}
+
+// CreateOktaAssignmentcreates a new Okta assignment resource.
+func (c *Client) CreateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) error {
+	return c.APIClient.CreateOktaAssignment(ctx, assignment)
+}
+
+// UpdateOktaAssignmentupdates an existing Okta assignment resource.
+func (c *Client) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) error {
+	return c.APIClient.UpdateOktaAssignment(ctx, assignment)
+}
+
+// DeleteOktaAssignmentremoves the specified Okta assignment resource.
+func (c *Client) DeleteOktaAssignment(ctx context.Context, name string) error {
+	return c.APIClient.DeleteOktaAssignment(ctx, name)
+}
+
+// DeleteAllOktaAssignments removes all Okta assignments.
+func (c *Client) DeleteAllOktaAssignments(ctx context.Context) error {
+	return c.APIClient.DeleteAllOktaAssignments(ctx)
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
@@ -1590,6 +1650,8 @@ type ClientI interface {
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
+	services.OktaImportRules
+	services.OktaAssignments
 	types.Events
 
 	types.WebSessionsGetter

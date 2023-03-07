@@ -5814,6 +5814,114 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 	return a.authServer.DeleteAllUserGroups(ctx)
 }
 
+// ListOktaImportRules returns a paginated list of all Okta import rule resources.
+func (a *ServerWithRoles) ListOktaImportRules(ctx context.Context, pageSize int, pageToken string) ([]types.OktaImportRule, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindOktaImportRule, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.ListOktaImportRules(ctx, pageSize, pageToken)
+}
+
+// GetOktaImportRule returns the specified Okta import rule resources.
+func (a *ServerWithRoles) GetOktaImportRule(ctx context.Context, name string) (types.OktaImportRule, error) {
+	if err := a.action(apidefaults.Namespace, types.KindOktaImportRule, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetOktaImportRule(ctx, name)
+}
+
+// CreateOktaImportRule creates a new Okta import rule resource.
+func (a *ServerWithRoles) CreateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) error {
+	if err := a.action(apidefaults.Namespace, types.KindOktaImportRule, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.CreateOktaImportRule(ctx, importRule)
+}
+
+// UpdateOktaImportRule updates an existing Okta import rule resource.
+func (a *ServerWithRoles) UpdateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) error {
+	if err := a.action(apidefaults.Namespace, types.KindOktaImportRule, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpdateOktaImportRule(ctx, importRule)
+}
+
+// DeleteOktaImportRule removes the specified Okta import rule resource.
+func (a *ServerWithRoles) DeleteOktaImportRule(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindOktaImportRule, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteOktaImportRule(ctx, name)
+}
+
+// DeleteAllOktaImportRules removes all Okta import rules.
+func (a *ServerWithRoles) DeleteAllOktaImportRules(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindOktaImportRule, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteAllOktaImportRules(ctx)
+}
+
+// ListOktaAssignments returns a paginated list of all Okta assignment resources.
+func (a *ServerWithRoles) ListOktaAssignments(ctx context.Context, pageSize int, pageToken string) ([]types.OktaAssignment, string, error) {
+	if err := a.action(apidefaults.Namespace, types.KindOktaAssignment, types.VerbList); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.authServer.ListOktaAssignments(ctx, pageSize, pageToken)
+}
+
+// GetOktaAssignmentreturns the specified Okta assignment resources.
+func (a *ServerWithRoles) GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error) {
+	if err := a.action(apidefaults.Namespace, types.KindOktaAssignment, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetOktaAssignment(ctx, name)
+}
+
+// CreateOktaAssignmentcreates a new Okta assignment resource.
+func (a *ServerWithRoles) CreateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) error {
+	if err := a.action(apidefaults.Namespace, types.KindOktaAssignment, types.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.CreateOktaAssignment(ctx, assignment)
+}
+
+// UpdateOktaAssignmentupdates an existing Okta assignment resource.
+func (a *ServerWithRoles) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) error {
+	if err := a.action(apidefaults.Namespace, types.KindOktaAssignment, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpdateOktaAssignment(ctx, assignment)
+}
+
+// DeleteOktaAssignmentremoves the specified Okta assignment resource.
+func (a *ServerWithRoles) DeleteOktaAssignment(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindOktaAssignment, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteOktaAssignment(ctx, name)
+}
+
+// DeleteAllOktaAssignments removes all Okta assignments.
+func (a *ServerWithRoles) DeleteAllOktaAssignments(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindOktaAssignment, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.DeleteAllOktaAssignments(ctx)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, alog events.AuditLogSessionStreamer) (ClientI, error) {

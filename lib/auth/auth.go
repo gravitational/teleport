@@ -190,6 +190,18 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.UserGroups == nil {
 		cfg.UserGroups = local.NewUserGroupService(cfg.Backend)
 	}
+	if cfg.OktaImportRules == nil {
+		cfg.OktaImportRules, err = local.NewOktaService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if cfg.OktaAssignments == nil {
+		cfg.OktaAssignments, err = local.NewOktaService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.ConnectionsDiagnostic == nil {
 		cfg.ConnectionsDiagnostic = local.NewConnectionsDiagnosticService(cfg.Backend)
 	}
@@ -256,6 +268,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Events:                  cfg.Events,
 		WindowsDesktops:         cfg.WindowsDesktops,
 		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
+		OktaImportRules:         cfg.OktaImportRules,
+		OktaAssignments:         cfg.OktaAssignments,
 		UserGroups:              cfg.UserGroups,
 		SessionTrackerService:   cfg.SessionTrackerService,
 		Enforcer:                cfg.Enforcer,
@@ -350,6 +364,8 @@ type Services struct {
 	services.Enforcer
 	services.ConnectionsDiagnostic
 	services.StatusInternal
+	services.OktaImportRules
+	services.OktaAssignments
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
