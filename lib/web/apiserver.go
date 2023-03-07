@@ -843,6 +843,11 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	return userContext, nil
 }
 
+// PublicProxyAddr returns the publicly advertised proxy address
+func (h *Handler) PublicProxyAddr() string {
+	return h.cfg.PublicProxyAddr
+}
+
 func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
 	as := webclient.AuthenticationSettings{
 		Type:                constants.Local,
@@ -1545,7 +1550,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 
 	tmpl := installers.Template{
-		PublicProxyAddr: h.cfg.PublicProxyAddr,
+		PublicProxyAddr: h.PublicProxyAddr(),
 		MajorVersion:    version,
 		TeleportPackage: teleportPackage,
 	}
