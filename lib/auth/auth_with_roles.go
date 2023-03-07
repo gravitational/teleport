@@ -637,7 +637,7 @@ func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAut
 		return nil, trace.Wrap(err)
 	}
 
-	// Call actionWithContext on the CA itself to ensure that we've got permission to this specific CA>
+	// Call actionWithContext on the CA itself to ensure that we've got permission to this specific CA.
 	ca, err := a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
 	sctx = &services.Context{User: a.context.User, Resource: ca}
 	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindCertAuthority, readVerb); err != nil {
