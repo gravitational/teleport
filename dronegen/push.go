@@ -79,6 +79,7 @@ func pushPipelines() []pipeline {
 		slackOnError:   true,
 		srcRefVar:      "DRONE_COMMIT",
 		workflowRefVar: "DRONE_BRANCH",
+		inputs:         map[string]string{"upload-artifacts": "false"},
 	}))
 
 	// Only amd64 Windows is supported for now.
