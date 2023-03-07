@@ -857,32 +857,37 @@ fn wait_for_fd(fd: usize) -> RdpResult<()> {
         events: libc::POLLIN,
         revents: 0,
     };
-    let res = unsafe { libc::poll(fds, 1, -1) };
+    loop {
+        let res = unsafe { libc::poll(fds, 1, -1) };
 
-    // We only use a single fd and can't timeout, so
-    // res will either be 1 for success or -1 for failure.
-    if res != 1 {
-        error!("poll failed: {res}");
-        return Err(RdpError::Io(std::io::Error::last_os_error()));
-    }
+        // We only use a single fd and can't timeout, so
+        // res will either be 1 for success or -1 for failure.
+        if res != 1 {
+            let os_err = std::io::Error::last_os_error();
+            match os_err.raw_os_error() {
+                Some(libc::EINTR) | Some(libc::EAGAIN) => continue,
+                _ => return Err(RdpError::Io(os_err)),
+            }
+        }
 
-    // res == 1
-    // POLLIN means that the fd is ready to be read from,
-    // POLLHUP means that the other side of the pipe was closed,
-    // but we still may have data to read.
-    if fds.revents & (libc::POLLIN | libc::POLLHUP) != 0 {
-        Ok(()) // ready for a read
-    } else if fds.revents & libc::POLLNVAL != 0 {
-        return Err(RdpError::Io(IoError::new(
-            std::io::ErrorKind::InvalidInput,
-            "invalid fd",
-        )));
-    } else {
-        // fds.revents & libc::POLLERR != 0
-        return Err(RdpError::Io(IoError::new(
-            std::io::ErrorKind::Other,
-            "error on fd",
-        )));
+        // res == 1
+        // POLLIN means that the fd is ready to be read from,
+        // POLLHUP means that the other side of the pipe was closed,
+        // but we still may have data to read.
+        if fds.revents & (libc::POLLIN | libc::POLLHUP) != 0 {
+            return Ok(()); // ready for a read
+        } else if fds.revents & libc::POLLNVAL != 0 {
+            return Err(RdpError::Io(IoError::new(
+                std::io::ErrorKind::InvalidInput,
+                "invalid fd",
+            )));
+        } else {
+            // fds.revents & libc::POLLERR != 0
+            return Err(RdpError::Io(IoError::new(
+                std::io::ErrorKind::Other,
+                "error on fd",
+            )));
+        }
     }
 }
 
