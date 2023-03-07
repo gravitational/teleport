@@ -313,7 +313,7 @@
           ]
         },
         {
-          "title": "Teleport as an IdP",
+          "title": "Teleport as an IdP (Preview)",
           "slug": "/access-controls/idps/",
           "forScopes": ["enterprise", "cloud"],
           "entries": [
