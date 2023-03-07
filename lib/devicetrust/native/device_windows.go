@@ -327,7 +327,7 @@ func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	publicDer, err := x509.MarshalPKIXPublicKey(appKey.Public)
+	publicDer, err := x509.MarshalPKIXPublicKey(appKey.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
