@@ -55,7 +55,7 @@ export function missingModifierIssue(keyCode: string): z.IssueData {
   };
 }
 
-export function getKeyboardShortcutSchema(platform: Platform) {
+export function createKeyboardShortcutSchema(platform: Platform) {
   const allowedModifiers = getSupportedModifiers(platform);
 
   return z
