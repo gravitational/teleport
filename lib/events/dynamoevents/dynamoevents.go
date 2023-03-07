@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/events"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -450,6 +451,41 @@ func (l *Log) setExpiry(e *event) {
 	}
 
 	e.Expires = aws.Int64(l.Clock.Now().UTC().Add(l.RetentionPeriod.Value()).Unix())
+}
+
+// GetSessionEvents Returns all events that happen during a session sorted by time
+// (oldest first).
+//
+// after is used to return events after a specified cursor ID
+func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error) {
+	var values []events.EventFields
+	query := "SessionID = :sessionID AND EventIndex >= :eventIndex"
+	attributes := map[string]interface{}{
+		":sessionID":  string(sid),
+		":eventIndex": after,
+	}
+	attributeValues, err := dynamodbattribute.MarshalMap(attributes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	input := dynamodb.QueryInput{
+		KeyConditionExpression:    aws.String(query),
+		TableName:                 aws.String(l.Tablename),
+		ExpressionAttributeValues: attributeValues,
+	}
+	out, err := l.svc.Query(&input)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, item := range out.Items {
+		var e event
+		if err := dynamodbattribute.UnmarshalMap(item, &e); err != nil {
+			return nil, trace.BadParameter("failed to unmarshal event for session %q: %v", string(sid), err)
+		}
+		values = append(values, e.FieldsMap)
+	}
+	sort.Sort(events.ByTimeAndIndex(values))
+	return values, nil
 }
 
 func daysSinceEpoch(timestamp time.Time) int64 {

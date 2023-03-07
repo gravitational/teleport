@@ -266,16 +266,12 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// search for the session event.
-	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), apidefaults.Namespace, nil, 100, types.EventOrderAscending, "")
-		return err
-	})
+	// read the session event
+	historyEvents, err := s.Log.GetSessionEvents(apidefaults.Namespace, sessionID, 0, false)
 	require.NoError(t, err)
-	require.Len(t, history, 3)
-
-	require.Equal(t, history[1].GetType(), events.SessionStartEvent)
-	require.Equal(t, history[2].GetType(), events.SessionEndEvent)
+	require.Len(t, historyEvents, 2)
+	require.Equal(t, historyEvents[0].GetString(events.EventType), events.SessionStartEvent)
+	require.Equal(t, historyEvents[1].GetString(events.EventType), events.SessionEndEvent)
 
 	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", nil, "")
 	require.NoError(t, err)
