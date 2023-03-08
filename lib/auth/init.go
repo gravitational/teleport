@@ -188,12 +188,6 @@ type InitConfig struct {
 	// UserGroups is a service that manages user groups.
 	UserGroups services.UserGroups
 
-	// OktaImportRules is a service that manages Okta import rules.
-	OktaImportRules services.OktaImportRules
-
-	// OktaAssignments is a service that manages Okta assignments.
-	OktaAssignments services.OktaAssignments
-
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 

@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -34,6 +35,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -52,6 +54,9 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/joinserver"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -4963,6 +4968,100 @@ func (g *GRPCServer) DeleteAllUserGroups(ctx context.Context, _ *emptypb.Empty) 
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllUserGroups(ctx))
+}
+
+// GRPCServerConfig specifies GRPC server configuration
+type GRPCServerConfig struct {
+	// APIConfig is GRPC server API configuration
+	APIConfig
+	// TLS is GRPC server config
+	TLS *tls.Config
+	// Middleware is the request TLS client authenticator
+	Middleware *Middleware
+	// UnaryInterceptor intercepts individual GRPC requests
+	// for authentication and rate limiting
+	UnaryInterceptor grpc.UnaryServerInterceptor
+	// UnaryInterceptor intercepts GRPC streams
+	// for authentication and rate limiting
+	StreamInterceptor grpc.StreamServerInterceptor
+}
+
+// CheckAndSetDefaults checks and sets default values
+func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
+	if cfg.TLS == nil {
+		return trace.BadParameter("missing parameter TLS")
+	}
+	if cfg.UnaryInterceptor == nil {
+		return trace.BadParameter("missing parameter UnaryInterceptor")
+	}
+	if cfg.StreamInterceptor == nil {
+		return trace.BadParameter("missing parameter StreamInterceptor")
+	}
+	if cfg.Middleware == nil {
+		return trace.BadParameter("missing parameter Middleware")
+	}
+	return nil
+}
+
+// NewGRPCServer returns a new instance of GRPC server
+func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
+	err := metrics.RegisterPrometheusCollectors(heartbeatConnectionsReceived, watcherEventsEmitted, watcherEventSizes, connectedResources)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("GRPC(SERVER): keep alive %v count: %v.", cfg.KeepAlivePeriod, cfg.KeepAliveCount)
+
+	// httplib.TLSCreds are explicitly used instead of credentials.NewTLS because the latter
+	// modifies the tls.Config.NextProtos which causes problems due to multiplexing on the auth
+	// listener.
+	creds, err := NewTransportCredentials(TransportCredentialsConfig{
+		TransportCredentials: &httplib.TLSCreds{Config: cfg.TLS},
+		UserGetter:           cfg.Middleware,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	server := grpc.NewServer(
+		grpc.Creds(creds),
+		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptor),
+		grpc.ChainStreamInterceptor(cfg.StreamInterceptor),
+		grpc.KeepaliveParams(
+			keepalive.ServerParameters{
+				Time:    cfg.KeepAlivePeriod,
+				Timeout: cfg.KeepAlivePeriod * time.Duration(cfg.KeepAliveCount),
+			},
+		),
+		grpc.KeepaliveEnforcementPolicy(
+			keepalive.EnforcementPolicy{
+				MinTime:             cfg.KeepAlivePeriod,
+				PermitWithoutStream: true,
+			},
+		),
+	)
+	authServer := &GRPCServer{
+		APIConfig: cfg.APIConfig,
+		Entry: logrus.WithFields(logrus.Fields{
+			trace.Component: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
+		}),
+		server: server,
+	}
+	proto.RegisterAuthServiceServer(server, authServer)
+	collectortracepb.RegisterTraceServiceServer(server, authServer)
+
+	// create server with no-op role to pass to JoinService server
+	serverWithNopRole, err := serverWithNopRole(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	joinServiceServer := joinserver.NewJoinServiceGRPCServer(serverWithNopRole)
+	proto.RegisterJoinServiceServer(server, joinServiceServer)
+
+	return authServer, nil
 }
 
 func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {

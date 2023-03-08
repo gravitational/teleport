@@ -29,22 +29,22 @@ type OktaServiceClient interface {
 	// GetOktaImportRule returns the specified Okta import rule resources.
 	GetOktaImportRule(ctx context.Context, in *GetOktaImportRuleRequest, opts ...grpc.CallOption) (*types.OktaImportRuleV1, error)
 	// CreateOktaImportRule creates a new Okta import rule resource.
-	CreateOktaImportRule(ctx context.Context, in *CreateOktaImportRuleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	CreateOktaImportRule(ctx context.Context, in *CreateOktaImportRuleRequest, opts ...grpc.CallOption) (*types.OktaImportRuleV1, error)
 	// UpdateOktaImportRule updates an existing Okta import rule resource.
-	UpdateOktaImportRule(ctx context.Context, in *UpdateOktaImportRuleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	UpdateOktaImportRule(ctx context.Context, in *UpdateOktaImportRuleRequest, opts ...grpc.CallOption) (*types.OktaImportRuleV1, error)
 	// DeleteOktaImportRule removes the specified Okta import rule resource.
 	DeleteOktaImportRule(ctx context.Context, in *DeleteOktaImportRuleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllOktaImportRules removes all Okta import rules.
 	DeleteAllOktaImportRules(ctx context.Context, in *DeleteAllOktaImportRulesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
 	ListOktaAssignments(ctx context.Context, in *ListOktaAssignmentsRequest, opts ...grpc.CallOption) (*ListOktaAssignmentsResponse, error)
-	// GetOktaAssignmentreturns the specified Okta assignment resources.
+	// GetOktaAssignment returns the specified Okta assignment resources.
 	GetOktaAssignment(ctx context.Context, in *GetOktaAssignmentRequest, opts ...grpc.CallOption) (*types.OktaAssignmentV1, error)
-	// CreateOktaAssignmentcreates a new Okta assignment resource.
-	CreateOktaAssignment(ctx context.Context, in *CreateOktaAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// UpdateOktaAssignmentupdates an existing Okta assignment resource.
-	UpdateOktaAssignment(ctx context.Context, in *UpdateOktaAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// DeleteOktaAssignmentremoves the specified Okta assignment resource.
+	// CreateOktaAssignment creates a new Okta assignment resource.
+	CreateOktaAssignment(ctx context.Context, in *CreateOktaAssignmentRequest, opts ...grpc.CallOption) (*types.OktaAssignmentV1, error)
+	// UpdateOktaAssignment updates an existing Okta assignment resource.
+	UpdateOktaAssignment(ctx context.Context, in *UpdateOktaAssignmentRequest, opts ...grpc.CallOption) (*types.OktaAssignmentV1, error)
+	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, in *DeleteOktaAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllOktaAssignments removes all Okta assignments.
 	DeleteAllOktaAssignments(ctx context.Context, in *DeleteAllOktaAssignmentsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -76,8 +76,8 @@ func (c *oktaServiceClient) GetOktaImportRule(ctx context.Context, in *GetOktaIm
 	return out, nil
 }
 
-func (c *oktaServiceClient) CreateOktaImportRule(ctx context.Context, in *CreateOktaImportRuleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *oktaServiceClient) CreateOktaImportRule(ctx context.Context, in *CreateOktaImportRuleRequest, opts ...grpc.CallOption) (*types.OktaImportRuleV1, error) {
+	out := new(types.OktaImportRuleV1)
 	err := c.cc.Invoke(ctx, "/teleport.okta.v1.OktaService/CreateOktaImportRule", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -85,8 +85,8 @@ func (c *oktaServiceClient) CreateOktaImportRule(ctx context.Context, in *Create
 	return out, nil
 }
 
-func (c *oktaServiceClient) UpdateOktaImportRule(ctx context.Context, in *UpdateOktaImportRuleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *oktaServiceClient) UpdateOktaImportRule(ctx context.Context, in *UpdateOktaImportRuleRequest, opts ...grpc.CallOption) (*types.OktaImportRuleV1, error) {
+	out := new(types.OktaImportRuleV1)
 	err := c.cc.Invoke(ctx, "/teleport.okta.v1.OktaService/UpdateOktaImportRule", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -130,8 +130,8 @@ func (c *oktaServiceClient) GetOktaAssignment(ctx context.Context, in *GetOktaAs
 	return out, nil
 }
 
-func (c *oktaServiceClient) CreateOktaAssignment(ctx context.Context, in *CreateOktaAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *oktaServiceClient) CreateOktaAssignment(ctx context.Context, in *CreateOktaAssignmentRequest, opts ...grpc.CallOption) (*types.OktaAssignmentV1, error) {
+	out := new(types.OktaAssignmentV1)
 	err := c.cc.Invoke(ctx, "/teleport.okta.v1.OktaService/CreateOktaAssignment", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -139,8 +139,8 @@ func (c *oktaServiceClient) CreateOktaAssignment(ctx context.Context, in *Create
 	return out, nil
 }
 
-func (c *oktaServiceClient) UpdateOktaAssignment(ctx context.Context, in *UpdateOktaAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *oktaServiceClient) UpdateOktaAssignment(ctx context.Context, in *UpdateOktaAssignmentRequest, opts ...grpc.CallOption) (*types.OktaAssignmentV1, error) {
+	out := new(types.OktaAssignmentV1)
 	err := c.cc.Invoke(ctx, "/teleport.okta.v1.OktaService/UpdateOktaAssignment", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -175,22 +175,22 @@ type OktaServiceServer interface {
 	// GetOktaImportRule returns the specified Okta import rule resources.
 	GetOktaImportRule(context.Context, *GetOktaImportRuleRequest) (*types.OktaImportRuleV1, error)
 	// CreateOktaImportRule creates a new Okta import rule resource.
-	CreateOktaImportRule(context.Context, *CreateOktaImportRuleRequest) (*emptypb.Empty, error)
+	CreateOktaImportRule(context.Context, *CreateOktaImportRuleRequest) (*types.OktaImportRuleV1, error)
 	// UpdateOktaImportRule updates an existing Okta import rule resource.
-	UpdateOktaImportRule(context.Context, *UpdateOktaImportRuleRequest) (*emptypb.Empty, error)
+	UpdateOktaImportRule(context.Context, *UpdateOktaImportRuleRequest) (*types.OktaImportRuleV1, error)
 	// DeleteOktaImportRule removes the specified Okta import rule resource.
 	DeleteOktaImportRule(context.Context, *DeleteOktaImportRuleRequest) (*emptypb.Empty, error)
 	// DeleteAllOktaImportRules removes all Okta import rules.
 	DeleteAllOktaImportRules(context.Context, *DeleteAllOktaImportRulesRequest) (*emptypb.Empty, error)
 	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
 	ListOktaAssignments(context.Context, *ListOktaAssignmentsRequest) (*ListOktaAssignmentsResponse, error)
-	// GetOktaAssignmentreturns the specified Okta assignment resources.
+	// GetOktaAssignment returns the specified Okta assignment resources.
 	GetOktaAssignment(context.Context, *GetOktaAssignmentRequest) (*types.OktaAssignmentV1, error)
-	// CreateOktaAssignmentcreates a new Okta assignment resource.
-	CreateOktaAssignment(context.Context, *CreateOktaAssignmentRequest) (*emptypb.Empty, error)
-	// UpdateOktaAssignmentupdates an existing Okta assignment resource.
-	UpdateOktaAssignment(context.Context, *UpdateOktaAssignmentRequest) (*emptypb.Empty, error)
-	// DeleteOktaAssignmentremoves the specified Okta assignment resource.
+	// CreateOktaAssignment creates a new Okta assignment resource.
+	CreateOktaAssignment(context.Context, *CreateOktaAssignmentRequest) (*types.OktaAssignmentV1, error)
+	// UpdateOktaAssignment updates an existing Okta assignment resource.
+	UpdateOktaAssignment(context.Context, *UpdateOktaAssignmentRequest) (*types.OktaAssignmentV1, error)
+	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(context.Context, *DeleteOktaAssignmentRequest) (*emptypb.Empty, error)
 	// DeleteAllOktaAssignments removes all Okta assignments.
 	DeleteAllOktaAssignments(context.Context, *DeleteAllOktaAssignmentsRequest) (*emptypb.Empty, error)
@@ -207,10 +207,10 @@ func (UnimplementedOktaServiceServer) ListOktaImportRules(context.Context, *List
 func (UnimplementedOktaServiceServer) GetOktaImportRule(context.Context, *GetOktaImportRuleRequest) (*types.OktaImportRuleV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOktaImportRule not implemented")
 }
-func (UnimplementedOktaServiceServer) CreateOktaImportRule(context.Context, *CreateOktaImportRuleRequest) (*emptypb.Empty, error) {
+func (UnimplementedOktaServiceServer) CreateOktaImportRule(context.Context, *CreateOktaImportRuleRequest) (*types.OktaImportRuleV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateOktaImportRule not implemented")
 }
-func (UnimplementedOktaServiceServer) UpdateOktaImportRule(context.Context, *UpdateOktaImportRuleRequest) (*emptypb.Empty, error) {
+func (UnimplementedOktaServiceServer) UpdateOktaImportRule(context.Context, *UpdateOktaImportRuleRequest) (*types.OktaImportRuleV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateOktaImportRule not implemented")
 }
 func (UnimplementedOktaServiceServer) DeleteOktaImportRule(context.Context, *DeleteOktaImportRuleRequest) (*emptypb.Empty, error) {
@@ -225,10 +225,10 @@ func (UnimplementedOktaServiceServer) ListOktaAssignments(context.Context, *List
 func (UnimplementedOktaServiceServer) GetOktaAssignment(context.Context, *GetOktaAssignmentRequest) (*types.OktaAssignmentV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOktaAssignment not implemented")
 }
-func (UnimplementedOktaServiceServer) CreateOktaAssignment(context.Context, *CreateOktaAssignmentRequest) (*emptypb.Empty, error) {
+func (UnimplementedOktaServiceServer) CreateOktaAssignment(context.Context, *CreateOktaAssignmentRequest) (*types.OktaAssignmentV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateOktaAssignment not implemented")
 }
-func (UnimplementedOktaServiceServer) UpdateOktaAssignment(context.Context, *UpdateOktaAssignmentRequest) (*emptypb.Empty, error) {
+func (UnimplementedOktaServiceServer) UpdateOktaAssignment(context.Context, *UpdateOktaAssignmentRequest) (*types.OktaAssignmentV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateOktaAssignment not implemented")
 }
 func (UnimplementedOktaServiceServer) DeleteOktaAssignment(context.Context, *DeleteOktaAssignmentRequest) (*emptypb.Empty, error) {
