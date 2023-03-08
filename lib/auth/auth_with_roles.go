@@ -38,6 +38,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -279,6 +280,15 @@ func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 func (a *ServerWithRoles) PluginsClient() pluginspb.PluginServiceClient {
 	return pluginspb.NewPluginServiceClient(
 		utils.NewGRPCDummyClientConnection("PluginsClient() should not be called on ServerWithRoles"),
+	)
+}
+
+// SAMLIdPClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
+	return samlidppb.NewSAMLIdPServiceClient(
+		utils.NewGRPCDummyClientConnection("SAMLIdPClient() should not be called on ServerWithRoles"),
 	)
 }
 
