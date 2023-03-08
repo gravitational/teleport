@@ -295,7 +295,7 @@ $ terraform import aws_acm_certificate.cert <certificate_arn>
 
 ### Instances
 
-Our reference deployment will provision the following instances for your cluster with AWS Auto Scaling Groups (ASG):
+Our reference deployment will provision the following instances for your cluster using AWS Auto Scaling Groups (ASG) with these default settings:
 
 - 2 x m4.large Teleport **auth** instances in an ASG, behind an internal network load balancer, configured using DynamoDB for
   shared storage. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/auth_asg.tf#L11)
