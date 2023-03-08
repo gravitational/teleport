@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -237,7 +238,11 @@ func (p *Plugin) withSAMLAuth(fn http.HandlerFunc) httprouter.Handle {
 		tlsConnState := tls.ConnectionState{
 			PeerCertificates: []*x509.Certificate{cert},
 		}
-		newCtx, err := p.authMiddleware.WrapContextWithUserFromTLSConnState(r.Context(), tlsConnState)
+		remoteAddr, err := utils.ParseAddr(r.RemoteAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		newCtx, err := p.authMiddleware.WrapContextWithUserFromTLSConnState(r.Context(), tlsConnState, remoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
