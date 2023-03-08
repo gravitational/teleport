@@ -123,7 +123,7 @@ $ tctl create github.yaml
 
 After authentication Teleport will create a temporary GitHub type user within Teleport for the duration of the 
 session. The GitHub username is automatically added to that user's `internal.logins` variable
-usable within roles. The default `access` role has this variable that would automatically include the
+usable within roles. The default `access` role has this variable that will automatically include the
 GitHub user as an authorized SSH login. Here is an example role configuration snippet using the variable. 
 
 ```yaml
