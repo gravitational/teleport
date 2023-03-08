@@ -18,17 +18,20 @@ package saml
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/xml"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/beevik/etree"
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlsp"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
+	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -38,6 +41,7 @@ func TestMakeAssertion(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Now())
 	svcs := samlTestService(ctx, t, clock)
+	svcs.client.signingCtx = withRole(ctx, types.RoleProxy)
 
 	// The assertion maker will use the ServiceProviderProvider to ensure
 	// that associated entity IDs are present, so we need to add a service
@@ -57,7 +61,7 @@ func TestMakeAssertion(t *testing.T) {
 	ed, err := samlsp.ParseMetadata([]byte(sp1.GetEntityDescriptor()))
 	require.NoError(t, err)
 
-	testReq := httptest.NewRequest("GET", "/", nil)
+	testReq := httptest.NewRequest("GET", "/", nil).WithContext(ctx)
 
 	// Create a valid AuthnRequest.
 	authnReq := saml.AuthnRequest{
@@ -146,10 +150,21 @@ func TestMakeAssertion(t *testing.T) {
 		Now: clock.Now(),
 	}
 
-	// Ignore the HTTP request, identity provider, and assertion IDs here.
+	// Ignore the HTTP request, identity provider, etree elements, and assertion IDs here.
 	require.Empty(t, cmp.Diff(expectedReq, req,
-		cmpopts.IgnoreTypes(&saml.IdentityProvider{}, &http.Request{}),
+		cmpopts.IgnoreTypes(&saml.IdentityProvider{}, &http.Request{}, &etree.Element{}),
 		cmpopts.IgnoreFields(saml.Assertion{}, "ID")))
+
+	// Validate the signature of the resposne.
+	certStore := &dsig.MemoryX509CertificateStore{
+		Roots: []*x509.Certificate{
+			svcs.samlIdP.idp.Certificate,
+		},
+	}
+	validationCtx := dsig.NewDefaultValidationContext(certStore)
+	validationCtx.Clock = dsig.NewFakeClock(clockwork.NewFakeClockAt(svcs.samlIdP.idp.Certificate.NotBefore))
+	_, err = validationCtx.Validate(req.ResponseEl)
+	require.NoError(t, err)
 }
 
 // testAssertion creates a test assertion with the given inputs.

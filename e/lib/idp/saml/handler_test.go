@@ -161,6 +161,7 @@ func testSSO(t *testing.T, method string, addRequest func(*http.Request, saml.Au
 	ctx := context.Background()
 	clock := clockwork.NewRealClock()
 	svcs := samlTestService(ctx, t, clock)
+	svcs.client.signingCtx = withRole(ctx, types.RoleProxy)
 
 	user := setupUser(t, svcs, clock.Now().Add(time.Hour))
 
@@ -226,6 +227,7 @@ func testIdPInitiatedLogin(t *testing.T, method string) {
 	ctx := context.Background()
 	clock := clockwork.NewRealClock()
 	svcs := samlTestService(ctx, t, clock)
+	svcs.client.signingCtx = withRole(ctx, types.RoleProxy)
 
 	user := setupUser(t, svcs, clock.Now().Add(time.Hour))
 

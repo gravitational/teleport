@@ -28,13 +28,13 @@ import (
 	dsig "github.com/russellhaering/goxmldsig"
 	"github.com/sirupsen/logrus"
 
+	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -94,6 +94,9 @@ type IdPAuthClient interface {
 	services.SAMLIdPSession
 	services.RoleGetter
 
+	// SAMLIdPClient is the client for the SAML IdP specific utility functions.
+	SAMLIdPClient() samlidppb.SAMLIdPServiceClient
+
 	// CreateSAMLIdPSession creates a SAML IdP. SAML IdP sessions represent
 	// sessions created by the SAML identity provider.
 	CreateSAMLIdPSession(context.Context, types.CreateSAMLIdPSessionRequest) (types.WebSession, error)
@@ -145,11 +148,11 @@ func New(ctx context.Context, cfg Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Use SAML IdP CA certs for the IdP.
+	// Use SAML IdP CA cert for the IdP.
 	ca, err := cfg.Client.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.SAMLIDPCA,
 		DomainName: domainName,
-	}, true)
+	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -157,12 +160,6 @@ func New(ctx context.Context, cfg Config) (*Service, error) {
 	tlsKeys := ca.GetTrustedTLSKeyPairs()
 	if len(tlsKeys) == 0 {
 		return nil, trace.BadParameter("no trusted TLS key pairs found")
-	}
-
-	// Get the private key and cert to be used by the IdP.
-	privateKey, err := utils.ParsePrivateKey(tlsKeys[0].Key)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	cert, err := tlsca.ParseCertificatePEM(tlsKeys[0].Cert)
@@ -197,7 +194,6 @@ func New(ctx context.Context, cfg Config) (*Service, error) {
 	service.idp = saml.IdentityProvider{
 		Logger:                  cfg.Log,
 		Certificate:             cert,
-		Key:                     privateKey,
 		SignatureMethod:         dsig.RSASHA256SignatureMethod,
 		SessionProvider:         service,
 		ServiceProviderProvider: service,

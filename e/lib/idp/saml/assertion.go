@@ -17,11 +17,16 @@ limitations under the License.
 package saml
 
 import (
+	"encoding/xml"
 	"fmt"
 
+	"github.com/beevik/etree"
 	"github.com/crewjam/saml"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -185,9 +190,7 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 			NotBefore:    notBefore,
 			NotOnOrAfter: notOnOrAfterAfter,
 			AudienceRestrictions: []saml.AudienceRestriction{
-				{
-					Audience: saml.Audience{Value: req.ServiceProviderMetadata.EntityID},
-				},
+				{Audience: saml.Audience{Value: req.ServiceProviderMetadata.EntityID}},
 			},
 		},
 		AuthnStatements: []saml.AuthnStatement{
@@ -210,6 +213,47 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 			},
 		},
 	}
+
+	// To sign the response, we'll need to send the assertion and the service provider SSO descriptor
+	// to the auth server for signing.
+	doc := etree.NewDocument()
+	doc.SetRoot(req.Assertion.Element())
+	assertionBytes, err := doc.WriteToBytes()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	spssoDescriptor, err := xml.Marshal(req.SPSSODescriptor)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Make the SAML IdP response on the auth server.
+	ctx := req.HTTPRequest.Context()
+
+	resp, err := s.client.SAMLIdPClient().ProcessSAMLIdPRequest(ctx, &samlidppb.ProcessSAMLIdPRequestRequest{
+		Assertion:                    assertionBytes,
+		Destination:                  req.ACSEndpoint.Location,
+		RequestId:                    req.Request.ID,
+		RequestTime:                  timestamppb.New(req.Now),
+		MetadataUrl:                  s.idp.MetadataURL.String(),
+		SignatureMethod:              s.idp.SignatureMethod,
+		ServiceProviderSsoDescriptor: spssoDescriptor,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	// Parse out the SAML response from the response and assign it to the
+	// request.
+	respDoc := etree.NewDocument()
+	if err := respDoc.ReadFromBytes(resp.Response); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Setting this will prevent the local identity provider from signing
+	// the response using its local certificate and key.
+	req.ResponseEl = respDoc.Root()
 
 	return nil
 }

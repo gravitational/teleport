@@ -27,9 +27,13 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
+	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
@@ -45,6 +49,7 @@ type testServices struct {
 	userService    *local.IdentityService
 	accessService  *local.AccessService
 	eventService   *local.EventsService
+	client         *testClient
 	emitter        *eventstest.ChannelEmitter
 }
 
@@ -55,6 +60,15 @@ type testClient struct {
 	services.UsersService
 	services.SAMLIdPSession
 	services.RoleGetter
+	samlidppb.SAMLIdPServiceServer
+
+	// signingCtx is a context that can be injected into the signing service.
+	signingCtx     context.Context
+	signingService *SigningService
+}
+
+func (t testClient) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
+	return t
 }
 
 func (t testClient) GetDomainName(ctx context.Context) (string, error) {
@@ -79,6 +93,16 @@ func (t testClient) CreateSAMLIdPSession(ctx context.Context, req types.CreateSA
 	return session, nil
 }
 
+// ProcessSAMLIdPRequest is a mock SAML IdP response processor for testing.
+//
+//nolint:revive // Because we want this to be IdP.
+func (t testClient) ProcessSAMLIdPRequest(ctx context.Context, req *samlidppb.ProcessSAMLIdPRequestRequest, _ ...grpc.CallOption) (*samlidppb.ProcessSAMLIdPRequestResponse, error) {
+	if t.signingCtx != nil {
+		ctx = t.signingCtx
+	}
+	return t.signingService.ProcessSAMLIdPRequest(ctx, req)
+}
+
 func samlTestService(ctx context.Context, t *testing.T, clock clockwork.Clock) testServices {
 	return samlTestServiceWithURL(ctx, t, clock, "https://test.url:443")
 }
@@ -98,7 +122,13 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 	userService := local.NewIdentityService(backend)
 	accessService := local.NewAccessService(backend)
 
-	client := testClient{
+	// Set up default singletons
+	clusterService.SetAuthPreference(ctx, types.DefaultAuthPreference())
+	clusterService.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
+	clusterService.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	clusterService.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+
+	client := &testClient{
 		ClusterConfiguration:    clusterService,
 		Trust:                   caService,
 		SAMLIdPServiceProviders: spService,
@@ -164,6 +194,20 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 	})
 	require.NoError(t, err)
 
+	keyStore, err := keystore.NewManager(ctx, keystore.Config{
+		Software: keystore.SoftwareConfig{
+			RSAKeyPairSource: native.GenerateKeyPair,
+		},
+	})
+	require.NoError(t, err)
+	signingService, err := NewSigningService(&SigningServiceConfig{
+		Client:     client,
+		KeyStore:   keyStore,
+		Authorizer: authorizer,
+	})
+	require.NoError(t, err)
+	client.signingService = signingService
+
 	return testServices{
 		samlIdP:        samlIdP,
 		clusterService: clusterService,
@@ -172,8 +216,14 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 		userService:    userService,
 		accessService:  accessService,
 		eventService:   eventService,
+		client:         client,
 		emitter:        emitter,
 	}
+}
+
+func withRole(ctx context.Context, role types.SystemRole) context.Context {
+	identity := auth.TestBuiltin(role)
+	return context.WithValue(ctx, auth.ContextUser, identity.I)
 }
 
 func newTestEntityDescriptor(entityID string) string {

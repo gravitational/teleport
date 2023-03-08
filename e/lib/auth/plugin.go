@@ -12,10 +12,12 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
+	"github.com/gravitational/teleport/e/lib/idp/saml"
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	"github.com/gravitational/teleport/e/lib/loginrule/loginrulev1"
 	lrstorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
@@ -194,6 +196,16 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	if err := p.registerPluginsService(authServer); err != nil {
 		return trace.Wrap(err)
 	}
+
+	signingService, err := saml.NewSigningService(&saml.SigningServiceConfig{
+		Client:     authServer.AuthServer,
+		KeyStore:   authServer.AuthServer.GetKeyStore(),
+		Authorizer: p.authorizer,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	samlidppb.RegisterSAMLIdPServiceServer(gRPCServer, signingService)
 
 	return nil
 }
