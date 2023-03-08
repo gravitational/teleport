@@ -313,8 +313,13 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	clustername, err := s.c.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create and configure HTTP server with authorizing middleware.
-	s.httpServer = s.newHTTPServer()
+	s.httpServer = s.newHTTPServer(clustername.GetClusterName())
 
 	// TCP server will handle TCP applications.
 	tcpServer, err := s.newTCPServer()
@@ -359,11 +364,6 @@ func (s *Server) stopApp(ctx context.Context, name string) error {
 	if err := s.stopHeartbeat(name); err != nil {
 		return trace.Wrap(err)
 	}
-	// Heartbeat is stopped but if we don't remove this app server,
-	// it can linger for up to ~10m until its TTL expires.
-	if err := s.removeAppServer(ctx, name); err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
 	s.log.Debugf("Stopped app %q.", name)
 	return nil
 }
@@ -372,6 +372,20 @@ func (s *Server) stopApp(ctx context.Context, name string) error {
 func (s *Server) removeAppServer(ctx context.Context, name string) error {
 	return s.c.AuthClient.DeleteApplicationServer(ctx, apidefaults.Namespace,
 		s.c.HostID, name)
+}
+
+// stopAndRemoveApp uninitializes and deletes the app with the specified name.
+func (s *Server) stopAndRemoveApp(ctx context.Context, name string) error {
+	if err := s.stopApp(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Heartbeat is stopped but if we don't remove this app server,
+	// it can linger for up to ~10m until its TTL expires.
+	if err := s.removeAppServer(ctx, name); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // startDynamicLabels starts dynamic labels for the app if it has them.
@@ -502,12 +516,12 @@ func (s *Server) registerApp(ctx context.Context, app types.Application) error {
 // updateApp updates application that is already registered.
 func (s *Server) updateApp(ctx context.Context, app types.Application) error {
 	// Stop heartbeat and dynamic labels before starting new ones.
-	if err := s.stopApp(ctx, app.GetName()); err != nil {
+	if err := s.stopAndRemoveApp(ctx, app.GetName()); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := s.registerApp(ctx, app); err != nil {
 		// If we failed to re-register, don't keep proxying the old app.
-		if errUnregister := s.unregisterApp(ctx, app.GetName()); errUnregister != nil {
+		if errUnregister := s.unregisterAndRemoveApp(ctx, app.GetName()); errUnregister != nil {
 			return trace.NewAggregate(err, errUnregister)
 		}
 		return trace.Wrap(err)
@@ -518,6 +532,17 @@ func (s *Server) updateApp(ctx context.Context, app types.Application) error {
 // unregisterApp stops proxying the app.
 func (s *Server) unregisterApp(ctx context.Context, name string) error {
 	if err := s.stopApp(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.apps, name)
+	return nil
+}
+
+// unregisterAndRemoveApp stops proxying the app and deltes it.
+func (s *Server) unregisterAndRemoveApp(ctx context.Context, name string) error {
+	if err := s.stopAndRemoveApp(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 	s.mu.Lock()
@@ -561,12 +586,24 @@ func (s *Server) Start(ctx context.Context) (err error) {
 
 // Close will shut the server down and unblock any resources.
 func (s *Server) Close() error {
+	return trace.Wrap(s.close(s.closeContext))
+}
+
+// Shutdown performs a graceful shutdown.
+func (s *Server) Shutdown(ctx context.Context) error {
+	// TODO wait active connections.
+	return trace.Wrap(s.close(ctx))
+}
+
+func (s *Server) close(ctx context.Context) error {
 	var errs []error
 
 	// Stop all proxied apps.
 	for _, app := range s.getApps() {
-		if err := s.unregisterApp(s.closeContext, app.GetName()); err != nil {
-			errs = append(errs, err)
+		if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
+			errs = append(errs, trace.Wrap(s.unregisterAndRemoveApp(ctx, app.GetName())))
+		} else {
+			errs = append(errs, trace.Wrap(s.unregisterApp(ctx, app.GetName())))
 		}
 	}
 
@@ -1025,11 +1062,12 @@ func (s *Server) appWithUpdatedLabels(app types.Application) *types.AppV3 {
 
 // newHTTPServer creates an *http.Server that can authorize and forward
 // requests to a target application.
-func (s *Server) newHTTPServer() *http.Server {
+func (s *Server) newHTTPServer(clusterName string) *http.Server {
 	// Reuse the auth.Middleware to authorize requests but only accept
 	// certificates that were specifically generated for applications.
+
 	s.authMiddleware = &auth.Middleware{
-		AccessPoint:   s.c.AccessPoint,
+		ClusterName:   clusterName,
 		AcceptedUsage: []string{teleport.UsageAppsOnly},
 	}
 	s.authMiddleware.Wrap(s)

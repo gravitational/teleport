@@ -331,3 +331,25 @@ func (s *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 
 	return session, nil
 }
+
+func (s *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest,
+	identity tlsca.Identity, checker services.AccessChecker,
+) (types.WebSession, error) {
+	// TODO(mdwn): implement a module.Features() check.
+
+	// Create services.WebSession for this session.
+	session, err := types.NewWebSession(req.SessionID, types.KindSAMLIdPSession, types.WebSessionSpecV2{
+		User:        req.Username,
+		Expires:     req.SAMLSession.ExpireTime,
+		SAMLSession: req.SAMLSession,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = s.UpsertSAMLIdPSession(ctx, session); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("Generated SAML IdP web session for %v.", req.Username)
+
+	return session, nil
+}

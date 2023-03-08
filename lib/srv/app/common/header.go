@@ -42,6 +42,9 @@ const (
 	// TeleportAPIErrorHeader is Teleport-specific error header, optionally holding background error information.
 	TeleportAPIErrorHeader = "X-Teleport-Api-Error"
 
+	// TeleportAPIInfoHeader is Teleport-specific info header, optionally holding background information.
+	TeleportAPIInfoHeader = "X-Teleport-Api-Info"
+
 	// TeleportAWSAssumedRole indicates that the incoming requests are signed
 	// with real AWS credentials of the specified assumed role by the AWS client.
 	TeleportAWSAssumedRole = "X-Teleport-Aws-Assumed-Role"
@@ -57,6 +60,7 @@ var ReservedHeaders = append([]string{
 	teleport.AppCFHeader,
 	XForwardedSSL,
 	TeleportAPIErrorHeader,
+	TeleportAPIInfoHeader,
 	TeleportAWSAssumedRole,
 	TeleportAWSAssumedRoleAuthorization,
 },

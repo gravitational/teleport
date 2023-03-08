@@ -9,12 +9,6 @@
 # teleport built on any newer Ubuntu version will not run on Centos 7 because
 # of this.
 
-# GRPC_NODE_PLUGIN_BINARY_TYPE has to be defined above the first FROM as it's
-# used in another FROM instruction. See the comment for grpc_node_plugin image
-# for more details.
-# Valid values are "prebuilt" and "compiled".
-ARG GRPC_NODE_PLUGIN_BINARY_TYPE
-
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
@@ -33,9 +27,9 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 &&
     make clean
 
 # Install libcbor.
-RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.1 && \
+RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
     cd libcbor && \
-    [ "$(git rev-parse HEAD)" = '5c1bb892c94b6ae2ef99e3c6673d5e0857242f38' ] && \
+    [ "$(git rev-parse HEAD)" = 'efa6c0886bae46bdaef9b679f61f4b9d8bc296ae' ] && \
     cmake \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
@@ -62,44 +56,18 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
 
 FROM buildpack-deps:18.04 AS libbpf
 
-# Install libbpf
+# Install required dependencies
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
     apt-get install -q -y --no-install-recommends \
         libelf-dev
 
 ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt &&  \
+    curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    make && \
-    make install
-
-## GRPC_NODE_PLUGIN ###########################################################
-
-# grpc_node_plugin is built only on arm64.
-#
-# To generate JS protofiles, we need the grpc-tools npm package. Unfortunately,
-# it doesn't ship with a prebuilt grpc_node_plugin binary for Linux arm64. [1]
-#
-# We have to build it from source. Cloning all submodules takes a lot of time
-# and bandwith so we build the binary in a separate image.
-#
-# [1] https://github.com/grpc/grpc-node/issues/1405#issuecomment-1282201879
-
-FROM buildpack-deps:18.04 AS grpc_node_plugin
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends cmake
-COPY teleterm_linux_arm64.toolchain.cmake ./linux_arm64.toolchain.cmake
-RUN git clone --depth=1 --branch=grpc-tools@1.11.2 https://github.com/grpc/grpc-node.git && \
-    mv linux_arm64.toolchain.cmake grpc-node/packages/grpc-tools/. && \
-    cd grpc-node && \
-    git submodule update --init --recursive && \
-    cd packages/grpc-tools && \
-    cmake -DCMAKE_TOOLCHAIN_FILE=linux_arm64.toolchain.cmake . && \
-    cmake --build . --target clean && cmake --build . --target grpc_node_plugin -- -j 12 && \
-    mv grpc_node_plugin ../../../. && \
-    cd ../../.. && \
-    rm -rf grpc-node
+    make &&  \
+    BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install
 
 ## BUILDBOX ###################################################################
 #
@@ -188,12 +156,12 @@ RUN apt-get -y update && \
 
 # Install gcloud SDK and Firestore emulator.
 ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
-RUN (curl -sSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \
+RUN (curl -sSLf https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \
     gcloud components install cloud-firestore-emulator beta && \
     rm -rf /opt/google-cloud-sdk/.install/.backup
 
 # Install etcd.
-RUN curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
+RUN curl -Lf https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
     rm -rf etcd-v3.3.9-linux-${BUILDARCH}
 
@@ -235,13 +203,13 @@ ENV PATH="$PATH:${NODE_PATH}/bin"
 RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo "arm64"; fi) && \
     export NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" && \
     mkdir -p ${NODE_PATH} && \
-    curl -o /tmp/nodejs.tar.xz -L ${NODE_URL} && \
+    curl -o /tmp/nodejs.tar.xz -Lf ${NODE_URL} && \
     tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
 RUN corepack enable yarn
 
 # Install Go.
 ARG GOLANG_VERSION
-RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && curl -Lf https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -256,20 +224,20 @@ RUN make -C /opt/pam_teleport install
 ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
 # Install bats.
-RUN curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
+RUN curl -Lf https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
     cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
     rm -r bats-core-1.2.1
 
 # Install shellcheck.
 RUN scversion='v0.9.0' && \
-    curl -sSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
+    curl -sSLf "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
         tar -xJv && \
     cp "shellcheck-$scversion/shellcheck" /usr/local/bin/ && \
     shellcheck --version
 
 # Install helm.
 RUN mkdir -p helm-tarball && \
-    curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
+    curl -Lf https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
 # TODO(hugoShaka): remove this backward compatible hack with teleportv13 buildbox
@@ -286,7 +254,7 @@ RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
 
 # Install JS gRPC tools.
-RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1)
+RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1 grpc-tools@1.12.4)
 
 # Install protobuf and grpc build tools.
 ARG PROTOC_VER
@@ -294,7 +262,7 @@ ARG GOGO_PROTO_TAG
 ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 
 RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
-     curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
+     curl -Lf -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
      chmod -R a+r /usr/local/include/google/protobuf && \
      chmod -R a+xr /usr/local/bin/protoc && \
@@ -314,20 +282,19 @@ RUN go install github.com/google/addlicense@v1.0.0
 RUN go install github.com/daixiang0/gci@v0.8.2
 
 # Install golangci-lint.
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
+RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.1
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.13.1" && \
-      curl -sSL \
+    VERSION="1.15.0" && \
+      curl -sSLf \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
       chmod +x "${BIN}/buf"
 
 # Copy BPF libraries.
-COPY --from=libbpf /usr/include/bpf /usr/include/bpf
-COPY --from=libbpf /usr/lib64/ /usr/lib64/
-RUN cd /usr/local/lib && ldconfig
+ARG LIBBPF_VERSION
+COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 
 # Copy libfido2 libraries.
 # Do this near the end to take better advantage of the multi-stage build.
@@ -344,20 +311,6 @@ RUN cd /usr/local/lib && \
     ln -s libfido2.so.1 libfido2.so && \
     ldconfig
 COPY pkgconfig/buildbox/ /
-
-FROM buildbox AS grpc_node_plugin_binary_prebuilt
-ONBUILD RUN (npm install --global grpc-tools@1.11.2)
-
-FROM buildbox AS grpc_node_plugin_binary_compiled
-COPY --from=grpc_node_plugin grpc_node_plugin ./grpc_node_plugin
-ONBUILD RUN npm install --global --ignore-scripts grpc-tools@1.11.2 && \
-    mv grpc_node_plugin $(npm root -g)/grpc-tools/bin/. && \
-    # grpc-tools needs protoc but we already install it a couple of steps above.
-    ln -s $(which protoc) $(npm root -g)/grpc-tools/bin/protoc
-
-# A "conditional" FROM like this breaks up the number of steps in the progress bar of the given
-# image, so let's use it at the end. This way the progress bar for buildbox stays mostly untouched.
-FROM grpc_node_plugin_binary_${GRPC_NODE_PLUGIN_BINARY_TYPE} as buildbox
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380

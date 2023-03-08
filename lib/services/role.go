@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/google/uuid"
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
@@ -139,11 +141,12 @@ func RoleForUser(u types.User) types.Role {
 			BPF:               defaults.EnhancedEvents(),
 		},
 		Allow: types.RoleConditions{
-			Namespaces:       []string{defaults.Namespace},
-			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Namespaces:            []string{defaults.Namespace},
+			NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, RW()),
 				types.NewRule(types.KindAuthConnector, RW()),
@@ -153,6 +156,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindClusterAuthPreference, RW()),
 				types.NewRule(types.KindClusterNetworkingConfig, RW()),
 				types.NewRule(types.KindSessionRecordingConfig, RW()),
+				types.NewRule(types.KindUIConfig, RW()),
 				types.NewRule(types.KindApp, RW()),
 				types.NewRule(types.KindDatabase, RW()),
 				types.NewRule(types.KindLock, RW()),
@@ -985,35 +989,74 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 
 	// check each individual user against the database.
 	for _, user := range users {
-		err := set.checkAccess(database, AccessState{MFAVerified: true}, &DatabaseUserMatcher{User: user})
+		err := set.checkAccess(database, AccessState{MFAVerified: true}, NewDatabaseUserMatcher(database, user))
 		result.allowedDeniedMap[user] = err == nil
 	}
 
 	return result
 }
 
-// EnumerateServerLogins works on a given role set to return a minimal description of allowed set of logins.
-// The wildcard selector is ignored, since it is now allowed for server logins
-func (set RoleSet) EnumerateServerLogins(server types.Server) EnumerationResult {
-	result := NewEnumerationResult()
+// GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
+//
+// Supports the following resource types:
+//
+// - types.Server with GetKind() == types.KindNode
+//
+// - types.KindWindowsDesktop
+func (set RoleSet) GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error) {
+	// Create a map indexed by all logins in the RoleSet,
+	// mapped to false if any role has it in its deny section,
+	// true otherwise.
+	mapped := make(map[string]bool)
 
-	// gather logins for checking from the roles
-	// no need to check for wildcards
-	var logins []string
 	for _, role := range set {
-		logins = append(logins, role.GetLogins(types.Allow)...)
-		logins = append(logins, role.GetLogins(types.Deny)...)
+		var loginGetter func(types.RoleConditionType) []string
+
+		switch resource.GetKind() {
+		case types.KindNode:
+			loginGetter = role.GetLogins
+		case types.KindWindowsDesktop:
+			loginGetter = role.GetWindowsLogins
+		default:
+			return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
+		}
+
+		for _, login := range loginGetter(types.Allow) {
+			mapped[login] = true
+		}
+		for _, login := range loginGetter(types.Deny) {
+			mapped[login] = false
+		}
 	}
 
-	logins = apiutils.Deduplicate(logins)
-
-	// check each individual user against the server.
-	for _, user := range logins {
-		err := set.checkAccess(server, AccessState{MFAVerified: true}, NewLoginMatcher(user))
-		result.allowedDeniedMap[user] = err == nil
+	// Create a list of only the logins not denied by a role in the set.
+	var notDenied []string
+	for login, isNotDenied := range mapped {
+		if isNotDenied {
+			notDenied = append(notDenied, login)
+		}
 	}
 
-	return result
+	var newLoginMatcher func(login string) RoleMatcher
+	switch resource.GetKind() {
+	case types.KindNode:
+		newLoginMatcher = NewLoginMatcher
+	case types.KindWindowsDesktop:
+		newLoginMatcher = NewWindowsLoginMatcher
+	default:
+		return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
+	}
+
+	// Filter the not-denied logins for those allowed to be used with the given resource.
+	var allowed []string
+	for _, login := range notDenied {
+		err := set.checkAccess(resource, AccessState{MFAVerified: true}, newLoginMatcher(login))
+		if err == nil {
+			allowed = append(allowed, login)
+		}
+	}
+
+	return allowed, nil
 }
 
 // MatchNamespace returns true if given list of namespace matches
@@ -1075,9 +1118,12 @@ func MatchDatabaseName(selectors []string, name string) (bool, string) {
 }
 
 // MatchDatabaseUser returns true if provided database user matches selectors.
-func MatchDatabaseUser(selectors []string, user string) (bool, string) {
+func MatchDatabaseUser(selectors []string, user string, matchWildcard bool) (bool, string) {
 	for _, u := range selectors {
-		if u == user || u == types.Wildcard {
+		if u == user {
+			return true, "matched"
+		}
+		if matchWildcard && u == types.Wildcard {
 			return true, "matched"
 		}
 	}
@@ -1515,6 +1561,32 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 		return nil, trace.NotFound("this user cannot request GCP API access, has no assigned service accounts")
 	}
 	return utils.StringsSliceFromSet(accounts), nil
+}
+
+// CheckAccessToSAMLIdP checks access to the SAML IdP.
+//
+//nolint:revive // Because we want this to be IdP.
+func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference) error {
+	if authPref != nil {
+		if !authPref.IsSAMLIdPEnabled() {
+			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
+		}
+	}
+	for _, role := range set {
+		options := role.GetOptions()
+
+		// This should never happen, but we should make sure that we don't get a nil pointer error here.
+		if options.IDP == nil || options.IDP.SAML == nil || options.IDP.SAML.Enabled == nil {
+			continue
+		}
+
+		// If any role specifically denies access to the IdP, we'll return AccessDenied.
+		if !options.IDP.SAML.Enabled.Value {
+			return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
+		}
+	}
+
+	return nil
 }
 
 // CheckLoginDuration checks if role set can login up to given duration and
@@ -2044,20 +2116,66 @@ func (m RoleMatchers) MatchAny(role types.Role, condition types.RoleConditionTyp
 	return false, nil, nil
 }
 
-// DatabaseUserMatcher matches a role against database account name.
-type DatabaseUserMatcher struct {
-	User string
+// databaseUserMatcher matches a role against database account name.
+type databaseUserMatcher struct {
+	// user is the name of the database user.
+	user string
+	// alternativeNames is a list of alternative names for the database user.
+	alternativeNames []string
+}
+
+// NewDatabaseUserMatcher creates a RoleMatcher that checks whether the role's
+// database users match the specified condition.
+func NewDatabaseUserMatcher(db types.Database, user string) RoleMatcher {
+	if db.RequireAWSIAMRolesAsUsers() {
+		return &databaseUserMatcher{
+			user:             user,
+			alternativeNames: makeAlternativeNamesForAWSRole(db, user),
+		}
+	}
+
+	return &databaseUserMatcher{user: user}
 }
 
 // Match matches database account name against provided role and condition.
-func (m *DatabaseUserMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	match, _ := MatchDatabaseUser(role.GetDatabaseUsers(condition), m.User)
-	return match, nil
+func (m *databaseUserMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	selectors := role.GetDatabaseUsers(condition)
+	if match, _ := MatchDatabaseUser(selectors, m.user, true); match {
+		return true, nil
+	}
+
+	for _, altName := range m.alternativeNames {
+		if match, _ := MatchDatabaseUser(selectors, altName, false); match {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // String returns the matcher's string representation.
-func (m *DatabaseUserMatcher) String() string {
-	return fmt.Sprintf("DatabaseUserMatcher(User=%v)", m.User)
+func (m *databaseUserMatcher) String() string {
+	return fmt.Sprintf("databaseUserMatcher(user=%v, alternativeNames=%v)", m.user, m.alternativeNames)
+}
+
+func makeAlternativeNamesForAWSRole(db types.Database, user string) []string {
+	metadata := db.GetAWS()
+	if metadata.Region == "" || metadata.AccountID == "" {
+		return nil
+	}
+
+	// If input database user is a role ARN, try the short role name.
+	// The input role ARN must have matching partition and account ID in
+	// order to try the short role name.
+	if arn.IsARN(user) {
+		roleName, err := awsutils.ValidateRoleARNAndExtractRoleName(user, metadata.Partition(), metadata.AccountID)
+		if err != nil {
+			return nil
+		}
+		return []string{roleName}
+	}
+
+	// If input database user is the short role name, try the full ARN.
+	return []string{awsutils.BuildRoleARN(user, metadata.Region, metadata.AccountID)}
 }
 
 // DatabaseNameMatcher matches a role against database name.
@@ -2251,8 +2369,8 @@ func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...in
 	return isDebugEnabled, log.Debugf
 }
 
-// checkAccess checks if this role set has access to a particular resource,
-// optionally matching the resource's labels.
+// checkAccess checks if this role set has access to a particular resource r,
+// based on the passed AccessState, the resource's labels, and the passed matchers.
 func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
 	// Note: logging in this function only happens in debug mode. This is because
 	// adding logging to this function (which is called on every resource returned
@@ -2272,16 +2390,13 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 	additionalDeniedMessage := ""
 
 	var getRoleLabels func(types.Role, types.RoleConditionType) types.Labels
-	resourceHasLabels := true
-	getEmptyLabels := func(r types.Role, rct types.RoleConditionType) types.Labels { return types.Labels{} }
 
 	switch r.GetKind() {
 	case types.KindDatabase:
 		getRoleLabels = types.Role.GetDatabaseLabels
 		additionalDeniedMessage = "Confirm database user and name."
 	case types.KindDatabaseService:
-		resourceHasLabels = false
-		getRoleLabels = getEmptyLabels
+		getRoleLabels = types.Role.GetDatabaseServiceLabels
 	case types.KindApp:
 		getRoleLabels = types.Role.GetAppLabels
 	case types.KindNode:
@@ -2355,8 +2470,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 			return trace.Wrap(err)
 		}
 
-		// Deny only if the resourceHasLabels but there was no match.
-		if resourceHasLabels && !matchLabels {
+		if !matchLabels {
 			if isDebugEnabled {
 				errs = append(errs, trace.AccessDenied("role=%v, match(label=%v)",
 					role.GetName(), labelsMessage))

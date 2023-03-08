@@ -75,6 +75,8 @@ func (r *RotateRequest) Types() []types.CertAuthType {
 		return []types.CertAuthType{types.OpenSSHCA}
 	case types.JWTSigner:
 		return []types.CertAuthType{types.JWTSigner}
+	case types.SAMLIDPCA:
+		return []types.CertAuthType{types.SAMLIDPCA}
 	}
 	return nil
 }

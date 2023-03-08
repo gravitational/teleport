@@ -78,6 +78,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUIConfig},
 		{Kind: types.KindStaticTokens},
 		{Kind: types.KindToken},
 		{Kind: types.KindUser},
@@ -92,6 +93,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
 		{Kind: types.KindAppServer, Version: types.V2},
+		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
@@ -108,6 +110,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindSAMLIdPServiceProvider},
+		{Kind: types.KindUserGroup},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -123,6 +127,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUIConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		{Kind: types.KindNamespace},
@@ -134,6 +139,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAppServer},
 		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindApp},
+		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
@@ -148,6 +154,8 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindSAMLIdPServiceProvider},
+		{Kind: types.KindUserGroup},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -415,24 +423,27 @@ type Cache struct {
 	// regularly called methods.
 	fnCache *utils.FnCache
 
-	trustCache            services.Trust
-	clusterConfigCache    services.ClusterConfiguration
-	provisionerCache      services.Provisioner
-	usersCache            services.UsersService
-	accessCache           services.Access
-	dynamicAccessCache    services.DynamicAccessExt
-	presenceCache         services.Presence
-	restrictionsCache     services.Restrictions
-	appsCache             services.Apps
-	kubernetesCache       services.Kubernetes
-	databaseServicesCache services.DatabaseServices
-	databasesCache        services.Databases
-	appSessionCache       services.AppSession
-	snowflakeSessionCache services.SnowflakeSession
-	webSessionCache       types.WebSessionInterface
-	webTokenCache         types.WebTokenInterface
-	windowsDesktopsCache  services.WindowsDesktops
-	eventsFanout          *services.FanoutSet
+	trustCache                   services.Trust
+	clusterConfigCache           services.ClusterConfiguration
+	provisionerCache             services.Provisioner
+	usersCache                   services.UsersService
+	accessCache                  services.Access
+	dynamicAccessCache           services.DynamicAccessExt
+	presenceCache                services.Presence
+	restrictionsCache            services.Restrictions
+	appsCache                    services.Apps
+	kubernetesCache              services.Kubernetes
+	databaseServicesCache        services.DatabaseServices
+	databasesCache               services.Databases
+	appSessionCache              services.AppSession
+	snowflakeSessionCache        services.SnowflakeSession
+	samlIdPSessionCache          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
+	webSessionCache              types.WebSessionInterface
+	webTokenCache                types.WebTokenInterface
+	windowsDesktopsCache         services.WindowsDesktops
+	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
+	userGroupsCache              services.UserGroups
+	eventsFanout                 *services.FanoutSet
 
 	// closed indicates that the cache has been closed
 	closed atomic.Bool
@@ -477,46 +488,52 @@ func (c *Cache) read() (readGuard, error) {
 	c.rw.RLock()
 	if c.ok {
 		return readGuard{
-			trust:            c.trustCache,
-			clusterConfig:    c.clusterConfigCache,
-			provisioner:      c.provisionerCache,
-			users:            c.usersCache,
-			access:           c.accessCache,
-			dynamicAccess:    c.dynamicAccessCache,
-			presence:         c.presenceCache,
-			restrictions:     c.restrictionsCache,
-			apps:             c.appsCache,
-			kubernetes:       c.kubernetesCache,
-			databaseServices: c.databaseServicesCache,
-			databases:        c.databasesCache,
-			appSession:       c.appSessionCache,
-			snowflakeSession: c.snowflakeSessionCache,
-			webSession:       c.webSessionCache,
-			webToken:         c.webTokenCache,
-			release:          c.rw.RUnlock,
-			windowsDesktops:  c.windowsDesktopsCache,
+			trust:                   c.trustCache,
+			clusterConfig:           c.clusterConfigCache,
+			provisioner:             c.provisionerCache,
+			users:                   c.usersCache,
+			access:                  c.accessCache,
+			dynamicAccess:           c.dynamicAccessCache,
+			presence:                c.presenceCache,
+			restrictions:            c.restrictionsCache,
+			apps:                    c.appsCache,
+			kubernetes:              c.kubernetesCache,
+			databaseServices:        c.databaseServicesCache,
+			databases:               c.databasesCache,
+			appSession:              c.appSessionCache,
+			snowflakeSession:        c.snowflakeSessionCache,
+			samlIdPSession:          c.samlIdPSessionCache,
+			webSession:              c.webSessionCache,
+			webToken:                c.webTokenCache,
+			release:                 c.rw.RUnlock,
+			windowsDesktops:         c.windowsDesktopsCache,
+			samlIdPServiceProviders: c.samlIdPServiceProvidersCache,
+			userGroups:              c.userGroupsCache,
 		}, nil
 	}
 	c.rw.RUnlock()
 	return readGuard{
-		trust:            c.Config.Trust,
-		clusterConfig:    c.Config.ClusterConfig,
-		provisioner:      c.Config.Provisioner,
-		users:            c.Config.Users,
-		access:           c.Config.Access,
-		dynamicAccess:    c.Config.DynamicAccess,
-		presence:         c.Config.Presence,
-		restrictions:     c.Config.Restrictions,
-		apps:             c.Config.Apps,
-		kubernetes:       c.Config.Kubernetes,
-		databaseServices: c.Config.DatabaseServices,
-		databases:        c.Config.Databases,
-		appSession:       c.Config.AppSession,
-		snowflakeSession: c.Config.SnowflakeSession,
-		webSession:       c.Config.WebSession,
-		webToken:         c.Config.WebToken,
-		windowsDesktops:  c.Config.WindowsDesktops,
-		release:          nil,
+		trust:                   c.Config.Trust,
+		clusterConfig:           c.Config.ClusterConfig,
+		provisioner:             c.Config.Provisioner,
+		users:                   c.Config.Users,
+		access:                  c.Config.Access,
+		dynamicAccess:           c.Config.DynamicAccess,
+		presence:                c.Config.Presence,
+		restrictions:            c.Config.Restrictions,
+		apps:                    c.Config.Apps,
+		kubernetes:              c.Config.Kubernetes,
+		databaseServices:        c.Config.DatabaseServices,
+		databases:               c.Config.Databases,
+		appSession:              c.Config.AppSession,
+		snowflakeSession:        c.Config.SnowflakeSession,
+		samlIdPSession:          c.Config.SAMLIdPSession,
+		webSession:              c.Config.WebSession,
+		webToken:                c.Config.WebToken,
+		windowsDesktops:         c.Config.WindowsDesktops,
+		samlIdPServiceProviders: c.Config.SAMLIdPServiceProviders,
+		userGroups:              c.Config.UserGroups,
+		release:                 nil,
 	}, nil
 }
 
@@ -525,25 +542,28 @@ func (c *Cache) read() (readGuard, error) {
 // function for the read lock, and ensures that it is not
 // double-called.
 type readGuard struct {
-	trust            services.Trust
-	clusterConfig    services.ClusterConfiguration
-	provisioner      services.Provisioner
-	users            services.UsersService
-	access           services.Access
-	dynamicAccess    services.DynamicAccessCore
-	presence         services.Presence
-	appSession       services.AppSession
-	snowflakeSession services.SnowflakeSession
-	restrictions     services.Restrictions
-	apps             services.Apps
-	kubernetes       services.Kubernetes
-	databaseServices services.DatabaseServices
-	databases        services.Databases
-	webSession       types.WebSessionInterface
-	webToken         types.WebTokenInterface
-	windowsDesktops  services.WindowsDesktops
-	release          func()
-	released         bool
+	trust                   services.Trust
+	clusterConfig           services.ClusterConfiguration
+	provisioner             services.Provisioner
+	users                   services.UsersService
+	access                  services.Access
+	dynamicAccess           services.DynamicAccessCore
+	presence                services.Presence
+	appSession              services.AppSession
+	snowflakeSession        services.SnowflakeSession
+	samlIdPSession          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
+	restrictions            services.Restrictions
+	apps                    services.Apps
+	kubernetes              services.Kubernetes
+	databaseServices        services.DatabaseServices
+	databases               services.Databases
+	webSession              types.WebSessionInterface
+	webToken                types.WebTokenInterface
+	windowsDesktops         services.WindowsDesktops
+	samlIdPServiceProviders services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
+	userGroups              services.UserGroups
+	release                 func()
+	released                bool
 }
 
 // Release releases the read lock if it is held.  This method
@@ -597,6 +617,8 @@ type Config struct {
 	DatabaseServices services.DatabaseServices
 	// Databases is a databases service.
 	Databases services.Databases
+	// SAMLIdPSession holds SAML IdP sessions.
+	SAMLIdPSession services.SAMLIdPSession
 	// SnowflakeSession holds Snowflake sessions.
 	SnowflakeSession services.SnowflakeSession
 	// AppSession holds application sessions.
@@ -607,6 +629,10 @@ type Config struct {
 	WebToken types.WebTokenInterface
 	// WindowsDesktops is a windows desktop service.
 	WindowsDesktops services.WindowsDesktops
+	// SAMLIdPServiceProviders is a SAML IdP service providers service.
+	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
+	// UserGroups is a user groups service.
+	UserGroups services.UserGroups
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -734,30 +760,40 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	//nolint:revive // Because we want this to be IdP.
+	samlIdPServiceProvidersCache, err := local.NewSAMLIdPServiceProviderService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
-		ctx:                   ctx,
-		cancel:                cancel,
-		Config:                config,
-		initC:                 make(chan struct{}),
-		fnCache:               fnCache,
-		trustCache:            local.NewCAService(config.Backend),
-		clusterConfigCache:    clusterConfigCache,
-		provisionerCache:      local.NewProvisioningService(config.Backend),
-		usersCache:            local.NewIdentityService(config.Backend),
-		accessCache:           local.NewAccessService(config.Backend),
-		dynamicAccessCache:    local.NewDynamicAccessService(config.Backend),
-		presenceCache:         local.NewPresenceService(config.Backend),
-		restrictionsCache:     local.NewRestrictionsService(config.Backend),
-		appsCache:             local.NewAppService(config.Backend),
-		kubernetesCache:       local.NewKubernetesService(config.Backend),
-		databaseServicesCache: local.NewDatabaseServicesService(config.Backend),
-		databasesCache:        local.NewDatabasesService(config.Backend),
-		appSessionCache:       local.NewIdentityService(config.Backend),
-		snowflakeSessionCache: local.NewIdentityService(config.Backend),
-		webSessionCache:       local.NewIdentityService(config.Backend).WebSessions(),
-		webTokenCache:         local.NewIdentityService(config.Backend).WebTokens(),
-		windowsDesktopsCache:  local.NewWindowsDesktopService(config.Backend),
-		eventsFanout:          services.NewFanoutSet(),
+		ctx:                          ctx,
+		cancel:                       cancel,
+		Config:                       config,
+		initC:                        make(chan struct{}),
+		fnCache:                      fnCache,
+		trustCache:                   local.NewCAService(config.Backend),
+		clusterConfigCache:           clusterConfigCache,
+		provisionerCache:             local.NewProvisioningService(config.Backend),
+		usersCache:                   local.NewIdentityService(config.Backend),
+		accessCache:                  local.NewAccessService(config.Backend),
+		dynamicAccessCache:           local.NewDynamicAccessService(config.Backend),
+		presenceCache:                local.NewPresenceService(config.Backend),
+		restrictionsCache:            local.NewRestrictionsService(config.Backend),
+		appsCache:                    local.NewAppService(config.Backend),
+		kubernetesCache:              local.NewKubernetesService(config.Backend),
+		databaseServicesCache:        local.NewDatabaseServicesService(config.Backend),
+		databasesCache:               local.NewDatabasesService(config.Backend),
+		appSessionCache:              local.NewIdentityService(config.Backend),
+		snowflakeSessionCache:        local.NewIdentityService(config.Backend),
+		samlIdPSessionCache:          local.NewIdentityService(config.Backend),
+		webSessionCache:              local.NewIdentityService(config.Backend).WebSessions(),
+		webTokenCache:                local.NewIdentityService(config.Backend).WebTokens(),
+		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
+		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
+		userGroupsCache:              local.NewUserGroupService(config.Backend),
+		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
@@ -784,7 +820,7 @@ func New(config Config) (*Cache, error) {
 // Start the cache. Should only be called once.
 func (c *Cache) Start() error {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.HalfJitter(c.MaxRetryPeriod / 10),
+		First:  utils.FullJitter(c.MaxRetryPeriod / 10),
 		Step:   c.MaxRetryPeriod / 5,
 		Max:    c.MaxRetryPeriod,
 		Jitter: retryutils.NewHalfJitter(),
@@ -1528,6 +1564,20 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	return rg.clusterConfig.GetClusterName(opts...)
 }
 
+func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetUIConfig")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	uiconfig, err := rg.clusterConfig.GetUIConfig(ctx)
+	return uiconfig, trace.Wrap(err)
+}
+
 // GetInstaller gets the installer script resource for the cluster
 func (c *Cache) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetInstaller")
@@ -1971,6 +2021,19 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 	return rg.snowflakeSession.GetSnowflakeSession(ctx, req)
 }
 
+// GetSAMLIdPSession gets a SAML IdP session.
+func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPSession")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.samlIdPSession.GetSAMLIdPSession(ctx, req)
+}
+
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseServers")
@@ -2177,6 +2240,58 @@ func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWi
 	}
 	defer rg.Release()
 	return rg.windowsDesktops.ListWindowsDesktopServices(ctx, req)
+}
+
+// ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
+func (c *Cache) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListSAMLIdPServiceProviders")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.samlIdPServiceProviders.ListSAMLIdPServiceProviders(ctx, pageSize, nextKey)
+}
+
+// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
+func (c *Cache) GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPServiceProvider")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.samlIdPServiceProviders.GetSAMLIdPServiceProvider(ctx, name)
+}
+
+// ListUserGroups returns a paginated list of user group resources.
+func (c *Cache) ListUserGroups(ctx context.Context, pageSize int, nextKey string) ([]types.UserGroup, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListUserGroups")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.userGroups.ListUserGroups(ctx, pageSize, nextKey)
+}
+
+// GetUserGroup returns the specified user group resources.
+func (c *Cache) GetUserGroup(ctx context.Context, name string) (types.UserGroup, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetUserGroup")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.userGroups.GetUserGroup(ctx, name)
 }
 
 // ListResources is a part of auth.Cache implementation

@@ -117,9 +117,6 @@ allow the bot to access on hosts. For our example, we will be using `root`.
     # The token name is not a secret because instances must prove that they are
     # running in your AWS account to use this token.
     name: iam-token
-    # Set a long expiry time for how long you want to support IAM method for
-    # joining. It is safe to set this value to a very long time.
-    expires: "3000-01-01T00:00:00Z"
   spec:
     # Only allow bots to join using this token.
     roles: [Bot]
@@ -163,6 +160,7 @@ the foreground to better understand how it works.
   <ScopedBlock scope={["oss", "enterprise"]}>
 
   ```code
+  $ export TELEPORT_ANONYMOUS_TELEMETRY=1
   $ tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
@@ -176,6 +174,7 @@ the foreground to better understand how it works.
   <ScopedBlock scope={["cloud"]}>
 
   ```code
+  $ export TELEPORT_ANONYMOUS_TELEMETRY=1
   $ tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
@@ -193,6 +192,7 @@ the foreground to better understand how it works.
   <ScopedBlock scope={["oss", "enterprise"]}>
 
   ```code
+  $ export TELEPORT_ANONYMOUS_TELEMETRY=1
   $ tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
@@ -206,6 +206,7 @@ the foreground to better understand how it works.
   <ScopedBlock scope={["cloud"]}>
 
   ```code
+  $ export TELEPORT_ANONYMOUS_TELEMETRY=1
   $ tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
@@ -219,6 +220,10 @@ the foreground to better understand how it works.
 
   </TabItem>
 </Tabs>
+
+`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
+telemetry. This helps us shape the future development of `tbot`. You can disable
+this by omitting this.
 
 Replace the following fields with values from your own cluster.
 
@@ -327,3 +332,5 @@ use-case, for example:
 - [Machine ID with Ansible](./guides/ansible.mdx)
 - [Machine ID with Jenkins](./guides/jenkins.mdx)
 - [Machine ID with Databases](./guides/databases.mdx)
+
+[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](./reference/telemetry.mdx)

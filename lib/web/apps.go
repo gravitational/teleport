@@ -21,7 +21,6 @@ package web
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -62,7 +61,10 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	apps := removeUnsupportedApps(appServers)
+	var apps types.Apps
+	for _, server := range appServers {
+		apps = append(apps, server.GetApp())
+	}
 
 	return listResourcesGetResponse{
 		Items: ui.MakeApps(ui.MakeAppsConfig{
@@ -73,7 +75,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			Apps:              apps,
 		}),
 		StartKey:   resp.NextKey,
-		TotalCount: len(apps),
+		TotalCount: resp.TotalCount,
 	}, nil
 }
 
@@ -134,7 +136,7 @@ func (h *Handler) getAppFQDN(w http.ResponseWriter, r *http.Request, p httproute
 //
 // POST /v1/webapi/sessions/app
 func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req CreateAppSessionRequest
+	var req resolveAppParams
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -153,12 +155,22 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 
 	// Use the information the caller provided to attempt to resolve to an
 	// application running within either the root or leaf cluster.
-	result, err := h.resolveApp(r.Context(), authClient, proxy, resolveAppParams(req))
+	result, err := h.resolveApp(r.Context(), authClient, proxy, req)
 	if err != nil {
 		return nil, trace.Wrap(err, "unable to resolve FQDN: %v", req.FQDNHint)
 	}
 
 	h.log.Debugf("Creating application web session for %v in %v.", result.App.GetPublicAddr(), result.ClusterName)
+
+	// Ensuring proxy can handle the connection is only done when the request is
+	// coming from the WebUI.
+	if h.healthCheckAppServer != nil && !app.HasClientCert(r) {
+		h.log.Debugf("Ensuring proxy can handle requests requests for application %q.", result.App.GetName())
+		err := h.healthCheckAppServer(r.Context(), result.App.GetPublicAddr(), result.ClusterName)
+		if err != nil {
+			return nil, trace.ConnectionProblem(err, "Unable to serve application requests. Please try again. If the issue persists, verify if the Application Services are connected to Teleport.")
+		}
+	}
 
 	// Create an application web session.
 	//
@@ -357,22 +369,4 @@ func (h *Handler) proxyDNSNames() (dnsNames []string) {
 		return []string{h.auth.clusterName}
 	}
 	return dnsNames
-}
-
-// removeUnsupportedApps filters unsupported (TCP, Cloud API-only) apps out of the list of app servers.
-func removeUnsupportedApps(appServers []types.AppServer) (apps types.Apps) {
-	for _, server := range appServers {
-		a := server.GetApp()
-		// Skip over API-only Cloud apps
-		if strings.HasPrefix(a.GetURI(), "cloud://") {
-			continue
-		}
-
-		// Skip over TCP apps since they cannot be accessed through web UI.
-		if server.GetApp().IsTCP() {
-			continue
-		}
-		apps = append(apps, server.GetApp())
-	}
-	return apps
 }

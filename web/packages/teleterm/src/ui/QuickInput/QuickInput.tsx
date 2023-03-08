@@ -16,7 +16,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { debounce } from 'lodash';
+import { debounce } from 'shared/utils/highbar';
 import { Box, Flex } from 'design';
 import { color, height, space, width } from 'styled-system';
 import { Spinner } from 'design/Icon';

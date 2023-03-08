@@ -46,7 +46,10 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -607,6 +610,15 @@ func (c *Client) DevicesClient() devicepb.DeviceTrustServiceClient {
 // return "not implemented" errors (as per the default gRPC behavior).
 func (c *Client) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 	return loginrulepb.NewLoginRuleServiceClient(c.conn)
+}
+
+// SAMLIdPClient returns an unadorned SAML IdP client, using the underlying
+// Auth gRPC connection.
+// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+// still get a SAML IdP client when calling this method, but all RPCs will
+// return "not implemented" errors (as per the default gRPC behavior).
+func (c *Client) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
+	return samlidppb.NewSAMLIdPServiceClient(c.conn)
 }
 
 // Ping gets basic info about the auth server.
@@ -1263,6 +1275,28 @@ func (c *Client) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, 
 	return out, nil
 }
 
+// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+func (c *Client) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	resp, err := c.grpc.ListSAMLIdPSessions(
+		ctx,
+		&proto.ListSAMLIdPSessionsRequest{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+			User:      user,
+		},
+		c.callOpts...,
+	)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	out := make([]types.WebSession, 0, len(resp.GetSessions()))
+	for _, v := range resp.GetSessions() {
+		out = append(out, v)
+	}
+	return out, resp.NextPageToken, nil
+}
+
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessionRequest) (types.WebSession, error) {
@@ -1295,9 +1329,35 @@ func (c *Client) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 	return resp.GetSession(), nil
 }
 
+// CreateSAMLIdPSession creates a SAML IdP session.
+func (c *Client) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
+	resp, err := c.grpc.CreateSAMLIdPSession(ctx, &proto.CreateSAMLIdPSessionRequest{
+		SessionID:   req.SessionID,
+		Username:    req.Username,
+		SAMLSession: req.SAMLSession,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
 // GetSnowflakeSession gets a Snowflake web session.
 func (c *Client) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeSessionRequest) (types.WebSession, error) {
 	resp, err := c.grpc.GetSnowflakeSession(ctx, &proto.GetSnowflakeSessionRequest{
+		SessionID: req.SessionID,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
+// GetSAMLIdPSession gets a SAML IdP session.
+func (c *Client) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
+	resp, err := c.grpc.GetSAMLIdPSession(ctx, &proto.GetSAMLIdPSessionRequest{
 		SessionID: req.SessionID,
 	}, c.callOpts...)
 	if err != nil {
@@ -1323,6 +1383,14 @@ func (c *Client) DeleteSnowflakeSession(ctx context.Context, req types.DeleteSno
 	return trail.FromGRPC(err)
 }
 
+// DeleteSAMLIdPSession removes a SAML IdP session.
+func (c *Client) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
+	_, err := c.grpc.DeleteSAMLIdPSession(ctx, &proto.DeleteSAMLIdPSessionRequest{
+		SessionID: req.SessionID,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // DeleteAllAppSessions removes all application web sessions.
 func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllAppSessions(ctx, &emptypb.Empty{}, c.callOpts...)
@@ -1335,9 +1403,24 @@ func (c *Client) DeleteAllSnowflakeSessions(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
+// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+func (c *Client) DeleteAllSAMLIdPSessions(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllSAMLIdPSessions(ctx, &emptypb.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
 // DeleteUserAppSessions deletes all user’s application sessions.
 func (c *Client) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
 	_, err := c.grpc.DeleteUserAppSessions(ctx, req, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// DeleteUserSAMLIdPSessions deletes all user’s SAML IdP sessions.
+func (c *Client) DeleteUserSAMLIdPSessions(ctx context.Context, username string) error {
+	req := &proto.DeleteUserSAMLIdPSessionsRequest{
+		Username: username,
+	}
+	_, err := c.grpc.DeleteUserSAMLIdPSessions(ctx, req, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 
@@ -1861,8 +1944,21 @@ func (c *Client) UpsertToken(ctx context.Context, token types.ProvisionToken) er
 	if !ok {
 		return trace.BadParameter("invalid type %T", token)
 	}
-	_, err := c.grpc.UpsertToken(ctx, tokenV2, c.callOpts...)
-	return trail.FromGRPC(err)
+
+	_, err := c.grpc.UpsertTokenV2(ctx, &proto.UpsertTokenV2Request{
+		Token: &proto.UpsertTokenV2Request_V2{
+			V2: tokenV2,
+		},
+	})
+	if err != nil {
+		err := trail.FromGRPC(err)
+		if trace.IsNotImplemented(err) {
+			_, err := c.grpc.UpsertToken(ctx, tokenV2, c.callOpts...)
+			return trail.FromGRPC(err)
+		}
+		return err
+	}
+	return nil
 }
 
 // CreateToken creates a provision token.
@@ -1871,19 +1967,21 @@ func (c *Client) CreateToken(ctx context.Context, token types.ProvisionToken) er
 	if !ok {
 		return trace.BadParameter("invalid type %T", token)
 	}
-	_, err := c.grpc.CreateToken(ctx, tokenV2, c.callOpts...)
-	return trail.FromGRPC(err)
-}
 
-// GenerateToken generates a new auth token for the given service roles.
-// This token can be used by corresponding services to authenticate with
-// the Auth server and get a signed certificate and private key.
-func (c *Client) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-	resp, err := c.grpc.GenerateToken(ctx, req, c.callOpts...)
+	_, err := c.grpc.CreateTokenV2(ctx, &proto.CreateTokenV2Request{
+		Token: &proto.CreateTokenV2Request_V2{
+			V2: tokenV2,
+		},
+	})
 	if err != nil {
-		return "", trail.FromGRPC(err)
+		err := trail.FromGRPC(err)
+		if trace.IsNotImplemented(err) {
+			_, err := c.grpc.CreateToken(ctx, tokenV2, c.callOpts...)
+			return trail.FromGRPC(err)
+		}
+		return err
 	}
-	return resp.Token, nil
+	return nil
 }
 
 // DeleteToken deletes a provision token by name.
@@ -2175,6 +2273,27 @@ func (c *Client) GetInstallers(ctx context.Context) ([]types.Installer, error) {
 		installers[i] = inst
 	}
 	return installers, nil
+}
+
+// GetUIConfig gets the configuration for the UI served by the proxy service
+func (c *Client) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
+	resp, err := c.grpc.GetUIConfig(ctx, &emptypb.Empty{}, c.callOpts...)
+	return resp, trail.FromGRPC(err)
+}
+
+// SetUIConfig sets the configuration for the UI served by the proxy service
+func (c *Client) SetUIConfig(ctx context.Context, uic types.UIConfig) error {
+	uicV1, ok := uic.(*types.UIConfigV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", uic)
+	}
+	_, err := c.grpc.SetUIConfig(ctx, uicV1, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+func (c *Client) DeleteUIConfig(ctx context.Context) error {
+	_, err := c.grpc.DeleteUIConfig(ctx, &emptypb.Empty{}, c.callOpts...)
+	return trail.FromGRPC(err)
 }
 
 // GetInstaller gets the cluster installer resource
@@ -2814,6 +2933,54 @@ func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req p
 	return resources, nil
 }
 
+// GetKubernetesResourcesWithFilters is a helper for getting a list of kubernetes resources with optional filtering. In addition to
+// iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
+func GetKubernetesResourcesWithFilters(ctx context.Context, clt kubeproto.KubeServiceClient, req *kubeproto.ListKubernetesResourcesRequest) ([]types.ResourceWithLabels, error) {
+	var (
+		resources []types.ResourceWithLabels
+		startKey  = req.StartKey
+		// Retrieve the complete list of resources in chunks.
+		chunkSize = req.Limit
+	)
+
+	// Set the chunk size to the default if it is not set.
+	if chunkSize == 0 {
+		chunkSize = int32(defaults.DefaultChunkSize)
+	}
+
+	for {
+		// Reset startKey to the previous page's nextKey.
+		req.StartKey = startKey
+		// Set the chunk size based on the previous chunk size error.
+		req.Limit = chunkSize
+
+		resp, err := clt.ListKubernetesResources(
+			ctx,
+			req,
+		)
+		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				// Cut chunkSize in half if gRPC max message size is exceeded.
+				chunkSize = chunkSize / 2
+				// This is an extremely unlikely scenario, but better to cover it anyways.
+				if chunkSize == 0 {
+					return nil, trace.Wrap(trail.FromGRPC(err), "resource is too large to retrieve")
+				}
+				continue
+			}
+			return nil, trail.FromGRPC(err)
+		}
+
+		startKey = resp.NextKey
+
+		resources = append(resources, types.KubeResources(resp.Resources).AsResources()...)
+		if startKey == "" || len(resp.Resources) == 0 {
+			break
+		}
+	}
+	return resources, nil
+}
+
 // CreateSessionTracker creates a tracker resource for an active session.
 func (c *Client) CreateSessionTracker(ctx context.Context, st types.SessionTracker) (types.SessionTracker, error) {
 	v1, ok := st.(*types.SessionTrackerV1)
@@ -3033,5 +3200,198 @@ func (c *Client) GetAlertAcks(ctx context.Context) ([]types.AlertAcknowledgement
 // ClearAlertAcks clears alert acknowledgments.
 func (c *Client) ClearAlertAcks(ctx context.Context, req proto.ClearAlertAcksRequest) error {
 	_, err := c.grpc.ClearAlertAcks(ctx, &req, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
+func (c *Client) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error) {
+	resp, err := c.grpc.ListSAMLIdPServiceProviders(ctx, &proto.ListSAMLIdPServiceProvidersRequest{
+		Limit:   int32(pageSize),
+		NextKey: nextKey,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+	serviceProviders := make([]types.SAMLIdPServiceProvider, 0, len(resp.GetServiceProviders()))
+	for _, sp := range resp.GetServiceProviders() {
+		serviceProviders = append(serviceProviders, sp)
+	}
+	return serviceProviders, resp.GetNextKey(), nil
+}
+
+// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
+func (c *Client) GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
+	sp, err := c.grpc.GetSAMLIdPServiceProvider(ctx, &proto.GetSAMLIdPServiceProviderRequest{
+		Name: name,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return sp, nil
+}
+
+// CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
+func (c *Client) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
+	spV1, ok := sp.(*types.SAMLIdPServiceProviderV1)
+	if !ok {
+		return trace.BadParameter("unsupported SAML IdP service provider type %T", sp)
+	}
+
+	_, err := c.grpc.CreateSAMLIdPServiceProvider(ctx, spV1, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
+func (c *Client) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
+	spV1, ok := sp.(*types.SAMLIdPServiceProviderV1)
+	if !ok {
+		return trace.BadParameter("unsupported SAML IdP service provider type %T", sp)
+	}
+
+	_, err := c.grpc.UpdateSAMLIdPServiceProvider(ctx, spV1, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
+func (c *Client) DeleteSAMLIdPServiceProvider(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteSAMLIdPServiceProvider(ctx, &proto.DeleteSAMLIdPServiceProviderRequest{
+		Name: name,
+	}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
+func (c *Client) DeleteAllSAMLIdPServiceProviders(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllSAMLIdPServiceProviders(ctx, &emptypb.Empty{}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// ListUserGroups returns a paginated list of SAML IdP service provider resources.
+func (c *Client) ListUserGroups(ctx context.Context, pageSize int, nextKey string) ([]types.UserGroup, string, error) {
+	resp, err := c.grpc.ListUserGroups(ctx, &proto.ListUserGroupsRequest{
+		Limit:   int32(pageSize),
+		NextKey: nextKey,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+	userGroups := make([]types.UserGroup, 0, len(resp.GetUserGroups()))
+	for _, ug := range resp.GetUserGroups() {
+		userGroups = append(userGroups, ug)
+	}
+	return userGroups, resp.GetNextKey(), nil
+}
+
+// GetUserGroup returns the specified SAML IdP service provider resources.
+func (c *Client) GetUserGroup(ctx context.Context, name string) (types.UserGroup, error) {
+	ug, err := c.grpc.GetUserGroup(ctx, &proto.GetUserGroupRequest{
+		Name: name,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return ug, nil
+}
+
+// CreateUserGroup creates a new user group resource.
+func (c *Client) CreateUserGroup(ctx context.Context, ug types.UserGroup) error {
+	ugV1, ok := ug.(*types.UserGroupV1)
+	if !ok {
+		return trace.BadParameter("unsupported user group type %T", ug)
+	}
+
+	_, err := c.grpc.CreateUserGroup(ctx, ugV1, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// UpdateUserGroup updates an existing user group resource.
+func (c *Client) UpdateUserGroup(ctx context.Context, ug types.UserGroup) error {
+	ugV1, ok := ug.(*types.UserGroupV1)
+	if !ok {
+		return trace.BadParameter("unsupported user group type %T", ug)
+	}
+
+	_, err := c.grpc.UpdateUserGroup(ctx, ugV1, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteUserGroup removes the specified user group resource.
+func (c *Client) DeleteUserGroup(ctx context.Context, name string) error {
+	_, err := c.grpc.DeleteUserGroup(ctx, &proto.DeleteUserGroupRequest{
+		Name: name,
+	}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteAllUserGroups removes all user groups.
+func (c *Client) DeleteAllUserGroups(ctx context.Context) error {
+	_, err := c.grpc.DeleteAllUserGroups(ctx, &emptypb.Empty{}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// PluginsClient returns an unadorned Plugins client, using the underlying
+// Auth gRPC connection.
+// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+// still get a plugins client when calling this method, but all RPCs will return
+// "not implemented" errors (as per the default gRPC behavior).
+func (c *Client) PluginsClient() pluginspb.PluginServiceClient {
+	return pluginspb.NewPluginServiceClient(c.conn)
+}
+
+// GetLoginRule retrieves a login rule described by name.
+func (c *Client) GetLoginRule(ctx context.Context, name string) (*loginrulepb.LoginRule, error) {
+	rule, err := c.LoginRuleClient().GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
+		Name: name,
+	}, c.callOpts...)
+	return rule, trail.FromGRPC(err)
+}
+
+// CreateLoginRule creates a login rule if one with the same name does not
+// already exist, else it returns an error.
+func (c *Client) CreateLoginRule(ctx context.Context, rule *loginrulepb.LoginRule) (*loginrulepb.LoginRule, error) {
+	rule, err := c.LoginRuleClient().CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
+		LoginRule: rule,
+	}, c.callOpts...)
+	return rule, trail.FromGRPC(err)
+}
+
+// UpsertLoginRule creates a login rule if one with the same name does not
+// already exist, else it replaces the existing login rule.
+func (c *Client) UpsertLoginRule(ctx context.Context, rule *loginrulepb.LoginRule) (*loginrulepb.LoginRule, error) {
+	rule, err := c.LoginRuleClient().UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
+		LoginRule: rule,
+	}, c.callOpts...)
+	return rule, trail.FromGRPC(err)
+}
+
+// DeleteLoginRule deletes an existing login rule by name.
+func (c *Client) DeleteLoginRule(ctx context.Context, name string) error {
+	_, err := c.LoginRuleClient().DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
+		Name: name,
+	}, c.callOpts...)
 	return trail.FromGRPC(err)
 }

@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { generatePath } from 'react-router';
-import { merge } from 'lodash';
+import { mergeDeep } from 'shared/utils/highbar';
 
 import generateResourcePath from './generateResourcePath';
 
@@ -36,12 +36,17 @@ import type { ParticipantMode } from 'teleport/services/session';
 const cfg = {
   isEnterprise: false,
   isCloud: false,
+  isDashboard: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
 
   configDir: '$HOME/.config',
 
   baseUrl: window.location.origin,
+
+  ui: {
+    scrollbackLines: 1000,
+  },
 
   auth: {
     localAuthEnabled: true,
@@ -553,8 +558,12 @@ const cfg = {
     });
   },
 
+  getUIConfig() {
+    return cfg.ui;
+  },
+
   init(backendConfig = {}) {
-    merge(this, backendConfig);
+    mergeDeep(this, backendConfig);
   },
 };
 

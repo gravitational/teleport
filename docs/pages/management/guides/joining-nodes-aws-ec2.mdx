@@ -152,8 +152,6 @@ metadata:
   # the token name is not a secret because instances must prove that they are
   # running in your AWS account to use this token
   name: ec2-token
-  # set a long expiry time, the default for tokens is only 30 minutes
-  expires: "3000-01-01T00:00:00Z"
 spec:
   # use the minimal set of roles required
   roles: [Node]
@@ -280,7 +278,6 @@ kind: token
 version: v2
 metadata:
   name: ec2-multiaccount-token
-  expires: "3000-01-01T00:00:00Z"
 spec:
   roles: [Node]
   aws_iid_ttl: 5m

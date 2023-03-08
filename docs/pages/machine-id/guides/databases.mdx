@@ -170,6 +170,8 @@ $ tbot init \
     --reader-user=app
 ```
 
+(!docs/pages/includes/machine-id/machine-id-init-bot-data.mdx!)
+
 <Notice type="note">
 Be sure to re-run `tbot init ...` as shown here if config templates are added
 or removed from `tbot.yaml`. You may run into permissions errors if `tbot init`
@@ -190,6 +192,7 @@ Type=simple
 User=teleport
 Group=teleport
 Restart=on-failure
+Environment="TELEPORT_ANONYMOUS_TELEMETRY=1"
 ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/machine-id.pid
@@ -198,6 +201,10 @@ LimitNOFILE=524288
 [Install]
 WantedBy=multi-user.target
 ```
+
+`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
+telemetry. This helps us shape the future development of `tbot`. You can disable
+this by omitting this.
 
 Additionally, we'll need to create a secondary service to manage the database
 proxy. Create another unit file at `/etc/systemd/system/machine-id-proxy.service`:
@@ -229,7 +236,7 @@ parameters as necessary for your local setup.
 Finally, run the following commands to start Machine ID:
 
 ```code
-$ sudo systemctl daemon-reload 
+$ sudo systemctl enable machine-id machine-id-proxy
 $ sudo systemctl start machine-id machine-id-proxy
 $ sudo systemctl status machine-id machine-id-proxy
 ```
@@ -289,3 +296,7 @@ You are all set. You have provided your application with short-lived
 certificates tied to a machine identity that can access your database, be
 rotated, and audited, all while being controlled with all the familiar Teleport
 access controls.
+
+## Next steps
+
+[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)

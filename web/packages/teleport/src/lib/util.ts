@@ -114,3 +114,15 @@ export const compareSemVers = (a: string, b: string): -1 | 1 => {
 
   return 1;
 };
+
+// compareByString is a sort compare function that
+// compares by string.
+export function compareByString(a: string, b: string) {
+  if (a < b) {
+    return -1;
+  }
+  if (a > b) {
+    return 1;
+  }
+  return 0;
+}

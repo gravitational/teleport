@@ -158,6 +158,8 @@ Ensure you have installed correct versions of necessary dependencies:
   [build.assets/Makefile](https://github.com/gravitational/teleport/blob/master/build.assets/Makefile#L21)
   (search for `RUST_VERSION`)
 * For `tsh` version > `10.x` with FIDO support, you will need `libfido` and `openssl 1.1` installed locally
+* To build the web UI, [`yarn`](https://classic.yarnpkg.com/en/docs/install)(< 2.0.0) is required.
+  * If you prefer not to install/use yarn, but have docker available, you can run `make docker-ui` instead.
 
 For an example of Dev Environment setup on a Mac, see [these instructions](BUILD_macos.md). 
 

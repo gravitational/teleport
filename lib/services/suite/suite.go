@@ -143,6 +143,8 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 				PrivateKey: keyBytes,
 			}},
 		}
+	case types.SAMLIDPCA:
+		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
 	default:
 		panic("unknown CA type")
 	}
@@ -1500,7 +1502,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				Kind: types.KindUser,
 			},
 			crud: func(context.Context) types.Resource {
-				user := newUser("user1", []string{"admin"})
+				user := newUser("user1", []string{constants.DefaultImplicitRole})
 				err := s.Users().UpsertUser(user)
 				require.NoError(t, err)
 
@@ -1902,6 +1904,14 @@ waitLoop:
 				log.Debugf("Skipping stale event %v %v", event.Type, event.Resource.GetName())
 				continue
 			}
+
+			// Server resources may have subkind set, but the backend
+			// generating this delete event doesn't know the subkind.
+			// Set it to prevent the check below from failing.
+			if event.Resource.GetKind() == types.KindNode {
+				event.Resource.SetSubKind(resource.GetSubKind())
+			}
+
 			require.Empty(t, cmp.Diff(resource, event.Resource))
 			break waitLoop
 		}

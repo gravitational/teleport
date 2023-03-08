@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Generates protos for Teleport and Teleport API.
 set -eu
@@ -10,9 +10,8 @@ main() {
   # Generated protos are written to
   # <teleport-root>/github.com/gravitational/teleport/..., so we copy them to
   # the correct relative path.
-  trap 'rm -fr github.com' EXIT   # don't leave github.com/ behind
-  # cleanup gen/proto folders
-  rm -fr api/gen/proto gen/proto lib/teleterm/api/protogen lib/prehog/gen lib/prehog/gen-js
+  trap 'rm -fr github.com' EXIT  # don't leave github.com/ behind
+  rm -fr api/gen/proto gen/proto # cleanup gen/proto folders
 
   # Generate Gogo protos.
   buf generate --template=buf-gogo.gen.yaml api/proto
@@ -22,18 +21,22 @@ main() {
   # Add your protos to the list if you can.
   buf generate --template=buf-go.gen.yaml \
     --path=api/proto/teleport/devicetrust/ \
+    --path=api/proto/teleport/kube/ \
     --path=api/proto/teleport/loginrule/ \
-    --path=api/proto/teleport/proxy/ \
-    --path=proto/teleport/lib/multiplexer/
-  buf generate --template=lib/prehog/buf.gen.yaml lib/prehog/proto
+    --path=api/proto/teleport/plugins/ \
+    --path=api/proto/teleport/samlidp/ \
+    --path=api/proto/teleport/transport/ \
+    --path=proto/teleport/lib/multiplexer/ \
+    --path=proto/teleport/lib/teleterm/
 
-  # Generate lib/teleterm & JS protos.
-  # TODO(ravicious): Refactor generating JS protos to follow the approach from above, that is have a
-  # separate call to generate Go protos and another for JS protos instead of having
-  # teleterm-specific buf.gen.yaml files.
-  # https://github.com/gravitational/teleport/pull/19774#discussion_r1061524458
-	buf generate --template=lib/prehog/buf-teleterm.gen.yaml lib/prehog/proto
-	buf generate --template=lib/teleterm/buf.gen.yaml lib/teleterm/api/proto
+  # Generate connect-go protos.
+  buf generate --template=buf-connect-go.gen.yaml \
+    --path=proto/prehog/
+
+  # Generate JS protos.
+	buf generate --template=buf-js.gen.yaml \
+    --path=proto/prehog/ \
+    --path=proto/teleport/lib/teleterm/
 
   cp -r github.com/gravitational/teleport/* .
 }

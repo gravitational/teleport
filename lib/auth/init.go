@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -153,7 +154,7 @@ type InitConfig struct {
 	AuthPreference types.AuthPreference
 
 	// AuditLog is used for emitting events to audit log.
-	AuditLog events.IAuditLog
+	AuditLog events.AuditLogSessionStreamer
 
 	// ClusterAuditConfig holds cluster audit configuration.
 	ClusterAuditConfig types.ClusterAuditConfig
@@ -181,6 +182,12 @@ type InitConfig struct {
 	// WindowsServices is a service that manages Windows desktop resources.
 	WindowsDesktops services.WindowsDesktops
 
+	// SAMLIdPServiceProviders is a service that manages SAML IdP service providers.
+	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
+
+	// UserGroups is a service that manages user groups.
+	UserGroups services.UserGroups
+
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 
@@ -206,7 +213,7 @@ type InitConfig struct {
 	FIPS bool
 
 	// UsageReporter is a service that forwards cluster usage events.
-	UsageReporter services.UsageReporter
+	UsageReporter usagereporter.UsageReporter
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -604,7 +611,7 @@ func createPresets(ctx context.Context, rm PresetRoleManager) error {
 				return trace.Wrap(err)
 			}
 
-			role, err := services.AddDefaultAllowRules(currentRole)
+			role, err := services.AddDefaultAllowConditions(currentRole)
 			if trace.IsAlreadyExists(err) {
 				continue
 			}
@@ -655,7 +662,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			switch r.GetType() {
 			case types.HostCA, types.UserCA, types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
-			case types.DatabaseCA:
+			case types.DatabaseCA, types.SAMLIDPCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
 			case types.JWTSigner:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)

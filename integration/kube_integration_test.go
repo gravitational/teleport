@@ -156,10 +156,11 @@ func TestKube(t *testing.T) {
 	t.Run("TrustedClustersSNI", suite.bind(testKubeTrustedClustersSNI))
 	t.Run("Disconnect", suite.bind(testKubeDisconnect))
 	t.Run("Join", suite.bind(testKubeJoin))
+
+	t.Run("IPPinning", suite.bind(testIPPinning))
 }
 
-// TestKubeExec tests kubernetes Exec command set
-func testKubeExec(t *testing.T, suite *KubeSuite) {
+func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError string) {
 	tconf := suite.teleKubeConfig(Host)
 
 	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -185,6 +186,9 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 				},
 			},
 		},
+		Options: types.RoleOptions{
+			PinSourceIP: pinnedIP != "",
+		},
 	})
 	require.NoError(t, err)
 	teleport.AddUserWithRole(username, role)
@@ -201,10 +205,12 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 	impersonatingProxyClient, impersonatingProxyClientConfig, err := kube.ProxyClient(kube.ProxyConfig{
 		T:             teleport,
 		Username:      username,
+		PinnedIP:      pinnedIP,
 		KubeUsers:     kubeUsers,
 		KubeGroups:    kubeGroups,
 		Impersonation: &rest.ImpersonationConfig{UserName: "bob", Groups: []string{kube.TestImpersonationGroup}},
 	})
+
 	require.NoError(t, err)
 
 	// try get request to fetch a pod
@@ -217,6 +223,7 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 	scopedProxyClient, scopedProxyClientConfig, err := kube.ProxyClient(kube.ProxyConfig{
 		T:          teleport,
 		Username:   username,
+		PinnedIP:   pinnedIP,
 		KubeUsers:  kubeUsers,
 		KubeGroups: kubeGroups,
 		Impersonation: &rest.ImpersonationConfig{
@@ -224,6 +231,10 @@ func testKubeExec(t *testing.T, suite *KubeSuite) {
 			Groups:   role.GetKubeGroups(types.Allow),
 		},
 	})
+	if clientError != "" {
+		require.ErrorContains(t, err, clientError)
+		return
+	}
 	require.NoError(t, err)
 
 	_, err = scopedProxyClient.CoreV1().Pods(testNamespace).Get(ctx, testPod, metav1.GetOptions{})
@@ -329,6 +340,35 @@ loop:
 		stdin:        term,
 	})
 	require.NoError(t, err)
+}
+
+// TestKubeExec tests kubernetes Exec command set
+func testKubeExec(t *testing.T, suite *KubeSuite) {
+	testExec(t, suite, "", "")
+}
+
+func testIPPinning(t *testing.T, suite *KubeSuite) {
+	testCases := []struct {
+		desc      string
+		pinnedIP  string
+		wantError string
+	}{
+		{
+			desc:     "pinned correct IP",
+			pinnedIP: "127.0.0.1",
+		},
+		{
+			desc:      "pinned incorrect IP",
+			pinnedIP:  "127.0.0.2",
+			wantError: "pinned IP doesn't match observed client IP",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			testExec(t, suite, tt.pinnedIP, tt.wantError)
+		})
+	}
 }
 
 // TestKubeDeny makes sure that deny rule conflicting with allow

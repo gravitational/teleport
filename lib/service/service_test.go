@@ -53,31 +53,13 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	os.Exit(m.Run())
-}
-
-func TestServiceDebugModeEnv(t *testing.T) {
-	require.False(t, isDebugMode())
-
-	for _, test := range []struct {
-		debugVal string
-		isDebug  bool
-	}{
-		{"no", false},
-		{"0", false},
-		{"1", true},
-		{"true", true},
-	} {
-		t.Run(fmt.Sprintf("%v=%v", teleport.DebugEnvVar, test.debugVal), func(t *testing.T) {
-			t.Setenv(teleport.DebugEnvVar, test.debugVal)
-			require.Equal(t, test.isDebug, isDebugMode())
-		})
-	}
 }
 
 func TestServiceSelfSignedHTTPS(t *testing.T) {
@@ -296,7 +278,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initAuthAuditLog(context.Background(), auditConfig, backend)
+			loggers, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend)
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
@@ -1000,11 +982,28 @@ func TestProxyGRPCServers(t *testing.T) {
 	})
 
 	// Insecure gRPC server.
-	insecureGPRC := process.initInsecureGRPCServer(limiter, testConnector, insecureListener)
+	insecureGPRC := process.initPublicGRPCServer(limiter, testConnector, insecureListener)
 	t.Cleanup(insecureGPRC.GracefulStop)
 
+	proxyLockWatcher, err := services.NewLockWatcher(context.Background(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    testConnector.Client,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		proxyLockWatcher.Close()
+	})
 	// Secure gRPC server.
-	secureGRPC, err := process.initSecureGRPCServer(limiter, testConnector, insecureListener)
+	secureGRPC, err := process.initSecureGRPCServer(initSecureGRPCServerCfg{
+		limiter:     limiter,
+		conn:        testConnector,
+		listener:    secureListener,
+		accessPoint: testConnector.Client,
+		lockWatcher: proxyLockWatcher,
+		emitter:     testConnector.Client,
+	})
 	require.NoError(t, err)
 	t.Cleanup(secureGRPC.GracefulStop)
 

@@ -39,6 +39,8 @@ import (
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
 func TestDatabaseServerResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -66,18 +68,19 @@ func TestDatabaseServerResource(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
 	waitForBackendDatabaseResourcePropagation(t, auth.GetAuthServer())
 
 	var out []*types.DatabaseServerV3
@@ -115,6 +118,8 @@ func TestDatabaseServerResource(t *testing.T) {
 
 // TestDatabaseResource tests tctl commands that manage database resources.
 func TestDatabaseResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -128,18 +133,18 @@ func TestDatabaseResource(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	dbA, err := types.NewDatabaseV3(types.Metadata{
 		Name:   "db-a",
@@ -204,6 +209,8 @@ func TestDatabaseResource(t *testing.T) {
 
 // TestDatabaseServiceResource tests tctl db_services get commands.
 func TestDatabaseServiceResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	ctx := context.Background()
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
@@ -213,18 +220,18 @@ func TestDatabaseServiceResource(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	var out []*types.DatabaseServiceV1
 
@@ -284,6 +291,8 @@ func TestDatabaseServiceResource(t *testing.T) {
 
 // TestAppResource tests tctl commands that manage application resources.
 func TestAppResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -297,18 +306,18 @@ func TestAppResource(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	appA, err := types.NewAppV3(types.Metadata{
 		Name:   "appA",
@@ -371,6 +380,8 @@ func TestAppResource(t *testing.T) {
 
 // TestCreateDatabaseInInsecureMode connects to auth server with --insecure mode and creates a DB resource.
 func TestCreateDatabaseInInsecureMode(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -384,18 +395,18 @@ func TestCreateDatabaseInInsecureMode(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	// Create the databases yaml file.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
@@ -442,7 +453,8 @@ spec:
   uri: "localhost2"`
 )
 
-func TestCreateClusterAuthPreferencet_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {
+func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -450,12 +462,12 @@ func TestCreateClusterAuthPreferencet_WithSupportForSecondFactorWithoutQuotes(t 
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	tests := []struct {
 		desc               string
@@ -522,6 +534,149 @@ version: v2`,
 				require.NotZero(t, len(authPreferences))
 				tt.expectSecondFactor(t, authPreferences[0].Spec.SecondFactor)
 			}
+		})
+	}
+}
+
+func TestCreateSAMLIdPServiceProvider(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
+	tests := []struct {
+		desc           string
+		input          string
+		name           string
+		expectError    require.ErrorAssertionFunc
+		expectEntityID require.ValueAssertionFunc
+	}{
+		{
+			desc: "handle no supplied entity ID",
+			input: `
+kind: saml_idp_service_provider
+version: v1
+metadata:
+  name: test1
+spec:
+  entity_descriptor: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+       <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+          <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+       </md:SPSSODescriptor>
+    </md:EntityDescriptor>
+`,
+			name:           "test1",
+			expectError:    require.NoError,
+			expectEntityID: requireEqual("IAMShowcase"),
+		},
+		{
+			desc: "handle overwrite entity ID",
+			input: `
+kind: saml_idp_service_provider
+version: v1
+metadata:
+  name: test1
+spec:
+  entity_descriptor: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+       <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+          <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+       </md:SPSSODescriptor>
+    </md:EntityDescriptor>
+  entity_id: never-seen-entity-id
+`,
+			name:        "test1",
+			expectError: require.Error,
+		},
+		{
+			desc: "handle invalid entity descriptor",
+			input: `
+kind: saml_idp_service_provider
+version: v1
+metadata:
+  name: test1
+spec:
+  entity_descriptor: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+`,
+			name:        "test1",
+			expectError: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			spYAMLPath := filepath.Join(t.TempDir(), "sp.yaml")
+			require.NoError(t, os.WriteFile(spYAMLPath, []byte(tt.input), 0644))
+
+			_, err := runResourceCommand(t, fileConfig, []string{"create", "-f", spYAMLPath})
+			tt.expectError(t, err)
+
+			if tt.expectEntityID != nil {
+				buf, err := runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("saml_sp/%s", tt.name), "--format=json"})
+				require.NoError(t, err)
+				sps := []*types.SAMLIdPServiceProviderV1{}
+				mustDecodeJSON(t, buf, &sps)
+				tt.expectEntityID(t, sps[0].GetEntityID())
+			}
+		})
+	}
+}
+
+func TestUpsertVerb(t *testing.T) {
+	tests := []struct {
+		name     string
+		exists   bool
+		force    bool
+		expected string
+	}{
+		{
+			name:     "exists && force",
+			exists:   true,
+			force:    true,
+			expected: "created",
+		},
+		{
+			name:     "!exists && force",
+			exists:   false,
+			force:    true,
+			expected: "created",
+		},
+		{
+			name:     "exists && !force",
+			exists:   true,
+			force:    false,
+			expected: "updated",
+		},
+		{
+			name:     "!exists && !force",
+			exists:   false,
+			force:    false,
+			expected: "created",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := UpsertVerb(test.exists, test.force)
+			require.Equal(t, test.expected, actual)
 		})
 	}
 }

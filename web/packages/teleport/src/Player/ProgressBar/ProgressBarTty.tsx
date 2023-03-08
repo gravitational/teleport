@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { throttle } from 'lodash';
+import { throttle } from 'shared/utils/highbar';
 
 import TtyPlayer from 'teleport/lib/term/ttyPlayer';
 

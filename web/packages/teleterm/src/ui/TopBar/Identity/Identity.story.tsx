@@ -1,3 +1,19 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import React, { useRef, useEffect } from 'react';
 import Flex from 'design/Flex';
 
@@ -47,7 +63,6 @@ export function OneClusterWithNoActiveCluster() {
     userName: '',
     uri: '/clusters/localhost',
     connected: false,
-    isSyncing: false,
   };
 
   return (
@@ -69,7 +84,6 @@ export function OneClusterWithActiveCluster() {
     userName: 'alice',
     uri: '/clusters/localhost',
     connected: true,
-    isSyncing: false,
   };
 
   const cluster: tshd.Cluster = {
@@ -108,7 +122,6 @@ export function ManyClustersWithNoActiveCluster() {
     userName: 'bob',
     uri: '/clusters/orange',
     connected: true,
-    isSyncing: false,
   };
   const identityRootCluster2: IdentityRootCluster = {
     active: false,
@@ -116,7 +129,6 @@ export function ManyClustersWithNoActiveCluster() {
     userName: 'sammy',
     uri: '/clusters/violet',
     connected: true,
-    isSyncing: true,
   };
   const identityRootCluster3: IdentityRootCluster = {
     active: false,
@@ -124,7 +136,6 @@ export function ManyClustersWithNoActiveCluster() {
     userName: '',
     uri: '/clusters/green',
     connected: true,
-    isSyncing: false,
   };
 
   return (
@@ -150,7 +161,6 @@ export function ManyClustersWithActiveCluster() {
     userName: 'bob',
     uri: '/clusters/orange',
     connected: true,
-    isSyncing: true,
   };
   const identityRootCluster2: IdentityRootCluster = {
     active: true,
@@ -158,7 +168,6 @@ export function ManyClustersWithActiveCluster() {
     userName: 'sammy',
     uri: '/clusters/violet',
     connected: true,
-    isSyncing: false,
   };
   const identityRootCluster3: IdentityRootCluster = {
     active: false,
@@ -166,7 +175,6 @@ export function ManyClustersWithActiveCluster() {
     userName: '',
     uri: '/clusters/green',
     connected: true,
-    isSyncing: false,
   };
 
   const activeIdentityRootCluster = identityRootCluster2;
@@ -210,7 +218,6 @@ export function LongNamesWithManyRoles() {
     userName: 'bob',
     uri: '/clusters/orange',
     connected: true,
-    isSyncing: true,
   };
   const identityRootCluster2: IdentityRootCluster = {
     active: true,
@@ -218,7 +225,6 @@ export function LongNamesWithManyRoles() {
     userName: 'ruud-van-nistelrooy-van-der-sar',
     uri: '/clusters/psv',
     connected: true,
-    isSyncing: false,
   };
   const identityRootCluster3: IdentityRootCluster = {
     active: false,
@@ -226,7 +232,6 @@ export function LongNamesWithManyRoles() {
     userName: '',
     uri: '/clusters/green',
     connected: true,
-    isSyncing: false,
   };
 
   const activeIdentityRootCluster = identityRootCluster2;

@@ -111,6 +111,21 @@ func TestAWS(t *testing.T) {
 		setCmdRunner(validateCmd),
 	)
 	require.NoError(t, err)
+
+	validateCmd = func(cmd *exec.Cmd) error {
+		// Validate composed AWS CLI command.
+		require.Len(t, cmd.Args, 2)
+		require.Equal(t, []string{"terraform", "plan"}, cmd.Args[:2])
+
+		return nil
+	}
+	err = Run(
+		context.Background(),
+		[]string{"aws", "--app", "aws-app", "--exec", "terraform", "plan"},
+		setHomePath(tmpHomePath),
+		setCmdRunner(validateCmd),
+	)
+	require.NoError(t, err)
 }
 
 func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
