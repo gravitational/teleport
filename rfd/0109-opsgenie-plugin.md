@@ -7,7 +7,8 @@ Security: @reedloden, @jentfoo
 
 ## What
 
-This RFD proposes a plugin that allows Teleport to integrate with Opsgenie, allowing access requests to show up as alerts in Opsgenie. This plugin will differ from existing plugins by being part of the Teleport binary directly.
+This RFD proposes a plugin that allows Teleport to integrate with Opsgenie, allowing access requests to show up as alerts in Opsgenie. This plugin will differ from existing plugins by being part of the Teleport binary directly. 
+Doing so by creating a new Teleport service 'plugin_service' with the opsgenie plugin (and any future ones) being configurable resources. This will allow the plugins to be run either by themselves or alongside other Teleport services.
 
 ## Scope
 
@@ -20,6 +21,13 @@ The plugin will be run as a standalone application similar to the existing Pager
 The plugin will follow the 'hosted' operations model and will at that point be possible to run as part of the Auth server directly or as a standalone application.
 
 ## Success criteria
+
+### Plugin service
+The creation of a Teleport service where plugins can be created as configurable resources similar to the existing 'app_service' and 'db_service'.
+
+Plugins managed through this service should have the ability to be enabled and disabled dynamically via 'tctl'.
+
+### Opsgenie plugin
 Users are able to configure teleport to automatically create alerts in Opsgenie from access requests.
 Alerts were chosen over incidents in Opsgenie as incidents are intended to be used for high priority alerts that indicate a service interruption.
 Users are also able to configure auto approval flows to be met under certain conditions. E.g when a requester is on-call.
@@ -30,10 +38,13 @@ The plugin will be configured in Teleport's config yaml file. The required field
 
 ```
 plugins:
+    enabled: true
     opsgenie:
+        enabled: true
         api_key: "path/to/key" # File containing Opsgenie API Key
         addr: "example.app.opsgenie.com" # Address of Opsgenie
         priority: "2" # Priority to create Opsgenie alerts with
+        request_annotations: ["service1, service2"] # Opsgeneie services to create alerts in
         alert_tags: ["example-tag"] # List of tags to be added to alerts created in Opsgenie
     identity_file: "path/to/identity_file" # Identity file to be used
     client_key: "/var/lib/teleport/plugins/pagerduty/auth.key" # Teleport GRPC client secret key
@@ -49,14 +60,16 @@ In the Opsgenie web UI go to Settings -> App settings -> API key management. Cre
 
 ### Executing
 
-The plugin will be started using a command of the form
+The plugin will be started using a command of the form given the appropriate 'plugin_service' is enabled in the config.
 
 ```
-teleport plugin opsgenie start --config /etc/teleport.yaml
+teleport start --config /etc/teleport.yaml
 ```
 
 ## UX
 
+
+### Opsgenie plugin
 Once an access request has been created, the Opsgenie plugin will create an alert in the service specified in the request annotation using the Opsgenie Alert API [Create](https://docs.opsgenie.com/docs/alert-api#create-alert) endpoint. 
 
 The appropriate on-call responder can then click the provided link to the access request and approve or deny it.
