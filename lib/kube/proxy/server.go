@@ -197,6 +197,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		Server: &http.Server{
 			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout * 2,
+			IdleTimeout:       360 * time.Second,
 			TLSConfig:         cfg.TLS,
 			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
 		},

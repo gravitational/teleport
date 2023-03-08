@@ -2620,6 +2620,7 @@ func (process *TeleportProcess) initMetricsService() error {
 	server := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		IdleTimeout:       360 * time.Second,
 		ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentMetrics),
 		TLSConfig:         tlsConfig,
 	}
@@ -2740,6 +2741,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	server := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
+		IdleTimeout:       360 * time.Second,
 		ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentDiagnostic),
 	}
 
@@ -3608,6 +3610,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Server: &http.Server{
 				Handler:           httplib.MakeTracingHandler(proxyLimiter, teleport.ComponentProxy),
 				ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
+				IdleTimeout:       360 * time.Second,
 				ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 				ConnState:         ingress.HTTPConnStateReporter(ingress.Web, ingressReporter),
 			},
@@ -4107,6 +4110,7 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 		Server: &http.Server{
 			Handler:           httplib.MakeTracingHandler(minimalProxyLimiter, teleport.ComponentProxy),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
+			IdleTimeout:       360 * time.Second,
 			ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentReverseTunnelServer),
 		},
 		Handler: minimalWebHandler,

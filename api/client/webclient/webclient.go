@@ -88,26 +88,42 @@ func (c *Config) CheckAndSetDefaults() error {
 }
 
 // newWebClient creates a new client to the HTTPS web proxy.
-func newWebClient(cfg *Config) (*http.Client, error) {
+func newWebClient(cfg *Config) (*client, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	transport := http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: cfg.Insecure,
-			RootCAs:            cfg.Pool,
-		},
-		Proxy: func(req *http.Request) (*url.URL, error) {
-			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+
+	clt := &client{
+		transport: http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: cfg.Insecure,
+				RootCAs:            cfg.Pool,
+			},
+			Proxy: func(req *http.Request) (*url.URL, error) {
+				return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+			},
+			IdleConnTimeout: defaults.DefaultDialTimeout,
 		},
 	}
-	return &http.Client{
+
+	clt.Client = &http.Client{
 		Transport: otelhttp.NewTransport(
-			proxy.NewHTTPRoundTripper(&transport, nil),
+			proxy.NewHTTPRoundTripper(&clt.transport, nil),
 			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
 		),
 		Timeout: cfg.Timeout,
-	}, nil
+	}
+
+	return clt, nil
+}
+
+type client struct {
+	*http.Client
+	transport http.Transport
+}
+
+func (c *client) CloseIdleConnections() {
+	c.transport.CloseIdleConnections()
 }
 
 // doWithFallback attempts to execute an HTTP request using https, and then
@@ -174,7 +190,7 @@ func Find(cfg *Config) (*PingResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := doWithFallback(clt, cfg.Insecure, cfg.ExtraHeaders, req)
+	resp, err := doWithFallback(clt.Client, cfg.Insecure, cfg.ExtraHeaders, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -213,7 +229,7 @@ func Ping(cfg *Config) (*PingResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := doWithFallback(clt, cfg.Insecure, cfg.ExtraHeaders, req)
+	resp, err := doWithFallback(clt.Client, cfg.Insecure, cfg.ExtraHeaders, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -250,7 +266,7 @@ func GetMOTD(cfg *Config) (*MotD, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := doWithFallback(clt, cfg.Insecure, cfg.ExtraHeaders, req)
+	resp, err := doWithFallback(clt.Client, cfg.Insecure, cfg.ExtraHeaders, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

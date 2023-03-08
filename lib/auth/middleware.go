@@ -169,6 +169,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		httpServer: &http.Server{
 			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentAuth),
 			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
+			IdleTimeout:       360 * time.Second,
 		},
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,

@@ -1028,6 +1028,7 @@ func (s *Server) newHTTPServer() *http.Server {
 	return &http.Server{
 		Handler:           httplib.MakeTracingHandler(s.authMiddleware, teleport.ComponentApp),
 		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
+		IdleTimeout:       360 * time.Second,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			return context.WithValue(ctx, connContextKey, c)
