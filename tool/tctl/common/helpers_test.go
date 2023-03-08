@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -218,6 +219,8 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	auth, err = service.NewTeleport(cfg)
+	c := clockwork.NewFakeClock()
+	auth.GetAuthServer().SetClock(c)
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
 

@@ -4850,7 +4850,7 @@ func (a *ServerWithRoles) UpsertLock(ctx context.Context, lock types.Lock) error
 	}
 
 	if lock.CreatedOn() == nil {
-		now := time.Now().UTC()
+		now := a.authServer.clock.Now().UTC()
 		lock.SetCreatedOn(&now)
 	}
 

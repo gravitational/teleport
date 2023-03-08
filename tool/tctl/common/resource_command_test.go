@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -438,8 +439,12 @@ func TestCreateLock(t *testing.T) {
 	expected.SetCreatedBy("admin")
 	require.NoError(t, err)
 
+	dt, err := time.Parse(time.DateTime, "1984-04-04 00:00:00")
+	require.NoError(t, err)
+	expected.SetCreatedOn(&dt)
+
 	require.Empty(t, cmp.Diff([]*types.LockV2{expected.(*types.LockV2)}, locks,
-		cmpopts.IgnoreFields(types.LockV2{}, "Metadata", "Spec.CreatedOn")))
+		cmpopts.IgnoreFields(types.LockV2{}, "Metadata")))
 }
 
 // TestCreateDatabaseInInsecureMode connects to auth server with --insecure mode and creates a DB resource.
