@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -3562,6 +3563,24 @@ var defaultWebProxyPorts = []int{
 	defaults.HTTPListenPort, teleport.StandardHTTPSPort,
 }
 
+// proxyHostsErrorMsgDefault returns the error message from attempting hosts at
+// different ports for the Web Proxy.
+func proxyHostsErrorMsgDefault(proxyAddress string, ports []int) string {
+	buf := &bytes.Buffer{}
+	buf.WriteString("Teleport proxy not available at proxy address ")
+
+	for i, port := range ports {
+		if i > 0 {
+			buf.WriteString(" or ")
+		}
+		buf.WriteString(proxyAddress)
+		buf.WriteString(":")
+		buf.WriteString(strconv.Itoa(port))
+	}
+
+	return buf.String()
+}
+
 // setClientWebProxyAddr configures the client WebProxyAddr and SSHProxyAddr
 // configuration values. Values that are not fully specified via configuration
 // or command-line options will be deduced if necessary.
@@ -3588,7 +3607,7 @@ func setClientWebProxyAddr(ctx context.Context, cf *CLIConf, c *client.Config) e
 			proxyAddress, err = pickDefaultAddr(
 				timeout, cf.InsecureSkipVerify, parsedAddrs.Host, defaultWebProxyPorts)
 			if err != nil {
-				return trace.Wrap(err)
+				return trace.Wrap(err, proxyHostsErrorMsgDefault(parsedAddrs.Host, defaultWebProxyPorts))
 			}
 		}
 
