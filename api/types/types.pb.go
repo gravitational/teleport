@@ -3630,9 +3630,9 @@ func (m *ProvisionTokenSpecV2GitLab) XXX_DiscardUnknown() {
 var xxx_messageInfo_ProvisionTokenSpecV2GitLab proto.InternalMessageInfo
 
 type ProvisionTokenSpecV2GitLab_Rule struct {
-	// Sub also known as Subject is a string that roughly uniquely identifies
-	// the workload. The format of this varies depending on the type of
-	// github action run.
+	// Sub roughly uniquely identifies the workload. Example:
+	// `project_path:mygroup/my-project:ref_type:branch:ref:main`
+	// project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}
 	Sub                  string   `protobuf:"bytes,1,opt,name=Sub,proto3" json:"sub,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

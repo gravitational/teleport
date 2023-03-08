@@ -1188,9 +1188,9 @@ message ProvisionTokenSpecV2GitHub {
 // ProvisionTokenSpecV2
 message ProvisionTokenSpecV2GitLab {
   message Rule {
-    // Sub also known as Subject is a string that roughly uniquely identifies
-    // the workload. The format of this varies depending on the type of
-    // github action run.
+    // Sub roughly uniquely identifies the workload. Example:
+    // `project_path:mygroup/my-project:ref_type:branch:ref:main`
+    // project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}
     string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
   }
   // Allow is a list of TokenRules, nodes using this token must match one
