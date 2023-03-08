@@ -34,22 +34,29 @@ Users are also able to configure auto approval flows to be met under certain con
 
 ## Configuration UX
 
-The plugin will be configured in Teleport's config yaml file. The required fields will be added to a 'plugins' section containing the required information to interact with both Teleport access and the Opsgenie API.
+The plugin service will be configured using the existing Teleport YAML file in a section called 'plugin_service'.
+With lables added to determine which services to create alerts in for each plugin.
 
 ```
-plugins:
-    enabled: true
-    opsgenie:
-        enabled: true
-        api_key: "path/to/key" # File containing Opsgenie API Key
-        addr: "example.app.opsgenie.com" # Address of Opsgenie
-        priority: "2" # Priority to create Opsgenie alerts with
-        request_annotations: ["service1, service2"] # Opsgeneie services to create alerts in
-        alert_tags: ["example-tag"] # List of tags to be added to alerts created in Opsgenie
-    identity_file: "path/to/identity_file" # Identity file to be used
-    client_key: "/var/lib/teleport/plugins/pagerduty/auth.key" # Teleport GRPC client secret key
-    client_crt: "/var/lib/teleport/plugins/pagerduty/auth.crt" # Teleport GRPC client certificate
-    root_cas: "/var/lib/teleport/plugins/pagerduty/auth.cas"   # Teleport cluster CA certs
+plugin_service:
+    resources:
+    - "type": "opsgenie"
+      "team": "someOpsgenieServiceName" # Used to determine which service to create alerts in.
+    - "type": "someOtherPlugin"
+      "team": "someOtherService"
+```
+
+The Opsgenie plugin (and any others created) can then be configured using resources. 
+Example plugin.yaml for Opsgenie.
+```
+kind: opsgenie
+metadata:
+  name: opsgenie-plugin
+spec:
+  addr: "example.app.opsgenie.com" # Address of Opsgenie
+  priority: "2" # Priority to create Opsgenie alerts with
+  request_annotations: ["service1, service2"] # Opsgeneie services to create alerts in
+  alert_tags: ["example-tag"] # List of tags to be added to alerts created in Opsgenie
 ```
 
 The logging configuration will be shared with the main Teleport process.
@@ -93,6 +100,10 @@ spec:
 ```
 
 ## Implementation details
+### Plugin service
+TODO: Add implemnetation details for plugin_service
+
+### Opsgenie plugin
 In this section we will take a look at how the plugin will interact with the Opsgenie API.
 
 ### Authorization
