@@ -468,7 +468,11 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 
 	const accessDeniedMsg = "[00] access denied"
 	var isRemoteUser bool
-	userTypeI := req.Context().Value(authz.ContextUser)
+	userTypeI, err := authz.UserFromContext(ctx)
+	if err != nil {
+		f.log.WithError(err).Warn("error getting user from context")
+		return nil, trace.AccessDenied(accessDeniedMsg)
+	}
 	switch userTypeI.(type) {
 	case authz.LocalUser:
 

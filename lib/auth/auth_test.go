@@ -1223,8 +1223,8 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 			xCert, identity := parseX509PEMAndIdentity(t, test.x509PEM)
 
 			// Prepare ctx and authz.Context.
-			ctx = context.WithValue(ctx, authz.ContextUserCertificate, xCert)
-			ctx = context.WithValue(ctx, authz.ContextUser, authz.LocalUser{
+			ctx = authz.ContextWithUserCertificate(ctx, xCert)
+			ctx = authz.ContextWithUser(ctx, authz.LocalUser{
 				Username: username,
 				Identity: *identity,
 			})
@@ -1369,8 +1369,8 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	// Issue augmented certs for user1.
 	// Used to test that re-issue of augmented certs is not allowed.
 	ctxFromAuthorize := testServer.APIConfig.Authorizer.Authorize
-	aCtx := context.WithValue(context.Background(), authz.ContextUserCertificate, xCert1)
-	aCtx = context.WithValue(aCtx, authz.ContextUser, authz.LocalUser{
+	aCtx := authz.ContextWithUserCertificate(ctx, xCert1)
+	aCtx = authz.ContextWithUser(ctx, authz.LocalUser{
 		Username: identity1.Username,
 		Identity: *identity1,
 	})
@@ -1699,8 +1699,8 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 			}
 
 			// Prepare ctx and authz.Context.
-			ctx = context.WithValue(ctx, authz.ContextUserCertificate, test.x509Cert)
-			ctx = context.WithValue(ctx, authz.ContextUser, authz.LocalUser{
+			ctx = authz.ContextWithUserCertificate(ctx, test.x509Cert)
+			ctx = authz.ContextWithUser(ctx, authz.LocalUser{
 				Username: test.identity.Username,
 				Identity: *test.identity,
 			})

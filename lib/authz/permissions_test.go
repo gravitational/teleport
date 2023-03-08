@@ -96,13 +96,13 @@ func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	require.NoError(t, err)
 	upsertLockWithPutEvent(ctx, t, client, watcher, mfaLock)
 
-	_, err = authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
+	_, err = authorizer.Authorize(context.WithValue(ctx, contextUser, localUser))
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Remove the MFA record from the user value being authorized.
 	localUser.Identity.MFAVerified = ""
-	_, err = authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
+	_, err = authorizer.Authorize(context.WithValue(ctx, contextUser, localUser))
 	require.NoError(t, err)
 
 	// Add an access request lock.
@@ -113,13 +113,13 @@ func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	upsertLockWithPutEvent(ctx, t, client, watcher, requestLock)
 
 	// localUser's identity with a locked access request is locked out.
-	_, err = authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
+	_, err = authorizer.Authorize(context.WithValue(ctx, contextUser, localUser))
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Not locked out without the request.
 	localUser.Identity.ActiveRequests = nil
-	_, err = authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
+	_, err = authorizer.Authorize(context.WithValue(ctx, contextUser, localUser))
 	require.NoError(t, err)
 
 	// Create a lock targeting the role written in the user's identity.
@@ -129,7 +129,7 @@ func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
 	require.NoError(t, err)
 	upsertLockWithPutEvent(ctx, t, client, watcher, roleLock)
 
-	_, err = authorizer.Authorize(context.WithValue(ctx, ContextUser, localUser))
+	_, err = authorizer.Authorize(context.WithValue(ctx, contextUser, localUser))
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 }
@@ -155,12 +155,12 @@ func TestAuthorizeWithLocksForBuiltinRole(t *testing.T) {
 	require.NoError(t, err)
 	upsertLockWithPutEvent(ctx, t, client, watcher, nodeLock)
 
-	_, err = authorizer.Authorize(context.WithValue(ctx, ContextUser, builtinRole))
+	_, err = authorizer.Authorize(context.WithValue(ctx, contextUser, builtinRole))
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
 	builtinRole.Identity.Username = ""
-	_, err = authorizer.Authorize(context.WithValue(ctx, ContextUser, builtinRole))
+	_, err = authorizer.Authorize(context.WithValue(ctx, contextUser, builtinRole))
 	require.NoError(t, err)
 }
 
@@ -295,7 +295,7 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 			require.NoError(t, err, "NewAuthorizer failed")
 
 			// Test!
-			userCtx := context.WithValue(ctx, ContextUser, test.user)
+			userCtx := context.WithValue(ctx, contextUser, test.user)
 			authCtx, gotErr := authorizer.Authorize(userCtx)
 			if test.wantErr == "" {
 				assert.NoError(t, gotErr, "Authorize returned unexpected error")

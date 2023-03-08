@@ -716,7 +716,7 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 
 // TestIdentity is test identity spec used to generate identities in tests
 type TestIdentity struct {
-	I              interface{}
+	I              authz.IdentityGetter
 	TTL            time.Duration
 	AcceptedUsage  []string
 	RouteToCluster string

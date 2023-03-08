@@ -385,7 +385,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			require.NoError(t, err)
 
 			reqCtx := context.Background()
-			reqCtx = context.WithValue(reqCtx, authz.ContextClientAddr, &net.IPAddr{})
+			reqCtx = authz.ContextWithClientAddr(ctx, &net.IPAddr{})
 
 			vmResult := tc.vmResult
 			if vmResult == nil {

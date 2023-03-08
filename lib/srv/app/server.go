@@ -713,7 +713,7 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authCtx, _, err := s.authorizeContext(context.WithValue(ctx, authz.ContextUser, user))
+	authCtx, _, err := s.authorizeContext(authz.ContextWithUser(ctx, user))
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
 	// the following will occur:
@@ -941,7 +941,11 @@ func (s *Server) getConnectionInfo(ctx context.Context, conn net.Conn) (*tls.Con
 // runs authorization checks on it.
 func (s *Server) authorizeContext(ctx context.Context) (*authz.Context, types.Application, error) {
 	// Only allow local and remote identities to proxy to an application.
-	userType := ctx.Value(authz.ContextUser)
+	userType, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	switch userType.(type) {
 	case authz.LocalUser, authz.RemoteUser:
 	default:

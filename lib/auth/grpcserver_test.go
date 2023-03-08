@@ -3316,7 +3316,7 @@ func TestGRPCServer_CreateToken(t *testing.T) {
 	// Allow us to directly invoke the deprecated gRPC methods with
 	// authentication.
 	user := TestAdmin()
-	ctx = context.WithValue(ctx, authz.ContextUser, user.I)
+	ctx = authz.ContextWithUser(ctx, user.I)
 
 	// Test default expiry is applied.
 	t.Run("undefined-expiry", func(t *testing.T) {
@@ -3403,7 +3403,7 @@ func TestGRPCServer_UpsertToken(t *testing.T) {
 	// Allow us to directly invoke the deprecated gRPC methods with
 	// authentication.
 	user := TestAdmin()
-	ctx = context.WithValue(ctx, authz.ContextUser, user.I)
+	ctx = authz.ContextWithUser(ctx, user.I)
 
 	// Test default expiry is applied.
 	t.Run("undefined-expiry", func(t *testing.T) {
@@ -3604,7 +3604,7 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 	grpc := server.TLSServer.grpcServer
 
 	user := TestAdmin()
-	ctx = context.WithValue(ctx, authz.ContextUser, user.I)
+	ctx = authz.ContextWithUser(ctx, user.I)
 
 	tests := []struct {
 		name               string

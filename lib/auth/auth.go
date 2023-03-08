@@ -1483,9 +1483,9 @@ func (a *Server) AugmentContextUserCertificates(
 	}
 
 	// Fetch user TLS certificate.
-	x509Cert, ok := ctx.Value(authz.ContextUserCertificate).(*x509.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("user certificate missing from context")
+	x509Cert, err := authz.UserCertificateFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Sanity check: x509Cert matches identity.

@@ -261,7 +261,7 @@ func TestCheckIPPinning(t *testing.T) {
 	for _, tt := range testCases {
 		ctx := context.Background()
 		if tt.clientAddr != "" {
-			ctx = context.WithValue(ctx, authz.ContextClientAddr, utils.MustParseAddr(tt.clientAddr))
+			ctx = authz.ContextWithClientAddr(ctx, utils.MustParseAddr(tt.clientAddr))
 		}
 		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
 
@@ -362,8 +362,10 @@ func TestWrapContextWithUser(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.needsHandshake, conn.handshakeCalled)
 
-			cert := ctx.Value(authz.ContextUserCertificate)
-			user := ctx.Value(authz.ContextUser)
+			cert, err := authz.UserCertificateFromContext(ctx)
+			require.NoError(t, err)
+			user, err := authz.UserFromContext(ctx)
+			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(cert, tt.peers[0], cmpopts.EquateEmpty()))
 			require.Empty(t, cmp.Diff(user, tt.wantID, cmpopts.EquateEmpty()))
 		})

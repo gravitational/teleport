@@ -414,9 +414,9 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 		return nil, trace.AccessDenied("missing authentication")
 	}
 
-	ctx = context.WithValue(ctx, authz.ContextUserCertificate, certFromConnState(connState))
-	ctx = context.WithValue(ctx, authz.ContextClientAddr, peerInfo.Addr)
-	ctx = context.WithValue(ctx, authz.ContextUser, identityGetter)
+	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(connState))
+	ctx = authz.ContextWithClientAddr(ctx, peerInfo.Addr)
+	ctx = authz.ContextWithUser(ctx, identityGetter)
 
 	return ctx, nil
 
@@ -653,12 +653,12 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// determine authenticated user based on the request parameters
 	ctx := r.Context()
-	ctx = context.WithValue(ctx, authz.ContextUserCertificate, certFromConnState(r.TLS))
+	authz.ContextWithUserCertificate(ctx, certFromConnState(r.TLS))
 	clientSrcAddr, err := utils.ParseAddr(r.RemoteAddr)
 	if err == nil {
-		ctx = context.WithValue(ctx, authz.ContextClientAddr, clientSrcAddr)
+		ctx = authz.ContextWithClientAddr(ctx, clientSrcAddr)
 	}
-	ctx = context.WithValue(ctx, authz.ContextUser, user)
+	ctx = authz.ContextWithUser(ctx, user)
 	a.Handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
@@ -684,9 +684,9 @@ func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tl
 		return nil, trace.Wrap(err)
 	}
 
-	ctx = context.WithValue(ctx, authz.ContextUserCertificate, certFromConnState(&tlsState))
-	ctx = context.WithValue(ctx, authz.ContextClientAddr, remoteAddr)
-	ctx = context.WithValue(ctx, authz.ContextUser, user)
+	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(&tlsState))
+	ctx = authz.ContextWithClientAddr(ctx, remoteAddr)
+	ctx = authz.ContextWithUser(ctx, user)
 	return ctx, nil
 }
 
@@ -700,9 +700,9 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 		return nil
 	}
 
-	clientSrcAddr, ok := ctx.Value(authz.ContextClientAddr).(net.Addr)
-	if !ok {
-		return trace.BadParameter("missing observed client IP while checking IP pinning")
+	clientSrcAddr, err := authz.ClientAddrFromContext(ctx)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	clientIP, _, err := net.SplitHostPort(clientSrcAddr.String())

@@ -627,7 +627,7 @@ func TestAuthenticate(t *testing.T) {
 					},
 				},
 			}
-			ctx := context.WithValue(context.Background(), authz.ContextUser, tt.user)
+			ctx := authz.ContextWithUser(context.Background(), tt.user)
 			req = req.WithContext(ctx)
 
 			if tt.haveKubeCreds {

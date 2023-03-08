@@ -995,7 +995,11 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 
 func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	// Only allow local and remote identities to proxy to a database.
-	userType := ctx.Value(authz.ContextUser)
+	userType, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	switch userType.(type) {
 	case authz.LocalUser, authz.RemoteUser:
 	default:
