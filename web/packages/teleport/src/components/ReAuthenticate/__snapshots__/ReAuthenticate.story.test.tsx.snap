@@ -243,7 +243,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -661,7 +661,7 @@ exports[`render re-authentication dialog 1`] = `
 .c11 .react-select__control,
 .c11 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;

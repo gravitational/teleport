@@ -81,6 +81,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -156,6 +157,8 @@ type ForwarderConfig struct {
 	CheckImpersonationPermissions ImpersonationPermissionsChecker
 	// PublicAddr is the address that can be used to reach the kube cluster
 	PublicAddr string
+	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
+	PROXYSigner multiplexer.PROXYHeaderSigner
 	// log is the logger function
 	log logrus.FieldLogger
 	// TracerProvider is used to create tracers capable
@@ -190,6 +193,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if f.HostID == "" {
 		return trace.BadParameter("missing parameter ServerID")
+	}
+	if f.KubeServiceType != KubeService && f.PROXYSigner == nil {
+		return trace.BadParameter("missing parameter PROXYSigner")
 	}
 	if f.Namespace == "" {
 		f.Namespace = apidefaults.Namespace
@@ -776,6 +782,10 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx auth.Context, req 
 	// the correct behavior when forwarding the request to the Kubernetes API.
 	kubeUsers, kubeGroups = fillDefaultKubePrincipalDetails(kubeUsers, kubeGroups, authCtx.User.GetName())
 
+	clientSrc, clientDst := utils.ClientAddrFromContext(req.Context())
+
+	forwarderType := f.cfg.KubeServiceType
+
 	// Get a dialer for either a k8s endpoint in current cluster or a tunneled
 	// endpoint for a leaf teleport cluster.
 	var dialFn dialFunc
@@ -805,11 +815,12 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx auth.Context, req 
 			)
 			defer span.End()
 			return targetCluster.DialTCP(reversetunnel.DialParams{
-				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
-				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
-				ConnType: types.KubeTunnel,
-				ServerID: endpoint.serverID,
-				ProxyIDs: endpoint.proxyIDs,
+				From:                  &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
+				To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
+				ConnType:              types.KubeTunnel,
+				ServerID:              endpoint.serverID,
+				ProxyIDs:              endpoint.proxyIDs,
+				OriginalClientDstAddr: clientDst,
 			})
 		}
 		isRemoteClosed = targetCluster.IsClosed
@@ -835,12 +846,18 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx auth.Context, req 
 				),
 			)
 			defer span.End()
+
+			// Make sure we will only send signed PROXY headers to teleport kube service node, not real kube cluster
+			if forwarderType != ProxyService && endpoint.serverID == "" {
+				clientDst = nil
+			}
 			return localCluster.DialTCP(reversetunnel.DialParams{
-				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
-				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
-				ConnType: types.KubeTunnel,
-				ServerID: endpoint.serverID,
-				ProxyIDs: endpoint.proxyIDs,
+				From:                  &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
+				To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
+				ConnType:              types.KubeTunnel,
+				ServerID:              endpoint.serverID,
+				ProxyIDs:              endpoint.proxyIDs,
+				OriginalClientDstAddr: clientDst,
 			})
 		}
 		isRemoteClosed = localCluster.IsClosed
@@ -858,7 +875,27 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx auth.Context, req 
 				),
 			)
 			defer span.End()
-			return new(net.Dialer).DialContext(ctx, network, endpoint.addr)
+			conn, err := new(net.Dialer).DialContext(ctx, network, endpoint.addr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// Make sure we will only send signed PROXY headers to teleport kube service node, not real kube cluster
+			if forwarderType != ProxyService && endpoint.serverID == "" {
+				clientDst = nil
+			}
+			// Teleport proxy will send signed PROXY headers to the kube service
+			if f.cfg.PROXYSigner != nil && clientSrc != nil && clientDst != nil {
+				signedHeader, err := f.cfg.PROXYSigner.SignPROXYHeader(clientSrc, clientDst)
+				if err != nil {
+					return nil, trace.Wrap(err, "could not create signed PROXY header")
+				}
+				if _, err := conn.Write(signedHeader); err != nil {
+					return nil, trace.Wrap(err, "could not write signed PROXY header into connection")
+				}
+			}
+
+			return conn, nil
 		}
 		isRemoteClosed = func() bool { return false }
 	}
@@ -1077,6 +1114,11 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		),
 	)
 	defer span.End()
+
+	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
+	if err := auth.CheckIPPinning(ctx, actx.Identity.GetIdentity(), actx.Checker.PinSourceIP()); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if actx.teleportCluster.isRemote {
 		// Authorization for a remote kube cluster will happen on the remote

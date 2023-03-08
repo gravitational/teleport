@@ -433,7 +433,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		// exists and it is an agentless node, preform an RBAC check.
 		// Otherwise if the target node does not exist the node is
 		// probably an unregistered SSH node; do not preform an RBAC check
-		if h.c.TargetServer != nil && h.c.TargetServer.GetSubKind() == types.KindOpenSSHNode {
+		if h.c.TargetServer != nil && h.c.TargetServer.GetSubKind() == types.SubKindOpenSSHNode {
 			err = h.canLoginWithRBAC(cert, ca, clusterName.GetClusterName(), h.c.TargetServer, teleportUser, conn.User())
 		}
 	} else {

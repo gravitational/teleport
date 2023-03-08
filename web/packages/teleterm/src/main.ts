@@ -47,14 +47,20 @@ function initializeApp(): void {
     filePath: path.join(settings.userDataDir, 'app_state.json'),
     debounceWrites: true,
   });
-  const appConfigFileStorage = createFileStorage({
+  const configFileStorage = createFileStorage({
     filePath: path.join(settings.userDataDir, 'app_config.json'),
     debounceWrites: false,
   });
-  const configService = createConfigService(
-    appConfigFileStorage,
-    settings.platform
-  );
+  const configJsonSchemaFileStorage = createFileStorage({
+    filePath: path.join(settings.userDataDir, 'schema_app_config.json'),
+    debounceWrites: false,
+  });
+
+  const configService = createConfigService({
+    configFile: configFileStorage,
+    jsonSchemaFile: configJsonSchemaFileStorage,
+    platform: settings.platform,
+  });
   const windowsManager = new WindowsManager(appStateFileStorage, settings);
 
   process.on('uncaughtException', error => {
@@ -92,7 +98,7 @@ function initializeApp(): void {
   app.on('will-quit', async event => {
     event.preventDefault();
 
-    appStateFileStorage.putAllSync();
+    appStateFileStorage.writeSync();
     globalShortcut.unregisterAll();
     try {
       await mainProcess.dispose();

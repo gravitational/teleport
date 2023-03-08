@@ -252,7 +252,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Kubernetes:              cfg.Kubernetes,
 		Databases:               cfg.Databases,
 		DatabaseServices:        cfg.DatabaseServices,
-		IAuditLog:               cfg.AuditLog,
+		AuditLogSessionStreamer: cfg.AuditLog,
 		Events:                  cfg.Events,
 		WindowsDesktops:         cfg.WindowsDesktops,
 		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
@@ -352,7 +352,7 @@ type Services struct {
 	services.StatusInternal
 	usagereporter.UsageReporter
 	types.Events
-	events.IAuditLog
+	events.AuditLogSessionStreamer
 }
 
 // GetWebSession returns existing web session described by req.
@@ -1013,8 +1013,8 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 }
 
 // SetAuditLog sets the server's audit log
-func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
-	a.Services.IAuditLog = auditLog
+func (a *Server) SetAuditLog(auditLog events.AuditLogSessionStreamer) {
+	a.Services.AuditLogSessionStreamer = auditLog
 }
 
 // GetEmitter fetches the current audit log emitter implementation.
@@ -1380,6 +1380,8 @@ type DatabaseTestCertRequest struct {
 	Username string
 	// RouteToDatabase contains database routing information.
 	RouteToDatabase tlsca.RouteToDatabase
+	// PinnedIP is an IP new certificate should be pinned to.
+	PinnedIP string
 }
 
 // GenerateDatabaseTestCert generates a database access certificate for the
@@ -1401,6 +1403,8 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		publicKey: req.PublicKey,
+		loginIP:   req.PinnedIP,
+		pinIP:     req.PinnedIP != "",
 		checker:   checker,
 		ttl:       time.Hour,
 		traits: map[string][]string{
