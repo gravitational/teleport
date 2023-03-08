@@ -27,12 +27,24 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 	tests := []struct {
 		name             string
 		entityDescriptor string
+		entityID         string
 		errAssertion     require.ErrorAssertionFunc
+		expectedEntityID string
 	}{
 		{
 			name:             "valid entity descriptor",
 			entityDescriptor: testEntityDescriptor,
+			entityID:         "IAMShowcase",
 			errAssertion:     require.NoError,
+			expectedEntityID: "IAMShowcase",
+		},
+		{
+			// This validates that parse is not called when the entity ID is set.
+			name:             "invalid entity descriptor with valid entity ID",
+			entityDescriptor: "invalid XML",
+			entityID:         "IAMShowcase",
+			errAssertion:     require.NoError,
+			expectedEntityID: "IAMShowcase",
 		},
 		{
 			name:             "empty entity descriptor",
@@ -40,38 +52,32 @@ func TestNewSAMLIdPServiceProvider(t *testing.T) {
 			errAssertion:     require.Error,
 		},
 		{
-			name:             "entity descriptor only spaces",
-			entityDescriptor: "    ",
-			errAssertion:     require.Error,
-		},
-		{
-			name:             "no XML",
-			entityDescriptor: "this is not valid XML",
-			errAssertion:     require.Error,
-		},
-		{
-			name:             "invalid xml",
-			entityDescriptor: "<test1><test2 />",
-			errAssertion:     require.Error,
+			name:             "empty entity ID",
+			entityDescriptor: testEntityDescriptor,
+			errAssertion:     require.NoError,
+			expectedEntityID: "IAMShowcase",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := NewSAMLIdPServiceProvider(Metadata{
+			sp, err := NewSAMLIdPServiceProvider(Metadata{
 				Name: "test",
 			}, SAMLIdPServiceProviderSpecV1{
 				EntityDescriptor: test.entityDescriptor,
+				EntityID:         test.entityID,
 			})
 
 			test.errAssertion(t, err)
+			if sp != nil {
+				require.Equal(t, test.expectedEntityID, sp.GetEntityID())
+			}
 		})
 	}
 }
 
 // A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.
-const testEntityDescriptor = `
-<?xml version="1.0" encoding="UTF-8"?>
+const testEntityDescriptor = `<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
    <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
       <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>

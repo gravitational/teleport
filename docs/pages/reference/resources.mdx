@@ -119,6 +119,9 @@ Here's the list of resources currently exposed via [`tctl`](./cli.mdx#tctl):
 | connector | Authentication connectors for [Single Sign-On](../access-controls/sso.mdx) (SSO) for SAML, OIDC and GitHub. |
 | node | A registered SSH node. The same record is displayed via `tctl nodes ls` |
 | cluster | A trusted cluster. See [here](../management/admin/trustedclusters.mdx) for more details on connecting clusters together. |
+| login_rule | A Login Rule, see the [Login Rules guide](../access-controls/login-rules.mdx) for more info. |
+| device | A Teleport Trusted Device, see the [Device Trust guide](../access-controls/guides/device-trust.mdx) for more info. |
+| [ui_config](#ui-config) | Configuration for the Web UI served by the Proxy Service |
 
 **Examples:**
 
@@ -140,6 +143,12 @@ $ tctl rm github/myteam
 
 # Delete a local user called "admin":
 $ tctl rm users/admin
+
+# Show all devices:
+$ tctl get devices
+
+# Fetch a specific device:
+$ tctl get devices/<asset-tag>
 ```
 
 <Admonition type="note">
@@ -189,3 +198,21 @@ Interactive and non-interactive users (bots) assume one or many roles.
 Roles govern access to databases, SSH servers, Kubernetes clusters, web services and applications and Windows Desktops.
 
 (!docs/pages/includes/role-spec.mdx!)
+
+### Login Rules
+
+Login rules contain logic to transform SSO user traits during login.
+
+(!docs/pages/includes/login-rule-spec.mdx!)
+
+### Device
+
+Device contains information identifying a trusted device.
+
+(!docs/pages/includes/device-spec.mdx!)
+
+### UI config
+
+Global configuration options for the Web UI served by the Proxy Service. This resource is not set by default, which means a `tctl get ui` will result in an error if used before this resource has been set.
+
+(!docs/pages/includes/ui-config-spec.mdx!)

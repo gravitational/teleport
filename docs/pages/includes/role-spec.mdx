@@ -1,6 +1,6 @@
 ```yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: example
 spec:
@@ -36,6 +36,8 @@ spec:
     # permit_x11_forwarding allows users to use X11 forwarding with openssh
     # clients and servers through the proxy
     permit_x11_forwarding: true
+    # device_trust_mode enforces authenticated device access for the owner of this role.
+    device_trust_mode: optional|required|off
     # require_session_mfa require per-session MFA for any owner of this role
     require_session_mfa: true
     # lock sets locking mode for user of this role,
@@ -96,6 +98,13 @@ spec:
        value: "{{ external.github_login }}"
     # Controls whether this role supports auto provisioning of users.
     create_host_user: true
+    # Specifies role specific options for identity provider access.
+    idp:
+      # Specifies role specific options for SAML identity provider access.
+      saml:
+        # Specifies whether this role has access to the SAML identity provider.
+        # Defaults to true.
+        enabled: true
 
   # The allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. By default, nothing is allowed.
@@ -140,6 +149,23 @@ spec:
       # regular expressions start with ^ and ending with $
       # Teleport uses golang regexp syntax.
       'cluster_name': '^us.*\.example\.com$'
+
+    # kubernetes_resources indicates the Kubernetes resources that a user with
+    # this role is allowed to access. 
+    kubernetes_resources:
+        # The resource kind. Teleport currently only supports "pod".
+      - kind: pod
+        # The name of the Kubernetes namespace in which to allow access the
+        # resources you specify with "name" and "kind". 
+        # The wildcard character "*" matches any sequence of characters. 
+        # If the value begins with "^" and ends with "$", the Kubernetes
+        # Service will treat it as a regular expression.
+        namespace: "*"
+        # The name of the resource to allow access to.
+        # The wildcard character "*" matches any sequence of characters.
+        # If the value begins with "^" and ends with "$", the Kubernetes
+        # Service will treat it as a regular expression.
+        name: "^nginx-[a-z0-9-]+$"
 
     # Functions transform variables.
     db_users: ['{{email.local(external.email)}}']

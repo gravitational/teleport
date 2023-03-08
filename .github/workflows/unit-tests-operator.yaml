@@ -9,8 +9,9 @@ on:
     paths:
       - '/go.mod'
       - '/go.sum'
-      - 'operator/**'
+      - 'integrations/operator/**'
       - 'api/types/**'
+      - 'gen/**'
       - 'lib/tbot/**'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
@@ -18,8 +19,9 @@ on:
     paths:
       - '/go.mod'
       - '/go.sum'
-      - 'operator/**'
+      - 'integrations/operator/**'
       - 'api/types/**'
+      - 'gen/**'
       - 'lib/tbot/**'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'

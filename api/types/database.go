@@ -111,6 +111,9 @@ type Database interface {
 	IsAWSHosted() bool
 	// IsCloudHosted returns true if database is hosted in the cloud (AWS, Azure or Cloud SQL).
 	IsCloudHosted() bool
+	// RequireAWSIAMRolesAsUsers returns true for database types that require
+	// AWS IAM roles as database users.
+	RequireAWSIAMRolesAsUsers() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
 }
@@ -305,7 +308,12 @@ func (d *DatabaseV3) SetMySQLServerVersion(version string) {
 
 // IsEmpty returns true if AWS metadata is empty.
 func (a AWS) IsEmpty() bool {
-	return protoEqual(&a, &AWS{})
+	return protoKnownFieldsEqual(&a, &AWS{})
+}
+
+// Partition returns the AWS partition based on the region.
+func (a AWS) Partition() string {
+	return awsutils.GetPartitionFromRegion(a.Region)
 }
 
 // GetAWS returns the database AWS metadata.
@@ -328,7 +336,7 @@ func (d *DatabaseV3) GetGCP() GCPCloudSQL {
 
 // IsEmpty returns true if Azure metadata is empty.
 func (a Azure) IsEmpty() bool {
-	return protoEqual(&a, &Azure{})
+	return protoKnownFieldsEqual(&a, &Azure{})
 }
 
 // GetAzure returns Azure database server metadata.
@@ -514,7 +522,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 	}
 	if d.Spec.MySQL.ServerVersion != "" && d.Spec.Protocol != "mysql" {
-		return trace.BadParameter("MySQL ServerVersion can be only set for MySQL database")
+		return trace.BadParameter("database %q MySQL ServerVersion can be only set for MySQL database",
+			d.GetName())
 	}
 
 	// In case of RDS, Aurora or Redshift, AWS information such as region or
@@ -542,7 +551,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			d.Spec.AWS.Region = details.Region
 		}
 		if details.ClusterCustomEndpointName != "" && d.Spec.AWS.RDS.ClusterID == "" {
-			return trace.BadParameter("missing RDS ClusterID for RDS Aurora custom endpoint %v", d.Spec.URI)
+			return trace.BadParameter("database %q missing RDS ClusterID for RDS Aurora custom endpoint %v",
+				d.GetName(), d.Spec.URI)
 		}
 	case awsutils.IsRedshiftEndpoint(d.Spec.URI):
 		clusterID, region, err := awsutils.ParseRedshiftEndpoint(d.Spec.URI)
@@ -613,7 +623,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 	case awsutils.IsKeyspacesEndpoint(d.Spec.URI):
 		if d.Spec.AWS.AccountID == "" {
-			return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
+			return trace.BadParameter("database %q AWS account ID is empty",
+				d.GetName())
 		}
 		if d.Spec.AWS.Region == "" {
 			switch {
@@ -624,13 +635,15 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 				}
 				d.Spec.AWS.Region = region
 			default:
-				return trace.BadParameter("database %q AWS region is empty", d.GetName())
+				return trace.BadParameter("database %q AWS region is empty",
+					d.GetName())
 			}
 		}
 	case azureutils.IsCacheForRedisEndpoint(d.Spec.URI):
 		// ResourceID is required for fetching Redis tokens.
 		if d.Spec.Azure.ResourceID == "" {
-			return trace.BadParameter("missing ResourceID for Azure Cache %v", d.Metadata.Name)
+			return trace.BadParameter("database %q Azure resource ID is empty",
+				d.GetName())
 		}
 
 		name, err := azureutils.ParseCacheForRedisEndpoint(d.Spec.URI)
@@ -654,16 +667,19 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	// Validate AWS Specific configuration
 	if d.Spec.AWS.AccountID != "" {
 		if err := awsutils.IsValidAccountID(d.Spec.AWS.AccountID); err != nil {
-			return trace.BadParameter("invalid AWS Account ID: %v", err)
+			return trace.BadParameter("database %q has invalid AWS account ID: %v",
+				d.GetName(), err)
 		}
 	}
 
 	// Validate Cloud SQL specific configuration.
 	switch {
 	case d.Spec.GCP.ProjectID != "" && d.Spec.GCP.InstanceID == "":
-		return trace.BadParameter("missing Cloud SQL instance ID for database %q", d.GetName())
+		return trace.BadParameter("database %q missing Cloud SQL instance ID",
+			d.GetName())
 	case d.Spec.GCP.ProjectID == "" && d.Spec.GCP.InstanceID != "":
-		return trace.BadParameter("missing Cloud SQL project ID for database %q", d.GetName())
+		return trace.BadParameter("database %q missing Cloud SQL project ID",
+			d.GetName())
 	}
 	return nil
 }
@@ -685,7 +701,7 @@ func (d *DatabaseV3) handleDynamoDBConfig() error {
 				d.GetName(), d.Spec.URI)
 		}
 		if awsutils.IsAWSEndpoint(d.Spec.URI) {
-			// The user configured an AWS URI that which doesn't look like a DynamoDB endpoint.
+			// The user configured an AWS URI that doesn't look like a DynamoDB endpoint.
 			// The URI must look like <service>.<region>.<partition> or <region>.<partition>
 			return trace.Wrap(err)
 		}
@@ -718,6 +734,24 @@ func (d *DatabaseV3) GetManagedUsers() []string {
 // SetManagedUsers sets a list of database users that are managed by Teleport.
 func (d *DatabaseV3) SetManagedUsers(users []string) {
 	d.Status.ManagedUsers = users
+}
+
+// RequireAWSIAMRolesAsUsers returns true for database types that require AWS
+// IAM roles as database users.
+func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
+	awsType, ok := d.getAWSType()
+	if !ok {
+		return false
+	}
+
+	switch awsType {
+	case DatabaseTypeAWSKeyspaces,
+		DatabaseTypeDynamoDB,
+		DatabaseTypeRedshiftServerless:
+		return true
+	default:
+		return false
+	}
 }
 
 const (

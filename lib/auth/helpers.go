@@ -69,7 +69,7 @@ type TestAuthServerConfig struct {
 	// Streamer allows a test to set its own audit events streamer.
 	Streamer events.Streamer
 	// AuditLog allows a test to configure its own audit log.
-	AuditLog events.IAuditLog
+	AuditLog events.AuditLogSessionStreamer
 	// TraceClient allows a test to configure the trace client
 	TraceClient otlptrace.Client
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
@@ -194,7 +194,7 @@ type TestAuthServer struct {
 	// AuthServer is an auth server
 	AuthServer *Server
 	// AuditLog is an event audit log
-	AuditLog events.IAuditLog
+	AuditLog events.AuditLogSessionStreamer
 	// Backend is a backend for auth server
 	Backend backend.Backend
 	// Authorizer is an authorizer used in tests
@@ -357,6 +357,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		ClusterName: srv.ClusterName,
 		AccessPoint: srv.AuthServer,
 		LockWatcher: srv.LockWatcher,
+		// AuthServer does explicit device authorization checks.
+		DisableDeviceAuthorization: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -731,6 +733,20 @@ func TestUser(username string) TestIdentity {
 	}
 }
 
+// TestUserWithDeviceExtensions returns a TestIdentity for a local user,
+// including the supplied device extensions in the tlsca.Identity.
+func TestUserWithDeviceExtensions(username string, exts tlsca.DeviceExtensions) TestIdentity {
+	return TestIdentity{
+		I: LocalUser{
+			Username: username,
+			Identity: tlsca.Identity{
+				Username:         username,
+				DeviceExtensions: exts,
+			},
+		},
+	}
+}
+
 // TestUser returns a TestIdentity for a local user
 // with renewable credentials.
 func TestRenewableUser(username string, generation uint64) TestIdentity {
@@ -1079,18 +1095,27 @@ func CreateUser(clt clt, username string, roles ...types.Role) (types.User, erro
 }
 
 // CreateUserAndRole creates user and role and assigns role to a user, used in tests
-func CreateUserAndRole(clt clt, username string, allowedLogins []string) (types.User, types.Role, error) {
+// If allowRules is nil, the role has admin privileges.
+// If allowRules is not-nil, then the rules associated with the role will be
+// replaced with those specified.
+func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRules []types.Rule) (types.User, types.Role, error) {
 	ctx := context.TODO()
 	user, err := types.NewUser(username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
 	role := services.RoleForUser(user)
 	role.SetLogins(types.Allow, allowedLogins)
+	if allowRules != nil {
+		role.SetRules(types.Allow, allowRules)
+	}
+
 	err = clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
 	user.AddRole(role.GetName())
 	err = clt.UpsertUser(user)
 	if err != nil {

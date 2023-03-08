@@ -402,6 +402,12 @@ func TestConfigReading(t *testing.T) {
 			},
 			WebAddr: "tcp://web_addr",
 			TunAddr: "reverse_tunnel_address:3311",
+			IdP: IdP{
+				SAMLIdP: SAMLIdP{
+					EnabledFlag: "true",
+					BaseURL:     "https://test-url.com",
+				},
+			},
 		},
 		Kube: Kube{
 			Service: Service{
@@ -736,6 +742,8 @@ func TestApplyConfig(t *testing.T) {
 	require.Equal(t, "tcp://mongo.example:27017", cfg.Proxy.MongoPublicAddrs[0].FullAddress())
 	require.Equal(t, "tcp://peerhost:1234", cfg.Proxy.PeerAddr.FullAddress())
 	require.Equal(t, "tcp://peer.example:1234", cfg.Proxy.PeerPublicAddr.FullAddress())
+	require.Equal(t, true, cfg.Proxy.IdP.SAMLIdP.Enabled)
+	require.Equal(t, "", cfg.Proxy.IdP.SAMLIdP.BaseURL)
 
 	require.Equal(t, "tcp://127.0.0.1:3000", cfg.DiagnosticAddr.FullAddress())
 
@@ -782,6 +790,12 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			DisconnectExpiredCert: types.NewBoolOption(false),
 			LockingMode:           constants.LockingModeBestEffort,
 			AllowPasswordless:     types.NewBoolOption(true),
+			AllowHeadless:         types.NewBoolOption(true),
+			IDP: &types.IdPOptions{
+				SAML: &types.IdPSAMLOptions{
+					Enabled: types.NewBoolOption(true),
+				},
+			},
 		},
 	}, protocmp.Transform()))
 
@@ -1449,6 +1463,8 @@ func makeConfigFixture() string {
 	conf.Proxy.ListenAddress = "tcp://proxy_ssh_addr"
 	conf.Proxy.WebAddr = "tcp://web_addr"
 	conf.Proxy.TunAddr = "reverse_tunnel_address:3311"
+	conf.Proxy.IdP.SAMLIdP.EnabledFlag = "true"
+	conf.Proxy.IdP.SAMLIdP.BaseURL = "https://test-url.com"
 
 	// kubernetes service:
 	conf.Kube = Kube{
@@ -1650,6 +1666,11 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
 				},
+				IdP: service.IdP{
+					SAMLIdP: service.SAMLIdP{
+						Enabled: true,
+					},
+				},
 			},
 		},
 		{
@@ -1673,6 +1694,11 @@ func TestSetDefaultListenerAddresses(t *testing.T) {
 				Limiter: limiter.Config{
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
+				},
+				IdP: service.IdP{
+					SAMLIdP: service.SAMLIdP{
+						Enabled: true,
+					},
 				},
 			},
 		},
@@ -1972,6 +1998,11 @@ func TestProxyConfigurationVersion(t *testing.T) {
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
 				},
+				IdP: service.IdP{
+					SAMLIdP: service.SAMLIdP{
+						Enabled: true,
+					},
+				},
 			},
 			checkErr: require.NoError,
 		},
@@ -1996,6 +2027,11 @@ func TestProxyConfigurationVersion(t *testing.T) {
 				Limiter: limiter.Config{
 					MaxConnections:   defaults.LimiterMaxConnections,
 					MaxNumberOfUsers: 250,
+				},
+				IdP: service.IdP{
+					SAMLIdP: service.SAMLIdP{
+						Enabled: true,
+					},
 				},
 			},
 			checkErr: require.NoError,
@@ -3282,6 +3318,89 @@ func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
 			} else {
 				assert.NoError(t, err, "ApplyFileConfig mismatch")
 			}
+		})
+	}
+}
+
+func TestApplyDiscoveryConfig(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name              string
+		discoveryConfig   Discovery
+		expectedDiscovery service.DiscoveryConfig
+	}{
+		{
+			name:            "no matchers",
+			discoveryConfig: Discovery{},
+			expectedDiscovery: service.DiscoveryConfig{
+				Enabled: true,
+			},
+		},
+		{
+			name: "azure matchers",
+			discoveryConfig: Discovery{
+				AzureMatchers: []AzureMatcher{
+					{
+						Types:         []string{"aks", "vm"},
+						Subscriptions: []string{"abcd"},
+						InstallParams: &InstallParams{
+							JoinParams: JoinParams{
+								TokenName: "azure-token",
+								Method:    "azure",
+							},
+							ScriptName:      "default-installer",
+							PublicProxyAddr: "proxy.example.com",
+						},
+					},
+				},
+			},
+			expectedDiscovery: service.DiscoveryConfig{
+				Enabled: true,
+				AzureMatchers: []services.AzureMatcher{
+					{
+						Subscriptions: []string{"abcd"},
+						Types:         []string{"aks", "vm"},
+						Params: services.InstallerParams{
+							JoinMethod:      "azure",
+							JoinToken:       "azure-token",
+							ScriptName:      "default-installer",
+							PublicProxyAddr: "proxy.example.com",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "azure matchers no installer",
+			discoveryConfig: Discovery{
+				AzureMatchers: []AzureMatcher{
+					{
+						Types:         []string{"aks"},
+						Subscriptions: []string{"abcd"},
+					},
+				},
+			},
+			expectedDiscovery: service.DiscoveryConfig{
+				Enabled: true,
+				AzureMatchers: []services.AzureMatcher{
+					{
+						Subscriptions: []string{"abcd"},
+						Types:         []string{"aks"},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fc, err := ReadConfig(bytes.NewBufferString(NoServicesConfigString))
+			require.NoError(t, err)
+			fc.Discovery = tc.discoveryConfig
+			fc.Discovery.EnabledFlag = "yes"
+			cfg := service.MakeDefaultConfig()
+			require.NoError(t, applyDiscoveryConfig(fc, cfg))
+			require.Equal(t, tc.expectedDiscovery, cfg.Discovery)
 		})
 	}
 }

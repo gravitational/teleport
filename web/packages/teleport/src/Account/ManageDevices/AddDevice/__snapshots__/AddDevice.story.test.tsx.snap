@@ -137,6 +137,10 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   cursor: not-allowed;
 }
 
+.c17:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
 .c12 {
   color: #FFFFFF;
   display: block;
@@ -285,7 +289,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 .c13 .react-select__control,
 .c13 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -355,210 +359,212 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
       class="c3"
       data-testid="dialogbox"
     >
-      <div
-        class="c4"
-        style="flex-direction: column;"
-      >
+      <form>
         <div
-          class="c5"
-          color="text.primary"
+          class="c4"
+          style="flex-direction: column;"
         >
-          Add New Two-Factor Device
-        </div>
-      </div>
-      <div
-        class="c6"
-      >
-        <div
-          class="c7"
-          height="256px"
-        >
-          <img
-            class="c8"
-            height="168px"
-            src="file_stub"
-          />
           <div
-            class="c9"
+            class="c5"
+            color="text.primary"
           >
-            Enter a name for your hardware key.
+            Add New Two-Factor Device
           </div>
         </div>
         <div
-          class="c10"
+          class="c6"
         >
           <div
-            class="c11"
-            data-testid="mfa-select"
+            class="c7"
+            height="256px"
+          >
+            <img
+              class="c8"
+              height="168px"
+              src="file_stub"
+            />
+            <div
+              class="c9"
+            >
+              Enter a name for your hardware key.
+            </div>
+          </div>
+          <div
+            class="c10"
+          >
+            <div
+              class="c11"
+              data-testid="mfa-select"
+              width="100%"
+            >
+              <label
+                class="c12"
+                font-size="0"
+                for="select"
+              >
+                Two-factor type
+              </label>
+              <div
+                class="c13"
+              >
+                <div
+                  class="react-select-container css-2b097c-container"
+                >
+                  <div
+                    class="react-select__control css-yk16xz-control"
+                  >
+                    <div
+                      class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                    >
+                      <div
+                        class="react-select__single-value css-1uccc91-singleValue"
+                      >
+                        Hardware Key
+                      </div>
+                      <input
+                        aria-autocomplete="list"
+                        class="css-62g3xt-dummyInput"
+                        id="select"
+                        readonly=""
+                        tabindex="0"
+                        value=""
+                      />
+                    </div>
+                    <div
+                      class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                    >
+                      <span
+                        class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                      />
+                      <div
+                        aria-hidden="true"
+                        class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          class="css-6q0nyr-Svg"
+                          focusable="false"
+                          height="20"
+                          viewBox="0 0 20 20"
+                          width="20"
+                        >
+                          <path
+                            d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="c14"
+              width="50%"
+            >
+              <label
+                class="c12"
+                font-size="0"
+                for="select"
+              >
+                Allow Passwordless Login?
+              </label>
+              <div
+                class="c13"
+              >
+                <div
+                  class="react-select-container css-2b097c-container"
+                >
+                  <div
+                    class="react-select__control css-yk16xz-control"
+                  >
+                    <div
+                      class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                    >
+                      <div
+                        class="react-select__single-value css-1uccc91-singleValue"
+                      >
+                        no
+                      </div>
+                      <input
+                        aria-autocomplete="list"
+                        class="css-62g3xt-dummyInput"
+                        id="select"
+                        readonly=""
+                        tabindex="0"
+                        value=""
+                      />
+                    </div>
+                    <div
+                      class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                    >
+                      <span
+                        class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                      />
+                      <div
+                        aria-hidden="true"
+                        class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          class="css-6q0nyr-Svg"
+                          focusable="false"
+                          height="20"
+                          viewBox="0 0 20 20"
+                          width="20"
+                        >
+                          <path
+                            d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="c15"
             width="100%"
           >
             <label
-              class="c12"
+              class="c16"
               font-size="0"
-              for="select"
             >
-              Two-factor type
+              Device name
+              <input
+                autocomplete="off"
+                class="c17"
+                color="text.onLight"
+                inputmode="text"
+                placeholder="Name"
+                type="text"
+                value=""
+              />
             </label>
-            <div
-              class="c13"
-            >
-              <div
-                class="react-select-container css-2b097c-container"
-              >
-                <div
-                  class="react-select__control css-yk16xz-control"
-                >
-                  <div
-                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
-                  >
-                    <div
-                      class="react-select__single-value css-1uccc91-singleValue"
-                    >
-                      Hardware Key
-                    </div>
-                    <input
-                      aria-autocomplete="list"
-                      class="css-62g3xt-dummyInput"
-                      id="select"
-                      readonly=""
-                      tabindex="0"
-                      value=""
-                    />
-                  </div>
-                  <div
-                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                  >
-                    <span
-                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                    />
-                    <div
-                      aria-hidden="true"
-                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                    >
-                      <svg
-                        aria-hidden="true"
-                        class="css-6q0nyr-Svg"
-                        focusable="false"
-                        height="20"
-                        viewBox="0 0 20 20"
-                        width="20"
-                      >
-                        <path
-                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div
-            class="c14"
-            width="50%"
-          >
-            <label
-              class="c12"
-              font-size="0"
-              for="select"
-            >
-              Allow Passwordless Login?
-            </label>
-            <div
-              class="c13"
-            >
-              <div
-                class="react-select-container css-2b097c-container"
-              >
-                <div
-                  class="react-select__control css-yk16xz-control"
-                >
-                  <div
-                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
-                  >
-                    <div
-                      class="react-select__single-value css-1uccc91-singleValue"
-                    >
-                      no
-                    </div>
-                    <input
-                      aria-autocomplete="list"
-                      class="css-62g3xt-dummyInput"
-                      id="select"
-                      readonly=""
-                      tabindex="0"
-                      value=""
-                    />
-                  </div>
-                  <div
-                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                  >
-                    <span
-                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                    />
-                    <div
-                      aria-hidden="true"
-                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                    >
-                      <svg
-                        aria-hidden="true"
-                        class="css-6q0nyr-Svg"
-                        focusable="false"
-                        height="20"
-                        viewBox="0 0 20 20"
-                        width="20"
-                      >
-                        <path
-                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
         <div
-          class="c15"
-          width="100%"
+          class="c18"
         >
-          <label
-            class="c16"
-            font-size="0"
+          <button
+            class="c19"
+            kind="primary"
+            type="submit"
+            width="45%"
           >
-            Device name
-            <input
-              autocomplete="off"
-              class="c17"
-              color="text.onLight"
-              inputmode="text"
-              placeholder="Name"
-              type="text"
-              value=""
-            />
-          </label>
+            Add device
+          </button>
+          <button
+            class="c20"
+            kind="secondary"
+            width="30%"
+          >
+            Cancel
+          </button>
         </div>
-      </div>
-      <div
-        class="c18"
-      >
-        <button
-          class="c19"
-          kind="primary"
-          type="submit"
-          width="45%"
-        >
-          Add device
-        </button>
-        <button
-          class="c20"
-          kind="secondary"
-          width="30%"
-        >
-          Cancel
-        </button>
-      </div>
+      </form>
     </div>
   </div>
 </div>
@@ -724,6 +730,10 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   cursor: not-allowed;
 }
 
+.c18:disabled {
+  color: rgba(0,0,0,0.5);
+}
+
 .c13 {
   color: #FFFFFF;
   display: block;
@@ -872,7 +882,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 .c14 .react-select__control,
 .c14 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -942,217 +952,219 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
       class="c3"
       data-testid="dialogbox"
     >
-      <div
-        class="c4"
-        style="flex-direction: column;"
-      >
+      <form>
         <div
-          class="c5"
-          color="text.primary"
+          class="c4"
+          style="flex-direction: column;"
         >
-          Add New Two-Factor Device
-        </div>
-      </div>
-      <div
-        class="c6"
-        kind="danger"
-        width="100%"
-      >
-        failed to add device
-      </div>
-      <div
-        class="c7"
-      >
-        <div
-          class="c8"
-          height="256px"
-        >
-          <img
-            class="c9"
-            height="168px"
-            src="file_stub"
-          />
           <div
-            class="c10"
+            class="c5"
+            color="text.primary"
           >
-            Enter a name for your hardware key.
+            Add New Two-Factor Device
           </div>
         </div>
         <div
-          class="c11"
+          class="c6"
+          kind="danger"
+          width="100%"
+        >
+          failed to add device
+        </div>
+        <div
+          class="c7"
         >
           <div
-            class="c12"
-            data-testid="mfa-select"
+            class="c8"
+            height="256px"
+          >
+            <img
+              class="c9"
+              height="168px"
+              src="file_stub"
+            />
+            <div
+              class="c10"
+            >
+              Enter a name for your hardware key.
+            </div>
+          </div>
+          <div
+            class="c11"
+          >
+            <div
+              class="c12"
+              data-testid="mfa-select"
+              width="100%"
+            >
+              <label
+                class="c13"
+                font-size="0"
+                for="select"
+              >
+                Two-factor type
+              </label>
+              <div
+                class="c14"
+              >
+                <div
+                  class="react-select-container css-2b097c-container"
+                >
+                  <div
+                    class="react-select__control css-yk16xz-control"
+                  >
+                    <div
+                      class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                    >
+                      <div
+                        class="react-select__single-value css-1uccc91-singleValue"
+                      >
+                        Hardware Key
+                      </div>
+                      <input
+                        aria-autocomplete="list"
+                        class="css-62g3xt-dummyInput"
+                        id="select"
+                        readonly=""
+                        tabindex="0"
+                        value=""
+                      />
+                    </div>
+                    <div
+                      class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                    >
+                      <span
+                        class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                      />
+                      <div
+                        aria-hidden="true"
+                        class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          class="css-6q0nyr-Svg"
+                          focusable="false"
+                          height="20"
+                          viewBox="0 0 20 20"
+                          width="20"
+                        >
+                          <path
+                            d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="c15"
+              width="50%"
+            >
+              <label
+                class="c13"
+                font-size="0"
+                for="select"
+              >
+                Allow Passwordless Login?
+              </label>
+              <div
+                class="c14"
+              >
+                <div
+                  class="react-select-container css-2b097c-container"
+                >
+                  <div
+                    class="react-select__control css-yk16xz-control"
+                  >
+                    <div
+                      class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                    >
+                      <div
+                        class="react-select__single-value css-1uccc91-singleValue"
+                      >
+                        no
+                      </div>
+                      <input
+                        aria-autocomplete="list"
+                        class="css-62g3xt-dummyInput"
+                        id="select"
+                        readonly=""
+                        tabindex="0"
+                        value=""
+                      />
+                    </div>
+                    <div
+                      class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                    >
+                      <span
+                        class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                      />
+                      <div
+                        aria-hidden="true"
+                        class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          class="css-6q0nyr-Svg"
+                          focusable="false"
+                          height="20"
+                          viewBox="0 0 20 20"
+                          width="20"
+                        >
+                          <path
+                            d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                          />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="c16"
             width="100%"
           >
             <label
-              class="c13"
+              class="c17"
               font-size="0"
-              for="select"
             >
-              Two-factor type
+              Device name
+              <input
+                autocomplete="off"
+                class="c18"
+                color="text.onLight"
+                inputmode="text"
+                placeholder="Name"
+                type="text"
+                value=""
+              />
             </label>
-            <div
-              class="c14"
-            >
-              <div
-                class="react-select-container css-2b097c-container"
-              >
-                <div
-                  class="react-select__control css-yk16xz-control"
-                >
-                  <div
-                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
-                  >
-                    <div
-                      class="react-select__single-value css-1uccc91-singleValue"
-                    >
-                      Hardware Key
-                    </div>
-                    <input
-                      aria-autocomplete="list"
-                      class="css-62g3xt-dummyInput"
-                      id="select"
-                      readonly=""
-                      tabindex="0"
-                      value=""
-                    />
-                  </div>
-                  <div
-                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                  >
-                    <span
-                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                    />
-                    <div
-                      aria-hidden="true"
-                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                    >
-                      <svg
-                        aria-hidden="true"
-                        class="css-6q0nyr-Svg"
-                        focusable="false"
-                        height="20"
-                        viewBox="0 0 20 20"
-                        width="20"
-                      >
-                        <path
-                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div
-            class="c15"
-            width="50%"
-          >
-            <label
-              class="c13"
-              font-size="0"
-              for="select"
-            >
-              Allow Passwordless Login?
-            </label>
-            <div
-              class="c14"
-            >
-              <div
-                class="react-select-container css-2b097c-container"
-              >
-                <div
-                  class="react-select__control css-yk16xz-control"
-                >
-                  <div
-                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
-                  >
-                    <div
-                      class="react-select__single-value css-1uccc91-singleValue"
-                    >
-                      no
-                    </div>
-                    <input
-                      aria-autocomplete="list"
-                      class="css-62g3xt-dummyInput"
-                      id="select"
-                      readonly=""
-                      tabindex="0"
-                      value=""
-                    />
-                  </div>
-                  <div
-                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                  >
-                    <span
-                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                    />
-                    <div
-                      aria-hidden="true"
-                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                    >
-                      <svg
-                        aria-hidden="true"
-                        class="css-6q0nyr-Svg"
-                        focusable="false"
-                        height="20"
-                        viewBox="0 0 20 20"
-                        width="20"
-                      >
-                        <path
-                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
         <div
-          class="c16"
-          width="100%"
+          class="c19"
         >
-          <label
-            class="c17"
-            font-size="0"
+          <button
+            class="c20"
+            kind="primary"
+            type="submit"
+            width="45%"
           >
-            Device name
-            <input
-              autocomplete="off"
-              class="c18"
-              color="text.onLight"
-              inputmode="text"
-              placeholder="Name"
-              type="text"
-              value=""
-            />
-          </label>
+            Add device
+          </button>
+          <button
+            class="c21"
+            kind="secondary"
+            width="30%"
+          >
+            Cancel
+          </button>
         </div>
-      </div>
-      <div
-        class="c19"
-      >
-        <button
-          class="c20"
-          kind="primary"
-          type="submit"
-          width="45%"
-        >
-          Add device
-        </button>
-        <button
-          class="c21"
-          kind="secondary"
-          width="30%"
-        >
-          Cancel
-        </button>
-      </div>
+      </form>
     </div>
   </div>
 </div>
@@ -1316,6 +1328,10 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 
 .c19:read-only {
   cursor: not-allowed;
+}
+
+.c19:disabled {
+  color: rgba(0,0,0,0.5);
 }
 
 .c15 {
@@ -1485,7 +1501,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 .c16 .react-select__control,
 .c16 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -1555,143 +1571,165 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
       class="c3"
       data-testid="dialogbox"
     >
-      <div
-        class="c4"
-        style="flex-direction: column;"
-      >
+      <form>
         <div
-          class="c5"
-          color="text.primary"
-        >
-          Add New Two-Factor Device
-        </div>
-      </div>
-      <div
-        class="c6"
-        kind="danger"
-        width="100%"
-      >
-        failed to create totp register challenge
-      </div>
-      <div
-        class="c7"
-      >
-        <div
-          class="c8"
-          height="256px"
+          class="c4"
+          style="flex-direction: column;"
         >
           <div
-            class="c9"
-            height="168px"
-          />
-          <div
-            class="c10"
-            font-size="1"
+            class="c5"
+            color="text.primary"
           >
-            Scan the QR Code with any authenticator app and enter the generated code.
-             
-            <div
-              class="c11"
-              color="text.secondary"
-            >
-              We recommend
-               
-              <a
-                class="c12"
-                href="https://authy.com/download/"
-                rel="noreferrer"
-                target="_blank"
-              >
-                Authy
-              </a>
-              .
-            </div>
+            Add New Two-Factor Device
           </div>
         </div>
         <div
-          class="c13"
+          class="c6"
+          kind="danger"
+          width="100%"
+        >
+          failed to create totp register challenge
+        </div>
+        <div
+          class="c7"
         >
           <div
-            class="c14"
-            data-testid="mfa-select"
-            width="100%"
+            class="c8"
+            height="256px"
           >
-            <label
-              class="c15"
-              font-size="0"
-              for="select"
-            >
-              Two-factor type
-            </label>
             <div
-              class="c16"
+              class="c9"
+              height="168px"
+            />
+            <div
+              class="c10"
+              font-size="1"
             >
+              Scan the QR Code with any authenticator app and enter the generated code.
+               
               <div
-                class="react-select-container css-2b097c-container"
+                class="c11"
+                color="text.secondary"
+              >
+                We recommend
+                 
+                <a
+                  class="c12"
+                  href="https://authy.com/download/"
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Authy
+                </a>
+                .
+              </div>
+            </div>
+          </div>
+          <div
+            class="c13"
+          >
+            <div
+              class="c14"
+              data-testid="mfa-select"
+              width="100%"
+            >
+              <label
+                class="c15"
+                font-size="0"
+                for="select"
+              >
+                Two-factor type
+              </label>
+              <div
+                class="c16"
               >
                 <div
-                  class="react-select__control css-yk16xz-control"
+                  class="react-select-container css-2b097c-container"
                 >
                   <div
-                    class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
+                    class="react-select__control css-yk16xz-control"
                   >
                     <div
-                      class="react-select__single-value css-1uccc91-singleValue"
+                      class="react-select__value-container react-select__value-container--has-value css-g1d714-ValueContainer"
                     >
-                      Authenticator App
-                    </div>
-                    <input
-                      aria-autocomplete="list"
-                      class="css-62g3xt-dummyInput"
-                      id="select"
-                      readonly=""
-                      tabindex="0"
-                      value=""
-                    />
-                  </div>
-                  <div
-                    class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
-                  >
-                    <span
-                      class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
-                    />
-                    <div
-                      aria-hidden="true"
-                      class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
-                    >
-                      <svg
-                        aria-hidden="true"
-                        class="css-6q0nyr-Svg"
-                        focusable="false"
-                        height="20"
-                        viewBox="0 0 20 20"
-                        width="20"
+                      <div
+                        class="react-select__single-value css-1uccc91-singleValue"
                       >
-                        <path
-                          d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
-                        />
-                      </svg>
+                        Authenticator App
+                      </div>
+                      <input
+                        aria-autocomplete="list"
+                        class="css-62g3xt-dummyInput"
+                        id="select"
+                        readonly=""
+                        tabindex="0"
+                        value=""
+                      />
+                    </div>
+                    <div
+                      class="react-select__indicators css-1hb7zxy-IndicatorsContainer"
+                    >
+                      <span
+                        class="react-select__indicator-separator css-1okebmr-indicatorSeparator"
+                      />
+                      <div
+                        aria-hidden="true"
+                        class="react-select__indicator react-select__dropdown-indicator css-tlfecz-indicatorContainer"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          class="css-6q0nyr-Svg"
+                          focusable="false"
+                          height="20"
+                          viewBox="0 0 20 20"
+                          width="20"
+                        >
+                          <path
+                            d="M4.516 7.548c0.436-0.446 1.043-0.481 1.576 0l3.908 3.747 3.908-3.747c0.533-0.481 1.141-0.446 1.574 0 0.436 0.445 0.408 1.197 0 1.615-0.406 0.418-4.695 4.502-4.695 4.502-0.217 0.223-0.502 0.335-0.787 0.335s-0.57-0.112-0.789-0.335c0 0-4.287-4.084-4.695-4.502s-0.436-1.17 0-1.615z"
+                          />
+                        </svg>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
+            <div
+              class="c17"
+              width="50%"
+            >
+              <label
+                class="c18"
+                font-size="0"
+              >
+                Authenticator code
+                <input
+                  autocomplete="one-time-code"
+                  class="c19"
+                  color="text.onLight"
+                  inputmode="numeric"
+                  placeholder="123 456"
+                  type="text"
+                  value=""
+                />
+              </label>
+            </div>
           </div>
           <div
-            class="c17"
-            width="50%"
+            class="c20"
+            width="100%"
           >
             <label
               class="c18"
               font-size="0"
             >
-              Authenticator code
+              Device name
               <input
-                autocomplete="one-time-code"
+                autocomplete="off"
                 class="c19"
                 color="text.onLight"
-                inputmode="numeric"
-                placeholder="123 456"
+                inputmode="text"
+                placeholder="Name"
                 type="text"
                 value=""
               />
@@ -1699,45 +1737,25 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
           </div>
         </div>
         <div
-          class="c20"
-          width="100%"
+          class="c21"
         >
-          <label
-            class="c18"
-            font-size="0"
+          <button
+            class="c22"
+            kind="primary"
+            type="submit"
+            width="45%"
           >
-            Device name
-            <input
-              autocomplete="off"
-              class="c19"
-              color="text.onLight"
-              inputmode="text"
-              placeholder="Name"
-              type="text"
-              value=""
-            />
-          </label>
+            Add device
+          </button>
+          <button
+            class="c23"
+            kind="secondary"
+            width="30%"
+          >
+            Cancel
+          </button>
         </div>
-      </div>
-      <div
-        class="c21"
-      >
-        <button
-          class="c22"
-          kind="primary"
-          type="submit"
-          width="45%"
-        >
-          Add device
-        </button>
-        <button
-          class="c23"
-          kind="secondary"
-          width="30%"
-        >
-          Cancel
-        </button>
-      </div>
+      </form>
     </div>
   </div>
 </div>

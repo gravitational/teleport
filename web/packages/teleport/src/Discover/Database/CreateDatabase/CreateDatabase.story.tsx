@@ -75,7 +75,8 @@ const props: State = {
   clearAttempt: () => null,
   registerDatabase: () => null,
   canCreateDatabase: true,
-  // pollTimeout: Date.now() + 30000,
+  pollTimeout: Date.now() + 30000,
   dbEngine: DatabaseEngine.PostgreSQL,
   dbLocation: DatabaseLocation.SelfHosted,
+  isDbCreateErr: false,
 };

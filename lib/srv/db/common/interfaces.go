@@ -49,7 +49,7 @@ type Service interface {
 	// Authorize authorizes the provided client TLS connection.
 	Authorize(ctx context.Context, tlsConn utils.TLSConn, params ConnectParams) (*ProxyContext, error)
 	// Connect is used to connect to remote database server over reverse tunnel.
-	Connect(ctx context.Context, proxyCtx *ProxyContext) (net.Conn, error)
+	Connect(ctx context.Context, proxyCtx *ProxyContext, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error)
 	// Proxy starts proxying between client and service connections.
 	Proxy(ctx context.Context, proxyCtx *ProxyContext, clientConn, serviceConn net.Conn) error
 }

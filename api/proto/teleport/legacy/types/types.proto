@@ -48,6 +48,7 @@ message KeepAlive {
     DATABASE = 3;
     WINDOWS_DESKTOP = 4;
     KUBERNETES = 5;
+    DATABASE_SERVICE = 6;
   }
   KeepAliveType Type = 9 [(gogoproto.jsontag) = "type"];
   // HostID is an optional UUID of the host the resource belongs to.
@@ -1135,6 +1136,8 @@ message ProvisionTokenSpecV2 {
   ];
   // Kubernetes allows the configuration of options specific to the "kubernetes" join method.
   ProvisionTokenSpecV2Kubernetes Kubernetes = 10 [(gogoproto.jsontag) = "kubernetes,omitempty"];
+  // Azure allows the configuration of options specific to the "azure" join method.
+  ProvisionTokenSpecV2Azure Azure = 11 [(gogoproto.jsontag) = "azure,omitempty"];
 }
 
 // ProvisionTokenSpecV2Github contains the GitHub-specific part of the
@@ -1201,6 +1204,23 @@ message ProvisionTokenSpecV2Kubernetes {
     // ServiceAccount is the namespaced name of the Kubernetes service account.
     // Its format is "namespace:service-account".
     string ServiceAccount = 1 [(gogoproto.jsontag) = "service_account,omitempty"];
+  }
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+// ProvisionTokenSpecV2Azure contains the Azure-specific part of the
+// ProvisionTokenSpecV2.
+message ProvisionTokenSpecV2Azure {
+  // Rule is a set of properties the Azure-issued token might have to be
+  // allowed to use this ProvisionToken.
+  message Rule {
+    // Subscription is the Azure subscription.
+    string Subscription = 1 [(gogoproto.jsontag) = "subscription,omitempty"];
+    // ResourceGroups is a list of Azure resource groups the node is allowed
+    // to join from.
+    repeated string ResourceGroups = 2 [(gogoproto.jsontag) = "resource_groups,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
@@ -1590,6 +1610,20 @@ message AuthPreferenceSpecV2 {
   // DeviceTrust holds settings related to trusted device verification.
   // Requires Teleport Enterprise.
   DeviceTrust DeviceTrust = 13 [(gogoproto.jsontag) = "device_trust,omitempty"];
+
+  // IDP is a set of options related to accessing IdPs within Teleport.
+  // Requires Teleport Enterprise.
+  IdPOptions IDP = 14 [(gogoproto.jsontag) = "idp,omitempty"];
+
+  // AllowHeadless enables/disables headless support.
+  // Headless authentication requires Webauthn to work.
+  // Defaults to true if the Webauthn is configured, defaults to false
+  // otherwise.
+  BoolValue AllowHeadless = 15 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "allow_headless,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
 }
 
 // U2F defines settings for U2F device.
@@ -2287,6 +2321,10 @@ message RoleOptions {
   // See DeviceTrust.Mode.
   // Reserved for future use, not yet used by Teleport.
   string DeviceTrustMode = 24 [(gogoproto.jsontag) = "device_trust_mode,omitempty"];
+
+  // IDP is a set of options related to accessing IdPs within Teleport.
+  // Requires Teleport Enterprise.
+  IdPOptions IDP = 25 [(gogoproto.jsontag) = "idp,omitempty"];
 }
 
 message RecordSession {
@@ -2448,6 +2486,13 @@ message RoleConditions {
 
   // GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.
   repeated string GCPServiceAccounts = 25 [(gogoproto.jsontag) = "gcp_service_accounts,omitempty"];
+
+  // DatabaseServiceLabels are used in RBAC system to allow/deny access to Database Services.
+  wrappers.LabelValues DatabaseServiceLabels = 26 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "db_service_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
@@ -3111,12 +3156,99 @@ message WebSessionSpecV2 {
   // ConsumedAccessRequestID is the ID of the access request from which additional roles to assume
   // were obtained.
   string ConsumedAccessRequestID = 10 [(gogoproto.jsontag) = "consumed_access_request_id,omitempty"];
+  // SAMLSession is data associated with a SAML IdP session.
+  SAMLSessionData SAMLSession = 11 [(gogoproto.jsontag) = "saml_session,omitempty"];
 }
 
 // WebSessionFilter encodes cache watch parameters for filtering web sessions.
 message WebSessionFilter {
   // User is the username to filter web sessions for.
   string User = 1 [(gogoproto.jsontag) = "user"];
+}
+
+// SAMLSessionData contains data for a SAML session.
+// Based on crewjam/saml's session object: https://github.com/crewjam/saml/blob/main/identity_provider.go
+message SAMLSessionData {
+  // ID is the identifier for the SAML session.
+  string ID = 1 [(gogoproto.jsontag) = "id"];
+  // CreateTime is the time that the session was created.
+  google.protobuf.Timestamp CreateTime = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "create_time"
+  ];
+  // ExpireTime is the time that the session will expire.
+  google.protobuf.Timestamp ExpireTime = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "expire_time"
+  ];
+  // Index is the session index that allows the IdP to uniquely identify a session.
+  string Index = 4 [(gogoproto.jsontag) = "index"];
+
+  // NameID an identifier for the session.
+  string NameID = 5 [(gogoproto.jsontag) = "name_id"];
+  // NameIDFormat is the format of the Name ID.
+  string NameIDFormat = 6 [(gogoproto.jsontag) = "name_id_format"];
+  // SubjectID is the identifier for the subject of the session.
+  string SubjectID = 7 [(gogoproto.jsontag) = "subject_id"];
+
+  // Groups is a list of groups that the user has access to.
+  repeated string Groups = 8 [(gogoproto.jsontag) = "groups"];
+  // UserName is the user's name.
+  string UserName = 9 [(gogoproto.jsontag) = "user_name"];
+  // UserEmail is the user's e-mail.
+  string UserEmail = 10 [(gogoproto.jsontag) = "user_email"];
+  // UserCommonName is the user's common name.
+  string UserCommonName = 11 [(gogoproto.jsontag) = "user_common_name"];
+  // UserSurname is the user's surname.
+  string UserSurname = 12 [(gogoproto.jsontag) = "user_surname"];
+  // UserGivenName is the user's given name.
+  string UserGivenName = 13 [(gogoproto.jsontag) = "user_given_name"];
+  // UserScopedAffiliation is the user's scoped affiliation.
+  string UserScopedAffiliation = 14 [(gogoproto.jsontag) = "user_scoped_affiliation"];
+
+  // CustomAttributes are any custom attributes associated with the request.
+  repeated SAMLAttribute CustomAttributes = 15 [(gogoproto.jsontag) = "custom_attributes"];
+}
+
+// SAMLAttribute contains an attribute name and associated values.
+// Defined in http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
+message SAMLAttribute {
+  // FriendlyName is a user readable name for the attribute.
+  string FriendlyName = 1 [(gogoproto.jsontag) = "friendly_name"];
+  // Name is a full name for the attribute, typically an OID value.
+  string Name = 2 [(gogoproto.jsontag) = "name"];
+  // NameFormat is the format of the name.
+  string NameFormat = 3 [(gogoproto.jsontag) = "name_format"];
+  // Values is a list of attribute values.
+  repeated SAMLAttributeValue Values = 4 [(gogoproto.jsontag) = "values"];
+}
+
+// SAMLAttributeValues contains a type, value, and an associated name ID block.
+// Defined in http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
+message SAMLAttributeValue {
+  // Type is the type of value this attribute represents.
+  string Type = 1 [(gogoproto.jsontag) = "type"];
+  // Value is the value of the attribute.
+  string Value = 2 [(gogoproto.jsontag) = "value"];
+  // NameID is a more restrictive identifier for the attribute value.
+  SAMLNameID NameID = 3 [(gogoproto.jsontag) = "name_id,omitempty"];
+}
+
+// SAMLNameID is a more restrictive identifier for an object in SAML.
+// Defined in http://docs.oasis-open.org/security/saml/v2.0/saml-core-2.0-os.pdf.
+message SAMLNameID {
+  // NameQualifier is the domain that qualifies the identifier.
+  string NameQualifier = 1 [(gogoproto.jsontag) = "name_qualifier"];
+  // SPNameQualifier qualifies the identifier with the name of the service provider.
+  string SPNameQualifier = 2 [(gogoproto.jsontag) = "sp_name_qualifier"];
+  // Format is the format of the identifier.
+  string Format = 3 [(gogoproto.jsontag) = "format"];
+  // SPProvidedID is an identifier established by the service provider.
+  string SPProvidedID = 4 [(gogoproto.jsontag) = "sp_provider_id"];
+  // Value is the value of the name ID.
+  string Value = 5 [(gogoproto.jsontag) = "value"];
 }
 
 // RemoteClusterV3 represents remote cluster resource specification
@@ -4107,6 +4239,10 @@ message LockTarget {
 
   // AccessRequest specifies the UUID of an access request.
   string AccessRequest = 7 [(gogoproto.jsontag) = "access_request,omitempty"];
+
+  // Device is the device ID of a trusted device.
+  // Requires Teleport Enterprise.
+  string Device = 8 [(gogoproto.jsontag) = "device,omitempty"];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specfied
@@ -4459,6 +4595,26 @@ message Participant {
   ];
 }
 
+// UIConfigV1 represents the configuration for the web UI served by the proxy service
+message UIConfigV1 {
+  // Header is the resource header for the UI configuration.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Spec is the resource spec.
+  UIConfigSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// UIConfigSpecV1 is the specification for a UIConfig
+message UIConfigSpecV1 {
+  int32 ScrollbackLines = 1 [(gogoproto.jsontag) = "scrollback_lines"];
+}
+
 // InstallerV1 represents an installer script resource. Used to
 // provide a script to install teleport on discovered nodes.
 message InstallerV1 {
@@ -4677,10 +4833,11 @@ message AlertAcknowledgement {
   // Reason describes the reason why the alert can be considered
   // acknowledged (e.g. 'alice will fix next week').
   string Reason = 2 [(gogoproto.jsontag) = "reason,omitempty"];
-  // Severity is the maximum severity for which the acknowledgement will
-  // perform suppression (e.g. an ack with severity MEDIUM will suppress
-  // alerts with severity MEDIUM or lower, but not alerts with severity HIGH).
-  AlertSeverity Severity = 3 [(gogoproto.jsontag) = "severity,omitempty"];
+
+  // 3 is reserved for the previously used alert acknowledgement "severity"
+  reserved 3;
+  reserved "Severity";
+
   // Expires is the time after which the acknowledgement expires.
   google.protobuf.Timestamp Expires = 4 [
     (gogoproto.jsontag) = "expires,omitempty",
@@ -4744,6 +4901,98 @@ enum RequireMFAType {
   HARDWARE_KEY_TOUCH = 3;
 }
 
+// Plugin describes a single instance of a Teleport Plugin
+message PluginV1 {
+  // kind is the plugin resource kind.
+  string kind = 1;
+  // sub_kind is an optional resource subkind.
+  string sub_kind = 2;
+  // version is the resource version.
+  string version = 3;
+
+  // metadata is the resource metadata.
+  Metadata metadata = 4 [(gogoproto.nullable) = false];
+
+  PluginSpecV1 spec = 5 [(gogoproto.nullable) = false];
+
+  PluginStatusV1 status = 6 [(gogoproto.nullable) = false];
+
+  // credentials are "live" credentials to the 3rd party API.
+  // These are considered secrets.
+  PluginCredentialsV1 credentials = 7;
+}
+
+message PluginSpecV1 {
+  option (gogoproto.equal) = true;
+
+  // settings contain provider-specific plugin options.
+  oneof settings {
+    // Settings for the Slack access plugin
+    PluginSlackAccessSettings slack_access_plugin = 1;
+  }
+}
+
+message PluginSlackAccessSettings {
+  option (gogoproto.equal) = true;
+
+  string fallback_channel = 1;
+}
+
+message PluginBootstrapCredentialsV1 {
+  oneof credentials {
+    PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
+  }
+}
+
+message PluginOAuth2AuthorizationCodeCredentials {
+  string authorization_code = 1;
+  string redirect_uri = 2;
+}
+
+// PluginStatus is the user-facing status for the plugin instance.
+message PluginStatusV1 {
+  PluginStatusCode code = 1;
+}
+
+enum PluginStatusCode {
+  // UNKNOWN is the default value when the plugin has not reported its status yet.
+  UNKNOWN = 0;
+  // RUNNING means the plugin reports running successfully.
+  RUNNING = 1;
+  // OTHER_ERROR indicates that an otherwise-unspecified error has been encountered.
+  OTHER_ERROR = 2;
+  // UNAUTHORIZED indicates that plugin is not able to authenticate to the 3rd party API.
+  // This could be a result of e.g. the user revoking the authorization on the API provider's side.
+  UNAUTHORIZED = 3;
+
+  // SLACK_NOT_IN_CHANNEL is a Slack-specific status code that indicates
+  // that the bot has not been invited to a channel that it is configured to post in.
+  SLACK_NOT_IN_CHANNEL = 10;
+}
+
+// PluginCredentialsV1 represents "live" credentials
+// that are used by the plugin to authenticate to the 3rd party API.
+message PluginCredentialsV1 {
+  oneof credentials {
+    PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
+  }
+}
+
+message PluginOAuth2AccessTokenCredentials {
+  string access_token = 1;
+  string refresh_token = 2;
+  google.protobuf.Timestamp expires = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+}
+
+// PluginList represents a list of plugin resources
+message PluginListV1 {
+  // Plugins is a list of plugin resources.
+  repeated PluginV1 plugins = 1;
+}
+
 // SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
 message SAMLIdPServiceProviderV1 {
   option (gogoproto.goproto_stringer) = false;
@@ -4766,4 +5015,212 @@ message SAMLIdPServiceProviderV1 {
 message SAMLIdPServiceProviderSpecV1 {
   // EntityDescriptor is the entity descriptor for the service provider
   string EntityDescriptor = 1 [(gogoproto.jsontag) = "entity_descriptor"];
+  // EntityID is the entity ID for the entity descriptor. This ID is checked that it matches
+  // the entity ID in the entity descriptor at upsert time to avoid having to parse the
+  // XML blob in the entity descriptor every time we need to use this resource.
+  string EntityID = 2 [(gogoproto.jsontag) = "entity_id"];
+}
+
+// IdPOptions specify options related to access Teleport IdPs.
+message IdPOptions {
+  // SAML are options related to the Teleport SAML IdP.
+  IdPSAMLOptions SAML = 1 [(gogoproto.jsontag) = "saml"];
+}
+
+// IdPSAMLOptions specifies options related to accessing the Teleport SAML IdP.
+message IdPSAMLOptions {
+  // Enabled is set to true if this option allows access to the Teleport SAML IdP.
+  BoolValue Enabled = 1 [
+    (gogoproto.jsontag) = "enabled",
+    (gogoproto.customtype) = "BoolOption"
+  ];
+}
+
+// KubernetesResourceV1 represents a Kubernetes resource.
+message KubernetesResourceV1 {
+  // Kind is a resource kind
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource sub kind, used in some resources
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is version
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is KubernetesResourceV1 metadata
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec contains the Kubernetes resource data.
+  KubernetesResourceSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// KubernetesResourceSpecV1 is the Kubernetes resource spec.
+message KubernetesResourceSpecV1 {
+  // Namespace is the resource namespace.
+  string Namespace = 1 [(gogoproto.jsontag) = "namespace"];
+}
+
+// UserGroupV1 is a representation of an externally sourced user group.
+message UserGroupV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header for the user group.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+}
+
+// OktaImportRuleSpecV1 is a Okta import rule specification.
+message OktaImportRuleSpecV1 {
+  // Priority represents the priority of the rule application. Lower numbered rules will be applied first.
+  int32 Priority = 1 [(gogoproto.jsontag) = "priority"];
+  // Mappings is a list of matches that will map match conditions to labels.
+  repeated OktaImportRuleMappingV1 Mappings = 2 [(gogoproto.jsontag) = "mappings"];
+}
+
+// OktaImportRuleMappingV1 is a list of matches that map match rules to labels.
+message OktaImportRuleMappingV1 {
+  // Match is a set of matching rules for this mapping. If any of these match, then the mapping will be applied.
+  repeated OktaImportRuleMatchV1 Match = 1 [(gogoproto.jsontag) = "match"];
+  // AddLabels specifies which labels to add if any of the previous matches match.
+  map<string, string> AddLabels = 2 [(gogoproto.jsontag) = "add_labels"];
+}
+
+// OktaImportRuleV1 is a representation of labeling rules for importing of Okta objects.
+message OktaImportRuleV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header for the SAML IdP service provider.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+
+  // Spec is the specification for the Okta import rule.
+  OktaImportRuleSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// OktaImportRuleMatchV1 is a match rule for a mapping.
+message OktaImportRuleMatchV1 {
+  // AppIDs is a list of app IDs to match against.
+  repeated string AppIDs = 1 [(gogoproto.jsontag) = "app_ids,omitempty"];
+  // GroupIDs is a list of group IDs to match against.
+  repeated string GroupIDs = 2 [(gogoproto.jsontag) = "group_ids,omitempty"];
+}
+
+// OktaAssignmentV1 is a representation of an action or set of actions taken by Teleport to assign Okta users to applications or groups.
+message OktaAssignmentV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header for the Okta assignment.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+
+  // Spec is the specification for the Okta assignment.
+  OktaAssignmentSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// OktaAssignmentSpecV1 is a Okta assignment specification.
+message OktaAssignmentSpecV1 {
+  // User is the user that these actions will be applied to.
+  string User = 1 [(gogoproto.jsontag) = "user"];
+  // Actions is a list of Okta actions to take on a user.
+  repeated OktaAssignmentActionV1 Actions = 2 [(gogoproto.jsontag) = "actions"];
+}
+
+// OktaAssignmentActionV1 is a Okta assignment action.
+message OktaAssignmentActionV1 {
+  // OktaAssignmentStatus represents the status of an action in an Okta assignment.
+  enum OktaAssignmentActionStatus {
+    // UNKNOWN indicates the status is not set.
+    UNKNOWN = 0;
+    // PENDING indicates the action has not yet been applied.
+    PENDING = 1;
+    // SUCCESSFUL indicates the action was applied successfully.
+    SUCCESSFUL = 2;
+    // FAILED indicates the action was not applied successfully. It will be retried.
+    FAILED = 3;
+    // CLEANED_UP indicates the action was cleaned up successfully.
+    CLEANED_UP = 4;
+    // CLEANUP_FAILED indicates the action was not cleaned up successfully. It will not be retried.
+    CLEANUP_FAILED = 5;
+  }
+
+  // Status is the status of the action.
+  OktaAssignmentActionStatus status = 1 [(gogoproto.jsontag) = "status"];
+  // Target is the target of the assignment action.
+  OktaAssignmentActionTargetV1 target = 2 [(gogoproto.jsontag) = "target"];
+}
+
+// OktaAssignmentActionTargetV1 is the target of an Okta assignment action.
+message OktaAssignmentActionTargetV1 {
+  // OktaAssignmentActionTargetType is the type of Okta object that an action is targeting.
+  enum OktaAssignmentActionTargetType {
+    // UNKNOWN indicates the target is unknown.
+    UNKNOWN = 0;
+    // APPLICATION indicates the target is an application.
+    APPLICATION = 1;
+    // GROUP indicates the target is a group.
+    GROUP = 2;
+  }
+
+  // Type is the type of Okta resource this assignment action is targeting.
+  OktaAssignmentActionTargetType type = 1 [(gogoproto.jsontag) = "type"];
+  // ID is the ID of the Okta resource that's being targeted.
+  string id = 2 [(gogoproto.jsontag) = "id"];
+}
+
+// HeadlessAuthentication holds data for an ongoing headless authentication attempt.
+message HeadlessAuthentication {
+  // Header is the resource header.
+  ResourceHeader header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true
+  ];
+
+  // User is a teleport user name.
+  string user = 2;
+
+  // PublicKey is an ssh public key to sign in case of successful auth.
+  bytes public_key = 3;
+
+  // State is the headless authentication request state.
+  HeadlessAuthenticationState state = 4;
+
+  // MFADevice is the mfa device used to approve the request in case of successful auth.
+  types.MFADevice mfa_device = 5;
+
+  // ClientIPAddress is the IP address of the client being authenticated.
+  string client_ip_address = 6;
+}
+
+// HeadlessAuthenticationState is a headless authentication state.
+enum HeadlessAuthenticationState {
+  HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED = 0;
+
+  // authentication pending.
+  HEADLESS_AUTHENTICATION_STATE_PENDING = 1;
+
+  // authentication denied.
+  HEADLESS_AUTHENTICATION_STATE_DENIED = 2;
+
+  // authentication approved.
+  HEADLESS_AUTHENTICATION_STATE_APPROVED = 3;
 }

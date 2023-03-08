@@ -41,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/auth"
@@ -60,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -68,6 +70,16 @@ import (
 type Rate struct {
 	Amount int
 	Time   time.Duration
+}
+
+// JoinParams is a set of extra parameters for joining the auth server.
+type JoinParams struct {
+	Azure AzureJoinParams
+}
+
+// AzureJoinParams is the parameters specific to the azure join method.
+type AzureJoinParams struct {
+	ClientID string
 }
 
 // Config structure is used to initialize _all_ services Teleport can run.
@@ -85,6 +97,9 @@ type Config struct {
 
 	// JoinMethod is the method the instance will use to join the auth server
 	JoinMethod types.JoinMethod
+
+	// JoinParams is a set of extra parameters for joining the auth server.
+	JoinParams JoinParams
 
 	// ProxyServer is the address of the proxy
 	ProxyServer utils.NetAddr
@@ -152,7 +167,7 @@ type Config struct {
 	// Trust is a service that manages users and credentials
 	Trust services.Trust
 
-	// Presence service is a discovery and hearbeat tracker
+	// Presence service is a discovery and heartbeat tracker
 	Presence services.PresenceInternal
 
 	// Events is events service
@@ -168,7 +183,7 @@ type Config struct {
 	Access services.Access
 
 	// UsageReporter is a service that reports usage events.
-	UsageReporter services.UsageReporter
+	UsageReporter usagereporter.UsageReporter
 
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfiguration
@@ -399,6 +414,9 @@ func (cfg *Config) DebugDumpToYAML() string {
 type CachePolicy struct {
 	// Enabled enables or disables caching
 	Enabled bool
+	// MaxRetryPeriod is maximum period cache waits before retrying on failure.
+	// Not exposed through the config file, used in tests.
+	MaxRetryPeriod time.Duration
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -504,8 +522,16 @@ type ProxyConfig struct {
 	// ACME is ACME protocol support config
 	ACME ACME
 
+	// IdP is the identity provider config
+	//
+	//nolint:revive // Because we want this to be IdP.
+	IdP IdP
+
 	// DisableALPNSNIListener allows turning off the ALPN Proxy listener. Used in tests.
 	DisableALPNSNIListener bool
+
+	// UI provides config options for the web UI
+	UI webclient.UIConfig
 }
 
 // ACME configures ACME automatic certificate renewal
@@ -516,6 +542,22 @@ type ACME struct {
 	Email string
 	// URI is ACME server URI
 	URI string
+}
+
+// IdP configures identity providers.
+//
+//nolint:revive // Because we want this to be IdP.
+type IdP struct {
+	// SAMLIdP is configuration options for the SAML identity provider.
+	SAMLIdP SAMLIdP
+}
+
+// SAMLIdP configures SAML identity providers
+type SAMLIdP struct {
+	// Enabled enables or disables the identity provider.
+	Enabled bool
+	// BaseURL is the base URL for the identity provider.
+	BaseURL string
 }
 
 // KeyPairPath are paths to a key and certificate file.
@@ -1542,6 +1584,7 @@ func ApplyDefaults(cfg *Config) {
 	// Proxy service defaults.
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.Kube.Enabled = false
+	cfg.Proxy.IdP.SAMLIdP.Enabled = true
 
 	defaults.ConfigureLimiter(&cfg.Proxy.Limiter)
 

@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -58,40 +59,64 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 
 	testCases := []struct {
 		name       string
-		originCred *credentials.Credentials
 		proxyCred  *credentials.Credentials
+		signFunc   func(*http.Request, io.ReadSeeker, string, string, time.Time) (http.Header, error)
 		wantErr    require.ErrorAssertionFunc
 		wantStatus int
 	}{
 		{
 			name:       "valid signature",
-			originCred: firstAWSCred,
 			proxyCred:  firstAWSCred,
+			signFunc:   v4.NewSigner(firstAWSCred).Sign,
 			wantErr:    require.NoError,
 			wantStatus: http.StatusOK,
 		},
 		{
 			name:       "different aws secret access key",
-			originCred: firstAWSCred,
 			proxyCred:  secondAWSCred,
+			signFunc:   v4.NewSigner(firstAWSCred).Sign,
 			wantStatus: http.StatusForbidden,
 		},
 		{
 			name:       "different aws access key ID",
-			originCred: firstAWSCred,
 			proxyCred:  thirdAWSCred,
+			signFunc:   v4.NewSigner(firstAWSCred).Sign,
 			wantStatus: http.StatusForbidden,
 		},
 		{
-			name:       "unsigned request",
-			originCred: nil,
-			proxyCred:  firstAWSCred,
+			name:      "unsigned request",
+			proxyCred: firstAWSCred,
+			signFunc: func(*http.Request, io.ReadSeeker, string, string, time.Time) (http.Header, error) {
+				// no-op
+				return nil, nil
+			},
 			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:      "signed with User-Agent header",
+			proxyCred: secondAWSCred,
+			signFunc: func(r *http.Request, body io.ReadSeeker, service, region string, signTime time.Time) (http.Header, error) {
+				// Simulate a case where "User-Agent" is part of the "SignedHeaders".
+				// The signature does not have to be valid as it will not be compared.
+				header, err := v4.NewSigner(firstAWSCred).Sign(r, body, service, region, signTime)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				authHeader := r.Header.Get("Authorization")
+				authHeader = strings.Replace(authHeader, "SignedHeaders=", "SignedHeaders=user-agent;", 1)
+				r.Header.Set("Authorization", authHeader)
+				return header, nil
+			},
+			wantStatus: http.StatusOK,
 		},
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			lp := createAWSAccessProxySuite(t, tc.proxyCred)
 
 			url := url.URL{
@@ -100,13 +125,11 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 				Path:   "/",
 			}
 
-			pr := bytes.NewReader([]byte("payload content"))
-			req, err := http.NewRequest(http.MethodGet, url.String(), pr)
+			payload := []byte("payload content")
+			req, err := http.NewRequest(http.MethodGet, url.String(), bytes.NewReader(payload))
 			require.NoError(t, err)
 
-			if tc.originCred != nil {
-				v4.NewSigner(tc.originCred).Sign(req, pr, awsService, awsRegion, time.Now())
-			}
+			tc.signFunc(req, bytes.NewReader(payload), awsService, awsRegion, time.Now())
 
 			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err)
