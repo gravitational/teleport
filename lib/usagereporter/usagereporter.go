@@ -238,15 +238,19 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 		return r.buf, nil
 	}
 
+	// minBatchSize is the current minimum batch size, set to either 1 or to
+	// r.minBatchSize depending on the batch age timer
+	minBatchSize := r.minBatchSize
+
+	// timer is the "batch age" timer, which triggers early batch submissions by
+	// setting the minBatchSize to 1 temporarily. It should only be running if
+	// r.buf is nonempty.
 	timer := r.clock.NewTimer(r.maxBatchAge)
 	defer timer.Stop()
-	timerElapsed := false
-
 	if len(r.buf) == 0 {
 		if !timer.Stop() {
 			<-timer.Chan()
 		}
-		timerElapsed = true
 	}
 
 	// Also start the submission goroutine.
@@ -259,7 +263,7 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 	for {
 		var subQueue chan []*SubmittedEvent[T]
 		var subBuf, subRest []*SubmittedEvent[T]
-		if len(r.buf) >= r.minBatchSize || (timerElapsed && len(r.buf) > 0) {
+		if len(r.buf) >= minBatchSize {
 			subQueue = r.submissionQueue
 			subBuf, subRest = bufRest()
 		}
@@ -273,7 +277,7 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 
 		case <-r.eventsClosed:
 			for len(r.buf) > 0 {
-				subBuf, subRest = bufRest()
+				subBuf, subRest := bufRest()
 				select {
 				case <-ctx.Done():
 					r.WithField("discarded_count", len(r.buf)).Warn("dropped events due to context close during graceful stop")
@@ -287,21 +291,22 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 			return
 
 		case <-timer.Chan():
-			timerElapsed = true
+			minBatchSize = 1
 
 		case subQueue <- subBuf:
 			usageBatchesTotal.Inc()
 			r.WithField("batch_size", len(subBuf)).Debug("enqueued batch of usage events")
 			r.buf = subRest
+			minBatchSize = r.minBatchSize
 
 			if !timer.Stop() {
-				<-timer.Chan()
+				select {
+				case <-timer.Chan():
+				default:
+				}
 			}
-			timerElapsed = true
-
 			if len(r.buf) > 0 {
 				timer.Reset(r.maxBatchAge)
-				timerElapsed = false
 			}
 
 		case events := <-r.events:
@@ -321,11 +326,12 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 				break
 			}
 
-			r.buf = append(r.buf, events...)
-			if timerElapsed {
+			// about to become nonempty
+			if len(r.buf) == 0 {
 				timer.Reset(r.maxBatchAge)
-				timerElapsed = false
 			}
+
+			r.buf = append(r.buf, events...)
 
 			// call the receiver if any
 			if r.receiveFunc != nil {
