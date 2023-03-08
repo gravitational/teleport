@@ -113,6 +113,11 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing parameter AccessPoint")
 	}
+
+	if err := c.validateLabelKeys(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if c.Log == nil {
 		c.Log = logrus.New()
 	}
@@ -121,6 +126,17 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.ConnectedProxyGetter == nil {
 		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+	}
+	return nil
+}
+
+// validateLabelKeys checks that all labels keys are valid.
+// Dynamic labels are validated in labels.NewDynamicLabels.
+func (c *TLSServerConfig) validateLabelKeys() error {
+	for name := range c.StaticLabels {
+		if !types.IsValidLabelKey(name) {
+			return trace.BadParameter("invalid label key: %q", name)
+		}
 	}
 	return nil
 }
