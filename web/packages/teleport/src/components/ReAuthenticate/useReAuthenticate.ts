@@ -28,12 +28,13 @@ import type { MfaAuthnResponse } from 'teleport/services/mfa';
 //    user's MFA response are submitted with the request to get a privilege
 //    token, and after successfully obtaining the token, the function
 //    `onAuthenticated` will be called with this token.
-//
-// In both scenarios, after the user submits, the control is passed back
-// to the caller who is reponsible for rendering the `ReAuthenticate`
-// component.
 export default function useReAuthenticate(props: Props) {
   const { onClose, actionText = defaultActionText } = props;
+
+  // Note that attempt state "success" is not used or required.
+  // After the user submits, the control is passed back
+  // to the caller who is reponsible for rendering the `ReAuthenticate`
+  // component.
   const { attempt, setAttempt, handleError } = useAttempt('');
 
   function submitWithTotp(secondFactorToken: string) {
@@ -121,15 +122,15 @@ type MfaResponseProps = BaseProps & {
   onAuthenticated?: never;
 };
 
-// Default defines a function that
+// DefaultProps defines a function that
 // accepts a privilegeTokenId that is only
 // obtained after MFA response has been
 // validated.
-type Default = BaseProps & {
+type DefaultProps = BaseProps & {
   onAuthenticated(privilegeTokenId: string): void;
   onMfaResponse?: never;
 };
 
-export type Props = MfaResponseProps | Default;
+export type Props = MfaResponseProps | DefaultProps;
 
 export type State = ReturnType<typeof useReAuthenticate>;
