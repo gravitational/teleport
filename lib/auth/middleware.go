@@ -653,7 +653,7 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// determine authenticated user based on the request parameters
 	ctx := r.Context()
-	authz.ContextWithUserCertificate(ctx, certFromConnState(r.TLS))
+	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(r.TLS))
 	clientSrcAddr, err := utils.ParseAddr(r.RemoteAddr)
 	if err == nil {
 		ctx = authz.ContextWithClientAddr(ctx, clientSrcAddr)

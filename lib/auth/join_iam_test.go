@@ -532,7 +532,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			}()
 
 			requestContext := context.Background()
-			requestContext = authz.ContextWithClientAddr(ctx, &net.IPAddr{})
+			requestContext = authz.ContextWithClientAddr(requestContext, &net.IPAddr{})
 			requestContext = context.WithValue(requestContext, stsClientKey{}, tc.stsClient)
 
 			_, err = a.RegisterUsingIAMMethod(requestContext, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {

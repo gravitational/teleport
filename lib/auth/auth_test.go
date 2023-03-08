@@ -1369,8 +1369,8 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	// Issue augmented certs for user1.
 	// Used to test that re-issue of augmented certs is not allowed.
 	ctxFromAuthorize := testServer.APIConfig.Authorizer.Authorize
-	aCtx := authz.ContextWithUserCertificate(ctx, xCert1)
-	aCtx = authz.ContextWithUser(ctx, authz.LocalUser{
+	aCtx := authz.ContextWithUserCertificate(context.Background(), xCert1)
+	aCtx = authz.ContextWithUser(aCtx, authz.LocalUser{
 		Username: identity1.Username,
 		Identity: *identity1,
 	})

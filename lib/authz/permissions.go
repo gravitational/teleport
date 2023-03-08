@@ -1124,7 +1124,7 @@ func ContextWithUser(ctx context.Context, user IdentityGetter) context.Context {
 
 // UserFromContext returns the user from the context.
 func UserFromContext(ctx context.Context) (IdentityGetter, error) {
-	user, ok := ctx.Value(contextClientAddr).(IdentityGetter)
+	user, ok := ctx.Value(contextUser).(IdentityGetter)
 	if !ok {
 		return nil, trace.BadParameter("expected type IdentityGetter, got %T", user)
 	}
