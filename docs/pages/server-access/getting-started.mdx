@@ -55,10 +55,24 @@ This guide introduces some of these common scenarios and how to interact with Te
 
 Next, create a join token so you can add the Node to your Teleport cluster.
 
+<Tabs>
+<TabItem label="Linux">
+
 ```code
-# Let's save the token to a file
-$ sudo tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
+Let's save the token to a file
+$ tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
 ```
+
+</TabItem>
+<TabItem label="macOS">
+
+```code
+Let's save the token to a file
+$ tctl tokens add --type=node | grep -o 'token: .*' | cut -d' ' -f2 > token.file
+```
+
+</TabItem>
+</Tabs>
 
 `--type=node` specifies that the Teleport Node will act and join as an SSH
 server.
