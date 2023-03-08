@@ -4210,11 +4210,13 @@ message LockSpecV2 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expires,omitempty"
   ];
-  google.protobuf.Timestamp CreatedOn = 4 [
+  // CreatedAt is the date time that the lock was created.
+  google.protobuf.Timestamp CreatedAt = 4 [
     (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "created_on,omitempty"
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "created_at,omitempty"
   ];
+  // CreatedBy is the username of the author of the lock.
   string CreatedBy = 5 [(gogoproto.jsontag) = "created_by,omitempty"];
 }
 

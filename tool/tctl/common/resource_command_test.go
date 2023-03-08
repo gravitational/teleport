@@ -441,7 +441,7 @@ func TestCreateLock(t *testing.T) {
 
 	dt, err := time.Parse(time.DateTime, "2006-01-02 15:04:05")
 	require.NoError(t, err)
-	expected.SetCreatedOn(&dt)
+	expected.SetCreatedAt(dt)
 
 	require.Empty(t, cmp.Diff([]*types.LockV2{expected.(*types.LockV2)}, locks,
 		cmpopts.IgnoreFields(types.LockV2{}, "Metadata")))
