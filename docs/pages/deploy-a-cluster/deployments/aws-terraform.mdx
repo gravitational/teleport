@@ -203,7 +203,7 @@ Our Terraform setup requires you to have your domain provisioned in AWS Route 53
 DNS records for [`route53_domain`](#route53\_domain) as set up below. You can list these with this command:
 
 ```code
-$ aws route53 list-hosted-zones --query "HostedZones[*].Name" --output text
+$ aws route53 list-hosted-zones --query "HostedZones[*].Name" --output json
 [
     "example.com.",
     "testing.net.",
@@ -566,7 +566,7 @@ Remember that there is more than one auth server in an High Availability deploym
 of each auth server that you'll need to connect to:
 
 ```code
-$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=auth" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
+$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=auth" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
 # 172.31.0.196
 # 172.31.1.78
 ```
@@ -599,7 +599,7 @@ Remember that there is more than one proxy instance in an High Availability depl
 of each auth instance that you'll need to connect to:
 
 ```code
-$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=proxy" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
+$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=proxy" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
 # 172.31.2.109
 # 172.31.3.215
 ```
@@ -659,7 +659,7 @@ Remember that there is more than one auth instance in an High Availability deplo
 of each auth instance that you'd need to connect to for checking logs:
 
 ```code
-$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=auth" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
+$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=auth" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
 # 172.31.0.196
 # 172.31.1.78
 ```
@@ -692,7 +692,7 @@ Remember that there is more than one proxy instance in an High Availability depl
 of each proxy instance that you'd need to connect to for checking logs:
 
 ```code
-$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=proxy" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
+$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=proxy" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
 # 172.31.2.109
 # 172.31.3.215
 ```
@@ -818,17 +818,17 @@ else
     INSTANCE_ID="0"
 fi
 
-export BASTION_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=bastion" --query "Reservations[*].Instances[*].PublicIpAddress" --output text)
+export BASTION_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=bastion" --query "Reservations[*].Instances[*].PublicIpAddress" --output text)
 echo "Bastion IP: ${BASTION_IP}"
 
 if [[ "${INSTANCE_TYPE}" == "auth" ]]; then
-    export SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=auth" --query "Reservations[${INSTANCE_ID}].Instances[*].PrivateIpAddress" --output text)
+    export SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=auth" --query "Reservations[${INSTANCE_ID}].Instances[*].PrivateIpAddress" --output text)
     echo "Auth ${INSTANCE_ID} IP: ${SERVER_IP}"
 elif [[ "${INSTANCE_TYPE}" == "proxy" ]]; then
-    export SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=proxy" --query "Reservations[${INSTANCE_ID}].Instances[*].PrivateIpAddress" --output text)
+    export SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=proxy" --query "Reservations[${INSTANCE_ID}].Instances[*].PrivateIpAddress" --output text)
     echo "Proxy ${INSTANCE_ID} IP: ${SERVER_IP}"
 elif [[ "${INSTANCE_TYPE}" == "node" ]]; then
-    export SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=node" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text)
+    export SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=node" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text)
     echo "Node IP: ${SERVER_IP}"
 fi
 
