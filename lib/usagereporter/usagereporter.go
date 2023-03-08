@@ -231,7 +231,7 @@ func (r *UsageReporter[T]) GracefulStop(ctx context.Context) error {
 func (r *UsageReporter[T]) Run(ctx context.Context) {
 	defer r.wg.Done()
 
-	bufRest := func() ([]*SubmittedEvent[T], []*SubmittedEvent[T]) {
+	splitBuffer := func() (batch []*SubmittedEvent[T], rest []*SubmittedEvent[T]) {
 		if len(r.buf) > r.maxBatchSize {
 			return r.buf[:r.maxBatchSize], r.buf[r.maxBatchSize:]
 		}
@@ -262,10 +262,10 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 
 	for {
 		var subQueue chan []*SubmittedEvent[T]
-		var subBuf, subRest []*SubmittedEvent[T]
+		var subBatch, subRest []*SubmittedEvent[T]
 		if len(r.buf) >= minBatchSize {
 			subQueue = r.submissionQueue
-			subBuf, subRest = bufRest()
+			subBatch, subRest = splitBuffer()
 		}
 
 		select {
@@ -277,14 +277,14 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 
 		case <-r.eventsClosed:
 			for len(r.buf) > 0 {
-				subBuf, subRest := bufRest()
+				subBatch, subRest := splitBuffer()
 				select {
 				case <-ctx.Done():
 					r.WithField("discarded_count", len(r.buf)).Warn("dropped events due to context close during graceful stop")
 					return
-				case r.submissionQueue <- subBuf:
+				case r.submissionQueue <- subBatch:
 					usageBatchesTotal.Inc()
-					r.WithField("batch_size", len(subBuf)).Debug("enqueued batch of usage events during graceful stop")
+					r.WithField("batch_size", len(subBatch)).Debug("enqueued batch of usage events during graceful stop")
 					r.buf = subRest
 				}
 			}
@@ -293,9 +293,9 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 		case <-timer.Chan():
 			minBatchSize = 1
 
-		case subQueue <- subBuf:
+		case subQueue <- subBatch:
 			usageBatchesTotal.Inc()
-			r.WithField("batch_size", len(subBuf)).Debug("enqueued batch of usage events")
+			r.WithField("batch_size", len(subBatch)).Debug("enqueued batch of usage events")
 			r.buf = subRest
 			minBatchSize = r.minBatchSize
 
