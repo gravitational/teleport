@@ -3,7 +3,7 @@ authors: Marco Dinis (marco.dinis@goteleport.com)
 state: draft
 ---
 
-# RFD 999 - OIDC IdP for AWS RDS DBs discovery
+# RFD 999 - AWS API Integration using OIDC
 
 ## Required Approvals
 
@@ -13,20 +13,20 @@ state: draft
 
 ## What
 
-Discover AWS RDS Databases without manual configuration.
+Integrate with AWS using an OIDC IdP.
 
 #### Goals
 
-Easily discover AWS RDS Databases of an account.
+Ease the AWS resource discovery and onboarding.
+
+This feature must work for OSS, Enterprise and Cloud customers.
 
 #### Non-goals
 
-Having a real OIDC IdP is out of scope.
+Having a real OIDC IdP.
 That initiative can be tracked [here](https://github.com/gravitational/teleport/issues/20967).
 
-Automatically onboard AWS RDS Databases into Teleport.
-
-Discovering other AWS resources is out of scope.
+Automatically onboard AWS resources into Teleport.
 
 ## Terminology
 
@@ -38,10 +38,18 @@ Discovering other AWS resources is out of scope.
 ## Why
 
 Our current discovery process for AWS resources requires multiple steps before the user gets to the "aha moment".
-Some of those steps are a little complicated and require the user to know some Teleport specific internals.
 
-We can reduce the number of steps and remove most of the Teleport specific configuration by creating an OIDC IdP in Teleport.
+For example, to set up an RDS DB the user must do the following:
+- enter database name
+- enter Database endpoint, port, resource id and AWS Account ID
+- start a Database Agent by running a shell script (`database-install.sh`) in a EC2 instance
+- create an IAM Policy
+- add Database User and Database Name to the current user's traits
+- user can connect to this Database
 
+Configuring the IAM Policy, installing the Database Agent or setting up the traits the is sometimes challenging and we lose users before they get the "aha moment".
+
+Using AWS OIDC Integration allows Teleport services to call AWS API methods to obtain most of this information instead of asking the user.
 ## How
 
 AWS allows the [set up](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html) of an IdP using OIDC providers.
@@ -53,16 +61,6 @@ When configuring the provider, we'll need an AWS Role which Teleport uses to iss
 
 To store the configuration above, we'll create a new resource Kind: `Integration`.
 It'll leverage the `subkind` prop to distinguish future integrations.
-
-```yaml
-kind: integration
-subkind: aws-oidc
-version: v1
-metadata:
-	name: some-name
-spec:
-	aws_role: <aws role>
-```
 
 ### High Level Flow
 Simplified flow of interactions between User, Teleport and AWS:
@@ -86,7 +84,7 @@ User────────────┤                                     
                         │  │            │       │                     │
                         │  │  ┌─────────▼┐      │                     │
                         │  │  │ CA KeySet│      │                     │
-                        │  │  │ +RSA Key │      │                     │
+                        │  │  │ +OIDC CA │      │                     │
                         │  │  └─────────▲┘      │                     │
                         │  │6           │7      │                     │
                         │  │     ┌──────┴────┐  │                     │
@@ -135,8 +133,8 @@ If authenticated and authorized for the api call, AWS returns the response to th
 #### Signing Key
 One of the requirements to be an OIDC provider is to provide the public key in a known HTTP endpoint and sign a JSON object (with claims) with the private key.
 
-We'll create a new RSA 2048 Key type and add it to the CertAuthority.
-This will be very similar to the JWTSigner key type used for App access.
+We'll create a new CA: OIDCCA.
+This will be similar to the JWTSigner key type used for App access.
 
 A single signing key will be used for this flow even if multiple AWS integrations are created (eg, multiple regions).
 
@@ -146,13 +144,13 @@ The following endpoints will be used during OIDC IdP set up:
 ##### OpenID Configuration
 According to the [spec](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfig) the Identity Provider must provide an endpoint at `<providerURL>/.well-known/openid-configuration` that returns the provider's configuration.
 
-So, a new endpoint at `<teleportProviderURL>/.well-known/openid-configuration` will be created that returns the following JSON:
+So, a new endpoint at `<proxyPublicAddr>/.well-known/openid-configuration` will be created that returns the following JSON:
 ```
 200 OK
 
 {
-  "issuer": "<teleportProviderURL>", 
-  "jwks_uri": "<teleportProviderURL>/.well-known/jwks-oidc",
+  "issuer": "https://proxy.example.com", 
+  "jwks_uri": "https://proxy.example.com/.well-known/jwks-oidc",
   "claims": ["iss", "sub", "aud", "jti", "iat", "exp", "nbf"],
   "id_token_signing_alg_values_supported": ["RS256"],
   "response_types_supported": ["id_token"],
@@ -161,13 +159,13 @@ So, a new endpoint at `<teleportProviderURL>/.well-known/openid-configuration` w
 }
 ```
 
-- Issuer: the provider's URL
+- Issuer: the proxy's public address
 - JWKS URI: the endpoint where the provider returns the public keys.
 - Claims Supported: a list of supported claims that the OpenID Provider (ie, Teleport) MAY be able to supply values for when issuing a token:
   - `iss`: the issuer identity, on our case it will be the same as the `issuer` key.
-  - `sub`: identifies the subject of the token, on our case it will contain the user's name.
+  - `sub`: identifies the subject of the token, in our case it will contain the Teleport username prefixed by `user:`
   - `aud`: the audience for the token, on our case it will be the same as the `audience` defined when configuring the OIDC IdP in AWS (step 3.3 for the User's Point of View).
-  - `jti`: is the token id.
+  - `jti`: is the token id (UUIDv4).
   - `iat`: unix epoch time of when the token was issued.
   - `exp`: unix epoch time of when the token is no longer valid (expired).
   - `nbf`: unix epoch time which indicates when the token began to be valid.
@@ -182,7 +180,7 @@ This endpoint returns a list of public keys (usually only one key, except for pe
 
 This endpoint URI must be equal to `jwks_uri` defined in the previous section.
 
-As an example, `<teleportProviderURL>/.well-known/jwks-oidc`.
+As an example, `https://proxy.example.com/.well-known/jwks-oidc`.
 
 It should return the following:
 
@@ -218,23 +216,25 @@ GetCertAuthority(
 #### AWS Role for Teleport OIDC IdP
 
 The user will create or associate an AWS Role to the Teleport OIDC IdP.
-This role must have access to list RDS Databases and have a policy that trusts Teleport as an Identity Provider.
 
-At least a policy allowing the following must be part of the role:
+As an example, we the following is the required policy to list RDS DBs (including Aurora clusters):
 ```json
 {
     "Version": "2012-10-17",
     "Statement": [
         {
             "Effect": "Allow",
-            "Action": "rds:DescribeDBInstances",
+            "Actions": "[
+				rds:DescribeDBClusters",
+				rds:DescribeDBInstances",
+	        ],
             "Resource": "*"
         }
     ]
 }
 ```
 
-The AWS Role must trust Teleport as an IdP.
+This AWS Role must trust Teleport as an IdP.
 To do so, the user must add the following Trusted relationship:
 ```json
 {
@@ -243,17 +243,76 @@ To do so, the user must add the following Trusted relationship:
         {
             "Effect": "Allow",
             "Principal": {
-                "Federated": "arn:aws:iam::<account id>:oidc-provider/<teleportProviderURL>"
+                "Federated": "arn:aws:iam::0123456789012:oidc-provider/proxy.example.com"
             },
             "Action": "sts:AssumeRoleWithWebIdentity",
             "Condition": {
                 "StringEquals": {
-                    "<teleportProviderURL>:aud": "sts.amazonaws.com"
+                    "proxy.example.com:aud": "sts.amazonaws.com"
                 }
             }
         }
     ]
 }
+```
+
+### UX
+Besides the flow describe above (Users Point Of View), the Integration resource will have the usual CRUD operations via both API and `tctl`.
+The only updatable field is `aws_role_arn`.
+
+HTTP API:
+```
+Methods:
+GET .../integration
+GET .../integration/:id
+POST .../integration
+PUT .../integration/:id
+DELETE .../integration/:id
+```
+JSON representation:
+```json
+{
+	"name": "myaws",
+	"subkind": "aws-oidc"
+	"subkindData": {
+		"aws_role_arn": "arn:aws:123:TeleportOIDC"
+	}
+}
+```
+
+`tctl`:
+
+```
+$ tctl get integrations
+kind: integration
+subkind: aws-oidc
+version: v1
+metadata:
+	name: some-name
+spec:
+	aws_role_arn: arn:aws:123:TeleportOIDC
+
+$ tctl get integration/myaws
+kind: integration
+subkind: aws-oidc
+version: v1
+metadata:
+	name: some-name
+spec:
+	aws_role_arn: arn:aws:123:TeleportOIDC
+
+$ tctl create aws-integration.yaml
+```
+
+Resource representation as `yaml`:
+```yaml
+kind: integration
+subkind: aws-oidc
+version: v1
+metadata:
+	name: myaws
+spec:
+	aws_role_arn: arn:aws:123:TeleportOIDC
 ```
 
 ### Security
@@ -266,9 +325,9 @@ JWKS endpoint returns a list of public keys, so the old and the new key are prov
 #### MITM between AWS and Teleport
 
 The only configuration AWS has about the provider is its URL.
-If that DNS is controlled by some evil part, AWS might accept requests from that evil part.
+If DNS is controlled by an attacker, AWS might accept requests from them.
 
-However, assuming the DNS is controlled by an evil part, then the users that are logging in to Teleport are also providing their credentials to that part.
+However, assuming the DNS is controlled by an attacker, then the users that are logging in to Teleport are also providing their credentials to that part.
 
 We don't think this is a scenario we should focus on this RFD.
 
