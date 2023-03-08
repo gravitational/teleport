@@ -54,14 +54,33 @@ db_service:
       cert_path: /tmp/cert.pem
       key_path: /tmp/key.pem
     authentication:
-      # scheme could be HEADER or NONE if it is header we will send fixed set of headers
+      # scheme could be NONE or HEADER or IDTOKEN if it is header we will send fixed set of headers
       scheme: HEADER
       headers:
         X-API-Key: knkncsdjknkn
 ```
 ### Exchange the credentials for the token
 As of now teleport has conditions for cloud provided DBs to fetch credentials in various db engines. In similar fashion
-we can have one more condition for token enabled DBs to exchange credentials 
+we can have one more condition for token enabled DBs to exchange credentials.
+#### Sample request:
+```bash
+curl --location http://localhost:9000/database/test-db/user/ssrangisetti/token/test-token \
+--header 'X-API-Key: knkncsdjknkn' `# X-API-KEY header added only if authentication scheme is HEADER` \
+--header 'Authorization: Bearer <bearer token>' # Authorization header is added only if authentication scheme is IDTOKEN
+```
+#### Sample response:
+```json5
+{
+  "response": {
+    // username and password if the response is successful
+    "username": "ajlndsc",
+    "password": "kmndckl"
+  },
+  // error code and message if the response is not successful
+  "code": "",
+  "msg": ""
+}
+```
 
 ## UX
 * Users while onboarding a new database don't have to do anything
