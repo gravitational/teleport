@@ -4234,4 +4234,10 @@ func TestUnimplementedClients(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsNotImplemented(err), err)
 	})
+
+	t.Run("SAMLIdPClient", func(t *testing.T) {
+		_, err := server.SAMLIdPClient().ProcessSAMLIdPRequest(ctx, nil)
+		require.Error(t, err)
+		require.True(t, trace.IsNotImplemented(err), err)
+	})
 }
