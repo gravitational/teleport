@@ -346,6 +346,11 @@ type ServerContext struct {
 	contr *os.File
 	contw *os.File
 
+	// killShell{r,w} are used to send kill signal to the child process
+	// to terminate the shell.
+	killShellr *os.File
+	killShellw *os.File
+
 	// ChannelType holds the type of the channel. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
 	ChannelType string
@@ -374,6 +379,9 @@ type ServerContext struct {
 
 	// JoinOnly is set if the connection was created using a join-only principal and may only be used to join other sessions.
 	JoinOnly bool
+
+	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
+	UserCreatedByTeleport bool
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -493,6 +501,14 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 	child.AddCloser(child.contr)
 	child.AddCloser(child.contw)
+
+	child.killShellr, child.killShellw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.killShellr)
+	child.AddCloser(child.killShellw)
 
 	// Create pipe used to get X11 forwarding ready signal from the child process.
 	child.x11rdyr, child.x11rdyw, err = os.Pipe()
@@ -1049,6 +1065,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		ClientAddress:         c.ServerConn.RemoteAddr().String(),
 		RequestType:           requestType,
 		PermitUserEnvironment: c.srv.PermitUserEnvironment(),
+		UserCreatedByTeleport: c.UserCreatedByTeleport,
 		Environment:           buildEnvironment(c),
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
@@ -1179,7 +1196,12 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 		{Login: id.Login},
 		{Node: serverID},
 		{Node: auth.HostFQDN(serverID, clusterName)},
-		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
+	}
+	if mfaDevice := id.Certificate.Extensions[teleport.CertExtensionMFAVerified]; mfaDevice != "" {
+		lockTargets = append(lockTargets, types.LockTarget{MFADevice: mfaDevice})
+	}
+	if trustedDevice := id.Certificate.Extensions[teleport.CertExtensionDeviceID]; trustedDevice != "" {
+		lockTargets = append(lockTargets, types.LockTarget{Device: trustedDevice})
 	}
 	roles := apiutils.Deduplicate(append(id.AccessChecker.RoleNames(), id.UnmappedRoles...))
 	lockTargets = append(lockTargets, services.RolesToLockTargets(roles)...)
@@ -1187,7 +1209,7 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 	return lockTargets
 }
 
-// SetRequest sets the ssh request that was issued by the client.
+// SetSSHRequest sets the ssh request that was issued by the client.
 // Will return an error if called more than once for a single server context.
 func (c *ServerContext) SetSSHRequest(e *ssh.Request) error {
 	c.mu.Lock()
@@ -1200,7 +1222,7 @@ func (c *ServerContext) SetSSHRequest(e *ssh.Request) error {
 	return nil
 }
 
-// GetRequest returns the ssh request that was issued by the client and saved on
+// GetSSHRequest returns the ssh request that was issued by the client and saved on
 // this ServerContext by SetExecRequest, or an error if it has not been set.
 func (c *ServerContext) GetSSHRequest() (*ssh.Request, error) {
 	c.mu.RLock()

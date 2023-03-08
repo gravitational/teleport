@@ -40,6 +40,7 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
@@ -151,6 +152,10 @@ type CommandLineFlags struct {
 	DatabaseAWSRDSInstanceID string
 	// DatabaseAWSRDSClusterID is RDS cluster (Aurora) cluster identifier.
 	DatabaseAWSRDSClusterID string
+	// DatabaseAWSElastiCacheGroupID is the ElastiCache replication group identifier.
+	DatabaseAWSElastiCacheGroupID string
+	// DatabaseAWSMemoryDBClusterName is the MemoryDB cluster name.
+	DatabaseAWSMemoryDBClusterName string
 	// DatabaseGCPProjectID is GCP Cloud SQL project identifier.
 	DatabaseGCPProjectID string
 	// DatabaseGCPInstanceID is GCP Cloud SQL instance identifier.
@@ -868,6 +873,10 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.PeerAddr = *addr
 	}
 
+	if fc.Proxy.UI != nil {
+		cfg.Proxy.UI = webclient.UIConfig(*fc.Proxy.UI)
+	}
+
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.
 	if fc.Proxy.KeyFile != "" || fc.Proxy.CertFile != "" {
@@ -1171,6 +1180,21 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 	return nil
 }
 
+// getInstallerProxyAddr determines the address of the proxy for discovered
+// nodes to connect to.
+func getInstallerProxyAddr(matcher AzureMatcher, fc *FileConfig) string {
+	if matcher.InstallParams.PublicProxyAddr != "" {
+		return matcher.InstallParams.PublicProxyAddr
+	}
+	if fc.ProxyServer != "" {
+		return fc.ProxyServer
+	}
+	if fc.Proxy.Enabled() && len(fc.Proxy.PublicAddr) > 0 {
+		return fc.Proxy.PublicAddr[0]
+	}
+	return ""
+}
+
 func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
 	for _, matcher := range fc.Discovery.AWSMatchers {
@@ -1190,16 +1214,23 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	for _, matcher := range fc.Discovery.AzureMatchers {
-		cfg.Discovery.AzureMatchers = append(
-			cfg.Discovery.AzureMatchers,
-			services.AzureMatcher{
-				Subscriptions:  matcher.Subscriptions,
-				ResourceGroups: matcher.ResourceGroups,
-				Types:          matcher.Types,
-				Regions:        matcher.Regions,
-				ResourceTags:   matcher.ResourceTags,
-			},
-		)
+		m := services.AzureMatcher{
+			Subscriptions:  matcher.Subscriptions,
+			ResourceGroups: matcher.ResourceGroups,
+			Types:          matcher.Types,
+			Regions:        matcher.Regions,
+			ResourceTags:   matcher.ResourceTags,
+		}
+
+		if matcher.InstallParams != nil {
+			m.Params = services.InstallerParams{
+				JoinMethod:      matcher.InstallParams.JoinParams.Method,
+				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
+				ScriptName:      matcher.InstallParams.ScriptName,
+				PublicProxyAddr: getInstallerProxyAddr(matcher, fc),
+			}
+		}
+		cfg.Discovery.AzureMatchers = append(cfg.Discovery.AzureMatchers, m)
 	}
 
 	for _, matcher := range fc.Discovery.GCPMatchers {
@@ -1264,11 +1295,6 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	// Sanity check the local proxy config, so that users don't forget to
-	// enable the k8s endpoint there.
-	if fc.Proxy.Enabled() && fc.Proxy.Kube.Disabled() && fc.Proxy.KubeAddr == "" {
-		log.Warning("both kubernetes_service and proxy_service are enabled, but proxy_service doesn't set kube_listen_addr; consider setting kube_listen_addr on proxy_service, to handle incoming Kubernetes requests")
-	}
 	return nil
 }
 
@@ -1880,6 +1906,12 @@ func Configure(clf *CommandLineFlags, cfg *service.Config, legacyAppFlags bool) 
 				RDS: service.DatabaseAWSRDS{
 					InstanceID: clf.DatabaseAWSRDSInstanceID,
 					ClusterID:  clf.DatabaseAWSRDSClusterID,
+				},
+				ElastiCache: service.DatabaseAWSElastiCache{
+					ReplicationGroupID: clf.DatabaseAWSElastiCacheGroupID,
+				},
+				MemoryDB: service.DatabaseAWSMemoryDB{
+					ClusterName: clf.DatabaseAWSMemoryDBClusterName,
 				},
 			},
 			GCP: service.DatabaseGCP{

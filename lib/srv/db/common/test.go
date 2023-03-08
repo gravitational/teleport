@@ -159,6 +159,8 @@ type TestClientConfig struct {
 	Cluster string
 	// Username is the Teleport user name.
 	Username string
+	// PinnedIP is an IP client's certificate should be pinned to.
+	PinnedIP string
 	// RouteToDatabase contains database routing information.
 	RouteToDatabase tlsca.RouteToDatabase
 }
@@ -176,6 +178,7 @@ func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
 		Cluster:         config.Cluster,
 		Username:        config.Username,
 		RouteToDatabase: config.RouteToDatabase,
+		PinnedIP:        config.PinnedIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

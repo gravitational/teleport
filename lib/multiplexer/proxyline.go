@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -85,6 +84,8 @@ var (
 	ErrIncorrectRole = errors.New("could not find required system role on the signing certificate")
 	// ErrNonLocalCluster is returned when we received signed PROXY header, which signing certificate is from remote cluster.
 	ErrNonLocalCluster = errors.New("signing certificate is not signed by local cluster CA")
+	// ErrNoHostCA is returned when CAGetter could not get host CA, for example if auth server is not available
+	ErrNoHostCA = errors.New("could not get specified host CA to verify signed PROXY header")
 )
 
 // ProxyLine implements PROXY protocol version 1 and 2
@@ -114,7 +115,7 @@ func (p *ProxyLine) String() string {
 func (p *ProxyLine) Bytes() ([]byte, error) {
 	b := &bytes.Buffer{}
 	header := proxyV2Header{VersionCommand: (Version2 << 4) | ProxyCommand}
-	copy(header.Signature[:], proxyV2Prefix)
+	copy(header.Signature[:], ProxyV2Prefix)
 	var addr interface{}
 	if p.Source.Port < 0 || p.Destination.Port < 0 ||
 		p.Source.Port > math.MaxUint16 || p.Destination.Port > math.MaxUint16 {
@@ -276,7 +277,7 @@ func ReadProxyLineV2(reader *bufio.Reader) (*ProxyLine, error) {
 	if err := binary.Read(reader, binary.BigEndian, &header); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !bytes.Equal(header.Signature[:], proxyV2Prefix) {
+	if !bytes.Equal(header.Signature[:], ProxyV2Prefix) {
 		return nil, trace.BadParameter("unrecognized signature %s", hex.EncodeToString(header.Signature[:]))
 	}
 	cmd, ver := header.VersionCommand&0xF, header.VersionCommand>>4
@@ -425,9 +426,9 @@ func (p *ProxyLine) AddSignature(signature, signingCert []byte) error {
 	return nil
 }
 
-// isSigned returns true if proxy line's TLV contains signature.
+// IsSigned returns true if proxy line's TLV contains signature.
 // Does not take into account if signature is valid or not, just the presence of it.
-func (p *ProxyLine) isSigned() bool {
+func (p *ProxyLine) IsSigned() bool {
 	token, proxyCert, _ := p.getSignatureAndSigningCert()
 	return len(token) > 0 || proxyCert != nil
 }
@@ -483,17 +484,18 @@ func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthorityG
 		return trace.Wrap(err)
 	}
 	if identity.TeleportCluster != localClusterName {
-		return trace.Wrap(ErrNonLocalCluster, "signing certificate cluster name: %s", identity.TeleportCluster)
+		return trace.Wrap(ErrNonLocalCluster, "signing certificate cluster name: %s, local cluster name: %s",
+			identity.TeleportCluster, localClusterName)
 	}
 
-	hostCA, err := caGetter.GetCertAuthority(ctx, types.CertAuthID{
+	hostCA, err := caGetter(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: localClusterName,
 	}, false)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(ErrNoHostCA, "CA cluster name: %s", localClusterName)
 	}
-	hostCACerts := services.GetTLSCerts(hostCA)
+	hostCACerts := getTLSCerts(hostCA)
 
 	roots := x509.NewCertPool()
 	for _, cert := range hostCACerts {
@@ -536,6 +538,15 @@ func (p *ProxyLine) VerifySignature(ctx context.Context, caGetter CertAuthorityG
 
 	p.IsVerified = true
 	return nil
+}
+
+func getTLSCerts(ca types.CertAuthority) [][]byte {
+	pairs := ca.GetTrustedTLSKeyPairs()
+	out := make([][]byte, len(pairs))
+	for i, pair := range pairs {
+		out[i] = append([]byte{}, pair.Cert...)
+	}
+	return out
 }
 
 func checkForSystemRole(identity *tlsca.Identity, roleToFind types.SystemRole) bool {

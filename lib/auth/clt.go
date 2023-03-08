@@ -40,6 +40,8 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -411,7 +413,7 @@ func (c *Client) UpdateUserCARoleMap(ctx context.Context, name string, roleMap t
 }
 
 // RegisterUsingToken calls the auth service API to register a new node using a registration token
-// which was previously issued via GenerateToken.
+// which was previously issued via CreateToken/UpsertToken.
 func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -1008,16 +1010,13 @@ func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, 
 //
 // afterN allows to filter by "newer than N" value where N is the cursor ID
 // of previously returned bunch (good for polling for latest)
-func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) (retval []events.EventFields, err error) {
+func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int) (retval []events.EventFields, err error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
 	}
 	query := make(url.Values)
 	if afterN > 0 {
 		query.Set("after", strconv.Itoa(afterN))
-	}
-	if includePrintEvents {
-		query.Set("print", fmt.Sprintf("%v", includePrintEvents))
 	}
 	response, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(sid), "events"), query)
 	if err != nil {
@@ -1275,6 +1274,11 @@ func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) e
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpsertSAMLIdPSession not implemented: can only be called locally.
+func (c *Client) UpsertSAMLIdPSession(_ context.Context, _ types.WebSession) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // ResumeAuditStream resumes existing audit stream.
 func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	return c.APIClient.ResumeAuditStream(ctx, string(sid), uploadID)
@@ -1450,16 +1454,6 @@ type IdentityService interface {
 	// ChangePassword changes user password
 	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
 
-	// GenerateToken creates a special provisioning token for a new SSH server
-	// that is valid for ttl period seconds.
-	//
-	// This token is used by SSH server to authenticate with Auth server
-	// and get signed certificate and private key from the auth server.
-	//
-	// If token is not supplied, it will be auto generated and returned.
-	// If TTL is not supplied, token will be valid until removed.
-	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
-
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the
 	// resulting certificate.
@@ -1575,7 +1569,7 @@ type ClientI interface {
 	IdentityService
 	ProvisioningService
 	services.Trust
-	events.IAuditLog
+	events.AuditLogSessionStreamer
 	events.Streamer
 	apievents.Emitter
 	services.Presence
@@ -1589,11 +1583,13 @@ type ClientI interface {
 	services.Kubernetes
 	services.WindowsDesktops
 	services.SAMLIdPServiceProviders
+	services.UserGroups
 	WebService
 	services.Status
 	services.ClusterConfiguration
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
+	services.SAMLIdPSession
 	types.Events
 
 	types.WebSessionsGetter
@@ -1659,6 +1655,10 @@ type ClientI interface {
 	// sessions represent Database Access Snowflake session the client holds.
 	CreateSnowflakeSession(context.Context, types.CreateSnowflakeSessionRequest) (types.WebSession, error)
 
+	// CreateSAMLIdPSession creates a SAML IdP. SAML IdP sessions represent
+	// sessions created by the SAML identity provider.
+	CreateSAMLIdPSession(context.Context, types.CreateSAMLIdPSessionRequest) (types.WebSession, error)
+
 	// GenerateDatabaseCert generates client certificate used by a database
 	// service to authenticate with the database instance.
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
@@ -1700,4 +1700,16 @@ type ClientI interface {
 
 	// ListReleases returns a list of Teleport Enterprise releases
 	ListReleases(ctx context.Context) ([]*types.Release, error)
+
+	// PluginsClient returns a Plugins client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a plugins client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	PluginsClient() pluginspb.PluginServiceClient
+
+	// SAMLIdPClient returns a SAML IdP client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a SAML IdP client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	SAMLIdPClient() samlidppb.SAMLIdPServiceClient
 }

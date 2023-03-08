@@ -16,17 +16,27 @@
 
 import { FileStorage } from 'teleterm/services/fileStorage';
 
-export function createMockFileStorage(): FileStorage {
+export function createMockFileStorage(opts?: {
+  filePath: string;
+}): FileStorage {
   let state = {};
   return {
-    put(path: string, json: any) {
-      state[path] = json;
+    put(key: string, json: any) {
+      state[key] = json;
     },
 
     get<T>(key?: string): T {
       return key ? state[key] : (state as T);
     },
 
-    putAllSync() {},
+    writeSync() {},
+
+    replace(json: any) {
+      state = json;
+    },
+
+    getFilePath(): string {
+      return opts?.filePath || '';
+    },
   };
 }

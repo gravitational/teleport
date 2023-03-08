@@ -274,7 +274,7 @@ Run the following commands to get the name of the relevant pod and execute a
 `tctl` command to create a user:
 
 ```code
-$ kubectl exec -it deployment/teleport-cluster-auth -- tctl users add --roles=access,appuser
+$ kubectl exec -it deployment/teleport-cluster-auth -- tctl users add --roles=access appuser
 User "appuser" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
 https://teleport-cluster.teleport-cluster.svc.cluster.local:443/web/invite/<token>
 ```
@@ -421,4 +421,4 @@ production.
 - Integrate Teleport with your SSO provider:
   [Single Sign-On and Kubernetes RBAC](../kubernetes-access/controls.mdx)
 - Have a Kubernetes cluster but don't want to run Teleport there?
-  [Kubernetes Access from Standalone Teleport](../kubernetes-access/guides/standalone-teleport.mdx)
+  [Kubernetes Access from Standalone Teleport](../kubernetes-access/register-clusters/static-kubeconfig.mdx)

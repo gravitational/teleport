@@ -101,8 +101,6 @@ metadata:
   # the token name is not a secret because instances must prove that they are
   # running in your AWS account to use this token
   name: iam-token
-  # set a long expiry time, the default for tokens is only 30 minutes
-  expires: "3000-01-01T00:00:00Z"
 spec:
   # use the minimal set of roles required
   roles: [Node]
@@ -163,5 +161,9 @@ proxy_service:
 
 ## Step 4/4. Launch your Teleport Node
 
-Start Teleport on the Node and confirm that it is able to connect to and join
-your cluster. You're all set!
+(!docs/pages/includes/aws-credentials.mdx!)
+
+(!docs/pages/includes/start-teleport.mdx!)
+
+Once you have started Teleport, confirm that your Node is able to connect to and
+join your cluster. 

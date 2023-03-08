@@ -20,7 +20,7 @@ This guide will explain how to:
 - A running Teleport cluster, either self hosted or in Teleport Cloud.
 - A host running the `teleport` daemon with Application Access enabled. Follow
   the [Getting Started](../getting-started.mdx) or
-  [Connecting Apps](./connecting-apps.mdx) guides to get it running.
+  [Connecting Apps](../guides/connecting-apps.mdx) guides to get it running.
 - IAM permissions in the AWS account you want to connect.
 - AWS EC2 or other instance where you can assign a IAM Security Role for the Teleport Agent.
 - `aws` command line interface (CLI) tool in PATH. [Installing or updating the latest version of the AWS CLI
@@ -162,7 +162,10 @@ Templates](../../access-controls/guides/role-templates.mdx) for details.
 
 ## Step 5/9. Register AWS console application in Teleport
 
-Add AWS management console to your application service configuration:
+### Configure the Application Service
+
+Add the AWS management console to your Application Service configuration by
+editing `/etc/teleport.yaml` on the host that runs the Application Service:
 
 ```yaml
 version: v3
@@ -189,18 +192,10 @@ ssh_service:
   enabled: "no"
 proxy_service:
   enabled: "no"
-
-```
-
-Start the application service
-
-
-```code
-sudo teleport start --config=/path/to/teleport.yaml
 ```
 
 Note that the URI must start with one of the following values in order to be
-recognized as an AWS console.
+recognized as an AWS console:
 
 | Regions                   | AWS Console URL |
 | ------------------------- | --------------- |
@@ -208,14 +203,7 @@ recognized as an AWS console.
 | AWS GovCloud (US) regions | `https://console.amazonaws-us-gov.com` |
 | AWS China regions         | `https://console.amazonaws.cn` |
 
-<Admonition type="warning" title="non-standard AWS regions">
-For non-standard AWS regions such as AWS GovCloud (US) regions and AWS China
-regions, please set the corresponding region in the `AWS_REGION` environment
-variable or in the AWS credentials file so that the Application Service can use
-the correct STS endpoint.
-</Admonition>
-
-### Multiple AWS accounts
+<Details title="Multiple AWS accounts">
 
 If you have multiple AWS accounts and would like to logically separate them
 in the UI, register an application entry for each and set `aws_account_id`
@@ -249,6 +237,21 @@ belong to the specific account.
 For AWS accounts that require external IDs for accessing their resources, set
 the `external_id` field, which the Application Service uses when assuming the
 AWS roles in these accounts.
+
+</Details>
+
+### Start the Teleport Application Service
+
+(!docs/pages/includes/aws-credentials.mdx service="the Application Service"!)
+
+(!docs/pages/includes/start-teleport.mdx service="the Application Service"!)
+
+<Admonition type="warning" title="non-standard AWS regions">
+For non-standard AWS regions such as AWS GovCloud (US) regions and AWS China
+regions, please set the corresponding region in the `AWS_REGION` environment
+variable or in the AWS credentials file so that the Application Service can use
+the correct STS endpoint.
+</Admonition>
 
 ## Step 6/9. Connect to AWS console with assumed IAM role
 
@@ -290,7 +293,7 @@ Before beginning this step, make sure that the `aws` command line interface (CLI
 First, log into the previously configured AWS console app on your desktop:
 
 ```code
-$ tsh app login --aws-role ExamplePowerUser awsconsole-test
+$ tsh apps login --aws-role ExamplePowerUser awsconsole-test
 Logged into AWS app awsconsole-test. Example AWS CLI command:
 
 $ tsh aws s3 ls
@@ -308,7 +311,7 @@ $ tsh aws s3 ls
 To log out of the aws application and remove credentials:
 
 ```code
-$ tsh app logout awsconsole-test
+$ tsh apps logout awsconsole-test
 ```
 
 ## Step 9/9. Access applications using AWS SDKs
@@ -317,7 +320,7 @@ First, log into the previously configured console app if you haven't already
 done so:
 
 ```code
-$ tsh app login --aws-role ExamplePowerUser awsconsole-test
+$ tsh apps login --aws-role ExamplePowerUser awsconsole-test
 ```
 
 Now, use the following command to start a local HTTPS proxy server your
@@ -358,7 +361,7 @@ SDK for JavaScript).
 To log out of the AWS application and remove credentials:
 
 ```code
-$ tsh app logout awsconsole-test
+$ tsh apps logout awsconsole-test
 ```
 
 ## Next steps

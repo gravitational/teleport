@@ -21,8 +21,8 @@ import (
 	"encoding/binary"
 	"io"
 
-	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/gravitational/trace"
+	mssql "github.com/microsoft/go-mssqldb"
 )
 
 // Login7Packet represents a Login7 packet that defines authentication rules

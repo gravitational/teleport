@@ -114,11 +114,16 @@ const borders = [
   '32px solid',
 ];
 
+const sansSerif = 'system-ui';
+
 const theme = {
   colors,
   typography,
-  font: fonts.sansSerif,
-  fonts: fonts,
+  font: sansSerif,
+  fonts: {
+    sansSerif,
+    mono: fonts.mono,
+  },
   fontWeights,
   fontSizes,
   space,

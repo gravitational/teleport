@@ -41,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/lib/auth"
@@ -60,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -181,7 +183,7 @@ type Config struct {
 	Access services.Access
 
 	// UsageReporter is a service that reports usage events.
-	UsageReporter services.UsageReporter
+	UsageReporter usagereporter.UsageReporter
 
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfiguration
@@ -412,6 +414,9 @@ func (cfg *Config) DebugDumpToYAML() string {
 type CachePolicy struct {
 	// Enabled enables or disables caching
 	Enabled bool
+	// MaxRetryPeriod is maximum period cache waits before retrying on failure.
+	// Not exposed through the config file, used in tests.
+	MaxRetryPeriod time.Duration
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -524,6 +529,9 @@ type ProxyConfig struct {
 
 	// DisableALPNSNIListener allows turning off the ALPN Proxy listener. Used in tests.
 	DisableALPNSNIListener bool
+
+	// UI provides config options for the web UI
+	UI webclient.UIConfig
 }
 
 // ACME configures ACME automatic certificate renewal

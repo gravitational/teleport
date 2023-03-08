@@ -34,11 +34,11 @@ import (
 	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
+	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	streamutils "github.com/gravitational/teleport/lib/utils/grpc/stream"
 )
 
 // ClientConfig configures a Client instance.
@@ -362,7 +362,7 @@ func (c *Client) DialNode(
 		return nil, trace.Wrap(err)
 	}
 
-	return newStreamConn(streamRW, src, dst), nil
+	return streamutils.NewConn(streamRW, src, dst), nil
 }
 
 // stream is the common subset of the [clientapi.ProxyService_DialNodeClient] and

@@ -169,6 +169,13 @@ func TryRun(commands []CLICommand, args []string) error {
 		return trace.Wrap(err)
 	}
 
+	// Identity files do not currently contain a proxy address. When loading an
+	// Identity file, an auth server address must be passed on the command line
+	// as well.
+	if ccf.IdentityFilePath != "" && len(ccf.AuthServerAddr) == 0 {
+		return trace.BadParameter("tctl --identity also requires --auth-server")
+	}
+
 	// "version" command?
 	if selectedCmd == ver.FullCommand() {
 		utils.PrintVersion()

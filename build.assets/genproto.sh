@@ -21,8 +21,11 @@ main() {
   # Add your protos to the list if you can.
   buf generate --template=buf-go.gen.yaml \
     --path=api/proto/teleport/devicetrust/ \
+    --path=api/proto/teleport/kube/ \
     --path=api/proto/teleport/loginrule/ \
-    --path=api/proto/teleport/proxy/ \
+    --path=api/proto/teleport/plugins/ \
+    --path=api/proto/teleport/samlidp/ \
+    --path=api/proto/teleport/transport/ \
     --path=proto/teleport/lib/multiplexer/ \
     --path=proto/teleport/lib/teleterm/
 

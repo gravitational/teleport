@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { debounce } from 'lodash';
+import { debounce } from 'shared/utils/highbar';
 import styled from 'styled-components';
 import { height, space, color } from 'design/system';
 

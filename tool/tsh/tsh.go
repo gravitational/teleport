@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -31,6 +32,7 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/pprof"
+	runtimetrace "runtime/trace"
 	"sort"
 	"strconv"
 	"strings"
@@ -333,12 +335,16 @@ type CLIConf struct {
 	// LocalProxyPort is a port used by local proxy listener.
 	LocalProxyPort string
 	// LocalProxyCertFile is the client certificate used by local proxy.
+	// DEPRECATED DELETE IN 14.0
 	LocalProxyCertFile string
 	// LocalProxyKeyFile is the client key used by local proxy.
+	// DEPRECATED DELETE IN 14.0
 	LocalProxyKeyFile string
 	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
 	LocalProxyTunnel bool
 
+	// Exec is the command to run via tsh aws.
+	Exec string
 	// AWSRole is Amazon Role ARN or role name that will be used for AWS CLI access.
 	AWSRole string
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
@@ -420,6 +426,12 @@ type CLIConf struct {
 	// parallel.
 	// It shouldn't be used outside testing.
 	kubeConfigPath string
+
+	// Client only version display.  Skips checking proxy version.
+	clientOnlyVersionCheck bool
+
+	// tracer is the tracer used to trace tsh commands.
+	tracer oteltrace.Tracer
 }
 
 // Stdout returns the stdout writer.
@@ -497,15 +509,20 @@ const (
 	proxyEnvVar       = "TELEPORT_PROXY"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
-	siteEnvVar             = "TELEPORT_SITE"
-	userEnvVar             = "TELEPORT_USER"
-	addKeysToAgentEnvVar   = "TELEPORT_ADD_KEYS_TO_AGENT"
-	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
-	globalTshConfigEnvVar  = "TELEPORT_GLOBAL_TSH_CONFIG"
-	mfaModeEnvVar          = "TELEPORT_MFA_MODE"
-	debugEnvVar            = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
-	identityFileEnvVar     = "TELEPORT_IDENTITY_FILE"
-	gcloudSecretEnvVar     = "TELEPORT_GCLOUD_SECRET"
+	siteEnvVar               = "TELEPORT_SITE"
+	userEnvVar               = "TELEPORT_USER"
+	addKeysToAgentEnvVar     = "TELEPORT_ADD_KEYS_TO_AGENT"
+	useLocalSSHAgentEnvVar   = "TELEPORT_USE_LOCAL_SSH_AGENT"
+	globalTshConfigEnvVar    = "TELEPORT_GLOBAL_TSH_CONFIG"
+	mfaModeEnvVar            = "TELEPORT_MFA_MODE"
+	debugEnvVar              = teleport.VerboseLogsEnvVar // "TELEPORT_DEBUG"
+	identityFileEnvVar       = "TELEPORT_IDENTITY_FILE"
+	gcloudSecretEnvVar       = "TELEPORT_GCLOUD_SECRET"
+	awsAccessKeyIDEnvVar     = "TELEPORT_AWS_ACCESS_KEY_ID"
+	awsSecretAccessKeyEnvVar = "TELEPORT_AWS_SECRET_ACCESS_KEY"
+	awsRegionEnvVar          = "TELEPORT_AWS_REGION"
+	awsKeystoreEnvVar        = "TELEPORT_AWS_KEYSTORE"
+	awsWorkgroupEnvVar       = "TELEPORT_AWS_WORKGROUP"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -554,7 +571,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	initLogger(&cf)
 
 	moduleCfg := modules.GetModules()
-	var cpuProfile, memProfile string
+	var cpuProfile, memProfile, traceProfile string
 
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
@@ -566,6 +583,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	app.Flag("user", fmt.Sprintf("Teleport user [%s]", localUser)).Envar(userEnvVar).StringVar(&cf.Username)
 	app.Flag("mem-profile", "Write memory profile to file").Hidden().StringVar(&memProfile)
 	app.Flag("cpu-profile", "Write CPU profile to file").Hidden().StringVar(&cpuProfile)
+	app.Flag("trace-profile", "Write trace profile to file").Hidden().StringVar(&traceProfile)
 	app.Flag("option", "").Short('o').Hidden().AllowDuplicate().PreAction(func(ctx *kingpin.ParseContext) error {
 		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
 	}).String()
@@ -608,8 +626,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		EnumVar(&cf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
 
-	ver := app.Command("version", "Print the version of your tsh binary")
+	ver := app.Command("version", "Print the tsh client and Proxy server versions for the current context.")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
+	ver.Flag("client", "Show the client version only (no server required).").
+		BoolVar(&cf.clientOnlyVersionCheck)
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
 	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node").Interspersed(false)
@@ -648,6 +668,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
 		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
+	aws.Flag("exec", "Execute different commands (e.g. terraform) under Teleport credentials").StringVar(&cf.Exec)
 
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
@@ -702,8 +723,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode")
 	proxyDB.Arg("db", "The name of the database to start local proxy for").Required().StringVar(&cf.DatabaseService)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
-	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").StringVar(&cf.LocalProxyCertFile)
-	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").StringVar(&cf.LocalProxyKeyFile)
+	// --cert-file and --key-file are deprecated in favor of --tunnel flag.
+	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").Hidden().StringVar(&cf.LocalProxyCertFile)
+	proxyDB.Flag("key-file", "Key file for proxy client TLS configuration").Hidden().StringVar(&cf.LocalProxyKeyFile)
 	proxyDB.Flag("tunnel", "Open authenticated tunnel using database's client certificate so clients don't need to authenticate").BoolVar(&cf.LocalProxyTunnel)
 	proxyDB.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
 	proxyDB.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
@@ -959,6 +981,12 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		}
 	}
 
+	// Identity files do not currently contain a proxy address. When loading an
+	// Identity file, a proxy must be passed on the command line as well.
+	if cf.IdentityFileIn != "" && cf.Proxy == "" {
+		return trace.BadParameter("tsh --identity also requires --proxy")
+	}
+
 	// prevent Kingpin from calling os.Exit(), we want to handle errors ourselves.
 	// shouldTerminate will be checked after app.Parse() call.
 	var shouldTerminate *int
@@ -1063,6 +1091,20 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 				return
 			}
 		}()
+	}
+
+	if traceProfile != "" {
+		log.Debugf("writing trace profile to %v", traceProfile)
+		f, err := os.Create(traceProfile)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer f.Close()
+
+		if err := runtimetrace.Start(f); err != nil {
+			return trace.Wrap(err)
+		}
+		defer runtimetrace.Stop()
 	}
 
 	switch command {
@@ -1279,9 +1321,16 @@ func newTraceProvider(cf *CLIConf, command string, ignored []string) (*tracing.P
 
 // onVersion prints version info.
 func onVersion(cf *CLIConf) error {
-	proxyVersion, err := fetchProxyVersion(cf)
-	if err != nil {
-		fmt.Fprintf(cf.Stderr(), "Failed to fetch proxy version: %s\n", err)
+	proxyVersion := ""
+	proxyPublicAddr := ""
+	// Check proxy version if not in client only mode
+	if !cf.clientOnlyVersionCheck {
+		pv, ppa, err := fetchProxyVersion(cf)
+		if err != nil {
+			fmt.Fprintf(cf.Stderr(), "Failed to fetch proxy version: %s\n", err)
+		}
+		proxyVersion = pv
+		proxyPublicAddr = ppa
 	}
 
 	format := strings.ToLower(cf.Format)
@@ -1290,9 +1339,10 @@ func onVersion(cf *CLIConf) error {
 		utils.PrintVersion()
 		if proxyVersion != "" {
 			fmt.Printf("Proxy version: %s\n", proxyVersion)
+			fmt.Printf("Proxy: %s\n", proxyPublicAddr)
 		}
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeVersion(format, proxyVersion)
+		out, err := serializeVersion(format, proxyVersion, proxyPublicAddr)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1305,45 +1355,47 @@ func onVersion(cf *CLIConf) error {
 }
 
 // fetchProxyVersion returns the current version of the Teleport Proxy.
-func fetchProxyVersion(cf *CLIConf) (string, error) {
+func fetchProxyVersion(cf *CLIConf) (string, string, error) {
 	profile, err := cf.ProfileStatus()
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return "", nil
+			return "", "", nil
 		}
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 
 	if profile == nil {
-		return "", nil
+		return "", "", nil
 	}
 
 	tc, err := makeClient(cf, false)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 
 	ctx, cancel := context.WithTimeout(cf.Context, time.Second*5)
 	defer cancel()
 	pingRes, err := tc.Ping(ctx)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", "", trace.Wrap(err)
 	}
 
-	return pingRes.ServerVersion, nil
+	return pingRes.ServerVersion, pingRes.Proxy.SSH.PublicAddr, nil
 }
 
-func serializeVersion(format string, proxyVersion string) (string, error) {
+func serializeVersion(format string, proxyVersion string, proxyPublicAddress string) (string, error) {
 	versionInfo := struct {
-		Version      string `json:"version"`
-		Gitref       string `json:"gitref"`
-		Runtime      string `json:"runtime"`
-		ProxyVersion string `json:"proxyVersion,omitempty"`
+		Version            string `json:"version"`
+		Gitref             string `json:"gitref"`
+		Runtime            string `json:"runtime"`
+		ProxyVersion       string `json:"proxyVersion,omitempty"`
+		ProxyPublicAddress string `json:"proxyPublicAddress,omitempty"`
 	}{
 		teleport.Version,
 		teleport.Gitref,
 		runtime.Version(),
 		proxyVersion,
+		proxyPublicAddress,
 	}
 	var out []byte
 	var err error
@@ -2901,9 +2953,11 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 	// Try to construct an access request for this node.
 	req, err := accessRequestForSSH(cf.Context, tc)
 	if err != nil {
-		// We can't request access to the node or it doesn't exist, return the
-		// original error but put this one in the debug log.
-		log.WithError(err).Debug("unable to request access to node")
+		// We can't request access to the node or we couldn't query the ID. Log
+		// a short debug message in case this is unexpected, but return the
+		// original AccessDenied error from the ssh attempt which is likely to
+		// be far more relevant to the user.
+		log.Debugf("Not attempting to automatically request access, reason: %v", err)
 		return trace.Wrap(origErr)
 	}
 	cf.RequestID = req.GetName()
@@ -3183,6 +3237,9 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		cf.TracingProvider = tracing.NoopProvider()
 	}
 	c.Tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
+	cf.tracer = c.Tracer
+	ctx, span := c.Tracer.Start(cf.Context, "makeClientForProxy/init")
+	defer span.End()
 
 	// ProxyJump is an alias of Proxy flag
 	if cf.ProxyJump != "" {
@@ -3225,7 +3282,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	c.ExplicitUsername = cf.ExplicitUsername
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
-	if err := setClientWebProxyAddr(cf, c); err != nil {
+	if err := setClientWebProxyAddr(ctx, cf, c); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3368,7 +3425,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// Handle gracefully if the profile is empty, the key cannot
 	// be found, or the key isn't supported as an agent key.
 	if profileSiteName != "" {
-		if err := tc.LoadKeyForCluster(profileSiteName); err != nil {
+		if err := tc.LoadKeyForCluster(ctx, profileSiteName); err != nil {
 			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -3527,12 +3584,32 @@ var defaultWebProxyPorts = []int{
 	defaults.HTTPListenPort, teleport.StandardHTTPSPort,
 }
 
+// proxyHostsErrorMsgDefault returns the error message from attempting hosts at
+// different ports for the Web Proxy.
+func proxyHostsErrorMsgDefault(proxyAddress string, ports []int) string {
+	buf := &bytes.Buffer{}
+	buf.WriteString("Teleport proxy not available at proxy address ")
+
+	for i, port := range ports {
+		if i > 0 {
+			buf.WriteString(" or ")
+		}
+		buf.WriteString(proxyAddress)
+		buf.WriteString(":")
+		buf.WriteString(strconv.Itoa(port))
+	}
+
+	return buf.String()
+}
+
 // setClientWebProxyAddr configures the client WebProxyAddr and SSHProxyAddr
 // configuration values. Values that are not fully specified via configuration
 // or command-line options will be deduced if necessary.
 //
 // If successful, setClientWebProxyAddr will modify the client Config in-place.
-func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
+func setClientWebProxyAddr(ctx context.Context, cf *CLIConf, c *client.Config) error {
+	ctx, span := cf.tracer.Start(ctx, "makeClientForProxy/setClientWebProxyAddr")
+	defer span.End()
 	// If the user has specified a proxy on the command line, and one has not
 	// already been specified from configuration...
 
@@ -3545,13 +3622,13 @@ func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
 		proxyAddress := parsedAddrs.WebProxyAddr
 		if parsedAddrs.UsingDefaultWebProxyPort {
 			log.Debug("Web proxy port was not set. Attempting to detect port number to use.")
-			timeout, cancel := context.WithTimeout(context.Background(), proxyDefaultResolutionTimeout)
+			timeout, cancel := context.WithTimeout(ctx, proxyDefaultResolutionTimeout)
 			defer cancel()
 
 			proxyAddress, err = pickDefaultAddr(
 				timeout, cf.InsecureSkipVerify, parsedAddrs.Host, defaultWebProxyPorts)
 			if err != nil {
-				return trace.Wrap(err)
+				return trace.Wrap(err, proxyHostsErrorMsgDefault(parsedAddrs.Host, defaultWebProxyPorts))
 			}
 		}
 

@@ -115,7 +115,7 @@ exports[`rendering of Session Recordings 1`] = `
 .c4 .react-select__control,
 .c4 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -191,7 +191,7 @@ exports[`rendering of Session Recordings 1`] = `
 .c3 .react-select__control,
 .c3 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -646,8 +646,9 @@ exports[`rendering of Session Recordings 1`] = `
           <div
             class="c11"
             color="primary.contrastText"
+            style="white-space: nowrap; text-transform: uppercase;"
           >
-            SHOWING 
+            Showing 
             <strong>
               1
             </strong>

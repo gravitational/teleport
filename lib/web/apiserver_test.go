@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -169,6 +170,12 @@ type webSuiteConfig struct {
 	authPreferenceSpec *types.AuthPreferenceSpecV2
 
 	disableDiskBasedRecording bool
+
+	uiConfig webclient.UIConfig
+
+	// Custom "HealthCheckAppServer" function. Can be used to avoid dialing app
+	// services.
+	HealthCheckAppServer healthCheckAppServerFunc
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -421,7 +428,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 
-	handler, err := NewHandler(Config{
+	handlerConfig := Config{
 		ClusterFeatures:                 *modules.GetModules().Features().ToProto(), // safe to dereference because ToProto creates a struct and return a pointer to it
 		Proxy:                           revTunServer,
 		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
@@ -437,7 +444,15 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		ProxySettings:                   &mockProxySettings{},
 		SessionControl:                  proxySessionController,
 		Router:                          router,
-	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
+		HealthCheckAppServer:            cfg.HealthCheckAppServer,
+		UI:                              cfg.uiConfig,
+	}
+
+	if handlerConfig.HealthCheckAppServer == nil {
+		handlerConfig.HealthCheckAppServer = func(context.Context, string, string) error { return nil }
+	}
+
+	handler, err := NewHandler(handlerConfig, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	require.NoError(t, err)
 
 	s.webServer = httptest.NewUnstartedServer(handler)
@@ -1223,6 +1238,30 @@ func TestNewTerminalHandler(t *testing.T) {
 	require.Equal(t, validCfg.DisplayLogin, term.displayLogin)
 	// newly added
 	require.NotNil(t, term.log)
+}
+
+func TestUIConfig(t *testing.T) {
+	uiConfig := webclient.UIConfig{
+		ScrollbackLines: 555,
+	}
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	s := newWebSuiteWithConfig(t, webSuiteConfig{uiConfig: uiConfig})
+	clt := s.client(t)
+	endpoint := clt.Endpoint("web", "config.js")
+	re, err := clt.Get(ctx, endpoint, nil)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+	t.Cleanup(cancel)
+
+	// Response is type application/javascript, we need to strip off the variable name
+	// and the semicolon at the end, then we are left with json like object.
+	var cfg webclient.WebConfig
+	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
+	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
+	require.NoError(t, err)
+	require.Equal(t, uiConfig, cfg.UI)
 }
 
 func TestResizeTerminal(t *testing.T) {
@@ -2164,6 +2203,7 @@ func TestLogin(t *testing.T) {
 	require.NoError(t, json.Unmarshal(re.Bytes(), &rawSess))
 	cookies := re.Cookies()
 	require.Len(t, cookies, 1)
+	require.NotEmpty(t, rawSess.SessionExpires)
 
 	// now make sure we are logged in by calling authenticated method
 	// we need to supply both session cookie and bearer token for
@@ -3793,22 +3833,10 @@ func TestClusterAppsGet(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Test URIs with tcp is filtered out of result.
-	resource3, err := types.NewAppServerV3(types.Metadata{Name: "server3"}, types.AppServerSpecV3{
-		HostID: "hostid",
-		App: &types.AppV3{
-			Metadata: types.Metadata{Name: "app3"},
-			Spec:     types.AppSpecV3{URI: "tcp://something", PublicAddr: "publicaddrs"},
-		},
-	})
-	require.NoError(t, err)
-
 	// Register apps.
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource2)
-	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource3)
 	require.NoError(t, err)
 
 	// Make the call.
@@ -4548,6 +4576,77 @@ func TestCreateAppSession(t *testing.T) {
 			require.Equal(t, response.CookieValue, sess.GetName())
 			require.NotEmpty(t, response.SubjectCookieValue, "every session should create a secret token")
 			require.Equal(t, response.SubjectCookieValue, sess.GetBearerToken())
+		})
+	}
+}
+
+func TestCreateAppSessionHealthCheckAppServer(t *testing.T) {
+	t.Parallel()
+
+	validApp, err := types.NewAppV3(types.Metadata{
+		Name: "valid",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "valid.example.com",
+	})
+	require.NoError(t, err)
+
+	invalidApp, err := types.NewAppV3(types.Metadata{
+		Name: "invalid",
+	}, types.AppSpecV3{
+		URI:        "http://127.0.0.1:8080",
+		PublicAddr: "invalid.example.com",
+	})
+	require.NoError(t, err)
+
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		HealthCheckAppServer: func(_ context.Context, publicAddr string, _ string) error {
+			// Can only serve "validApp".
+			if publicAddr == validApp.GetPublicAddr() {
+				return nil
+			}
+
+			return trace.ConnectionProblem(nil, "offline AppServer")
+		},
+	})
+
+	for _, app := range []*types.AppV3{validApp, invalidApp} {
+		server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+		require.NoError(t, err)
+		_, err = s.server.Auth().UpsertApplicationServer(s.ctx, server)
+		require.NoError(t, err)
+	}
+
+	pack := s.authPack(t, "foo@example.com")
+	rawCookie := *pack.cookies[0]
+	cookieBytes, err := hex.DecodeString(rawCookie.Value)
+	require.NoError(t, err)
+	var sessionCookie SessionCookie
+	err = json.Unmarshal(cookieBytes, &sessionCookie)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc       string
+		publicAddr string
+		expectErr  require.ErrorAssertionFunc
+	}{
+		{
+			desc:       "request to application that can be served",
+			publicAddr: validApp.GetPublicAddr(),
+			expectErr:  require.NoError,
+		},
+		{
+			desc:       "request to application that cannot be served",
+			publicAddr: invalidApp.GetPublicAddr(),
+			expectErr:  require.Error,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+			_, err := pack.clt.PostJSON(s.ctx, endpoint, &CreateAppSessionRequest{
+				FQDNHint: tc.publicAddr,
+			})
+			tc.expectErr(t, err)
 		})
 	}
 }
@@ -5714,7 +5813,8 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 					Type:    types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
 					Details: "User-associated roles do not configure \"kubernetes_groups\" or \"kubernetes_users\". Make sure that at least one is configured for the user.",
-					Error:   "this user cannot request kubernetes access, has no assigned groups or users",
+					Error: "Your user's Teleport role does not allow Kubernetes access." +
+						" Please ask cluster administrator to ensure your role has appropriate kubernetes_groups and kubernetes_users set.",
 				},
 			},
 		},
@@ -6419,7 +6519,7 @@ func (mock authProviderMock) GetNodes(ctx context.Context, n string) ([]types.Se
 	return []types.Server{&mock.server}, nil
 }
 
-func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int, p bool) ([]events.EventFields, error) {
+func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int) ([]events.EventFields, error) {
 	return []events.EventFields{}, nil
 }
 
@@ -6876,20 +6976,21 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
-		Proxy:            revTunServer,
-		AuthServers:      utils.FromAddr(authServer.Addr()),
-		DomainName:       authServer.ClusterName(),
-		ProxyClient:      client,
-		ProxyPublicAddrs: utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
-		CipherSuites:     utils.DefaultCipherSuites(),
-		AccessPoint:      client,
-		Context:          ctx,
-		HostUUID:         proxyID,
-		Emitter:          client,
-		StaticFS:         fs,
-		ProxySettings:    &mockProxySettings{},
-		SessionControl:   sessionController,
-		Router:           router,
+		Proxy:                revTunServer,
+		AuthServers:          utils.FromAddr(authServer.Addr()),
+		DomainName:           authServer.ClusterName(),
+		ProxyClient:          client,
+		ProxyPublicAddrs:     utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
+		CipherSuites:         utils.DefaultCipherSuites(),
+		AccessPoint:          client,
+		Context:              ctx,
+		HostUUID:             proxyID,
+		Emitter:              client,
+		StaticFS:             fs,
+		ProxySettings:        &mockProxySettings{},
+		SessionControl:       sessionController,
+		Router:               router,
+		HealthCheckAppServer: func(context.Context, string, string) error { return nil },
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
@@ -7431,6 +7532,11 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		component = teleport.ComponentKube
 	}
 
+	proxySigner := &mockPROXYSigner{}
+	if cfg.serviceType == kubeproxy.KubeService {
+		proxySigner = nil
+	}
+
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
 			Namespace:         apidefaults.Namespace,
@@ -7448,6 +7554,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			Component:         component,
 			LockWatcher:       proxyLockWatcher,
 			ReverseTunnelSrv:  cfg.revTunnel,
+			PROXYSigner:       proxySigner,
 			// skip Impersonation validation
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
 				return nil
@@ -7757,6 +7864,14 @@ func TestForwardingTraces(t *testing.T) {
 	}
 }
 
+type mockPROXYSigner struct {
+}
+
+func (m *mockPROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, error) {
+	return nil, nil
+
+}
+
 type mockTraceClient struct {
 	uploadError    error
 	uploadReceived chan struct{}
@@ -7833,6 +7948,54 @@ func TestLogout(t *testing.T) {
 	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
 }
 
+func TestGetIsDashboard(t *testing.T) {
+	tt := []struct {
+		name     string
+		features clientproto.Features
+		expected bool
+	}{
+		{
+			name: "not cloud nor recovery codes is not dashboard",
+			features: clientproto.Features{
+				Cloud:         false,
+				RecoveryCodes: false,
+			},
+			expected: false,
+		},
+		{
+			name: "not cloud, with recovery codes is dashboard",
+			features: clientproto.Features{
+				Cloud:         false,
+				RecoveryCodes: true,
+			},
+			expected: true,
+		},
+		{
+			name: "cloud, with recovery codes is not dashboard",
+			features: clientproto.Features{
+				Cloud:         true,
+				RecoveryCodes: true,
+			},
+			expected: false,
+		},
+		{
+			name: "cloud, without recovery codes is not dashboard",
+			features: clientproto.Features{
+				Cloud:         true,
+				RecoveryCodes: false,
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			result := isDashboard(tc.features)
+			require.Equal(t, tc.expected, result)
+		})
+	}
+}
+
 // initGRPCServer creates a grpc server serving on the provided listener.
 func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	clusterName := env.server.ClusterName()
@@ -7851,10 +8014,17 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		AccessPoint:   proxyAuthClient,
+		ClusterName:   clusterName,
 		Limiter:       limiter,
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}
+
+	tlsConf := copyAndConfigureTLS(tlsConfig, logrus.New(), proxyAuthClient, clusterName)
+	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
+		TransportCredentials: credentials.NewTLS(tlsConf),
+		UserGetter:           authMiddleware,
+	})
+	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
@@ -7863,9 +8033,7 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 		grpc.ChainStreamInterceptor(
 			authMiddleware.StreamInterceptor(),
 		),
-		grpc.Creds(credentials.NewTLS(
-			copyAndConfigureTLS(tlsConfig, logrus.New(), proxyAuthClient, clusterName),
-		)),
+		grpc.Creds(creds),
 	)
 
 	kubeproto.RegisterKubeServiceServer(grpcServer, &fakeKubeService{})

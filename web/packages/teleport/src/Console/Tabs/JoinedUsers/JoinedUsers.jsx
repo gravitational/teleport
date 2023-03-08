@@ -19,7 +19,7 @@ import styled from 'styled-components';
 import Popover from 'design/Popover';
 import theme from 'design/theme';
 import { Box } from 'design';
-import { debounce } from 'lodash';
+import { debounce } from 'shared/utils/highbar';
 
 export default function JoinedUsers(props) {
   const { active, users, open = false, ml, mr } = props;
