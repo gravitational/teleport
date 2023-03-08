@@ -39,6 +39,7 @@ With lables added to determine which services to create alerts in for each plugi
 
 ```
 plugin_service:
+    enabled: true
     resources:
     - "type": "opsgenie"
       "team": "someOpsgenieServiceName" # Used to determine which service to create alerts in.
@@ -55,7 +56,6 @@ metadata:
 spec:
   addr: "example.app.opsgenie.com" # Address of Opsgenie
   priority: "2" # Priority to create Opsgenie alerts with
-  request_annotations: ["service1, service2"] # Opsgeneie services to create alerts in
   alert_tags: ["example-tag"] # List of tags to be added to alerts created in Opsgenie
 ```
 
