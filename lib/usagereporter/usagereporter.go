@@ -322,7 +322,7 @@ func (r *UsageReporter[T]) Run(ctx context.Context) {
 				usageEventsDropped.Add(float64(len(events) - keep))
 			}
 
-			if len(events) <= 0 {
+			if len(events) == 0 {
 				break
 			}
 
