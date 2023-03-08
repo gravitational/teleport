@@ -1,4 +1,4 @@
-name: Lint (Terraform)
+name: Security (Terraform)
 
 on:
   push:
@@ -22,8 +22,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  terraform-lint:
-    uses: gravitational/shared-workflows/.github/workflows/terraform-lint.yaml@main
+  terraform-security:
+    uses: gravitational/shared-workflows/.github/workflows/terraform-security.yaml@bb1ea08b3088de8804664493d3d9b14f4742db5a
     permissions:
       actions: read
       contents: read
