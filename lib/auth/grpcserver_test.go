@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -791,7 +792,7 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 		{
 			name: "user with device extensions",
 			modifyUser: func(u *TestIdentity) {
-				lu := u.I.(LocalUser)
+				lu := u.I.(authz.LocalUser)
 				lu.Identity.DeviceExtensions = *wantExtensions
 				u.I = lu
 			},
@@ -864,7 +865,7 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 		{
 			name: "user with device extensions",
 			modifyUser: func(u *TestIdentity) {
-				lu := u.I.(LocalUser)
+				lu := u.I.(authz.LocalUser)
 				lu.Identity.DeviceExtensions = *wantExtensions
 				u.I = lu
 			},
@@ -1444,7 +1445,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				u.TTL = 1 * time.Hour
 
 				// Add device extensions to the fake user's identity.
-				localUser := u.I.(LocalUser)
+				localUser := u.I.(authz.LocalUser)
 				localUser.Identity.DeviceExtensions = wantDeviceExtensions
 				u.I = localUser
 
@@ -1487,7 +1488,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				u.TTL = 1 * time.Hour
 
 				// Add device extensions to the fake user's identity.
-				localUser := u.I.(LocalUser)
+				localUser := u.I.(authz.LocalUser)
 				localUser.Identity.DeviceExtensions = wantDeviceExtensions
 				u.I = localUser
 
@@ -3014,11 +3015,11 @@ func TestCustomRateLimiting(t *testing.T) {
 }
 
 type mockAuthorizer struct {
-	ctx *Context
+	ctx *authz.Context
 	err error
 }
 
-func (a mockAuthorizer) Authorize(context.Context) (*Context, error) {
+func (a mockAuthorizer) Authorize(context.Context) (*authz.Context, error) {
 	return a.ctx, a.err
 }
 
@@ -3217,7 +3218,7 @@ func TestExport(t *testing.T) {
 		errAssertion      require.ErrorAssertionFunc
 		uploadedAssertion require.ValueAssertionFunc
 		spans             []*otlptracev1.ResourceSpans
-		authorizer        Authorizer
+		authorizer        authz.Authorizer
 		mockTraceClient   mockTraceClient
 	}{
 		{
@@ -3315,7 +3316,7 @@ func TestGRPCServer_CreateToken(t *testing.T) {
 	// Allow us to directly invoke the deprecated gRPC methods with
 	// authentication.
 	user := TestAdmin()
-	ctx = context.WithValue(ctx, ContextUser, user.I)
+	ctx = context.WithValue(ctx, authz.ContextUser, user.I)
 
 	// Test default expiry is applied.
 	t.Run("undefined-expiry", func(t *testing.T) {
@@ -3402,7 +3403,7 @@ func TestGRPCServer_UpsertToken(t *testing.T) {
 	// Allow us to directly invoke the deprecated gRPC methods with
 	// authentication.
 	user := TestAdmin()
-	ctx = context.WithValue(ctx, ContextUser, user.I)
+	ctx = context.WithValue(ctx, authz.ContextUser, user.I)
 
 	// Test default expiry is applied.
 	t.Run("undefined-expiry", func(t *testing.T) {
@@ -3603,7 +3604,7 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 	grpc := server.TLSServer.grpcServer
 
 	user := TestAdmin()
-	ctx = context.WithValue(ctx, ContextUser, user.I)
+	ctx = context.WithValue(ctx, authz.ContextUser, user.I)
 
 	tests := []struct {
 		name               string

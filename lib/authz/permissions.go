@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package auth
+package authz
 
 import (
 	"context"
@@ -41,7 +41,7 @@ func NewAdminContext() (*Context, error) {
 
 // NewBuiltinRoleContext create auth context for the provided builtin role.
 func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
-	authContext, err := contextForBuiltinRole(BuiltinRole{Role: role, Username: fmt.Sprintf("%v", role)}, nil)
+	authContext, err := ContextForBuiltinRole(BuiltinRole{Role: role, Username: fmt.Sprintf("%v", role)}, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -272,7 +272,7 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 
 // authorizeLocalUser returns authz context based on the username
 func (a *authorizer) authorizeLocalUser(u LocalUser) (*Context, error) {
-	return contextForLocalUser(u, a.accessPoint, a.clusterName, a.disableDeviceAuthorization)
+	return ContextForLocalUser(u, a.accessPoint, a.clusterName, a.disableDeviceAuthorization)
 }
 
 // authorizeRemoteUser returns checker based on cert authority roles
@@ -370,7 +370,7 @@ func (a *authorizer) authorizeBuiltinRole(ctx context.Context, r BuiltinRole) (*
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return contextForBuiltinRole(r, recConfig)
+	return ContextForBuiltinRole(r, recConfig)
 }
 
 func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, error) {
@@ -792,7 +792,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	return nil, trace.NotFound("builtin role %q is not recognized", role.String())
 }
 
-func contextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig) (*Context, error) {
+func ContextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig) (*Context, error) {
 	var systemRoles []types.SystemRole
 	if r.Role == types.RoleInstance {
 		// instance certs encode multiple system roles in a separate field
@@ -833,7 +833,7 @@ func contextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 	}, nil
 }
 
-func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, clusterName string, disableDeviceAuthz bool) (*Context, error) {
+func ContextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, clusterName string, disableDeviceAuthz bool) (*Context, error) {
 	// User has to be fetched to check if it's a blocked username
 	user, err := accessPoint.GetUser(u.Username, false)
 	if err != nil {
@@ -869,10 +869,10 @@ func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, cluster
 type contextKey string
 
 const (
-	// contextUserCertificate is the X.509 certificate used by the ContextUser to
+	// ContextUserCertificate is the X.509 certificate used by the ContextUser to
 	// establish the mTLS connection.
 	// Holds a *x509.Certificate.
-	contextUserCertificate contextKey = "teleport-user-cert"
+	ContextUserCertificate contextKey = "teleport-user-cert"
 
 	// ContextUser is a user set in the context of the request
 	ContextUser contextKey = "teleport-user"

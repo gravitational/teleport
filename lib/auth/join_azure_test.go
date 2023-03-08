@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
@@ -384,7 +385,7 @@ func TestAuth_RegisterUsingAzureMethod(t *testing.T) {
 			require.NoError(t, err)
 
 			reqCtx := context.Background()
-			reqCtx = context.WithValue(reqCtx, ContextClientAddr, &net.IPAddr{})
+			reqCtx = context.WithValue(reqCtx, authz.ContextClientAddr, &net.IPAddr{})
 
 			vmResult := tc.vmResult
 			if vmResult == nil {
