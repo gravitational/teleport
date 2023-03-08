@@ -184,7 +184,7 @@ func mustWriteIdentityFile(t *testing.T, fc *config.FileConfig, username string)
 type testServerOptions struct {
 	fileConfig      *config.FileConfig
 	fileDescriptors []service.FileDescriptor
-	useFakeClock    bool
+	fakeClock       time.Time
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -201,9 +201,9 @@ func withFileDescriptors(fds []service.FileDescriptor) testServerOptionFunc {
 	}
 }
 
-func withFakeClock() testServerOptionFunc {
+func withFakeClock(clock time.Time) testServerOptionFunc {
 	return func(options *testServerOptions) {
-		options.useFakeClock = true
+		options.fakeClock = clock
 	}
 }
 
@@ -226,10 +226,8 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	auth, err = service.NewTeleport(cfg)
-	if options.useFakeClock {
-		c := clockwork.NewFakeClockAt(
-			time.Date(2006, time.January, 2, 15, 4, 5, 0, time.UTC))
-		auth.GetAuthServer().SetClock(c)
+	if !options.fakeClock.IsZero() {
+		auth.GetAuthServer().SetClock(clockwork.NewFakeClockAt(options.fakeClock))
 	}
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())

@@ -400,7 +400,8 @@ func TestCreateLock(t *testing.T) {
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors), withFakeClock())
+	timeNow := time.Now().UTC()
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors), withFakeClock(timeNow))
 
 	_, err := types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{
@@ -436,12 +437,11 @@ func TestCreateLock(t *testing.T) {
 		},
 		Message: "Come see me",
 	})
-	expected.SetCreatedBy("admin")
+	expected.SetCreatedBy(string(types.RoleAdmin))
 	require.NoError(t, err)
 
-	dt, err := time.Parse(time.DateTime, "2006-01-02 15:04:05")
 	require.NoError(t, err)
-	expected.SetCreatedAt(dt)
+	expected.SetCreatedAt(timeNow)
 
 	require.Empty(t, cmp.Diff([]*types.LockV2{expected.(*types.LockV2)}, locks,
 		cmpopts.IgnoreFields(types.LockV2{}, "Metadata")))
