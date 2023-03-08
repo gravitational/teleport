@@ -50,13 +50,14 @@ plugin_service:
 The Opsgenie plugin (and any others created) can then be configured using resources. 
 Example plugin.yaml for Opsgenie.
 ```
-kind: opsgenie
+kind: plugin
 metadata:
   name: opsgenie-plugin
 spec:
-  addr: "example.app.opsgenie.com" # Address of Opsgenie
-  priority: "2" # Priority to create Opsgenie alerts with
-  alert_tags: ["example-tag"] # List of tags to be added to alerts created in Opsgenie
+  opsgenie:
+    addr: "example.app.opsgenie.com" # Address of Opsgenie
+    priority: "2" # Priority to create Opsgenie alerts with
+    alert_tags: ["example-tag"] # List of tags to be added to alerts created in Opsgenie
 ```
 
 The logging configuration will be shared with the main Teleport process.
