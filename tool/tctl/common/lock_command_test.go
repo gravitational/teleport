@@ -49,7 +49,7 @@ func TestLocks(t *testing.T) {
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors), withFakeClock())
 
 	t.Run("create", func(t *testing.T) {
 		err := runLockCommand(t, fileConfig, []string{"--user=bad@actor", "--message=Come see me"})
@@ -66,10 +66,10 @@ func TestLocks(t *testing.T) {
 			},
 			Message: "Come see me",
 		})
-		expected.SetCreatedBy("admin")
 		require.NoError(t, err)
+		expected.SetCreatedBy("admin")
 
-		dt, err := time.Parse(time.DateTime, "1984-04-04 00:00:00")
+		dt, err := time.Parse(time.DateTime, "2006-01-02 15:04:05")
 		require.NoError(t, err)
 		expected.SetCreatedOn(&dt)
 

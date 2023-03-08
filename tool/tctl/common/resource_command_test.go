@@ -400,7 +400,7 @@ func TestCreateLock(t *testing.T) {
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors), withFakeClock())
 
 	_, err := types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{
@@ -439,7 +439,7 @@ func TestCreateLock(t *testing.T) {
 	expected.SetCreatedBy("admin")
 	require.NoError(t, err)
 
-	dt, err := time.Parse(time.DateTime, "1984-04-04 00:00:00")
+	dt, err := time.Parse(time.DateTime, "2006-01-02 15:04:05")
 	require.NoError(t, err)
 	expected.SetCreatedOn(&dt)
 
