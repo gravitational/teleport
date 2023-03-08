@@ -21,3 +21,7 @@ import "github.com/gravitational/teleport/lib/service"
 // Config is a temporary alias to aid in migrating configuration
 // from lib/service to lib/service/servicecfg.
 type Config = service.Config
+
+type AuthConfig = service.AuthConfig
+
+type ProxyConfig = service.ProxyConfig
