@@ -23,6 +23,7 @@ import (
 
 // The following are all temporary aliases to ensure that e still compiles
 // while we migrate it over.
+// TODO(mdwn): Cleanup authorizer aliases after transition.
 type Authorizer = authz.Authorizer
 type Context = authz.Context
 type LocalUser = authz.LocalUser

@@ -797,6 +797,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	return nil, trace.NotFound("builtin role %q is not recognized", role.String())
 }
 
+// ContextForBuiltinRole returns a context with the builtin role information embedded.
 func ContextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig) (*Context, error) {
 	var systemRoles []types.SystemRole
 	if r.Role == types.RoleInstance {
@@ -838,6 +839,7 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 	}, nil
 }
 
+// ContextForLocalUser returns a context with the local user info embedded.
 func ContextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, clusterName string, disableDeviceAuthz bool) (*Context, error) {
 	// User has to be fetched to check if it's a blocked username
 	user, err := accessPoint.GetUser(u.Username, false)

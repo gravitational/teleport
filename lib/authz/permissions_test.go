@@ -36,9 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-const (
-	clusterName = "test-cluster"
-)
+const clusterName = "test-cluster"
 
 func TestContextLockTargets(t *testing.T) {
 	t.Parallel()
@@ -457,6 +455,10 @@ func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, Authori
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		require.NoError(t, backend.Close())
+	})
+
 	clusterConfig, err := local.NewClusterConfigurationService(backend)
 	require.NoError(t, err)
 	caSvc := local.NewCAService(backend)
@@ -464,7 +466,9 @@ func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, Authori
 	identitySvc := local.NewIdentityService(backend)
 	eventsSvc := local.NewEventsService(backend)
 
-	testClient := &testClient{
+	accessSvc.Close()
+
+	client := &testClient{
 		ClusterConfiguration: clusterConfig,
 		Trust:                caSvc,
 		Access:               accessSvc,
@@ -474,17 +478,17 @@ func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, Authori
 
 	// Set default singletons
 	ctx := context.Background()
-	testClient.SetAuthPreference(ctx, types.DefaultAuthPreference())
-	testClient.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
-	testClient.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
-	testClient.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	client.SetAuthPreference(ctx, types.DefaultAuthPreference())
+	client.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig())
+	client.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	client.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
 
 	lockSvc := local.NewAccessService(backend)
 
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "test",
-			Client:    testClient,
+			Client:    client,
 		},
 		LockGetter: lockSvc,
 	})
@@ -492,16 +496,16 @@ func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, Authori
 
 	authorizer, err := NewAuthorizer(AuthorizerOpts{
 		ClusterName: clusterName,
-		AccessPoint: testClient,
+		AccessPoint: client,
 		LockWatcher: lockWatcher,
 	})
 	require.NoError(t, err)
 
-	return testClient, lockWatcher, authorizer
+	return client, lockWatcher, authorizer
 }
 
 func createUserAndRole(client *testClient, username string, allowedLogins []string, allowRules []types.Rule) (types.User, types.Role, error) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	user, err := types.NewUser(username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
