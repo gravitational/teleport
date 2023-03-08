@@ -35,29 +35,44 @@ Users are also able to configure auto approval flows to be met under certain con
 ## Configuration UX
 
 The plugin service will be configured using the existing Teleport YAML file in a section called 'plugin_service'.
-With lables added to determine which services to create alerts in for each plugin.
 
 ```
 plugin_service:
     enabled: true
     resources:
     - "type": "opsgenie"
-      "team": "someOpsgenieServiceName" # Used to determine which service to create alerts in.
-    - "type": "someOtherPlugin"
-      "team": "someOtherService"
+    - "type": "pagerduty"
+    opsgenie:
+        api_key: "path/to/key.txt" # Path to a file containing the Opsgenie API key
 ```
+This example would only match plugin resources with the the labels 'type:opsgenie', or 'type:slack'.
 
 The Opsgenie plugin (and any others created) can then be configured using resources. 
-Example plugin.yaml for Opsgenie.
+Example plugin.yaml for Opsgenie that would match with this.
 ```
 kind: plugin
 metadata:
   name: opsgenie-plugin
+    labels:
+        type: opsgenie
 spec:
   opsgenie:
     addr: "example.app.opsgenie.com" # Address of Opsgenie
     priority: "2" # Priority to create Opsgenie alerts with
     alert_tags: ["example-tag"] # List of tags to be added to alerts created in Opsgenie
+    default_shedules: ["shedule1"] # Default on-call shedules to check if none are provided in the access request annotations
+```
+
+Given the above example teleport.yaml the following plugin resource will not match.
+```
+kind: plugin
+metadata:
+  name: slack-plugin
+    labels:
+        type: slack
+spec:
+  slack:
+    addr: "example.slack.com"
 ```
 
 The logging configuration will be shared with the main Teleport process.
@@ -97,19 +112,22 @@ spec:
     request:
       roles: [someOtherRole]
       annotations:
-        opsgenie_services: ["service1", "service2"]
+        opsgenie_services: ["service1", "service2"] # These are the Opsgenie services alerts will be created under
 ```
 
 ## Implementation details
+
 ### Plugin service
-TODO: Add implemnetation details for plugin_service
+The 'plugin_service' when enabled will watch for 'plugin' resources matching the labels specified in teleport.yaml.
+When a plugin resource matching these labels is created the appropriate plugin will be started.
+In the case of the Opsgenie plugin, this will fail in the event the API key file field is not filled in teleport.yaml
 
 ### Opsgenie plugin
 In this section we will take a look at how the plugin will interact with the Opsgenie API.
 
 ### Authorization
 
-The plugin will use the API key provided in the Opsgenie config file when interacting with the Opsgenie API. This API key will be included in the headers of the requests made.
+The plugin will use the API key provided in the teleport.yaml config file when interacting with the Opsgenie API. This API key will be included in the headers of the requests made.
 
 ```
 Header Key: Authorization
