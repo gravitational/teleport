@@ -14,7 +14,12 @@
 
 package auth
 
-import "github.com/gravitational/teleport/lib/authz"
+import (
+	"context"
+
+	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/authz"
+)
 
 // The following are all temporary aliases to ensure that e still compiles
 // while we migrate it over.
@@ -23,5 +28,10 @@ type Context = authz.Context
 type LocalUser = authz.LocalUser
 type AuthorizerOpts = authz.AuthorizerOpts
 
-var NewAuthorizer = authz.NewAuthorizer
-var ClientUserMetadata = authz.ClientUserMetadata
+func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
+	return authz.NewAuthorizer(opts)
+}
+
+func ClientUserMetadata(ctx context.Context) events.UserMetadata {
+	return authz.ClientUserMetadata(ctx)
+}
