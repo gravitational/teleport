@@ -15,7 +15,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/devicetrust"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 type osType = string
@@ -43,7 +43,7 @@ type Command struct {
 	lock   lockCommand
 }
 
-func (c *Command) Initialize(app *kingpin.Application, cfg *service.Config) {
+func (c *Command) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 	devicesCmd := app.Command("devices", "Register and manage trusted devices").Hidden()
 
 	addCmd := devicesCmd.Command("add", "Register managed devices")

@@ -24,14 +24,14 @@ import (
 	"github.com/gravitational/teleport/e/lib/idp/saml"
 	"github.com/gravitational/teleport/e/lib/web"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // initSAMLIdP initializes the SAML IdP.
 //
 //nolint:revive // Because we want this to be IdP.
-func initSAMLIdP(ctx context.Context, cfg *service.Config, plugin *web.Plugin) error {
+func initSAMLIdP(ctx context.Context, cfg *servicecfg.Config, plugin *web.Plugin) error {
 	log := cfg.Log.WithField(trace.Component, "samlidp")
 	authClient := plugin.GetProxyClient()
 	accessPoint := plugin.GetAccessPoint()

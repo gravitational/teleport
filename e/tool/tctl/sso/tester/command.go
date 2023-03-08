@@ -7,7 +7,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
 )
 
@@ -18,7 +18,7 @@ type SSOTestCommandE struct {
 
 // Initialize allows a caller-defined command to plug itself into CLI
 // argument parsing
-func (cmd *SSOTestCommandE) Initialize(app *kingpin.Application, cfg *service.Config) {
+func (cmd *SSOTestCommandE) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 	cmd.base.Initialize(app, cfg)
 
 	cmd.base.Handlers[types.KindSAMLConnector] = handleSAMLConnector

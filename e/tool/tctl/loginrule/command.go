@@ -17,14 +17,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/loginrule"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	osstctlloginrule "github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
 type subcommand interface {
-	initialize(parent *kingpin.CmdClause, cfg *service.Config)
+	initialize(parent *kingpin.CmdClause, cfg *servicecfg.Config)
 	tryRun(ctx context.Context, selectedCommand string, c auth.ClientI) (match bool, err error)
 }
 
@@ -34,7 +34,7 @@ type Command struct {
 }
 
 // Initialize installs the base "login_rule" command and all subcommands.
-func (t *Command) Initialize(app *kingpin.Application, cfg *service.Config) {
+func (t *Command) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 	loginRuleCommand := app.Command("login_rule", "Test login rules")
 
 	t.subcommands = []subcommand{
@@ -73,7 +73,7 @@ type testCommand struct {
 	outputFormat       string
 }
 
-func (t *testCommand) initialize(parent *kingpin.CmdClause, cfg *service.Config) {
+func (t *testCommand) initialize(parent *kingpin.CmdClause, cfg *servicecfg.Config) {
 	t.cmd = parent.Command("test", "Test the parsing and evaluation of login rules")
 	t.cmd.Flag("resource-file", "login rule resource file name (YAML or JSON)").StringsVar(&t.inputResourceFiles)
 	t.cmd.Flag("load-from-cluster", "load existing login rules from the connected Teleport cluster").BoolVar(&t.loadFromCluster)

@@ -6,7 +6,7 @@ import (
 	"github.com/gravitational/kingpin"
 
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure"
 )
 
@@ -18,7 +18,7 @@ type SSOConfigureCommandE struct {
 
 // Initialize allows a caller-defined command to plug itself into CLI
 // argument parsing
-func (cmd *SSOConfigureCommandE) Initialize(app *kingpin.Application, cfg *service.Config) {
+func (cmd *SSOConfigureCommandE) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 	cmd.base.Initialize(app, cfg)
 	cmd.base.AuthCommands = append(cmd.base.AuthCommands, addSAMLCommand(&cmd.base))
 	cmd.base.AuthCommands = append(cmd.base.AuthCommands, addOIDCCommand(&cmd.base))

@@ -11,7 +11,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -19,12 +19,12 @@ func TestProxyWithoutLicense(t *testing.T) {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{})
 	require.NoError(t, err)
 
-	config := &service.Config{
+	config := &servicecfg.Config{
 		DataDir: t.TempDir(),
-		Proxy: service.ProxyConfig{
+		Proxy: servicecfg.ProxyConfig{
 			Enabled: true,
 		},
-		Auth: service.AuthConfig{
+		Auth: servicecfg.AuthConfig{
 			Enabled:    false,
 			Preference: authPreference,
 		},
@@ -48,9 +48,9 @@ func TestModulesSetBeforeAuth(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	config := &service.Config{
+	config := &servicecfg.Config{
 		DataDir: "", // Invalid data dir
-		Auth: service.AuthConfig{
+		Auth: servicecfg.AuthConfig{
 			Enabled: true,
 			StorageConfig: backend.Config{
 				Type: lite.GetName(),
@@ -82,9 +82,9 @@ func TestMissingLicenseError(t *testing.T) {
 	})
 	require.Nil(t, err)
 
-	config := &service.Config{
+	config := &servicecfg.Config{
 		DataDir: t.TempDir(),
-		Auth: service.AuthConfig{
+		Auth: servicecfg.AuthConfig{
 			Enabled: true,
 			StorageConfig: backend.Config{
 				Type: lite.GetName(),

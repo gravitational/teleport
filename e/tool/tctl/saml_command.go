@@ -8,12 +8,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // implements common.CLICommand interface
 type SAMLCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	exportCmd *kingpin.CmdClause
 
@@ -23,7 +23,7 @@ type SAMLCommand struct {
 
 // Initialize allows a caller-defined command to plug itself into CLI
 // argument parsing
-func (cmd *SAMLCommand) Initialize(app *kingpin.Application, cfg *service.Config) {
+func (cmd *SAMLCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 	cmd.config = cfg
 
 	saml := app.Command("saml", "Operations on SAML auth connectors")

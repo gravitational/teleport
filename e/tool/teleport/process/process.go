@@ -16,10 +16,11 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // NewTeleport initializes a new Teleport Enterprise process
-func NewTeleport(cfg *service.Config) (service.Process, error) {
+func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 	// Only the auth service requires a license. Load it first so it can
 	// be used by auth plugins.
 	var licenseFile *licensefile.LicenseFile
