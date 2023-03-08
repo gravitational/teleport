@@ -105,9 +105,7 @@ func TestClient_ClusterDetails(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
 
 			pack := newServer(t, test.server)
 
@@ -220,9 +218,7 @@ func TestClient_DialCluster(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
 
 			pack := newServer(t, test.server)
 
@@ -542,9 +538,7 @@ func TestClient_DialHost(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
 
 			pack := newServer(t, test.server)
 

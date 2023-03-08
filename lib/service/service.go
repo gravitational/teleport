@@ -1673,12 +1673,15 @@ func (process *TeleportProcess) initAuthService() error {
 		log.Infof("Starting Auth service with external PROXY protocol support.")
 	}
 
+	muxCAGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+		return authServer.GetCertAuthority(ctx, id, loadKeys)
+	}
 	// use multiplexer to leverage support for proxy protocol.
 	mux, err := multiplexer.New(multiplexer.Config{
 		EnableExternalProxyProtocol: cfg.Auth.EnableProxyProtocol,
 		Listener:                    listener,
 		ID:                          teleport.Component(process.id),
-		CertAuthorityGetter:         authServer,
+		CertAuthorityGetter:         muxCAGetter,
 		LocalClusterName:            clusterName,
 	})
 	if err != nil {
@@ -1929,6 +1932,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Component:               teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
 		MetricComponent:         teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
 		Tracer:                  process.TracingProvider.Tracer(teleport.ComponentCache),
+		MaxRetryPeriod:          process.Config.CachePolicy.MaxRetryPeriod,
 		Unstarted:               cfg.unstarted,
 	}))
 }
@@ -2310,6 +2314,10 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
+		caGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+			return authClient.GetCertAuthority(ctx, id, loadKeys)
+		}
+
 		s, err := regular.New(
 			process.ExitContext(),
 			cfg.SSH.Addr,
@@ -2346,6 +2354,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetInventoryControlHandle(process.inventoryHandle),
 			regular.SetTracerProvider(process.TracingProvider),
 			regular.SetSessionController(sessionController),
+			regular.SetCAGetter(caGetter),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2365,20 +2374,7 @@ func (process *TeleportProcess) initSSH() error {
 			utils.Consolef(cfg.Console, log, teleport.ComponentNode, "Service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, cfg.SSH.Addr.Addr)
 
-			sshListener, err := multiplexer.NewPROXYEnabledListener(multiplexer.Config{
-				Listener:                    listener,
-				Context:                     process.ExitContext(),
-				EnableExternalProxyProtocol: false,
-				ID:                          teleport.Component(teleport.ComponentNode, fmt.Sprintf("%d", time.Now().Unix())),
-				CertAuthorityGetter:         conn.Client,
-				LocalClusterName:            clusterName.GetClusterName(),
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			// Start the SSH server. This kicks off updating labels, starting the
-			// heartbeat, and accepting connections.
-			go s.Serve(limiter.WrapListener(sshListener))
+			go s.Serve(limiter.WrapListener(listener))
 		} else {
 			// Start the SSH server. This kicks off updating labels and starting the
 			// heartbeat.
@@ -3075,6 +3071,10 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	var err error
 	var listeners proxyListeners
 
+	muxCAGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+		return accessPoint.GetCertAuthority(ctx, id, loadKeys)
+	}
+
 	if !cfg.Proxy.SSHAddr.IsEmpty() {
 		l, err := process.importOrCreateListener(ListenerProxySSH, cfg.Proxy.SSHAddr.Addr)
 		if err != nil {
@@ -3085,7 +3085,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			Listener:                    l,
 			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			ID:                          teleport.Component(teleport.ComponentProxy, "ssh"),
-			CertAuthorityGetter:         accessPoint,
+			CertAuthorityGetter:         muxCAGetter,
 			LocalClusterName:            clusterName,
 		})
 		if err != nil {
@@ -3179,7 +3179,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			Listener:                    listener,
 			ID:                          teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
-			CertAuthorityGetter:         accessPoint,
+			CertAuthorityGetter:         muxCAGetter,
 			LocalClusterName:            clusterName,
 		})
 		if err != nil {
@@ -3209,7 +3209,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			Listener:                    listener,
 			ID:                          teleport.Component(teleport.ComponentProxy, "web", process.id),
-			CertAuthorityGetter:         accessPoint,
+			CertAuthorityGetter:         muxCAGetter,
 			LocalClusterName:            clusterName,
 		})
 		if err != nil {
@@ -3263,7 +3263,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 					EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 					Listener:                    listener,
 					ID:                          teleport.Component(teleport.ComponentProxy, "web", process.id),
-					CertAuthorityGetter:         accessPoint,
+					CertAuthorityGetter:         muxCAGetter,
 					LocalClusterName:            clusterName,
 				})
 				if err != nil {
@@ -3921,6 +3921,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				KubeServiceType:               kubeServiceType,
 				LockWatcher:                   lockWatcher,
 				CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
+				PROXYSigner:                   proxySigner,
 			},
 			TLS:             tlsConfig,
 			LimiterConfig:   cfg.Proxy.Limiter,
