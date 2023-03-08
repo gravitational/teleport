@@ -784,22 +784,12 @@ func (l *AuditLog) getSessionChunk(namespace string, sid session.ID, offsetBytes
 //
 // Can be filtered by 'after' (cursor value to return events newer than)
 
-func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]EventFields, error) {
-	l.log.WithFields(log.Fields{"sid": string(sid), "afterN": afterN, "printEvents": includePrintEvents}).Debugf("GetSessionEvents.")
+func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int) ([]EventFields, error) {
+	l.log.WithFields(log.Fields{"sid": string(sid), "afterN": afterN}).Debugf("GetSessionEvents.")
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
-	// Print events are stored in the context of the downloaded session
-	// so pull them
-	if !includePrintEvents && l.ExternalLog != nil {
-		events, err := l.ExternalLog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
-		// some loggers (e.g. FileLog) do not support retrieving session only print events,
-		// in this case rely on local fallback to download the session,
-		// unpack it and use local search
-		if !trace.IsNotImplemented(err) {
-			return events, err
-		}
-	}
+
 	// If code has to fetch print events (for playback) it has to download
 	// the playback from external storage first
 	if err := l.downloadSession(namespace, sid); err != nil {

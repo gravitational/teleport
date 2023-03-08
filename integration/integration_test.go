@@ -550,7 +550,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 					select {
 					case <-tickCh:
 						// Get all session events from the backend.
-						sessionEvents, err := site.GetSessionEvents(apidefaults.Namespace, session.ID(tracker.GetSessionID()), 0, false)
+						sessionEvents, err := site.GetSessionEvents(apidefaults.Namespace, session.ID(tracker.GetSessionID()), 0)
 						if err != nil {
 							return nil, trace.Wrap(err)
 						}
@@ -4201,8 +4201,11 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			instance := suite.NewTeleportWithConfig(makeConfig())
 			defer instance.StopAll()
 
+			caGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+				return instance.Process.GetAuthServer().Cache.GetCertAuthority(ctx, id, loadKeys)
+			}
 			proxyEnabledListener, err := helpers.CreatePROXYEnabledListener(context.Background(), t, net.JoinHostPort(Host, strconv.Itoa(nodePort)),
-				instance.Process.GetAuthServer().Cache, instance.Secrets.SiteName)
+				caGetter, instance.Secrets.SiteName)
 			require.NoError(t, err)
 
 			sshNode, err := helpers.NewDiscardServer(hostSigner, proxyEnabledListener)

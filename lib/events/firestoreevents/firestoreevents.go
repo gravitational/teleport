@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -338,37 +337,6 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 		return firestorebk.ConvertGRPCError(err)
 	}
 	return nil
-}
-
-// Returns all events that happen during a session sorted by time
-// (oldest first).
-//
-// after is used to return events after a specified cursor ID
-func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlcudePrintEvents bool) ([]events.EventFields, error) {
-	var values []events.EventFields
-	start := time.Now()
-	docSnaps, err := l.svc.Collection(l.CollectionName).Where(sessionIDDocProperty, "==", string(sid)).
-		Documents(l.svcContext).GetAll()
-	batchReadLatencies.Observe(time.Since(start).Seconds())
-	batchReadRequests.Inc()
-	if err != nil {
-		return nil, firestorebk.ConvertGRPCError(err)
-	}
-	for _, docSnap := range docSnaps {
-		var e event
-		err := docSnap.DataTo(&e)
-		if err != nil {
-			return nil, firestorebk.ConvertGRPCError(err)
-		}
-		var fields events.EventFields
-		data := []byte(e.Fields)
-		if err := json.Unmarshal(data, &fields); err != nil {
-			return nil, trace.Errorf("failed to unmarshal event for session %q: %v", string(sid), err)
-		}
-		values = append(values, fields)
-	}
-	sort.Sort(events.ByTimeAndIndex(values))
-	return values, nil
 }
 
 // SearchEvents is a flexible way to find events.

@@ -623,16 +623,28 @@ func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAut
 		readVerb = types.VerbRead
 	}
 
-	ca, err := a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
+	// Create a minimum CA for calculating access to the cert authority.
+	contextCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        id.Type,
+		ClusterName: id.DomainName,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sctx := &services.Context{User: a.context.User, Resource: ca}
+
+	sctx := &services.Context{User: a.context.User, Resource: contextCA}
 	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindCertAuthority, readVerb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ca, nil
+	// Call actionWithContext on the CA itself to ensure that we've got permission to this specific CA.
+	ca, err := a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
+	sctx = &services.Context{User: a.context.User, Resource: ca}
+	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindCertAuthority, readVerb); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ca, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) GetDomainName(ctx context.Context) (string, error) {
@@ -3374,7 +3386,7 @@ func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offs
 	return a.alog.GetSessionChunk(namespace, sid, offsetBytes, maxBytes)
 }
 
-func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]events.EventFields, error) {
+func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int) ([]events.EventFields, error) {
 	if err := a.actionForKindSession(namespace, sid); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3391,7 +3403,7 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 		return nil, trace.Wrap(err)
 	}
 
-	return a.alog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
+	return a.alog.GetSessionEvents(namespace, sid, afterN)
 }
 
 func (a *ServerWithRoles) findSessionEndEvent(namespace string, sid session.ID) (apievents.AuditEvent, error) {

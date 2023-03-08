@@ -23,11 +23,20 @@ import Logger from 'teleterm/logger';
 const logger = new Logger('FileStorage');
 
 export interface FileStorage {
-  put(path: string, json: any): void;
+  /** Asynchronously updates value for a given key. */
+  put(key: string, json: any): void;
 
-  putAllSync(): void;
+  /** Asynchronously replaces the entire storage state with a new value. */
+  replace(json: any): void;
 
-  get<T>(path?: string): T;
+  /** Synchronously writes the storage state to disk. */
+  writeSync(): void;
+
+  /** Returns value for a given key. If the key is omitted, the entire storage state is returned. */
+  get<T>(key?: string): T;
+
+  /** Returns the file path used to create the storage. */
+  getFilePath(): string;
 }
 
 export function createFileStorage(opts: {
@@ -39,18 +48,14 @@ export function createFileStorage(opts: {
   }
 
   const { filePath } = opts;
-  const state = loadState(opts.filePath);
+  let state = loadState(opts.filePath);
 
-  function put(key: string, json: any) {
+  function put(key: string, json: any): void {
     state[key] = json;
-    const text = stringify(state);
-
-    opts.debounceWrites
-      ? writeFileDebounced(filePath, text)
-      : writeFile(filePath, text);
+    stringifyAndWrite();
   }
 
-  function putAllSync() {
+  function writeSync(): void {
     const text = stringify(state);
     try {
       fs.writeFileSync(filePath, text);
@@ -63,10 +68,29 @@ export function createFileStorage(opts: {
     return key ? state[key] : (state as T);
   }
 
+  function replace(json: any): void {
+    state = json;
+    stringifyAndWrite();
+  }
+
+  function getFilePath(): string {
+    return opts.filePath;
+  }
+
+  function stringifyAndWrite(): void {
+    const text = stringify(state);
+
+    opts.debounceWrites
+      ? writeFileDebounced(filePath, text)
+      : writeFile(filePath, text);
+  }
+
   return {
     put,
-    putAllSync,
+    writeSync,
     get,
+    replace,
+    getFilePath,
   };
 }
 
