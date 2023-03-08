@@ -15,7 +15,6 @@
  */
 
 import {
-  Application,
   AuthSettings,
   AccessRequest,
   Cluster,
@@ -43,7 +42,6 @@ import {
 export class MockTshClient implements TshClient {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: string) => Promise<Cluster[]>;
-  listApps: (clusterUri: string) => Promise<Application[]>;
   getAllKubes: (clusterUri: string) => Promise<Kube[]>;
   getKubes: (params: ServerSideParams) => Promise<GetKubesResponse>;
   getAllDatabases: (clusterUri: string) => Promise<Database[]>;
