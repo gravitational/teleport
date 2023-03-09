@@ -169,5 +169,4 @@ export default class StoreUserContext extends Store<UserContext> {
   hasPluginsAccess() {
     return this.state.acl.plugins.list || this.state.acl.plugins.create;
   }
-
 }
