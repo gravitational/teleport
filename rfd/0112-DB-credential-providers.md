@@ -71,14 +71,13 @@ curl --location http://localhost:9000/database/test-db/user/ssrangisetti/token/t
 #### Sample response:
 ```json5
 {
-  "response": {
+  "data": {
     // username and password if the response is successful
     "username": "ajlndsc",
     "password": "kmndckl"
   },
   // error code and message if the response is not successful
-  "code": "",
-  "msg": ""
+  "errors": ["some error"]
 }
 ```
 
