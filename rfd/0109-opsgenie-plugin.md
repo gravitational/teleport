@@ -92,7 +92,7 @@ Once an access request has been created, the Opsgenie plugin will create an aler
 
 The appropriate on-call responder can then click the provided link to the access request and approve or deny it.
 
-For auto approval of certain access requests the access request will be auto approved if the requesting user is on-call in one of the services provided in request annotation.
+For auto approval of certain access requests the access request will be auto approved if the requesting user is on-call in one of the services provided in access request annotations.
 
 Once an access request has been approved or denied the plugin will add a note to the alert and close the relevant alert tied to that access request.
 
@@ -161,8 +161,6 @@ To check if the requesting user of a request is currently on-call the ‘Who is 
 Similar to the existing Pagerduty plugin for auto-approval to work, the user creating an Access Request must have a Teleport username that is also the email address associated with an Opsgenie account.
 
 Access requests will be mapped to Opsgenie alerts by including the Access request ID in the tags field of the note. 
-
-Shared code between the teleport-plugins found in lib is not too extensive and the simplest method to handle this when adding the Opsgenie plugin would be to simply duplicate what is needed for now.
 
 ## Security considerations
 
