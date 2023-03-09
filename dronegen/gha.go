@@ -45,8 +45,11 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 	fmt.Fprintf(&cmd, `-workflow %s `, b.ghaWorkflow)
 	fmt.Fprintf(&cmd, `-workflow-ref=${%s} `, b.workflowRefVar)
 
-	cmd.WriteString(`-input oss-teleport-repo=${DRONE_REPO} `)
-	fmt.Fprintf(&cmd, `-input oss-teleport-ref=${%s} `, b.srcRefVar)
+	// If we don't need to build teleport...
+	if b.srcRefVar != "" {
+		cmd.WriteString(`-input oss-teleport-repo=${DRONE_REPO} `)
+		fmt.Fprintf(&cmd, `-input oss-teleport-ref=${%s} `, b.srcRefVar)
+	}
 
 	for k, v := range b.inputs {
 		fmt.Fprintf(&cmd, `-input "%s=%s" `, k, v)
