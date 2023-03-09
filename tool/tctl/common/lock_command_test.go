@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -50,7 +51,8 @@ func TestLocks(t *testing.T) {
 	}
 
 	timeNow := time.Now().UTC()
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors), withFakeClock(timeNow))
+	fakeClock := clockwork.NewFakeClockAt(timeNow)
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors), withFakeClock(fakeClock))
 
 	t.Run("create", func(t *testing.T) {
 		err := runLockCommand(t, fileConfig, []string{"--user=bad@actor", "--message=Come see me"})

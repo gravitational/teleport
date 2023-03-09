@@ -29,6 +29,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -401,7 +402,8 @@ func TestCreateLock(t *testing.T) {
 	}
 
 	timeNow := time.Now().UTC()
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors), withFakeClock(timeNow))
+	fakeClock := clockwork.NewFakeClockAt(timeNow)
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors), withFakeClock(fakeClock))
 
 	_, err := types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{
