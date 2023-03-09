@@ -146,16 +146,22 @@ func (h *downstreamHandle) autoEmitMetadata() {
 		CloudEnvironment:      metadata.CloudEnvironment,
 	}
 	for {
+		// Wait for stream to be opened.
+		var sender DownstreamSender
 		select {
-		case sender := <-h.Sender(): // wait for stream to be opened
-			if err := sender.Send(h.CloseContext(), msg); err != nil { // send metadata
-				log.Warnf("Failed to send agent metadata: %v", err)
-			}
-			select {
-			case <-sender.Done(): // block for the duration of the stream
-			case <-h.CloseContext().Done():
-				return
-			}
+		case sender = <-h.Sender():
+		case <-h.CloseContext().Done():
+			return
+		}
+
+		// Send metadata.
+		if err := sender.Send(h.CloseContext(), msg); err != nil {
+			log.Warnf("Failed to send agent metadata: %v", err)
+		}
+
+		// Block for the duration of the stream.
+		select {
+		case <-sender.Done():
 		case <-h.CloseContext().Done():
 			return
 		}
