@@ -46,7 +46,7 @@ export async function createFileStorage(opts: {
   filePath: string;
   debounceWrites: boolean;
   /** Prevents state updates when the file has not been loaded correctly, so its content will not be overwritten. */
-  discardUpdatesWhenLoadingFileFailed?: boolean;
+  discardUpdatesOnLoadError?: boolean;
 }): Promise<FileStorage> {
   if (!opts || !opts.filePath) {
     throw Error('missing filePath');
@@ -63,7 +63,7 @@ export async function createFileStorage(opts: {
     logger.error(`Cannot read ${filePath} file`, e);
   }
 
-  const discardUpdates = error && opts.discardUpdatesWhenLoadingFileFailed;
+  const discardUpdates = error && opts.discardUpdatesOnLoadError;
 
   function put(key: string, json: any): void {
     if (discardUpdates) {

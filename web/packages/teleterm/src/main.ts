@@ -207,7 +207,7 @@ function createFileStorages(userDataDir: string) {
     createFileStorage({
       filePath: path.join(userDataDir, 'app_config.json'),
       debounceWrites: false,
-      discardUpdatesWhenLoadingFileFailed: true,
+      discardUpdatesOnLoadError: true,
     }),
     createFileStorage({
       filePath: path.join(userDataDir, 'schema_app_config.json'),
