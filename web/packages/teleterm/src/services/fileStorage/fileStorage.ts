@@ -53,7 +53,16 @@ export async function createFileStorage(opts: {
   }
 
   const { filePath } = opts;
-  let { state, error } = await loadState(opts.filePath);
+
+  let state: any, error: Error | undefined;
+  try {
+    state = await loadState(filePath);
+  } catch (e) {
+    state = {};
+    error = e;
+    logger.error(`Cannot read ${filePath} file`, e);
+  }
+
   const discardUpdates = error && opts.discardUpdatesWhenLoadingFileFailed;
 
   function put(key: string, json: any): void {
@@ -114,22 +123,9 @@ export async function createFileStorage(opts: {
   };
 }
 
-async function loadState(
-  filePath: string
-): Promise<{ state: any; error: Error | undefined }> {
-  try {
-    const file = await readOrCreateFile(filePath);
-    return {
-      state: JSON.parse(file),
-      error: undefined,
-    };
-  } catch (error) {
-    logger.error(`Cannot read ${filePath} file`, error);
-    return {
-      state: {},
-      error: error,
-    };
-  }
+async function loadState(filePath: string): Promise<any> {
+  const file = await readOrCreateFile(filePath);
+  return JSON.parse(file);
 }
 
 async function readOrCreateFile(filePath: string): Promise<string> {
