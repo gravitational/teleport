@@ -19,6 +19,7 @@ package config
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -3326,6 +3327,154 @@ func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
 				assert.Error(t, err, "ApplyFileConfig mismatch")
 			} else {
 				assert.NoError(t, err, "ApplyFileConfig mismatch")
+			}
+		})
+	}
+}
+
+func TestAuthHostedPlugins(t *testing.T) {
+	t.Parallel()
+
+	badParameter := func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		require.Error(t, err)
+		require.True(t, trace.IsBadParameter(err), `expected "bad parameter", but got %v`, err)
+	}
+	notExist := func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		require.Error(t, err)
+		require.True(t, errors.Is(err, os.ErrNotExist), `expected "does not exist", but got %v`)
+	}
+
+	tmpDir := t.TempDir()
+	clientIDFile := filepath.Join(tmpDir, "id")
+	clientSecretFile := filepath.Join(tmpDir, "secret")
+	err := os.WriteFile(clientIDFile, []byte("foo\n"), 0o777)
+	require.NoError(t, err)
+	err = os.WriteFile(clientSecretFile, []byte("bar\n"), 0o777)
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc     string
+		config   string
+		readErr  require.ErrorAssertionFunc
+		applyErr require.ErrorAssertionFunc
+		assert   func(t *testing.T, p service.HostedPluginsConfig)
+	}{
+		{
+			desc: "Plugins disabled by default",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: require.NoError,
+			assert: func(t *testing.T, p service.HostedPluginsConfig) {
+				require.False(t, p.Enabled)
+			},
+		},
+		{
+			desc: "Plugins enabled but zero providers defined",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  hosted_plugins:",
+				"    enabled: yes",
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: badParameter,
+		},
+		{
+			desc: "Unknown OAuth provider specified",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  hosted_plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      acmecorp:",
+				"        client_id: foo",
+				"        client_secret: bar",
+			}, "\n"),
+			readErr:  require.Error,
+			applyErr: require.NoError,
+		},
+		{
+			desc: "OAuth client ID without the secret",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  hosted_plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      slack:",
+				"        client_id: foo",
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: badParameter,
+		},
+		{
+			desc: "OAuth client secret without the ID",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  hosted_plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      slack:",
+				"        client_secret: bar",
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: badParameter,
+		},
+		{
+			desc: "OAuth provider in non-existent file",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"",
+				"  hosted_plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      slack:",
+				"        client_id: /tmp/this-does-not-exist",
+				"        client_secret: " + clientSecretFile,
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: notExist,
+		},
+		{
+			desc: "OAuth provider in existent files",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"",
+				"  hosted_plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      slack:",
+				"        client_id: " + clientIDFile,
+				"        client_secret: " + clientSecretFile,
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: require.NoError,
+			assert: func(t *testing.T, p service.HostedPluginsConfig) {
+				require.True(t, p.Enabled)
+				require.NotNil(t, p.OAuthProviders.Slack)
+				require.Equal(t, "foo", p.OAuthProviders.Slack.ID)
+				require.Equal(t, "bar", p.OAuthProviders.Slack.Secret)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			conf, err := ReadConfig(bytes.NewBufferString(tc.config))
+			tc.readErr(t, err)
+
+			cfg := service.MakeDefaultConfig()
+			err = ApplyFileConfig(conf, cfg)
+			tc.applyErr(t, err)
+			if tc.assert != nil {
+				tc.assert(t, cfg.Auth.HostedPlugins)
 			}
 		})
 	}

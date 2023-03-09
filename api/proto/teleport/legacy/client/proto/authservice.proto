@@ -564,6 +564,8 @@ message Features {
   reserved 13; // bool ResourceAccessRequests
   // RecoveryCodes enables recovery codes
   bool RecoveryCodes = 14 [(gogoproto.jsontag) = "recovery_codes"];
+  // Plugins enables hosted plugins
+  bool Plugins = 15 [(gogoproto.jsontag) = "plugins"];
   // AutomaticUpgrades enables Automatic Upgrades for the agents/services.
   bool AutomaticUpgrades = 16 [(gogoproto.jsontag) = "automatic_upgrades"];
 }

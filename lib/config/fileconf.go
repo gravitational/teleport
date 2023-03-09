@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
@@ -986,6 +987,10 @@ type Auth struct {
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
+
+	// HostedPlugins configures the hosted plugins runtime.
+	// This is currently Cloud-specific.
+	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
 }
 
 // hasCustomNetworkingConfig returns true if any of the networking
@@ -1301,6 +1306,66 @@ type DeviceTrust struct {
 func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 	return &types.DeviceTrust{
 		Mode: dt.Mode,
+	}, nil
+}
+
+// HostedPlugins defines 'auth_service/plugins' Enterprise extension
+type HostedPlugins struct {
+	Enabled        bool                 `yaml:"enabled"`
+	OAuthProviders PluginOAuthProviders `yaml:"oauth_providers,omitempty"`
+}
+
+// PluginOAuthProviders holds application credentials for each
+// 3rd party API provider.
+type PluginOAuthProviders struct {
+	Slack *OAuthClientCredentials `yaml:"slack,omitempty"`
+}
+
+func (p *PluginOAuthProviders) Parse() (service.PluginOAuthProviders, error) {
+	out := service.PluginOAuthProviders{}
+	if p.Slack == nil {
+		return out, trace.BadParameter("when plugin runtime is enabled, at least one plugin provider must be specified")
+	}
+
+	slack, err := p.Slack.Parse()
+	if err != nil {
+		return out, trace.Wrap(err)
+	}
+	out.Slack = slack
+	return out, nil
+}
+
+// OAuthClientCredentials holds paths from which to read
+// client credentials for Teleport's OAuth app.
+type OAuthClientCredentials struct {
+	// ClientID is the path to the file containing the Client ID
+	ClientID string `yaml:"client_id"`
+	// ClientSecret is the path to the file containing the Client Secret
+	ClientSecret string `yaml:"client_secret"`
+}
+
+func (o *OAuthClientCredentials) Parse() (*oauth2.ClientCredentials, error) {
+	if o.ClientID == "" || o.ClientSecret == "" {
+		return nil, trace.BadParameter("both client_id and client_secret paths must be specified")
+	}
+
+	var clientID, clientSecret string
+
+	content, err := os.ReadFile(o.ClientID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clientID = strings.TrimSpace(string(content))
+
+	content, err = os.ReadFile(o.ClientSecret)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clientSecret = strings.TrimSpace(string(content))
+
+	return &oauth2.ClientCredentials{
+		ID:     clientID,
+		Secret: clientSecret,
 	}, nil
 }
 
