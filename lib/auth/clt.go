@@ -41,6 +41,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1705,4 +1706,10 @@ type ClientI interface {
 	// still get a plugins client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	PluginsClient() pluginspb.PluginServiceClient
+
+	// SAMLIdPClient returns a SAML IdP client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a SAML IdP client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	SAMLIdPClient() samlidppb.SAMLIdPServiceClient
 }
