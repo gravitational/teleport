@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
@@ -59,7 +60,7 @@ type TestContext struct {
 	TLSServer   *auth.TestTLSServer
 	AuthServer  *auth.Server
 	AuthClient  *auth.Client
-	Authz       auth.Authorizer
+	Authz       authz.Authorizer
 	KubeServer  *TLSServer
 	Emitter     *eventstest.ChannelEmitter
 	Context     context.Context
@@ -140,7 +141,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	t.Cleanup(func() {
 		proxyLockWatcher.Close()
 	})
-	testCtx.Authz, err = auth.NewAuthorizer(auth.AuthorizerOpts{
+	testCtx.Authz, err = authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: testCtx.ClusterName,
 		AccessPoint: proxyAuthClient,
 		LockWatcher: proxyLockWatcher,
