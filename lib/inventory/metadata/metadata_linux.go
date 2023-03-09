@@ -36,16 +36,16 @@ func (c *fetchConfig) fetchOSVersion() string {
 	var name string
 	var versionID string
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		parts := strings.Split(line, "=")
-		if len(parts) != 2 {
+		key, value, found := strings.Cut(line, "=")
+		if !found {
 			return ""
 		}
 
-		switch parts[0] {
+		switch key {
 		case "NAME":
-			name = strings.Trim(parts[1], `"`)
+			name = strings.Trim(value, `"`)
 		case "VERSION_ID":
-			versionID = strings.Trim(parts[1], `"`)
+			versionID = strings.Trim(value, `"`)
 		}
 	}
 
