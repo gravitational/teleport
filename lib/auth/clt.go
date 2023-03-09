@@ -842,6 +842,18 @@ func (c *Client) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 // short lived certificates as a result
 func (c *Client) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+	if req.HeadlessAuthenticationID != "" {
+		// Replace the client timeout with the default callback timeout for this request.
+		previousResponseHeaderTimeout := c.HTTPClient.transport.ResponseHeaderTimeout
+		previousClientTimeout := c.HTTPClient.HTTPClient().Timeout
+		c.HTTPClient.transport.ResponseHeaderTimeout = defaults.CallbackTimeout
+		c.HTTPClient.HTTPClient().Timeout = defaults.CallbackTimeout
+		defer func() {
+			c.HTTPClient.transport.ResponseHeaderTimeout = previousResponseHeaderTimeout
+			c.HTTPClient.HTTPClient().Timeout = previousClientTimeout
+		}()
+	}
+
 	out, err := c.PostJSON(
 		ctx,
 		c.Endpoint("users", req.Username, "ssh", "authenticate"),

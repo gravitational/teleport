@@ -30,6 +30,7 @@ import (
 
 // CreateHeadlessAuthenticationStub creates a headless authentication stub in the backend.
 func (s *IdentityService) CreateHeadlessAuthenticationStub(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+	// Stub should be replaced shortly after creation.
 	expires := s.Clock().Now().Add(time.Minute)
 	headlessAuthn := &types.HeadlessAuthentication{
 		ResourceHeader: types.ResourceHeader{

@@ -31,6 +31,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -326,10 +327,6 @@ func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 }
 
 func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, error) {
-	// Wait up to one minute for the headless auth request to be approved.
-	waitCtx, cancel := context.WithTimeout(ctx, time.Minute)
-	defer cancel()
-
 	headlessAuthn := &types.HeadlessAuthentication{
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
@@ -340,7 +337,10 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 		PublicKey:       req.PublicKey,
 		ClientIpAddress: req.ClientMetadata.RemoteAddr,
 	}
-	headlessAuthn.SetExpiry(s.clock.Now().Add(time.Minute))
+
+	// Headless Authentication should expire when the callback expires.
+	headlessAuthn.SetExpiry(s.clock.Now().Add(defaults.CallbackTimeout))
+
 	if err := services.ValidateHeadlessAuthentication(headlessAuthn); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -348,7 +348,7 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 	// Wait for a headless authenticated stub to be inserted by an authenticated
 	// call to GetHeadlessAuthentication. We do this to avoid immediately inserting
 	// backend items from an unauthenticated endpoint.
-	headlessAuthnStub, err := s.headlessAuthenticationWatcher.Wait(waitCtx, req.HeadlessAuthenticationID, func(ha *types.HeadlessAuthentication) (bool, error) {
+	headlessAuthnStub, err := s.headlessAuthenticationWatcher.Wait(ctx, req.HeadlessAuthenticationID, func(ha *types.HeadlessAuthentication) (bool, error) {
 		// Only headless authentication stub can be inserted without the standard validation.
 		if services.ValidateHeadlessAuthentication(ha) == nil {
 			return false, trace.AlreadyExists("headless auth request already exists")
@@ -364,7 +364,7 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 		return nil, trace.Wrap(err)
 	}
 
-	headlessAuthn, err = s.headlessAuthenticationWatcher.Wait(waitCtx, req.HeadlessAuthenticationID, func(ha *types.HeadlessAuthentication) (bool, error) {
+	headlessAuthn, err = s.headlessAuthenticationWatcher.Wait(ctx, req.HeadlessAuthenticationID, func(ha *types.HeadlessAuthentication) (bool, error) {
 		switch ha.State {
 		case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED:
 			if ha.MfaDevice == nil {
