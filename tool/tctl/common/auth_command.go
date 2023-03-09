@@ -42,14 +42,14 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AuthCommand implements `tctl auth` group of commands
 type AuthCommand struct {
-	config                     *service.Config
+	config                     *servicecfg.Config
 	authType                   string
 	genPubPath                 string
 	genPrivPath                string
@@ -89,7 +89,7 @@ type AuthCommand struct {
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
-func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	a.config = config
 
 	// operations with authorities

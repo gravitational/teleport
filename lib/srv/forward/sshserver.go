@@ -42,8 +42,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -425,7 +425,7 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 
 // GetPAM returns the PAM configuration for a server. Because the forwarding
 // server runs in-memory, it does not support PAM.
-func (s *Server) GetPAM() (*pam.Config, error) {
+func (s *Server) GetPAM() (*servicecfg.PAMConfig, error) {
 	return nil, trace.BadParameter("PAM not supported by forwarding server")
 }
 

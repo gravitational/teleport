@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -70,7 +71,7 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 	for _, v := range opts {
 		v(&options)
 	}
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 
 	var ccf GlobalCLIFlags
 	ccf.ConfigString = mustGetBase64EncFileConfig(t, fc)
@@ -89,12 +90,12 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 }
 
 type cliCommand interface {
-	Initialize(app *kingpin.Application, cfg *service.Config)
+	Initialize(app *kingpin.Application, cfg *servicecfg.Config)
 	TryRun(ctx context.Context, cmd string, client auth.ClientI) (bool, error)
 }
 
 func runCommand(t *testing.T, fc *config.FileConfig, cmd cliCommand, args []string, opts ...optionsFunc) error {
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -183,7 +184,7 @@ func mustWriteIdentityFile(t *testing.T, fc *config.FileConfig, username string)
 
 type testServerOptions struct {
 	fileConfig      *config.FileConfig
-	fileDescriptors []service.FileDescriptor
+	fileDescriptors []servicecfg.FileDescriptor
 	fakeClock       clockwork.FakeClock
 }
 
@@ -195,7 +196,7 @@ func withFileConfig(fc *config.FileConfig) testServerOptionFunc {
 	}
 }
 
-func withFileDescriptors(fds []service.FileDescriptor) testServerOptionFunc {
+func withFileDescriptors(fds []servicecfg.FileDescriptor) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.fileDescriptors = fds
 	}
@@ -214,7 +215,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	}
 
 	var err error
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.FileDescriptors = options.fileDescriptors
 	if options.fileConfig != nil {
@@ -247,7 +248,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 }
 
 func newDynamicServiceAddr(t *testing.T) *dynamicServiceAddr {
-	var fds []service.FileDescriptor
+	var fds []servicecfg.FileDescriptor
 	webAddr := helpers.NewListener(t, service.ListenerProxyWeb, &fds)
 	tunnelAddr := helpers.NewListener(t, service.ListenerProxyTunnel, &fds)
 	authAddr := helpers.NewListener(t, service.ListenerAuth, &fds)
@@ -267,7 +268,7 @@ type dynamicServiceAddr struct {
 	webAddr     string
 	tunnelAddr  string
 	authAddr    string
-	descriptors []service.FileDescriptor
+	descriptors []servicecfg.FileDescriptor
 }
 
 func waitForBackendDatabaseResourcePropagation(t *testing.T, authServer *auth.Server) {

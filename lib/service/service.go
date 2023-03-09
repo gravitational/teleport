@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
@@ -102,6 +103,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
@@ -245,16 +247,6 @@ const (
 	TeleportOKEvent = "TeleportOKEvent"
 )
 
-// RoleConfig is a configuration for a server role (either proxy or node)
-type RoleConfig struct {
-	DataDir     string
-	HostUUID    string
-	HostName    string
-	AuthServers []utils.NetAddr
-	Auth        AuthConfig
-	Console     io.Writer
-}
-
 // Connector has all resources process needs to connect to other parts of the
 // cluster: client and identity.
 type Connector struct {
@@ -305,7 +297,7 @@ type TeleportProcess struct {
 	Clock clockwork.Clock
 	sync.Mutex
 	Supervisor
-	Config *Config
+	Config *servicecfg.Config
 
 	// PluginsRegistry handles plugin registrations with Teleport services
 	PluginRegistry plugin.Registry
@@ -345,7 +337,7 @@ type TeleportProcess struct {
 	registeredListeners []registeredListener
 	// importedDescriptors is a list of imported file descriptors
 	// passed by the parent process
-	importedDescriptors []FileDescriptor
+	importedDescriptors []servicecfg.FileDescriptor
 	// listenersClosed is a flag that indicates that the process should not open
 	// new listeners (for instance, because we're shutting down and we've already
 	// closed all the listeners)
@@ -630,7 +622,7 @@ type Process interface {
 	WaitForSignals(context.Context) error
 	// ExportFileDescriptors exports service listeners
 	// file descriptors used by the process.
-	ExportFileDescriptors() ([]FileDescriptor, error)
+	ExportFileDescriptors() ([]servicecfg.FileDescriptor, error)
 	// Shutdown starts graceful shutdown of the process,
 	// blocks until all resources are freed and go-routines are
 	// shut down.
@@ -646,15 +638,15 @@ type Process interface {
 }
 
 // NewProcess is a function that creates new teleport from config
-type NewProcess func(cfg *Config) (Process, error)
+type NewProcess func(cfg *servicecfg.Config) (Process, error)
 
-func newTeleportProcess(cfg *Config) (Process, error) {
+func newTeleportProcess(cfg *servicecfg.Config) (Process, error) {
 	return NewTeleport(cfg)
 }
 
 // Run starts teleport processes, waits for signals
 // and handles internal process reloads.
-func Run(ctx context.Context, cfg Config, newTeleport NewProcess) error {
+func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) error {
 	if newTeleport == nil {
 		newTeleport = newTeleportProcess
 	}
@@ -683,7 +675,7 @@ func Run(ctx context.Context, cfg Config, newTeleport NewProcess) error {
 	}
 }
 
-func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport NewProcess) (Process, error) {
+func waitAndReload(ctx context.Context, cfg servicecfg.Config, srv Process, newTeleport NewProcess) (Process, error) {
 	err := srv.WaitForSignals(ctx)
 	if err == nil {
 		return nil, ErrTeleportExited
@@ -757,7 +749,7 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 
 // NewTeleport takes the daemon configuration, instantiates all required services
 // and starts them under a supervisor, returning the supervisor object.
-func NewTeleport(cfg *Config) (*TeleportProcess, error) {
+func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	var err error
 
 	// auth and proxy benefit from precomputing keys since they can experience spikes in key
@@ -771,7 +763,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	system.ResetInterruptSignalHandler()
 
 	// Validate the config before accessing it.
-	if err := validateConfig(cfg); err != nil {
+	if err := servicecfg.ValidateConfig(cfg); err != nil {
 		return nil, trace.Wrap(err, "configuration error")
 	}
 
@@ -1624,7 +1616,7 @@ func (process *TeleportProcess) initAuthService() error {
 	// second, create the API Server: it's actually a collection of API servers,
 	// each serving requests for a "role" which is assigned to every connected
 	// client based on their certificate (user, server, admin, etc)
-	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
 		AccessPoint: authServer,
 		LockWatcher: lockWatcher,
@@ -2855,7 +2847,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 			process.Config.Proxy.SSHAddr,
 			process.Config.Proxy.ReverseTunnelListenAddr,
 			process.Config.Proxy.MySQLAddr,
-			process.Config.Proxy.PeerAddr,
+			process.Config.Proxy.PeerAddress,
 			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
@@ -3153,7 +3145,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 	}
 
 	if !cfg.Proxy.DisableReverseTunnel && tunnelStrategy == types.ProxyPeering {
-		addr, err := process.Config.Proxy.peerAddr()
+		addr, err := process.Config.Proxy.PeerAddr()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3298,7 +3290,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 
 // initMinimalReverseTunnelListener starts a listener over a reverse tunnel that multiplexes a minimal subset of the
 // web API.
-func (process *TeleportProcess) initMinimalReverseTunnelListener(cfg *Config, listeners *proxyListeners) error {
+func (process *TeleportProcess) initMinimalReverseTunnelListener(cfg *servicecfg.Config, listeners *proxyListeners) error {
 	listener, err := process.importOrCreateListener(ListenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3323,7 +3315,7 @@ func (process *TeleportProcess) initMinimalReverseTunnelListener(cfg *Config, li
 
 // muxPostgresOnWebPort starts Postgres proxy listener multiplexed on Teleport Proxy web port,
 // unless postgres_listen_addr was specified.
-func (process *TeleportProcess) muxPostgresOnWebPort(cfg *Config, listeners *proxyListeners) {
+func (process *TeleportProcess) muxPostgresOnWebPort(cfg *servicecfg.Config, listeners *proxyListeners) {
 	if !cfg.Proxy.DisableDatabaseProxy && cfg.Proxy.PostgresAddr.IsEmpty() {
 		listeners.db.postgres = listeners.mux.DB()
 	}
@@ -3721,7 +3713,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	var peerAddrString string
 	var proxyServer *peer.Server
 	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxyPeer != nil {
-		peerAddr, err := process.Config.Proxy.publicPeerAddr()
+		peerAddr, err := process.Config.Proxy.PublicPeerAddr()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3788,7 +3780,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
@@ -3886,7 +3878,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var kubeServer *kubeproxy.TLSServer
 	if listeners.kube != nil && !process.Config.Proxy.DisableReverseTunnel {
-		authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 			ClusterName: clusterName,
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
@@ -3954,7 +3946,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// then routing them to a respective database server over the reverse tunnel
 	// framework.
 	if (!listeners.db.Empty() || alpnRouter != nil) && !process.Config.Proxy.DisableReverseTunnel {
-		authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 			ClusterName: clusterName,
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
@@ -4219,7 +4211,7 @@ func (process *TeleportProcess) getPROXYSigner(ident *auth.Identity) (multiplexe
 	return proxySigner, nil
 }
 
-func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListeners, tlsConfigWeb *tls.Config, cfg *Config, webConfig web.Config, log *logrus.Entry) (*web.Server, error) {
+func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListeners, tlsConfigWeb *tls.Config, cfg *servicecfg.Config, webConfig web.Config, log *logrus.Entry) (*web.Server, error) {
 	internalListener := listeners.reverseTunnelMux.TLS()
 	if !cfg.Proxy.DisableTLS {
 		internalListener = tls.NewListener(internalListener, tlsConfigWeb)
@@ -4287,7 +4279,7 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 // by remote trusted cluster.
 // If the proxy is running with Multiplex mode the WebPort is returned
 // where connections are forwarded to kube service by ALPN SNI router.
-func kubeDialAddr(config ProxyConfig, mode types.ProxyListenerMode) utils.NetAddr {
+func kubeDialAddr(config servicecfg.ProxyConfig, mode types.ProxyListenerMode) utils.NetAddr {
 	if mode == types.ProxyListenerMode_Multiplex {
 		return config.WebAddr
 	}
@@ -4395,7 +4387,7 @@ func (process *TeleportProcess) setupALPNTLSConfigForWeb(serverTLSConfig *tls.Co
 	return tlsConfig
 }
 
-func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg *Config) *alpnproxy.Router {
+func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg *servicecfg.Config) *alpnproxy.Router {
 	if listeners.web == nil || cfg.Proxy.DisableTLS || cfg.Proxy.DisableALPNSNIListener {
 		return nil
 	}
@@ -4490,7 +4482,7 @@ func (process *TeleportProcess) waitForAppDepend() {
 }
 
 // registerExpectedServices sets up the instance role -> identity event mapping.
-func (process *TeleportProcess) registerExpectedServices(cfg *Config) {
+func (process *TeleportProcess) registerExpectedServices(cfg *servicecfg.Config) {
 	if cfg.Auth.Enabled {
 		process.SetExpectedInstanceRole(types.RoleAuth, AuthIdentityEvent)
 	}
@@ -4615,7 +4607,7 @@ func (process *TeleportProcess) initApps() {
 			if !ok {
 				return trace.BadParameter("unexpected payload %T", event.Payload)
 			}
-			process.Config.Apps.Apps = append(process.Config.Apps.Apps, App{
+			process.Config.Apps.Apps = append(process.Config.Apps.Apps, servicecfg.App{
 				Name: "dumper",
 				URI:  server.URL,
 			})
@@ -4680,7 +4672,7 @@ func (process *TeleportProcess) initApps() {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 			ClusterName: clusterName,
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
@@ -4944,13 +4936,13 @@ func (process *TeleportProcess) Close() error {
 
 // initSelfSignedHTTPSCert generates and self-signs a TLS key+cert pair for https connection
 // to the proxy server.
-func initSelfSignedHTTPSCert(cfg *Config) (err error) {
+func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 	cfg.Log.Warningf("No TLS Keys provided, using self-signed certificate.")
 
 	keyPath := filepath.Join(cfg.DataDir, defaults.SelfSignedKeyPath)
 	certPath := filepath.Join(cfg.DataDir, defaults.SelfSignedCertPath)
 
-	cfg.Proxy.KeyPairs = append(cfg.Proxy.KeyPairs, KeyPairPath{
+	cfg.Proxy.KeyPairs = append(cfg.Proxy.KeyPairs, servicecfg.KeyPairPath{
 		PrivateKey:  keyPath,
 		Certificate: certPath,
 	})
@@ -5062,7 +5054,7 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // getPublicAddr waits for a proxy to be registered with Teleport.
-func getPublicAddr(authClient auth.ReadAppsAccessPoint, a App) (string, error) {
+func getPublicAddr(authClient auth.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
@@ -5099,7 +5091,7 @@ func newHTTPFileSystem() (http.FileSystem, error) {
 // - Any other valid Joining method: a new UUID is generated.
 // Finally, if a new id is generated, this function writes it into local storage and Kubernetes storage (if available).
 // If kubeBackend is nil, the agent is not running in a Kubernetes Cluster.
-func readOrGenerateHostID(ctx context.Context, cfg *Config, kubeBackend kubernetesBackend) (err error) {
+func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBackend kubernetesBackend) (err error) {
 	// Load `host_uuid` from different storages. If this process is running in a Kubernetes Cluster,
 	// readHostUUIDFromStorages will try to read the `host_uuid` from the Kubernetes Secret. If the
 	// key is empty or if not running in a Kubernetes Cluster, it will read the
@@ -5198,7 +5190,7 @@ func readHostIDFromStorages(ctx context.Context, dataDir string, kubeBackend kub
 
 // persistHostIDToStorages writes the cfg.HostUUID to local data and to
 // Kubernetes Secret if this process is running on a Kubernetes Cluster.
-func persistHostIDToStorages(ctx context.Context, cfg *Config, kubeBackend kubernetesBackend) error {
+func persistHostIDToStorages(ctx context.Context, cfg *servicecfg.Config, kubeBackend kubernetesBackend) error {
 	if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			cfg.Log.Errorf("Teleport does not have permission to write to: %v. Ensure that you are running as a user with appropriate permissions.", cfg.DataDir)
@@ -5297,7 +5289,7 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 		return nil, trace.Wrap(err)
 	}
 
-	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
 		AccessPoint: cfg.accessPoint,
 		LockWatcher: cfg.lockWatcher,

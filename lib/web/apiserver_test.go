@@ -95,6 +95,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
@@ -106,11 +107,11 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -267,7 +268,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 
 	nodeClient, err := s.server.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
 		},
@@ -308,7 +309,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
@@ -323,7 +324,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	// create reverse tunnel service:
 	proxyID := "proxy"
 	s.proxyClient, err = s.server.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: proxyID,
 		},
@@ -530,7 +531,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 	require.NoError(t, err)
 
 	nodeClient, err := s.server.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: uuid,
 		},
@@ -570,7 +571,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
@@ -6784,7 +6785,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	hostSigners := []ssh.Signer{signer}
 
 	nodeClient, err := server.TLS.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
 		},
@@ -6827,7 +6828,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(clock),
@@ -6870,7 +6871,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 ) *testProxy {
 	// create reverse tunnel service:
 	client, err := authServer.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: proxyID,
 		},
@@ -7507,7 +7508,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	proxyAuthorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: cfg.authServer.ClusterName(),
 		AccessPoint: proxyAuthClient,
 		LockWatcher: proxyLockWatcher,
