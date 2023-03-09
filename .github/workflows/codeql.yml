@@ -17,7 +17,7 @@ jobs:
   analyze:
     name: Analyze
     if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
-    runs-on: ubuntu-22.04-16core
+    runs-on: ubuntu-22.04-8core
     permissions:
       actions: read
       contents: read
