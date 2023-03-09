@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -54,7 +55,7 @@ type SigningServiceConfig struct {
 	KeyStore *keystore.Manager
 
 	// Authorizer is for authorizing the signing requests.
-	Authorizer auth.Authorizer
+	Authorizer authz.Authorizer
 }
 
 func (s *SigningServiceConfig) CheckAndSetDefaults() error {
@@ -90,7 +91,7 @@ type SigningService struct {
 
 	client     ProcessSAMLIdPRequestClient
 	keyStore   *keystore.Manager
-	authorizer auth.Authorizer
+	authorizer authz.Authorizer
 }
 
 // ProcessSAMLIdPRequest makes a signed SAML response to a SAML auth request.
