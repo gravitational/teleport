@@ -405,6 +405,9 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*auth.S
 		return nil, trace.Wrap(err)
 	}
 
+	// This request will block until the headless login is approved.
+	clt.Client.HTTPClient().Timeout = defaults.CallbackTimeout
+
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
 		User:                     login.User,
 		HeadlessAuthenticationID: login.HeadlessAuthenticationID,
