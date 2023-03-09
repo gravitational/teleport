@@ -96,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/interval"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
+	mw "github.com/gravitational/teleport/lib/versioncontrol/maintenancewindow"
 )
 
 const (
@@ -489,6 +490,8 @@ type Server struct {
 
 	sshca.Authority
 
+	upgradeWindowStartHourGetter func(context.Context) (int64, error)
+
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
 	// (managing multiple teleport clusters) this field is used to tell them apart in UIs
 	// It usually defaults to the hostname of the machine the Auth service runs on.
@@ -603,6 +606,20 @@ func (a *Server) SetReleaseService(svc release.Client) {
 	a.releaseService = svc
 }
 
+// SetUpgradeWindowStartHourGetter sets the getter used to sync the MaintenanceWindow resource
+// with the cloud UpgradeWindowStartHour value.
+func (a *Server) SetUpgradeWindowStartHourGetter(fn func(context.Context) (int64, error)) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.upgradeWindowStartHourGetter = fn
+}
+
+func (a *Server) getUpgradeWindowStartHourGetter() func(context.Context) (int64, error) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	return a.upgradeWindowStartHourGetter
+}
+
 // SetLoginRuleEvaluator sets the login rule evaluator.
 func (a *Server) SetLoginRuleEvaluator(l loginrule.Evaluator) {
 	a.loginRuleEvaluator = l
@@ -643,6 +660,71 @@ func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
+}
+
+// syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
+// the MaintenanceWindow resource's AgentUpgrade.UTCStartHour field to match it.
+func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
+	getter := a.getUpgradeWindowStartHourGetter()
+	if getter == nil {
+		return trace.Errorf("getter has not been registered")
+	}
+
+	rawStartHour, err := getter(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	startHour := uint32(rawStartHour)
+	if int64(startHour) != rawStartHour {
+		return trace.Errorf("faild to convert start hour %d to uint32 (this is a bug)", rawStartHour)
+	}
+
+	mw, err := a.GetMaintenanceWindow(ctx)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
+		// create an empty maintenance window resource on NotFound
+		mw = types.NewMaintenanceWindow()
+	}
+
+	agentWindow, _ := mw.GetAgentUpgradeWindow()
+
+	agentWindow.UTCStartHour = startHour
+
+	mw.SetAgentUpgradeWindow(agentWindow)
+
+	if err := a.UpdateMaintenanceWindow(ctx, mw); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (a *Server) periodicSyncUpgradeWindowStartHour() {
+	checkInterval := interval.New(interval.Config{
+		Duration:      time.Minute * 3,
+		FirstDuration: utils.FullJitter(time.Second * 30),
+		Jitter:        retryutils.NewSeventhJitter(),
+	})
+	defer checkInterval.Stop()
+
+	for {
+		select {
+		case <-checkInterval.Next():
+			if err := a.syncUpgradeWindowStartHour(a.closeCtx); err != nil {
+				if a.closeCtx.Err() == nil {
+					// we run this periodic at a fairly high frequency, so errors are just
+					// logged but otherwise ignored.
+					log.Warnf("Failed to sync upgrade window start hour: %v", err)
+				}
+			}
+		case <-a.closeCtx.Done():
+			return
+		}
+	}
 }
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -718,6 +800,12 @@ func (a *Server) runPeriodicOperations() {
 			}
 		}
 	}()
+
+	// cloud auth servers need to periodically sync the upgrade window
+	// from the cloud db.
+	if modules.GetModules().Features().Cloud {
+		go a.periodicSyncUpgradeWindowStartHour()
+	}
 
 	for {
 		select {
@@ -4190,6 +4278,80 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 	}
 
 	return nil
+}
+
+type maintenanceWindowCacheKey struct {
+	key string
+}
+
+// exportMaintenanceWindowsCached generates the export value of all maintenance window schedule types. Since schedules
+// are reloaded frequently in large clusters and export incurs string/json encoding, we use the ttl cache to store
+// the encoded schedule values for a few seconds.
+func (a *Server) exportMaintenanceWindowsCached(ctx context.Context) (proto.ExportMaintenanceWindowsResponse, error) {
+	return utils.FnCacheGet(ctx, a.ttlCache, maintenanceWindowCacheKey{"export"}, func(ctx context.Context) (proto.ExportMaintenanceWindowsResponse, error) {
+		var rsp proto.ExportMaintenanceWindowsResponse
+		window, err := a.GetMaintenanceWindow(ctx)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				// "not found" is treated as an empty schedule value
+				return rsp, nil
+			}
+			return rsp, trace.Wrap(err)
+		}
+
+		agentWindow, ok := window.GetAgentUpgradeWindow()
+		if !ok {
+			// "unconfigured" is treated as an empty schedule value
+			return rsp, nil
+		}
+
+		sched := agentWindow.Export(time.Now(), 3)
+
+		rsp.CanonicalSchedule = &sched
+
+		rsp.KubeControllerSchedule, err = mw.EncodeKubeControllerSchedule(sched)
+		if err != nil {
+			log.Warnf("Failed to encode kube controller maintenance schedule: %v", err)
+		}
+
+		rsp.SystemdUnitSchedule, err = mw.EncodeSystemdUnitSchedule(sched)
+		if err != nil {
+			log.Warnf("Failed to encode systemd unit maintenance schedule: %v", err)
+		}
+
+		return rsp, nil
+	})
+}
+
+func (a *Server) ExportMaintenanceWindows(ctx context.Context, req proto.ExportMaintenanceWindowsRequest) (proto.ExportMaintenanceWindowsResponse, error) {
+	var rsp proto.ExportMaintenanceWindowsResponse
+
+	// get the cached collection of all export values
+	cached, err := a.exportMaintenanceWindowsCached(ctx)
+	if err != nil {
+		return rsp, nil
+	}
+
+	switch req.UpgraderKind {
+	case "":
+		rsp.CanonicalSchedule = cached.CanonicalSchedule.Clone()
+	case types.UpgraderKindKubeController:
+		rsp.KubeControllerSchedule = cached.KubeControllerSchedule
+
+		if sched := os.Getenv("TELEPORT_UNSTABLE_KUBE_UPGRADE_SCHEDULE"); sched != "" {
+			rsp.KubeControllerSchedule = sched
+		}
+	case types.UpgraderKindSystemdUnit:
+		rsp.SystemdUnitSchedule = cached.SystemdUnitSchedule
+
+		if sched := os.Getenv("TELEPORT_UNSTABLE_SYSTEMD_UPGRADE_SCHEDULE"); sched != "" {
+			rsp.SystemdUnitSchedule = sched
+		}
+	default:
+		return rsp, trace.NotImplemented("unsupported upgrader kind %q in maintenance window export request", req.UpgraderKind)
+	}
+
+	return rsp, nil
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {

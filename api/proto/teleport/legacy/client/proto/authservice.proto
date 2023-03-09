@@ -2242,6 +2242,31 @@ message UpdateHeadlessAuthenticationStateRequest {
   MFAAuthenticateResponse mfa_response = 3;
 }
 
+// ExportMaintenanceWindowsRequest encodes parameters for loading the
+// upgrader-facing representations of upcoming agent maintenance windows.
+message ExportMaintenanceWindowsRequest {
+  // TeleportVersion is the version of the teleport client making the request.
+  string TeleportVersion = 1;
+  // UpgraderKind represents the kind of upgrader the schedule is intended for.
+  string UpgraderKind = 2;
+}
+
+// ExportMaintenanceWindowsResponse encodes an upgrader-facing representation
+// of upcoming agent maintenance windows. Teleport agents periodically export these
+// schedules to external upgraders as part of the externally-managed upgrade system.
+message ExportMaintenanceWindowsResponse {
+  // CanonicalSchedule is the teleport-facing schedule repr.
+  types.AgentUpgradeSchedule CanonicalSchedule = 1;
+  // KubeControllerSchedule encodes upcoming upgrade upgrade windows in a format known
+  // to the kube upgrade controller. Teleport agents should treat this value as an
+  // opaque blob.
+  string KubeControllerSchedule = 2;
+  // SystemdUnitSchedule encodes the upcoming upgrade windows in a format known to
+  // the teleport-upgrade systemd unit. Teleport agents should treat this value as an
+  // opaque blob.
+  string SystemdUnitSchedule = 3;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2890,4 +2915,14 @@ service AuthService {
 
   // UpdateHeadlessAuthenticationState is a request to update a headless authentication's state.
   rpc UpdateHeadlessAuthenticationState(UpdateHeadlessAuthenticationStateRequest) returns (google.protobuf.Empty);
+
+  // ExportMaintenanceWindows is used to load derived maintenance window values for agents that
+  // need to export schedules to external upgraders.
+  rpc ExportMaintenanceWindows(ExportMaintenanceWindowsRequest) returns (ExportMaintenanceWindowsResponse);
+
+  // GetMaintenanceWindow gets the current maintenance window config singleton.
+  rpc GetMaintenanceWindow(google.protobuf.Empty) returns (types.MaintenanceWindowV1);
+
+  // UpdateMaintenanceWindow updates the current maintenance window config singleton.
+  rpc UpdateMaintenanceWindow(types.MaintenanceWindowV1) returns (google.protobuf.Empty);
 }

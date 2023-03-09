@@ -3229,6 +3229,37 @@ func (c *Client) DeleteAllUserGroups(ctx context.Context) error {
 	return nil
 }
 
+// ExportMaintenanceWindows is used to load derived maintenance window values for agents that
+// need to export schedules to external upgraders.
+func (c *Client) ExportMaintenanceWindows(ctx context.Context, req proto.ExportMaintenanceWindowsRequest) (proto.ExportMaintenanceWindowsResponse, error) {
+	rsp, err := c.grpc.ExportMaintenanceWindows(ctx, &req, c.callOpts...)
+	if err != nil {
+		return proto.ExportMaintenanceWindowsResponse{}, trail.FromGRPC(err)
+	}
+	return *rsp, nil
+}
+
+// GetMaintenanceWindow gets the current maintenance window config singleton.
+func (c *Client) GetMaintenanceWindow(ctx context.Context) (types.MaintenanceWindow, error) {
+	rsp, err := c.grpc.GetMaintenanceWindow(ctx, &emptypb.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return rsp, nil
+}
+
+// UpdateMaintenanceWindow updates the current maintenance window config singleton.
+func (c *Client) UpdateMaintenanceWindow(ctx context.Context, win types.MaintenanceWindow) error {
+	req, ok := win.(*types.MaintenanceWindowV1)
+	if !ok {
+		return trace.BadParameter("unexpected maintenance window type: %T", win)
+	}
+
+	_, err := c.grpc.UpdateMaintenanceWindow(ctx, req)
+	return trail.FromGRPC(err)
+}
+
 // PluginsClient returns an unadorned Plugins client, using the underlying
 // Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,

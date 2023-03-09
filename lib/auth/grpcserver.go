@@ -4888,6 +4888,52 @@ func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *proto.G
 	return authReq, trace.Wrap(err)
 }
 
+func (g *GRPCServer) ExportMaintenanceWindows(ctx context.Context, req *proto.ExportMaintenanceWindowsRequest) (*proto.ExportMaintenanceWindowsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.ExportMaintenanceWindows(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &rsp, nil
+}
+
+func (g *GRPCServer) GetMaintenanceWindow(ctx context.Context, _ *emptypb.Empty) (*types.MaintenanceWindowV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mw, err := auth.GetMaintenanceWindow(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, ok := mw.(*types.MaintenanceWindowV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected maintenance window type %T", mw)
+	}
+
+	return rsp, nil
+}
+
+func (g *GRPCServer) UpdateMaintenanceWindow(ctx context.Context, mw *types.MaintenanceWindowV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.UpdateMaintenanceWindow(ctx, mw); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 // GetBackend returns the backend from the underlying auth server.
 func (g *GRPCServer) GetBackend() backend.Backend {
 	return g.AuthServer.bk

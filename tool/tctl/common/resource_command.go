@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"sort"
 	"time"
@@ -108,6 +109,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindCertAuthority:           rc.createCertAuthority,
 		types.KindClusterAuthPreference:   rc.createAuthPreference,
 		types.KindClusterNetworkingConfig: rc.createClusterNetworkingConfig,
+		types.KindMaintenanceWindow:       rc.createMaintenanceWindow,
 		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
 		types.KindUIConfig:                rc.createUIConfig,
 		types.KindLock:                    rc.createLock,
@@ -488,6 +490,29 @@ func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, cl
 		return trace.Wrap(err)
 	}
 	fmt.Printf("cluster networking configuration has been updated\n")
+	return nil
+}
+
+func (rc *ResourceCommand) createMaintenanceWindow(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	var mw types.MaintenanceWindowV1
+	if err := utils.FastUnmarshal(raw.Raw, &mw); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := mw.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.force {
+		// max nonce forces "upsert" behavior
+		mw.Spec.Nonce = math.MaxUint64
+	}
+
+	if err := client.UpdateMaintenanceWindow(ctx, &mw); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("maintenance window has been updated")
 	return nil
 }
 
@@ -1402,6 +1427,17 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &netConfigCollection{netConfig}, nil
+	case types.KindMaintenanceWindow:
+		if rc.ref.Name != "" {
+			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindMaintenanceWindow)
+		}
+
+		mw, err := client.GetMaintenanceWindow(ctx)
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		return &maintenanceWindowCollection{mw}, nil
 	case types.KindSessionRecordingConfig:
 		if rc.ref.Name != "" {
 			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindSessionRecordingConfig)

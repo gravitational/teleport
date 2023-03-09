@@ -18,7 +18,10 @@ package auth
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1089,6 +1092,145 @@ func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 		cmpopts.EquateEmpty())
+}
+
+// TestSyncUpgadeWindowStartHour verifies the core logic of the upgrade window start
+// hour behavior.
+func TestSyncUpgradeWindowStartHour(t *testing.T) {
+	ctx := context.Background()
+
+	conf := setupConfig(t)
+	authServer, err := Init(conf)
+	require.NoError(t, err)
+	t.Cleanup(func() { authServer.Close() })
+
+	// no getter is registered, sync should fail
+	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	// maintenance window does not exist yet
+	mw, err := authServer.GetMaintenanceWindow(ctx)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
+	require.Nil(t, mw)
+
+	// set up fake getter
+	var mu sync.Mutex
+	var fakeHour int64
+	var fakeError error
+	authServer.SetUpgradeWindowStartHourGetter(func(ctx context.Context) (int64, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return fakeHour, fakeError
+	})
+
+	// sync should now succeed
+	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	mw, err = authServer.GetMaintenanceWindow(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok := mw.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	require.Equal(t, uint32(0), agentWindow.UTCStartHour)
+
+	// change the served hour
+	mu.Lock()
+	fakeHour = 16
+	mu.Unlock()
+
+	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	mw, err = authServer.GetMaintenanceWindow(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = mw.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	require.Equal(t, uint32(16), agentWindow.UTCStartHour)
+
+	// set sync to fail with out of range hour
+	mu.Lock()
+	fakeHour = 36
+	mu.Unlock()
+
+	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	mw, err = authServer.GetMaintenanceWindow(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = mw.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	// verify that the old hour value persists since the sync failed
+	require.Equal(t, uint32(16), agentWindow.UTCStartHour)
+
+	// set sync to fail with impossible int type-cast
+	mu.Lock()
+	fakeHour = math.MaxInt64
+	mu.Unlock()
+
+	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	mw, err = authServer.GetMaintenanceWindow(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = mw.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	// verify that the old hour value persists since the sync failed
+	require.Equal(t, uint32(16), agentWindow.UTCStartHour)
+
+	mu.Lock()
+	fakeHour = 18
+	mu.Unlock()
+
+	// sync should now succeed again
+	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	mw, err = authServer.GetMaintenanceWindow(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = mw.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	// verify that we got the new hour value
+	require.Equal(t, uint32(18), agentWindow.UTCStartHour)
+
+	// set sync to fail with error
+	mu.Lock()
+	fakeHour = 12
+	fakeError = fmt.Errorf("uh-oh")
+	mu.Unlock()
+
+	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	mw, err = authServer.GetMaintenanceWindow(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = mw.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	// verify that the old hour value persists since the sync failed
+	require.Equal(t, uint32(18), agentWindow.UTCStartHour)
+
+	// recover and set hour to zero
+	mu.Lock()
+	fakeHour = 0
+	fakeError = nil
+	mu.Unlock()
+
+	// sync should now succeed again
+	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	mw, err = authServer.GetMaintenanceWindow(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = mw.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	// verify that we got the new hour value
+	require.Equal(t, uint32(0), agentWindow.UTCStartHour)
 }
 
 // TestIdentityChecker verifies auth identity properly validates host

@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var clusterNameNotFound = prometheus.NewCounter(
@@ -444,17 +447,54 @@ func (s *ClusterConfigurationService) DeleteAllInstallers(ctx context.Context) e
 	return nil
 }
 
+func (s *ClusterConfigurationService) GetMaintenanceWindow(ctx context.Context) (types.MaintenanceWindow, error) {
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, maintenanceWindowPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("no maintenance window has been configured")
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	var mw types.MaintenanceWindowV1
+	if err := utils.FastUnmarshal(item.Value, &mw); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &mw, nil
+}
+
+func (s *ClusterConfigurationService) UpdateMaintenanceWindow(ctx context.Context, mw types.MaintenanceWindow) error {
+	if err := mw.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	err := generic.FastUpdateNonceProtectedResource(
+		ctx,
+		s.Backend,
+		backend.Key(clusterConfigPrefix, maintenanceWindowPrefix),
+		mw,
+	)
+
+	if errors.Is(err, generic.NonceViolation) {
+		return trace.CompareFailed("maintenance window was concurrently modified, please re-pull and work from latest state")
+	}
+
+	return trace.Wrap(err)
+}
+
 const (
-	clusterConfigPrefix    = "cluster_configuration"
-	namePrefix             = "name"
-	staticTokensPrefix     = "static_tokens"
-	authPrefix             = "authentication"
-	preferencePrefix       = "preference"
-	generalPrefix          = "general"
-	auditPrefix            = "audit"
-	networkingPrefix       = "networking"
-	sessionRecordingPrefix = "session_recording"
-	scriptsPrefix          = "scripts"
-	uiPrefix               = "ui"
-	installerPrefix        = "installer"
+	clusterConfigPrefix     = "cluster_configuration"
+	namePrefix              = "name"
+	staticTokensPrefix      = "static_tokens"
+	authPrefix              = "authentication"
+	preferencePrefix        = "preference"
+	generalPrefix           = "general"
+	auditPrefix             = "audit"
+	networkingPrefix        = "networking"
+	sessionRecordingPrefix  = "session_recording"
+	scriptsPrefix           = "scripts"
+	uiPrefix                = "ui"
+	installerPrefix         = "installer"
+	maintenanceWindowPrefix = "maintenance-window"
 )

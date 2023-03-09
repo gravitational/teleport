@@ -5791,6 +5791,38 @@ func (a *ServerWithRoles) CloneHTTPClient(params ...roundtrip.ClientParam) (*HTT
 	return nil, trace.NotImplemented("not implemented")
 }
 
+func (a *ServerWithRoles) ExportMaintenanceWindows(ctx context.Context, req proto.ExportMaintenanceWindowsRequest) (proto.ExportMaintenanceWindowsResponse, error) {
+	// Ensure that caller is a teleport server
+	role, ok := a.context.Identity.(authz.BuiltinRole)
+	if !ok || !role.IsServer() {
+		return proto.ExportMaintenanceWindowsResponse{}, trace.AccessDenied("agent maintenance schedule is only accessible to teleport built-in servers")
+	}
+
+	return a.authServer.ExportMaintenanceWindows(ctx, req)
+}
+
+func (a *ServerWithRoles) GetMaintenanceWindow(ctx context.Context) (types.MaintenanceWindow, error) {
+	if err := a.action(apidefaults.Namespace, types.KindMaintenanceWindow, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetMaintenanceWindow(ctx)
+}
+
+func (a *ServerWithRoles) UpdateMaintenanceWindow(ctx context.Context, mw types.MaintenanceWindow) error {
+	if err := a.action(apidefaults.Namespace, types.KindMaintenanceWindow, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if modules.GetModules().Features().Cloud {
+		// maintenance windows in cloud are derived from the 'AccountUpgradeWindow' in
+		// the tenant service db.
+		return trace.NotImplemented("cloud clusters not support custom maintenance window resources")
+	}
+
+	return a.authServer.UpdateMaintenanceWindow(ctx, mw)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, alog events.AuditLogSessionStreamer) (ClientI, error) {
