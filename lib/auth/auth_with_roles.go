@@ -37,6 +37,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -272,6 +273,15 @@ func (a *ServerWithRoles) DevicesClient() devicepb.DeviceTrustServiceClient {
 func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 	return loginrulepb.NewLoginRuleServiceClient(
 		utils.NewGRPCDummyClientConnection("LoginRuleClient() should not be called on ServerWithRoles"),
+	)
+}
+
+// OktaClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) OktaClient() oktapb.OktaServiceClient {
+	return oktapb.NewOktaServiceClient(
+		utils.NewGRPCDummyClientConnection("OktaClient() should not be called on ServerWithRoles"),
 	)
 }
 
