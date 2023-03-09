@@ -1683,27 +1683,36 @@ func (process *TeleportProcess) initAuthService() error {
 	go mux.Serve()
 	authMetrics := &auth.Metrics{GRPCServerLatency: cfg.Metrics.GRPCServerLatency}
 
-	tlsServer, err := auth.NewTLSServer(auth.TLSServerConfig{
-		TLS:           tlsConfig,
-		APIConfig:     *apiConf,
-		LimiterConfig: cfg.Auth.Limiter,
-		AccessPoint:   authServer.Cache,
-		Component:     teleport.Component(teleport.ComponentAuth, process.id),
-		ID:            process.id,
-		Listener:      mux.TLS(),
-		Metrics:       authMetrics,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	var tlsServerMu sync.Mutex
+	var tlsServer *auth.TLSServer
 	process.RegisterCriticalFunc("auth.tls", func() error {
 		utils.Consolef(cfg.Console, log, teleport.ComponentAuth, "Auth service %s:%s is starting on %v.",
 			teleport.Version, teleport.Gitref, authAddr)
 
+		// Create the server in this critical function as it will be executed after the
+		// backend is assigned to the process. This will ensure that enterprise plugins
+		// will have access to the backend if they need it.
+		var err error
+		tlsServerMu.Lock()
+		tlsServer, err = auth.NewTLSServer(auth.TLSServerConfig{
+			TLS:           tlsConfig,
+			APIConfig:     *apiConf,
+			LimiterConfig: cfg.Auth.Limiter,
+			AccessPoint:   authServer.Cache,
+			Component:     teleport.Component(teleport.ComponentAuth, process.id),
+			ID:            process.id,
+			Listener:      mux.TLS(),
+			Metrics:       authMetrics,
+		})
+		tlsServerMu.Unlock()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		// since tlsServer.Serve is a blocking call, we emit this even right before
 		// the service has started
 		process.BroadcastEvent(Event{Name: AuthTLSReady, Payload: nil})
-		err := tlsServer.Serve()
+		err = tlsServer.Serve()
 		if err != nil && err != http.ErrServerClosed {
 			log.Warningf("TLS server exited with error: %v.", err)
 		}
@@ -1808,7 +1817,11 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		if payload == nil {
 			log.Info("Shutting down immediately.")
-			warnOnErr(tlsServer.Close(), log)
+			tlsServerMu.Lock()
+			if tlsServer != nil {
+				warnOnErr(tlsServer.Close(), log)
+			}
+			tlsServerMu.Unlock()
 		} else {
 			log.Info("Shutting down immediately (auth service does not currently support graceful shutdown).")
 			// NOTE: Graceful shutdown of auth.TLSServer is disabled right now, because we don't
