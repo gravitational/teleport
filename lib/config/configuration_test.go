@@ -3417,28 +3417,6 @@ func TestAuthHostedPlugins(t *testing.T) {
 			applyErr: badParameter,
 		},
 		{
-			desc: "OAuth provider correctly defined",
-			config: strings.Join([]string{
-				"auth_service:",
-				"  enabled: yes",
-				"",
-				"  hosted_plugins:",
-				"    enabled: yes",
-				"    oauth_providers:",
-				"      slack:",
-				"        client_id: foo",
-				"        client_secret: bar",
-			}, "\n"),
-			readErr:  require.NoError,
-			applyErr: require.NoError,
-			assert: func(t *testing.T, p service.HostedPluginsConfig) {
-				require.True(t, p.Enabled)
-				require.NotNil(t, p.OAuthProviders.Slack)
-				require.Equal(t, "foo", p.OAuthProviders.Slack.ID)
-				require.Equal(t, "bar", p.OAuthProviders.Slack.Secret)
-			},
-		},
-		{
 			desc: "OAuth provider in non-existent file",
 			config: strings.Join([]string{
 				"auth_service:",

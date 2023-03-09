@@ -1331,34 +1331,33 @@ func (p *PluginOAuthProviders) Parse() (service.PluginOAuthProviders, error) {
 	return out, nil
 }
 
-// OAuthClientCredentials hold client credentials for Teleport's OAuth app.
+// OAuthClientCredentials holds paths from which to read
+// client credentials for Teleport's OAuth app.
 type OAuthClientCredentials struct {
-	ClientID     string `yaml:"client_id"`
+	// ClientID is the path to the file containing the Client ID
+	ClientID string `yaml:"client_id"`
+	// ClientSecret is the path to the file containing the Client Secret
 	ClientSecret string `yaml:"client_secret"`
 }
 
 func (o *OAuthClientCredentials) Parse() (*oauth2.ClientCredentials, error) {
 	if o.ClientID == "" || o.ClientSecret == "" {
-		return nil, trace.BadParameter("Both client_id and client_secret must be specified")
+		return nil, trace.BadParameter("both client_id and client_secret paths must be specified")
 	}
-	clientID := o.ClientID
-	clientSecret := o.ClientSecret
 
-	// If the values look like filepaths, try to read from the paths
-	if strings.HasPrefix(clientID, "/") {
-		content, err := os.ReadFile(clientID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		clientID = strings.TrimSpace(string(content))
+	var clientID, clientSecret string
+
+	content, err := os.ReadFile(o.ClientID)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	if strings.HasPrefix(clientSecret, "/") {
-		content, err := os.ReadFile(clientSecret)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		clientSecret = strings.TrimSpace(string(content))
+	clientID = strings.TrimSpace(string(content))
+
+	content, err = os.ReadFile(o.ClientSecret)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	clientSecret = strings.TrimSpace(string(content))
 
 	return &oauth2.ClientCredentials{
 		ID:     clientID,
