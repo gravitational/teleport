@@ -1815,13 +1815,12 @@ func (process *TeleportProcess) initAuthService() error {
 		if listener != nil {
 			warnOnErr(listener.Close(), log)
 		}
+		tlsServerMu.Lock()
 		if payload == nil {
 			log.Info("Shutting down immediately.")
-			tlsServerMu.Lock()
 			if tlsServer != nil {
 				warnOnErr(tlsServer.Close(), log)
 			}
-			tlsServerMu.Unlock()
 		} else {
 			log.Info("Shutting down immediately (auth service does not currently support graceful shutdown).")
 			// NOTE: Graceful shutdown of auth.TLSServer is disabled right now, because we don't
@@ -1832,6 +1831,7 @@ func (process *TeleportProcess) initAuthService() error {
 			// of the auth server basically never exits.
 			warnOnErr(tlsServer.Close(), log)
 		}
+		tlsServerMu.Unlock()
 		log.Info("Exited.")
 	})
 	return nil
