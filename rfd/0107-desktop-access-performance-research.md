@@ -126,7 +126,7 @@ Over the course of this feature's development, we've become aware of a RDP clien
 is actively built and maintained by [Devolutions](https://devolutions.net/), who are experts in Windows and RDP.
 
 Presuming IronRDP provides better performance and can be hooked into our existing system without too much trouble, it's an attractive option because it's built
-in a language we're already using, and is actively maintained by a team of engineers at Devolutions, including at least one serious domain expert. This is in
+in a language we're already using, and is actively maintained. This is in
 contrast to our current RDP client, [rdp-rs](https://github.com/gravitational/rdp-rs), which is no longer actively maintained.
 
 #### RDP 7: Bitmaps with RemoteFX encoding
