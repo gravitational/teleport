@@ -26,7 +26,7 @@ func promoteBuildPipelines() []pipeline {
 		// The teleport security policy is that Workflows that want write access to production
 		// resources must be run from locked-down branch. This must be updated every major
 		// release to point to that release's working branch
-		workflowRefVar: "master",
+		workflowRef: "master",
 		inputs: map[string]string{
 			"release-source-tag": "${DRONE_TAG}",
 		},

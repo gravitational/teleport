@@ -22,13 +22,13 @@ import (
 type ghaBuildType struct {
 	buildType
 	trigger
-	pipelineName   string
-	ghaWorkflow    string
-	srcRefVar      string
-	workflowRefVar string
-	slackOnError   bool
-	dependsOn      []string
-	inputs         map[string]string
+	pipelineName string
+	ghaWorkflow  string
+	srcRefVar    string
+	workflowRef  string
+	slackOnError bool
+	dependsOn    []string
+	inputs       map[string]string
 }
 
 func ghaBuildPipeline(b ghaBuildType) pipeline {
@@ -43,7 +43,7 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 	cmd.WriteString(`-repo teleport.e `)
 	cmd.WriteString(`-tag-workflow `)
 	fmt.Fprintf(&cmd, `-workflow %s `, b.ghaWorkflow)
-	fmt.Fprintf(&cmd, `-workflow-ref=${%s} `, b.workflowRefVar)
+	fmt.Fprintf(&cmd, `-workflow-ref=%s `, b.workflowRef)
 
 	// If we don't need to build teleport...
 	if b.srcRefVar != "" {
