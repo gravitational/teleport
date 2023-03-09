@@ -2194,18 +2194,18 @@ message UpsertTokenV2Request {
 
 // Request for GetHeadlessAuthentication.
 message GetHeadlessAuthenticationRequest {
-  // Name is the headless authentication id.
-  string name = 1;
+  // ID is the headless authentication id.
+  string id = 1;
 }
 
 // Request for UpdateHeadlessAuthenticationState.
 message UpdateHeadlessAuthenticationStateRequest {
-  // Name is the headless authentication id.
-  string name = 1;
+  // ID is the headless authentication id.
+  string id = 1;
 
-  // NewState is the state that the request will be updated to.
-  // MFA verification is required if NewState=APPROVED.
-  types.HeadlessAuthenticationState new_state = 2;
+  // State is the state that the request will be updated to.
+  // MFA verification is required if State=APPROVED.
+  types.HeadlessAuthenticationState state = 2;
 
   // MFAResponse is an mfa challenge response used to verify the user.
   // MFA Auth Challenges can be created for a user with the

@@ -3406,10 +3406,10 @@ func (c *Client) OktaClient() oktapb.OktaServiceClient {
 }
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
-func (c *Client) UpdateHeadlessAuthenticationState(ctx context.Context, name string, newState types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error {
+func (c *Client) UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error {
 	_, err := c.grpc.UpdateHeadlessAuthenticationState(ctx, &proto.UpdateHeadlessAuthenticationStateRequest{
-		Name:        name,
-		NewState:    newState,
+		Id:          id,
+		State:       state,
 		MfaResponse: mfaResponse,
 	}, c.callOpts...)
 	if err != nil {
@@ -3418,10 +3418,10 @@ func (c *Client) UpdateHeadlessAuthenticationState(ctx context.Context, name str
 	return nil
 }
 
-// GetHeadlessAuthentication retrieves a headless authentication by name.
-func (c *Client) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+// GetHeadlessAuthentication retrieves a headless authentication by id.
+func (c *Client) GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error) {
 	headlessAuthn, err := c.grpc.GetHeadlessAuthentication(ctx, &proto.GetHeadlessAuthenticationRequest{
-		Name: name,
+		Id: id,
 	}, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)

@@ -1538,9 +1538,9 @@ type IdentityService interface {
 	CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error)
 
 	// UpdateHeadlessAuthenticationState updates a headless authentication state.
-	UpdateHeadlessAuthenticationState(ctx context.Context, name string, newState types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error
-	// GetHeadlessAuthentication retrieves a headless authentication by name.
-	GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error)
+	UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error
+	// GetHeadlessAuthentication retrieves a headless authentication by id.
+	GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error)
 }
 
 // ProvisioningService is a service in control

@@ -4977,23 +4977,19 @@ func (g *GRPCServer) UpdateHeadlessAuthenticationState(ctx context.Context, req 
 		return &emptypb.Empty{}, trace.Wrap(err)
 	}
 
-	err = auth.UpdateHeadlessAuthenticationState(ctx, req.Name, req.NewState, req.MfaResponse)
+	err = auth.UpdateHeadlessAuthenticationState(ctx, req.Id, req.State, req.MfaResponse)
 	return &emptypb.Empty{}, trace.Wrap(err)
 }
 
-// GetHeadlessAuthentication retrieves a headless authentication by name.
+// GetHeadlessAuthentication retrieves a headless authentication by id.
 func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *proto.GetHeadlessAuthenticationRequest) (*types.HeadlessAuthentication, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	authReq, err := auth.GetHeadlessAuthentication(ctx, req.Name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return authReq, nil
+	authReq, err := auth.GetHeadlessAuthentication(ctx, req.Id)
+	return authReq, trace.Wrap(err)
 }
 
 // GRPCServerConfig specifies GRPC server configuration
