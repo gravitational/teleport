@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import fs from 'fs';
+import fs from 'fs/promises';
 
 import { debounce } from 'shared/utils/highbar';
 
@@ -29,8 +29,8 @@ export interface FileStorage {
   /** Asynchronously replaces the entire storage state with a new value. */
   replace(json: any): void;
 
-  /** Synchronously writes the storage state to disk. */
-  writeSync(): void;
+  /** Asynchronously writes the storage state to disk. */
+  write(): Promise<void>;
 
   /** Returns value for a given key. If the key is omitted, the entire storage state is returned. */
   get<T>(key?: string): T;
@@ -73,16 +73,12 @@ export async function createFileStorage(opts: {
     stringifyAndWrite();
   }
 
-  function writeSync(): void {
+  function write(): Promise<void> {
     if (discardUpdates) {
       return;
     }
     const text = stringify(state);
-    try {
-      fs.writeFileSync(filePath, text);
-    } catch (error) {
-      logger.error(`Cannot update ${filePath} file`, error);
-    }
+    writeFile(filePath, text);
   }
 
   function replace(json: any): void {
@@ -115,7 +111,7 @@ export async function createFileStorage(opts: {
 
   return {
     put,
-    writeSync,
+    write,
     get,
     replace,
     getFilePath,
@@ -130,11 +126,11 @@ async function loadState(filePath: string): Promise<any> {
 
 async function readOrCreateFile(filePath: string): Promise<string> {
   try {
-    return await fs.promises.readFile(filePath, { encoding: 'utf-8' });
+    return await fs.readFile(filePath, { encoding: 'utf-8' });
   } catch (error) {
     const defaultValue = '{}';
     if (error?.code === 'ENOENT') {
-      await fs.promises.writeFile(filePath, defaultValue);
+      await fs.writeFile(filePath, defaultValue);
       return defaultValue;
     }
     throw error;
@@ -151,6 +147,6 @@ const writeFileDebounced = debounce(
 );
 
 const writeFile = (filePath: string, text: string) =>
-  fs.promises.writeFile(filePath, text).catch(error => {
+  fs.writeFile(filePath, text).catch(error => {
     logger.error(`Cannot update ${filePath} file`, error);
   });

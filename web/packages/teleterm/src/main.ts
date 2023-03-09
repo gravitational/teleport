@@ -90,16 +90,17 @@ async function initializeApp(): Promise<void> {
 
   app.on('will-quit', async event => {
     event.preventDefault();
+    const disposeMainProcess = async () => {
+      try {
+        await mainProcess.dispose();
+      } catch (e) {
+        logger.error('Failed to gracefully dispose of main process', e);
+      }
+    };
 
-    appStateFileStorage.writeSync();
     globalShortcut.unregisterAll();
-    try {
-      await mainProcess.dispose();
-    } catch (e) {
-      logger.error('Failed to gracefully dispose of main process', e);
-    } finally {
-      app.exit();
-    }
+    await Promise.all([appStateFileStorage.write(), disposeMainProcess()]); // none of them can throw
+    app.exit();
   });
 
   app.on('quit', () => {

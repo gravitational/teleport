@@ -131,7 +131,7 @@ export enum ConfigServiceEventType {
 export enum FileStorageEventType {
   Get = 'Get',
   Put = 'Put',
-  WriteSync = 'WriteSync',
+  Write = 'Write',
   Replace = 'Replace',
   GetFilePath = 'GetFilePath',
   GetFileLoadingError = 'GetFileLoadingError',
