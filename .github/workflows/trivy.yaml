@@ -1,0 +1,16 @@
+name: Trivy
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  trivy:
+    uses: gravitational/shared-workflows/.github/workflows/trivy.yaml@reed/terraform-lint-v2
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
