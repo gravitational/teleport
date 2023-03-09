@@ -225,10 +225,11 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
-	auth, err = service.NewTeleport(cfg)
 	if options.fakeClock != nil {
-		auth.GetAuthServer().SetClock(options.fakeClock)
+		cfg.Clock = options.fakeClock
 	}
+	auth, err = service.NewTeleport(cfg)
+
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
 

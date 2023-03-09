@@ -728,6 +728,10 @@ type AuthConfig struct {
 	// LoadAllCAs sends the host CAs of all clusters to SSH clients logging in when enabled,
 	// instead of just the host CA for the current cluster.
 	LoadAllCAs bool
+
+	// Clock is the clock instance auth uses. Typically you'd only want to set
+	// this during testing.
+	Clock clockwork.Clock
 }
 
 // SSHConfig configures SSH server node role

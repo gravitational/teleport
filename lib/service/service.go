@@ -1557,6 +1557,7 @@ func (process *TeleportProcess) initAuthService() error {
 		TraceClient:             traceClt,
 		FIPS:                    cfg.FIPS,
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
+		Clock:                   cfg.Clock,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil

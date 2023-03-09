@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
@@ -214,6 +215,10 @@ type InitConfig struct {
 
 	// UsageReporter is a service that forwards cluster usage events.
 	UsageReporter usagereporter.UsageReporter
+
+	// Clock is the clock instance auth uses. Typically you'd only want to set
+	// this during testing.
+	Clock clockwork.Clock
 }
 
 // Init instantiates and configures an instance of AuthServer

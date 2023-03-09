@@ -267,6 +267,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
 		bk:              cfg.Backend,
+		clock:           cfg.Clock,
 		limiter:         limiter,
 		Authority:       cfg.Authority,
 		AuthServiceName: cfg.AuthServiceName,
