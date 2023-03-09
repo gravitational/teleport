@@ -17,14 +17,19 @@ limitations under the License.
 package web
 
 import (
+	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
@@ -44,6 +49,8 @@ type fileTransferRequest struct {
 	remoteLocation string
 	// filename is a file name
 	filename string
+	// webauthn is an optional parameter that contains a webauthn response string used to issue single use certs
+	webauthn string
 }
 
 func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
@@ -55,6 +62,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		remoteLocation: query.Get("location"),
 		filename:       query.Get("filename"),
 		namespace:      defaults.Namespace,
+		webauthn:       query.Get("webauthn"),
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), site)
@@ -106,6 +114,10 @@ func (f *fileTransfer) download(req fileTransferRequest, httpReq *http.Request, 
 		return trace.Wrap(err)
 	}
 
+	if req.webauthn != "" {
+		f.issueSingleUseCert(req.webauthn, httpReq, tc)
+	}
+
 	err = tc.ExecuteSCP(httpReq.Context(), cmd)
 	if err != nil {
 		return trace.Wrap(err)
@@ -128,6 +140,10 @@ func (f *fileTransfer) upload(req fileTransferRequest, httpReq *http.Request) er
 	tc, err := f.createClient(req, httpReq)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if req.webauthn != "" {
+		f.issueSingleUseCert(req.webauthn, httpReq, tc)
 	}
 
 	err = tc.ExecuteSCP(httpReq.Context(), cmd)
@@ -178,4 +194,47 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 	}
 
 	return tc, nil
+}
+
+type mfaRequest struct {
+	// WebauthnResponse is the response from authenticators.
+	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+}
+
+func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request, tc *client.TeleportClient) error {
+	var mfaReq mfaRequest
+	err := json.Unmarshal([]byte(webauthn), &mfaReq)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key, err := client.GenerateRSAKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cert, err := f.authClient.GenerateUserCerts(httpReq.Context(), proto.UserCertsRequest{
+		PublicKey: key.MarshalSSHPublicKey(),
+		Username:  f.ctx.GetUser(),
+		Expires:   time.Now().Add(time.Minute).UTC(),
+		MFAResponse: &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wanlib.CredentialAssertionResponseToProto(mfaReq.WebauthnAssertionResponse),
+			},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	key.Cert = cert.SSH
+
+	am, err := key.AsAuthMethod()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc.AuthMethods = []ssh.AuthMethod{am}
+
+	return nil
 }
