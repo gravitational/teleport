@@ -60,7 +60,7 @@ function notifyAboutConfigErrors(
       case 'file-loading': {
         notificationsService.notifyError({
           title: 'Failed to load config file',
-          description: `Using default config instead.\n${configError.error.toString()}`,
+          description: `Using the default config instead.\n${configError.error.toString()}`,
         });
         break;
       }
