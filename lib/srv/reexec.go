@@ -130,6 +130,9 @@ type ExecCommand struct {
 	// IsTestStub is used by tests to mock the shell.
 	IsTestStub bool `json:"is_test_stub"`
 
+	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
+	UserCreatedByTeleport bool
+
 	// UaccMetadata contains metadata needed for user accounting.
 	UaccMetadata UaccMetadata `json:"uacc_meta"`
 
@@ -337,9 +340,15 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	defer parkerCancel()
 
 	osPack := newOsWrapper()
-	if err := osPack.startNewParker(parkerCtx, cmd.SysProcAttr.Credential,
-		c.Login, &systemUser{u: localUser}); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	if c.UserCreatedByTeleport {
+		// Parker is only needed when the user was created by Teleport.
+		err := osPack.startNewParker(
+			parkerCtx,
+			cmd.SysProcAttr.Credential,
+			c.Login, &systemUser{u: localUser})
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
 	}
 
 	if c.X11Config.XServerUnixSocket != "" {
