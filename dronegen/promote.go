@@ -19,11 +19,14 @@ func promoteBuildPipelines() []pipeline {
 	promotePipelines = append(promotePipelines, promoteBuildOsRepoPipelines()...)
 
 	ociPipeline := ghaBuildPipeline(ghaBuildType{
-		buildType:      buildType{os: "linux", fips: false},
-		trigger:        triggerPromote,
-		pipelineName:   "promote-teleport-oci-distroless-images",
-		ghaWorkflow:    "promote-teleport-oci-distroless.yml",
-		workflowRefVar: "DRONE_TAG",
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerPromote,
+		pipelineName: "promote-teleport-oci-distroless-images",
+		ghaWorkflow:  "promote-teleport-oci-distroless.yml",
+		// The teleport security policy is that Workflows that want write access to production
+		// resources must be run from locked-down branch. This must be updated every major
+		// release to point to that release's working branch
+		workflowRefVar: "master",
 		inputs: map[string]string{
 			"release-source-tag": "${DRONE_TAG}",
 		},
