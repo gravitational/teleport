@@ -107,11 +107,11 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -309,7 +309,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
@@ -571,7 +571,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
@@ -6828,7 +6828,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(clock),

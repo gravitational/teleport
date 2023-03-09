@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -60,17 +61,17 @@ func TestCheckAndSetDefaults(t *testing.T) {
 	var zeroPageCount = 0
 
 	var tests = []struct {
-		inConfig  *Config
-		outConfig *Config
+		inConfig  *servicecfg.BPFConfig
+		outConfig *servicecfg.BPFConfig
 	}{
 		// Empty values get defaults.
 		{
-			inConfig: &Config{
+			inConfig: &servicecfg.BPFConfig{
 				CommandBufferSize: nil,
 				DiskBufferSize:    nil,
 				NetworkBufferSize: nil,
 			},
-			outConfig: &Config{
+			outConfig: &servicecfg.BPFConfig{
 				CommandBufferSize: &perfBufferPageCount,
 				DiskBufferSize:    &openPerfBufferPageCount,
 				NetworkBufferSize: &perfBufferPageCount,
@@ -78,12 +79,12 @@ func TestCheckAndSetDefaults(t *testing.T) {
 		},
 		// Values are not wiped out with defaults.
 		{
-			inConfig: &Config{
+			inConfig: &servicecfg.BPFConfig{
 				CommandBufferSize: &zeroPageCount,
 				DiskBufferSize:    &zeroPageCount,
 				NetworkBufferSize: &perfBufferPageCount,
 			},
-			outConfig: &Config{
+			outConfig: &servicecfg.BPFConfig{
 				CommandBufferSize: &zeroPageCount,
 				DiskBufferSize:    &zeroPageCount,
 				NetworkBufferSize: &perfBufferPageCount,

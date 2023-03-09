@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 type kubeCreds interface {
@@ -109,13 +110,13 @@ type dynamicKubeCreds struct {
 	log         logrus.FieldLogger
 	closeC      chan struct{}
 	client      dynamicCredsClient
-	checker     ImpersonationPermissionsChecker
+	checker     servicecfg.ImpersonationPermissionsChecker
 	sync.RWMutex
 }
 
 // newDynamicKubeCreds creates a new dynamicKubeCreds refresher and starts the
 // credentials refresher mechanism to renew them once they are about to expire.
-func newDynamicKubeCreds(ctx context.Context, kubeCluster types.KubeCluster, log logrus.FieldLogger, client dynamicCredsClient, checker ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
+func newDynamicKubeCreds(ctx context.Context, kubeCluster types.KubeCluster, log logrus.FieldLogger, client dynamicCredsClient, checker servicecfg.ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
 	dyn := &dynamicKubeCreds{
 		ctx:         ctx,
 		log:         log,

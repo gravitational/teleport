@@ -24,13 +24,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // SSOConfigureCommand implements common.CLICommand interface
 type SSOConfigureCommand struct {
-	Config       *service.Config
+	Config       *servicecfg.Config
 	ConfigureCmd *kingpin.CmdClause
 	AuthCommands []*AuthKindCommand
 	Logger       *logrus.Entry
@@ -43,7 +43,7 @@ type AuthKindCommand struct {
 
 // Initialize allows a caller-defined command to plug itself into CLI
 // argument parsing
-func (cmd *SSOConfigureCommand) Initialize(app *kingpin.Application, cfg *service.Config) {
+func (cmd *SSOConfigureCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 	cmd.Config = cfg
 	cmd.Logger = cfg.Log.WithField(trace.Component, teleport.ComponentClient)
 
