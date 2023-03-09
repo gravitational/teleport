@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
@@ -82,6 +83,8 @@ func TestDatabaseAccess(t *testing.T) {
 	t.Run("CassandraRootCluster", pack.testCassandraRootCluster)
 	t.Run("CassandraLeafCluster", pack.testCassandraLeafCluster)
 
+	t.Run("IPPinning", pack.testIPPinning)
+
 	// This test should go last because it rotates the Database CA.
 	t.Run("RotateTrustedCluster", pack.testRotateTrustedCluster)
 }
@@ -94,6 +97,92 @@ func TestDatabaseAccessSeparateListeners(t *testing.T) {
 
 	t.Run("PostgresSeparateListener", pack.testPostgresSeparateListener)
 	t.Run("MongoSeparateListener", pack.testMongoSeparateListener)
+}
+
+// testIPPinning tests a scenario where a user with IP pinning
+// connects to a database
+func (p *DatabasePack) testIPPinning(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures:  modules.Features{DB: true},
+	})
+
+	type testCase struct {
+		desc          string
+		targetCluster databaseClusterPack
+		pinnedIP      string
+		wantClientErr string
+	}
+
+	testCases := []testCase{
+		{
+			desc:          "root cluster, no pinned ip",
+			targetCluster: p.Root,
+		},
+		{
+			desc:          "root cluster, correct pinned ip",
+			targetCluster: p.Root,
+			pinnedIP:      "127.0.0.1",
+		},
+		{
+			desc:          "root cluster, incorrect pinned ip",
+			targetCluster: p.Root,
+			wantClientErr: "pinned IP doesn't match observed client IP",
+			pinnedIP:      "127.0.0.2",
+		},
+		{
+			desc:          "leaf cluster, no pinned ip",
+			targetCluster: p.Leaf,
+		},
+		{
+			desc:          "leaf cluster, correct pinned ip",
+			targetCluster: p.Leaf,
+			pinnedIP:      "127.0.0.1",
+		},
+		{
+			desc:          "leaf cluster, incorrect pinned ip",
+			targetCluster: p.Leaf,
+			wantClientErr: "pinned IP doesn't match observed client IP",
+			pinnedIP:      "127.0.0.2",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			// Connect to the database service in root cluster.
+			testClient, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
+				AuthClient: p.Root.Cluster.GetSiteAPI(p.Root.Cluster.Secrets.SiteName),
+				AuthServer: p.Root.Cluster.Process.GetAuthServer(),
+				Address:    p.Root.Cluster.Web,
+				Cluster:    tc.targetCluster.Cluster.Secrets.SiteName,
+				Username:   p.Root.User.GetName(),
+				PinnedIP:   tc.pinnedIP,
+				RouteToDatabase: tlsca.RouteToDatabase{
+					ServiceName: tc.targetCluster.PostgresService.Name,
+					Protocol:    tc.targetCluster.PostgresService.Protocol,
+					Username:    "postgres",
+					Database:    "test",
+				},
+			})
+			if tc.wantClientErr != "" {
+				require.ErrorContains(t, err, tc.wantClientErr)
+				return
+			}
+			require.NoError(t, err)
+
+			wantQueryCount := tc.targetCluster.postgres.QueryCount() + 1
+
+			// Execute a query.
+			result, err := testClient.Exec(context.Background(), "select 1").ReadAll()
+			require.NoError(t, err)
+			require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+			require.Equal(t, wantQueryCount, tc.targetCluster.postgres.QueryCount())
+
+			// Disconnect.
+			err = testClient.Close(context.Background())
+			require.NoError(t, err)
+		})
+	}
 }
 
 // testPostgresRootCluster tests a scenario where a user connects

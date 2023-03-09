@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -89,7 +90,7 @@ type Config struct {
 	// Limiter limits the number of connections per client IP.
 	Limiter *limiter.Limiter
 	// Authorizer is used to authorize requests coming from proxy.
-	Authorizer auth.Authorizer
+	Authorizer authz.Authorizer
 	// GetRotation returns the certificate rotation state.
 	GetRotation func(role types.SystemRole) (*types.Rotation, error)
 	// GetServerInfoFn returns function that returns database info for heartbeats.
@@ -994,9 +995,13 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 
 func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	// Only allow local and remote identities to proxy to a database.
-	userType := ctx.Value(auth.ContextUser)
+	userType, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	switch userType.(type) {
-	case auth.LocalUser, auth.RemoteUser:
+	case authz.LocalUser, authz.RemoteUser:
 	default:
 		return nil, trace.BadParameter("invalid identity: %T", userType)
 	}
@@ -1007,6 +1012,12 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	}
 	identity := authContext.Identity.GetIdentity()
 	s.log.Debugf("Client identity: %#v.", identity)
+
+	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
+	if err := auth.CheckIPPinning(ctx, identity, authContext.Checker.PinSourceIP()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Fetch the requested database server.
 	var database types.Database
 	registeredDatabases := s.getProxiedDatabases()
