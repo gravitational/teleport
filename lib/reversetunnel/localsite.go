@@ -287,7 +287,8 @@ func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
 	}
 	s.log.Debugf("Succeeded dialing %v.", params)
 
-	if err := s.maybeSendSignedPROXYHeader(params, conn, useTunnel, true); err != nil {
+	isKubeOrDB := params.ConnType == types.KubeTunnel || params.ConnType == types.DatabaseTunnel
+	if err := s.maybeSendSignedPROXYHeader(params, conn, useTunnel, !isKubeOrDB); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
