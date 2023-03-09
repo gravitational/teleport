@@ -18,6 +18,18 @@ func promoteBuildPipelines() []pipeline {
 	promotePipelines := make([]pipeline, 0)
 	promotePipelines = append(promotePipelines, promoteBuildOsRepoPipelines()...)
 
+	ociPipeline := ghaBuildPipeline(ghaBuildType{
+		buildType:      buildType{os: "linux", fips: false},
+		trigger:        triggerPromote,
+		pipelineName:   "promote-teleport-oci-distroless-images",
+		ghaWorkflow:    "promote-teleport-oci-distroless.yml",
+		srcRefVar:      "DRONE_TAG",
+		workflowRefVar: "DRONE_TAG",
+	})
+	ociPipeline.Trigger.Target.Include = append(ociPipeline.Trigger.Target.Include, "promote-distroless")
+
+	promotePipelines = append(promotePipelines, ociPipeline)
+
 	return promotePipelines
 }
 
