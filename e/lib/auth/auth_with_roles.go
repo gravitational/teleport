@@ -11,6 +11,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -47,7 +48,7 @@ func (ac *cloudWithRoles) RemoveCard(ctx context.Context, req *v1.RemoveCardRequ
 			Type: events.BillingCardDeleteEvent,
 			Code: events.BillingCardDeleteCode,
 		},
-		UserMetadata: auth.ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 	}
 	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
 		log.WithError(err).WithFields(logrus.Fields{
@@ -76,7 +77,7 @@ func (ac *cloudWithRoles) UpdateCard(ctx context.Context, req *v1.UpdateCardRequ
 			Type: events.BillingCardUpdateEvent,
 			Code: events.BillingCardUpdateCode,
 		},
-		UserMetadata: auth.ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 	}
 	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
 		log.WithError(err).WithFields(logrus.Fields{
@@ -105,7 +106,7 @@ func (ac *cloudWithRoles) UpdateAccount(ctx context.Context, req *v1.UpdateAccou
 			Type: events.BillingInformationUpdateEvent,
 			Code: events.BillingInformationUpdateCode,
 		},
-		UserMetadata: auth.ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 	}
 	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
 		log.WithError(err).WithFields(logrus.Fields{
@@ -134,7 +135,7 @@ func (ac *cloudWithRoles) AddCard(ctx context.Context, req *v1.AddCardRequest) (
 			Type: events.BillingCardCreateEvent,
 			Code: events.BillingCardCreateCode,
 		},
-		UserMetadata: auth.ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 	}
 	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
 		log.WithError(err).WithFields(logrus.Fields{

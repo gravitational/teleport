@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/plugins/pluginsv1"
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/release"
@@ -82,7 +83,7 @@ type Plugin struct {
 	// cloudClient is a client of the Cloud API server
 	cloudClient cloudapi.TenantsServiceClient
 	// authorizer authorizes identity and returns auth context
-	authorizer auth.Authorizer
+	authorizer authz.Authorizer
 	// emitter is events emitter, used to submit discrete events.
 	emitter apievents.Emitter
 }

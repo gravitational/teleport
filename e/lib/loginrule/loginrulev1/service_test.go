@@ -12,7 +12,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
@@ -50,8 +50,8 @@ type fakeAuthorizer struct {
 	checker *fakeChecker
 }
 
-func (f *fakeAuthorizer) Authorize(ctx context.Context) (*auth.Context, error) {
-	return &auth.Context{
+func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
+	return &authz.Context{
 		Checker: f.checker,
 	}, nil
 }
@@ -132,7 +132,7 @@ func TestRBAC(t *testing.T) {
 					ResourceMetadata: apievents.ResourceMetadata{
 						Name: rule.Metadata.Name,
 					},
-					UserMetadata: auth.ClientUserMetadata(ctx),
+					UserMetadata: authz.ClientUserMetadata(ctx),
 				},
 			},
 		},
@@ -161,7 +161,7 @@ func TestRBAC(t *testing.T) {
 					ResourceMetadata: apievents.ResourceMetadata{
 						Name: rule.Metadata.Name,
 					},
-					UserMetadata: auth.ClientUserMetadata(ctx),
+					UserMetadata: authz.ClientUserMetadata(ctx),
 				},
 			},
 		},
@@ -220,7 +220,7 @@ func TestRBAC(t *testing.T) {
 					ResourceMetadata: apievents.ResourceMetadata{
 						Name: rule.Metadata.Name,
 					},
-					UserMetadata: auth.ClientUserMetadata(ctx),
+					UserMetadata: authz.ClientUserMetadata(ctx),
 				},
 			},
 		},

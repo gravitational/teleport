@@ -10,13 +10,13 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/plugins"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // ServiceConfig holds configuration options for the plugins gRPC service.
 type ServiceConfig struct {
-	Authorizer     auth.Authorizer
+	Authorizer     authz.Authorizer
 	Exchangers     *plugins.ExchangerSet
 	BackendService services.Plugins
 }
@@ -39,7 +39,7 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 type Service struct {
 	pluginspb.UnimplementedPluginServiceServer
 
-	authorizer     auth.Authorizer
+	authorizer     authz.Authorizer
 	exchangers     *plugins.ExchangerSet
 	backendService services.Plugins
 }

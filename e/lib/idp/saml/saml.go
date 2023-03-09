@@ -31,7 +31,7 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -52,7 +52,7 @@ type Config struct {
 	// AccessPoint is the cached client to use for the SAML IdP
 	AccessPoint IdPAccessPoint
 	// Authorizer is the authorizer to use for the SAML IdP
-	Authorizer auth.Authorizer
+	Authorizer authz.Authorizer
 	// BaseURL is the base URL for the SAML IdP
 	BaseURL string
 	// Emitter emits audit events.
@@ -130,7 +130,7 @@ type Service struct {
 	clock       clockwork.Clock
 	idpMutex    sync.RWMutex
 	idp         saml.IdentityProvider
-	authorizer  auth.Authorizer
+	authorizer  authz.Authorizer
 	idpHandler  http.Handler
 	client      IdPAuthClient
 	accessPoint IdPAccessPoint

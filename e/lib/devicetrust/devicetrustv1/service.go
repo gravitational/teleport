@@ -16,6 +16,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	config "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -29,7 +30,7 @@ type AuthServer interface {
 	// other, and conform to whatever checks the underlying implementation sees
 	// fit to perform.
 	// See [auth.Server.AugmentContextUserCertificates]
-	AugmentContextUserCertificates(ctx context.Context, authCtx *auth.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error)
+	AugmentContextUserCertificates(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error)
 
 	// GetAuthPreference gets the cluster's auth preferences.
 	// This method is not guarded by user permissions.
@@ -44,7 +45,7 @@ type Service struct {
 	logger *log.Entry
 
 	authServer AuthServer
-	authorizer auth.Authorizer
+	authorizer authz.Authorizer
 	emitter    apievents.Emitter
 	storage    *storage.S
 }
@@ -52,7 +53,7 @@ type Service struct {
 // ServiceParams holds creation parameters for Service.
 type ServiceParams struct {
 	AuthServer AuthServer
-	Authorizer auth.Authorizer
+	Authorizer authz.Authorizer
 	Emitter    apievents.Emitter
 	Storage    *storage.S
 }
@@ -444,6 +445,6 @@ func getDeviceMetadata(dev *devicepb.Device) *apievents.DeviceMetadata {
 }
 
 func getUserMetadata(ctx context.Context) *apievents.UserMetadata {
-	m := auth.ClientUserMetadata(ctx)
+	m := authz.ClientUserMetadata(ctx)
 	return &m
 }

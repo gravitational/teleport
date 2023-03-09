@@ -37,7 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -70,7 +70,7 @@ func TestAuth(t *testing.T) {
 
 	w = httptest.NewRecorder()
 	r = httptest.NewRequest(http.MethodGet, path, nil)
-	r = r.WithContext(context.WithValue(r.Context(), auth.ContextUser, user))
+	r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 
 	svcs.samlIdP.ServeHTTP(w, r)
 	require.Equal(t, http.StatusNotFound, w.Code)
@@ -95,7 +95,7 @@ func TestAuth(t *testing.T) {
 	user.Identity.Expires = clock.Now().Add(-30 * time.Minute)
 	w = httptest.NewRecorder()
 	r = httptest.NewRequest(http.MethodGet, path, nil)
-	r = r.WithContext(context.WithValue(r.Context(), auth.ContextUser, user))
+	r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 
 	svcs.samlIdP.ServeHTTP(w, r)
 	require.Equal(t, http.StatusNotFound, w.Code)
@@ -117,7 +117,7 @@ func TestMetadata(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, path.Join(IdPRoute, "metadata"), nil)
-	r = r.WithContext(context.WithValue(r.Context(), auth.ContextUser, user))
+	r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 
 	svcs.samlIdP.ServeHTTP(w, r)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -187,7 +187,7 @@ func testSSO(t *testing.T, method string, addRequest func(*http.Request, saml.Au
 	}
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(method, path.Join(IdPRoute, "sso"), nil)
-	r = r.WithContext(context.WithValue(r.Context(), auth.ContextUser, user))
+	r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 
 	addRequest(r, authnRequest)
 
@@ -245,7 +245,7 @@ func testIdPInitiatedLogin(t *testing.T, method string) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(method, path.Join(IdPRoute, "login", "shortcut-name"), nil)
-	r = r.WithContext(context.WithValue(r.Context(), auth.ContextUser, user))
+	r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 
 	svcs.samlIdP.ServeHTTP(w, r)
 	require.Equal(t, http.StatusOK, w.Code)
@@ -271,7 +271,7 @@ func testIdPInitiatedLogin(t *testing.T, method string) {
 
 	w = httptest.NewRecorder()
 	r = httptest.NewRequest(method, path.Join(IdPRoute, "login/doesntexist"), nil)
-	r = r.WithContext(context.WithValue(r.Context(), auth.ContextUser, user))
+	r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 
 	svcs.samlIdP.ServeHTTP(w, r)
 	require.Equal(t, http.StatusNotFound, w.Code)
@@ -294,7 +294,7 @@ func TestLockUser(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, path.Join(IdPRoute, "metadata"), nil)
-	r = r.WithContext(context.WithValue(r.Context(), auth.ContextUser, user))
+	r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 
 	// Make sure the first access works
 	svcs.samlIdP.ServeHTTP(w, r)
@@ -312,13 +312,13 @@ func TestLockUser(t *testing.T) {
 	require.Eventually(t, func() bool {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, path.Join(IdPRoute, "metadata"), nil)
-		r = r.WithContext(context.WithValue(r.Context(), auth.ContextUser, user))
+		r = r.WithContext(authz.ContextWithUser(r.Context(), user))
 		svcs.samlIdP.ServeHTTP(w, r)
 		return w.Code == http.StatusNotFound
 	}, time.Second*3, time.Millisecond*250)
 }
 
-func setupUser(t *testing.T, svcs testServices, expireTime time.Time) auth.LocalUser {
+func setupUser(t *testing.T, svcs testServices, expireTime time.Time) authz.LocalUser {
 	role, err := types.NewRole("test-group", types.RoleSpecV6{})
 	require.NoError(t, err)
 	require.NoError(t, svcs.accessService.CreateRole(context.Background(), role))
@@ -338,7 +338,7 @@ func setupUser(t *testing.T, svcs testServices, expireTime time.Time) auth.Local
 	require.NoError(t, err)
 	s.Names = s.ExtraNames
 
-	return auth.LocalUser{
+	return authz.LocalUser{
 		Username: user.GetName(),
 		Identity: identity,
 	}

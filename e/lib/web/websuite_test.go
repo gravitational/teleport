@@ -19,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -108,7 +109,7 @@ func newWebSuite(t *testing.T) *webSuite {
 	require.NoError(t, err)
 
 	s.proxyClient, err = s.testAuthServer.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: "proxy",
 		},

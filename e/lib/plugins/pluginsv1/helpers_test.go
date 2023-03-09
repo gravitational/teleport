@@ -11,7 +11,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/plugins"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -85,8 +85,8 @@ type fakeAuthorizer struct {
 	checker *fakeChecker
 }
 
-func (f *fakeAuthorizer) Authorize(ctx context.Context) (*auth.Context, error) {
-	return &auth.Context{
+func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
+	return &authz.Context{
 		Checker: f.checker,
 	}, nil
 }

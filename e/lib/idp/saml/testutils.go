@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
@@ -173,7 +174,7 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 		LockGetter: accessService,
 	})
 	require.NoError(t, err)
-	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: "test-cluster",
 		AccessPoint: client,
 		LockWatcher: lockWatcher,
@@ -223,7 +224,7 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 
 func withRole(ctx context.Context, role types.SystemRole) context.Context {
 	identity := auth.TestBuiltin(role)
-	return context.WithValue(ctx, auth.ContextUser, identity.I)
+	return authz.ContextWithUser(ctx, identity.I)
 }
 
 func newTestEntityDescriptor(entityID string) string {

@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -99,7 +99,7 @@ func (s *Service) authorize(ctx context.Context) (*tlsca.Identity, error) {
 	// Only allow local users to use the SAML IdP.
 	var identity tlsca.Identity
 	switch user := authCtx.Identity.(type) {
-	case auth.LocalUser:
+	case authz.LocalUser:
 		identity = user.GetIdentity()
 	default:
 		identity = user.GetIdentity()

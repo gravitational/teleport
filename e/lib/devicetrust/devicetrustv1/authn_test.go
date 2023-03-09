@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 )
@@ -133,7 +134,7 @@ func TestService_AuthenticateDevice(t *testing.T) {
 			}
 
 			// Extract the wanted certs from fakeAugmentFunc.
-			certsProto, _ := fakeAugmentFunc(ctx, &auth.Context{}, &auth.AugmentUserCertificateOpts{
+			certsProto, _ := fakeAugmentFunc(ctx, &authz.Context{}, &auth.AugmentUserCertificateOpts{
 				SSHAuthorizedKey: initCerts.SshAuthorizedKey,
 				DeviceExtensions: &auth.DeviceExtensions{
 					DeviceID:     test.dev.Id,
@@ -657,7 +658,7 @@ func createAndEnroll(ctx context.Context, devices devicepb.DeviceTrustServiceCli
 	return resp.GetSuccess().Device, key, nil
 }
 
-func fakeAugmentFunc(ctx context.Context, authCtx *auth.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
+func fakeAugmentFunc(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
 	// Sanity checks.
 	switch {
 	case authCtx == nil:

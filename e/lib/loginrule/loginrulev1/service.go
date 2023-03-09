@@ -13,7 +13,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -21,7 +21,7 @@ import (
 // ServiceConfig holds configuration options for the login rule gRPC service.
 type ServiceConfig struct {
 	Storage    *storage.S
-	Authorizer auth.Authorizer
+	Authorizer authz.Authorizer
 	Emitter    apievents.Emitter
 }
 
@@ -32,7 +32,7 @@ type Service struct {
 	logger *logrus.Entry
 
 	storage    *storage.S
-	authorizer auth.Authorizer
+	authorizer authz.Authorizer
 	emitter    apievents.Emitter
 }
 
@@ -162,7 +162,7 @@ func (s *Service) emitCreateEvent(ctx context.Context, rule *loginrulepb.LoginRu
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: rule.Metadata.Name,
 		},
-		UserMetadata: auth.ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 	}
 	if expires := rule.Metadata.Expires; expires != nil {
 		e.ResourceMetadata.Expires = *expires
@@ -179,7 +179,7 @@ func (s *Service) emitDeleteEvent(ctx context.Context, name string) error {
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
-		UserMetadata: auth.ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 	}
 	return trace.Wrap(s.emitAuditEvent(ctx, e))
 }
@@ -187,7 +187,7 @@ func (s *Service) emitDeleteEvent(ctx context.Context, name string) error {
 func (s *Service) emitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
 	err := s.emitter.EmitAuditEvent(ctx, e)
 	if err != nil {
-		userMeta := auth.ClientUserMetadata(ctx)
+		userMeta := authz.ClientUserMetadata(ctx)
 		s.logger.WithError(err).WithFields(logrus.Fields{
 			"type":         e.GetType(),
 			"code":         e.GetCode(),

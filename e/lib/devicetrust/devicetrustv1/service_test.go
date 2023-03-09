@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
@@ -206,7 +206,7 @@ type fakeAuthorizer struct {
 	Checker        services.AccessChecker
 }
 
-func (a *fakeAuthorizer) Authorize(ctx context.Context) (*auth.Context, error) {
+func (a *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 	a.authorizeCount++
 
 	user, err := types.NewUser("llama")
@@ -214,7 +214,7 @@ func (a *fakeAuthorizer) Authorize(ctx context.Context) (*auth.Context, error) {
 		return nil, err
 	}
 
-	return &auth.Context{
+	return &authz.Context{
 		User:    user,
 		Checker: a.Checker,
 	}, nil

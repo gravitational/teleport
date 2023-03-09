@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
@@ -29,7 +30,7 @@ import (
 
 // AugmentContextCertsFunc mimics the signature of
 // [auth.Server.AugmentContextUserCertificates].
-type AugmentContextCertsFunc func(ctx context.Context, authCtx *auth.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error)
+type AugmentContextCertsFunc func(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error)
 
 // E is an integrated test environment for device trust.
 type E struct {
@@ -37,7 +38,7 @@ type E struct {
 
 	augmentCertsFunc AugmentContextCertsFunc
 	authSpec         *types.AuthPreferenceSpecV2
-	authorizer       auth.Authorizer
+	authorizer       authz.Authorizer
 	emitter          apievents.Emitter
 	closers          []func() error
 }
@@ -68,7 +69,7 @@ func WithAuthPreferenceSpec(spec types.AuthPreferenceSpecV2) Opt {
 }
 
 // WithAuthorizer customizes the [E] authorizer.
-func WithAuthorizer(a auth.Authorizer) Opt {
+func WithAuthorizer(a authz.Authorizer) Opt {
 	return func(e *E) { e.authorizer = a }
 }
 
@@ -201,7 +202,7 @@ func New(opts ...Opt) (*E, error) {
 	return e, nil
 }
 
-func fakeAugmentCertsFunc(ctx context.Context, authCtx *auth.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
+func fakeAugmentCertsFunc(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
 	return &proto.Certs{
 		SSH: opts.SSHAuthorizedKey,
 		TLS: pem.EncodeToMemory(&pem.Block{
@@ -216,7 +217,7 @@ type fakeAuthServer struct {
 	authSpec    *types.AuthPreferenceSpecV2
 }
 
-func (s *fakeAuthServer) AugmentContextUserCertificates(ctx context.Context, authCtx *auth.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
+func (s *fakeAuthServer) AugmentContextUserCertificates(ctx context.Context, authCtx *authz.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error) {
 	return s.augmentFunc(ctx, authCtx, opts)
 }
 
@@ -226,12 +227,12 @@ func (s *fakeAuthServer) GetAuthPreference(ctx context.Context) (types.AuthPrefe
 
 type noopAuthorizer struct{}
 
-func (*noopAuthorizer) Authorize(ctx context.Context) (*auth.Context, error) {
+func (*noopAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 	user, err := types.NewUser("llama")
 	if err != nil {
 		return nil, err
 	}
-	return &auth.Context{
+	return &authz.Context{
 		User:    user,
 		Checker: &NoopChecker{},
 	}, nil
