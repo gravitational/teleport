@@ -176,6 +176,12 @@ require (
 )
 
 require (
+	github.com/go-resty/resty/v2 v2.7.0
+	github.com/hashicorp/go-version v1.2.0
+	github.com/pelletier/go-toml v1.2.0
+)
+
+require (
 	cloud.google.com/go v0.107.0 // indirect
 	cloud.google.com/go/compute v1.13.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.1 // indirect
