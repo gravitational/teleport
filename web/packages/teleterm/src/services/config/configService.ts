@@ -52,8 +52,12 @@ export interface ConfigService {
 
   /**
    * Returns validation errors or an error that occurred during loading the config file (this means IO and syntax errors).
-   * If validation errors occur, the incorrect values are replaced with the defaults.
-   * In case of an error coming from loading the file, all values are replaced with the defaults.
+   * This error has to be checked during the initialization of the app.
+   *
+   * The reason we have a getter for this error instead of making `createConfigService` fail with an error
+   * is that in the presence of this error we want to notify about it and then continue with default values:
+   * - If validation errors occur, the incorrect values are replaced with the defaults.
+   * - In case of an error coming from loading the file, all values are replaced with the defaults.
    * */
   getConfigError(): ConfigError | undefined;
 }
