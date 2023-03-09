@@ -217,6 +217,8 @@ func (p *PluginV1) SetStatus(status PluginStatus) error {
 		return nil
 	}
 	switch status := status.(type) {
+	case *PluginStatusV1:
+		p.Status = *status
 	case PluginStatusV1:
 		p.Status = status
 	default:
