@@ -1,4 +1,4 @@
-# Opsgenie Integration RFD
+# RFD 109: Opsgenie Integration
 ## Required approvers
 
 Engineering: @r0mant, @marcoandredinis, @hugoShaka
@@ -12,13 +12,8 @@ Doing so by creating a new Teleport service 'plugin_service' with the opsgenie p
 
 ## Scope
 
-### Phase 1
-
-The plugin will be run as a standalone application similar to the existing Pagerduty plugin differing only in that it will be part of the Teleport binary.
-
-### Phase 2
-
-The plugin will follow the 'hosted' operations model and will at that point be possible to run as part of the Auth server directly or as a standalone application.
+The plugin will be able to run standalone or alongside other services as part of the new plugin_service.
+The plugin will support auto-approval similar to PagerDuty plugin.
 
 ## Success criteria
 
@@ -53,8 +48,8 @@ Example plugin.yaml for Opsgenie that would match with this.
 kind: plugin
 metadata:
   name: opsgenie-plugin
-    labels:
-        type: opsgenie
+  labels:
+    type: opsgenie
 spec:
   opsgenie:
     addr: "example.app.opsgenie.com" # Address of Opsgenie
@@ -68,8 +63,8 @@ Given the above example teleport.yaml the following plugin resource will not mat
 kind: plugin
 metadata:
   name: slack-plugin
-    labels:
-        type: slack
+  labels:
+    type: slack
 spec:
   slack:
     addr: "example.slack.com"
