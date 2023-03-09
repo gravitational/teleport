@@ -500,21 +500,15 @@ func VirtualPathEnvNames(kind VirtualPathKind, params VirtualPathParams) []strin
 // RetryWithRelogin is a helper error handling method, attempts to relogin and
 // retry the function once.
 func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) error {
-	// Don't try to re-login when using an identity file / external identity.
-	if tc.NonInteractive {
-		return trace.Wrap(fn())
-	}
-
 	fnErr := fn()
-	if fnErr == nil {
+	switch {
+	case fnErr == nil:
 		return nil
-	}
-
-	if utils.IsPredicateError(fnErr) {
+	case tc.NonInteractive:
+		return trace.Wrap(fnErr)
+	case utils.IsPredicateError(fnErr):
 		return trace.Wrap(utils.PredicateError{Err: fnErr})
-	}
-
-	if !IsErrorResolvableWithRelogin(fnErr) {
+	case !IsErrorResolvableWithRelogin(fnErr):
 		return trace.Wrap(fnErr)
 	}
 
@@ -1131,6 +1125,7 @@ func (tc *TeleportClient) RootClusterName(ctx context.Context) (string, error) {
 		if len(tc.TLS.Certificates) == 0 || len(tc.TLS.Certificates[0].Certificate) == 0 {
 			return "", trace.BadParameter("missing tc.TLS.Certificates")
 		}
+
 		cert, err := x509.ParseCertificate(tc.TLS.Certificates[0].Certificate[0])
 		if err != nil {
 			return "", trace.Wrap(err)
@@ -3969,8 +3964,8 @@ func (tc *TeleportClient) AskPassword(ctx context.Context) (pwd string, err erro
 		ctx, tc.Stderr, prompt.Stdin(), fmt.Sprintf("Enter password for Teleport user %v", tc.Config.Username))
 }
 
-// LoadTLSConfig returns the user's TLS configuration for an external identity
-// or teleport core TLS certificate for the local agent.
+// LoadTLSConfig returns the user's TLS configuration, either from static
+// configuration or from its key store.
 func (tc *TeleportClient) LoadTLSConfig() (*tls.Config, error) {
 	if tc.TLS != nil {
 		return tc.TLS.Clone(), nil
@@ -4000,7 +3995,7 @@ func (tc *TeleportClient) LoadTLSConfig() (*tls.Config, error) {
 		}
 	}
 
-	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, clusters)
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil /* cipherSuites */, clusters)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}
@@ -4008,6 +4003,8 @@ func (tc *TeleportClient) LoadTLSConfig() (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
+// LoadTLSConfigForClusters returns the client's TLS configuration, either from static
+// configuration or from its key store, for the given clusters.
 func (tc *TeleportClient) LoadTLSConfigForClusters(clusters []string) (*tls.Config, error) {
 	if tc.TLS != nil {
 		return tc.TLS.Clone(), nil
@@ -4018,7 +4015,7 @@ func (tc *TeleportClient) LoadTLSConfigForClusters(clusters []string) (*tls.Conf
 		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", tc.Username)
 	}
 
-	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, clusters)
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil /* cipherSuites */, clusters)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}

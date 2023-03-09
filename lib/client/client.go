@@ -1220,10 +1220,7 @@ func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName stri
 	}
 
 	clt, err := client.NewTracingClient(ctx, clientConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return clt, nil
+	return clt, trace.Wrap(err)
 }
 
 // nodeName removes the port number from the hostname, if present
