@@ -284,7 +284,7 @@ RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.1
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.15.0" && \
+    VERSION="1.15.1" && \
       curl -sSLf \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
