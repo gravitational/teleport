@@ -33,6 +33,8 @@ export interface FileStorage {
   write(): Promise<void>;
 
   /** Returns value for a given key. If the key is omitted, the entire storage state is returned. */
+  // TODO(ravicious): Add a generic type to createFileStorage rather than returning `unknown`.
+  // https://github.com/gravitational/teleport/pull/22728#discussion_r1129566566
   get(key?: string): unknown;
 
   /** Returns the file path used to create the storage. */
