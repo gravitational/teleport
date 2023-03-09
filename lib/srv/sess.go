@@ -658,22 +658,42 @@ func (s *session) Stop() {
 	s.BroadcastMessage("Stopping session...")
 	s.log.Info("Stopping session")
 
-	// close io copy loops
+	// Close io copy loops
 	s.io.Close()
 
-	// Close and kill terminal
-	if s.term != nil {
-		if err := s.term.Close(); err != nil {
-			s.log.WithError(err).Debug("Failed to close the shell")
-		}
-		if err := s.term.Kill(context.TODO()); err != nil {
-			s.log.WithError(err).Debug("Failed to kill the shell")
-		}
-	}
+	// Make sure that the terminal has been closed
+	s.haltTerminal()
 
 	// Close session tracker and mark it as terminated
 	if err := s.tracker.Close(s.serverCtx); err != nil {
 		s.log.WithError(err).Debug("Failed to close session tracker")
+	}
+}
+
+// haltTerminal closes the terminal. Then is tried to terminate the terminal in a graceful way
+// and kill by sending SIGKILL if the graceful termination fails.
+func (s *session) haltTerminal() {
+	if s.term == nil {
+		return
+	}
+
+	if err := s.term.Close(); err != nil {
+		s.log.WithError(err).Debug("Failed to close the shell")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := s.term.KillUnderlyingShell(ctx); err != nil {
+		s.log.WithError(err).Debug("Failed to terminate the shell")
+	} else {
+		// Return before we send SIGKILL to the child process, as doing that
+		// could interrupt the "graceful shutdown" process.
+		return
+	}
+
+	if err := s.term.Kill(context.TODO()); err != nil {
+		s.log.WithError(err).Debug("Failed to kill the shell")
 	}
 }
 

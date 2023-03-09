@@ -17,10 +17,15 @@ limitations under the License.
 package srv
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"os/user"
+	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
 
@@ -79,4 +84,54 @@ func (s *TermSuite) TestGetOwner(c *check.C) {
 		c.Assert(gid, check.Equals, tt.outGID)
 		c.Assert(mode, check.Equals, tt.outMode)
 	}
+}
+
+func TestTerminal_KillUnderlyingShell(t *testing.T) {
+	t.Parallel()
+
+	srv := newMockServer(t)
+	scx := newTestServerContext(t, srv, nil)
+
+	lsPath, err := exec.LookPath("sh")
+	require.NoError(t, err)
+	scx.execRequest.SetCommand(lsPath)
+
+	term, err := newLocalTerminal(scx)
+	require.NoError(t, err)
+
+	term.SetTermType("xterm")
+
+	ctx := context.Background()
+
+	// Run sh
+	err = term.Run(ctx)
+	require.NoError(t, err)
+
+	errors := make(chan error)
+	go func() {
+		// Call wait to avoid creating zombie process.
+		// Ignore exit code as we're checking term.cmd.ProcessState already
+		_, err := term.Wait()
+
+		errors <- err
+	}()
+
+	// Continue execution
+	err = scx.contw.Close()
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	t.Cleanup(cancel)
+
+	err = term.KillUnderlyingShell(ctx)
+	require.NoError(t, err)
+
+	// Wait for the process to return.
+	require.NoError(t, <-errors)
+
+	// ProcessState should be not nil after the process exits.
+	require.NotNil(t, term.cmd.ProcessState)
+	require.NotZero(t, term.cmd.ProcessState.Pid())
+	// 255 is returned on subprocess kill.
+	require.Equal(t, 255, term.cmd.ProcessState.ExitCode())
 }
