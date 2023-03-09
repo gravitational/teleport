@@ -19,6 +19,8 @@ package metadata
 import (
 	"context"
 	"sync/atomic"
+
+	"github.com/gravitational/trace"
 )
 
 // metadata is a cache of all instance metadata.
@@ -35,7 +37,7 @@ var fetched atomic.Bool
 // The resulting metadata is cached, so subsequent calls will be fast.
 // The return value of Get might be shared between callers and should not be
 // modified.
-func Get(ctx context.Context) (*Metadata, bool) {
+func Get(ctx context.Context) (*Metadata, error) {
 	if !fetched.Swap(true) {
 		// Spawn a goroutine responsible for fetching the metadata if we're the
 		// first Get caller.
@@ -51,8 +53,8 @@ func Get(ctx context.Context) (*Metadata, bool) {
 
 	select {
 	case <-metadataReady:
-		return metadata, true
+		return metadata, nil
 	case <-ctx.Done():
-		return nil, false
+		return nil, trace.Wrap(ctx.Err())
 	}
 }
