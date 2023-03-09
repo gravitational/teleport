@@ -125,6 +125,12 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 		joinAttributeSrc = claims
+	case types.JoinMethodGitLab:
+		claims, err := a.checkGitLabJoinRequest(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		joinAttributeSrc = claims
 	case types.JoinMethodCircleCI:
 		claims, err := a.checkCircleCIJoinRequest(ctx, req)
 		if err != nil {
