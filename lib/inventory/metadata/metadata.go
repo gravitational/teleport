@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -176,19 +177,19 @@ func (c *fetchConfig) fetchInstallMethods() []string {
 // dockerfileInstallMethod returns true if the instance was installed using our
 // Dockerfile.
 func (c *fetchConfig) dockerfileInstallMethod() bool {
-	return c.getenv("TELEPORT_INSTALL_METHOD_DOCKERFILE") == "true"
+	return c.boolEnvIsTrue("TELEPORT_INSTALL_METHOD_DOCKERFILE")
 }
 
 // helmKubeAgentInstallMethod returns true if the instance was installed using our
 // Helm chart.
 func (c *fetchConfig) helmKubeAgentInstallMethod() bool {
-	return c.getenv("TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT") == "true"
+	return c.boolEnvIsTrue("TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT")
 }
 
 // nodeScriptInstallMethod returns true if the instance was installed using our
 // install-node.sh script.
 func (c *fetchConfig) nodeScriptInstallMethod() bool {
-	return c.getenv("TELEPORT_INSTALL_METHOD_NODE_SCRIPT") == "true"
+	return c.boolEnvIsTrue("TELEPORT_INSTALL_METHOD_NODE_SCRIPT")
 }
 
 // systemctlInstallMethod returns true if the instance is running using systemctl.
@@ -319,4 +320,14 @@ func (c *fetchConfig) httpReqSuccess(req *http.Request) bool {
 	defer resp.Body.Close()
 
 	return resp.StatusCode == http.StatusOK
+}
+
+// boolEnvIsTrue returns true if the environment variable is set to a value
+// that represent true (e.g. true, yes, y, ...).
+func (c *fetchConfig) boolEnvIsTrue(name string) bool {
+	b, err := utils.ParseBool(c.getenv(name))
+	if err != nil {
+		return false
+	}
+	return b
 }
