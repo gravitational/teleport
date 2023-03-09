@@ -131,7 +131,7 @@ contrast to our current RDP client, [rdp-rs](https://github.com/gravitational/rd
 
 #### RDP 7: Bitmaps with RemoteFX encoding
 
-According to the Devolutions team's best judgement, the best bang for one's buck in terms of performance vs complexity of implementation is to go with RDP 7, which added bitmaps encoded by the RemoteFX codec
+According to our best judgement, the best bang for one's buck in terms of performance vs complexity of implementation is to go with RDP 7, which added bitmaps encoded by the RemoteFX codec
 (`rdp-rs` does not currently support the RemoteFX codec, and only supports RDP's original, less performant bitmap codec).
 
 It can oftentimes be difficult to decipher precisely what RDP version does what, and what that means, just by looking at the protocol specification itself. In
