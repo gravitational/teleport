@@ -42,6 +42,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -78,7 +79,7 @@ type ProxyServerConfig struct {
 	// AccessPoint is the caching client connected to the auth server.
 	AccessPoint auth.ReadDatabaseAccessPoint
 	// Authorizer is responsible for authorizing user identities.
-	Authorizer auth.Authorizer
+	Authorizer authz.Authorizer
 	// Tunnel is the reverse tunnel server.
 	Tunnel reversetunnel.Server
 	// TLSConfig is the proxy server TLS configuration.
@@ -609,6 +610,12 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 		return nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
+
+	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
+	if err := auth.CheckIPPinning(ctx, identity, authContext.Checker.PinSourceIP()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if params.User != "" {
 		identity.RouteToDatabase.Username = params.User
 	}

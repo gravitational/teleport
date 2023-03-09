@@ -179,7 +179,7 @@ func TestRBAC(t *testing.T) {
 				server, ok := n.(*types.ServerV2)
 				require.True(t, ok)
 				if tt.openSSHNode {
-					server.SubKind = types.KindOpenSSHNode
+					server.SubKind = types.SubKindOpenSSHNode
 				}
 				target = server
 			}

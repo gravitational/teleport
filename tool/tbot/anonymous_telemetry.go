@@ -40,7 +40,7 @@ const (
 	helperEnv        = "_TBOT_TELEMETRY_HELPER"
 	helperVersionEnv = "_TBOT_TELEMETRY_HELPER_VERSION"
 
-	telemetryDocs = "example.com/placeholder"
+	telemetryDocs = "https://goteleport.com/docs/machine-id/reference/telemetry/"
 )
 
 type envGetter func(key string) string

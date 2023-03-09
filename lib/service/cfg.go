@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-oidc/oauth2"
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -414,6 +415,9 @@ func (cfg *Config) DebugDumpToYAML() string {
 type CachePolicy struct {
 	// Enabled enables or disables caching
 	Enabled bool
+	// MaxRetryPeriod is maximum period cache waits before retrying on failure.
+	// Not exposed through the config file, used in tests.
+	MaxRetryPeriod time.Duration
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -725,6 +729,9 @@ type AuthConfig struct {
 	// LoadAllCAs sends the host CAs of all clusters to SSH clients logging in when enabled,
 	// instead of just the host CA for the current cluster.
 	LoadAllCAs bool
+
+	// HostedPlugins configures the Enterprise hosted plugin runtime
+	HostedPlugins HostedPluginsConfig
 }
 
 // SSHConfig configures SSH server node role
@@ -1478,6 +1485,18 @@ type DiscoveryConfig struct {
 func (d DiscoveryConfig) IsEmpty() bool {
 	return len(d.AWSMatchers) == 0 &&
 		len(d.AzureMatchers) == 0 && len(d.GCPMatchers) == 0
+}
+
+// HostedPluginsConfig configures the hosted plugin runtime.
+type HostedPluginsConfig struct {
+	Enabled        bool
+	OAuthProviders PluginOAuthProviders
+}
+
+// PluginOAuthProviders holds application credentials for each
+// 3rd party API provider
+type PluginOAuthProviders struct {
+	Slack *oauth2.ClientCredentials
 }
 
 // ParseHeader parses the provided string as a http header.
