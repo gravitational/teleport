@@ -33,7 +33,7 @@ export interface FileStorage {
   write(): Promise<void>;
 
   /** Returns value for a given key. If the key is omitted, the entire storage state is returned. */
-  get<T>(key?: string): T;
+  get(key?: string): unknown;
 
   /** Returns the file path used to create the storage. */
   getFilePath(): string;
@@ -89,8 +89,8 @@ export async function createFileStorage(opts: {
     stringifyAndWrite();
   }
 
-  function get<T>(key?: string): T {
-    return key ? state[key] : (state as T);
+  function get(key?: string): unknown {
+    return key ? state[key] : state;
   }
 
   function getFilePath(): string {

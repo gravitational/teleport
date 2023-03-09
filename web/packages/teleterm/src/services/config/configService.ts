@@ -142,7 +142,7 @@ function validateStoredConfig(
 } {
   const parse = (data: Partial<AppConfig>) => schema.safeParse(data);
 
-  const storedConfig = configFile.get<Partial<AppConfig>>();
+  const storedConfig = configFile.get() as Partial<AppConfig>;
   const parsed = parse(storedConfig);
   if (parsed.success === true) {
     return {
