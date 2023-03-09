@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
@@ -1900,7 +1901,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	proxyAuthorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: testCtx.clusterName,
 		AccessPoint: proxyAuthClient,
 		LockWatcher: proxyLockWatcher,
@@ -2040,7 +2041,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		},
 	})
 	require.NoError(t, err)
-	dbAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	dbAuthorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: c.clusterName,
 		AccessPoint: c.authClient,
 		LockWatcher: lockWatcher,

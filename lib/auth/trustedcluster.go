@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -174,7 +175,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			Type: events.TrustedClusterCreateEvent,
 			Code: events.TrustedClusterCreateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: trustedCluster.GetName(),
 		},
@@ -242,7 +243,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 			Type: events.TrustedClusterDeleteEvent,
 			Code: events.TrustedClusterDeleteCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
