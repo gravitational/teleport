@@ -1283,7 +1283,7 @@
       "entries": [
       	{
       	  "title": "Introduction",
-      	  "slug": "architecture/introduction/"
+      	  "slug": "/architecture/introduction/"
       	},
         {
           "title": "Authentication",

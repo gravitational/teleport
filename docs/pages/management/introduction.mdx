@@ -4,16 +4,16 @@ description: "Guides for performing day-two operations on your Teleport cluster.
 layout: tocless-doc
 ---
 
-In this section, you can find guides for how to manage a Teleport cluster after
+In this section, you can find guides on managing a Teleport cluster after
 deploying it. 
 
 ## Export audit events
 
 Teleport's Auth Service maintains an audit log that tracks events in your
-cluster, such as newly issued certificates. You can get insight into how users
-are interacting with your Teleport cluster by exporting audit events to your log
-management solution. See how in the [Exporting Audit
-Events](./export-audit-events.mdx) guides.
+cluster, such when a user begins an SSH session or attempts to authenticate. You
+can get insight into how users are interacting with your Teleport cluster by
+exporting audit events to your log management solution. See how in the
+[Exporting Audit Events](./export-audit-events.mdx) guides.
 
 ## Security
 
@@ -23,14 +23,14 @@ to ensure that your cluster is as secure as possible. Read about these in the
 
 ## Admin guides
 
-This section describes how to perform routine administrative tasks in your
-Teleport cluster, such as upgrading the `teleport` binary or adding labels to
-Teleport resources. Read the [Admin Guides](./admin.mdx) section.
+The [Admin Guides](./admin.mdx) section describes how to perform routine
+administrative tasks in your Teleport cluster, such as upgrading the `teleport`
+binary or adding labels to Teleport resources.
 
 ## Operations
 
 The [Operations](./operations.mdx) section describes how to perform critical,
-infrequent tasks, such as achieving scalability, upgrading a cluster, and
+infrequent tasks such as achieving scalability, upgrading a cluster, and
 rotating Teleport's certificate authority.
 
 ## Integrations
