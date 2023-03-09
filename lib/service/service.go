@@ -3394,11 +3394,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	nodeWatcher, err := services.NewNodeWatcher(process.ExitContext(), services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentProxy,
-			Log:       process.log.WithField(trace.Component, teleport.ComponentProxy),
-			Client:    accessPoint,
+			Component:    teleport.ComponentProxy,
+			Log:          process.log.WithField(trace.Component, teleport.ComponentProxy),
+			Client:       accessPoint,
+			MaxStaleness: time.Minute,
 		},
-		NodesGetter: conn.Client,
+		NodesGetter: accessPoint,
 	})
 	if err != nil {
 		return trace.Wrap(err)
