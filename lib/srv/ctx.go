@@ -379,6 +379,9 @@ type ServerContext struct {
 
 	// JoinOnly is set if the connection was created using a join-only principal and may only be used to join other sessions.
 	JoinOnly bool
+
+	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
+	UserCreatedByTeleport bool
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -1070,6 +1073,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		ClientAddress:         c.ServerConn.RemoteAddr().String(),
 		RequestType:           requestType,
 		PermitUserEnvironment: c.srv.PermitUserEnvironment(),
+		UserCreatedByTeleport: c.UserCreatedByTeleport,
 		Environment:           buildEnvironment(c),
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
