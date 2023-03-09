@@ -34,7 +34,7 @@ The plugin service will be configured using the existing Teleport YAML file in a
 ```
 plugin_service:
     enabled: true
-    resources:
+    plugins:
     - "type": "opsgenie"
     - "type": "pagerduty"
     opsgenie:
@@ -55,7 +55,7 @@ spec:
     addr: "example.app.opsgenie.com" # Address of Opsgenie
     priority: "2" # Priority to create Opsgenie alerts with
     alert_tags: ["example-tag"] # List of tags to be added to alerts created in Opsgenie
-    default_shedules: ["shedule1"] # Default on-call shedules to check if none are provided in the access request annotations
+    default_schedules: ["schedule1"] # Default on-call schedules to check if none are provided in the access request annotations
 ```
 
 Given the above example teleport.yaml the following plugin resource will not match.
@@ -156,7 +156,7 @@ Reason: <Reason>
 
 ### Auto approval
 
-To check if the requesting user of a request is currently on-call the ‘Who is on call API’s ‘[Get on calls](https://docs.opsgenie.com/docs/who-is-on-call-api#get-on-calls)’ endpoint will be used. 'https://<configured-opsgenie-address>/v2/schedules/<SheduleName>/on-calls?scheduleIdentifierType=name'
+To check if the requesting user of a request is currently on-call the ‘Who is on call API’s ‘[Get on calls](https://docs.opsgenie.com/docs/who-is-on-call-api#get-on-calls)’ endpoint will be used. 'https://<configured-opsgenie-address>/v2/schedules/<ScheduleName>/on-calls?scheduleIdentifierType=name'
 
 Similar to the existing Pagerduty plugin for auto-approval to work, the user creating an Access Request must have a Teleport username that is also the email address associated with an Opsgenie account.
 
