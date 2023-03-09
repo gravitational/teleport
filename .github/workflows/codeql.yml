@@ -8,7 +8,6 @@ on:
   pull_request:
     branches:
       - master
-      - branch/*
     paths-ignore:
       - 'docs/**'
       - 'rfd/**'
@@ -47,16 +46,10 @@ jobs:
 
     - name: Autobuild
       uses: github/codeql-action/autobuild@v2
-      if: ${{ matrix.language != 'go' }}
       timeout-minutes: 30
-
-    - name: Build Teleport OSS
-      run: |
-        make full
-      if: ${{ matrix.language == 'go' }}
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
       with:
         category: "/language:${{matrix.language}}"
-      timeout-minutes: 30
+      timeout-minutes: 240
