@@ -55,6 +55,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -206,7 +207,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 
 	nodeID := uuid.New().String()
 	nodeClient, err := testServer.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
 		},
@@ -398,7 +399,7 @@ func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, strin
 	// create proxy client used in some tests
 	proxyID := uuid.New().String()
 	proxyClient, err := testSvr.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: proxyID,
 		},
@@ -410,7 +411,7 @@ func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, strin
 func newNodeClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string) {
 	nodeID := uuid.New().String()
 	nodeClient, err := testSvr.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
 		},

@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -410,7 +411,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		}
 
 		// Emit an audit event.
-		userMetadata := ClientUserMetadata(ctx)
+		userMetadata := authz.ClientUserMetadata(ctx)
 		if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.RenewableCertificateGenerationMismatch{
 			Metadata: apievents.Metadata{
 				Type: events.RenewableCertificateGenerationMismatchEvent,

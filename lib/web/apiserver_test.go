@@ -95,6 +95,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
@@ -267,7 +268,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 
 	nodeClient, err := s.server.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
 		},
@@ -323,7 +324,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	// create reverse tunnel service:
 	proxyID := "proxy"
 	s.proxyClient, err = s.server.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: proxyID,
 		},
@@ -530,7 +531,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 	require.NoError(t, err)
 
 	nodeClient, err := s.server.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: uuid,
 		},
@@ -6784,7 +6785,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	hostSigners := []ssh.Signer{signer}
 
 	nodeClient, err := server.TLS.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
 		},
@@ -6870,7 +6871,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 ) *testProxy {
 	// create reverse tunnel service:
 	client, err := authServer.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: proxyID,
 		},
@@ -7507,7 +7508,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	proxyAuthorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: cfg.authServer.ClusterName(),
 		AccessPoint: proxyAuthClient,
 		LockWatcher: proxyLockWatcher,

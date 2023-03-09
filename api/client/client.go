@@ -48,7 +48,9 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -609,6 +611,15 @@ func (c *Client) DevicesClient() devicepb.DeviceTrustServiceClient {
 // return "not implemented" errors (as per the default gRPC behavior).
 func (c *Client) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 	return loginrulepb.NewLoginRuleServiceClient(c.conn)
+}
+
+// SAMLIdPClient returns an unadorned SAML IdP client, using the underlying
+// Auth gRPC connection.
+// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+// still get a SAML IdP client when calling this method, but all RPCs will
+// return "not implemented" errors (as per the default gRPC behavior).
+func (c *Client) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
+	return samlidppb.NewSAMLIdPServiceClient(c.conn)
 }
 
 // Ping gets basic info about the auth server.
@@ -3384,4 +3395,12 @@ func (c *Client) DeleteLoginRule(ctx context.Context, name string) error {
 		Name: name,
 	}, c.callOpts...)
 	return trail.FromGRPC(err)
+}
+
+// OktaClient returns an Okta client.
+// Clients connecting older Teleport versions still get an okta client when
+// calling this method, but all RPCs will return "not implemented" errors (as per
+// the default gRPC behavior).
+func (c *Client) OktaClient() oktapb.OktaServiceClient {
+	return oktapb.NewOktaServiceClient(c.conn)
 }
