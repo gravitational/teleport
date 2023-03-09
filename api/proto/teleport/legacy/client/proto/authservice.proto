@@ -2201,14 +2201,16 @@ message ExportMaintenanceWindowsRequest {
 // of upcoming agent maintenance windows. Teleport agents periodically export these
 // schedules to external upgraders as part of the externally-managed upgrade system.
 message ExportMaintenanceWindowsResponse {
+  // CanonicalSchedule is the teleport-facing schedule repr.
+  types.AgentUpgradeSchedule CanonicalSchedule = 1;
   // KubeControllerSchedule encodes upcoming upgrade upgrade windows in a format known
   // to the kube upgrade controller. Teleport agents should treat this value as an
   // opaque blob.
-  string KubeControllerSchedule = 1;
+  string KubeControllerSchedule = 2;
   // SystemdUnitSchedule encodes the upcoming upgrade windows in a format known to
   // the teleport-upgrade systemd unit. Teleport agents should treat this value as an
   // opaque blob.
-  string SystemdUnitSchedule = 2;
+  string SystemdUnitSchedule = 3;
 }
 
 // AuthService is authentication/authorization service implementation

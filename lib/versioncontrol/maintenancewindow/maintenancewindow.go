@@ -36,25 +36,12 @@ type Exporter interface {
 	// Sync exports the appropriate maintenance window schedule if one is present, or
 	// resets/clears the maintenance window if the schedule response returns no viable scheduling
 	// info.
-	Sync(ctx context.Context, rsp proto.GetAgentMaintenanceScheduleResponse) error
+	Sync(ctx context.Context, rsp proto.ExportMaintenanceWindowsResponse) error
 
 	// Reset forcibly clears any previously exported maintenance window values. This should be
 	// called if teleport experiences prolonged loss of auth connectivity, which may be an indicator
 	// that the control plane has been upgraded s.t. this agent is no longer compatible.
 	Reset(ctx context.Context) error
-}
-
-func NewExporter(kind proto.AgentUpgraderKind) (Exporter, error) {
-	switch kind {
-	case proto.AgentUpgraderKind_KUBE_UPGRADER:
-		return NewKubeExporter(KubeExporterConfig{})
-	case proto.AgentUpgraderKind_SYSTEMD_UPGRADER:
-		return NewSystemdExporter(SystemdExporterConfig{})
-	case proto.AgentUpgraderKind_UNSPECIFIED_UPGRADER:
-		return nil, trace.BadParameter("cannot create maintenance window exporter for unspecified upgrader kind")
-	default:
-		return nil, trace.BadParameter("cannot create maintenance window exporter for unknown upgrader kind %v", kind)
-	}
 }
 
 type KubeExporterConfig struct {
@@ -88,7 +75,7 @@ func NewKubeExporter(cfg KubeExporterConfig) (Exporter, error) {
 	return &kubeExporter{cfg: cfg}, nil
 }
 
-func (e *kubeExporter) Sync(ctx context.Context, rsp proto.GetAgentMaintenanceScheduleResponse) error {
+func (e *kubeExporter) Sync(ctx context.Context, rsp proto.ExportMaintenanceWindowsResponse) error {
 	if rsp.KubeControllerSchedule == "" {
 		return e.Reset(ctx)
 	}
@@ -130,8 +117,8 @@ func NewSystemdExporter(cfg SystemdExporterConfig) (Exporter, error) {
 	return &systemdExporter{cfg: cfg}, nil
 }
 
-func (e *systemdExporter) Sync(ctx context.Context, rsp proto.GetAgentMaintenanceScheduleResponse) error {
-	if len(rsp.SystemdOnCalendar) == 0 {
+func (e *systemdExporter) Sync(ctx context.Context, rsp proto.ExportMaintenanceWindowsResponse) error {
+	if len(rsp.SystemdUnitSchedule) == 0 {
 		return e.Reset(ctx)
 	}
 

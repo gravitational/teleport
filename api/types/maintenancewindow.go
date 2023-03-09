@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 )
 
@@ -86,6 +87,28 @@ func (w *AgentUpgradeWindow) Generator(from time.Time) func() (start time.Time, 
 			}
 		}
 	}
+}
+
+// Export exports the next `n` upgarde windows as a schedule object, starting from `from`.
+func (w *AgentUpgradeWindow) Export(from time.Time, n int) AgentUpgradeSchedule {
+	gen := w.Generator(from)
+
+	sched := AgentUpgradeSchedule{
+		Windows: make([]ScheduledAgentUpgradeWindow, 0, n),
+	}
+	for i := 0; i < n; i++ {
+		start, stop := gen()
+		sched.Windows = append(sched.Windows, ScheduledAgentUpgradeWindow{
+			Start: start.UTC(),
+			Stop:  stop.UTC(),
+		})
+	}
+
+	return sched
+}
+
+func (s *AgentUpgradeSchedule) Clone() *AgentUpgradeSchedule {
+	return proto.Clone(s).(*AgentUpgradeSchedule)
 }
 
 // NewMaintenanceWindow creates a new maintenance window with no parameters set.

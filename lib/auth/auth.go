@@ -93,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/interval"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
+	mw "github.com/gravitational/teleport/lib/versioncontrol/maintenancewindow"
 )
 
 const (
@@ -3991,28 +3992,77 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 	return nil
 }
 
+type maintenanceWindowCacheKey struct {
+	key string
+}
+
+// exportMaintenanceWindowsCached generates the export value of all maintenance window schedule types. Since schedules
+// are reloaded frequently in large clusters and export incurs string/json encoding, we use the ttl cache to store
+// the encoded schedule values for a few seconds.
+func (a *Server) exportMaintenanceWindowsCached(ctx context.Context) (proto.ExportMaintenanceWindowsResponse, error) {
+	return utils.FnCacheGet(ctx, a.ttlCache, maintenanceWindowCacheKey{"export"}, func(ctx context.Context) (proto.ExportMaintenanceWindowsResponse, error) {
+		var rsp proto.ExportMaintenanceWindowsResponse
+		window, err := a.GetMaintenanceWindow(ctx)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				// "not found" is treated as an empty schedule value
+				return rsp, nil
+			}
+			return rsp, trace.Wrap(err)
+		}
+
+		agentWindow, ok := window.GetAgentUpgradeWindow()
+		if !ok {
+			// "unconfigured" is treated as an empty schedule value
+			return rsp, nil
+		}
+
+		sched := agentWindow.Export(time.Now(), 3)
+
+		rsp.CanonicalSchedule = &sched
+
+		rsp.KubeControllerSchedule, err = mw.EncodeKubeControllerSchedule(sched)
+		if err != nil {
+			log.Warnf("Failed to encode kube controller maintenance schedule: %v", err)
+		}
+
+		rsp.SystemdUnitSchedule, err = mw.EncodeSystemdUnitSchedule(sched)
+		if err != nil {
+			log.Warnf("Failed to encode systemd unit maintenance schedule: %v", err)
+		}
+
+		return rsp, nil
+	})
+}
+
 func (a *Server) ExportMaintenanceWindows(ctx context.Context, req proto.ExportMaintenanceWindowsRequest) (proto.ExportMaintenanceWindowsResponse, error) {
 	var rsp proto.ExportMaintenanceWindowsResponse
+
+	cached, err := exportMaintenanceWindowsCached(ctx)
+	if err != nil {
+		return rsp, nil
+	}
+
 	switch req.UpgraderKind {
+	case "":
+		rsp.CanonicalSchedule = cached.CanonicalSchedule.Clone()
 	case types.UpgraderKindKubeController:
+		rsp.KubeControllerSchedule = cached.KubeControllerSchedule
+
 		if sched := os.Getenv("TELEPORT_UNSTABLE_KUBE_UPGRADE_SCHEDULE"); sched != "" {
 			rsp.KubeControllerSchedule = sched
 		}
-
-		// TODO(fspmarshall): integrate maintenance window config object
-
-		return rsp, nil
 	case types.UpgraderKindSystemdUnit:
+		rsp.SystemdUnitSchedule = cached.SystemdUnitSchedule
+
 		if sched := os.Getenv("TELEPORT_UNSTABLE_SYSTEMD_UPGRADE_SCHEDULE"); sched != "" {
 			rsp.SystemdUnitSchedule = sched
 		}
-
-		// TODO(fspmarshall): integrate maintenance window config object
-
-		return rsp, nil
 	default:
 		return rsp, trace.NotImplemented("unsupported upgrader kind %q in maintenance window export request", req.UpgraderKind)
 	}
+
+	return rsp, nil
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
