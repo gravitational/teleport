@@ -419,7 +419,7 @@ func TestCreateLock(t *testing.T) {
 	buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buf, &locks)
-	require.Len(t, locks, 0)
+	require.Empty(t, locks)
 
 	// Create the locks
 	lockYAMLPath := filepath.Join(t.TempDir(), "lock.yaml")
@@ -439,10 +439,9 @@ func TestCreateLock(t *testing.T) {
 		},
 		Message: "Come see me",
 	})
+	require.NoError(t, err)
 	expected.SetCreatedBy(string(types.RoleAdmin))
-	require.NoError(t, err)
 
-	require.NoError(t, err)
 	expected.SetCreatedAt(timeNow)
 
 	require.Empty(t, cmp.Diff([]*types.LockV2{expected.(*types.LockV2)}, locks,
