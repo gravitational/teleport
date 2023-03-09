@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.19.6
+  RUNTIME: go1.19.7
   UID: "1000"
 trigger:
   event:
@@ -144,7 +144,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.19.6
+  RUNTIME: go1.19.7
   UID: "1000"
 trigger:
   event:
@@ -247,7 +247,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.19.6
+  RUNTIME: go1.19.7
   UID: "1000"
 trigger:
   event:
@@ -354,7 +354,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.19.6
+  RUNTIME: go1.19.7
   UID: "1000"
 trigger:
   event:
@@ -512,7 +512,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.19.6
+    RUNTIME: go1.19.7
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -1076,7 +1076,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.19.6
+  RUNTIME: go1.19.7
   UID: "1000"
 trigger:
   event:
@@ -1179,7 +1179,7 @@ name: push-build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.19.6
+  RUNTIME: go1.19.7
   UID: "1000"
 trigger:
   event:
@@ -1223,7 +1223,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow
     release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input upload-artifacts=false
+    -input upload-artifacts=false -input oss-teleport-repo="${DRONE_REPO}"
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -1594,7 +1594,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.19.6
+  RUNTIME: go1.19.7
 trigger:
   event:
     include:
@@ -1782,7 +1782,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.19.6
+  RUNTIME: go1.19.7
 trigger:
   event:
     include:
@@ -1969,7 +1969,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.19.6
+  RUNTIME: go1.19.7
 trigger:
   event:
     include:
@@ -2163,7 +2163,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.19.6
+  RUNTIME: go1.19.7
 trigger:
   event:
     include:
@@ -3366,7 +3366,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.19.6
+  RUNTIME: go1.19.7
 trigger:
   event:
     include:
@@ -4121,7 +4121,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.19.6
+    RUNTIME: go1.19.7
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -4713,7 +4713,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.19.6
+  RUNTIME: go1.19.7
 trigger:
   event:
     include:
@@ -4899,7 +4899,7 @@ name: build-linux-arm64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.19.6
+  RUNTIME: go1.19.7
   UID: "1000"
 trigger:
   event:
@@ -4940,7 +4940,7 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow
     release-linux-arm64.yml -workflow-ref=${DRONE_TAG} -input oss-teleport-ref=${DRONE_TAG}
-    -input upload-artifacts=true
+    -input upload-artifacts=true -input oss-teleport-repo="${DRONE_REPO}"
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -5981,7 +5981,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.19.6
+  RUNTIME: go1.19.7
 trigger:
   event:
     include:
@@ -18249,6 +18249,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: bf637de459794d33cc0e6d7f3e9e6164d3dac5566528b95eb3ac051fe6194dba
+hmac: 6ab9428ca14e7961ff6fbc2e5ba52304e76d451ef943d76344d4a69ed7774dee
 
 ...
