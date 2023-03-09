@@ -69,7 +69,7 @@ BUG_REPORT_URL="https://bugs.debian.org/"
 				}
 				return []byte(expectedFormatUbuntu), nil
 			},
-			expected: "Ubuntu 22.04",
+			expected: "ubuntu 22.04",
 		},
 		{
 			desc: "combined NAME and VERSION_ID if /etc/os-release exists (debian)",
@@ -79,7 +79,7 @@ BUG_REPORT_URL="https://bugs.debian.org/"
 				}
 				return []byte(expectedFormatDebian), nil
 			},
-			expected: "Debian GNU/Linux 11",
+			expected: "debian 11",
 		},
 		{
 			desc: "empty if /etc/os-release does not exist",

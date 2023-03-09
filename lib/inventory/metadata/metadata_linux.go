@@ -33,7 +33,7 @@ func (c *fetchConfig) fetchOSVersion() string {
 		return ""
 	}
 
-	var name string
+	var id string
 	var versionID string
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		key, value, found := strings.Cut(line, "=")
@@ -42,14 +42,14 @@ func (c *fetchConfig) fetchOSVersion() string {
 		}
 
 		switch key {
-		case "NAME":
-			name = strings.Trim(value, `"`)
+		case "ID":
+			id = value
 		case "VERSION_ID":
 			versionID = strings.Trim(value, `"`)
 		}
 	}
 
-	return fmt.Sprintf("%s %s", name, versionID)
+	return fmt.Sprintf("%s %s", id, versionID)
 }
 
 // fetchGlibcVersion parses the output of 'ldd --version' and returns e.g.
