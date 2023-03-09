@@ -466,8 +466,6 @@ func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, Authori
 	identitySvc := local.NewIdentityService(backend)
 	eventsSvc := local.NewEventsService(backend)
 
-	accessSvc.Close()
-
 	client := &testClient{
 		ClusterConfiguration: clusterConfig,
 		Trust:                caSvc,

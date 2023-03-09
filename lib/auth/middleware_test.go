@@ -248,7 +248,7 @@ func TestCheckIPPinning(t *testing.T) {
 			desc:     "IP pinning enabled, missing client IP",
 			pinnedIP: "127.0.0.1",
 			pinIP:    true,
-			wantErr:  "missing observed client IP while checking IP pinning",
+			wantErr:  "expected type net.Addr, got <nil>",
 		},
 		{
 			desc:       "correct IP pinning",
