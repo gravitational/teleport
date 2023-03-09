@@ -32,9 +32,9 @@ type OktaImportRules interface {
 	// GetOktaImportRule returns the specified Okta import rule resources.
 	GetOktaImportRule(ctx context.Context, name string) (types.OktaImportRule, error)
 	// CreateOktaImportRule creates a new Okta import rule resource.
-	CreateOktaImportRule(context.Context, types.OktaImportRule) error
+	CreateOktaImportRule(context.Context, types.OktaImportRule) (types.OktaImportRule, error)
 	// UpdateOktaImportRule updates an existing Okta import rule resource.
-	UpdateOktaImportRule(context.Context, types.OktaImportRule) error
+	UpdateOktaImportRule(context.Context, types.OktaImportRule) (types.OktaImportRule, error)
 	// DeleteOktaImportRule removes the specified Okta import rule resource.
 	DeleteOktaImportRule(ctx context.Context, name string) error
 	// DeleteAllOktaImportRules removes all Okta import rules.
@@ -48,9 +48,9 @@ type OktaAssignments interface {
 	// GetOktaAssignmentreturns the specified Okta assignment resources.
 	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
 	// CreateOktaAssignmentcreates a new Okta assignment resource.
-	CreateOktaAssignment(context.Context, types.OktaAssignment) error
+	CreateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 	// UpdateOktaAssignmentupdates an existing Okta assignment resource.
-	UpdateOktaAssignment(context.Context, types.OktaAssignment) error
+	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 	// DeleteOktaAssignmentremoves the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 	// DeleteAllOktaAssignments removes all Okta assignments.

@@ -35,12 +35,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -1718,5 +1718,5 @@ type ClientI interface {
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
 	// still get an Okta client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
-	OktaClient() oktapb.OktaServiceClient
+	OktaClient() *okta.Client
 }
