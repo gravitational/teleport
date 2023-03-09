@@ -606,6 +606,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/github/login/console", h.WithLimiter(h.githubLoginConsole))
 
 	// MFA public endpoints.
+	h.POST("/webapi/sites/:site/mfa/required", h.WithClusterAuth(h.isMFARequired))
 	h.POST("/webapi/mfa/login/begin", h.WithLimiter(h.mfaLoginBegin))
 	h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
 	h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
