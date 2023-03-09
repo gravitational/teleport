@@ -142,16 +142,16 @@ https://drive.google.com/file/d/1xyzkAWPyKu-zLQpx168zHH_i7DoqnacC/view?usp=shari
 Clearly it appears that RemoteFX encoding is a sizeable improvement on the RDP default.
 I say "appears" because it's important to keep in mind that Teleport's client is a TDP client, which speaks in PNGs that have been translated from RDP bitmaps. In other words, Teleport does not speak RDP directly, there is an extra bitmap-to-PNG translation and network
 communication step as compared to IronRDP.
-Therefore, to confirm that it really is IronRDP's RemoteFX codec that's making up the majority of the performance improvement, and not the architectural differences, I tried playing the same video in a session using `FreeRDP`, with `FreeRDP` set to have the same RDP settings
+Therefore, to confirm that it really is IronRDP's RemoteFX codec that's making up the majority of the performance improvement, and not the extra steps in Teleport's architecture, I tried playing the same video in a session using `FreeRDP`, with `FreeRDP` set to have the same RDP settings
 as does `rdp-rs` (bitmaps with default codec) in Teleport's system. Performance is similar to the naked eye to the unwatchable Teleport example above, suggesting that RemoteFX is indeed the critical variable for the visible improvements:
 
 https://drive.google.com/file/d/1XHHIdsSRyUw2lrftjOYrVSXTK-8URuf0/view?usp=sharing
 
 #### Technical Considerations
 
-##### Option 1
+##### Option 1: IronRDP in WDS
 
-Recall that Teleport's Windows desktop architecture currently looks like the following, with the `rdp-rs` RDP client and bitmap-to-PNG translation residing on the Teleport Windows Desktop Service.
+Recall that Teleport's Windows desktop architecture currently looks like the following, with the `rdp-rs` RDP client and bitmap-to-PNG translation residing on the Teleport Windows Desktop Service (WDS).
 
 ```
                         Teleport Desktop Protocol                         RDP
@@ -165,28 +165,45 @@ Recall that Teleport's Windows desktop architecture currently looks like the fol
 +----------------------+     +------------------+  +------------------+     +------------------+
 ```
 
-Meanwhile, IronRDP's default setup looks like this
+Meanwhile, IronRDP's default setup looks like this when built for a native target (MacOS/linux/Windows):
+
+```
+                                RDP
+               ------------------------------------------
+               |                                        |
++----------------------+                           +------------------+
+|                      |                           |                  |
+|  (IronRDP)           |                           |                  |
+|  User's Web Browser  -----------------------------  Windows Desktop |
+|                      |                           |                  |
++----------------------+                           +------------------+
+```
+
+Or like like this when the browser is targeted (using WASM):
 
 ```
                                      RDP
-               ------------------------------------------
-               |                                        |
-+----------------------+     +------------------+  +------------------+
-|                      |     |                  |  |                  |
-|  (IronRDP)           |     |                  |  |                  |
-|  User's Web Browser  -------  Devolutions     ----  Windows Desktop |
-|                      |     |  Gateway         |  |                  |
-+----------------------+     +------------------+  +------------------+
+               -----------------------------------------------
+               |                                             |
++----------------------+     +------------------+     +------------------+
+|                      |     |                  |     |                  |
+|  (IronRDP)           |     |                  |     |                  |
+|  User's Web Browser  -------  Devolutions     -------  Windows Desktop |
+|                      |     |  Gateway         |     |                  |
++----------------------+     +------------------+     +------------------+
 ```
 
 Given that `IronRDP` and `rdp-rs` are both RDP clients written in Rust, the most obvious option is to simply swap one out for the other.
-As ever, this is easier said than done for a variety of reasons including primarily that `IronRDP` is written to connect specifically to [Devolutions Gateway](https://github.com/Devolutions/devolutions-gateway),
-which means that it connects over a websocket and the connection sequence includes a [custom Devolutions PDU](https://github.com/Devolutions/IronRDP/blob/e2ee180f7ea20dc51530be4d77c7275d12121f02/ironrdp-devolutions-gateway/src/lib.rs#L24).
-Given that `IronRDP` is otherwise a general RDP client, this is not an insurmountable obstacle, but will take an open-ended amount of R&D effort to solve.
+This will require that `IronRDP` be built out to support device redirection (in order to
+support smartcard authentication and directory sharing), and clipboard sharing.
 
-Also of note is the fact that `IronRDP` doesn't yet have features like clipboard sharing and device redirection implemented, and so it will require some non-trivial amount of effort to add those to the codebase.
+The simplest version of this option keeps TDP as-is, and letting `IronRDP` take care of decoding the RemoteFX encoded bitmaps it receives, and then
+converting those to PNGs in the WDS to be sent over TDP. This is as opposed to the version of this option where we modify TDP to
+send the RemoteFX encoded bitmaps themselves, and doing the RemoteFX decoding on the client. This latter version may be more performant overall, but
+is considerably more difficult to implement. Thus the former, simpler PNG version should be considered preferable to start, with the latter idea being
+held in the backpocket as a means of squeezing out even more performance in the future.
 
-##### Option 2
+##### Option 2: IronRDP in browser
 
 Another option worth considering is throwing out TDP entirely, and just using IronRDP as an RDP client in the browser directly. Making this option especially enticing is the fact that IronRDP is being developed specifically with an eye
 towards running it in the browser, and it already has a WASM compilation target (to allow Rust to run in browser) and Svelte proof-of-concept client as part of the repository. In that case, our system diagram would look like
@@ -203,6 +220,16 @@ towards running it in the browser, and it already has a WASM compilation target 
 +----------------------+     +------------------+  +------------------+     +------------------+
 ```
 
-The primary problem with this option is that there's no obvious way for us to log audit events and do session recording. Currently this is all being done at the Teleport Windows Desktop Service, where the RDP client is translated to TDP
-and sent to the browser. In the proposed setup, however, the Windows Desktop Service is acting as merely another proxy, meaning that the RDP connection is not terminated there. This means that it's a non-trivial task to "unmask" the RDP
+The primary problem with this option is that there's no obvious way for us to log audit events and do session recording. Currently this is all being done at the Teleport WDS, where the RDP client is translated to TDP
+and sent to the browser. In the proposed setup, however, the WDS is acting as merely another proxy, meaning that the RDP connection is not terminated there. This means that it's a non-trivial task to "unmask" the RDP
 messages at that point in the system, [particularly if we ever want to enable NLA](https://github.com/Devolutions/devolutions-gateway/issues/290).
+
+## Conclusions
+
+Processing bitmaps in the Rust library is a no-brainer per it being simple to build and offering a measureable 10x improvement. (In fact it is already impelemented at the time of this writing.)
+
+A proof of concept for bitmap caching was created, with underwhelming results. While there may be some overall improvement, it wasn't immediately obvious to the naked eye, which is the primary standard that's relevant
+to improving UX at this point in the feature's maturity.
+
+Contrast that with the clear improvements demonstrated in the performance comparison videos using `IronRDP` above. As such, we've decided to move forward with swapping out `rdp-rs` with `IronRDP`.
+Given the relative technical difficulty and related security risks of attempting to unmask RDP at the WDS were we to run IronRDP in browser, we are going to use architecture Option 1.
