@@ -18,6 +18,7 @@ package reversetunnel
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"testing"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/services"
@@ -229,5 +231,33 @@ func TestCreateRemoteAccessPoint(t *testing.T) {
 			_, err := createRemoteAccessPoint(srv, clt, tt.version, "test")
 			tt.assertion(t, err)
 		})
+	}
+}
+
+func Test_ParseDialReq(t *testing.T) {
+	testCases := []sshutils.DialReq{
+		{
+			Address:       "TargetAddress",
+			ServerID:      "ServerID123",
+			ConnType:      types.NodeTunnel,
+			ClientSrcAddr: "192.168.1.13:444",
+			ClientDstAddr: "192.168.1.14:444",
+		},
+		{
+			Address:       "TargetAddress",
+			ServerID:      "ServerID123",
+			ConnType:      types.NodeTunnel,
+			ClientSrcAddr: "[::1]:444",
+			ClientDstAddr: "[::1]:555",
+		},
+	}
+
+	for _, test := range testCases {
+		payload, err := json.Marshal(test)
+		require.NoError(t, err)
+		require.NotEmpty(t, payload)
+
+		parsed := parseDialReq(payload)
+		require.Equal(t, &test, parsed)
 	}
 }

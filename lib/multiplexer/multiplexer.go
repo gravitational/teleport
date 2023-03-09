@@ -26,7 +26,9 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -43,9 +45,16 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/loglimit"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+var (
+	// ErrBadIP is returned when there's a problem with client source or destination IP address
+	ErrBadIP = trace.BadParameter("client source and destination addresses should be valid non-nil IP addresses")
+)
+
+// CertAuthorityGetter allows to get cluster's host CA for verification of signed PROXY headers.
 type CertAuthorityGetter interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 }
@@ -196,7 +205,9 @@ func (m *Mux) Wait() {
 // Serve is a blocking function that serves on the listening socket
 // and accepts requests. Every request is served in a separate goroutine
 func (m *Mux) Serve() error {
+	m.Debugf("Starting serving MUX, ID %q on address %s", m.Config.ID, m.Config.Listener.Addr())
 	defer m.waitCancel()
+
 	for {
 		conn, err := m.Listener.Accept()
 		if err == nil {
@@ -205,7 +216,13 @@ func (m *Mux) Serve() error {
 				tcpConn.SetKeepAlivePeriod(3 * time.Minute)
 			}
 			go m.detectAndForward(conn)
-			continue
+
+			select {
+			case <-m.context.Done():
+				return trace.Wrap(m.Close())
+			default:
+				continue
+			}
 		}
 		if utils.IsUseOfClosedNetworkError(err) {
 			<-m.context.Done()
@@ -276,11 +293,16 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 	listener.HandleConnection(m.context, connWrapper)
 }
 
-type PROXYSigner interface {
-	SignPROXY(p jwt.PROXYSignParams) (string, error)
+// JWTPROXYSigner provides ability to created JWT for signed PROXY headers.
+type JWTPROXYSigner interface {
+	SignPROXYJWT(p jwt.PROXYSignParams) (string, error)
 }
 
 func getTCPAddr(a net.Addr) net.TCPAddr {
+	if a == nil {
+		return net.TCPAddr{}
+	}
+
 	addr, ok := a.(*net.TCPAddr)
 	if ok { // Hot path
 		return *addr
@@ -293,17 +315,20 @@ func getTCPAddr(a net.Addr) net.TCPAddr {
 	}
 }
 
-func GetSignedPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterName string, signingCert []byte, signer PROXYSigner) ([]byte, error) {
+func signPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterName string, signingCert []byte, signer JWTPROXYSigner) ([]byte, error) {
 	sAddr := getTCPAddr(sourceAddress)
 	dAddr := getTCPAddr(destinationAddress)
+	if sAddr.IP == nil || dAddr.IP == nil {
+		return nil, trace.Wrap(ErrBadIP, "source address: %s, destination address: %s", sourceAddress, destinationAddress)
+	}
 	if sAddr.Port < 0 || dAddr.Port < 0 {
 		return nil, trace.BadParameter("could not parse port (source:%q, destination: %q)",
 			sourceAddress.String(), destinationAddress.String())
 	}
 
-	signature, err := signer.SignPROXY(jwt.PROXYSignParams{
-		SourceAddress:      sourceAddress.String(),
-		DestinationAddress: destinationAddress.String(),
+	signature, err := signer.SignPROXYJWT(jwt.PROXYSignParams{
+		SourceAddress:      sAddr.String(),
+		DestinationAddress: dAddr.String(),
 		ClusterName:        clusterName,
 	})
 	if err != nil {
@@ -411,9 +436,29 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			// If TLVs are empty we know it can't be signed, so we don't try to verify to avoid unnecessary load
 			if m.CertAuthorityGetter != nil && m.LocalClusterName != "" && len(newProxyLine.TLVs) > 0 {
 				err = newProxyLine.VerifySignature(m.context, m.CertAuthorityGetter, m.LocalClusterName, m.Clock)
-				if err != nil && !errors.Is(err, ErrNonLocalCluster) {
+				if errors.Is(err, ErrNoHostCA) {
+					m.WithFields(log.Fields{
+						"src_addr": conn.RemoteAddr(),
+						"dst_addr": conn.LocalAddr(),
+					}).Warnf("Could not verify PROXY signature for connection - could not get host CA")
+					continue
+				}
+				// DELETE IN 14.0, early 12 versions could send PROXY headers to remote auth server
+				if errors.Is(err, ErrNonLocalCluster) {
+					m.WithFields(log.Fields{
+						"src_addr": conn.RemoteAddr(),
+						"dst_addr": conn.LocalAddr(),
+					}).Debugf("Could not verify PROXY signature for connection - signed by non local cluster")
+					continue
+				}
+				if err != nil {
 					return nil, trace.Wrap(err, invalidProxySignatureError)
 				}
+				m.WithFields(log.Fields{
+					"conn_src_addr":   conn.RemoteAddr(),
+					"conn_dst_addr":   conn.LocalAddr(),
+					"client_src_addr": newProxyLine.Source.String(),
+				}).Tracef("Successfully verified signed PROXYv2 header")
 			}
 
 			// If proxy line is signed and successfully verified and there's no already signed proxy header,
@@ -427,10 +472,8 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				continue
 			}
 
-			// TODO(anton): fail instead of ignoring when we add full propagation infrastructure.
-			// If proxy line was signed but was not successfully verified we ignore it
 			if m.CertAuthorityGetter != nil && newProxyLine.isSigned() && !newProxyLine.IsVerified {
-				continue
+				return nil, trace.BadParameter("could not verify proxy line signature")
 			}
 
 			// This is unsigned proxy line, return error if external PROXY protocol is not enabled
@@ -605,4 +648,48 @@ func detectProto(r *bufio.Reader) (Protocol, error) {
 	}
 
 	return ProtoUnknown, trace.BadParameter("%s, first few bytes were: %#v", failedToDetectConnectionProtocolError, in)
+}
+
+// PROXYHeaderSigner allows to sign PROXY headers for securely propagating original client IP information
+type PROXYHeaderSigner interface {
+	SignPROXYHeader(source, destination net.Addr) ([]byte, error)
+}
+
+// PROXYSigner implements PROXYHeaderSigner to sign PROXY headers
+type PROXYSigner struct {
+	signingCertDER []byte
+	clusterName    string
+	jwtSigner      JWTPROXYSigner
+}
+
+// NewPROXYSigner returns a new instance of PROXYSigner
+func NewPROXYSigner(signingCert *x509.Certificate, jwtSigner JWTPROXYSigner) (*PROXYSigner, error) {
+	identity, err := tlsca.FromSubject(signingCert.Subject, signingCert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ok := checkForSystemRole(identity, types.RoleProxy); !ok {
+		return nil, trace.Wrap(ErrIncorrectRole)
+	}
+
+	return &PROXYSigner{
+		signingCertDER: signingCert.Raw,
+		clusterName:    identity.TeleportCluster,
+		jwtSigner:      jwtSigner,
+	}, nil
+}
+
+// SignPROXYHeader creates a signed PROXY header with provided source and destination addresses
+func (p *PROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, error) {
+	header, err := signPROXYHeader(source, destination, p.clusterName, p.signingCertDER, p.jwtSigner)
+	if errors.Is(err, ErrBadIP) {
+		log.WithFields(log.Fields{
+			"src_addr":     fmt.Sprintf("%v", source),
+			"dst_addr":     fmt.Sprintf("%v", destination),
+			"cluster_name": p.clusterName}).Warn("Got bad IP while trying to sign PROXY header")
+		return nil, nil
+	}
+
+	return header, err
 }
