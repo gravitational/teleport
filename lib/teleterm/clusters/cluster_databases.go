@@ -45,7 +45,7 @@ type Database struct {
 func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, error) {
 	// TODO(ravicious): Fetch a single db instead of filtering the response from GetDatabases.
 	// https://github.com/gravitational/teleport/pull/14690#discussion_r927720600
-	dbs, err := c.GetAllDatabases(ctx)
+	dbs, err := c.getAllDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -60,7 +60,9 @@ func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, err
 }
 
 // GetDatabases returns databases
-func (c *Cluster) GetAllDatabases(ctx context.Context) ([]Database, error) {
+// TODO(ravicious): Remove this method in favor of fetching a single database in GetDatabase.
+// https://github.com/gravitational/teleport/pull/14690#discussion_r927720600
+func (c *Cluster) getAllDatabases(ctx context.Context) ([]Database, error) {
 	var dbs []types.Database
 	err := addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
