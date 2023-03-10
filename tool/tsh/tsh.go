@@ -798,7 +798,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML,
 	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
-	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
+	play.Arg("session-id", "ID or full path to session file to play").Required().StringVar(&cf.SessionID)
 
 	// scp
 	scp := app.Command("scp", "Transfer files to a remote Node")

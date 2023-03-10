@@ -23,7 +23,7 @@ const (
   This flag tells Teleport which services to run. By default it runs auth,
   proxy, and node. In a production environment you may want to separate them.
 
-  --token=xyz
+  --token=xyz or --token=/tmp/token
 
   This token is needed to connect a node or web app to an auth server. Get it
   by running "tctl tokens add --type=node" or "tctl tokens add --type=app" to

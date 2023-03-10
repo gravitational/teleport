@@ -132,7 +132,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		fmt.Sprintf("Address of the auth server [%s]", defaults.AuthConnectAddr().Addr)).
 		StringsVar(&ccf.AuthServerAddr)
 	start.Flag("token",
-		"Invitation token to register with an auth server [none]").
+		"Invitation token or full path to file with token value. Used to register with an auth server [none]").
 		StringVar(&ccf.AuthToken)
 	start.Flag("ca-pin",
 		"CA pin to validate the Auth Server (can be repeated for multiple pins)").
