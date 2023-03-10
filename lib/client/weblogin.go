@@ -96,6 +96,36 @@ type MFAChallengeRequest struct {
 	Passwordless bool `json:"passwordless"`
 }
 
+// MFAChallengeResponse holds the response to a MFA challenge.
+type MFAChallengeResponse struct {
+	// TOTPCode is a code for a otp device.
+	TOTPCode string `json:"totp_code,omitempty"`
+	// WebauthnResponse is a response from a webauthn device.
+	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
+}
+
+// GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
+// if there were any responses set. Otherwise returns nil.
+func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthenticateResponse, error) {
+	if r.TOTPCode != "" && r.WebauthnResponse != nil {
+		return nil, trace.BadParameter("only one MFA response field can be set")
+	}
+
+	if r.TOTPCode != "" {
+		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
+			TOTP: &proto.TOTPResponse{Code: r.TOTPCode},
+		}}, nil
+	}
+
+	if r.WebauthnResponse != nil {
+		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: wanlib.CredentialAssertionResponseToProto(r.WebauthnResponse),
+		}}, nil
+	}
+
+	return nil, nil
+}
+
 // CreateSSHCertReq are passed by web client
 // to authenticate against teleport server and receive
 // a temporary cert signed by auth server authority
