@@ -113,7 +113,7 @@ export function NavigationMenu() {
       <TopBarButton
         ref={selectorRef}
         isOpened={isPopoverOpened}
-        title="See more"
+        title="More Options"
         onClick={() => setIsPopoverOpened(true)}
       >
         <MoreVert fontSize={6} />
