@@ -30,6 +30,7 @@ import type {
 
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
+import type { WebauthnAssertionResponse } from './services/auth';
 
 import type { ParticipantMode } from 'teleport/services/session';
 
@@ -515,11 +516,22 @@ const cfg = {
     });
   },
 
-  getScpUrl(params: UrlScpParams) {
+  getScpUrl({
+    webauthn,
+    login,
+    location,
+    filename,
+    clusterId,
+    serverId,
+  }: UrlScpParams) {
     let path = generatePath(cfg.api.scp, {
-      ...params,
+      login,
+      location,
+      filename,
+      clusterId,
+      serverId,
     });
-    if (!params.webauthn) {
+    if (!webauthn) {
       return path;
     }
     // non-required MFA will mean this param is undefined and generatePath doesn't like undefined
@@ -528,7 +540,7 @@ const cfg = {
     return (
       path +
       `&webauthn=${JSON.stringify({
-        webauthnAssertionResponse: params.webauthn,
+        webauthnAssertionResponse: webauthn,
       })}`
     );
   },
@@ -605,7 +617,7 @@ export interface UrlScpParams {
   login: string;
   location: string;
   filename: string;
-  webauthn: string;
+  webauthn?: WebauthnAssertionResponse;
 }
 
 export interface UrlSshParams {

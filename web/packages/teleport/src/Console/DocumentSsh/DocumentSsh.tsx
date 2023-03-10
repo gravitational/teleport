@@ -79,6 +79,9 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
           backgroundColor={colors.primary.light}
           transferHandlers={{
             getDownloader: async (location, abortController) => {
+              const wanResponse = await auth.getAssertionResponseIfRequired({
+                node: { node_name: doc.clusterId, login: doc.login },
+              });
               return getHttpFileTransferHandlers().download(
                 cfg.getScpUrl({
                   location,
@@ -86,17 +89,15 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
                   serverId: doc.serverId,
                   login: doc.login,
                   filename: location,
-                  webauthn: await auth.getAssertionResponseIfRequired({
-                    node: {
-                      node_name: doc.clusterId,
-                      login: doc.login,
-                    },
-                  }),
+                  webauthn: wanResponse,
                 }),
                 abortController
               );
             },
             getUploader: async (location, file, abortController) => {
+              const wanResponse = await auth.getAssertionResponseIfRequired({
+                node: { node_name: doc.clusterId, login: doc.login },
+              });
               return getHttpFileTransferHandlers().upload(
                 cfg.getScpUrl({
                   location,
@@ -104,12 +105,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
                   serverId: doc.serverId,
                   login: doc.login,
                   filename: file.name,
-                  webauthn: await auth.getAssertionResponseIfRequired({
-                    node: {
-                      node_name: doc.clusterId,
-                      login: doc.login,
-                    },
-                  }),
+                  webauthn: wanResponse,
                 }),
                 file,
                 abortController

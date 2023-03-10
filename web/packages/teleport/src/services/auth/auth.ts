@@ -16,7 +16,11 @@ limitations under the License.
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
+import {
+  DeviceType,
+  DeviceUsage,
+  IsMfaRequiredRequest,
+} from 'teleport/services/mfa';
 
 import makePasswordToken from './makePasswordToken';
 import { makeChangedUserAuthn } from './make';
@@ -44,13 +48,12 @@ const auth = {
     return api.post(cfg.getMfaRequiredUrl(), params);
   },
 
-  async getAssertionResponseIfRequired(params) {
-    let wanResponse;
+  async getAssertionResponseIfRequired(params: IsMfaRequiredRequest) {
     const isMfaRequired = await auth.checkMfaRequired(params);
     if (isMfaRequired.required === true) {
-      wanResponse = await auth.getWebauthnResponse();
+      return await auth.getWebauthnResponse();
     }
-    return wanResponse;
+    return;
   },
 
   createMfaRegistrationChallenge(
