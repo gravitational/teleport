@@ -136,7 +136,7 @@ func (proxy *ProxyClient) GetSites(ctx context.Context) ([]types.Site, error) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(apidefaults.DefaultDialTimeout):
+	case <-time.After(apidefaults.DefaultIOTimeout):
 		return nil, trace.ConnectionProblem(nil, "timeout")
 	}
 	log.Debugf("Found clusters: %v", stdout.String())
