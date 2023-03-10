@@ -8,33 +8,7 @@ The Teleport team delivers a new major release roughly every 3 months.
 
 ## Teleport
 
-### Teleport 12.1
-
-Teleport 12.1 will deliver the following features and improvements.
-
-#### Teleport as SAML IdP (Preview)
-
-Teleport becomes a IdP for applications that support SAML authentication. This
-allows Teleport to automatically log users into a wider range of applications.
-
-Works in proxy mode as well allowing Teleport to proxy and enrich authentication
-to an upstream IdP.
-
-#### Device Trust (Preview)
-
-Device Trust Preview has been expanded to support enforcement of device enforcement
-on a per-role basis as well as the ability to lock devices.
-
-| Version          | Date               | Description                      |
-|------------------|--------------------|----------------------------------|
-| Release          | March 6th, 2023    | Good to go for production.       |
-
 ### Teleport 12.1.x
-
-#### IP-based validation for Kubernetes and Database Access (Preview)
-
-Teleport will be able to pin Kubernetes and database credentials to a particular IP
-to prevent exfiltrated credentials from being used in a different environment.
 
 #### New hardened container images
 
@@ -45,15 +19,37 @@ in a reduced attack surface and smaller footprint.
 |------------------|--------------------|----------------------------------|
 | Release          | March 17th, 2023   | Good to go for production.       |
 
+### Teleport 12.2.0
+
+#### (Preview) IP-based validation for Kubernetes and Database Access
+
+Teleport will be able to pin Kubernetes and database credentials to a particular IP
+to prevent exfiltrated credentials from being used in a different environment.
+
+### (Preview) Oracle support for Database Access
+
+Teleport will add the ability to connect to Oracle databases to Teleport
+Database Access.
+
+### (Preview) GitLab CI integration for Machine ID
+
+Machine ID will issue short-lived credentials based on GitLab CI's workload identity,
+making it possible to use Teleport to access resource in CI/CD workflows without any
+long-lived secrets or join tokens.
+
+| Version          | Date              | Description                      |
+|------------------|-------------------|----------------------------------|
+| Release          | April 3rd, 2023   | Good to go for production.       |
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Date             | Description                                                                                 |
+| Week of          | Description                                                                                 |
 |------------------|---------------------------------------------------------------------------------------------|
-| March 6th, 2023  | Complete rollout of [Teleport Worldwide](https://goteleport.com/blog/access-proxy-latency/) |
-| March 6th, 2023  | New dashboard experience for on-prem customers                                              |
-| March 15th, 2023 | Teleport 12.1 begins to roll out for Cloud customers                                        |
+| March 13th, 2023 | Complete rollout of [Teleport Worldwide](https://goteleport.com/blog/access-proxy-latency/) |
+| March 13th, 2023 | New dashboard experience for on-prem customers                                              |
+| March 13th, 2023 | Teleport 12.1 begins to roll out for Cloud customers                                        |
 | May 8th, 2023    | Add support for hosted Access Request plugins                                               |
 
 ## Semantic Versioning
