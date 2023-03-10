@@ -84,8 +84,9 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 		pool := x509.NewCertPool()
 		pool.AddCert(server.Certificate())
 
-		preDialer := apiclient.NewDialer(ctx, 0, 5*time.Second)
-		dialer := newALPNConnUpgradeDialer(preDialer, &tls.Config{RootCAs: pool})
+		tlsConfig := &tls.Config{RootCAs: pool}
+		preDialer := apiclient.NewDialer(ctx, 0, 5*time.Second, apiclient.WithTLSConfig(tlsConfig))
+		dialer := newALPNConnUpgradeDialer(preDialer, tlsConfig)
 		conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
 		require.NoError(t, err)
 
@@ -103,8 +104,9 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 		addr, err := url.Parse(server.URL)
 		require.NoError(t, err)
 
-		preDialer := apiclient.NewDialer(ctx, 0, 5*time.Second)
-		dialer := newALPNConnUpgradeDialer(preDialer, &tls.Config{InsecureSkipVerify: true})
+		tlsConfig := &tls.Config{InsecureSkipVerify: true}
+		preDialer := apiclient.NewDialer(ctx, 0, 5*time.Second, apiclient.WithTLSConfig(tlsConfig))
+		dialer := newALPNConnUpgradeDialer(preDialer, tlsConfig)
 		_, err = dialer.DialContext(ctx, "tcp", addr.Host)
 		require.Error(t, err)
 	})

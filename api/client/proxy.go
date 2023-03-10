@@ -19,6 +19,7 @@ package client
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"net"
 	"net/http"
@@ -28,9 +29,24 @@ import (
 	"golang.org/x/net/proxy"
 )
 
+type dialProxyConfig struct {
+	tlsConfig *tls.Config
+}
+
+// DialProxyOption allows setting options as functional arguments to DialProxy.
+type DialProxyOption func(cfg *dialProxyConfig)
+
+// WithTLSConfig provides the dialer with the TLS config to use when using an
+// HTTPS proxy.
+func WithTLSConfig(tlsConfig *tls.Config) DialProxyOption {
+	return func(cfg *dialProxyConfig) {
+		cfg.tlsConfig = tlsConfig
+	}
+}
+
 // DialProxy creates a connection to a server via an HTTP or SOCKS5 Proxy.
-func DialProxy(ctx context.Context, proxyURL *url.URL, addr string) (net.Conn, error) {
-	return DialProxyWithDialer(ctx, proxyURL, addr, &net.Dialer{})
+func DialProxy(ctx context.Context, proxyURL *url.URL, addr string, opts ...DialProxyOption) (net.Conn, error) {
+	return DialProxyWithDialer(ctx, proxyURL, addr, &net.Dialer{}, opts...)
 }
 
 // DialProxyWithDialer creates a connection to a server via an HTTP or SOCKS5
@@ -40,14 +56,20 @@ func DialProxyWithDialer(
 	proxyURL *url.URL,
 	addr string,
 	dialer *net.Dialer,
+	opts ...DialProxyOption,
 ) (net.Conn, error) {
 	if proxyURL == nil {
 		return nil, trace.BadParameter("missing proxy url")
 	}
 
+	var cfg dialProxyConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	switch proxyURL.Scheme {
-	case "http":
-		conn, err := dialProxyWithHTTPDialer(ctx, proxyURL, addr, dialer)
+	case "http", "https":
+		conn, err := dialProxyWithHTTPDialer(ctx, proxyURL, addr, dialer, cfg.tlsConfig)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -68,9 +90,20 @@ func dialProxyWithHTTPDialer(
 	ctx context.Context,
 	proxyURL *url.URL,
 	addr string,
-	dialer ContextDialer,
+	dialer *net.Dialer,
+	tlsConfig *tls.Config,
 ) (net.Conn, error) {
-	conn, err := dialer.DialContext(ctx, "tcp", proxyURL.Host)
+	var conn net.Conn
+	var err error
+	if proxyURL.Scheme == "https" {
+		tlsDialer := tls.Dialer{
+			NetDialer: dialer,
+			Config:    tlsConfig,
+		}
+		conn, err = tlsDialer.DialContext(ctx, "tcp", proxyURL.Host)
+	} else {
+		conn, err = dialer.DialContext(ctx, "tcp", proxyURL.Host)
+	}
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}

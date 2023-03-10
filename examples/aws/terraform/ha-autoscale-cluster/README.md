@@ -1,6 +1,6 @@
 ## Terraform based provisioning example (Amazon single AMI)
 
-Terraform specifies example provisioning script for Teleport auth, proxy and nodes in HA mode.
+Terraform specifies example provisioning script for Teleport auth, proxy and nodes in High Availability (HA) mode.
 
 Use these examples as possible deployment patterns suggested by Teleport developers.
 
@@ -22,6 +22,7 @@ We recommend familiarizing yourself with the following resources prior to review
 
 - [Teleport Architecture](https://goteleport.com/docs/architecture/overview/)
 - [Admin Guide](https://goteleport.com/docs/management/admin/)
+- [Running Teleport Enterprise in High Availability mode on AWS](https://goteleport.com/docs/deploy-a-cluster/deployments/aws-terraform/)
 
 In order to spin up AWS resources using these Terraform examples, you need the following software:
 

@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -370,7 +371,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				tr.Stop()
 			})
 
-			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 				auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 					AuditSessionsURI: tt.auditSessionsURI,
 				})
@@ -755,7 +756,7 @@ func (s *integrationTestSuite) newTeleport(t *testing.T, logins []string, enable
 // reversetunnel node.
 func (s *integrationTestSuite) newTeleportIoT(t *testing.T, logins []string) *helpers.TeleInstance {
 	// Create a Teleport instance with Auth/Proxy.
-	mainConfig := func() *service.Config {
+	mainConfig := func() *servicecfg.Config {
 		tconf := s.defaultServiceConfig()
 		tconf.Auth.Enabled = true
 
@@ -770,7 +771,7 @@ func (s *integrationTestSuite) newTeleportIoT(t *testing.T, logins []string) *he
 	main := s.NewTeleportWithConfig(t, logins, nil, mainConfig())
 
 	// Create a Teleport instance with a Node.
-	nodeConfig := func() *service.Config {
+	nodeConfig := func() *servicecfg.Config {
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = Host
 		tconf.SetToken("token")
@@ -1297,7 +1298,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 			conf.HostUUID = name
 			conf.Hostname = name
 			conf.SSH.Enabled = true
-			conf.CachePolicy = service.CachePolicy{
+			conf.CachePolicy = servicecfg.CachePolicy{
 				Enabled: true,
 			}
 			conf.SSH.Addr = utils.NetAddr{
@@ -2412,7 +2413,7 @@ func testMapRoles(t *testing.T, suite *integrationTestSuite) {
 
 	// for role mapping test we turn on Web API on the main cluster
 	// as it's used
-	makeConfig := func(enableSSH bool) (*testing.T, []*helpers.InstanceSecrets, *service.Config) {
+	makeConfig := func(enableSSH bool) (*testing.T, []*helpers.InstanceSecrets, *servicecfg.Config) {
 		tconf := suite.defaultServiceConfig()
 		tconf.SSH.Enabled = enableSSH
 		tconf.Proxy.DisableWebService = false
@@ -2673,7 +2674,7 @@ func testMultiplexingTrustedClusters(t *testing.T, suite *integrationTestSuite) 
 	trustedClusters(t, suite, trustedClusterTest{multiplex: true})
 }
 
-func standardPortsOrMuxSetup(t *testing.T, mux bool, fds *[]service.FileDescriptor) *helpers.InstanceListeners {
+func standardPortsOrMuxSetup(t *testing.T, mux bool, fds *[]servicecfg.FileDescriptor) *helpers.InstanceListeners {
 	if mux {
 		return helpers.WebReverseTunnelMuxPortSetup(t, fds)
 	}
@@ -2738,7 +2739,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 
 	// for role mapping test we turn on Web API on the main cluster
 	// as it's used
-	makeConfig := func(enableSSH bool) (*testing.T, []*helpers.InstanceSecrets, *service.Config) {
+	makeConfig := func(enableSSH bool) (*testing.T, []*helpers.InstanceSecrets, *servicecfg.Config) {
 		tconf := suite.defaultServiceConfig()
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
@@ -2973,7 +2974,7 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 
 	// for role mapping test we turn on Web API on the main cluster
 	// as it's used
-	makeConfig := func(instance *helpers.TeleInstance, enableSSH bool) (*testing.T, *service.Config) {
+	makeConfig := func(instance *helpers.TeleInstance, enableSSH bool) (*testing.T, *servicecfg.Config) {
 		tconf := suite.defaultServiceConfig()
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
@@ -3116,7 +3117,7 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 
 	// for role mapping test we turn on Web API on the main cluster
 	// as it's used
-	makeConfig := func(instance *helpers.TeleInstance, enableSSH bool) (*testing.T, *service.Config) {
+	makeConfig := func(instance *helpers.TeleInstance, enableSSH bool) (*testing.T, *servicecfg.Config) {
 		tconf := suite.defaultServiceConfig()
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
@@ -3230,7 +3231,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 
 	// for role mapping test we turn on Web API on the main cluster
 	// as it's used
-	makeConfig := func(enableSSH bool) (*testing.T, []*helpers.InstanceSecrets, *service.Config) {
+	makeConfig := func(enableSSH bool) (*testing.T, []*helpers.InstanceSecrets, *servicecfg.Config) {
 		tconf := suite.defaultServiceConfig()
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
@@ -3282,7 +3283,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 
 	// Create a Teleport instance with a node that dials back to the aux cluster.
 	tunnelNodeHostname := "cluster-aux-node"
-	nodeConfig := func() *service.Config {
+	nodeConfig := func() *servicecfg.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = tunnelNodeHostname
 		tconf.SetToken("token")
@@ -3640,7 +3641,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	t.Cleanup(func() { require.NoError(t, lb.Close()) })
 
 	// Create a Teleport instance with Auth/Proxy.
-	mainConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+	mainConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 		tconf := suite.defaultServiceConfig()
 
 		tconf.Auth.Enabled = true
@@ -3696,7 +3697,7 @@ func testReverseTunnelCollapse(t *testing.T, suite *integrationTestSuite) {
 	lb.AddBackend(*proxyTwoBackend)
 
 	// Create a Teleport instance with a Node.
-	nodeConfig := func() *service.Config {
+	nodeConfig := func() *servicecfg.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "cluster-main-node"
 		tconf.SetToken("token")
@@ -3795,7 +3796,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	defer lb.Close()
 
 	// Create a Teleport instance with Auth/Proxy.
-	mainConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+	mainConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 		tconf := suite.defaultServiceConfig()
 
 		tconf.Auth.Enabled = true
@@ -3836,7 +3837,7 @@ func testDiscoveryNode(t *testing.T, suite *integrationTestSuite) {
 	lb.AddBackend(*proxyTwoBackend)
 
 	// Create a Teleport instance with a Node.
-	nodeConfig := func() *service.Config {
+	nodeConfig := func() *servicecfg.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "cluster-main-node"
 		tconf.SetToken("token")
@@ -3983,7 +3984,7 @@ func testExternalClient(t *testing.T, suite *integrationTestSuite) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			// Create a Teleport instance with auth, proxy, and node.
-			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 					Mode: tt.inRecordLocation,
 				})
@@ -4081,7 +4082,7 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 			controlPath := filepath.Join(controlDir, "control-path")
 
 			// Create a Teleport instance with auth, proxy, and node.
-			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 					Mode: tt.inRecordLocation,
 				})
@@ -4181,7 +4182,7 @@ func testProxyHostKeyCheck(t *testing.T, suite *integrationTestSuite) {
 			nodePort := newPortValue()
 
 			// create a teleport instance with auth, proxy, and node
-			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 					Mode:                types.RecordAtProxy,
 					ProxyChecksHostKeys: types.NewBoolOption(tt.inHostKeyCheck),
@@ -4244,7 +4245,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	var err error
 
 	// create a teleport instance with auth, proxy, and node
-	makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+	makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 		recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode: types.RecordOff,
 		})
@@ -4431,7 +4432,7 @@ func testPAM(t *testing.T, suite *integrationTestSuite) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			// Create a teleport instance with auth, proxy, and node.
-			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 				tconf := suite.defaultServiceConfig()
 				tconf.Auth.Enabled = true
 
@@ -4528,7 +4529,7 @@ func testRotateSuccess(t *testing.T, suite *integrationTestSuite) {
 
 	runErrCh := make(chan error, 1)
 	go func() {
-		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+		runErrCh <- service.Run(ctx, *config, func(cfg *servicecfg.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
@@ -4696,7 +4697,7 @@ func testRotateRollback(t *testing.T, s *integrationTestSuite) {
 
 	runErrCh := make(chan error, 1)
 	go func() {
-		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+		runErrCh <- service.Run(ctx, *config, func(cfg *servicecfg.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
@@ -4844,7 +4845,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 	serviceC := make(chan *service.TeleportProcess, 20)
 	runErrCh := make(chan error, 1)
 	go func() {
-		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+		runErrCh <- service.Run(ctx, *config, func(cfg *servicecfg.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
@@ -5043,7 +5044,7 @@ func testRotateTrustedClusters(t *testing.T, suite *integrationTestSuite) {
 }
 
 // rotationConfig sets up default config used for CA rotation tests
-func (s *integrationTestSuite) rotationConfig(disableWebService bool) *service.Config {
+func (s *integrationTestSuite) rotationConfig(disableWebService bool) *servicecfg.Config {
 	tconf := s.defaultServiceConfig()
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebService = disableWebService
@@ -5285,7 +5286,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 	defer tr.Stop()
 
 	// Create and start a Teleport cluster with auth, proxy, and node.
-	makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+	makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 		recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode: types.RecordOff,
 		})
@@ -5310,7 +5311,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 
 	// Create and start a Teleport node.
 	nodeSSHPort := newPortValue()
-	nodeConfig := func() *service.Config {
+	nodeConfig := func() *servicecfg.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "server-02"
 		tconf.SSH.Enabled = true
@@ -5431,7 +5432,7 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 	defer lib.SetInsecureDevMode(false)
 
 	// Create and start a Teleport cluster with auth, proxy, and node.
-	makeConfig := func() *service.Config {
+	makeConfig := func() *servicecfg.Config {
 		recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode: types.RecordOff,
 		})
@@ -5456,7 +5457,7 @@ func testCmdLabels(t *testing.T, suite *integrationTestSuite) {
 	defer teleport.StopAll()
 
 	// Create and start a reversetunnel node.
-	nodeConfig := func() *service.Config {
+	nodeConfig := func() *servicecfg.Config {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "server-02"
 		tconf.SSH.Enabled = true
@@ -5601,7 +5602,7 @@ func testBPFInteractive(t *testing.T, suite *integrationTestSuite) {
 			dir := t.TempDir()
 
 			// Create and start a Teleport cluster.
-			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 					Mode: tt.inSessionRecording,
 				})
@@ -5729,7 +5730,7 @@ func testBPFExec(t *testing.T, suite *integrationTestSuite) {
 			dir := t.TempDir()
 
 			// Create and start a Teleport cluster.
-			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 				recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 					Mode: tt.inSessionRecording,
 				})
@@ -5855,7 +5856,7 @@ func testSSHExitCode(t *testing.T, suite *integrationTestSuite) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			// Create and start a Teleport cluster.
-			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 				// Create default config.
 				tconf := suite.defaultServiceConfig()
 
@@ -5932,7 +5933,7 @@ func testBPFSessionDifferentiation(t *testing.T, suite *integrationTestSuite) {
 	dir := t.TempDir()
 
 	// Create and start a Teleport cluster.
-	makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
+	makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *servicecfg.Config) {
 		recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 			Mode: types.RecordAtNode,
 		})
@@ -6486,8 +6487,8 @@ func WithListeners(setupFn helpers.InstanceListenerSetupFunc) InstanceConfigOpti
 	}
 }
 
-func (s *integrationTestSuite) defaultServiceConfig() *service.Config {
-	cfg := service.MakeDefaultConfig()
+func (s *integrationTestSuite) defaultServiceConfig() *servicecfg.Config {
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.Console = nil
 	cfg.Log = s.Log
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -6575,7 +6576,7 @@ func TestWebProxyInsecure(t *testing.T) {
 		Log:         utils.NewLoggerForTests(),
 	})
 
-	rcConf := service.MakeDefaultConfig()
+	rcConf := servicecfg.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.Preference.SetSecondFactor("off")
@@ -6631,7 +6632,7 @@ func TestTraitsPropagation(t *testing.T) {
 	})
 
 	// Make root cluster config.
-	rcConf := service.MakeDefaultConfig()
+	rcConf := servicecfg.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.Preference.SetSecondFactor("off")
@@ -6644,7 +6645,7 @@ func TestTraitsPropagation(t *testing.T) {
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// Make leaf cluster config.
-	lcConf := service.MakeDefaultConfig()
+	lcConf := servicecfg.MakeDefaultConfig()
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true
 	lcConf.Auth.Preference.SetSecondFactor("off")
@@ -6939,7 +6940,7 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 	root.AddUserWithRole(username, role)
 	leaf.AddUserWithRole(username, role)
 
-	makeConfig := func() (*testing.T, []*helpers.InstanceSecrets, *service.Config) {
+	makeConfig := func() (*testing.T, []*helpers.InstanceSecrets, *servicecfg.Config) {
 		tconf := suite.defaultServiceConfig()
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
@@ -7030,7 +7031,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			conf.HostUUID = name
 			conf.Hostname = name
 			conf.SSH.Enabled = true
-			conf.CachePolicy = service.CachePolicy{
+			conf.CachePolicy = servicecfg.CachePolicy{
 				Enabled: true,
 			}
 			conf.SSH.Addr = utils.NetAddr{
@@ -7039,7 +7040,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			conf.Proxy.Enabled = false
 
 			conf.Apps.Enabled = true
-			conf.Apps.Apps = []service.App{
+			conf.Apps.Apps = []servicecfg.App{
 				{
 					Name: name,
 					URI:  name,
@@ -7047,7 +7048,7 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 			}
 
 			conf.Databases.Enabled = true
-			conf.Databases.Databases = []service.Database{
+			conf.Databases.Databases = []servicecfg.Database{
 				{
 					Name:     name,
 					URI:      name,
@@ -7370,7 +7371,7 @@ func TestProxySSHPortMultiplexing(t *testing.T) {
 				Log:         utils.NewLoggerForTests(),
 			})
 
-			rcConf := service.MakeDefaultConfig()
+			rcConf := servicecfg.MakeDefaultConfig()
 			rcConf.DataDir = t.TempDir()
 			rcConf.Auth.Preference.SetSecondFactor("off")
 			rcConf.SSH.Enabled = false
@@ -7498,7 +7499,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			t.Parallel()
 
 			// Create auth config.
-			authCfg := service.MakeDefaultConfig()
+			authCfg := servicecfg.MakeDefaultConfig()
 			authCfg.Console = nil
 			authCfg.Log = utils.NewLoggerForTests()
 			authCfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -7557,7 +7558,7 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 			})
 
 			// Create node config.
-			nodeCfg := service.MakeDefaultConfig()
+			nodeCfg := servicecfg.MakeDefaultConfig()
 			nodeCfg.SetAuthServerAddress(authCfg.Auth.ListenAddr)
 			nodeCfg.SetToken("token")
 			nodeCfg.CachePolicy.Enabled = true

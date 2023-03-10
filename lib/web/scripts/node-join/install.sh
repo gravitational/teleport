@@ -941,6 +941,10 @@ else
     install_teleport_node_config
 fi
 
+
+# Used to track whether a Teleport agent was installed using this method.
+export TELEPORT_INSTALL_METHOD_NODE_SCRIPT="true"
+
 # install systemd unit if applicable (linux hosts)
 if is_using_systemd; then
     log "Host is using systemd"
