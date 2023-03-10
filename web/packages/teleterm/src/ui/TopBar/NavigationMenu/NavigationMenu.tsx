@@ -18,33 +18,50 @@ import React, { useState, useRef } from 'react';
 import styled from 'styled-components';
 
 import Popover from 'design/Popover';
-import { MoreVert, OpenBox, Add } from 'design/Icon';
-import { Box, Text, Flex } from 'design';
+import { MoreVert, OpenBox, Add, Config } from 'design/Icon';
+import { Box, Flex } from 'design';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
-import { RootClusterUri } from 'teleterm/ui/uri';
-
-import { useIdentity } from '../Identity/useIdentity';
+import { IAppContext } from 'teleterm/ui/types';
+import { Cluster } from 'teleterm/services/tshd/types';
 
 import { NavigationItem } from './NavigationItem';
 
-function getNavigationItems(
-  documentsService: DocumentsService,
-  clusterUri: RootClusterUri
-): {
-  title: string;
-  Icon: JSX.Element;
-  onNavigate: () => void;
-}[] {
+function useNavigationItems(): (
+  | {
+      type?: 'normal';
+      title: string;
+      Icon: JSX.Element;
+      onNavigate: () => void;
+    }
+  | { type: 'separator' }
+)[] {
+  const ctx = useAppContext();
+  ctx.workspacesService.useState();
+  ctx.clustersService.useState();
+
+  const documentsService =
+    ctx.workspacesService.getActiveWorkspaceDocumentService();
+  const activeRootCluster = getActiveRootCluster(ctx);
+  const accessRequestsAllowed =
+    !!activeRootCluster?.features?.advancedAccessWorkflows;
+
   return [
     {
+      title: 'Open Config File',
+      Icon: <Config fontSize={2} />,
+      onNavigate: () => {
+        ctx.mainProcessClient.openConfigFile();
+      },
+    },
+    { type: 'separator' as const },
+    accessRequestsAllowed && {
       title: 'New Access Request',
       Icon: <Add fontSize={2} />,
       onNavigate: () => {
         const doc = documentsService.createAccessRequestDocument({
-          clusterUri,
+          clusterUri: activeRootCluster.uri,
           state: 'creating',
           title: 'New Access Request',
         });
@@ -52,34 +69,45 @@ function getNavigationItems(
         documentsService.open(doc.uri);
       },
     },
-    {
+    accessRequestsAllowed && {
       title: 'Review Access Requests',
       Icon: <OpenBox fontSize={2} />,
       onNavigate: () => {
         const doc = documentsService.createAccessRequestDocument({
-          clusterUri,
+          clusterUri: activeRootCluster.uri,
           state: 'browsing',
         });
         documentsService.add(doc);
         documentsService.open(doc.uri);
       },
     },
-  ];
+  ].filter(Boolean);
+}
+
+function getActiveRootCluster(ctx: IAppContext): Cluster | undefined {
+  const clusterUri = ctx.workspacesService.getRootClusterUri();
+  if (!clusterUri) {
+    return;
+  }
+  return ctx.clustersService.findCluster(clusterUri);
 }
 
 export function NavigationMenu() {
-  const ctx = useAppContext();
-  const documentsService =
-    ctx.workspacesService.getActiveWorkspaceDocumentService();
-  const { activeRootCluster } = useIdentity();
-
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
   const selectorRef = useRef<HTMLButtonElement>();
 
-  const shouldShowMenu = !!activeRootCluster?.features?.advancedAccessWorkflows;
-  if (!shouldShowMenu) {
-    return null;
-  }
+  const items = useNavigationItems().map((item, index, items) => {
+    if (item.type === 'separator') {
+      return index !== items.length - 1 && <Separator key={index} />; // if not the last element
+    }
+    return (
+      <NavigationItem
+        key={index}
+        item={item}
+        closeMenu={() => setIsPopoverOpened(false)}
+      />
+    );
+  });
 
   return (
     <>
@@ -101,17 +129,8 @@ export function NavigationMenu() {
       >
         <MenuContainer p={3}>
           <Box minWidth="280px">
-            <Text fontWeight={700}>Go To</Text>
-            <Flex flexDirection="column">
-              {getNavigationItems(documentsService, activeRootCluster.uri).map(
-                (item, index) => (
-                  <NavigationItem
-                    key={index}
-                    item={item}
-                    closeMenu={() => setIsPopoverOpened(false)}
-                  />
-                )
-              )}
+            <Flex flexDirection="column" minWidth="280px">
+              {items}
             </Flex>
           </Box>
         </MenuContainer>
@@ -122,4 +141,9 @@ export function NavigationMenu() {
 
 const MenuContainer = styled(Box)`
   background: ${props => props.theme.colors.primary.light};
+`;
+
+const Separator = styled.div`
+  background: ${props => props.theme.colors.primary.lighter};
+  height: 1px;
 `;
