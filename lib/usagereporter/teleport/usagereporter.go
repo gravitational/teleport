@@ -45,7 +45,7 @@ const (
 
 	// usageReporterMaxBatchSize is the largest batch size that will be sent to
 	// the server; batches larger than this will be split into multiple
-	// requests.
+	// requests. Matches the limit enforced by the server side for a single RPC.
 	usageReporterMaxBatchSize = 500
 
 	// usageReporterMaxBatchAge is the maximum age a batch may reach before
