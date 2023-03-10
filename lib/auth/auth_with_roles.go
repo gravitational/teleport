@@ -5764,6 +5764,18 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 	return a.authServer.DeleteAllUserGroups(ctx)
 }
 
+// GetHeadlessAuthentication retrieves a headless authentication by id.
+func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error) {
+	// TODO (joerger): Add implementation - follow up PR
+	return nil, trace.NotImplemented("GetHeadlessAuthentication is not implemented")
+}
+
+// UpdateHeadlessAuthenticationState updates a headless authentication state.
+func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
+	// TODO (joerger): Add implementation - follow up PR
+	return trace.NotImplemented("UpdateHeadlessAuthenticationState is not implemented")
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {
