@@ -343,7 +343,7 @@ func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRe
 	return protoReq, nil
 }
 
-type isMfaRequiredResponse struct {
+type isMFARequiredResponse struct {
 	Required bool `json:"required"`
 }
 
@@ -368,5 +368,5 @@ func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
-	return isMfaRequiredResponse{Required: res.GetRequired()}, nil
+	return isMFARequiredResponse{Required: res.GetRequired()}, nil
 }
