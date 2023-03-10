@@ -88,7 +88,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	if mfaReq.Required == true && query.Get("webauthn") == "" {
+	if mfaReq.Required && query.Get("webauthn") == "" {
 		return nil, trace.BadParameter("MFA required for file transfer.")
 	}
 
