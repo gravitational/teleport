@@ -118,7 +118,7 @@ type AuthInterface interface {
 	// GenerateWindowsDesktopCert generates a windows remote desktop certificate
 	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
 	// GetCertAuthority returns a types.CertAuthority interface
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	// GetClusterName returns a types.ClusterName interface
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }

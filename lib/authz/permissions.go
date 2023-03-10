@@ -84,6 +84,17 @@ type Authorizer interface {
 	Authorize(ctx context.Context) (*Context, error)
 }
 
+// The AuthorizerFunc type is an adapter to allow the use of
+// ordinary functions as an Authorizer. If f is a function
+// with the appropriate signature, AuthorizerFunc(f) is a
+// Authorizer that calls f.
+type AuthorizerFunc func(ctx context.Context) (*Context, error)
+
+// Authorize calls f(ctx).
+func (f AuthorizerFunc) Authorize(ctx context.Context) (*Context, error) {
+	return f(ctx)
+}
+
 // AuthorizerAccessPoint is the access point contract required by an Authorizer
 type AuthorizerAccessPoint interface {
 	// GetAuthPreference returns the cluster authentication configuration.
@@ -96,7 +107,7 @@ type AuthorizerAccessPoint interface {
 	GetUser(name string, withSecrets bool) (types.User, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
@@ -873,20 +884,19 @@ func ContextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, cluster
 	}, nil
 }
 
-// TODO(mdwn): unexport this once enterprise has been moved.
-type ContextKey string
+type contextKey string
 
 const (
 	// contextUserCertificate is the X.509 certificate used by the contextUser to
 	// establish the mTLS connection.
 	// Holds a *x509.Certificate.
-	contextUserCertificate ContextKey = "teleport-user-cert"
+	contextUserCertificate contextKey = "teleport-user-cert"
 
 	// contextUser is a user set in the context of the request
-	contextUser ContextKey = "teleport-user"
+	contextUser contextKey = "teleport-user"
 
 	// contextClientAddr is a client address set in the context of the request
-	contextClientAddr ContextKey = "client-addr"
+	contextClientAddr contextKey = "client-addr"
 )
 
 // WithDelegator alias for backwards compatibility

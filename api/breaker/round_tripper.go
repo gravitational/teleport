@@ -32,6 +32,17 @@ func NewRoundTripper(cb *CircuitBreaker, tripper http.RoundTripper) *RoundTrippe
 	}
 }
 
+// CloseIdleConnections ensures idle connections of the wrapped
+// [http.RoundTripper] are closed.
+func (t *RoundTripper) CloseIdleConnections() {
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+	if tr, ok := t.tripper.(closeIdler); ok {
+		tr.CloseIdleConnections()
+	}
+}
+
 // RoundTrip forwards the request on to the provided http.RoundTripper if
 // the CircuitBreaker allows it
 func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
