@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -1221,9 +1222,9 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			xCert, identity := parseX509PEMAndIdentity(t, test.x509PEM)
 
-			// Prepare ctx and auth.Context.
-			ctx = context.WithValue(ctx, contextUserCertificate, xCert)
-			ctx = context.WithValue(ctx, ContextUser, LocalUser{
+			// Prepare ctx and authz.Context.
+			ctx = authz.ContextWithUserCertificate(ctx, xCert)
+			ctx = authz.ContextWithUser(ctx, authz.LocalUser{
 				Username: username,
 				Identity: *identity,
 			})
@@ -1368,8 +1369,8 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	// Issue augmented certs for user1.
 	// Used to test that re-issue of augmented certs is not allowed.
 	ctxFromAuthorize := testServer.APIConfig.Authorizer.Authorize
-	aCtx := context.WithValue(context.Background(), contextUserCertificate, xCert1)
-	aCtx = context.WithValue(aCtx, ContextUser, LocalUser{
+	aCtx := authz.ContextWithUserCertificate(context.Background(), xCert1)
+	aCtx = authz.ContextWithUser(aCtx, authz.LocalUser{
 		Username: identity1.Username,
 		Identity: *identity1,
 	})
@@ -1413,7 +1414,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 		x509Cert *x509.Certificate
 		identity *tlsca.Identity
 		// createAuthCtx defaults to ctxFromAuthorize.
-		createAuthCtx func(ctx context.Context) (*Context, error)
+		createAuthCtx func(ctx context.Context) (*authz.Context, error)
 		// createOpts defaults to optsFromBase.
 		createOpts func(t *testing.T) *AugmentUserCertificateOpts
 		wantErr    string
@@ -1423,7 +1424,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 			name:          "authCtx nil",
 			x509Cert:      xCert1,
 			identity:      identity1,
-			createAuthCtx: func(ctx context.Context) (*Context, error) { return nil, nil },
+			createAuthCtx: func(ctx context.Context) (*authz.Context, error) { return nil, nil },
 			wantErr:       "authCtx",
 		},
 		{
@@ -1616,7 +1617,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 			name:     "locked user",
 			x509Cert: xCert3,
 			identity: identity3, // user3 locked below.
-			createAuthCtx: func(ctx context.Context) (*Context, error) {
+			createAuthCtx: func(ctx context.Context) (*authz.Context, error) {
 				// Authorize user3...
 				authCtx, err := ctxFromAuthorize(ctx)
 				if err != nil {
@@ -1697,9 +1698,9 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 				test.createOpts = optsFromBase
 			}
 
-			// Prepare ctx and auth.Context.
-			ctx = context.WithValue(ctx, contextUserCertificate, test.x509Cert)
-			ctx = context.WithValue(ctx, ContextUser, LocalUser{
+			// Prepare ctx and authz.Context.
+			ctx = authz.ContextWithUserCertificate(ctx, test.x509Cert)
+			ctx = authz.ContextWithUser(ctx, authz.LocalUser{
 				Username: test.identity.Username,
 				Identity: *test.identity,
 			})

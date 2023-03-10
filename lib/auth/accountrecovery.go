@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -187,7 +188,7 @@ func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 			Type: events.RecoveryCodeUsedEvent,
 			Code: events.RecoveryCodeUseSuccessCode,
 		},
-		UserMetadata: ClientUserMetadataWithUser(ctx, user),
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, user),
 		Status: apievents.Status{
 			Success: true,
 		},
@@ -507,7 +508,7 @@ func (s *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 
 // GetAccountRecoveryCodes implements AuthService.GetAccountRecoveryCodes.
 func (s *Server) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
-	username, err := GetClientUsername(ctx)
+	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -552,7 +553,7 @@ func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 			Type: events.RecoveryCodeGeneratedEvent,
 			Code: events.RecoveryCodesGenerateCode,
 		},
-		UserMetadata: ClientUserMetadataWithUser(ctx, username),
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
 	}); err != nil {
 		log.WithError(err).WithFields(logrus.Fields{"user": username}).Warn("Failed to emit recovery tokens generate event.")
 	}

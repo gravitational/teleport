@@ -40,13 +40,13 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TopCommand implements `tctl top` group of commands.
 type TopCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	// CLI clauses (subcommands)
 	top           *kingpin.CmdClause
@@ -55,7 +55,7 @@ type TopCommand struct {
 }
 
 // Initialize allows TopCommand to plug itself into the CLI parser.
-func (c *TopCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *TopCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 	c.top = app.Command("top", "Report diagnostic information")
 	c.diagURL = c.top.Arg("diag-addr", "Diagnostic HTTP URL").Default("http://127.0.0.1:3000").String()

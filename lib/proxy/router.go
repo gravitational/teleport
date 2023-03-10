@@ -320,7 +320,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 // site is the minimum interface needed to match servers
 // for a reversetunnel.RemoteSite. It makes testing easier.
 type site interface {
-	GetNodes(fn func(n services.Node) bool) ([]types.Server, error)
+	GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error)
 	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
 }
 
@@ -331,13 +331,13 @@ type remoteSite struct {
 }
 
 // GetNodes uses the wrapped sites NodeWatcher to filter nodes
-func (r remoteSite) GetNodes(fn func(n services.Node) bool) ([]types.Server, error) {
+func (r remoteSite) GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error) {
 	watcher, err := r.site.NodeWatcher()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return watcher.GetNodes(fn), nil
+	return watcher.GetNodes(ctx, fn), nil
 }
 
 // GetClusterNetworkingConfig uses the wrapped sites cache to retrieve the ClusterNetworkingConfig
@@ -369,7 +369,7 @@ func getServer(ctx context.Context, host, port string, site site) (types.Server,
 	ips, _ := net.LookupHost(host)
 
 	var unambiguousIDMatch bool
-	matches, err := site.GetNodes(func(server services.Node) bool {
+	matches, err := site.GetNodes(ctx, func(server services.Node) bool {
 		if unambiguousIDMatch {
 			return false
 		}

@@ -31,13 +31,13 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/tool/common"
 )
 
 // RecordingsCommand implements "tctl recordings" group of commands.
 type RecordingsCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	// format is the output format (text, json, or yaml)
 	format string
@@ -54,7 +54,7 @@ type RecordingsCommand struct {
 }
 
 // Initialize allows RecordingsCommand to plug itself into the CLI parser
-func (c *RecordingsCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *RecordingsCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 	recordings := app.Command("recordings", "View and control session recordings.")
 	c.recordingsList = recordings.Command("ls", "List recorded sessions.")

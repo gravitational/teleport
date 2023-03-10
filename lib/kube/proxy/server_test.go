@@ -323,3 +323,54 @@ func TestHeartbeat(t *testing.T) {
 		})
 	}
 }
+
+func TestTLSServerConfig_validateLabelsKey(t *testing.T) {
+	type fields struct {
+		staticLabels map[string]string
+	}
+	tests := []struct {
+		name           string
+		fields         fields
+		errorAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid labels",
+			fields: fields{
+				staticLabels: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			},
+			errorAssertion: require.NoError,
+		},
+		{
+			name: "invalid labels",
+			fields: fields{
+				staticLabels: map[string]string{
+					"key 1": "value1",
+					"key2":  "value2",
+				},
+			},
+			errorAssertion: require.Error,
+		},
+		{
+			name: "invalid labels",
+			fields: fields{
+				staticLabels: map[string]string{
+					"key\\1": "value1",
+					"key2":   "value2",
+				},
+			},
+			errorAssertion: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &TLSServerConfig{
+				StaticLabels: tt.fields.staticLabels,
+			}
+			err := c.validateLabelKeys()
+			tt.errorAssertion(t, err)
+		})
+	}
+}

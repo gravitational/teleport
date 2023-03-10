@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -44,7 +45,7 @@ type APIConfig struct {
 	PluginRegistry plugin.Registry
 	AuthServer     *Server
 	AuditLog       events.AuditLogSessionStreamer
-	Authorizer     Authorizer
+	Authorizer     authz.Authorizer
 	Emitter        apievents.Emitter
 	// KeepAlivePeriod defines period between keep alives
 	KeepAlivePeriod time.Duration
@@ -694,6 +695,8 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 	return items, nil
 }
 
+// Deprecated: Use teleport.v1.trust.TrustService.GetCertAuthority instead.
+// DELETE IN 14.0.0
 func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
 	if err != nil {

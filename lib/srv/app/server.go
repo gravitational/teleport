@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/labels"
@@ -88,7 +89,7 @@ type Config struct {
 	HostID string
 
 	// Authorizer is used to authorize requests.
-	Authorizer auth.Authorizer
+	Authorizer authz.Authorizer
 
 	// GetRotation returns the certificate rotation state.
 	GetRotation services.RotationGetter
@@ -712,7 +713,7 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authCtx, _, err := s.authorizeContext(context.WithValue(ctx, auth.ContextUser, user))
+	authCtx, _, err := s.authorizeContext(authz.ContextWithUser(ctx, user))
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
 	// the following will occur:
@@ -747,7 +748,7 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 
 // monitorConn takes a TrackingReadConn and starts a connection monitor. The tracking connection will be
 // auto-terminated if disconnect_expired_cert or idle timeout is configured.
-func (s *Server) monitorConn(ctx context.Context, tc *srv.TrackingReadConn, authCtx *auth.Context) error {
+func (s *Server) monitorConn(ctx context.Context, tc *srv.TrackingReadConn, authCtx *authz.Context) error {
 	authPref, err := s.c.AuthClient.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -917,7 +918,7 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 //
 // The connection comes from the reverse tunnel and is expected to be TLS and
 // carry identity in the client certificate.
-func (s *Server) getConnectionInfo(ctx context.Context, conn net.Conn) (*tls.Conn, auth.IdentityGetter, types.Application, error) {
+func (s *Server) getConnectionInfo(ctx context.Context, conn net.Conn) (*tls.Conn, authz.IdentityGetter, types.Application, error) {
 	tlsConn := tls.Server(conn, s.tlsConfig)
 	if err := tlsConn.Handshake(); err != nil {
 		return nil, nil, nil, trace.Wrap(err, "TLS handshake failed")
@@ -938,11 +939,15 @@ func (s *Server) getConnectionInfo(ctx context.Context, conn net.Conn) (*tls.Con
 
 // authorizeContext will check if the context carries identity information and
 // runs authorization checks on it.
-func (s *Server) authorizeContext(ctx context.Context) (*auth.Context, types.Application, error) {
+func (s *Server) authorizeContext(ctx context.Context) (*authz.Context, types.Application, error) {
 	// Only allow local and remote identities to proxy to an application.
-	userType := ctx.Value(auth.ContextUser)
+	userType, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	switch userType.(type) {
-	case auth.LocalUser, auth.RemoteUser:
+	case authz.LocalUser, authz.RemoteUser:
 	default:
 		return nil, nil, trace.BadParameter("invalid identity: %T", userType)
 	}
@@ -1074,7 +1079,8 @@ func (s *Server) newHTTPServer(clusterName string) *http.Server {
 
 	return &http.Server{
 		Handler:           httplib.MakeTracingHandler(s.authMiddleware, teleport.ComponentApp),
-		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
+		ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			return context.WithValue(ctx, connContextKey, c)

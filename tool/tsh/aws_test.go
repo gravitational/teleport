@@ -31,6 +31,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -43,7 +44,7 @@ func TestAWS(t *testing.T) {
 	user, awsRole := makeUserWithAWSRole(t)
 
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, user, awsRole))
-	makeTestApplicationServer(t, authProcess, proxyProcess, service.App{
+	makeTestApplicationServer(t, authProcess, proxyProcess, servicecfg.App{
 		Name: "aws-app",
 		URI:  constants.AWSConsoleURL,
 	})
@@ -148,11 +149,11 @@ func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
 	return alice, awsRole
 }
 
-func makeTestApplicationServer(t *testing.T, auth *service.TeleportProcess, proxy *service.TeleportProcess, apps ...service.App) *service.TeleportProcess {
+func makeTestApplicationServer(t *testing.T, auth *service.TeleportProcess, proxy *service.TeleportProcess, apps ...servicecfg.App) *service.TeleportProcess {
 	// Proxy uses self-signed certificates in tests.
 	lib.SetInsecureDevMode(true)
 
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
