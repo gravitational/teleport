@@ -146,14 +146,9 @@ func (c *fetchConfig) fetchOS() string {
 	return runtime.GOOS
 }
 
-// fetchHostArchitecture returns the output of arch.
+// fetchHostArchitecture returns the value of GOARCH.
 func (c *fetchConfig) fetchHostArchitecture() string {
-	arch, err := c.exec("arch")
-	if err != nil {
-		return ""
-	}
-
-	return arch
+	return runtime.GOARCH
 }
 
 // fetchInstallMethods returns the list of methods used to install the instance.

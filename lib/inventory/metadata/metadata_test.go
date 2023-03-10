@@ -32,43 +32,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-func TestFetchHostArchitecture(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		desc        string
-		execCommand func(string, ...string) ([]byte, error)
-		expected    string
-	}{
-		{
-			desc: "arch output if arch exists",
-			execCommand: func(name string, args ...string) ([]byte, error) {
-				if name != "arch" {
-					return nil, trace.NotFound("command does not exist")
-				}
-				return []byte("x86_64"), nil
-			},
-			expected: "x86_64",
-		},
-		{
-			desc: "empty if arch does not exist",
-			execCommand: func(name string, args ...string) ([]byte, error) {
-				return nil, trace.NotFound("command does not exist")
-			},
-			expected: "",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.desc, func(t *testing.T) {
-			c := &fetchConfig{
-				execCommand: tc.execCommand,
-			}
-			require.Equal(t, tc.expected, c.fetchHostArchitecture())
-		})
-	}
-}
-
 func TestFetchInstallMethods(t *testing.T) {
 	t.Parallel()
 
