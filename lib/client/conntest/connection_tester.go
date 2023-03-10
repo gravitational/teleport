@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 )
 
 // TestConnectionRequest contains
@@ -32,6 +33,8 @@ import (
 // - additional paramenters which depend on the actual kind of resource to test
 // As an example, for SSH Node it also includes the User/Principal that will be used to login.
 type TestConnectionRequest struct {
+	// MFAResponse is an optional field that holds a response to a MFA device challenge.
+	MFAResponse client.MFAChallengeResponse `json:"mfa_response,omitempty"`
 	// ResourceKind describes the type of resource to test.
 	ResourceKind string `json:"resource_kind"`
 	// ResourceName is the identification of the resource's instance to test.
@@ -95,7 +98,7 @@ func (r *TestConnectionRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.DialTimeout <= 0 {
-		r.DialTimeout = defaults.DefaultDialTimeout
+		r.DialTimeout = defaults.DefaultIOTimeout
 	}
 
 	return nil

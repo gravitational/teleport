@@ -147,8 +147,8 @@ func bold(text string) string {
 
 var startMessageTemplate = template.Must(template.New("node").Funcs(template.FuncMap{
 	"bold": bold,
-}).Parse(`The bot token: {{.token}}
-This token will expire in {{.minutes}} minutes.
+}).Parse(`The bot token: {{.token}}{{if .minutes}}
+This token will expire in {{.minutes}} minutes.{{end}}
 
 Optionally, if running the bot under an isolated user account, first initialize
 the data directory by running the following command {{ bold "as root" }}:

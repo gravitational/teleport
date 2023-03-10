@@ -206,7 +206,7 @@ type InitConfig struct {
 	// Kubernetes is a service that manages kubernetes cluster resources.
 	Kubernetes services.Kubernetes
 
-	// AssertionReplayService is a service that mitigatates SSO assertion replay.
+	// AssertionReplayService is a service that mitigates SSO assertion replay.
 	*local.AssertionReplayService
 
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
@@ -879,7 +879,7 @@ func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
 		User:            i.ID.HostUUID,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
 		HostKeyCallback: callback,
-		Timeout:         apidefaults.DefaultDialTimeout,
+		Timeout:         apidefaults.DefaultIOTimeout,
 	}, nil
 }
 
