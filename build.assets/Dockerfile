@@ -280,7 +280,7 @@ RUN go install github.com/google/addlicense@v1.0.0
 RUN go install github.com/daixiang0/gci@v0.9.1
 
 # Install golangci-lint.
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.1
+RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
