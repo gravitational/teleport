@@ -2072,7 +2072,7 @@ message UpstreamInventoryHello {
 message UpstreamInventoryAgentMetadata {
   // OS advertises the instance OS ("darwin" or "linux").
   string OS = 1;
-  // OSVersion advertises the instance OS version (e.g. "Ubuntu 22.04").
+  // OSVersion advertises the instance OS version (e.g. "ubuntu 22.04").
   string OSVersion = 2;
   // HostArchitecture advertises the instance host architecture (e.g. "x86_64" or "arm64").
   string HostArchitecture = 3;

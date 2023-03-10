@@ -39,7 +39,7 @@ import (
 type Metadata struct {
 	// OS advertises the instance OS ("darwin" or "linux").
 	OS string
-	// OSVersion advertises the instance OS version (e.g. "Ubuntu 22.04").
+	// OSVersion advertises the instance OS version (e.g. "ubuntu 22.04").
 	OSVersion string
 	// HostArchitecture advertises the instance host architecture (e.g. "x86_64" or "arm64").
 	HostArchitecture string

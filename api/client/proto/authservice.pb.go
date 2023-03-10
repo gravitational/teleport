@@ -12730,7 +12730,7 @@ func (m *UpstreamInventoryHello) GetHostname() string {
 type UpstreamInventoryAgentMetadata struct {
 	// OS advertises the instance OS ("darwin" or "linux").
 	OS string `protobuf:"bytes,1,opt,name=OS,proto3" json:"OS,omitempty"`
-	// OSVersion advertises the instance OS version (e.g. "Ubuntu 22.04").
+	// OSVersion advertises the instance OS version (e.g. "ubuntu 22.04").
 	OSVersion string `protobuf:"bytes,2,opt,name=OSVersion,proto3" json:"OSVersion,omitempty"`
 	// HostArchitecture advertises the instance host architecture (e.g. "x86_64" or "arm64").
 	HostArchitecture string `protobuf:"bytes,3,opt,name=HostArchitecture,proto3" json:"HostArchitecture,omitempty"`

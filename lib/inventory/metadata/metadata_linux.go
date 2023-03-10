@@ -28,7 +28,7 @@ import (
 import "C"
 
 // fetchOSVersion combines the content of '/etc/os-release' to be e.g.
-// "Ubuntu 22.04".
+// "ubuntu 22.04".
 func (c *fetchConfig) fetchOSVersion() string {
 	filename := "/etc/os-release"
 	out, err := c.read(filename)
