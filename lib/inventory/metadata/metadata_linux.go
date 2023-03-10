@@ -41,7 +41,7 @@ func (c *fetchConfig) fetchOSVersion() string {
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		key, value, found := strings.Cut(line, "=")
 		if !found {
-			return ""
+			continue
 		}
 
 		switch key {
