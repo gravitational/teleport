@@ -79,16 +79,6 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
           backgroundColor={colors.primary.light}
           transferHandlers={{
             getDownloader: async (location, abortController) => {
-              let wanResponse;
-              const isMfaRequired = await auth.checkMfaRequired({
-                node: {
-                  node_name: doc.clusterId,
-                  login: doc.login,
-                },
-              });
-              if (isMfaRequired.required === true) {
-                wanResponse = await auth.getWebauthnResponse();
-              }
               return getHttpFileTransferHandlers().download(
                 cfg.getScpUrl({
                   location,
@@ -96,22 +86,17 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
                   serverId: doc.serverId,
                   login: doc.login,
                   filename: location,
-                  webauthn: wanResponse,
+                  webauthn: await auth.getAssertionResponseIfRequired({
+                    node: {
+                      node_name: doc.clusterId,
+                      login: doc.login,
+                    },
+                  }),
                 }),
                 abortController
               );
             },
             getUploader: async (location, file, abortController) => {
-              let wanResponse;
-              const isMfaRequired = await auth.checkMfaRequired({
-                node: {
-                  node_name: doc.clusterId,
-                  login: doc.login,
-                },
-              });
-              if (isMfaRequired.required === true) {
-                wanResponse = await auth.getWebauthnResponse();
-              }
               return getHttpFileTransferHandlers().upload(
                 cfg.getScpUrl({
                   location,
@@ -119,7 +104,12 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
                   serverId: doc.serverId,
                   login: doc.login,
                   filename: file.name,
-                  webauthn: wanResponse,
+                  webauthn: await auth.getAssertionResponseIfRequired({
+                    node: {
+                      node_name: doc.clusterId,
+                      login: doc.login,
+                    },
+                  }),
                 }),
                 file,
                 abortController

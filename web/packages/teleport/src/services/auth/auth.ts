@@ -44,6 +44,15 @@ const auth = {
     return api.post(cfg.getMfaRequiredUrl(), params);
   },
 
+  async getAssertionResponseIfRequired(params) {
+    let wanResponse;
+    const isMfaRequired = await auth.checkMfaRequired(params);
+    if (isMfaRequired.required === true) {
+      wanResponse = await auth.getWebauthnResponse();
+    }
+    return wanResponse;
+  },
+
   createMfaRegistrationChallenge(
     tokenId: string,
     deviceType: DeviceType,
