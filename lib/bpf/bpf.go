@@ -39,6 +39,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 //go:embed bytecode
@@ -84,7 +85,7 @@ func (w *SessionWatch) Remove(cgroupID uint64) {
 
 // Service manages BPF and control groups orchestration.
 type Service struct {
-	*Config
+	*servicecfg.BPFConfig
 
 	// watch is a map of cgroup IDs that the BPF service is watching and
 	// emitting events for.
@@ -114,7 +115,7 @@ type Service struct {
 }
 
 // New creates a BPF service.
-func New(config *Config, restrictedSession *RestrictedSessionConfig) (BPF, error) {
+func New(config *servicecfg.BPFConfig, restrictedSession *servicecfg.RestrictedSessionConfig) (BPF, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -146,7 +147,7 @@ func New(config *Config, restrictedSession *RestrictedSessionConfig) (BPF, error
 	closeContext, closeFunc := context.WithCancel(context.Background())
 
 	s := &Service{
-		Config: config,
+		BPFConfig: config,
 
 		watch: NewSessionWatch(),
 

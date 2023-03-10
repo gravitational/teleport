@@ -211,6 +211,10 @@ func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) (*user.User, err
 	if userCloser != nil {
 		ctx.AddCloser(userCloser)
 	}
+
+	// Indicate that the user was created by Teleport.
+	ctx.UserCreatedByTeleport = true
+
 	return tempUser, nil
 }
 

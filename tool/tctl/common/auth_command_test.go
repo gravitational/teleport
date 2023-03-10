@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -164,7 +164,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
-				config: &service.Config{Proxy: service.ProxyConfig{Kube: service.KubeProxyConfig{
+				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{Kube: servicecfg.KubeProxyConfig{
 					Enabled:     true,
 					PublicAddrs: []utils.NetAddr{{Addr: "proxy-from-config.example.com:3026"}},
 				}}},
@@ -179,8 +179,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
-				config: &service.Config{Proxy: service.ProxyConfig{
-					Kube: service.KubeProxyConfig{
+				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
+					Kube: servicecfg.KubeProxyConfig{
 						Enabled: true,
 					},
 					PublicAddrs: []utils.NetAddr{{Addr: "proxy-from-config.example.com:3080"}},
@@ -196,8 +196,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
-				config: &service.Config{Proxy: service.ProxyConfig{
-					Kube: service.KubeProxyConfig{
+				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
+					Kube: servicecfg.KubeProxyConfig{
 						Enabled: false,
 					},
 				}},
@@ -213,8 +213,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
 				leafCluster:   remoteCluster.GetMetadata().Name,
-				config: &service.Config{Proxy: service.ProxyConfig{
-					Kube: service.KubeProxyConfig{
+				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
+					Kube: servicecfg.KubeProxyConfig{
 						Enabled: false,
 					},
 				}},
@@ -230,8 +230,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
 				leafCluster:   "doesnotexist.example.com",
-				config: &service.Config{Proxy: service.ProxyConfig{
-					Kube: service.KubeProxyConfig{
+				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
+					Kube: servicecfg.KubeProxyConfig{
 						Enabled: false,
 					},
 				}},
@@ -248,15 +248,15 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
-				config: &service.Config{
-					Auth: service.AuthConfig{
+				config: &servicecfg.Config{
+					Auth: servicecfg.AuthConfig{
 						NetworkingConfig: &types.ClusterNetworkingConfigV2{
 							Spec: types.ClusterNetworkingConfigSpecV2{
 								ProxyListenerMode: types.ProxyListenerMode_Multiplex,
 							},
 						},
 					},
-					Proxy: service.ProxyConfig{Kube: service.KubeProxyConfig{
+					Proxy: servicecfg.ProxyConfig{Kube: servicecfg.KubeProxyConfig{
 						Enabled: true,
 					}, PublicAddrs: []utils.NetAddr{{Addr: "proxy-from-config.example.com:3080"}}},
 				},
@@ -271,8 +271,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
-				config: &service.Config{Proxy: service.ProxyConfig{
-					Kube: service.KubeProxyConfig{
+				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
+					Kube: servicecfg.KubeProxyConfig{
 						Enabled: false,
 					},
 				}},
