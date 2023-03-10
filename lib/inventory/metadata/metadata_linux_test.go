@@ -21,6 +21,7 @@ package metadata
 
 import (
 	"testing"
+	"regexp"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -103,53 +104,7 @@ BUG_REPORT_URL="https://bugs.debian.org/"
 func TestFetchGlibcVersion(t *testing.T) {
 	t.Parallel()
 
-	expectedFormat := `
-ldd (Debian GLIBC 2.31-13+deb11u5) 2.31
-Copyright (C) 2020 Free Software Foundation, Inc.
-This is free software; see the source for copying conditions.  There is NO
-warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-Written by Roland McGrath and Ulrich Drepper.
-	`
-
-	testCases := []struct {
-		desc        string
-		execCommand func(string, ...string) ([]byte, error)
-		expected    string
-	}{
-		{
-			desc: "last word of first line if ldd exists",
-			execCommand: func(name string, args ...string) ([]byte, error) {
-				if name != "ldd" {
-					return nil, trace.NotFound("command does not exist")
-				}
-				if len(args) != 1 {
-					return nil, trace.Errorf("invalid command argument")
-				}
-
-				switch args[0] {
-				case "--version":
-					return []byte(expectedFormat), nil
-				default:
-					return nil, trace.Errorf("invalid command argument")
-				}
-			},
-			expected: "2.31",
-		},
-		{
-			desc: "empty if ldd does not exist",
-			execCommand: func(name string, args ...string) ([]byte, error) {
-				return nil, trace.NotFound("command does not exist")
-			},
-			expected: "",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.desc, func(t *testing.T) {
-			c := &fetchConfig{
-				execCommand: tc.execCommand,
-			}
-			require.Equal(t, tc.expected, c.fetchGlibcVersion())
-		})
-	}
+	matchVersion := regexp.MustCompile(`^\d+\.\d+$`)
+	c := &fetchConfig{}
+	require.True(t, matchVersion.MatchString(c.fetchGlibcVersion()))
 }

@@ -24,6 +24,9 @@ import (
 	"strings"
 )
 
+// #include <gnu/libc-version.h>
+import "C"
+
 // fetchOSVersion combines the content of '/etc/os-release' to be e.g.
 // "Ubuntu 22.04".
 func (c *fetchConfig) fetchOSVersion() string {
@@ -52,20 +55,8 @@ func (c *fetchConfig) fetchOSVersion() string {
 	return fmt.Sprintf("%s %s", id, versionID)
 }
 
-// fetchGlibcVersion parses the output of 'ldd --version' and returns e.g.
-// "2.31".
+// fetchGlibcVersion returns the glibc version string as returned by
+// gnu_get_libc_version.
 func (c *fetchConfig) fetchGlibcVersion() string {
-	out, err := c.exec("ldd", "--version")
-	if err != nil {
-		return ""
-	}
-
-	lines := strings.Split(strings.TrimSpace(out), "\n")
-	if len(lines) == 0 {
-		return ""
-	}
-
-	// The glibc version is the last word on the first line.
-	parts := strings.Fields(lines[0])
-	return parts[len(parts)-1]
+	return C.GoString(C.gnu_get_libc_version())
 }
