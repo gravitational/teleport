@@ -50,6 +50,8 @@ const (
 type AuthenticateUserRequest struct {
 	// Username is a username
 	Username string `json:"username"`
+	// PublicKey is a public key in ssh authorized_keys format
+	PublicKey []byte `json:"public_key"`
 	// Pass is a password used in local authentication schemes
 	Pass *PassCreds `json:"pass,omitempty"`
 	// Webauthn is a signed credential assertion, used in MFA authentication
@@ -60,6 +62,8 @@ type AuthenticateUserRequest struct {
 	Session *SessionCreds `json:"session,omitempty"`
 	// ClientMetadata includes forwarded information about a client
 	ClientMetadata *ForwardedClientMetadata `json:"client_metadata,omitempty"`
+	// HeadlessAuthenticationID is the ID for a headless authentication resource.
+	HeadlessAuthenticationID string `json:"headless_authentication_id"`
 }
 
 // ForwardedClientMetadata can be used by the proxy web API to forward information about
@@ -103,10 +107,10 @@ type SessionCreds struct {
 
 // AuthenticateUser authenticates user based on the request type.
 // Returns the username of the authenticated user.
-func (s *Server) AuthenticateUser(req AuthenticateUserRequest) (string, error) {
+func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (string, error) {
 	user := req.Username
 
-	mfaDev, actualUser, err := s.authenticateUser(context.TODO(), req)
+	mfaDev, actualUser, err := s.authenticateUser(ctx, req)
 	// err is handled below.
 	switch {
 	case user != "" && actualUser != "" && user != actualUser:
@@ -339,7 +343,7 @@ func (s *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 		return session, nil
 	}
 
-	actualUser, err := s.AuthenticateUser(req)
+	actualUser, err := s.AuthenticateUser(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -362,8 +366,6 @@ func (s *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 type AuthenticateSSHRequest struct {
 	// AuthenticateUserRequest is a request with credentials
 	AuthenticateUserRequest
-	// PublicKey is a public key in ssh authorized_keys format
-	PublicKey []byte `json:"public_key"`
 	// TTL is a requested TTL for certificates to be issues
 	TTL time.Duration `json:"ttl"`
 	// CompatibilityMode sets certificate compatibility mode with old SSH clients
@@ -465,7 +467,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		return nil, trace.Wrap(err)
 	}
 
-	actualUser, err := s.AuthenticateUser(req.AuthenticateUserRequest)
+	actualUser, err := s.AuthenticateUser(ctx, req.AuthenticateUserRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
