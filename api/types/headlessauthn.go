@@ -27,6 +27,10 @@ func (h *HeadlessAuthentication) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	if h.Metadata.Expires == nil || h.Metadata.Expires.IsZero() {
+		return trace.BadParameter("headless authentication resource must have non-zero header.metadata.expires")
+	}
+
 	if h.Version == "" {
 		h.Version = V1
 	}

@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -74,7 +74,7 @@ func NewFixture(t *testing.T) *Fixture {
 // NewTeleportWithConfig is a helper function that will create a running
 // Teleport instance with the passed in user, instance secrets, and Teleport
 // configuration.
-func (s *Fixture) NewTeleportWithConfig(t *testing.T, logins []string, instanceSecrets []*InstanceSecrets, teleportConfig *service.Config) *TeleInstance {
+func (s *Fixture) NewTeleportWithConfig(t *testing.T, logins []string, instanceSecrets []*InstanceSecrets, teleportConfig *servicecfg.Config) *TeleInstance {
 	teleport := s.NewTeleportInstance(t)
 
 	// use passed logins, but use suite's default login if nothing was passed
