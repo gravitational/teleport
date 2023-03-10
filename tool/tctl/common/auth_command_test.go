@@ -332,6 +332,7 @@ type mockClient struct {
 	dbServices     []types.DatabaseServer
 	appSession     types.WebSession
 	networkConfig  types.ClusterNetworkingConfig
+	crl            []byte
 }
 
 func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
@@ -390,6 +391,10 @@ func (c *mockClient) CreateAppSession(ctx context.Context, req types.CreateAppSe
 
 func (c *mockClient) GetDatabaseServers(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return c.dbServices, nil
+}
+
+func (c *mockClient) GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error) {
+	return c.crl, nil
 }
 
 func TestCheckKubeCluster(t *testing.T) {
@@ -971,4 +976,22 @@ func TestGenerateAndSignKeys(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestGenerateCRLForCA(t *testing.T) {
+	ctx := context.Background()
+
+	for _, caType := range allowedCRLCertificateTypes {
+		t.Run(caType, func(t *testing.T) {
+			ac := AuthCommand{caType: caType}
+			authClient := &mockClient{crl: []byte{}}
+			require.NoError(t, ac.GenerateCRLForCA(ctx, authClient))
+		})
+	}
+
+	t.Run("InvalidCAType", func(t *testing.T) {
+		ac := AuthCommand{caType: "wrong-ca"}
+		authClient := &mockClient{crl: []byte{}}
+		require.Error(t, ac.GenerateCRLForCA(ctx, authClient))
+	})
 }

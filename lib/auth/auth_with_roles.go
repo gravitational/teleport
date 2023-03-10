@@ -5586,7 +5586,7 @@ func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *prot
 // GenerateCertAuthorityCRL generates an empty CRL for a CA.
 func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Only windows_desktop_service should be requesting CRLs
-	if !a.hasBuiltinRole(types.RoleWindowsDesktop) {
+	if !a.hasBuiltinRole(types.RoleAdmin, types.RoleWindowsDesktop) {
 		return nil, trace.AccessDenied("access denied")
 	}
 	crl, err := a.authServer.GenerateCertAuthorityCRL(ctx, caType)
