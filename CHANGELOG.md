@@ -1,5 +1,15 @@
 # Changelog
 
+## 11.3.7
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with SSH sessions failing to initialize on some systems. [#22804](https://github.com/gravitational/teleport/pull/22804)
+* Fixed issue with Kubernetes service accepting invalid labels. [#22778](https://github.com/gravitational/teleport/pull/22778)
+* Fixed issue with EC2 auto-discovery install script always installing OSS package. [#22770](https://github.com/gravitational/teleport/pull/22770)
+* Fixed panic in desktop access on systems that consume many file descriptors. [#22799](https://github.com/gravitational/teleport/pull/22799)
+* Improved `tsh login` error message when failing to connect to proxy. [#22764](https://github.com/gravitational/teleport/pull/22764)
+
 ## 11.3.6
 
 This release of Teleport contains multiple improvements and bug fixes.
