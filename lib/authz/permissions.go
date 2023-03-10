@@ -884,20 +884,19 @@ func ContextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, cluster
 	}, nil
 }
 
-// TODO(mdwn): unexport this once enterprise has been moved.
-type ContextKey string
+type contextKey string
 
 const (
 	// contextUserCertificate is the X.509 certificate used by the contextUser to
 	// establish the mTLS connection.
 	// Holds a *x509.Certificate.
-	contextUserCertificate ContextKey = "teleport-user-cert"
+	contextUserCertificate contextKey = "teleport-user-cert"
 
 	// contextUser is a user set in the context of the request
-	contextUser ContextKey = "teleport-user"
+	contextUser contextKey = "teleport-user"
 
 	// contextClientAddr is a client address set in the context of the request
-	contextClientAddr ContextKey = "client-addr"
+	contextClientAddr contextKey = "client-addr"
 )
 
 // WithDelegator alias for backwards compatibility
