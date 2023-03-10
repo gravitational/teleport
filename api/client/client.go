@@ -51,6 +51,7 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -317,7 +318,7 @@ type (
 
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithTLSConfig(params.tlsConfig))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
@@ -330,7 +331,7 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithTLSConfig(params.tlsConfig))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a reverse tunnel proxy", params.addr)
@@ -343,7 +344,7 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
+	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery, WithTLSConfig(params.tlsConfig))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", params.addr)
@@ -570,9 +571,7 @@ func (c *Client) GetConnection() *grpc.ClientConn {
 // Close closes the Client connection to the auth server.
 func (c *Client) Close() error {
 	if c.setClosed() && c.conn != nil {
-		err := c.conn.Close()
-		c.conn = nil
-		return trace.Wrap(err)
+		return trace.Wrap(c.conn.Close())
 	}
 	return nil
 }
@@ -620,6 +619,12 @@ func (c *Client) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 // return "not implemented" errors (as per the default gRPC behavior).
 func (c *Client) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(c.conn)
+}
+
+// TrustClient returns an unadorned Trust client, using the underlying
+// Auth gRPC connection.
+func (c *Client) TrustClient() trustpb.TrustServiceClient {
+	return trustpb.NewTrustServiceClient(c.conn)
 }
 
 // Ping gets basic info about the auth server.
@@ -3403,4 +3408,15 @@ func (c *Client) DeleteLoginRule(ctx context.Context, name string) error {
 // the default gRPC behavior).
 func (c *Client) OktaClient() oktapb.OktaServiceClient {
 	return oktapb.NewOktaServiceClient(c.conn)
+}
+
+// GetCertAuthority retrieves a CA by type and domain.
+func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+	ca, err := c.TrustClient().GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{
+		Type:       string(id.Type),
+		Domain:     id.DomainName,
+		IncludeKey: loadKeys,
+	})
+
+	return ca, trail.FromGRPC(err)
 }

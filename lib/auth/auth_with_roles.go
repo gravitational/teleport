@@ -40,11 +40,13 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -638,34 +640,28 @@ func (a *ServerWithRoles) GetCertAuthorities(ctx context.Context, caType types.C
 	return a.authServer.GetCertAuthorities(ctx, caType, loadKeys, opts...)
 }
 
-func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
-	readVerb := types.VerbReadNoSecrets
-	if loadKeys {
-		readVerb = types.VerbRead
-	}
-
-	// Create a minimum CA for calculating access to the cert authority.
-	contextCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        id.Type,
-		ClusterName: id.DomainName,
+func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:   a.authServer.Cache,
+		Backend: a.authServer.Services,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sctx := &services.Context{User: a.context.User, Resource: contextCA}
-	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindCertAuthority, readVerb); err != nil {
+	resp, err := trust.GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{
+		Domain:     id.DomainName,
+		Type:       string(id.Type),
+		IncludeKey: loadKeys,
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Call actionWithContext on the CA itself to ensure that we've got permission to this specific CA.
-	ca, err := a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
-	sctx = &services.Context{User: a.context.User, Resource: ca}
-	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindCertAuthority, readVerb); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ca, trace.Wrap(err)
+	return resp, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) GetDomainName(ctx context.Context) (string, error) {
@@ -5586,7 +5582,7 @@ func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *prot
 // GenerateCertAuthorityCRL generates an empty CRL for a CA.
 func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Only windows_desktop_service should be requesting CRLs
-	if !a.hasBuiltinRole(types.RoleWindowsDesktop) {
+	if !a.hasBuiltinRole(types.RoleAdmin, types.RoleWindowsDesktop) {
 		return nil, trace.AccessDenied("access denied")
 	}
 	crl, err := a.authServer.GenerateCertAuthorityCRL(ctx, caType)

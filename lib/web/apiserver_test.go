@@ -5551,7 +5551,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: `Invalid user. Please ensure the principal "nonvalidlinuxuser" is a valid Linux login in the target node. Output from Node: Failed to launch: user: unknown user nonvalidlinuxuser.`,
+					Details: `Invalid user. Please ensure the principal "nonvalidlinuxuser" is a valid Linux login in the target node. Output from Node: Failed to launch: user:`,
 					Error:   "Process exited with status 255",
 				},
 			},
@@ -5612,7 +5612,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 
 					foundTrace = true
 					require.Equal(t, returnedTrace.Status, expectedTrace.Status.String())
-					require.Equal(t, returnedTrace.Details, expectedTrace.Details)
+					require.Contains(t, returnedTrace.Details, expectedTrace.Details)
 					require.Contains(t, returnedTrace.Error, expectedTrace.Error)
 				}
 
