@@ -88,134 +88,134 @@ This allows the client to tunnel the "original TLS Routing" call through a Layer
 ### Teleport Proxy with self-signed certs
 
 Load balancers usually terminate TLS with certificates signed by publicly trusted CAs. Since Teleport Proxy is no longer
-the public entry point, it is no longer neccessary for Teleport Proxy to serve a publicly trusted cert (e.g. using
-ACME). Thus Teleport Proxy should be welcome to use self-signed certs when sitting behind load balancers.
+the public entry point, it is no longer necessary for Teleport Proxy to serve a publicly trusted cert (e.g. using ACME).
+Thus Teleport Proxy should be welcome to use self-signed certs when sitting behind load balancers.
 
 To accommodate that, instead of serving the **Web** certs, the ALPN server on the Proxy will serve the **Host** certs
 when receiving connections from the upgrade flow. And instead of using the SystemCertPool, the Teleport client should
-use the **Host** CA for verifying the Proxy server when dialing TLS Routing inside an upgrade connection. Note that this
-modification does NOT apply to Teleport ALPN protocols that already do mTLS with other certs.
+use the **Host** CA for verifying the Proxy server when dialling TLS Routing inside an upgrade connection. Note that
+this modification does NOT apply to Teleport ALPN protocols that already do mTLS with other certs.
 
 ### When to make a connection upgrade
 
-A new **optional** config parameter (e.g. `tsh_routing_upgrade_mode`) will be added in `proxy_service` section in the
-config yaml. This new config has no effect on how Proxy server serve incoming traffic but it will provide a hint to all
-the clients through the webapi ping:
-
+Teleport clients should first perform a test to decide if a connection upgrade is necessary. The test is done by sending a
+TLS handshake with a Teleport custom ALPN to the Proxy server:
 ```
-{
-  "auth": {
-  ...
-  },
-  "proxy": {
-  ...
-    "tls_routing_enabled": true,
-    "tls_routing_upgrade_mode": "auto"
-  },
-  ...
-}
-```
-
-`auto` is the default mode where the client performs a test to decide if a connection upgrade is necessary. The test is
-done by sending a TLS handshake with a Teleport custom ALPN to the Proxy server:
-```
-                              ┌───────┐
-                         "on" │upgrade│ "off"
- ┌────────────────────────────┤ mode  ├────────────────────────────────────┐
- │                            └──┬────┘                                    │
- │                               │ "auto" (default)                        │
- │                               │                                         │
- │                    ┌──────────▼────────────────┐                        │
- │                    │     TLS Handshake         │                        │
- │                    │ALPN teleport-reversetunnel│                        │
- │                    └────┬─────────────────┬────┘                        │
- │                         │                 │                             │
- │                     ┌───▼─────┐        ┌──▼──────┐                      │
- │                     │Handshake│        │Handshake├───────────────┐      │
- │ ┌───────────────────┤ Success │        │ Failed  │               │      │
- │ │                   └───┬─────┘        └┬────────┘               │      │
- │ │                       │               │                        │      │
- │ │Negotiated             │No ALPN        │remote error: tls:      │other │
- │ │teleport-reversetunnel │Negotiated     │no application protocol │errors│
- │ │                       │               │                        │      │
- │ │                   ┌───▼────┐          │                  ┌─────▼──┐   │
- │ │                   │Upgrade ◄──────────┘                  │  Not   │   │
- └─┼───────────────────►Required│                             │Required◄───┘
-   │                   └────────┘                             └────▲───┘
-   │                                                               │
-   └───────────────────────────────────────────────────────────────┘
+                    ┌───────────────────────────┐
+                    │     TLS Handshake         │
+                    │ALPN teleport-reversetunnel│
+                    └────┬─────────────────┬────┘
+                         │                 │
+                     ┌───▼─────┐        ┌──▼──────┐
+                     │Handshake│        │Handshake├───────────────┐
+ ┌───────────────────┤ Success │        │ Failed  │               │
+ │                   └───┬─────┘        └┬────────┘               │
+ │                       │               │                        │
+ │Negotiated             │No ALPN        │remote error: tls:      │other
+ │teleport-reversetunnel │Negotiated     │no application protocol │errors
+ │                       │               │                        │
+ │                   ┌───▼────┐          │                  ┌─────▼──┐
+ │                   │Upgrade ◄──────────┘                  │  Not   │
+ │                   │Required│                             │Required│
+ │                   └────────┘                             └────▲───┘
+ │                                                               │
+ └───────────────────────────────────────────────────────────────┘
 ```
 Connection upgrade for TLS Routing should be required when the client and the server fail to negotiate the ALPN
-protocol, hinting there is a load balancer in the middle that terminates TLS.
+protocol, hinting a load balancer in the middle terminates TLS.
 
-However, this test may not be bullet proof. In particular, the test explicitly looks for `tls: no application protocol`
-from the remote when handshakes fails, but it is possible that a load balancer implementation decides to use a different
-text.
-
-In such cases, setting the mode to `on` can enforce the clients to always do the connection upgrade. Also, setting the
-mode `on` or `off` improves performance by skipping the auto test. An environment variable (e.g.
-`TELEPORT_TLS_ROUTING_UPGRADE_MODE=off`) can be set to overwrite the mode per client, just in case.
+However, this test may not be bulletproof. In particular, the test explicitly looks for `tls: no application protocol`
+from the remote when handshakes fail, but it is possible that a load balancer implementation decides to use a different
+text. An environment variable is provided to overwrite the decision per client, just in case:
+```
+export TELEPORT_TLS_ROUTING_UPGRADE=false
+export TELEPORT_TLS_ROUTING_UPGRADE=my-teleport-leaf.com=true
+```
 
 ### Supporting all TLS Routing protocols
 
-In general, in ALL existing places we are dialing the TLS Routing connection, common logic will be added to the
+In general, in ALL existing places we are dialling the TLS Routing connection, common logic will be added to the
 `ContextDialer` to automatically upgrade the connection when necessary.
 
-However, not all connections are initiated by `tsh`, `teleport`, or a client usingthe API lib. In such cases, a [local
+However, not all connections are initiated by `tsh`, `teleport`, or a client using the API lib. In such cases, a [local
 Teleport
 proxy](https://github.com/gravitational/teleport/blob/master/rfd/0039-sni-alpn-teleport-proxy-routing.md#local-teleport-proxy)
 is required to dial the TLS Routing connection with the upgrade.
 
-Local proxy has already been implemented for Database Access and Application Access. Here are some details how it can be
-implemented for Kubernetes Access.
+Local proxy has already been implemented for Database Access and Application Access. Here are some details of how it can
+be implemented for Kubernetes Access.
 
 #### Local proxy for Kubernetes Access
 
-`tsh` will serve a local HTTPS proxy server with a localhost self-signed CA. An ephemeral (per `tsh` command) KUBECONFIG
-will be provided to Kubernetes applications to connect to the local server. This KUBECONFIG points to the local proxy
-using the cluster `server` field, and the config will include static user credentials generated with the local
-self-signed CA.
+`tsh` will serve a local HTTPS proxy server with a localhost self-signed CA. The self-signed CA should be generated per
+`tsh login` session with matching TTL, on demand.
 
+An ephemeral (per `tsh` command) KUBECONFIG will be provided to Kubernetes applications to connect to the local server.
+Each Kubernetes cluster logged in through Teleport will have its own `cluster` entry with `server` field pointing to the
+local proxy. The `tls-server-name` will be in the format of
+`<kube-cluster-name>.<a-constant-delim>.<teleport-cluster-name>` so the local proxy can identify the Kubernetes cluster
+name and the Teleport cluster name. And the config will include static user credentials generated with the local
+self-signed CA: 
+```yaml
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority: <path-to-self-signed-CA>
+    server: https://127.0.0.1:8888
+    tls-server-name: my-kube.kube-teleport-local.my-teleport.com
+  name: my-kube.kube-teleport-local.my-teleport.com
+- cluster:
+    certificate-authority: <path-to-self-signed-CA>
+    server: https://127.0.0.1:8888
+    tls-server-name: another-kube.kube-teleport-local.my-teleport-leaf.com
+  name: another-kube.kube-teleport-local.my-teleport-leaf.com
+...
+users:
+- name: my-kube.kube-teleport-local.my-teleport.com
+  user:
+    client-certificate: <path-to-user-cert>
+    client-key: <path-to-user-key>
+- name: another-kube.kube-teleport-local.my-teleport-leaf.com
+  user:
+    client-certificate: <path-to-user-cert>
+    client-key: <path-to-user-key>
 ```
- ┌────┐                 ┌─────────┐             ┌────────┐
- │kube│                 │tsh local│             │Teleport│
- │app │                 │  proxy  │             │ Proxy  │
- └┬───┘                 └─┬───────┘             └──────┬─┘
-  │                       │                            │
-  │                       ├──┐                         │
-  │                       │  │generate:                │
-  │                       │  │local CA                 │
-  │                       │  │local client credentials │
-  │                       │◄─┘local KUBECONFIG         │
-  │                       │                            │
-  │ server localhost:8888 │                            │
-  │ local credentials     │                            │
-  ├──────────────────────►│  server kube-xxx.xxx.xxx   │
-  │                       │  "real" credentials        │
-  │                       ├───────────────────────────►│
-  │                       │                            │
-  │                       │◄───────────────────────────┤
-  │◄──────────────────────┤                            │
-  │                       │                            │
-  │ another request       │                            │
-  ├──────────────────────►│                            |
-  │                       ├───────────────────────────►│
-  ...                   
+
+Once the local server receives a request and verifies the request, the local server will proxy the request using TLS
+Routing. And if connection upgrade is required, the TLS Routing request will be wrapped with the connection upgrade:
+```
+ ┌────┐                                           ┌─────────┐                         ┌───────────────┐
+ │kube│                                           │tsh local│                         │Teleport Proxy/│
+ │app │                                           │  proxy  │                         │ Load Balancer │
+ └┬───┘                                           └─┬───────┘                         └────────────┬──┘
+  │                                                 │                                              │
+  │                                                 ├──┐                                           │
+  │                                                 │  │generate:                                  │
+  │                                                 │  │local CA                                   │
+  │                                                 │  │local credentials                          │
+  │                                                 │◄─┘ephemeral KUBECONFIG                       │
+  │                                                 │                                              │
+  │ server https://localhost:8888                   │                                              │
+  │ sni my-kube.kube-teleport-local.my-teleport.com │                                              │
+  │ local credentials                               │                                              │
+  ├────────────────────────────────────────────────►│ server https://my-teleport.com:443           │
+  │                                                 │ sni kube-teleport-proxy-alpn.my-teleport.com │
+  │                                                 │ "real" user credentials                      │
+  │                                                 ├─────────────────────────────────────────────►│
+  │                                                 │                                              │
+  │                                                 │◄─────────────────────────────────────────────┤
+  │◄────────────────────────────────────────────────┤                                              │
+  │                                                 │                                              │
 ```
 
-Once the local server receives a request and verifies the request, the local server will proxy the request using the TLS
-Routing dialer to connect the Teleport Proxy. The local proxy should be in charge of managing the Teleport cert used for
-routing Kubernetes requests.
-
-Note that `kube-teleport-proxy-alpn.my-teleport-cluster.com` is not required to be resolvable (by DNS) in this case, but
-it will be used internally for routing.
+The local proxy should manage/cache the Teleport certs used for routing Kubernetes requests.
 
 ### User Experience
 
-Once the connection upgrade support to all protocols are implemented, users can be recommended to upgrade their Teleport
+Once the connection upgrade support to all protocols is implemented, users can be recommended to upgrade their Teleport
 clusters to single port mode if the cluster is currently serving separate ports.
 
-All scenarios discussed in this section assumes Teleport sits behind a load balancer so connection upgrade for TLS
+All scenarios discussed in this section assume Teleport sits behind a load balancer so connection upgrade for TLS
 Routing is required.
 
 #### 1 - Database Access UX
@@ -227,8 +227,8 @@ Common flows already use `tsh` local proxy (since v8) so they will automatically
 
 So no UX change to these.
 
-In single port mode, using native clients to connect to Teleport Proxy directly with `tsh db env/config` will NOT work
-through load balancers. Users can use one of the above methods instead.
+In single port mode, using native database clients to connect to Teleport Proxy directly with `tsh db env/config` will
+NOT work through load balancers. Users can use one of the above methods instead.
 
 #### 2 - Application Access UX
 
@@ -251,15 +251,14 @@ Then connect to the application through this proxy:
 
 #### 3 - Kubernetes Access UX
 
-When upgrade is required, using native Kubernetes clients after `tsh kube login` will NOT work as the native clients
-cannot upgrade the connection. `tsh kube login` should advertise users to run `tsh kubectl` and `tsh proxy kube` instead
-of `kubectl version`. `tsh kube credentials` should also error out and suggest using `tsh kubectl` and `tsh proxy kube`.
+When the connection upgrade is required, vanilla Kubernetes clients cannot connect to Teleport Proxy directly.
 
-`tsh kubectl` will automatically starts a local proxy and performs the connection upgrade when needed.
+`tsh kube login` should advertise users to run `tsh kubectl` and `tsh proxy kube` (instead of `kubectl version`). `tsh
+kube credentials` should also error out and suggest using `tsh kubectl` and `tsh proxy kube`.
 
-A new `tsh proxy kube` command will be added to support other Kubernetes clients. The command will start a local proxy
-and provide a config for Kubernetes clients to use:
+`tsh kubectl` will automatically start a local proxy and performs the connection upgrade when needed.
 
+Vanilla Kubernetes clients can be used with `tsh proxy kube` running a local proxy:
 ```
 $ tsh proxy kube cluster1 cluster2 -p 8888
 
@@ -273,11 +272,15 @@ export KUBECONFIG=<path to kubeconfig>
 independently WITHOUT running `tsh kube login` first. If `tsh kube login` has been run perviously, `tsh proxy kube`
 should inherit the flags from the login if they are not specfied during `tsh proxy kube`.
 
-A `--exec` flag will be provided to `tsh proxy kube` to execute a command backed by the local proxy:
+In addition to the cluster names provided to `tsh proxy kube`, the ephemeral kubeconfig should also copy other
+non-Teleport clusters in the default kubeconfig (or `$KUBECONFIG`), so the user does not need to switch between configs
+for different clusters.
+
+A `--exec` flag will also be provided to `tsh proxy kube` to execute a command backed by the local proxy:
 ```
 $ tsh proxy kube --exec -- helm install my-chart
 ```
-This avoids needing two terminal sessions to run a Kubernetes application.
+This avoids needing two terminal sessions to run a single quick command (e.g. scripting).
 
 In addition, we can provide tips to users to improve their UX by utilizing `alias`:
 ```
@@ -291,39 +294,66 @@ aliases:
     "helm": "$TSH proxy kube --exec helm"
 ```
 
+For better user experience, per-session-MFA TTL should be extended to `max_session_ttl` and cached in memory by the local
+proxy, similar to [Database MFA
+Sessions](https://github.com/gravitational/teleport/blob/master/rfd/0090-db-mfa-sessions.md). And `tsh proxy kube`
+should prompt MFA for each Kubernetes cluster once (and only once) when the local proxy is starting.
+
 #### 4 - Server Access UX
 
-No UX change.
+UX is the same as when [TLS Routing is
+enabled](https://github.com/gravitational/teleport/blob/master/rfd/0039-sni-alpn-teleport-proxy-routing.md#local-teleport-proxy).
 
 ### Security
 
-When upgrading the connection, Teleport client verifies the load balancer's TLS cert using SystemCertPool. And as
+#### 1 - Security on Connection Upgrade
+
+When upgrading the connection, the Teleport client verifies the load balancer's TLS cert using SystemCertPool. And as
 mentioned early, at the TLS Routing request, the Teleport client will be configured with a Teleport CA for verifying the
 Proxy server.
 
 There is no authentication at the connection upgrade request. Authentication is deferred to the TLS Routing request so
 authentication remains the same as if there is no connection upgrade.
 
+#### 2 - Security on per-session-MFA
+
+The per-session-MFA cert TTL was extended to `max_session_ttl` for Database Access through a local proxy (refer to [RFD
+90 - Database MFA Sessions](https://github.com/gravitational/teleport/blob/master/rfd/0090-db-mfa-sessions.md)). The
+same strategy should be applied to Kubernetes Access through a local proxy. To mitigate security risks, the certs will
+be kept in memory only by the local proxy. Users also have the option to reduce `max_session_ttl` if shorter TTL is
+desired.
+
 ### Performance
 
-The downside doing the connection upgrade is the performance penalty.
+#### 1 - Performance on the connection upgrade
 
-The connection is already double encrypted with TLS Routing, and now it is triple encrypted with connection upgrade.
-Mordern processors should have no trouble doing the job, but concurrent TLS Routing requests with connection upgrades
-may affect CPU usage.
+The downside of doing the connection upgrade is the performance penalty.
 
-The more noticeable impact is likely the latency incurred by the **extra roundtrips** by the connection upgrade. A quick
-API call throub connection upgrade by `tsh` may take double the time as before, since the latency between `tsh` and
-Teleport Proxy is usually more significant than the latency within the Teleport agents.
+The connection is already double-encrypted with TLS Routing, and now it is triple-encrypted with a connection upgrade.
+Modern processors should have no trouble doing the job, but concurrent TLS Routing requests with connection upgrades may
+affect CPU usage.
 
-Some ideas for improving performance includes implementing reusable upgraded connections and multiplexing concurrent TLS
-Routing requests. This RFD should be updated once we have more detailed plans on performance improvements.
+The more noticeable impact is likely the latency. Each connection upgrade adds 1~2 round trips for TLS handshake and 1
+round trip for the HTTP request/response, per connection. And the extra round trips can add up if there are a lot of new
+connections. For example, let's say a `tsh login` makes 10 connections to the remote server and the ping RTT between the
+client and the server is 30ms. Without the connection upgrades the login may take about 2~3 seconds (not accounting for
+the time for user inputs). The connection upgrades will add about 10 * 2 * 30ms = 600ms total latency.
+
+Some ideas for improving performance include implementing reusable upgraded connections and multiplexing concurrent TLS
+Routing requests.
+
+#### 2 - Performance on the load balancer detection test
+
+The test performs a single TLS handshake without any payload. This should take only 1~2 round trips per test.
+
+Since load balancers are usually stationary, clients can cache the test decision to avoid repeating the test. For
+example, per `tsh login` can perform the test once and save it in the user profile.
 
 ### Keepalive
 
 Some load balancers (e.g. AWS ALB) can drop a connection when the traffic is idle at Layer 7 for a period of time. In
 such cases, using short TCP keepalive would not help maintain long-lived connections.
 
-For now, the connection upgrade flow assumes the tunneled Teleport ALPN protocol either handles keepalives on their own
+For now, the connection upgrade flow assumes the tunnelled Teleport ALPN protocol either handles keepalives on its own
 or is not long-lived. [TLS Routing Ping](https://github.com/gravitational/teleport/blob/master/rfd/0081-tls-ping.md) has
 been added to all database protocols to prevent idle timeouts.
