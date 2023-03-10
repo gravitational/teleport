@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -43,7 +42,7 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
-	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -200,11 +199,8 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 	clientParams := append(
 		[]roundtrip.ClientParam{
 			roundtrip.HTTPClient(&http.Client{
-				Timeout: defaults.HTTPRequestTimeout,
-				Transport: otelhttp.NewTransport(
-					breaker.NewRoundTripper(cb, transport),
-					otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
-				),
+				Timeout:   defaults.HTTPRequestTimeout,
+				Transport: tracehttp.NewTransport(breaker.NewRoundTripper(cb, transport)),
 			}),
 			roundtrip.SanitizerEnabled(true),
 		},
@@ -376,17 +372,27 @@ func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthTy
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := c.Get(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
-		"load_keys": []string{fmt.Sprintf("%t", loadSigningKeys)},
-	})
-	if err != nil {
+
+	ca, err := c.APIClient.GetCertAuthority(ctx, id, loadSigningKeys)
+	switch {
+	case err == nil:
+		return ca, nil
+	case trace.IsNotImplemented(err):
+		out, err := c.Get(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
+			"load_keys": []string{fmt.Sprintf("%t", loadSigningKeys)},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ca, err := services.UnmarshalCertAuthority(out.Bytes())
+		return ca, trace.Wrap(err)
+	default:
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalCertAuthority(out.Bytes())
 }
 
 // DeleteCertAuthority deletes cert authority by ID

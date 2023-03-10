@@ -1211,7 +1211,7 @@ func (ap mockAccessPoint) GetCertAuthorities(ctx context.Context, caType types.C
 	return cas, nil
 }
 
-func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	return ap.cas[id.DomainName], nil
 }
 
