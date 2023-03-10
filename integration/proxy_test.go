@@ -220,7 +220,7 @@ func TestALPNSNIHTTPSProxy(t *testing.T) {
 
 	username := mustGetCurrentUser(t).Username
 	// httpproxy won't proxy when target address is localhost, so use this instead.
-	addr, err := getLocalIP()
+	addr, err := GetLocalIP()
 	require.NoError(t, err)
 
 	suite := newProxySuite(t,
@@ -258,7 +258,7 @@ func TestMultiPortHTTPSProxy(t *testing.T) {
 
 	username := mustGetCurrentUser(t).Username
 	// httpproxy won't proxy when target address is localhost, so use this instead.
-	addr, err := getLocalIP()
+	addr, err := GetLocalIP()
 	require.NoError(t, err)
 
 	suite := newProxySuite(t,
@@ -943,7 +943,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	addr, err := getLocalIP()
+	addr, err := GetLocalIP()
 	require.NoError(t, err)
 
 	rc := NewInstance(InstanceConfig{
@@ -1018,7 +1018,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 
 	log := utils.NewLoggerForTests()
 
-	rcAddr, err := getLocalIP()
+	rcAddr, err := GetLocalIP()
 	require.NoError(t, err)
 
 	rc := NewInstance(InstanceConfig{
