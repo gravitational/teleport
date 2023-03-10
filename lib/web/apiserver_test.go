@@ -7596,7 +7596,7 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			resp := isMfaRequiredResponse{}
+			resp := isMFARequiredResponse{}
 			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 			require.True(t, resp.Required, "isMFARequired returned response with unexpected value for Required field")
 		})
