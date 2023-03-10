@@ -258,36 +258,49 @@ enum HeadlessAuthenticationState {
 
 ### Server changes
 
-#### `POST /webapi/login/headless`
+#### `POST /webapi/certs/ssh`
 
-This endpoint is used to initiate headless login. Like other login endpoints, this endpoint is not authenticated and can be called by anyone with access to the Teleport Proxy address.
+This is an existing endpoint used by a user to login with `tsh` or Teleport Connect. We will add the `HeadlessAuthenticationID` field to switch to headless authentication instead of password/otp.
+
+Like other login endpoints, this endpoint is not authenticated and can be called by anyone with access to the Teleport Proxy address.
 
 ```go
-type HeadlessAuthenticationRequest struct {
-    SSHLogin
-    // User is a teleport username.
-    User string `json:"user"`
-}
-
-// SSHLogin contains common SSH login parameters.
-type SSHLogin struct {
-    // ProxyAddr is the target proxy address
-    ProxyAddr string
-    // PubKey is SSH public key to sign
-    PubKey []byte
-    ...
+type CreateSSHCertReq struct {
+  // User is a teleport username
+  User string `json:"user"`
+  // Password is user's pass
+  Password string `json:"password"`
+  // OTPToken is second factor token
+  OTPToken string `json:"otp_token"`
+  // HeadlessAuthenticationID is a headless authentication resource id.
+  HeadlessAuthenticationID string `json:"headless_id"`
+  // PubKey is a public key user wishes to sign
+  PubKey []byte `json:"pub_key"`
+  // TTL is a desired TTL for the cert (max is still capped by server,
+  // however user can shorten the time)
+  TTL time.Duration `json:"ttl"`
+  // Compatibility specifies OpenSSH compatibility flags.
+  Compatibility string `json:"compatibility,omitempty"`
+  // RouteToCluster is an optional cluster name to route the response
+  // credentials to.
+  RouteToCluster string
+  // KubernetesCluster is an optional k8s cluster name to route the response
+  // credentials to.
+  KubernetesCluster string
+  // AttestationStatement is an attestation statement associated with the given public key.
+  AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 // SSHLoginResponse is a user login response
 type SSHLoginResponse struct {
-    // Username contains the username for the login certificates
-    Username string `json:"username"`
-    // Cert is a PEM encoded SSH certificate signed by SSH certificate authority
-    Cert []byte `json:"cert"`
-    // TLSCertPEM is a PEM encoded TLS certificate signed by TLS certificate authority
-    TLSCert []byte `json:"tls_cert"`
-    // HostSigners is a list of signing host public keys trusted by proxy
-    HostSigners []TrustedCerts `json:"host_signers"`
+  // Username contains the username for the login certificates
+  Username string `json:"username"`
+  // Cert is a PEM encoded SSH certificate signed by SSH certificate authority
+  Cert []byte `json:"cert"`
+  // TLSCertPEM is a PEM encoded TLS certificate signed by TLS certificate authority
+  TLSCert []byte `json:"tls_cert"`
+  // HostSigners is a list of signing host public keys trusted by proxy
+  HostSigners []TrustedCerts `json:"host_signers"`
 }
 ```
 
