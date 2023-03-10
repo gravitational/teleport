@@ -36,8 +36,8 @@ func (c *fetchConfig) fetchOSVersion() string {
 		return ""
 	}
 
-	var id string
-	var versionID string
+	id := "linux"
+	versionID := "(unknown)"
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		key, value, found := strings.Cut(line, "=")
 		if !found {
