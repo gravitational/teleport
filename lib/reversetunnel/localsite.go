@@ -223,7 +223,7 @@ func (s *localSite) DialAuthServer() (net.Conn, error) {
 	}
 
 	addr := utils.ChooseRandomString(s.authServers)
-	conn, err := net.DialTimeout("tcp", addr, apidefaults.DefaultDialTimeout)
+	conn, err := net.DialTimeout("tcp", addr, apidefaults.DefaultIOTimeout)
 	if err != nil {
 		return nil, trace.ConnectionProblem(err, "unable to connect to auth server")
 	}
@@ -499,7 +499,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 
 	// If no tunnel connection was found, dial to the target host.
 	dialer := proxyutils.DialerFromEnvironment(params.To.String())
-	conn, directErr = dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), apidefaults.DefaultDialTimeout)
+	conn, directErr = dialer.DialTimeout(s.srv.Context, params.To.Network(), params.To.String(), apidefaults.DefaultIOTimeout)
 	if directErr != nil {
 		directMsg := getTunnelErrorMessage(params, "direct dial", directErr)
 		s.log.WithError(directErr).WithField("address", params.To.String()).Debug("Error occurred while dialing directly.")

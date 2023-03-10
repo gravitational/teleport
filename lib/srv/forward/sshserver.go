@@ -625,7 +625,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 			authMethod,
 		},
 		HostKeyCallback: s.authHandlers.HostKeyAuth,
-		Timeout:         apidefaults.DefaultDialTimeout,
+		Timeout:         apidefaults.DefaultIOTimeout,
 	}
 
 	// Ciphers, KEX, and MACs preferences are honored by both the in-memory
