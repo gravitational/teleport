@@ -61,8 +61,7 @@ unique_users = {
     'db.session.start': set(),
     'kube.request': set(),
     'session.start': set(),
-    'windows.desktop.session.start': set(),
-    
+    'windows.desktop.session.start': set(),    
 }
 
 # Run Dynamodb query to retrieve all login for SSH for specified date range
@@ -87,11 +86,11 @@ for i in range(d_range):
             unique_users[event_type].add(user)
 
 alias_dict = {
-    'app.session.start': 'App Access',
-    'db.session.start': 'DB Access',
-    'kube.request': 'Kube Access',
-    'session.start': 'SSH Access',
-    'windows.desktop.session.start': 'Windows Access'
+    'app.session.start': 'Application Access',
+    'db.session.start': 'Database Access',
+    'kube.request': 'Kubernetes Access',
+    'session.start': 'Server Access',
+    'windows.desktop.session.start': 'Desktop Access'
 }
 for event_type, users in unique_users.items():
     print(f'{alias_dict.get(event_type, event_type)}: {len(users)} unique users')
