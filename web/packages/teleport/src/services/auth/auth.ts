@@ -195,7 +195,7 @@ const auth = {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
 
-  createPrivilegeTokenWithWebauthn() {
+  fetchWebauthnChallenge() {
     return auth
       .checkWebauthnSupport()
       .then(() =>
@@ -207,16 +207,25 @@ const auth = {
         navigator.credentials.get({
           publicKey: res.webauthnPublicKey,
         })
-      )
-      .then(res =>
-        api.post(cfg.api.createPrivilegeTokenPath, {
-          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
-        })
       );
+  },
+
+  createPrivilegeTokenWithWebauthn() {
+    return auth.fetchWebauthnChallenge().then(res =>
+      api.post(cfg.api.createPrivilegeTokenPath, {
+        webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+      })
+    );
   },
 
   createRestrictedPrivilegeToken() {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
+  },
+
+  getWebauthnResponse() {
+    return auth
+      .fetchWebauthnChallenge()
+      .then(res => makeWebauthnAssertionResponse(res));
   },
 };
 
