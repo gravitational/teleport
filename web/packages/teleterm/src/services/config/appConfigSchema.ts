@@ -195,7 +195,7 @@ function getDefaultTerminalFont(platform: Platform) {
     case 'win32':
       return "'Consolas', 'Courier New', monospace";
     case 'linux':
-      return "'Droid Sans Mono', 'Courier New', monospace, 'Droid Sans Fallback'";
+      return "'Droid Sans Mono', 'Courier New', monospace";
     case 'darwin':
       return "Menlo, Monaco, 'Courier New', monospace";
   }
