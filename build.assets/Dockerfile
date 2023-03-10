@@ -262,7 +262,7 @@ RUN go install github.com/golang/protobuf/protoc-gen-go@v1.4.3
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-RUN go install github.com/daixiang0/gci@v0.8.2
+RUN go install github.com/daixiang0/gci@v0.9.1
 
 # Install golangci-lint.
 RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.1
