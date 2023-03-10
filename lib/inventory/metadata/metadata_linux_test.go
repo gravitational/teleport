@@ -20,8 +20,8 @@ limitations under the License.
 package metadata
 
 import (
-	"testing"
 	"regexp"
+	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
