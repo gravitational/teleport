@@ -235,13 +235,22 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
 	httpsProxy := proxy.GetProxyURL(remoteProxyAddr)
 
+	pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// If HTTPS_PROXY is configured, we need to open a TCP connection via
 	// the specified HTTPS Proxy, otherwise, we can just open a plain TCP
 	// connection.
 	var tcpConn net.Conn
-	var err error
 	if httpsProxy != nil {
-		tcpConn, err = client.DialProxy(ctx, httpsProxy, remoteProxyAddr)
+		httpProxyTLSConfig := &tls.Config{
+			RootCAs:            pool,
+			InsecureSkipVerify: tc.InsecureSkipVerify,
+			ServerName:         httpsProxy.Hostname(),
+		}
+		tcpConn, err = client.DialProxy(ctx, httpsProxy, remoteProxyAddr, client.WithTLSConfig(httpProxyTLSConfig))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -258,12 +267,6 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 	}
 
 	// Otherwise, we need to upgrade the TCP connection to a TLS connection.
-	pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
-	if err != nil {
-		tcpConn.Close()
-		return nil, trace.Wrap(err)
-	}
-
 	tlsConfig := &tls.Config{
 		RootCAs:            pool,
 		NextProtos:         []string{string(alpncommon.ProtocolProxySSH)},

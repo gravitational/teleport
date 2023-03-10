@@ -16,7 +16,7 @@ on:
     paths-ignore:
       - '/go.mod'
       - '/go.sum'
-      - 'operator/**'
+      - 'integrations/operator/**'
       - 'api/types/**'
       - 'lib/tbot/**'
       - 'build.assets/Makefile'
@@ -25,7 +25,7 @@ on:
     paths-ignore:
       - '/go.mod'
       - '/go.sum'
-      - 'operator/**'
+      - 'integrations/operator/**'
       - 'api/types/**'
       - 'lib/tbot/**'
       - 'build.assets/Makefile'

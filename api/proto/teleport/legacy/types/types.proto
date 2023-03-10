@@ -4833,10 +4833,11 @@ message AlertAcknowledgement {
   // Reason describes the reason why the alert can be considered
   // acknowledged (e.g. 'alice will fix next week').
   string Reason = 2 [(gogoproto.jsontag) = "reason,omitempty"];
-  // Severity is the maximum severity for which the acknowledgement will
-  // perform suppression (e.g. an ack with severity MEDIUM will suppress
-  // alerts with severity MEDIUM or lower, but not alerts with severity HIGH).
-  AlertSeverity Severity = 3 [(gogoproto.jsontag) = "severity,omitempty"];
+
+  // 3 is reserved for the previously used alert acknowledgement "severity"
+  reserved 3;
+  reserved "Severity";
+
   // Expires is the time after which the acknowledgement expires.
   google.protobuf.Timestamp Expires = 4 [
     (gogoproto.jsontag) = "expires,omitempty",
@@ -5184,4 +5185,42 @@ message OktaAssignmentActionTargetV1 {
   OktaAssignmentActionTargetType type = 1 [(gogoproto.jsontag) = "type"];
   // ID is the ID of the Okta resource that's being targeted.
   string id = 2 [(gogoproto.jsontag) = "id"];
+}
+
+// HeadlessAuthentication holds data for an ongoing headless authentication attempt.
+message HeadlessAuthentication {
+  // Header is the resource header.
+  ResourceHeader header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true
+  ];
+
+  // User is a teleport user name.
+  string user = 2;
+
+  // PublicKey is an ssh public key to sign in case of successful auth.
+  bytes public_key = 3;
+
+  // State is the headless authentication request state.
+  HeadlessAuthenticationState state = 4;
+
+  // MFADevice is the mfa device used to approve the request in case of successful auth.
+  types.MFADevice mfa_device = 5;
+
+  // ClientIPAddress is the IP address of the client being authenticated.
+  string client_ip_address = 6;
+}
+
+// HeadlessAuthenticationState is a headless authentication state.
+enum HeadlessAuthenticationState {
+  HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED = 0;
+
+  // authentication pending.
+  HEADLESS_AUTHENTICATION_STATE_PENDING = 1;
+
+  // authentication denied.
+  HEADLESS_AUTHENTICATION_STATE_DENIED = 2;
+
+  // authentication approved.
+  HEADLESS_AUTHENTICATION_STATE_APPROVED = 3;
 }

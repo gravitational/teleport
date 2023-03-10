@@ -40,7 +40,9 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -137,7 +139,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout)
+		contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout, client.WithTLSConfig(tls))
 		dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				conn, err = contextDialer.DialContext(ctx, network, addr)
@@ -1009,16 +1011,13 @@ func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, 
 //
 // afterN allows to filter by "newer than N" value where N is the cursor ID
 // of previously returned bunch (good for polling for latest)
-func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) (retval []events.EventFields, err error) {
+func (c *Client) GetSessionEvents(namespace string, sid session.ID, afterN int) (retval []events.EventFields, err error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
 	}
 	query := make(url.Values)
 	if afterN > 0 {
 		query.Set("after", strconv.Itoa(afterN))
-	}
-	if includePrintEvents {
-		query.Set("print", fmt.Sprintf("%v", includePrintEvents))
 	}
 	response, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(sid), "events"), query)
 	if err != nil {
@@ -1571,7 +1570,7 @@ type ClientI interface {
 	IdentityService
 	ProvisioningService
 	services.Trust
-	events.IAuditLog
+	events.AuditLogSessionStreamer
 	events.Streamer
 	apievents.Emitter
 	services.Presence
@@ -1708,4 +1707,16 @@ type ClientI interface {
 	// still get a plugins client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	PluginsClient() pluginspb.PluginServiceClient
+
+	// SAMLIdPClient returns a SAML IdP client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a SAML IdP client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	SAMLIdPClient() samlidppb.SAMLIdPServiceClient
+
+	// OktaClient returns an Okta client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get an Okta client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	OktaClient() oktapb.OktaServiceClient
 }

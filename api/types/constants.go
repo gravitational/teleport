@@ -124,8 +124,15 @@ const (
 	// KindProxy is proxy resource
 	KindProxy = "proxy"
 
-	// KindNode is node resource
+	// KindNode is node resource. It can be either a Teleport node or
+	// a registered OpenSSH (agentless) node.
 	KindNode = "node"
+
+	// SubKindTeleportNode is a Teleport node.
+	SubKindTeleportNode = "teleport"
+
+	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
+	SubKindOpenSSHNode = "openssh"
 
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
@@ -331,6 +338,9 @@ const (
 
 	// KindOktaAssignment is a set of actions to apply to Okta.
 	KindOktaAssignment = "okta_assignment"
+
+	// KindHeadlessAuthentication is a headless authentication resource.
+	KindHeadlessAuthentication = "headless_authentication"
 
 	// V6 is the sixth version of resources.
 	V6 = "v6"

@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
@@ -655,6 +656,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/github/login/console", h.WithLimiter(h.githubLoginConsole))
 
 	// MFA public endpoints.
+	h.POST("/webapi/sites/:site/mfa/required", h.WithClusterAuth(h.isMFARequired))
 	h.POST("/webapi/mfa/login/begin", h.WithLimiter(h.mfaLoginBegin))
 	h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
 	h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
@@ -1535,9 +1537,17 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	feats := modules.GetModules().Features()
+	teleportPackage := teleport.ComponentTeleport
+	if modules.GetModules().BuildType() == modules.BuildEnterprise || feats.Cloud {
+		teleportPackage = fmt.Sprintf("%s-%s", teleport.ComponentTeleport, modules.BuildEnterprise)
+	}
+
 	tmpl := installers.Template{
 		PublicProxyAddr: h.cfg.PublicProxyAddr,
 		MajorVersion:    version,
+		TeleportPackage: teleportPackage,
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)
@@ -3055,7 +3065,7 @@ func (h *Handler) siteSessionEventsGet(w http.ResponseWriter, r *http.Request, p
 		afterN = 0
 	}
 
-	e, err := clt.GetSessionEvents(apidefaults.Namespace, *sessionID, afterN, true)
+	e, err := clt.GetSessionEvents(apidefaults.Namespace, *sessionID, afterN)
 	if err != nil {
 		h.log.WithError(err).Debugf("Unable to find events for session %v.", sessionID)
 		if trace.IsNotFound(err) {

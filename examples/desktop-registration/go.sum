@@ -174,8 +174,8 @@ github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFR
 github.com/rogpeppe/go-internal v1.6.1/go.mod h1:xXDCJY+GAPziupqXw64V24skbSoqbTEfhy4qGm1nDQc=
 github.com/rogpeppe/go-internal v1.8.0 h1:FCbCCtXNOY3UtUuHUYaghJg4y7Fd14rXifAYUAtL9R8=
 github.com/rogpeppe/go-internal v1.8.0/go.mod h1:WmiCO8CzOY8rg0OYDC4/i/2WRWAB6poM+XZ2dLUbcbE=
-github.com/russellhaering/gosaml2 v0.8.1 h1:CE/WRWnn2UaePcytF9z0Abj69Rzwvtqu5G/TiCu2rUg=
-github.com/russellhaering/gosaml2 v0.8.1/go.mod h1:byViER/1YPUa0Puj9ROZblpoq2jsE7h/CJmitzX0geU=
+github.com/russellhaering/gosaml2 v0.9.0 h1:CNMnH42z/GirrKjdmNrSS6bAAs47F9bPdl4PfRmVOIk=
+github.com/russellhaering/gosaml2 v0.9.0/go.mod h1:byViER/1YPUa0Puj9ROZblpoq2jsE7h/CJmitzX0geU=
 github.com/russellhaering/goxmldsig v1.2.0 h1:Y6GTTc9Un5hCxSzVz4UIWQ/zuVwDvzJk80guqzwx6Vg=
 github.com/russellhaering/goxmldsig v1.2.0/go.mod h1:gM4MDENBQf7M+V824SGfyIUVFWydB7n0KkEubVJl+Tw=
 github.com/sirupsen/logrus v1.8.1/go.mod h1:yWOB1SBYBC5VeMP7gHvWumXLIWorT60ONWic61uBYv0=

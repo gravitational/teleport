@@ -28,6 +28,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -49,6 +51,88 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+	client, err := srv.NewClient(TestUser(u.username))
+	require.NoError(t, err)
+
+	_, pub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	for _, test := range []struct {
+		desc           string
+		getMFAResponse func() *proto.MFAAuthenticateResponse
+		wantErr        string
+	}{
+		{
+			desc: "valid mfa response",
+			getMFAResponse: func() *proto.MFAAuthenticateResponse {
+				// Get a totp code to re-auth.
+				totpCode, err := totp.GenerateCode(u.totpDev.TOTPSecret, srv.AuthServer.Clock().Now().Add(30*time.Second))
+				require.NoError(t, err)
+
+				return &proto.MFAAuthenticateResponse{
+					Response: &proto.MFAAuthenticateResponse_TOTP{
+						TOTP: &proto.TOTPResponse{Code: totpCode},
+					},
+				}
+			},
+		},
+		{
+			desc: "valid empty mfa response",
+			getMFAResponse: func() *proto.MFAAuthenticateResponse {
+				return nil
+			},
+		},
+		{
+			desc:    "invalid mfa response",
+			wantErr: "invalid totp token",
+			getMFAResponse: func() *proto.MFAAuthenticateResponse {
+				return &proto.MFAAuthenticateResponse{
+					Response: &proto.MFAAuthenticateResponse_TOTP{
+						TOTP: &proto.TOTPResponse{Code: "invalid-totp-code"},
+					},
+				}
+			},
+		},
+	} {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			mfaResponse := test.getMFAResponse()
+			certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
+				PublicKey:   pub,
+				Username:    u.username,
+				Expires:     time.Now().Add(time.Hour),
+				MFAResponse: mfaResponse,
+			})
+
+			switch {
+			case test.wantErr != "":
+				require.True(t, trace.IsAccessDenied(err), "GenerateUserCerts returned err = %v (%T), wanted trace.AccessDenied", err, err)
+				require.ErrorContains(t, err, test.wantErr)
+				return
+			default:
+				require.NoError(t, err)
+			}
+
+			sshCert, err := sshutils.ParseCertificate(certs.SSH)
+			require.NoError(t, err)
+			mfaVerified := sshCert.Permissions.Extensions[teleport.CertExtensionMFAVerified]
+
+			switch {
+			case mfaResponse == nil:
+				require.Empty(t, mfaVerified, "GenerateUserCerts returned certificate with non-empty CertExtensionMFAVerified")
+			default:
+				require.Equal(t, mfaVerified, u.totpDev.MFA.Id, "GenerateUserCerts returned certificate with unexpected CertExtensionMFAVerified")
+			}
+		})
+	}
+}
 
 // TestLocalUserCanReissueCerts tests that local users can reissue
 // certificates for themselves with varying TTLs.
@@ -1280,7 +1364,7 @@ func TestGetSessionEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// ignore the response as we don't want the events or the error (the session will not exist)
-	_, _ = clt.GetSessionEvents(defaults.Namespace, "44c6cea8-362f-11ea-83aa-125400432324", 0, false)
+	_, _ = clt.GetSessionEvents(defaults.Namespace, "44c6cea8-362f-11ea-83aa-125400432324", 0)
 
 	// we need to wait for a short period to ensure the event is returned
 	time.Sleep(500 * time.Millisecond)
@@ -1350,8 +1434,8 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 	err = srv.AuthServer.UpsertRole(context.TODO(), role)
 	require.NoError(t, err)
 
-	localUser := LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
-	authContext, err := contextForLocalUser(localUser, srv.AuthServer, srv.ClusterName, true /* disableDeviceAuthz */)
+	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
+	authContext, err := authz.ContextForLocalUser(localUser, srv.AuthServer, srv.ClusterName, true /* disableDeviceAuthz */)
 	require.NoError(t, err)
 
 	return &ServerWithRoles{
@@ -1927,7 +2011,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, test.identity.I))
+			authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, test.identity.I))
 			require.NoError(t, err)
 
 			s := &ServerWithRoles{
@@ -2121,7 +2205,7 @@ func TestKindClusterConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	getClusterConfigResources := func(ctx context.Context, user types.User) []error {
-		authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, TestUser(user.GetName()).I))
+		authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestUser(user.GetName()).I))
 		require.NoError(t, err, trace.DebugReport(err))
 		s := &ServerWithRoles{
 			authServer: srv.AuthServer,
@@ -2863,7 +2947,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, TestBuiltin(types.RoleProxy).I))
+	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestBuiltin(types.RoleProxy).I))
 	require.NoError(t, err)
 
 	s := &ServerWithRoles{
@@ -3594,7 +3678,8 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 			ctx := context.Background()
 
 			identity := TestBuiltin(role)
-			authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, identity.I))
+
+			authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, identity.I))
 			require.NoError(t, err)
 
 			s := &ServerWithRoles{
@@ -4231,6 +4316,12 @@ func TestUnimplementedClients(t *testing.T) {
 
 	t.Run("PluginClient", func(t *testing.T) {
 		_, err := server.PluginsClient().ListPlugins(ctx, nil)
+		require.Error(t, err)
+		require.True(t, trace.IsNotImplemented(err), err)
+	})
+
+	t.Run("SAMLIdPClient", func(t *testing.T) {
+		_, err := server.SAMLIdPClient().ProcessSAMLIdPRequest(ctx, nil)
 		require.Error(t, err)
 		require.True(t, trace.IsNotImplemented(err), err)
 	})

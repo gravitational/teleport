@@ -19,7 +19,7 @@
 # cloud provider specific auth "plugins" because it works on any cluster
 # and does not require any extra binaries. It produces kubeconfig to build/kubeconfig
 
-# This script can be used to retreive x509 certificate from a GKE cluster
+# This script can be used to retrieve x509 certificate from a GKE cluster
 # which can be used for accessing the CSR API with Teleport
 #
 # For more information see:

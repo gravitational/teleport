@@ -24,6 +24,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -227,8 +228,44 @@ func onStart(botConfig *config.BotConfig) error {
 	reloadChan := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
 	go handleSignals(log, reloadChan, cancel)
+
+	telemetrySentCh := make(chan struct{})
+	go func() {
+		defer close(telemetrySentCh)
+
+		if err := sendTelemetry(
+			ctx, telemetryClient(os.Getenv), os.Getenv, log, botConfig,
+		); err != nil {
+			log.WithError(err).Error(
+				"Failed to send anonymous telemetry.",
+			)
+		}
+	}()
+	// Ensures telemetry finishes sending before function exits.
+	defer func() {
+		select {
+		case <-telemetrySentCh:
+			return
+		case <-ctx.Done():
+		default:
+		}
+
+		waitTime := 10 * time.Second
+		log.Infof(
+			"Waiting up to %s for anonymous telemetry to finish sending before exiting. Press CTRL-C to cancel.",
+			waitTime,
+		)
+		ctx, cancel := context.WithTimeout(ctx, waitTime)
+		defer cancel()
+		select {
+		case <-ctx.Done():
+			log.Warn(
+				"Anonymous telemetry transmission canceled due to signal or timeout.",
+			)
+		case <-telemetrySentCh:
+		}
+	}()
 
 	b := tbot.New(botConfig, log, reloadChan)
 	return trace.Wrap(b.Run(ctx))

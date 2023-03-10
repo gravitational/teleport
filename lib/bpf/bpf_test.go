@@ -45,6 +45,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 func TestRootWatch(t *testing.T) {
@@ -64,10 +65,10 @@ func TestRootWatch(t *testing.T) {
 	cgroupPath := t.TempDir()
 
 	// Create BPF service.
-	service, err := New(&Config{
+	service, err := New(&servicecfg.BPFConfig{
 		Enabled:    true,
 		CgroupPath: cgroupPath,
-	}, &RestrictedSessionConfig{})
+	}, &servicecfg.RestrictedSessionConfig{})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
