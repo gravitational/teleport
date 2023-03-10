@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -133,6 +134,7 @@ func TestSSHServerBasics(t *testing.T) {
 
 	controller := NewController(
 		auth,
+		usagereporter.DiscardUsageReporter{},
 		withServerKeepAlive(time.Millisecond*200),
 		withTestEventsChannel(events),
 	)
@@ -279,6 +281,7 @@ func TestInstanceHeartbeat_Disabled(t *testing.T) {
 
 	controller := NewController(
 		auth,
+		usagereporter.DiscardUsageReporter{},
 		withInstanceHBInterval(time.Millisecond*200),
 		withTestEventsChannel(events),
 	)
@@ -317,6 +320,7 @@ func TestInstanceHeartbeat(t *testing.T) {
 
 	controller := NewController(
 		auth,
+		usagereporter.DiscardUsageReporter{},
 		withInstanceHBInterval(time.Millisecond*200),
 		withTestEventsChannel(events),
 	)
