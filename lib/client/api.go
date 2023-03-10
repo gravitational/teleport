@@ -504,10 +504,10 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	switch {
 	case fnErr == nil:
 		return nil
-	case tc.NonInteractive:
-		return trace.Wrap(fnErr)
 	case utils.IsPredicateError(fnErr):
 		return trace.Wrap(utils.PredicateError{Err: fnErr})
+	case tc.NonInteractive:
+		return trace.Wrap(fnErr)
 	case !IsErrorResolvableWithRelogin(fnErr):
 		return trace.Wrap(fnErr)
 	}
@@ -2616,7 +2616,7 @@ func (tc *TeleportClient) getProxySSHPrincipal() string {
 		return tc.ProxySSHPrincipal
 	}
 
-	// see if we already have a signed key in the cache, we'll use that instead
+	// if we have any keys in the cache, pull the user's valid principals from it.
 	if tc.localAgent != nil {
 		signers, err := tc.localAgent.Signers()
 		if err == nil && len(signers) > 0 {
@@ -2628,7 +2628,7 @@ func (tc *TeleportClient) getProxySSHPrincipal() string {
 	}
 
 	proxyPrincipal := tc.Config.HostLogin
-	if len(tc.JumpHosts) > 1 && tc.JumpHosts[0].Username != "" {
+	if len(tc.JumpHosts) > 0 && tc.JumpHosts[0].Username != "" {
 		log.Debugf("Setting proxy login to jump host's parameter user %q", tc.JumpHosts[0].Username)
 		proxyPrincipal = tc.JumpHosts[0].Username
 	}
@@ -4004,7 +4004,8 @@ func (tc *TeleportClient) LoadTLSConfig() (*tls.Config, error) {
 }
 
 // LoadTLSConfigForClusters returns the client's TLS configuration, either from static
-// configuration or from its key store, for the given clusters.
+// configuration or from its key store. If loaded from the key store, CA certs will be
+// loaded for the given clusters only.
 func (tc *TeleportClient) LoadTLSConfigForClusters(clusters []string) (*tls.Config, error) {
 	if tc.TLS != nil {
 		return tc.TLS.Clone(), nil
