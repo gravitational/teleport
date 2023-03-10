@@ -26,7 +26,6 @@ import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
 import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
 import apiServer from 'gen-proto-js/teleport/lib/teleterm/v1/server_pb';
 import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
-import apiApp from 'gen-proto-js/teleport/lib/teleterm/v1/app_pb';
 import apiService, {
   FileTransferDirection,
 } from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
@@ -35,7 +34,6 @@ import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_reque
 
 import * as uri from 'teleterm/ui/uri';
 
-export type Application = apiApp.App.AsObject;
 export interface Kube extends apiKube.Kube.AsObject {
   uri: uri.KubeUri;
 }
@@ -124,13 +122,9 @@ export type LoginPasswordlessRequest =
 export type TshClient = {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
-  listApps: (clusterUri: uri.ClusterUri) => Promise<Application[]>;
-  getAllKubes: (clusterUri: uri.ClusterUri) => Promise<Kube[]>;
   getKubes: (params: ServerSideParams) => Promise<GetKubesResponse>;
-  getAllDatabases: (clusterUri: uri.ClusterUri) => Promise<Database[]>;
   getDatabases: (params: ServerSideParams) => Promise<GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: uri.DatabaseUri) => Promise<string[]>;
-  getAllServers: (clusterUri: uri.ClusterUri) => Promise<Server[]>;
   assumeRole: (
     clusterUri: uri.RootClusterUri,
     requestIds: string[],
