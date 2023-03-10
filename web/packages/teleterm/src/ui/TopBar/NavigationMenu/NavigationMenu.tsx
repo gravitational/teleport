@@ -43,7 +43,7 @@ function useNavigationItems(): (
   const documentsService =
     ctx.workspacesService.getActiveWorkspaceDocumentService();
   const activeRootCluster = getActiveRootCluster(ctx);
-  const accessRequestsAllowed =
+  const areAccessRequestsSupported =
     !!activeRootCluster?.features?.advancedAccessWorkflows;
 
   return [
@@ -57,32 +57,36 @@ function useNavigationItems(): (
         );
       },
     },
-    { type: 'separator' as const },
-    accessRequestsAllowed && {
-      title: 'New Access Request',
-      Icon: Add,
-      onNavigate: () => {
-        const doc = documentsService.createAccessRequestDocument({
-          clusterUri: activeRootCluster.uri,
-          state: 'creating',
-          title: 'New Access Request',
-        });
-        documentsService.add(doc);
-        documentsService.open(doc.uri);
-      },
-    },
-    accessRequestsAllowed && {
-      title: 'Review Access Requests',
-      Icon: OpenBox,
-      onNavigate: () => {
-        const doc = documentsService.createAccessRequestDocument({
-          clusterUri: activeRootCluster.uri,
-          state: 'browsing',
-        });
-        documentsService.add(doc);
-        documentsService.open(doc.uri);
-      },
-    },
+    ...(areAccessRequestsSupported
+      ? [
+          { type: 'separator' as const },
+          {
+            title: 'New Access Request',
+            Icon: Add,
+            onNavigate: () => {
+              const doc = documentsService.createAccessRequestDocument({
+                clusterUri: activeRootCluster.uri,
+                state: 'creating',
+                title: 'New Access Request',
+              });
+              documentsService.add(doc);
+              documentsService.open(doc.uri);
+            },
+          },
+          {
+            title: 'Review Access Requests',
+            Icon: OpenBox,
+            onNavigate: () => {
+              const doc = documentsService.createAccessRequestDocument({
+                clusterUri: activeRootCluster.uri,
+                state: 'browsing',
+              });
+              documentsService.add(doc);
+              documentsService.open(doc.uri);
+            },
+          },
+        ]
+      : []),
   ].filter(Boolean);
 }
 
@@ -98,9 +102,9 @@ export function NavigationMenu() {
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
   const selectorRef = useRef<HTMLButtonElement>();
 
-  const items = useNavigationItems().map((item, index, items) => {
+  const items = useNavigationItems().map((item, index) => {
     if (item.type === 'separator') {
-      return index !== items.length - 1 && <Separator key={index} />; // if not the last element
+      return <Separator key={index} />;
     }
     return (
       <NavigationItem
