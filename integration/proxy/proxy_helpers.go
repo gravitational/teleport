@@ -45,7 +45,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -60,11 +60,11 @@ type Suite struct {
 }
 
 type suiteOptions struct {
-	rootConfigFunc func(suite *Suite) *service.Config
-	leafConfigFunc func(suite *Suite) *service.Config
+	rootConfigFunc func(suite *Suite) *servicecfg.Config
+	leafConfigFunc func(suite *Suite) *servicecfg.Config
 
-	rootConfigModFunc []func(config *service.Config)
-	leafConfigModFunc []func(config *service.Config)
+	rootConfigModFunc []func(config *servicecfg.Config)
+	leafConfigModFunc []func(config *servicecfg.Config)
 
 	rootClusterNodeName string
 	leafClusterNodeName string
@@ -172,8 +172,8 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 }
 
 func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
-	nodeConfig := func() *service.Config {
-		tconf := service.MakeDefaultConfig()
+	nodeConfig := func() *servicecfg.Config {
+		tconf := servicecfg.MakeDefaultConfig()
 		tconf.Console = nil
 		tconf.Log = utils.NewLoggerForTests()
 		tconf.Hostname = tunnelNodeHostname
@@ -204,7 +204,7 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 
 func (p *Suite) mustConnectToClusterAndRunSSHCommand(t *testing.T, config helpers.ClientConfig) {
 	const (
-		deadline         = time.Second * 5
+		deadline         = time.Second * 20
 		nextIterWaitTime = time.Millisecond * 100
 	)
 
@@ -246,14 +246,14 @@ func withRootAndLeafClusterRoles(roles ...types.Role) proxySuiteOptionsFunc {
 	}
 }
 
-func withLeafClusterConfig(fn func(suite *Suite) *service.Config, configModFunctions ...func(config *service.Config)) proxySuiteOptionsFunc {
+func withLeafClusterConfig(fn func(suite *Suite) *servicecfg.Config, configModFunctions ...func(config *servicecfg.Config)) proxySuiteOptionsFunc {
 	return func(options *suiteOptions) {
 		options.leafConfigFunc = fn
 		options.leafConfigModFunc = append(options.leafConfigModFunc, configModFunctions...)
 	}
 }
 
-func withRootClusterConfig(fn func(suite *Suite) *service.Config, configModFunctions ...func(config *service.Config)) proxySuiteOptionsFunc {
+func withRootClusterConfig(fn func(suite *Suite) *servicecfg.Config, configModFunctions ...func(config *servicecfg.Config)) proxySuiteOptionsFunc {
 	return func(options *suiteOptions) {
 		options.rootConfigFunc = fn
 		options.rootConfigModFunc = append(options.rootConfigModFunc, configModFunctions...)
@@ -306,10 +306,10 @@ func newRole(t *testing.T, roleName string, username string) types.Role {
 	return role
 }
 
-func rootClusterStandardConfig(t *testing.T) func(suite *Suite) *service.Config {
-	return func(suite *Suite) *service.Config {
+func rootClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Config {
+	return func(suite *Suite) *servicecfg.Config {
 		rc := suite.root
-		config := service.MakeDefaultConfig()
+		config := servicecfg.MakeDefaultConfig()
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
@@ -326,10 +326,10 @@ func rootClusterStandardConfig(t *testing.T) func(suite *Suite) *service.Config 
 	}
 }
 
-func leafClusterStandardConfig(t *testing.T) func(suite *Suite) *service.Config {
-	return func(suite *Suite) *service.Config {
+func leafClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Config {
+	return func(suite *Suite) *servicecfg.Config {
 		lc := suite.leaf
-		config := service.MakeDefaultConfig()
+		config := servicecfg.MakeDefaultConfig()
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
@@ -510,8 +510,8 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 	return lp
 }
 
-func makeNodeConfig(nodeName, proxyAddr string) *service.Config {
-	nodeConfig := service.MakeDefaultConfig()
+func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
+	nodeConfig := servicecfg.MakeDefaultConfig()
 	nodeConfig.Version = defaults.TeleportConfigVersionV3
 	nodeConfig.Hostname = nodeName
 	nodeConfig.SetToken("token")

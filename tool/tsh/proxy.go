@@ -235,13 +235,22 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
 	httpsProxy := proxy.GetProxyURL(remoteProxyAddr)
 
+	pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// If HTTPS_PROXY is configured, we need to open a TCP connection via
 	// the specified HTTPS Proxy, otherwise, we can just open a plain TCP
 	// connection.
 	var tcpConn net.Conn
-	var err error
 	if httpsProxy != nil {
-		tcpConn, err = client.DialProxy(ctx, httpsProxy, remoteProxyAddr)
+		httpProxyTLSConfig := &tls.Config{
+			RootCAs:            pool,
+			InsecureSkipVerify: tc.InsecureSkipVerify,
+			ServerName:         httpsProxy.Hostname(),
+		}
+		tcpConn, err = client.DialProxy(ctx, httpsProxy, remoteProxyAddr, client.WithTLSConfig(httpProxyTLSConfig))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -258,12 +267,6 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 	}
 
 	// Otherwise, we need to upgrade the TCP connection to a TLS connection.
-	pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
-	if err != nil {
-		tcpConn.Close()
-		return nil, trace.Wrap(err)
-	}
-
 	tlsConfig := &tls.Config{
 		RootCAs:            pool,
 		NextProtos:         []string{string(alpncommon.ProtocolProxySSH)},
@@ -386,8 +389,8 @@ func onProxyCommandDB(cf *CLIConf) error {
 	// These steps are not needed with `--tunnel`, because the local proxy tunnel
 	// will manage database certificates itself and reissue them as needed.
 	requires := getDBLocalProxyRequirement(client, route)
-	if requires.tunnel && !cf.LocalProxyTunnel {
-		// Some scenarios require the --tunnel flag, e.g.:
+	if requires.tunnel && !isLocalProxyTunnelRequested(cf) {
+		// Some scenarios require a local proxy tunnel, e.g.:
 		// - Snowflake, DynamoDB protocol
 		// - Hardware-backed private key policy
 		return trace.BadParameter(formatDbCmdUnsupported(cf, route, requires.tunnelReasons...))
@@ -422,6 +425,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		teleportClient:   client,
 		profile:          profile,
 		routeToDatabase:  route,
+		database:         db,
 		listener:         listener,
 		localProxyTunnel: cf.LocalProxyTunnel,
 		rootClusterName:  rootCluster,
@@ -439,7 +443,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		lp.Close()
 	}()
 
-	if cf.LocalProxyTunnel {
+	if isLocalProxyTunnelRequested(cf) {
 		addr, err := utils.ParseAddr(lp.GetAddr())
 		if err != nil {
 			return trace.Wrap(err)
@@ -856,6 +860,15 @@ func getEnvOrDefault(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// isLocalProxyTunnelRequested is a helper function that returns whether the user
+// requested a local proxy tunnel, either via --tunnel or equivalently by specifying
+// --cert-file/--key-file.
+func isLocalProxyTunnelRequested(cf *CLIConf) bool {
+	return cf.LocalProxyTunnel ||
+		cf.LocalProxyCertFile != "" ||
+		cf.LocalProxyKeyFile != ""
 }
 
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.

@@ -46,6 +46,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -54,11 +55,13 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -789,7 +792,7 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 		{
 			name: "user with device extensions",
 			modifyUser: func(u *TestIdentity) {
-				lu := u.I.(LocalUser)
+				lu := u.I.(authz.LocalUser)
 				lu.Identity.DeviceExtensions = *wantExtensions
 				u.I = lu
 			},
@@ -862,7 +865,7 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 		{
 			name: "user with device extensions",
 			modifyUser: func(u *TestIdentity) {
-				lu := u.I.(LocalUser)
+				lu := u.I.(authz.LocalUser)
 				lu.Identity.DeviceExtensions = *wantExtensions
 				u.I = lu
 			},
@@ -1442,7 +1445,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				u.TTL = 1 * time.Hour
 
 				// Add device extensions to the fake user's identity.
-				localUser := u.I.(LocalUser)
+				localUser := u.I.(authz.LocalUser)
 				localUser.Identity.DeviceExtensions = wantDeviceExtensions
 				u.I = localUser
 
@@ -1485,7 +1488,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				u.TTL = 1 * time.Hour
 
 				// Add device extensions to the fake user's identity.
-				localUser := u.I.(LocalUser)
+				localUser := u.I.(authz.LocalUser)
 				localUser.Identity.DeviceExtensions = wantDeviceExtensions
 				u.I = localUser
 
@@ -3012,11 +3015,11 @@ func TestCustomRateLimiting(t *testing.T) {
 }
 
 type mockAuthorizer struct {
-	ctx *Context
+	ctx *authz.Context
 	err error
 }
 
-func (a mockAuthorizer) Authorize(context.Context) (*Context, error) {
+func (a mockAuthorizer) Authorize(context.Context) (*authz.Context, error) {
 	return a.ctx, a.err
 }
 
@@ -3215,7 +3218,7 @@ func TestExport(t *testing.T) {
 		errAssertion      require.ErrorAssertionFunc
 		uploadedAssertion require.ValueAssertionFunc
 		spans             []*otlptracev1.ResourceSpans
-		authorizer        Authorizer
+		authorizer        authz.Authorizer
 		mockTraceClient   mockTraceClient
 	}{
 		{
@@ -3313,7 +3316,7 @@ func TestGRPCServer_CreateToken(t *testing.T) {
 	// Allow us to directly invoke the deprecated gRPC methods with
 	// authentication.
 	user := TestAdmin()
-	ctx = context.WithValue(ctx, ContextUser, user.I)
+	ctx = authz.ContextWithUser(ctx, user.I)
 
 	// Test default expiry is applied.
 	t.Run("undefined-expiry", func(t *testing.T) {
@@ -3400,7 +3403,7 @@ func TestGRPCServer_UpsertToken(t *testing.T) {
 	// Allow us to directly invoke the deprecated gRPC methods with
 	// authentication.
 	user := TestAdmin()
-	ctx = context.WithValue(ctx, ContextUser, user.I)
+	ctx = authz.ContextWithUser(ctx, user.I)
 
 	// Test default expiry is applied.
 	t.Run("undefined-expiry", func(t *testing.T) {
@@ -3593,3 +3596,73 @@ const testEntityDescriptor = `
    </md:SPSSODescriptor>
 </md:EntityDescriptor>
 `
+
+func TestGRPCServer_GetInstallers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	server := newTestTLSServer(t)
+	grpc := server.TLSServer.grpcServer
+
+	user := TestAdmin()
+	ctx = authz.ContextWithUser(ctx, user.I)
+
+	tests := []struct {
+		name               string
+		inputInstallers    map[string]string
+		expectedInstallers map[string]string
+	}{
+		{
+			name: "default installers only",
+			expectedInstallers: map[string]string{
+				installers.InstallerScriptName:          installers.DefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+			},
+		},
+		{
+			name: "default and custom installers",
+			inputInstallers: map[string]string{
+				"my-custom-installer": "echo test",
+			},
+			expectedInstallers: map[string]string{
+				"my-custom-installer":                   "echo test",
+				installers.InstallerScriptName:          installers.DefaultInstaller.GetScript(),
+				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+			},
+		},
+		{
+			name: "override default installer",
+			inputInstallers: map[string]string{
+				installers.InstallerScriptName: "echo test",
+			},
+			expectedInstallers: map[string]string{
+				installers.InstallerScriptName:          "echo test",
+				installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller.GetScript(),
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Cleanup(func() {
+				_, err := grpc.DeleteAllInstallers(ctx, &emptypb.Empty{})
+				require.NoError(t, err)
+			})
+
+			for name, script := range tc.inputInstallers {
+				installer, err := types.NewInstallerV1(name, script)
+				require.NoError(t, err)
+				_, err = grpc.SetInstaller(ctx, installer)
+				require.NoError(t, err)
+			}
+
+			outputInstallerList, err := grpc.GetInstallers(ctx, &emptypb.Empty{})
+			require.NoError(t, err)
+			outputInstallers := make(map[string]string, len(tc.expectedInstallers))
+			for _, installer := range outputInstallerList.Installers {
+				outputInstallers[installer.GetName()] = installer.GetScript()
+			}
+
+			require.Equal(t, tc.expectedInstallers, outputInstallers)
+		})
+	}
+
+}

@@ -367,6 +367,9 @@ type Config struct {
 	// MockSSOLogin is used in tests for mocking the SSO login response.
 	MockSSOLogin SSOLoginFunc
 
+	// MockConnectToProxy is used in tests to override connection to proxy
+	MockConnectToProxy ConnectToProxyFunc
+
 	// HomePath is where tsh stores profiles
 	HomePath string
 
@@ -1037,7 +1040,14 @@ func (tc *TeleportClient) ProfileStatus() (*ProfileStatus, error) {
 
 // LoadKeyForCluster fetches a cluster-specific SSH key and loads it into the
 // SSH agent.
-func (tc *TeleportClient) LoadKeyForCluster(clusterName string) error {
+func (tc *TeleportClient) LoadKeyForCluster(ctx context.Context, clusterName string) error {
+	_, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/LoadKeyForCluster",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(attribute.String("cluster", clusterName)),
+	)
+	defer span.End()
 	if tc.localAgent == nil {
 		return trace.BadParameter("TeleportClient.LoadKeyForCluster called on a client without localAgent")
 	}
@@ -1058,7 +1068,7 @@ func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clus
 	)
 	defer span.End()
 
-	err := tc.LoadKeyForCluster(clusterName)
+	err := tc.LoadKeyForCluster(ctx, clusterName)
 	if err == nil {
 		return nil
 	}
@@ -1739,7 +1749,7 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	site := proxyClient.CurrentCluster()
 
 	// request events for that session (to get timing data)
-	sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0, true)
+	sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1797,7 +1807,7 @@ func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessi
 
 	site := proxyClient.CurrentCluster()
 
-	events, err := site.GetSessionEvents(namespace, *sid, 0, true)
+	events, err := site.GetSessionEvents(namespace, *sid, 0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2647,10 +2657,17 @@ func formatConnectToProxyErr(err error) error {
 	return err
 }
 
+// ConnectToProxyFunc is used in tests to override connection to proxy function.
+type ConnectToProxyFunc func(ctx context.Context) (*ProxyClient, error)
+
 // ConnectToProxy will dial to the proxy server and return a ProxyClient when
 // successful. If the passed in context is canceled, this function will return
 // a trace.ConnectionProblem right away.
 func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, error) {
+	if tc.Config.MockConnectToProxy != nil {
+		return tc.Config.MockConnectToProxy(ctx)
+	}
+
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ConnectToProxy",
@@ -2780,6 +2797,13 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	return pc, nil
 }
 
+// confirmSSHConnectivityErrorMsg returns the error message for Proxy SSH
+// connectivity errors.
+func confirmSSHConnectivityErrorMsg(proxyAddress string) string {
+	return fmt.Sprintf("Unable to connect to ssh proxy at %v. "+
+		"Confirm connectivity and availability.", proxyAddress)
+}
+
 // makeProxySSHClient creates an SSH client by following steps:
 //  1. If the current proxy supports TLS Routing and JumpHost address was not provided use TLSWrapper.
 //  2. Check JumpHost raw SSH port or Teleport proxy address.
@@ -2792,7 +2816,7 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 		log.Infof("Connecting to proxy=%v login=%q using TLS Routing", tc.Config.WebProxyAddr, sshConfig.User)
 		c, err := makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, tc.Config.WebProxyAddr)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, confirmSSHConnectivityErrorMsg(tc.Config.WebProxyAddr))
 		}
 		log.Infof("Successful auth with proxy %v.", tc.Config.WebProxyAddr)
 		return c, nil
@@ -2815,7 +2839,7 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 			log.Infof("Connecting to proxy=%v login=%q using TLS Routing JumpHost", sshProxyAddr, sshConfig.User)
 			c, err := makeProxySSHClientWithTLSWrapper(ctx, tc, sshConfig, sshProxyAddr)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, trace.Wrap(err, confirmSSHConnectivityErrorMsg(tc.Config.WebProxyAddr))
 			}
 			log.Infof("Successful auth with proxy %v.", sshProxyAddr)
 			return c, nil
@@ -2826,10 +2850,9 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 	client, err := makeProxySSHClientDirect(ctx, tc, sshConfig, sshProxyAddr)
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
-			return nil, trace.AccessDenied("failed to authenticate with proxy %v: %v", sshProxyAddr, err)
+			return nil, trace.AccessDenied(confirmSSHConnectivityErrorMsg(sshProxyAddr)+" Error: %v", err)
 		}
-
-		return nil, trace.Wrap(err, "failed to authenticate with proxy %v", sshProxyAddr)
+		return nil, trace.Wrap(err, confirmSSHConnectivityErrorMsg(sshProxyAddr))
 	}
 	log.Infof("Successful auth with proxy %v.", sshProxyAddr)
 	return client, nil
@@ -2976,7 +2999,7 @@ func (tc *TeleportClient) PingAndShowMOTD(ctx context.Context) (*webclient.PingR
 
 	pr, err := tc.Ping(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Teleport proxy not available at %s.", tc.WebProxyAddr)
 	}
 
 	if pr.Auth.HasMessageOfTheDay {
@@ -3126,32 +3149,46 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 
 // getSSHLoginFunc returns an SSHLoginFunc that matches client and cluster settings.
 func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginFunc, error) {
-	switch authType := pr.Auth.Type; {
-	case authType == constants.Local && pr.Auth.Local != nil && pr.Auth.Local.Name == constants.PasswordlessConnector:
-		// Sanity check settings.
-		if !pr.Auth.AllowPasswordless {
-			return nil, trace.BadParameter("passwordless disallowed by cluster settings")
+	switch pr.Auth.Type {
+	case constants.Local:
+		switch pr.Auth.Local.Name {
+		case constants.PasswordlessConnector:
+			// Sanity check settings.
+			if !pr.Auth.AllowPasswordless {
+				return nil, trace.BadParameter("passwordless disallowed by cluster settings")
+			}
+			return tc.pwdlessLogin, nil
+		case constants.HeadlessConnector:
+			// Sanity check settings.
+			if !pr.Auth.AllowHeadless {
+				return nil, trace.BadParameter("headless disallowed by cluster settings")
+			}
+			// TODO (Joerger): Add headless login flow.
+			fallthrough
+		case constants.LocalConnector, "":
+			// if passwordless is enabled and there are passwordless credentials
+			// registered, we can try to go with passwordless login even though
+			// auth=local was selected.
+			if tc.canDefaultToPasswordless(pr) {
+				log.Debug("Trying passwordless login because credentials were found")
+				return tc.pwdlessLogin, nil
+			}
+
+			return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+				return tc.localLogin(ctx, priv, pr.Auth.SecondFactor)
+			}, nil
+		default:
+			return nil, trace.BadParameter("unsupported authentication connector type: %q", pr.Auth.Local.Name)
 		}
-		return tc.pwdlessLogin, nil
-	case authType == constants.Local && tc.canDefaultToPasswordless(pr):
-		log.Debug("Trying passwordless login because credentials were found")
-		// if passwordless is enabled and there are passwordless credentials
-		// registered, we can try to go with passwordless login even though
-		// auth=local was selected.
-		return tc.pwdlessLogin, nil
-	case authType == constants.Local:
-		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
-			return tc.localLogin(ctx, priv, pr.Auth.SecondFactor)
-		}, nil
-	case authType == constants.OIDC:
+	case constants.OIDC:
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 			return tc.ssoLogin(ctx, priv, pr.Auth.OIDC.Name, constants.OIDC)
 		}, nil
-	case authType == constants.SAML:
+	case constants.SAML:
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 			return tc.ssoLogin(ctx, priv, pr.Auth.SAML.Name, constants.SAML)
 		}, nil
-	case authType == constants.Github:
+	case constants.Github:
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 			return tc.ssoLogin(ctx, priv, pr.Auth.Github.Name, constants.Github)
 		}, nil

@@ -28,6 +28,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -42,12 +43,96 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+	client, err := srv.NewClient(TestUser(u.username))
+	require.NoError(t, err)
+
+	_, pub, err := testauthority.New().GenerateKeyPair()
+	require.NoError(t, err)
+
+	for _, test := range []struct {
+		desc           string
+		getMFAResponse func() *proto.MFAAuthenticateResponse
+		wantErr        string
+	}{
+		{
+			desc: "valid mfa response",
+			getMFAResponse: func() *proto.MFAAuthenticateResponse {
+				// Get a totp code to re-auth.
+				totpCode, err := totp.GenerateCode(u.totpDev.TOTPSecret, srv.AuthServer.Clock().Now().Add(30*time.Second))
+				require.NoError(t, err)
+
+				return &proto.MFAAuthenticateResponse{
+					Response: &proto.MFAAuthenticateResponse_TOTP{
+						TOTP: &proto.TOTPResponse{Code: totpCode},
+					},
+				}
+			},
+		},
+		{
+			desc: "valid empty mfa response",
+			getMFAResponse: func() *proto.MFAAuthenticateResponse {
+				return nil
+			},
+		},
+		{
+			desc:    "invalid mfa response",
+			wantErr: "invalid totp token",
+			getMFAResponse: func() *proto.MFAAuthenticateResponse {
+				return &proto.MFAAuthenticateResponse{
+					Response: &proto.MFAAuthenticateResponse_TOTP{
+						TOTP: &proto.TOTPResponse{Code: "invalid-totp-code"},
+					},
+				}
+			},
+		},
+	} {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			mfaResponse := test.getMFAResponse()
+			certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
+				PublicKey:   pub,
+				Username:    u.username,
+				Expires:     time.Now().Add(time.Hour),
+				MFAResponse: mfaResponse,
+			})
+
+			switch {
+			case test.wantErr != "":
+				require.True(t, trace.IsAccessDenied(err), "GenerateUserCerts returned err = %v (%T), wanted trace.AccessDenied", err, err)
+				require.ErrorContains(t, err, test.wantErr)
+				return
+			default:
+				require.NoError(t, err)
+			}
+
+			sshCert, err := sshutils.ParseCertificate(certs.SSH)
+			require.NoError(t, err)
+			mfaVerified := sshCert.Permissions.Extensions[teleport.CertExtensionMFAVerified]
+
+			switch {
+			case mfaResponse == nil:
+				require.Empty(t, mfaVerified, "GenerateUserCerts returned certificate with non-empty CertExtensionMFAVerified")
+			default:
+				require.Equal(t, mfaVerified, u.totpDev.MFA.Id, "GenerateUserCerts returned certificate with unexpected CertExtensionMFAVerified")
+			}
+		})
+	}
+}
 
 // TestLocalUserCanReissueCerts tests that local users can reissue
 // certificates for themselves with varying TTLs.
@@ -1279,7 +1364,7 @@ func TestGetSessionEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// ignore the response as we don't want the events or the error (the session will not exist)
-	_, _ = clt.GetSessionEvents(defaults.Namespace, "44c6cea8-362f-11ea-83aa-125400432324", 0, false)
+	_, _ = clt.GetSessionEvents(defaults.Namespace, "44c6cea8-362f-11ea-83aa-125400432324", 0)
 
 	// we need to wait for a short period to ensure the event is returned
 	time.Sleep(500 * time.Millisecond)
@@ -1349,8 +1434,8 @@ func serverWithAllowRules(t *testing.T, srv *TestAuthServer, allowRules []types.
 	err = srv.AuthServer.UpsertRole(context.TODO(), role)
 	require.NoError(t, err)
 
-	localUser := LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
-	authContext, err := contextForLocalUser(localUser, srv.AuthServer, srv.ClusterName, true /* disableDeviceAuthz */)
+	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
+	authContext, err := authz.ContextForLocalUser(localUser, srv.AuthServer, srv.ClusterName, true /* disableDeviceAuthz */)
 	require.NoError(t, err)
 
 	return &ServerWithRoles{
@@ -1926,7 +2011,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, test.identity.I))
+			authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, test.identity.I))
 			require.NoError(t, err)
 
 			s := &ServerWithRoles{
@@ -2120,7 +2205,7 @@ func TestKindClusterConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	getClusterConfigResources := func(ctx context.Context, user types.User) []error {
-		authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, TestUser(user.GetName()).I))
+		authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestUser(user.GetName()).I))
 		require.NoError(t, err, trace.DebugReport(err))
 		s := &ServerWithRoles{
 			authServer: srv.AuthServer,
@@ -2862,7 +2947,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, TestBuiltin(types.RoleProxy).I))
+	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, TestBuiltin(types.RoleProxy).I))
 	require.NoError(t, err)
 
 	s := &ServerWithRoles{
@@ -3593,7 +3678,8 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 			ctx := context.Background()
 
 			identity := TestBuiltin(role)
-			authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, identity.I))
+
+			authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, identity.I))
 			require.NoError(t, err)
 
 			s := &ServerWithRoles{
@@ -3880,4 +3966,363 @@ func TestGetLicensePermissions(t *testing.T) {
 			tc.ErrAssertion(t, trace.IsAccessDenied(err))
 		})
 	}
+}
+
+func TestCreateSAMLIdPServiceProvider(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	user, noAccessUser := createSAMLIdPTestUsers(t, srv.Auth())
+
+	tt := []struct {
+		Name         string
+		User         string
+		SP           types.SAMLIdPServiceProvider
+		EventCode    string
+		ErrAssertion require.ErrorAssertionFunc
+	}{
+		{
+			Name: "create service provider",
+			User: user,
+			SP: &types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: newEntityDescriptor("IAMShowcase"),
+					EntityID:         "IAMShowcase",
+				},
+			},
+			EventCode:    events.SAMLIdPServiceProviderCreateCode,
+			ErrAssertion: require.NoError,
+		},
+		{
+			Name: "fail creation",
+			User: user,
+			SP: &types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: "non-null",
+					EntityID:         "invalid",
+				},
+			},
+			EventCode:    events.SAMLIdPServiceProviderCreateFailureCode,
+			ErrAssertion: require.Error,
+		},
+		{
+			Name: "no permissions",
+			User: noAccessUser,
+			SP: &types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test-new",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: newEntityDescriptor("no-permissions"),
+					EntityID:         "no-permissions",
+				},
+			},
+			EventCode:    events.SAMLIdPServiceProviderCreateFailureCode,
+			ErrAssertion: require.Error,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.Name, func(t *testing.T) {
+			client, err := srv.NewClient(TestUser(tc.User))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, client.Close())
+			})
+
+			modifyAndWaitForEvent(t, tc.ErrAssertion, client, srv, tc.EventCode, func() error {
+				return client.CreateSAMLIdPServiceProvider(ctx, tc.SP)
+			})
+		})
+	}
+}
+
+func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	user, noAccessUser := createSAMLIdPTestUsers(t, srv.Auth())
+
+	sp := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "test",
+			},
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor("IAMShowcase"),
+			EntityID:         "IAMShowcase",
+		},
+	}
+	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp))
+
+	tt := []struct {
+		Name         string
+		User         string
+		SP           types.SAMLIdPServiceProvider
+		EventCode    string
+		ErrAssertion require.ErrorAssertionFunc
+	}{
+		{
+			Name: "update service provider",
+			User: user,
+			SP: &types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: newEntityDescriptor("new-entity-id"),
+					EntityID:         "new-entity-id",
+				},
+			},
+			EventCode:    events.SAMLIdPServiceProviderUpdateCode,
+			ErrAssertion: require.NoError,
+		},
+		{
+			Name: "fail update",
+			User: user,
+			SP: &types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: "non-null",
+					EntityID:         "invalid",
+				},
+			},
+			EventCode:    events.SAMLIdPServiceProviderUpdateFailureCode,
+			ErrAssertion: require.Error,
+		},
+		{
+			Name: "no permissions",
+			User: noAccessUser,
+			SP: &types.SAMLIdPServiceProviderV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "test",
+					},
+				},
+				Spec: types.SAMLIdPServiceProviderSpecV1{
+					EntityDescriptor: "non-null",
+					EntityID:         "invalid",
+				},
+			},
+			EventCode:    events.SAMLIdPServiceProviderUpdateFailureCode,
+			ErrAssertion: require.Error,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.Name, func(t *testing.T) {
+			client, err := srv.NewClient(TestUser(tc.User))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, client.Close())
+			})
+
+			modifyAndWaitForEvent(t, tc.ErrAssertion, client, srv, tc.EventCode, func() error {
+				return client.UpdateSAMLIdPServiceProvider(ctx, tc.SP)
+			})
+		})
+	}
+}
+
+func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	user, noAccessUser := createSAMLIdPTestUsers(t, srv.Auth())
+
+	sp := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "test",
+			},
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor("IAMShowcase"),
+			EntityID:         "IAMShowcase",
+		},
+	}
+	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp))
+
+	// No permissions delete
+	client, err := srv.NewClient(TestUser(noAccessUser))
+	require.NoError(t, err)
+	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderDeleteFailureCode, func() error {
+		return client.DeleteSAMLIdPServiceProvider(ctx, sp.GetName())
+	})
+
+	// Successful delete
+	client, err = srv.NewClient(TestUser(user))
+	require.NoError(t, err)
+
+	modifyAndWaitForEvent(t, require.NoError, client, srv, events.SAMLIdPServiceProviderDeleteCode, func() error {
+		return client.DeleteSAMLIdPServiceProvider(ctx, sp.GetName())
+	})
+
+	require.NoError(t, client.CreateSAMLIdPServiceProvider(ctx, sp))
+
+	// Non-existent delete
+	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderDeleteFailureCode, func() error {
+		return client.DeleteSAMLIdPServiceProvider(ctx, "nonexistent")
+	})
+}
+
+func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	user, noAccessUser := createSAMLIdPTestUsers(t, srv.Auth())
+
+	sp1 := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "test",
+			},
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor("ed1"),
+			EntityID:         "ed1",
+		},
+	}
+	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp1))
+
+	sp2 := &types.SAMLIdPServiceProviderV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "test2",
+			},
+		},
+		Spec: types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor("ed2"),
+			EntityID:         "ed2",
+		},
+	}
+	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp2))
+
+	// Failed delete
+	client, err := srv.NewClient(TestUser(noAccessUser))
+	require.NoError(t, err)
+
+	modifyAndWaitForEvent(t, require.Error, client, srv, events.SAMLIdPServiceProviderDeleteAllFailureCode, func() error {
+		return client.DeleteAllSAMLIdPServiceProviders(ctx)
+	})
+
+	// Successful delete
+	client, err = srv.NewClient(TestUser(user))
+	require.NoError(t, err)
+
+	modifyAndWaitForEvent(t, require.NoError, client, srv, events.SAMLIdPServiceProviderDeleteAllCode, func() error {
+		return client.DeleteAllSAMLIdPServiceProviders(ctx)
+	})
+}
+
+// Create the test users for SAML IdP service provider tests.
+//
+//nolint:revive // Because we want this to be IdP
+func createSAMLIdPTestUsers(t *testing.T, server *Server) (string, string) {
+	ctx := context.Background()
+
+	role, err := CreateRole(ctx, server, "test-empty", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSAMLIdPServiceProvider},
+					Verbs:     []string{types.VerbRead, types.VerbUpdate, types.VerbCreate, types.VerbDelete},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := CreateUser(server, "test-user", role)
+	require.NoError(t, err)
+
+	noAccessRole, err := CreateRole(ctx, server, "no-access-role", types.RoleSpecV6{
+		Deny: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindSAMLIdPServiceProvider},
+					Verbs:     []string{types.VerbRead, types.VerbCreate, types.VerbDelete},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	noAccessUser, err := CreateUser(server, "noaccess-user", noAccessRole)
+	require.NoError(t, err)
+
+	return user.GetName(), noAccessUser.GetName()
+}
+
+// modifyAndWaitForEvent performs the function fn() and then waits for the given event.
+func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, client *Client, srv *TestTLSServer, eventCode string, fn func() error) apievents.AuditEvent {
+	// Make sure we ignore events after consuming this one.
+	defer func() {
+		srv.AuthServer.AuthServer.emitter = events.NewDiscardEmitter()
+	}()
+	chanEmitter := eventstest.NewChannelEmitter(1)
+	srv.AuthServer.AuthServer.emitter = chanEmitter
+	err := fn()
+	errFn(t, err)
+	select {
+	case event := <-chanEmitter.C():
+		require.Equal(t, eventCode, event.GetCode())
+		return event
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timeout waiting for update event")
+	}
+	return nil
+}
+
+func TestUnimplementedClients(t *testing.T) {
+	ctx := context.Background()
+	testAuth, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	server := &ServerWithRoles{
+		authServer: testAuth.AuthServer,
+	}
+
+	require.NoError(t, err)
+
+	t.Run("DevicesClient", func(t *testing.T) {
+		_, err := server.DevicesClient().ListDevices(ctx, nil)
+		require.Error(t, err)
+		require.True(t, trace.IsNotImplemented(err), err)
+	})
+
+	t.Run("LoginRuleClient", func(t *testing.T) {
+		_, err := server.LoginRuleClient().ListLoginRules(ctx, nil)
+		require.Error(t, err)
+		require.True(t, trace.IsNotImplemented(err), err)
+	})
+
+	t.Run("PluginClient", func(t *testing.T) {
+		_, err := server.PluginsClient().ListPlugins(ctx, nil)
+		require.Error(t, err)
+		require.True(t, trace.IsNotImplemented(err), err)
+	})
+
+	t.Run("SAMLIdPClient", func(t *testing.T) {
+		_, err := server.SAMLIdPClient().ProcessSAMLIdPRequest(ctx, nil)
+		require.Error(t, err)
+		require.True(t, trace.IsNotImplemented(err), err)
+	})
 }

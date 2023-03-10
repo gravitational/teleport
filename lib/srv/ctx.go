@@ -42,8 +42,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -143,7 +143,7 @@ type Server interface {
 	GetDataDir() string
 
 	// GetPAM returns PAM configuration for this server.
-	GetPAM() (*pam.Config, error)
+	GetPAM() (*servicecfg.PAMConfig, error)
 
 	// GetClock returns a clock setup for the server
 	GetClock() clockwork.Clock
@@ -346,6 +346,11 @@ type ServerContext struct {
 	contr *os.File
 	contw *os.File
 
+	// killShell{r,w} are used to send kill signal to the child process
+	// to terminate the shell.
+	killShellr *os.File
+	killShellw *os.File
+
 	// ChannelType holds the type of the channel. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
 	ChannelType string
@@ -374,6 +379,9 @@ type ServerContext struct {
 
 	// JoinOnly is set if the connection was created using a join-only principal and may only be used to join other sessions.
 	JoinOnly bool
+
+	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
+	UserCreatedByTeleport bool
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -493,6 +501,14 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 	child.AddCloser(child.contr)
 	child.AddCloser(child.contw)
+
+	child.killShellr, child.killShellw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.killShellr)
+	child.AddCloser(child.killShellw)
 
 	// Create pipe used to get X11 forwarding ready signal from the child process.
 	child.x11rdyr, child.x11rdyw, err = os.Pipe()
@@ -1049,6 +1065,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		ClientAddress:         c.ServerConn.RemoteAddr().String(),
 		RequestType:           requestType,
 		PermitUserEnvironment: c.srv.PermitUserEnvironment(),
+		UserCreatedByTeleport: c.UserCreatedByTeleport,
 		Environment:           buildEnvironment(c),
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,

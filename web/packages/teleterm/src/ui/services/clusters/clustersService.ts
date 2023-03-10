@@ -15,10 +15,6 @@
  */
 
 import { useStore } from 'shared/libs/stores';
-
-import isMatch from 'design/utils/match';
-import { makeLabelTag } from 'teleport/components/formatters';
-import { Label } from 'teleport/types';
 import {
   DbProtocol,
   DbType,
@@ -40,37 +36,20 @@ import { UsageService } from 'teleterm/ui/services/usage';
 
 import { ImmutableStore } from '../immutableStore';
 
-import {
-  AuthSettings,
-  ClustersServiceState,
-  Database,
-  CreateGatewayParams,
-  LoginLocalParams,
-  LoginSsoParams,
-  LoginPasswordlessParams,
-  Server,
-  SyncStatus,
-  tsh,
-  Kube,
-} from './types';
+import type * as types from './types';
+import type * as tsh from 'teleterm/services/tshd/types';
 
 const { routing } = uri;
 
-export function createClusterServiceState(): ClustersServiceState {
+export function createClusterServiceState(): types.ClustersServiceState {
   return {
-    kubes: new Map(),
     clusters: new Map(),
     gateways: new Map(),
-    servers: new Map(),
-    dbs: new Map(),
-    serversSyncStatus: new Map(),
-    dbsSyncStatus: new Map(),
-    kubesSyncStatus: new Map(),
   };
 }
 
-export class ClustersService extends ImmutableStore<ClustersServiceState> {
-  state: ClustersServiceState = createClusterServiceState();
+export class ClustersService extends ImmutableStore<types.ClustersServiceState> {
+  state: types.ClustersServiceState = createClusterServiceState();
 
   constructor(
     public client: tsh.TshClient,
@@ -96,25 +75,33 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
   async logout(clusterUri: uri.RootClusterUri) {
     // TODO(gzdunek): logout and removeCluster should be combined into a single acton in tshd
     await this.client.logout(clusterUri);
-    this.removeResources(clusterUri);
     await this.removeCluster(clusterUri);
     await this.removeClusterKubeConfigs(clusterUri);
   }
 
-  async loginLocal(params: LoginLocalParams, abortSignal: tsh.TshAbortSignal) {
+  async loginLocal(
+    params: types.LoginLocalParams,
+    abortSignal: tsh.TshAbortSignal
+  ) {
     await this.client.loginLocal(params, abortSignal);
+    // We explicitly use the `andCatchErrors` variant here. If loginLocal succeeds but syncing the
+    // cluster fails, we don't want to stop the user on the failed modal – we want to open the
+    // workspace and show an error state within the workspace.
     await this.syncRootClusterAndCatchErrors(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, 'local');
   }
 
-  async loginSso(params: LoginSsoParams, abortSignal: tsh.TshAbortSignal) {
+  async loginSso(
+    params: types.LoginSsoParams,
+    abortSignal: tsh.TshAbortSignal
+  ) {
     await this.client.loginSso(params, abortSignal);
     await this.syncRootClusterAndCatchErrors(params.clusterUri);
     this.usageService.captureUserLogin(params.clusterUri, params.providerType);
   }
 
   async loginPasswordless(
-    params: LoginPasswordlessParams,
+    params: types.LoginPasswordlessParams,
     abortSignal: tsh.TshAbortSignal
   ) {
     await this.client.loginPasswordless(params, abortSignal);
@@ -122,6 +109,10 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     this.usageService.captureUserLogin(params.clusterUri, 'passwordless');
   }
 
+  /**
+   * syncRootClusterAndCatchErrors is useful when the call site doesn't have a UI for handling
+   * errors and instead wants to depend on the notifications service.
+   */
   async syncRootClusterAndCatchErrors(clusterUri: uri.RootClusterUri) {
     try {
       await this.syncRootCluster(clusterUri);
@@ -130,6 +121,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
       const clusterName =
         cluster?.name ||
         routing.parseClusterUri(clusterUri).params.rootClusterId;
+
       this.notificationsService.notifyError({
         title: `Could not synchronize cluster ${clusterName}`,
         description: e.message,
@@ -137,81 +129,43 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     }
   }
 
-  async syncRootCluster(clusterUri: uri.RootClusterUri) {
-    try {
-      await Promise.all([
-        // syncClusterInfo never fails with a retryable error, only syncLeafClusters does.
-        this.syncClusterInfo(clusterUri),
-        this.syncLeafClusters(clusterUri),
-      ]);
-    } finally {
-      // Functions below handle their own errors, so we don't need to await them.
-      //
-      // Also, we wait for syncClusterInfo to finish first. When the response from it comes back and
-      // it turns out that the cluster is not connected, these functions will immediately exit with
-      // an error.
-      //
-      // Arguably, it is a bit of a race condition, as we assume that syncClusterInfo will return
-      // before syncLeafClusters, but for now this is a condition we can live with.
-      this.syncDbs(clusterUri);
-      this.syncServers(clusterUri);
-      this.syncKubes(clusterUri);
-      this.syncGateways();
-    }
+  /**
+   * syncRootCluster is useful in situations where we want to sync the cluster _and_ propagate any
+   * errors up.
+   */
+  private async syncRootCluster(clusterUri: uri.RootClusterUri) {
+    await Promise.all([
+      // syncClusterInfo never fails with a retryable error since it reads data from disk.
+      // syncLeafClusters reaches out to the proxy so it might return a retryable error.
+      this.syncClusterInfo(clusterUri),
+      this.syncLeafClustersList(clusterUri),
+    ]);
   }
 
-  async syncLeafCluster(clusterUri: uri.LeafClusterUri) {
-    try {
-      // Sync leaf clusters list, so that in case of an error that can be resolved with login we can
-      // propagate that error up.
-      const rootClusterUri = routing.ensureRootClusterUri(clusterUri);
-      await this.syncLeafClustersList(rootClusterUri);
-    } finally {
-      this.syncLeafClusterResourcesAndCatchErrors(clusterUri);
-    }
-  }
+  async syncRootClustersAndCatchErrors() {
+    let clusters: Cluster[];
 
-  private async syncLeafClusterResourcesAndCatchErrors(
-    clusterUri: uri.LeafClusterUri
-  ) {
-    // Functions below handle their own errors, so we don't need to await them.
-    this.syncDbs(clusterUri);
-    this.syncServers(clusterUri);
-    this.syncKubes(clusterUri);
-    this.syncGateways();
-  }
-
-  async syncRootClusters() {
     try {
-      const clusters = await this.client.listRootClusters();
-      this.setState(draft => {
-        draft.clusters = new Map(clusters.map(c => [c.uri, c]));
-      });
-      clusters
-        .filter(c => c.connected)
-        .forEach(c => this.syncRootClusterAndCatchErrors(c.uri));
+      clusters = await this.client.listRootClusters();
     } catch (error) {
       this.notificationsService.notifyError({
         title: 'Could not fetch root clusters',
         description: error.message,
       });
+      return;
     }
+
+    this.setState(draft => {
+      draft.clusters = new Map(
+        clusters.map(c => [c.uri, this.removeInternalLoginsFromCluster(c)])
+      );
+    });
+    clusters
+      .filter(c => c.connected)
+      .forEach(c => this.syncRootClusterAndCatchErrors(c.uri));
   }
 
-  async syncCluster(clusterUri: uri.ClusterUri) {
-    const cluster = this.findCluster(clusterUri);
-    if (!cluster) {
-      throw Error(`missing cluster: ${clusterUri}`);
-    }
-
-    if (cluster.leaf) {
-      return await this.syncLeafCluster(clusterUri as uri.LeafClusterUri);
-    } else {
-      return await this.syncRootCluster(clusterUri);
-    }
-  }
-
-  async syncGateways() {
+  async syncGatewaysAndCatchErrors() {
     try {
       const gws = await this.client.listGateways();
       this.setState(draft => {
@@ -223,82 +177,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
         description: error.message,
       });
     }
-  }
-
-  async syncKubes(clusterUri: uri.ClusterUri) {
-    const cluster = this.state.clusters.get(clusterUri);
-    if (!cluster.connected) {
-      this.setState(draft => {
-        draft.kubesSyncStatus.delete(clusterUri);
-        helpers.updateMap(clusterUri, draft.kubes, []);
-      });
-
-      return;
-    }
-
-    this.setState(draft => {
-      draft.kubesSyncStatus.set(clusterUri, {
-        status: 'processing',
-      });
-    });
-
-    try {
-      const received = await this.client.getAllKubes(clusterUri);
-      this.setState(draft => {
-        draft.kubesSyncStatus.set(clusterUri, { status: 'ready' });
-        helpers.updateMap(clusterUri, draft.kubes, received);
-      });
-    } catch (err) {
-      this.setState(draft => {
-        draft.kubesSyncStatus.set(clusterUri, {
-          status: 'failed',
-          statusText: err.message,
-        });
-      });
-    }
-  }
-
-  async syncDbs(clusterUri: uri.ClusterUri) {
-    const cluster = this.state.clusters.get(clusterUri);
-    if (!cluster.connected) {
-      this.setState(draft => {
-        draft.dbsSyncStatus.delete(clusterUri);
-        helpers.updateMap(clusterUri, draft.dbs, []);
-      });
-
-      return;
-    }
-
-    this.setState(draft => {
-      draft.dbsSyncStatus.set(clusterUri, {
-        status: 'processing',
-      });
-    });
-
-    try {
-      const received = await this.client.getAllDatabases(clusterUri);
-      this.setState(draft => {
-        draft.dbsSyncStatus.set(clusterUri, { status: 'ready' });
-        helpers.updateMap(clusterUri, draft.dbs, received);
-      });
-    } catch (err) {
-      this.setState(draft => {
-        draft.dbsSyncStatus.set(clusterUri, {
-          status: 'failed',
-          statusText: err.message,
-        });
-      });
-    }
-  }
-
-  async syncLeafClusters(clusterUri: uri.RootClusterUri) {
-    const leaves = await this.syncLeafClustersList(clusterUri);
-
-    leaves
-      .filter(c => c.connected)
-      .forEach(c =>
-        this.syncLeafClusterResourcesAndCatchErrors(c.uri as uri.LeafClusterUri)
-      );
   }
 
   private async syncLeafClustersList(clusterUri: uri.RootClusterUri) {
@@ -314,39 +192,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     });
 
     return leaves;
-  }
-
-  async syncServers(clusterUri: uri.ClusterUri) {
-    const cluster = this.state.clusters.get(clusterUri);
-    if (!cluster.connected) {
-      this.setState(draft => {
-        draft.serversSyncStatus.delete(clusterUri);
-        helpers.updateMap(clusterUri, draft.servers, []);
-      });
-
-      return;
-    }
-
-    this.setState(draft => {
-      draft.serversSyncStatus.set(clusterUri, {
-        status: 'processing',
-      });
-    });
-
-    try {
-      const received = await this.client.getAllServers(clusterUri);
-      this.setState(draft => {
-        draft.serversSyncStatus.set(clusterUri, { status: 'ready' });
-        helpers.updateMap(clusterUri, draft.servers, received);
-      });
-    } catch (err) {
-      this.setState(draft => {
-        draft.serversSyncStatus.set(clusterUri, {
-          status: 'failed',
-          statusText: err.message,
-        });
-      });
-    }
   }
 
   async getRequestableRoles(params: GetRequestableRolesParams) {
@@ -402,7 +247,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     }
     await this.client.assumeRole(rootClusterUri, requestIds, dropIds);
     this.usageService.captureAccessRequestAssumeRole(rootClusterUri);
-    return this.syncCluster(rootClusterUri);
+    return this.syncRootCluster(rootClusterUri);
   }
 
   async getAccessRequest(
@@ -465,18 +310,15 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
         draft.clusters.delete(leafClusterUri);
       });
     });
-
-    this.removeResources(clusterUri);
-    leafClustersUris.forEach(leafClusterUri => {
-      this.removeResources(leafClusterUri);
-    });
   }
 
   async getAuthSettings(clusterUri: uri.RootClusterUri) {
-    return (await this.client.getAuthSettings(clusterUri)) as AuthSettings;
+    return (await this.client.getAuthSettings(
+      clusterUri
+    )) as types.AuthSettings;
   }
 
-  async createGateway(params: CreateGatewayParams) {
+  async createGateway(params: tsh.CreateGatewayParams) {
     const gateway = await this.client.createGateway(params);
     this.usageService.captureProtocolUse(params.targetUri, 'db');
     this.setState(draft => {
@@ -547,39 +389,14 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return this.state.clusters.get(clusterUri);
   }
 
-  findDbs(clusterUri: uri.ClusterUri) {
-    return [...this.state.dbs.values()].filter(db =>
-      routing.isClusterDb(clusterUri, db.uri)
-    );
-  }
-
   findGateway(gatewayUri: uri.GatewayUri) {
     return this.state.gateways.get(gatewayUri);
   }
 
-  findDb(dbUri: uri.DatabaseUri) {
-    return this.state.dbs.get(dbUri);
-  }
-
-  findKubes(clusterUri: uri.ClusterUri) {
-    return [...this.state.kubes.values()].filter(s =>
-      routing.isClusterKube(clusterUri, s.uri)
-    );
-  }
-
-  findServers(clusterUri: uri.ClusterUri) {
-    return [...this.state.servers.values()].filter(s =>
-      routing.isClusterServer(clusterUri, s.uri)
-    );
-  }
-
-  findGateways(clusterUri: uri.ClusterUri) {
-    return [...this.state.gateways.values()].filter(s =>
-      routing.belongsToProfile(clusterUri, s.targetUri)
-    );
-  }
-
-  findClusterByResource(uri: string) {
+  /**
+   * Returns a root cluster or a leaf cluster to which the given resource belongs to.
+   */
+  findClusterByResource(uri: uri.ClusterOrResourceUri) {
     const parsed = routing.parseClusterUri(uri);
     if (!parsed) {
       return null;
@@ -601,14 +418,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return this.findCluster(rootClusterUri);
   }
 
-  getServer(serverUri: uri.ServerUri) {
-    return this.state.servers.get(serverUri);
-  }
-
-  getGateways() {
-    return [...this.state.gateways.values()];
-  }
-
   getClusters() {
     return [...this.state.clusters.values()];
   }
@@ -617,37 +426,12 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return this.getClusters().filter(c => !c.leaf);
   }
 
-  getClusterSyncStatus(clusterUri: uri.ClusterUri) {
-    const empty: SyncStatus = { status: '' };
-    const dbs = this.state.dbsSyncStatus.get(clusterUri) || empty;
-    const servers = this.state.serversSyncStatus.get(clusterUri) || empty;
-    const kubes = this.state.kubesSyncStatus.get(clusterUri) || empty;
-
-    const syncing =
-      dbs.status === 'processing' ||
-      servers.status === 'processing' ||
-      kubes.status === 'processing';
-
-    return {
-      syncing,
-      dbs,
-      servers,
-      kubes,
-    };
-  }
-
-  getServers() {
-    return [...this.state.servers.values()];
-  }
-
+  // TODO(ravicious): Use ResourcesService instead.
   async fetchKubes(params: ServerSideParams) {
     return await this.client.getKubes(params);
   }
 
-  getDbs() {
-    return [...this.state.dbs.values()];
-  }
-
+  // TODO(ravicious): Move to ResourceService.
   async getDbUsers(dbUri: uri.DatabaseUri): Promise<string[]> {
     return await this.client.listDatabaseUsers(dbUri);
   }
@@ -718,97 +502,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     }, {});
   }
 
-  private removeResources(clusterUri: uri.ClusterUri) {
-    this.setState(draft => {
-      this.findDbs(clusterUri).forEach(db => {
-        draft.dbs.delete(db.uri);
-      });
-
-      this.findServers(clusterUri).forEach(server => {
-        draft.servers.delete(server.uri);
-      });
-
-      this.findKubes(clusterUri).forEach(kube => {
-        draft.kubes.delete(kube.uri);
-      });
-
-      draft.serversSyncStatus.delete(clusterUri);
-      draft.dbsSyncStatus.delete(clusterUri);
-      draft.kubesSyncStatus.delete(clusterUri);
-    });
-  }
-
-  searchDbs(clusterUri: uri.ClusterUri, query: SearchQuery) {
-    const databases = this.findDbs(clusterUri);
-    return databases.filter(obj =>
-      isMatch(obj, query.search, {
-        searchableProps: ['name', 'desc', 'labelsList'],
-        cb: (targetValue, searchValue, propName) => {
-          if (propName === 'labelsList') {
-            return this._isIncludedInTagTargetValue(targetValue, searchValue);
-          }
-        },
-      })
-    );
-  }
-
-  searchClusters(value: string) {
-    const clusters = this.getClusters();
-    return clusters.filter(s => {
-      return [s.name].join('').toLocaleLowerCase().includes(value);
-    });
-  }
-
-  searchKubes(clusterUri: uri.ClusterUri, query: SearchQuery) {
-    const kubes = this.findKubes(clusterUri);
-    return kubes.filter(obj =>
-      isMatch(obj, query.search, {
-        searchableProps: ['name', 'labelsList'],
-        cb: (targetValue, searchValue, propName) => {
-          if (propName === 'labelsList') {
-            return this._isIncludedInTagTargetValue(targetValue, searchValue);
-          }
-        },
-      })
-    );
-  }
-
-  searchServers(
-    clusterUri: uri.ClusterUri,
-    query: SearchQueryWithProps<tsh.Server>
-  ) {
-    const servers = this.findServers(clusterUri);
-    const searchableProps = query.searchableProps || [
-      'hostname',
-      'addr',
-      'labelsList',
-      'tunnel',
-    ];
-    return servers.filter(obj =>
-      isMatch(obj, query.search, {
-        searchableProps: searchableProps,
-        cb: (targetValue, searchValue, propName) => {
-          if (propName === 'tunnel') {
-            return 'TUNNEL'.includes(searchValue);
-          }
-
-          if (propName === 'labelsList') {
-            return this._isIncludedInTagTargetValue(targetValue, searchValue);
-          }
-        },
-      })
-    );
-  }
-
-  private _isIncludedInTagTargetValue(
-    targetValue: Label[],
-    searchValue: string
-  ) {
-    return targetValue.some(item =>
-      makeLabelTag(item).toLocaleUpperCase().includes(searchValue)
-    );
-  }
-
   // temporary fix for https://github.com/gravitational/webapps.e/issues/294
   // remove when it will get fixed in `tsh`
   // alternatively, show only valid logins basing on RBAC check
@@ -825,32 +518,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
   }
 }
 
-type SearchQuery = {
-  search: string;
-};
-
-type SearchQueryWithProps<T> = SearchQuery & {
-  searchableProps?: (keyof T)[];
-};
-
-const helpers = {
-  updateMap<Uri extends uri.ClusterOrResourceUri, T extends { uri: Uri }>(
-    parentUri = '',
-    map: Map<Uri, T>,
-    received: T[]
-  ) {
-    // delete all entries under given uri
-    for (let k of map.keys()) {
-      if (routing.ensureClusterUri(k) === parentUri) {
-        map.delete(k);
-      }
-    }
-
-    received.forEach(s => map.set(s.uri, s));
-  },
-};
-
-export function makeServer(source: Server) {
+export function makeServer(source: tsh.Server) {
   return {
     uri: source.uri,
     id: source.name,
@@ -863,7 +531,7 @@ export function makeServer(source: Server) {
   };
 }
 
-export function makeDatabase(source: Database) {
+export function makeDatabase(source: tsh.Database) {
   return {
     uri: source.uri,
     name: source.name,
@@ -877,7 +545,7 @@ export function makeDatabase(source: Database) {
   };
 }
 
-export function makeKube(source: Kube) {
+export function makeKube(source: tsh.Kube) {
   return {
     uri: source.uri,
     name: source.name,

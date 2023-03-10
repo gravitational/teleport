@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 const (
@@ -37,71 +38,42 @@ const (
 
 // SAMLIdPServiceProviderService manages IdP service providers in the Backend.
 type SAMLIdPServiceProviderService struct {
-	backend.Backend
+	svc generic.Service[types.SAMLIdPServiceProvider]
 }
 
 // NewSAMLIdPServiceProviderService creates a new SAMLIdPServiceProviderService.
-func NewSAMLIdPServiceProviderService(backend backend.Backend) *SAMLIdPServiceProviderService {
-	return &SAMLIdPServiceProviderService{Backend: backend}
+func NewSAMLIdPServiceProviderService(backend backend.Backend) (*SAMLIdPServiceProviderService, error) {
+	svc, err := generic.NewService(&generic.ServiceConfig[types.SAMLIdPServiceProvider]{
+		Backend:       backend,
+		PageLimit:     samlIDPServiceProviderMaxPageSize,
+		ResourceKind:  types.KindSAMLIdPServiceProvider,
+		BackendPrefix: samlIDPServiceProviderPrefix,
+		MarshalFunc:   services.MarshalSAMLIdPServiceProvider,
+		UnmarshalFunc: services.UnmarshalSAMLIdPServiceProvider,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &SAMLIdPServiceProviderService{
+		svc: *svc,
+	}, nil
 }
 
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
 func (s *SAMLIdPServiceProviderService) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, pageToken string) ([]types.SAMLIdPServiceProvider, string, error) {
-	rangeStart := backend.Key(samlIDPServiceProviderPrefix, pageToken)
-	rangeEnd := backend.RangeEnd(rangeStart)
-
-	// Adjust page size, so it can't be too large.
-	if pageSize <= 0 || pageSize > samlIDPServiceProviderMaxPageSize {
-		pageSize = samlIDPServiceProviderMaxPageSize
-	}
-
-	// Increment pageSize to allow for the extra item represented by nextKey.
-	// We skip this item in the results below.
-	limit := pageSize + 1
-	var out []types.SAMLIdPServiceProvider
-
-	// no filter provided get the range directly
-	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	out = make([]types.SAMLIdPServiceProvider, 0, len(result.Items))
-	for _, item := range result.Items {
-		sp, err := services.UnmarshalSAMLIdPServiceProvider(item.Value)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		out = append(out, sp)
-	}
-
-	var nextKey string
-	if len(out) > pageSize {
-		nextKey = backend.GetPaginationKey(out[len(out)-1])
-		// Truncate the last item that was used to determine next row existence.
-		out = out[:pageSize]
-	}
-
-	return out, nextKey, nil
+	return s.svc.ListResources(ctx, pageSize, pageToken)
 }
 
 // GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
-	item, err := s.Get(ctx, backend.Key(samlIDPServiceProviderPrefix, name))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("%s %q doesn't exist", types.KindSAMLIdPServiceProvider, name)
-		}
-		return nil, trace.Wrap(err)
-	}
-	sp, err := services.UnmarshalSAMLIdPServiceProvider(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
-	return sp, trace.Wrap(err)
+	return s.svc.GetResource(ctx, name)
 }
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	if err := sp.CheckAndSetDefaults(); err != nil {
+	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -109,33 +81,24 @@ func (s *SAMLIdPServiceProviderService) CreateSAMLIdPServiceProvider(ctx context
 		return trace.Wrap(err)
 	}
 
-	value, err := services.MarshalSAMLIdPServiceProvider(sp)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(samlIDPServiceProviderPrefix, sp.GetName()),
-		Value:   value,
-		Expires: sp.Expiry(),
-		ID:      sp.GetResourceID(),
-	}
+	return trace.Wrap(s.svc.RunWhileLocked(ctx, samlIDPServiceProviderModifyLock, samlIDPServiceProviderModifyLockTTL,
+		func(ctx context.Context, backend backend.Backend) error {
+			if err := s.ensureEntityIDIsUnique(ctx, sp); err != nil {
+				return trace.Wrap(err)
+			}
 
-	return trace.Wrap(backend.RunWhileLocked(ctx, s.Backend, samlIDPServiceProviderModifyLock, samlIDPServiceProviderModifyLockTTL, func(ctx context.Context) error {
-		if err := s.ensureEntityIDIsUnique(ctx, sp); err != nil {
+			_, err = backend.Create(ctx, item)
+			if trace.IsAlreadyExists(err) {
+				return trace.AlreadyExists("%s %q already exists", types.KindSAMLIdPServiceProvider, sp.GetName())
+			}
 			return trace.Wrap(err)
-		}
-
-		_, err = s.Create(ctx, item)
-		if trace.IsAlreadyExists(err) {
-			return trace.AlreadyExists("%s %q already exists", types.KindSAMLIdPServiceProvider, sp.GetName())
-		}
-		return trace.Wrap(err)
-	}))
+		}))
 }
 
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	if err := sp.CheckAndSetDefaults(); err != nil {
+	item, err := s.svc.MakeBackendItem(sp, sp.GetName())
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -143,51 +106,29 @@ func (s *SAMLIdPServiceProviderService) UpdateSAMLIdPServiceProvider(ctx context
 		return trace.Wrap(err)
 	}
 
-	value, err := services.MarshalSAMLIdPServiceProvider(sp)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(samlIDPServiceProviderPrefix, sp.GetName()),
-		Value:   value,
-		Expires: sp.Expiry(),
-		ID:      sp.GetResourceID(),
-	}
+	return trace.Wrap(s.svc.RunWhileLocked(ctx, samlIDPServiceProviderModifyLock, samlIDPServiceProviderModifyLockTTL,
+		func(ctx context.Context, backend backend.Backend) error {
+			if err := s.ensureEntityIDIsUnique(ctx, sp); err != nil {
+				return trace.Wrap(err)
+			}
 
-	return trace.Wrap(backend.RunWhileLocked(ctx, s.Backend, samlIDPServiceProviderModifyLock, samlIDPServiceProviderModifyLockTTL, func(ctx context.Context) error {
-		if err := s.ensureEntityIDIsUnique(ctx, sp); err != nil {
+			_, err = backend.Update(ctx, item)
+			if trace.IsNotFound(err) {
+				return trace.NotFound("%s %q doesn't exist", types.KindSAMLIdPServiceProvider, sp.GetName())
+			}
+
 			return trace.Wrap(err)
-		}
-
-		_, err = s.Update(ctx, item)
-		if trace.IsNotFound(err) {
-			return trace.NotFound("%s %q doesn't exist", types.KindSAMLIdPServiceProvider, sp.GetName())
-		}
-
-		return trace.Wrap(err)
-	}))
+		}))
 }
 
 // DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
 func (s *SAMLIdPServiceProviderService) DeleteSAMLIdPServiceProvider(ctx context.Context, name string) error {
-	err := s.Delete(ctx, backend.Key(samlIDPServiceProviderPrefix, name))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("%s %q doesn't exist", types.KindSAMLIdPServiceProvider, name)
-		}
-		return trace.Wrap(err)
-	}
-	return nil
+	return s.svc.DeleteResource(ctx, name)
 }
 
 // DeleteAllSAMLIdPServiceProviders removes all SAML IdP service provider resources.
 func (s *SAMLIdPServiceProviderService) DeleteAllSAMLIdPServiceProviders(ctx context.Context) error {
-	startKey := backend.Key(samlIDPServiceProviderPrefix)
-	err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return s.svc.DeleteAllResources(ctx)
 }
 
 // ensureEntityIDIsUnique makes sure that the entity ID in the service provider doesn't already exist in the backend.

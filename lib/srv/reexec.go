@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/pam"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -58,6 +59,12 @@ const (
 	// it can continue after the parent process assigns a cgroup to the
 	// child process.
 	ContinueFile
+	// TerminateFile is used to communicate to the child process that
+	// the interactive terminal should be killed as the client ended the
+	// SSH session and without termination the terminal process will be assigned
+	// to pid 1 and "live forever". Killing the shell should not prevent processes
+	// preventing SIGHUP to be reassigned (ex. processes running with nohup).
+	TerminateFile
 	// X11File is used to communicate to the parent process that the child
 	// process has set up X11 forwarding.
 	X11File
@@ -68,7 +75,7 @@ const (
 
 	// FirstExtraFile is the first file descriptor that will be valid when
 	// extra files are passed to child processes without a terminal.
-	FirstExtraFile FileFD = X11File + 1
+	FirstExtraFile = X11File + 1
 )
 
 // ExecCommand contains the payload to "teleport exec" which will be used to
@@ -123,6 +130,9 @@ type ExecCommand struct {
 
 	// IsTestStub is used by tests to mock the shell.
 	IsTestStub bool `json:"is_test_stub"`
+
+	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
+	UserCreatedByTeleport bool
 
 	// UaccMetadata contains metadata needed for user accounting.
 	UaccMetadata UaccMetadata `json:"uacc_meta"`
@@ -181,13 +191,17 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	errorWriter := os.Stdout
 
 	// Parent sends the command payload in the third file descriptor.
-	cmdfd := os.NewFile(CommandFile, "/proc/self/fd/3")
+	cmdfd := os.NewFile(CommandFile, fmt.Sprintf("/proc/self/fd/%d", CommandFile))
 	if cmdfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
-	contfd := os.NewFile(ContinueFile, "/proc/self/fd/4")
+	contfd := os.NewFile(ContinueFile, fmt.Sprintf("/proc/self/fd/%d", ContinueFile))
 	if contfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
+	}
+	termiantefd := os.NewFile(TerminateFile, fmt.Sprintf("/proc/self/fd/%d", TerminateFile))
+	if termiantefd == nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
 	}
 
 	// Read in the command payload.
@@ -237,8 +251,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// PTY and TTY. Extract them and set the controlling TTY. Otherwise, connect
 	// std{in,out,err} directly.
 	if c.Terminal {
-		pty = os.NewFile(PTYFile, "/proc/self/fd/6")
-		tty = os.NewFile(TTYFile, "/proc/self/fd/7")
+		pty = os.NewFile(PTYFile, fmt.Sprintf("/proc/self/fd/%d", PTYFile))
+		tty = os.NewFile(TTYFile, fmt.Sprintf("/proc/self/fd/%d", TTYFile))
 		if pty == nil || tty == nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
 		}
@@ -274,7 +288,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 
 		// Open the PAM context.
-		pamContext, err := pam.Open(&pam.Config{
+		pamContext, err := pam.Open(&servicecfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			UsePAMAuth:  c.PAMConfig.UsePAMAuth,
 			Login:       c.Login,
@@ -320,9 +334,15 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	defer parkerCancel()
 
 	osPack := newOsWrapper()
-	if err := osPack.startNewParker(parkerCtx, cmd.SysProcAttr.Credential,
-		c.Login, &systemUser{u: localUser}); err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	if c.UserCreatedByTeleport {
+		// Parker is only needed when the user was created by Teleport.
+		err := osPack.startNewParker(
+			parkerCtx,
+			cmd.SysProcAttr.Credential,
+			c.Login, &systemUser{u: localUser})
+		if err != nil {
+			return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+		}
 	}
 
 	if c.X11Config.XServerUnixSocket != "" {
@@ -371,7 +391,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", x11.DisplayEnv, c.X11Config.XAuthEntry.Display.String()))
 
 		// Open x11rdy fd to signal parent process once X11 forwarding is set up.
-		x11rdyfd := os.NewFile(X11File, "/proc/self/fd/5")
+		x11rdyfd := os.NewFile(X11File, fmt.Sprintf("/proc/self/fd/%d", X11File))
 		if x11rdyfd == nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 		}
@@ -394,19 +414,13 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 
 	// Start the command.
-	err = cmd.Start()
-	if err != nil {
+	if err := cmd.Start(); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	parkerCancel()
 
-	// Wait for the command to exit. It doesn't make sense to print an error
-	// message here because the shell has successfully started. If an error
-	// occurred during shell execution or the shell exits with an error (like
-	// running exit 2), the shell will print an error if appropriate and return
-	// an exit code.
-	err = cmd.Wait()
+	err = waitForShell(termiantefd, cmd)
 
 	if uaccEnabled {
 		uaccErr := uacc.Close(c.UaccMetadata.UtmpPath, c.UaccMetadata.WtmpPath, tty)
@@ -416,6 +430,42 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	}
 
 	return io.Discard, exitCode(err), trace.Wrap(err)
+}
+
+// waitForShell waits either for the command to return or the kill signal from the parent Teleport process.
+func waitForShell(termiantefd *os.File, cmd *exec.Cmd) error {
+	terminateChan := make(chan error)
+
+	go func() {
+		buf := make([]byte, 1)
+		// Wait for the terminate file descriptor to be closed. The FD will be closed when Teleport
+		// parent process wants to terminate the remote command and all childs.
+		_, err := termiantefd.Read(buf)
+		if err == io.EOF {
+			// Kill the shell process
+			err = trace.Errorf("shell process has been killed: %w", cmd.Process.Kill())
+		} else {
+			err = trace.Errorf("failed to read from terminate file: %w", err)
+		}
+		terminateChan <- err
+	}()
+
+	go func() {
+		// Wait for the command to exit. It doesn't make sense to print an error
+		// message here because the shell has successfully started. If an error
+		// occurred during shell execution or the shell exits with an error (like
+		// running exit 2), the shell will print an error if appropriate and return
+		// an exit code.
+		err := cmd.Wait()
+
+		terminateChan <- err
+	}()
+
+	// Wait only for the first error.
+	// If the command returns then we don't need to wait for the error from cmd.Process.Kill().
+	// If the command is being killed, then we don't care about the error code.
+	err := <-terminateChan
+	return err
 }
 
 // osWrapper wraps system calls, so we can replace them in tests.
@@ -518,7 +568,7 @@ func RunForward() (errw io.Writer, code int, err error) {
 	errorWriter := os.Stderr
 
 	// Parent sends the command payload in the third file descriptor.
-	cmdfd := os.NewFile(CommandFile, "/proc/self/fd/3")
+	cmdfd := os.NewFile(CommandFile, fmt.Sprintf("/proc/self/fd/%d", CommandFile))
 	if cmdfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
@@ -540,7 +590,7 @@ func RunForward() (errw io.Writer, code int, err error) {
 	// launch the shell under.
 	if c.PAMConfig != nil {
 		// Open the PAM context.
-		pamContext, err := pam.Open(&pam.Config{
+		pamContext, err := pam.Open(&servicecfg.PAMConfig{
 			ServiceName: c.PAMConfig.ServiceName,
 			Login:       c.Login,
 			Stdin:       os.Stdin,
@@ -859,6 +909,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 		ExtraFiles: []*os.File{
 			ctx.cmdr,
 			ctx.contr,
+			ctx.killShellr,
 			ctx.x11rdyw,
 		},
 	}

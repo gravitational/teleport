@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.1
+  RUNTIME: go1.20.2
   UID: "1000"
 trigger:
   event:
@@ -144,7 +144,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.1
+  RUNTIME: go1.20.2
   UID: "1000"
 trigger:
   event:
@@ -247,7 +247,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.1
+  RUNTIME: go1.20.2
   UID: "1000"
 trigger:
   event:
@@ -354,7 +354,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.1
+  RUNTIME: go1.20.2
   UID: "1000"
 trigger:
   event:
@@ -512,7 +512,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.20.1
+    RUNTIME: go1.20.2
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -1122,7 +1122,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.1
+  RUNTIME: go1.20.2
   UID: "1000"
 trigger:
   event:
@@ -1222,11 +1222,6 @@ volumes:
 kind: pipeline
 type: kubernetes
 name: push-build-linux-arm64
-environment:
-  BUILDBOX_VERSION: teleport13
-  GID: "1000"
-  RUNTIME: go1.20.1
-  UID: "1000"
 trigger:
   event:
     include:
@@ -1267,9 +1262,10 @@ steps:
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow
-    release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input upload-artifacts=false -input oss-teleport-repo="${DRONE_REPO}"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -workflow release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
+    -input "upload-artifacts=false" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -1641,7 +1637,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.1
+  RUNTIME: go1.20.2
 trigger:
   event:
     include:
@@ -1829,7 +1825,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.1
+  RUNTIME: go1.20.2
 trigger:
   event:
     include:
@@ -2016,7 +2012,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.1
+  RUNTIME: go1.20.2
 trigger:
   event:
     include:
@@ -2210,7 +2206,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.1
+  RUNTIME: go1.20.2
 trigger:
   event:
     include:
@@ -3413,7 +3409,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.1
+  RUNTIME: go1.20.2
 trigger:
   event:
     include:
@@ -4168,7 +4164,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.20.1
+    RUNTIME: go1.20.2
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -4760,7 +4756,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.1
+  RUNTIME: go1.20.2
 trigger:
   event:
     include:
@@ -4943,11 +4939,6 @@ volumes:
 kind: pipeline
 type: kubernetes
 name: build-linux-arm64
-environment:
-  BUILDBOX_VERSION: teleport13
-  GID: "1000"
-  RUNTIME: go1.20.1
-  UID: "1000"
 trigger:
   event:
     include:
@@ -4962,6 +4953,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -4985,9 +4978,9 @@ steps:
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow
-    release-linux-arm64.yml -workflow-ref=${DRONE_TAG} -input oss-teleport-ref=${DRONE_TAG}
-    -input upload-artifacts=true -input oss-teleport-repo="${DRONE_REPO}"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -workflow release-linux-arm64.yml -workflow-ref=${DRONE_TAG} -input
+    oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} -input "upload-artifacts=true" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -6028,7 +6021,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.1
+  RUNTIME: go1.20.2
 trigger:
   event:
     include:
@@ -6804,6 +6797,7 @@ trigger:
   repo:
     include:
     - gravitational/teleport
+    - gravitational/teleport-private
 workspace:
   path: /go
 clone:
@@ -6855,7 +6849,9 @@ steps:
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
   - rm -rf "$ARTIFACT_PATH"/*
-  - aws s3 sync --no-progress --delete --exclude "*" --include "*.deb*" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
+  - if [ "${DRONE_REPO_PRIVATE}" = true ]; then ENT_FILTER="*ent"; fi
+  - FILTER="${ENT_FILTER}*.deb*"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "$FILTER" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
     "$ARTIFACT_PATH"
   environment:
     ARTIFACT_PATH: /go/artifacts
@@ -6925,7 +6921,7 @@ steps:
   - export VERSION="${DRONE_TAG}"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos apt -bucket "$REPO_S3_BUCKET" -local-bucket-path
-    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    "$BUCKET_CACHE_PATH" -version-channel "$VERSION" -release-channel "$RELEASE_CHANNEL"
     -artifact-path "$ARTIFACT_PATH" -log-level 4 -aptly-root-dir "$APTLY_ROOT_DIR"
   environment:
     APTLY_ROOT_DIR: /mnt/aptly
@@ -7007,6 +7003,7 @@ trigger:
   repo:
     include:
     - gravitational/teleport
+    - gravitational/teleport-private
 workspace:
   path: /go
 clone:
@@ -7058,7 +7055,9 @@ steps:
   commands:
   - mkdir -pv "$ARTIFACT_PATH"
   - rm -rf "$ARTIFACT_PATH"/*
-  - aws s3 sync --no-progress --delete --exclude "*" --include "*.rpm*" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
+  - if [ "${DRONE_REPO_PRIVATE}" = true ]; then ENT_FILTER="*ent"; fi
+  - FILTER="${ENT_FILTER}*.rpm*"
+  - aws s3 sync --no-progress --delete --exclude "*" --include "$FILTER" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
     "$ARTIFACT_PATH"
   environment:
     ARTIFACT_PATH: /go/artifacts
@@ -7129,7 +7128,7 @@ steps:
   - export VERSION="${DRONE_TAG}"
   - export RELEASE_CHANNEL="stable"
   - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
-    "$BUCKET_CACHE_PATH" -artifact-version "$VERSION" -release-channel "$RELEASE_CHANNEL"
+    "$BUCKET_CACHE_PATH" -version-channel "$VERSION" -release-channel "$RELEASE_CHANNEL"
     -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
   environment:
     ARTIFACT_PATH: /go/artifacts
@@ -7695,6 +7694,61 @@ volumes:
   - name: debrepo
     claim:
       name: drone-s3-debrepo-pvc
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: promote-teleport-oci-distroless-images
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+    - promote-distroless
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -workflow promote-teleport-oci-distroless.yml -workflow-ref=${DRONE_TAG}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+
 ---
 ################################################
 # Generated using dronegen, do not edit by hand!
@@ -8867,9 +8921,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v13-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13 --build-arg
-    COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13
+    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v13-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v13-amd64-builder"
@@ -8904,9 +8958,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v13-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v13-arm-builder"
   - rm -rf "/tmp/teleport-operator-v13-arm-builder"
@@ -8941,9 +8995,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v13-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v13-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v13-arm64-builder"
@@ -9077,6 +9131,64 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: build-teleport-oci-distroless-images
+trigger:
+  event:
+    include:
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+depends_on:
+- clean-up-previous-build
+- build-linux-amd64-deb
+- build-linux-arm64-deb
+steps:
+- name: Check out code
+  image: docker:git
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -workflow release-teleport-oci-distroless.yml -workflow-ref=${DRONE_TAG}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 
 ---
 ################################################
@@ -12785,9 +12897,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v12-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13 --build-arg
-    COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13
+    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v12-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v12-amd64-builder"
@@ -12824,9 +12936,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v12-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v12-arm-builder"
   - rm -rf "/tmp/teleport-operator-v12-arm-builder"
@@ -12863,9 +12975,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v12-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v12-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v12-arm64-builder"
@@ -15478,9 +15590,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13 --build-arg
-    COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13
+    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v11-amd64-builder"
@@ -15517,9 +15629,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm-builder"
@@ -15556,9 +15668,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v11-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v11-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v11-arm64-builder"
@@ -18171,9 +18283,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v10-amd64-builder" --platform
     "linux/amd64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-amd64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13 --build-arg
-    COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:teleport13
+    --build-arg COMPILER_NAME=x86_64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-amd64-builder"
   - rm -rf "/tmp/teleport-operator-v10-amd64-builder"
@@ -18210,9 +18322,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v10-arm-builder" --platform
     "linux/arm" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=arm-linux-gnueabihf-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-arm-builder"
   - rm -rf "/tmp/teleport-operator-v10-arm-builder"
@@ -18249,9 +18361,9 @@ steps:
     public.ecr.aws
   - docker buildx build --push --builder "teleport-operator-v10-arm64-builder" --platform
     "linux/arm64" --tag drone-docker-registry:5000/teleport-operator:$(cat "/go/var/full-version")-arm64
-    --file "/go/src/github.com/gravitational/teleport/operator/Dockerfile" --build-arg
-    BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13 --build-arg
-    COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
+    --file "/go/src/github.com/gravitational/teleport/integrations/operator/Dockerfile"
+    --build-arg BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox-arm:teleport13
+    --build-arg COMPILER_NAME=aarch64-linux-gnu-gcc /go/src/github.com/gravitational/teleport
   - docker logout "public.ecr.aws"
   - docker buildx rm "teleport-operator-v10-arm64-builder"
   - rm -rf "/tmp/teleport-operator-v10-arm64-builder"
@@ -18830,6 +18942,7 @@ depends_on:
 - teleport-container-images-branch-promote
 - publish-apt-new-repos
 - publish-yum-new-repos
+- promote-teleport-oci-distroless-images
 steps:
 - name: Check if commit is tagged
   image: alpine
@@ -18925,6 +19038,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 39c40129c9a9837beebf450fac24e8938ec1e1f1c467dd0a334ee58718f3433b
+hmac: 21a11c7790b9e369c34f99e45f3b24df20dcd822bc4beb1c3d27f76bec331298
 
 ...

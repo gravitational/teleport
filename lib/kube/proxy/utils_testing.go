@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
@@ -59,7 +60,7 @@ type TestContext struct {
 	TLSServer   *auth.TestTLSServer
 	AuthServer  *auth.Server
 	AuthClient  *auth.Client
-	Authz       auth.Authorizer
+	Authz       authz.Authorizer
 	KubeServer  *TLSServer
 	Emitter     *eventstest.ChannelEmitter
 	Context     context.Context
@@ -140,7 +141,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	t.Cleanup(func() {
 		proxyLockWatcher.Close()
 	})
-	testCtx.Authz, err = auth.NewAuthorizer(auth.AuthorizerOpts{
+	testCtx.Authz, err = authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: testCtx.ClusterName,
 		AccessPoint: proxyAuthClient,
 		LockWatcher: proxyLockWatcher,
@@ -318,8 +319,19 @@ func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...KubeCluste
 	return kubeConfigLocation
 }
 
+// GenTestKubeClientTLSCertOptions is a function that can be used to modify the
+// identity used to generate the kube client certificate.
+type GenTestKubeClientTLSCertOptions func(*tlsca.Identity)
+
+// WithResourceAccessRequests adds resource access requests to the identity.
+func WithResourceAccessRequests(r ...types.ResourceID) GenTestKubeClientTLSCertOptions {
+	return func(identity *tlsca.Identity) {
+		identity.AllowedResourceIDs = r
+	}
+}
+
 // GenTestKubeClientTLSCert generates a kube client to access kube service
-func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string) (*kubernetes.Clientset, *rest.Config) {
+func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *rest.Config) {
 	authServer := c.AuthServer
 	clusterName, err := authServer.GetClusterName()
 	require.NoError(t, err)
@@ -358,6 +370,9 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 		KubernetesGroups:  user.GetKubeGroups(),
 		KubernetesCluster: kubeCluster,
 		RouteToCluster:    c.ClusterName,
+	}
+	for _, opt := range opts {
+		opt(&id)
 	}
 	subj, err := id.Subject()
 	require.NoError(t, err)

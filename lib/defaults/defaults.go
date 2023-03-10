@@ -307,7 +307,7 @@ const (
 
 	// MaxWatcherBackoff is the maximum retry time a watcher should use in
 	// the event of connection issues
-	MaxWatcherBackoff = time.Minute
+	MaxWatcherBackoff = 90 * time.Second
 )
 
 const (
@@ -858,3 +858,7 @@ const (
 	// when using the agentless installer
 	SSHDConfigPath = "/etc/ssh/sshd_config"
 )
+
+// AzureInviteTokenName is the name of the default token to use
+// when templating the script to be executed.
+const AzureInviteTokenName = "azure-discovery-token"

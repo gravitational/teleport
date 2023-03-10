@@ -401,7 +401,8 @@ func TestMakeServersHiddenLabels(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			servers := MakeServers(tc.clusterName, tc.servers, tc.roleSet)
+			servers, err := MakeServers(tc.clusterName, tc.servers, tc.roleSet)
+			require.NoError(t, err)
 			for i, server := range servers {
 				require.Equal(t, tc.expectedLabels[i], server.Labels)
 			}
@@ -437,18 +438,18 @@ func TestMakeDatabaseHiddenLabels(t *testing.T) {
 }
 
 func TestMakeDesktopHiddenLabel(t *testing.T) {
-	windowsDesktop := &types.WindowsDesktopV3{
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Labels: map[string]string{
-					"teleport.internal/t2": "tt",
-					"label3":               "value2",
-				},
-			},
+	windowsDesktop, err := types.NewWindowsDesktopV3(
+		"test",
+		map[string]string{
+			"teleport.internal/t2": "tt",
+			"label3":               "value2",
 		},
-	}
+		types.WindowsDesktopSpecV3{Addr: "addr"},
+	)
+	require.NoError(t, err)
 
-	desktop := MakeDesktop(windowsDesktop)
+	desktop, err := MakeDesktop(windowsDesktop, services.NewRoleSet())
+	require.NoError(t, err)
 	labels := []Label{
 		{
 			Name:  "label3",

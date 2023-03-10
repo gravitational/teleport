@@ -30,8 +30,10 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/srv"
@@ -39,14 +41,26 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// PROXYHeaderSigner allows to sign PROXY headers for securely propagating original client IP information
+type PROXYHeaderSigner interface {
+	SignPROXYHeader(source, destination net.Addr) ([]byte, error)
+}
+
+// CertAuthorityGetter allows to get cluster's host CA for verification of signed PROXY headers.
+// We define our own version to avoid circular dependencies in multiplexer package (it can't depend on 'services'),
+// where this function is used.
+type CertAuthorityGetter = func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
 // remote hosts to a proxy client (AKA port mapping)
 type proxySubsys struct {
 	proxySubsysRequest
-	router *proxy.Router
-	ctx    *srv.ServerContext
-	log    *logrus.Entry
-	closeC chan error
+	router       *proxy.Router
+	ctx          *srv.ServerContext
+	log          *logrus.Entry
+	closeC       chan error
+	proxySigner  PROXYHeaderSigner
+	localCluster string
 }
 
 // parseProxySubsys looks at the requested subsystem name and returns a fully configured
@@ -175,8 +189,10 @@ func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest)
 			trace.Component:       teleport.ComponentSubsystemProxy,
 			trace.ComponentFields: map[string]string{},
 		}),
-		closeC: make(chan error),
-		router: srv.router,
+		closeC:       make(chan error),
+		router:       srv.router,
+		proxySigner:  srv.proxySigner,
+		localCluster: ctx.ClusterName,
 	}, nil
 }
 
@@ -192,8 +208,9 @@ func (t *proxySubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.C
 	t.log = logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentSubsystemProxy,
 		trace.ComponentFields: map[string]string{
-			"src": sconn.RemoteAddr().String(),
-			"dst": sconn.LocalAddr().String(),
+			"src":       sconn.RemoteAddr().String(),
+			"dst":       sconn.LocalAddr().String(),
+			"subsystem": t.String(),
 		},
 	})
 	t.log.Debugf("Starting subsystem")
@@ -212,19 +229,19 @@ func (t *proxySubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.C
 
 	// connect to a site's auth server
 	if t.host == "" {
-		return t.proxyToSite(ctx, ch, t.clusterName)
+		return t.proxyToSite(ctx, ch, t.clusterName, clientAddr, sconn.LocalAddr())
 	}
 
 	// connect to a server
-	return t.proxyToHost(ctx, ch, clientAddr)
+	return t.proxyToHost(ctx, ch, clientAddr, sconn.LocalAddr())
 }
 
 // proxyToSite establishes a proxy connection from the connected SSH client to the
 // auth server of the requested remote site
-func (t *proxySubsys) proxyToSite(ctx context.Context, ch ssh.Channel, clusterName string) error {
-	t.log.Debugf("Connecting to site: %v", clusterName)
+func (t *proxySubsys) proxyToSite(ctx context.Context, ch ssh.Channel, clusterName string, clientSrcAddr, clientDstAddr net.Addr) error {
+	t.log.Debugf("Connecting from cluster %q to site: %q", t.localCluster, clusterName)
 
-	conn, err := t.router.DialSite(ctx, clusterName)
+	conn, err := t.router.DialSite(ctx, clusterName, clientSrcAddr, clientDstAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -238,18 +255,17 @@ func (t *proxySubsys) proxyToSite(ctx context.Context, ch ssh.Channel, clusterNa
 
 // proxyToHost establishes a proxy connection from the connected SSH client to the
 // requested remote node (t.host:t.port) via the given site
-func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, remoteAddr net.Addr) error {
+func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrcAddr, clientDstAddr net.Addr) error {
 	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v", t.host, t.port, t.SpecifiedPort())
 
-	conn, err := t.router.DialHost(ctx, remoteAddr, t.host, t.port, t.clusterName, t.ctx.Identity.AccessChecker, t.ctx.StartAgentChannel)
+	conn, teleportVersion, err := t.router.DialHost(ctx, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.AccessChecker, t.ctx.StartAgentChannel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// this custom SSH handshake allows SSH proxy to relay the client's IP
-	// address to the SSH server
-	t.doHandshake(ctx, remoteAddr, ch, conn)
-
+	if teleportVersion != "" && utils.CheckVersion(teleportVersion, utils.MinIPPropagationVersion) != nil {
+		t.doHandshake(ctx, clientSrcAddr, ch, conn)
+	}
 	go func() {
 		t.close(utils.ProxyConn(ctx, ch, conn))
 	}()
@@ -264,8 +280,11 @@ func (t *proxySubsys) Wait() error {
 	return <-t.closeC
 }
 
-// doHandshake allows a proxy server to send additional information (client IP)
-// to an SSH server before establishing a bridge
+// doHandshake allows a proxy server to send additional information (client IP and tracing context)
+// to an SSH server before establishing a bridge.
+// NOTE: Used for compatibility with versions <12.1, before IP propagation through signed PROXY headers was added.
+// DELETE IN 14.0
+// DEPRECATED
 func (t *proxySubsys) doHandshake(ctx context.Context, clientAddr net.Addr, clientConn io.ReadWriter, serverConn io.ReadWriter) {
 	// on behalf of a client ask the server for its version:
 	buff := make([]byte, sshutils.MaxVersionStringBytes)
@@ -290,7 +309,7 @@ func (t *proxySubsys) doHandshake(ctx context.Context, clientAddr net.Addr, clie
 			t.log.Error(err)
 		} else {
 			// send a JSON payload sandwiched between 'teleport proxy signature' and 0x00:
-			payload := fmt.Sprintf("%s%s\x00", apisshutils.ProxyHelloSignature, payloadJSON)
+			payload := fmt.Sprintf("%s%s\x00", constants.ProxyHelloSignature, payloadJSON)
 			_, err = serverConn.Write([]byte(payload))
 			if err != nil {
 				t.log.Error(err)

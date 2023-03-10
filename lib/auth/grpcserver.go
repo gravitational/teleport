@@ -31,7 +31,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -52,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -863,7 +863,7 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 		return nil, trace.Wrap(err)
 	}
 	if req.Delegator != "" {
-		ctx = WithDelegator(ctx, req.Delegator)
+		ctx = authz.WithDelegator(ctx, req.Delegator)
 	}
 	if err := auth.ServerWithRoles.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 		RequestID:   req.ID,
@@ -1492,6 +1492,51 @@ func (g *GRPCServer) GetSnowflakeSessions(ctx context.Context, e *emptypb.Empty)
 	}, nil
 }
 
+// GetSAMLIdPSession gets a SAML IdPsession.
+func (g *GRPCServer) GetSAMLIdPSession(ctx context.Context, req *proto.GetSAMLIdPSessionRequest) (*proto.GetSAMLIdPSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	samlSession, err := auth.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{SessionID: req.GetSessionID()})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, ok := samlSession.(*types.WebSessionV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected session type %T", samlSession)
+	}
+
+	return &proto.GetSAMLIdPSessionResponse{
+		Session: sess,
+	}, nil
+}
+
+// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+func (g *GRPCServer) ListSAMLIdPSessions(ctx context.Context, req *proto.ListSAMLIdPSessionsRequest) (*proto.ListSAMLIdPSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions, token, err := auth.ListSAMLIdPSessions(ctx, int(req.PageSize), req.PageToken, req.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make([]*types.WebSessionV2, 0, len(sessions))
+	for _, sess := range sessions {
+		s, ok := sess.(*types.WebSessionV2)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", sess)
+		}
+		out = append(out, s)
+	}
+
+	return &proto.ListSAMLIdPSessionsResponse{Sessions: out, NextPageToken: token}, nil
+}
+
 func (g *GRPCServer) DeleteSnowflakeSession(ctx context.Context, req *proto.DeleteSnowflakeSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1573,6 +1618,31 @@ func (g *GRPCServer) CreateSnowflakeSession(ctx context.Context, req *proto.Crea
 	}, nil
 }
 
+// CreateSAMLIdPSession creates a SAML IdP session.
+func (g *GRPCServer) CreateSAMLIdPSession(ctx context.Context, req *proto.CreateSAMLIdPSessionRequest) (*proto.CreateSAMLIdPSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := auth.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+		SessionID:   req.GetSessionID(),
+		Username:    req.GetUsername(),
+		SAMLSession: req.GetSAMLSession(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, ok := session.(*types.WebSessionV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", session)
+	}
+
+	return &proto.CreateSAMLIdPSessionResponse{
+		Session: sess,
+	}, nil
+}
+
 // DeleteAppSession removes an application web session.
 func (g *GRPCServer) DeleteAppSession(ctx context.Context, req *proto.DeleteAppSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -1611,6 +1681,50 @@ func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *proto.Delet
 	}
 
 	if err := auth.DeleteUserAppSessions(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteSAMLIdPSession removes a SAML IdP session.
+func (g *GRPCServer) DeleteSAMLIdPSession(ctx context.Context, req *proto.DeleteSAMLIdPSessionRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{
+		SessionID: req.GetSessionID(),
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+func (g *GRPCServer) DeleteAllSAMLIdPSessions(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteAllSAMLIdPSessions(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteUserSAMLIdPSessions removes all of a user's SAML IdP sessions.
+func (g *GRPCServer) DeleteUserSAMLIdPSessions(ctx context.Context, req *proto.DeleteUserSAMLIdPSessionsRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteUserSAMLIdPSessions(ctx, req.Username); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1821,8 +1935,9 @@ func (g *GRPCServer) UpsertKubeService(ctx context.Context, req *proto.UpsertKub
 	// the server.Addr field. It's not useful for other services that want to
 	// connect to it (like a proxy). Remote address of the gRPC connection is
 	// the closest thing we have to a public IP for the service.
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
-	if !ok {
+	clientAddr, err := authz.ClientAddrFromContext(ctx)
+	if err != nil {
+		g.Logger.WithError(err).Warn("error getting client address from context")
 		return nil, status.Errorf(codes.FailedPrecondition, "bug: client address not found in request context")
 	}
 	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), clientAddr.String()))
@@ -1848,8 +1963,9 @@ func (g *GRPCServer) UpsertKubeServiceV2(ctx context.Context, req *proto.UpsertK
 	// the server.Addr field. It's not useful for other services that want to
 	// connect to it (like a proxy). Remote address of the gRPC connection is
 	// the closest thing we have to a public IP for the service.
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
-	if !ok {
+	clientAddr, err := authz.ClientAddrFromContext(ctx)
+	if err != nil {
+		g.Logger.WithError(err).Warn("error getting client address from context")
 		return nil, status.Errorf(codes.FailedPrecondition, "bug: client address not found in request context")
 	}
 	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), clientAddr.String()))
@@ -3790,8 +3906,9 @@ func (g *GRPCServer) UpsertWindowsDesktopService(ctx context.Context, service *t
 	// the server.Addr field. It's not useful for other services that want to
 	// connect to it (like a proxy). Remote address of the gRPC connection is
 	// the closest thing we have to a public IP for the service.
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
-	if !ok {
+	clientAddr, err := authz.ClientAddrFromContext(ctx)
+	if err != nil {
+		g.Logger.WithError(err).Warn("error getting client address from context")
 		return nil, status.Errorf(codes.FailedPrecondition, "client address not found in request context")
 	}
 	service.Spec.Addr = utils.ReplaceLocalhost(service.GetAddr(), clientAddr.String())
@@ -4387,6 +4504,45 @@ func (g *GRPCServer) SetInstaller(ctx context.Context, req *types.InstallerV1) (
 	return &emptypb.Empty{}, nil
 }
 
+func (g *GRPCServer) SetUIConfig(ctx context.Context, req *types.UIConfigV1) (*emptypb.Empty, error) {
+	// TODO (avatus) send an audit event when SetUIConfig is called
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.SetUIConfig(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (g *GRPCServer) GetUIConfig(ctx context.Context, _ *emptypb.Empty) (*types.UIConfigV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	uiconfig, err := auth.ServerWithRoles.GetUIConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	uiconfigv1, ok := uiconfig.(*types.UIConfigV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", uiconfig)
+	}
+	return uiconfigv1, nil
+}
+
+func (g *GRPCServer) DeleteUIConfig(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteUIConfig(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // GetInstaller retrieves the installer script resource
 func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceRequest) (*types.InstallerV1, error) {
 	auth, err := g.authenticate(ctx)
@@ -4423,36 +4579,22 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 		return nil, trace.Wrap(err)
 	}
 	var installersV1 []*types.InstallerV1
-	needDefault := true
-	needDefaultAgentless := true
+	defaultInstallers := map[string]*types.InstallerV1{
+		installers.InstallerScriptName:          installers.DefaultInstaller,
+		installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller,
+	}
+
 	for _, inst := range res {
 		instV1, ok := inst.(*types.InstallerV1)
 		if !ok {
 			return nil, trace.BadParameter("unsupported installer type %T", inst)
 		}
-		switch inst.GetName() {
-		case installers.InstallerScriptName:
-			needDefault = false
-		case installers.InstallerScriptNameAgentless:
-			needDefaultAgentless = false
-		}
+		delete(defaultInstallers, inst.GetName())
 		installersV1 = append(installersV1, instV1)
 	}
 
-	if len(installersV1) == 0 {
-		return &types.InstallerV1List{
-			Installers: []*types.InstallerV1{
-				installers.DefaultInstaller,
-				installers.DefaultAgentlessInstaller,
-			},
-		}, nil
-	}
-
-	if needDefault {
-		installersV1 = append(installersV1, installers.DefaultInstaller)
-	}
-	if needDefaultAgentless {
-		installersV1 = append(installersV1, installers.DefaultAgentlessInstaller)
+	for _, inst := range defaultInstallers {
+		installersV1 = append(installersV1, inst)
 	}
 
 	return &types.InstallerV1List{
@@ -4747,12 +4889,95 @@ func (g *GRPCServer) DeleteAllSAMLIdPServiceProviders(ctx context.Context, _ *em
 	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllSAMLIdPServiceProviders(ctx))
 }
 
+// ListUserGroups returns a paginated list of user group resources.
+func (g *GRPCServer) ListUserGroups(ctx context.Context, req *proto.ListUserGroupsRequest) (*proto.ListUserGroupsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userGroups, nextKey, err := auth.ListUserGroups(ctx, int(req.GetLimit()), req.GetNextKey())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userGroupsV1 := make([]*types.UserGroupV1, len(userGroups))
+	for i, g := range userGroups {
+		v1, ok := g.(*types.UserGroupV1)
+		if !ok {
+			return nil, trace.BadParameter("unexpected user group type %T", g)
+		}
+		userGroupsV1[i] = v1
+	}
+
+	return &proto.ListUserGroupsResponse{
+		UserGroups: userGroupsV1,
+		NextKey:    nextKey,
+	}, nil
+}
+
+// GetUserGroup returns the specified user group resources.
+func (g *GRPCServer) GetUserGroup(ctx context.Context, req *proto.GetUserGroupRequest) (*types.UserGroupV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sp, err := auth.GetUserGroup(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serviceProviderV1, ok := sp.(*types.UserGroupV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected user group type %T", sp)
+	}
+
+	return serviceProviderV1, nil
+}
+
+// CreateUserGroup creates a new user group resource.
+func (g *GRPCServer) CreateUserGroup(ctx context.Context, sp *types.UserGroupV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.CreateUserGroup(ctx, sp))
+}
+
+// UpdateUserGroup updates an existing user group resource.
+func (g *GRPCServer) UpdateUserGroup(ctx context.Context, sp *types.UserGroupV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.UpdateUserGroup(ctx, sp))
+}
+
+// DeleteUserGroup removes the specified user group resource.
+func (g *GRPCServer) DeleteUserGroup(ctx context.Context, req *proto.DeleteUserGroupRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.DeleteUserGroup(ctx, req.GetName()))
+}
+
+// DeleteAllUserGroups removes all user groups.
+func (g *GRPCServer) DeleteAllUserGroups(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllUserGroups(ctx))
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
 	APIConfig
 	// TLS is GRPC server config
 	TLS *tls.Config
+	// Middleware is the request TLS client authenticator
+	Middleware *Middleware
 	// UnaryInterceptor intercepts individual GRPC requests
 	// for authentication and rate limiting
 	UnaryInterceptor grpc.UnaryServerInterceptor
@@ -4772,6 +4997,9 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 	if cfg.StreamInterceptor == nil {
 		return trace.BadParameter("missing parameter StreamInterceptor")
 	}
+	if cfg.Middleware == nil {
+		return trace.BadParameter("missing parameter Middleware")
+	}
 	return nil
 }
 
@@ -4786,13 +5014,22 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("GRPC(SERVER): keep alive %v count: %v.", cfg.KeepAlivePeriod, cfg.KeepAliveCount)
-	opts := []grpc.ServerOption{
-		grpc.Creds(&httplib.TLSCreds{
-			Config: cfg.TLS,
-		}),
 
-		grpc.ChainUnaryInterceptor(otelgrpc.UnaryServerInterceptor(), cfg.UnaryInterceptor),
-		grpc.ChainStreamInterceptor(otelgrpc.StreamServerInterceptor(), cfg.StreamInterceptor),
+	// httplib.TLSCreds are explicitly used instead of credentials.NewTLS because the latter
+	// modifies the tls.Config.NextProtos which causes problems due to multiplexing on the auth
+	// listener.
+	creds, err := NewTransportCredentials(TransportCredentialsConfig{
+		TransportCredentials: &httplib.TLSCreds{Config: cfg.TLS},
+		UserGetter:           cfg.Middleware,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	server := grpc.NewServer(
+		grpc.Creds(creds),
+		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptor),
+		grpc.ChainStreamInterceptor(cfg.StreamInterceptor),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
 				Time:    cfg.KeepAlivePeriod,
@@ -4805,8 +5042,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 				PermitWithoutStream: true,
 			},
 		),
-	}
-	server := grpc.NewServer(opts...)
+	)
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{
@@ -4833,7 +5069,7 @@ func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	nopRole := BuiltinRole{
+	nopRole := authz.BuiltinRole{
 		Role:        types.RoleNop,
 		Username:    string(types.RoleNop),
 		ClusterName: clusterName.GetClusterName(),
@@ -4842,7 +5078,7 @@ func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	nopCtx, err := contextForBuiltinRole(nopRole, recConfig)
+	nopCtx, err := authz.ContextForBuiltinRole(nopRole, recConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4854,7 +5090,7 @@ func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
 }
 
 type grpcContext struct {
-	*Context
+	*authz.Context
 	*ServerWithRoles
 }
 

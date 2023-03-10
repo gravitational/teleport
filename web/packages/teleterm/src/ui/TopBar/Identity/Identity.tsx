@@ -45,23 +45,23 @@ export function IdentityContainer() {
     logout,
     addCluster,
   } = useIdentity();
-  const { getLabelWithShortcut } = useKeyboardShortcutFormatters();
+  const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
 
   const presenterRef = useRef<IdentityHandler>();
 
   useKeyboardShortcuts(
     useMemo(
       () => ({
-        'toggle-identity': presenterRef.current?.togglePopover,
+        openProfiles: presenterRef.current?.togglePopover,
       }),
       [presenterRef.current?.togglePopover]
     )
   );
 
   const makeTitle = (userWithClusterName: string | undefined) =>
-    getLabelWithShortcut(
+    getLabelWithAccelerator(
       [userWithClusterName, 'Open Profiles'].filter(Boolean).join('\n'),
-      'toggle-identity'
+      'openProfiles'
     );
 
   return (

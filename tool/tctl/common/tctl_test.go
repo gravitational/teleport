@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // TestConnect tests client config and connection logic.
@@ -50,7 +50,7 @@ func TestConnect(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
 		cliFlags     GlobalCLIFlags
-		modifyConfig func(*service.Config)
+		modifyConfig func(*servicecfg.Config)
 	}{
 		{
 			name: "default to data dir",
@@ -58,7 +58,7 @@ func TestConnect(t *testing.T) {
 				AuthServerAddr: []string{fileConfig.Auth.ListenAddress},
 				Insecure:       true,
 			},
-			modifyConfig: func(cfg *service.Config) {
+			modifyConfig: func(cfg *servicecfg.Config) {
 				cfg.DataDir = fileConfig.DataDir
 			},
 		}, {
@@ -83,7 +83,7 @@ func TestConnect(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := service.MakeDefaultConfig()
+			cfg := servicecfg.MakeDefaultConfig()
 			cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			if tc.modifyConfig != nil {
 				tc.modifyConfig(cfg)

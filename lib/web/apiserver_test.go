@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -94,6 +95,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
@@ -105,11 +107,11 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -169,6 +171,8 @@ type webSuiteConfig struct {
 	authPreferenceSpec *types.AuthPreferenceSpecV2
 
 	disableDiskBasedRecording bool
+
+	uiConfig webclient.UIConfig
 
 	// Custom "HealthCheckAppServer" function. Can be used to avoid dialing app
 	// services.
@@ -264,7 +268,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	require.NoError(t, err)
 
 	nodeClient, err := s.server.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
 		},
@@ -305,7 +309,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
@@ -320,7 +324,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	// create reverse tunnel service:
 	proxyID := "proxy"
 	s.proxyClient, err = s.server.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: proxyID,
 		},
@@ -442,6 +446,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		SessionControl:                  proxySessionController,
 		Router:                          router,
 		HealthCheckAppServer:            cfg.HealthCheckAppServer,
+		UI:                              cfg.uiConfig,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -526,7 +531,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 	require.NoError(t, err)
 
 	nodeClient, err := s.server.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: uuid,
 		},
@@ -566,7 +571,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
@@ -1234,6 +1239,30 @@ func TestNewTerminalHandler(t *testing.T) {
 	require.Equal(t, validCfg.DisplayLogin, term.displayLogin)
 	// newly added
 	require.NotNil(t, term.log)
+}
+
+func TestUIConfig(t *testing.T) {
+	uiConfig := webclient.UIConfig{
+		ScrollbackLines: 555,
+	}
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	s := newWebSuiteWithConfig(t, webSuiteConfig{uiConfig: uiConfig})
+	clt := s.client(t)
+	endpoint := clt.Endpoint("web", "config.js")
+	re, err := clt.Get(ctx, endpoint, nil)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+	t.Cleanup(cancel)
+
+	// Response is type application/javascript, we need to strip off the variable name
+	// and the semicolon at the end, then we are left with json like object.
+	var cfg webclient.WebConfig
+	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
+	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
+	require.NoError(t, err)
+	require.Equal(t, uiConfig, cfg.UI)
 }
 
 func TestResizeTerminal(t *testing.T) {
@@ -3805,22 +3834,10 @@ func TestClusterAppsGet(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Test URIs with tcp is filtered out of result.
-	resource3, err := types.NewAppServerV3(types.Metadata{Name: "server3"}, types.AppServerSpecV3{
-		HostID: "hostid",
-		App: &types.AppV3{
-			Metadata: types.Metadata{Name: "app3"},
-			Spec:     types.AppSpecV3{URI: "tcp://something", PublicAddr: "publicaddrs"},
-		},
-	})
-	require.NoError(t, err)
-
 	// Register apps.
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource)
 	require.NoError(t, err)
 	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource2)
-	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertApplicationServer(context.Background(), resource3)
 	require.NoError(t, err)
 
 	// Make the call.
@@ -5534,7 +5551,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: `Invalid user. Please ensure the principal "nonvalidlinuxuser" is a valid Linux login in the target node. Output from Node: Failed to launch: user: unknown user nonvalidlinuxuser.`,
+					Details: `Invalid user. Please ensure the principal "nonvalidlinuxuser" is a valid Linux login in the target node. Output from Node: Failed to launch: user:`,
 					Error:   "Process exited with status 255",
 				},
 			},
@@ -5595,7 +5612,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 
 					foundTrace = true
 					require.Equal(t, returnedTrace.Status, expectedTrace.Status.String())
-					require.Equal(t, returnedTrace.Details, expectedTrace.Details)
+					require.Contains(t, returnedTrace.Details, expectedTrace.Details)
 					require.Contains(t, returnedTrace.Error, expectedTrace.Error)
 				}
 
@@ -5604,6 +5621,40 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 			require.Equal(t, expectedFailedTraces, gotFailedTraces)
 		})
 	}
+
+	// Test success with per-session MFA.
+
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:           constants.Local,
+		SecondFactor:   constants.SecondFactorOTP,
+		RequireMFAType: types.RequireMFAType_SESSION,
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Get a totp code to re-auth.
+	pack := env.proxies[0].authPack(t, "llama", roleWithFullAccess("success", osUsername))
+	totpCode, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	clusterName := env.server.ClusterName()
+	createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
+
+	resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, conntest.TestConnectionRequest{
+		ResourceKind: types.KindNode,
+		ResourceName: nodeName,
+		SSHPrincipal: osUsername,
+		// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
+		DialTimeout: time.Second,
+		MFAResponse: client.MFAChallengeResponse{TOTPCode: totpCode},
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	var connectionDiagnostic ui.ConnectionDiagnostic
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
+	require.True(t, connectionDiagnostic.Success)
 }
 
 func TestDiagnoseKubeConnection(t *testing.T) {
@@ -6059,6 +6110,41 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 			require.Equal(t, expectedFailedTraces, gotFailedTraces)
 		})
 	}
+
+	// Test success with per-session MFA.
+
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:           constants.Local,
+		SecondFactor:   constants.SecondFactorOTP,
+		RequireMFAType: types.RequireMFAType_SESSION,
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Get a totp code to re-auth.
+	pack := env.proxies[0].authPack(t, "llama", roleWithFullAccess("llama", validKubeUsers, validKubeGroups))
+	totpCode, err := totp.GenerateCode(pack.otpSecret, env.clock.Now().Add(30*time.Second))
+	require.NoError(t, err)
+
+	clusterName := env.server.ClusterName()
+	createConnectionEndpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "diagnostics", "connections")
+
+	resp, err := pack.clt.PostJSON(ctx, createConnectionEndpoint, conntest.TestConnectionRequest{
+		ResourceKind: types.KindKubernetesCluster,
+		ResourceName: kubeClusterName,
+		// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
+		DialTimeout:             time.Second,
+		KubernetesImpersonation: conntest.KubernetesImpersonation{},
+		MFAResponse:             client.MFAChallengeResponse{TOTPCode: totpCode},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	var connectionDiagnostic ui.ConnectionDiagnostic
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &connectionDiagnostic))
+	require.True(t, connectionDiagnostic.Success)
 }
 
 func TestCreateDatabase(t *testing.T) {
@@ -6503,7 +6589,7 @@ func (mock authProviderMock) GetNodes(ctx context.Context, n string) ([]types.Se
 	return []types.Server{&mock.server}, nil
 }
 
-func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int, p bool) ([]events.EventFields, error) {
+func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int) ([]events.EventFields, error) {
 	return []events.EventFields{}, nil
 }
 
@@ -6768,7 +6854,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	hostSigners := []ssh.Signer{signer}
 
 	nodeClient, err := server.TLS.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
 		},
@@ -6811,7 +6897,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(clock),
@@ -6854,7 +6940,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 ) *testProxy {
 	// create reverse tunnel service:
 	client, err := authServer.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: proxyID,
 		},
@@ -7381,6 +7467,142 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 	require.Equal(t, accessRequestID, userContext.ConsumedAccessRequestID)
 }
 
+// TestIsMFARequired_AcceptedRequests mostly tests that requests
+// are formatted correctly.
+func TestIsMFARequired_AcceptedRequests(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "llama", nil /* roles */)
+
+	cfg, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:           constants.Local,
+		SecondFactor:   constants.SecondFactorOTP,
+		RequireMFAType: types.RequireMFAType_SESSION,
+	})
+	require.NoError(t, err)
+	err = env.server.Auth().SetAuthPreference(ctx, cfg)
+	require.NoError(t, err)
+
+	for _, test := range []struct {
+		name       string
+		errMsg     string
+		getRequest func() isMFARequiredRequest
+	}{
+		{
+			name: "valid db req",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
+					Database: &isMFARequiredDatabase{
+						ServiceName: "name",
+						Protocol:    "protocol",
+					},
+				}
+			},
+		},
+		{
+			name:   "invalid db req",
+			errMsg: "missing service_name",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{Database: &isMFARequiredDatabase{}}
+			},
+		},
+		{
+			name: "valid node req",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
+					Node: &isMFARequiredNode{
+						NodeName: "name",
+						Login:    "login",
+					},
+				}
+			},
+		},
+		{
+			name:   "invalid node req",
+			errMsg: "missing login",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{Node: &isMFARequiredNode{}}
+			},
+		},
+		{
+			name: "valid kube req",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
+					Kube: &isMFARequiredKube{
+						ClusterName: "name",
+					},
+				}
+			},
+		},
+		{
+			name:   "invalid kube req",
+			errMsg: "missing cluster_name",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{Kube: &isMFARequiredKube{}}
+			},
+		},
+		{
+			name: "valid windows desktop req",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
+					WindowsDesktop: &isMFARequiredWindowsDesktop{
+						DesktopName: "name",
+						Login:       "login",
+					},
+				}
+			},
+		},
+		{
+			name:   "invalid windows desktop req",
+			errMsg: "missing desktop_name",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{WindowsDesktop: &isMFARequiredWindowsDesktop{}}
+			},
+		},
+		{
+			name:   "invalid empty req",
+			errMsg: "missing target",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{}
+			},
+		},
+		{
+			name:   "invalid multi field",
+			errMsg: "only one target is allowed",
+			getRequest: func() isMFARequiredRequest {
+				return isMFARequiredRequest{
+					Kube: &isMFARequiredKube{
+						ClusterName: "name",
+					},
+					Node: &isMFARequiredNode{
+						NodeName: "name",
+						Login:    "login",
+					},
+				}
+			},
+		},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "mfa", "required")
+			re, err := pack.clt.PostJSON(ctx, endpoint, test.getRequest())
+
+			if test.errMsg != "" {
+				require.True(t, trace.IsBadParameter(err), "isMFARequired returned err = %v (%T), wanted trace.BadParameter", err, err)
+				require.ErrorContains(t, err, test.errMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			resp := isMfaRequiredResponse{}
+			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+			require.True(t, resp.Required, "isMFARequired returned response with unexpected value for Required field")
+		})
+	}
+}
+
 func TestWithLimiterHandlerFunc(t *testing.T) {
 	const burst = 20
 	limiter, err := limiter.NewRateLimiter(limiter.Config{
@@ -7491,7 +7713,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	proxyAuthorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: cfg.authServer.ClusterName(),
 		AccessPoint: proxyAuthClient,
 		LockWatcher: proxyLockWatcher,
@@ -7516,6 +7738,11 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		component = teleport.ComponentKube
 	}
 
+	proxySigner := &mockPROXYSigner{}
+	if cfg.serviceType == kubeproxy.KubeService {
+		proxySigner = nil
+	}
+
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
 			Namespace:         apidefaults.Namespace,
@@ -7533,6 +7760,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			Component:         component,
 			LockWatcher:       proxyLockWatcher,
 			ReverseTunnelSrv:  cfg.revTunnel,
+			PROXYSigner:       proxySigner,
 			// skip Impersonation validation
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
 				return nil
@@ -7842,6 +8070,14 @@ func TestForwardingTraces(t *testing.T) {
 	}
 }
 
+type mockPROXYSigner struct {
+}
+
+func (m *mockPROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, error) {
+	return nil, nil
+
+}
+
 type mockTraceClient struct {
 	uploadError    error
 	uploadReceived chan struct{}
@@ -7918,6 +8154,54 @@ func TestLogout(t *testing.T) {
 	require.ErrorIs(t, err, trace.AccessDenied("need auth"))
 }
 
+func TestGetIsDashboard(t *testing.T) {
+	tt := []struct {
+		name     string
+		features clientproto.Features
+		expected bool
+	}{
+		{
+			name: "not cloud nor recovery codes is not dashboard",
+			features: clientproto.Features{
+				Cloud:         false,
+				RecoveryCodes: false,
+			},
+			expected: false,
+		},
+		{
+			name: "not cloud, with recovery codes is dashboard",
+			features: clientproto.Features{
+				Cloud:         false,
+				RecoveryCodes: true,
+			},
+			expected: true,
+		},
+		{
+			name: "cloud, with recovery codes is not dashboard",
+			features: clientproto.Features{
+				Cloud:         true,
+				RecoveryCodes: true,
+			},
+			expected: false,
+		},
+		{
+			name: "cloud, without recovery codes is not dashboard",
+			features: clientproto.Features{
+				Cloud:         true,
+				RecoveryCodes: false,
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			result := isDashboard(tc.features)
+			require.Equal(t, tc.expected, result)
+		})
+	}
+}
+
 // initGRPCServer creates a grpc server serving on the provided listener.
 func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	clusterName := env.server.ClusterName()
@@ -7936,10 +8220,17 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		AccessPoint:   proxyAuthClient,
+		ClusterName:   clusterName,
 		Limiter:       limiter,
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}
+
+	tlsConf := copyAndConfigureTLS(tlsConfig, logrus.New(), proxyAuthClient, clusterName)
+	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
+		TransportCredentials: credentials.NewTLS(tlsConf),
+		UserGetter:           authMiddleware,
+	})
+	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
@@ -7948,9 +8239,7 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 		grpc.ChainStreamInterceptor(
 			authMiddleware.StreamInterceptor(),
 		),
-		grpc.Creds(credentials.NewTLS(
-			copyAndConfigureTLS(tlsConfig, logrus.New(), proxyAuthClient, clusterName),
-		)),
+		grpc.Creds(creds),
 	)
 
 	kubeproto.RegisterKubeServiceServer(grpcServer, &fakeKubeService{})
