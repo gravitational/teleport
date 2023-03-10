@@ -157,7 +157,7 @@ Following this approach is more reliable than using `/usr/bin/lsb_release` direc
 
 `UpstreamInventoryAgentMetadata.HostArchitecture` will be set to the value on the `GOARCH` environment variable.
 
-In the future we may use `sysctl -n sysctl.proc_translated` in order to detect if the agent is running under Rosetta.
+In the future we may use `sysctl -n sysctl.proc_translated` in order to detect if a macOS agent is running under Rosetta.
 
 ##### 6. `glibc` version
 
