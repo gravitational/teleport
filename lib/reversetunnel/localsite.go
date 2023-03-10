@@ -767,7 +767,7 @@ func (s *localSite) periodicFunctions() {
 
 // sshTunnelStats reports SSH tunnel statistics for the cluster.
 func (s *localSite) sshTunnelStats() error {
-	missing := s.srv.NodeWatcher.GetNodes(func(server services.Node) bool {
+	missing := s.srv.NodeWatcher.GetNodes(s.srv.ctx, func(server services.Node) bool {
 		// Skip over any servers that have a TTL larger than announce TTL (10
 		// minutes) and are non-IoT SSH servers (they won't have tunnels).
 		//

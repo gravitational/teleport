@@ -54,9 +54,10 @@ func (process *TeleportProcess) initDiscoveryService() error {
 
 	nodeWatcher, err := services.NewNodeWatcher(process.ExitContext(), services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentDiscovery,
-			Log:       process.log.WithField(trace.Component, teleport.ComponentDiscovery),
-			Client:    accessPoint,
+			Component:    teleport.ComponentDiscovery,
+			Log:          process.log.WithField(trace.Component, teleport.ComponentDiscovery),
+			Client:       accessPoint,
+			MaxStaleness: time.Minute,
 		},
 	})
 	if err != nil {
