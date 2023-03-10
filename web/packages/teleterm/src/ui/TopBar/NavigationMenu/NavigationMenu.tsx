@@ -31,7 +31,7 @@ function useNavigationItems(): (
   | {
       type?: 'normal';
       title: string;
-      Icon: JSX.Element;
+      Icon: React.ComponentType<{ fontSize: number }>;
       onNavigate: () => void;
     }
   | { type: 'separator' }
@@ -49,7 +49,7 @@ function useNavigationItems(): (
   return [
     {
       title: 'Open Config File',
-      Icon: <Config fontSize={2} />,
+      Icon: Config,
       onNavigate: async () => {
         const path = await ctx.mainProcessClient.openConfigFile();
         ctx.notificationsService.notifyInfo(
@@ -60,7 +60,7 @@ function useNavigationItems(): (
     { type: 'separator' as const },
     accessRequestsAllowed && {
       title: 'New Access Request',
-      Icon: <Add fontSize={2} />,
+      Icon: Add,
       onNavigate: () => {
         const doc = documentsService.createAccessRequestDocument({
           clusterUri: activeRootCluster.uri,
@@ -73,7 +73,7 @@ function useNavigationItems(): (
     },
     accessRequestsAllowed && {
       title: 'Review Access Requests',
-      Icon: <OpenBox fontSize={2} />,
+      Icon: OpenBox,
       onNavigate: () => {
         const doc = documentsService.createAccessRequestDocument({
           clusterUri: activeRootCluster.uri,

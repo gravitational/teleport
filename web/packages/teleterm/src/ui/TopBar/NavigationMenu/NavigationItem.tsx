@@ -29,7 +29,7 @@ export function NavigationItem({ item, closeMenu }: NavigationItemProps) {
 
   return (
     <StyledListItem onClick={handleClick}>
-      {item.Icon}
+      <item.Icon fontSize={2} />
       <Text>{item.title}</Text>
     </StyledListItem>
   );
@@ -45,7 +45,7 @@ const StyledListItem = styled(ListItem)`
 type NavigationItemProps = {
   item: {
     title: string;
-    Icon: JSX.Element;
+    Icon: React.ComponentType<{ fontSize: number }>;
     onNavigate: () => void;
   };
   closeMenu: () => void;
