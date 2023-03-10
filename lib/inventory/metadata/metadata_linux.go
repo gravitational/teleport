@@ -19,13 +19,13 @@ limitations under the License.
 
 package metadata
 
+// #include <gnu/libc-version.h>
+import "C"
+
 import (
 	"fmt"
 	"strings"
 )
-
-// #include <gnu/libc-version.h>
-import "C"
 
 // fetchOSVersion combines the content of '/etc/os-release' to be e.g.
 // "ubuntu 22.04".
