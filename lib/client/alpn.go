@@ -51,6 +51,10 @@ type ALPNAuthClient interface {
 
 // ALPNAuthTunnelConfig contains the required fields used to create an authed ALPN Proxy
 type ALPNAuthTunnelConfig struct {
+	// MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one
+	// of the MFA devices registered for a user.
+	MFAResponse *proto.MFAAuthenticateResponse
+
 	// AuthClient is the client that's used to interact with the cluster and obtain Certificates.
 	AuthClient ALPNAuthClient
 
@@ -107,7 +111,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 		return trace.Wrap(err)
 	}
 
-	tlsCert, err := getUserCerts(ctx, cfg.AuthClient, cfg.Expires, cfg.RouteToDatabase, cfg.ConnectionDiagnosticID)
+	tlsCert, err := getUserCerts(ctx, cfg.AuthClient, cfg.MFAResponse, cfg.Expires, cfg.RouteToDatabase, cfg.ConnectionDiagnosticID)
 	if err != nil {
 		return trace.BadParameter("failed to parse private key: %v", err)
 	}
@@ -137,7 +141,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 	return nil
 }
 
-func getUserCerts(ctx context.Context, client ALPNAuthClient, expires time.Time, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID string) (*tls.Certificate, error) {
+func getUserCerts(ctx context.Context, client ALPNAuthClient, mfaResponse *proto.MFAAuthenticateResponse, expires time.Time, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID string) (*tls.Certificate, error) {
 	key, err := GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -154,6 +158,7 @@ func getUserCerts(ctx context.Context, client ALPNAuthClient, expires time.Time,
 		Expires:                expires,
 		ConnectionDiagnosticID: connectionDiagnosticID,
 		RouteToDatabase:        routeToDatabase,
+		MFAResponse:            mfaResponse,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

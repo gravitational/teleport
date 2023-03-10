@@ -33,7 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -45,7 +45,7 @@ func TestAzure(t *testing.T) {
 	user, azureRole := makeUserWithAzureRole(t)
 
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, user, azureRole))
-	makeTestApplicationServer(t, authProcess, proxyProcess, service.App{
+	makeTestApplicationServer(t, authProcess, proxyProcess, servicecfg.App{
 		Name:  "azure-api",
 		Cloud: types.CloudAzure,
 	})

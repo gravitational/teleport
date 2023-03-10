@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -165,13 +166,13 @@ func setupBPFContext(t *testing.T) *bpfContext {
 		6: "::",
 	}
 
-	config := &bpf.RestrictedSessionConfig{
+	config := &servicecfg.RestrictedSessionConfig{
 		Enabled: true,
 	}
 
 	var err error
 	// Create BPF service since we piggyback on it
-	bpfCtx.enhancedRecorder, err = bpf.New(&bpf.Config{
+	bpfCtx.enhancedRecorder, err = bpf.New(&servicecfg.BPFConfig{
 		Enabled:    true,
 		CgroupPath: bpfCtx.cgroupDir,
 	}, config)
