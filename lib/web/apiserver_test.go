@@ -4501,9 +4501,9 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 	// Test success with per-session MFA.
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:           constants.Local,
-		SecondFactor:   constants.SecondFactorOTP,
-		RequireMFAType: types.RequireMFAType_SESSION,
+		Type:              constants.Local,
+		SecondFactor:      constants.SecondFactorOTP,
+		RequireSessionMFA: true,
 	})
 	require.NoError(t, err)
 	err = env.server.Auth().SetAuthPreference(ctx, ap)
@@ -4857,9 +4857,9 @@ func TestDiagnoseKubeConnection(t *testing.T) {
 	// Test success with per-session MFA.
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:           constants.Local,
-		SecondFactor:   constants.SecondFactorOTP,
-		RequireMFAType: types.RequireMFAType_SESSION,
+		Type:              constants.Local,
+		SecondFactor:      constants.SecondFactorOTP,
+		RequireSessionMFA: true,
 	})
 	require.NoError(t, err)
 	err = env.server.Auth().SetAuthPreference(ctx, ap)
@@ -5739,9 +5739,9 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 	pack := proxy.authPack(t, "llama", nil /* roles */)
 
 	cfg, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:           constants.Local,
-		SecondFactor:   constants.SecondFactorOTP,
-		RequireMFAType: types.RequireMFAType_SESSION,
+		Type:              constants.Local,
+		SecondFactor:      constants.SecondFactorOTP,
+		RequireSessionMFA: true,
 	})
 	require.NoError(t, err)
 	err = env.server.Auth().SetAuthPreference(ctx, cfg)
