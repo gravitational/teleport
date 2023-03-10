@@ -11044,7 +11044,7 @@ mute-stream@0.0.8:
   resolved "https://registry.yarnpkg.com/mute-stream/-/mute-stream-0.0.8.tgz#1630c42b2251ff81e2a283de96a5497ea92e5e0d"
   integrity sha512-nnbWWOkoWyUsTjKrhgD0dcz22mdkSnpYqbEjIm2nhwhuxlSkpywJmBo8h0ZqJdkp73mb90SssHkN4rsRaBAfAA==
 
-nan@^2.12.1, nan@^2.14.0:
+nan@^2.12.1, nan@^2.17.0:
   version "2.17.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.17.0.tgz#c0150a2368a182f033e9aa5195ec76ea41a199cb"
   integrity sha512-2ZTgtl0nJsO0KQCjEpxcIr5D+Yv90plTitZt9JBfQvVJDS5seMl3FOvsh3+9CoYWXf/1l5OaZzzF6nDm4cagaQ==
@@ -11224,12 +11224,12 @@ node-modules-regexp@^1.0.0:
   resolved "https://registry.yarnpkg.com/node-modules-regexp/-/node-modules-regexp-1.0.0.tgz#8d9dbe28964a4ac5712e9131642107c71e90ec40"
   integrity sha1-jZ2+KJZKSsVxLpExZCEHxx6Q7EA=
 
-node-pty@0.10.0:
-  version "0.10.0"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0.tgz#c98d23967b076b35c9fb216c542a04d0b5db4821"
-  integrity sha512-Q65ookKbjhqWUYKmtZ6iPn0nnqNdzpm3YJOBmzwWJde/TrenBxK9FgqGGtSW0Wjz4YsR1grQF4a7RS5nBwuW9A==
+node-pty@0.11.0-beta30:
+  version "0.11.0-beta30"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta30.tgz#ea1ede12ada64115f83b8c6bbf519549b656dbac"
+  integrity sha512-4VqKeomvs5brx9Pf+3QdAAhsIcATREWSTCY8QPj5STp7jDpVbRt6SWhJz9EewJ9KiHbggXaQAzRiAVqARNiVvQ==
   dependencies:
-    nan "^2.14.0"
+    nan "^2.17.0"
 
 node-releases@^1.1.61:
   version "1.1.77"
