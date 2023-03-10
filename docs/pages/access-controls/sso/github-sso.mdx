@@ -121,10 +121,10 @@ $ tctl create github.yaml
   able to determine team memberships for these organizations.
 </Admonition>
 
-After authentication Teleport will create a temporary GitHub type user within Teleport for the duration of the 
-session. The GitHub username is automatically added to that user's `internal.logins` variable
-usable within roles. The preset `access` role has this variable that will automatically include the
-GitHub user as an authorized SSH login. Here is an example role configuration snippet using the trait. 
+After authentication Teleport will add the GitHub username
+to that user's `internal.logins` trait for their session. The preset `access`
+role has this trait variable configured to include the GitHub user as an
+authorized SSH login. Here is an example role configuration snippet using the trait variable. 
 
 ```yaml
   allow:
@@ -184,7 +184,6 @@ auth_service:
 </Details>
 
 You can now log in with Teleport using GitHub SSO.
-
 
 Run the following to log out of Teleport and log in again using GitHub SSO.
 
@@ -256,8 +255,6 @@ You will receive the details of your user session within the CLI.
 
 ```
 </ScopedBlock>
-
-
 
 ## Troubleshooting
 
