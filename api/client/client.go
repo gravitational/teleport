@@ -531,7 +531,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.KeepAliveCount = defaults.KeepAliveCountMax
 	}
 	if c.DialTimeout == 0 {
-		c.DialTimeout = defaults.DefaultDialTimeout
+		c.DialTimeout = defaults.DefaultIOTimeout
 	}
 	if c.CircuitBreakerConfig.Trip == nil || c.CircuitBreakerConfig.IsSuccessful == nil {
 		c.CircuitBreakerConfig = breaker.DefaultBreakerConfig(clockwork.NewRealClock())
