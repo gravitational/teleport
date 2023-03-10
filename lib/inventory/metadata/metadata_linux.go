@@ -46,7 +46,7 @@ func (c *fetchConfig) fetchOSVersion() string {
 
 		switch key {
 		case "ID":
-			id = value
+			id = strings.Trim(value, `"`)
 		case "VERSION_ID":
 			versionID = strings.Trim(value, `"`)
 		}
