@@ -19,7 +19,6 @@ import styled from 'styled-components';
 
 import Popover from 'design/Popover';
 import { MoreVert, OpenBox, Add, Config } from 'design/Icon';
-import { Box, Flex } from 'design';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
