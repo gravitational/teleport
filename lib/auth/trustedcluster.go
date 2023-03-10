@@ -26,11 +26,10 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
@@ -613,7 +612,7 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 		tr.TLSClientConfig = tlsConfig
 
 		insecureWebClient := &http.Client{
-			Transport: otelhttp.NewTransport(tr, otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter)),
+			Transport: tracehttp.NewTransport(tr),
 		}
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))
 	}

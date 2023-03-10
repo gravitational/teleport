@@ -44,7 +44,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http2"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -59,7 +58,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -1641,6 +1640,8 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 			return nil, trace.Wrap(err)
 		}
 	}
+	rt = tracehttp.NewTransport(rt)
+
 	return remotecommand.NewSPDYExecutorForTransports(rt, upgradeRoundTripper, req.Method, req.URL)
 }
 
@@ -1662,7 +1663,7 @@ func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.R
 		}
 	}
 	client := &http.Client{
-		Transport: otelhttp.NewTransport(rt, otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter)),
+		Transport: tracehttp.NewTransport(rt),
 	}
 
 	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), nil
@@ -1917,6 +1918,8 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forward
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	rt = tracehttp.NewTransport(rt)
 
 	forwarder, err := forward.New(
 		forward.FlushInterval(100*time.Millisecond),
