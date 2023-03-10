@@ -376,17 +376,27 @@ func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthTy
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := c.Get(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
-		"load_keys": []string{fmt.Sprintf("%t", loadSigningKeys)},
-	})
-	if err != nil {
+
+	ca, err := c.APIClient.GetCertAuthority(ctx, id, loadSigningKeys)
+	switch {
+	case err == nil:
+		return ca, nil
+	case trace.IsNotImplemented(err):
+		out, err := c.Get(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
+			"load_keys": []string{fmt.Sprintf("%t", loadSigningKeys)},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ca, err := services.UnmarshalCertAuthority(out.Bytes())
+		return ca, trace.Wrap(err)
+	default:
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalCertAuthority(out.Bytes())
 }
 
 // DeleteCertAuthority deletes cert authority by ID

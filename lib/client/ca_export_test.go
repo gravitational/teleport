@@ -43,8 +43,8 @@ func (m *mockAuthClient) GetCertAuthorities(ctx context.Context, caType types.Ce
 	return m.server.GetCertAuthorities(ctx, caType, loadKeys, opts...)
 }
 
-func (m *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
-	return m.server.GetCertAuthority(ctx, id, loadKeys, opts...)
+func (m *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+	return m.server.GetCertAuthority(ctx, id, loadKeys)
 }
 
 func TestExportAuthorities(t *testing.T) {

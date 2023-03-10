@@ -76,7 +76,7 @@ func (m *mockAuth) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}, nil
 }
 
-func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	require.NotNil(m.t, ctx)
 	require.Equal(m.t, m.clusterName, id.DomainName)
 	require.False(m.t, loadKeys)
@@ -118,7 +118,7 @@ func (m *mockAuth) GetCertAuthorities(ctx context.Context, caType types.CertAuth
 		// Just pretend to be whichever type of CA was requested.
 		Type:       caType,
 		DomainName: m.clusterName,
-	}, loadKeys, opts...)
+	}, loadKeys)
 	require.NoError(m.t, err)
 
 	return []types.CertAuthority{ca}, nil
