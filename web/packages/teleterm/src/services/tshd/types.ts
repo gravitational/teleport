@@ -144,8 +144,8 @@ export type LoginPasswordlessRequest =
 export type TshClient = {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
-  getKubes: (params: ServerSideParams) => Promise<GetKubesResponse>;
-  getDatabases: (params: ServerSideParams) => Promise<GetDatabasesResponse>;
+  getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
+  getDatabases: (params: GetResourcesParams) => Promise<GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: uri.DatabaseUri) => Promise<string[]>;
   assumeRole: (
     clusterUri: uri.RootClusterUri,
@@ -155,7 +155,7 @@ export type TshClient = {
   getRequestableRoles: (
     params: GetRequestableRolesParams
   ) => Promise<GetRequestableRolesResponse>;
-  getServers: (params: ServerSideParams) => Promise<GetServersResponse>;
+  getServers: (params: GetResourcesParams) => Promise<GetServersResponse>;
   getAccessRequests: (
     clusterUri: uri.RootClusterUri
   ) => Promise<AccessRequest[]>;
@@ -248,7 +248,7 @@ export type CreateGatewayParams = {
   subresource_name?: string;
 };
 
-export type ServerSideParams = {
+export type GetResourcesParams = {
   clusterUri: uri.ClusterUri;
   // search is used for regular search.
   search?: string;
@@ -259,6 +259,10 @@ export type ServerSideParams = {
   // query is used for advanced search.
   query?: string;
 };
+
+// Compatibility type to make sure teleport.e doesn't break.
+// TODO(ravicious): Remove after teleterm.e is updated to use GetResourcesParams.
+export type ServerSideParams = GetResourcesParams;
 
 export type ReviewAccessRequestParams = {
   state: RequestState;

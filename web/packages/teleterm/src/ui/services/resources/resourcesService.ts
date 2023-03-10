@@ -20,7 +20,7 @@ import type * as uri from 'teleterm/ui/uri';
 export class ResourcesService {
   constructor(private tshClient: types.TshClient) {}
 
-  fetchServers(params: types.ServerSideParams) {
+  fetchServers(params: types.GetResourcesParams) {
     return this.tshClient.getServers(params);
   }
 
@@ -42,11 +42,11 @@ export class ResourcesService {
     return servers[0];
   }
 
-  fetchDatabases(params: types.ServerSideParams) {
+  fetchDatabases(params: types.GetResourcesParams) {
     return this.tshClient.getDatabases(params);
   }
 
-  fetchKubes(params: types.ServerSideParams) {
+  fetchKubes(params: types.GetResourcesParams) {
     return this.tshClient.getKubes(params);
   }
 }

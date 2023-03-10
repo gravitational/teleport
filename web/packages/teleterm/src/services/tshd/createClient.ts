@@ -66,7 +66,7 @@ export default function createClient(
       searchAsRoles,
       startKey,
       limit,
-    }: types.ServerSideParams) {
+    }: types.GetResourcesParams) {
       const req = new api.GetKubesRequest()
         .setClusterUri(clusterUri)
         .setSearchAsRoles(searchAsRoles)
@@ -133,7 +133,7 @@ export default function createClient(
       searchAsRoles,
       startKey,
       limit,
-    }: types.ServerSideParams) {
+    }: types.GetResourcesParams) {
       const req = new api.GetDatabasesRequest()
         .setClusterUri(clusterUri)
         .setSearchAsRoles(searchAsRoles)
@@ -202,7 +202,7 @@ export default function createClient(
       searchAsRoles,
       startKey,
       limit,
-    }: types.ServerSideParams) {
+    }: types.GetResourcesParams) {
       const req = new api.GetServersRequest()
         .setClusterUri(clusterUri)
         .setSearchAsRoles(searchAsRoles)

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Kube, ServerSideParams } from 'teleterm/services/tshd/types';
+import { Kube, GetResourcesParams } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useClusterContext } from 'teleterm/ui/DocumentCluster/clusterContext';
 
@@ -25,7 +25,8 @@ export function useKubes() {
   const ctx = useClusterContext();
   const { fetchAttempt, ...serversideResources } = useServerSideResources<Kube>(
     { fieldName: 'name', dir: 'ASC' }, // default sort
-    (params: ServerSideParams) => appContext.resourcesService.fetchKubes(params)
+    (params: GetResourcesParams) =>
+      appContext.resourcesService.fetchKubes(params)
   );
 
   return {

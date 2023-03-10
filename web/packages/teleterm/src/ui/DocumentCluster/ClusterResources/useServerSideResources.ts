@@ -19,7 +19,7 @@ import { SortType } from 'design/DataTable/types';
 import { useAsync } from 'shared/hooks/useAsync';
 import { AgentFilter, AgentLabel } from 'teleport/services/agents';
 
-import { ServerSideParams } from 'teleterm/services/tshd/types';
+import { GetResourcesParams } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
@@ -49,7 +49,7 @@ const limit = 15;
 
 export function useServerSideResources<Agent>(
   defaultSort: SortType,
-  fetchFunction: (params: ServerSideParams) => Promise<FetchResponse<Agent>>
+  fetchFunction: (params: GetResourcesParams) => Promise<FetchResponse<Agent>>
 ) {
   const ctx = useAppContext();
   const { clusterUri } = useClusterContext();
