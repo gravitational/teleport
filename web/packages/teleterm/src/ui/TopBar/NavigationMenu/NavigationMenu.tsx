@@ -114,7 +114,7 @@ export function NavigationMenu() {
       <TopBarButton
         ref={selectorRef}
         isOpened={isPopoverOpened}
-        title="Go To Access Requests"
+        title="See more"
         onClick={() => setIsPopoverOpened(true)}
       >
         <MoreVert fontSize={6} />
@@ -127,19 +127,19 @@ export function NavigationMenu() {
         onClose={() => setIsPopoverOpened(false)}
         popoverCss={() => `max-width: min(560px, 90%)`}
       >
-        <MenuContainer p={3}>
-          <Box minWidth="280px">
-            <Flex flexDirection="column" minWidth="280px">
-              {items}
-            </Flex>
-          </Box>
-        </MenuContainer>
+        <Menu>{items}</Menu>
       </Popover>
     </>
   );
 }
 
-const MenuContainer = styled(Box)`
+const Menu = styled.menu`
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
   background: ${props => props.theme.colors.primary.light};
 `;
 
