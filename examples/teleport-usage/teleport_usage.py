@@ -83,7 +83,7 @@ for i in range(d_range):
         if event_type in unique_users:
             # For SSH access, ensuring there is not a double count the Kube execs
             if event_type == 'session.start' and item['FieldsMap'].get('kubernetes_cluster', ''):
-                continue  # skip if kubernetes_cluster exists and is not empty
+                continue  # skip if kubernetes_cluster exists and is empty
             unique_users[event_type].add(user)
 
 alias_dict = {
