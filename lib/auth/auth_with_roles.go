@@ -2576,6 +2576,16 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	var err error
 
+	var verifiedMFADeviceID string
+	if req.MFAResponse != nil {
+		dev, _, err := a.authServer.validateMFAAuthResponse(
+			ctx, req.GetMFAResponse(), req.Username, false /* passwordless */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		verifiedMFADeviceID = dev.Id
+	}
+
 	// this prevents clients who have no chance at getting a cert and impersonating anyone
 	// from enumerating local users and hitting database
 	if !a.hasBuiltinRole(types.RoleAdmin) && !a.context.Checker.CanImpersonateSomeone() && req.Username != a.context.User.GetName() {
@@ -2748,6 +2758,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
 	certReq := certRequest{
+		mfaVerified:       verifiedMFADeviceID,
 		user:              user,
 		ttl:               req.Expires.Sub(a.authServer.GetClock().Now()),
 		compatibility:     req.Format,
