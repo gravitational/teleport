@@ -11224,10 +11224,10 @@ node-modules-regexp@^1.0.0:
   resolved "https://registry.yarnpkg.com/node-modules-regexp/-/node-modules-regexp-1.0.0.tgz#8d9dbe28964a4ac5712e9131642107c71e90ec40"
   integrity sha1-jZ2+KJZKSsVxLpExZCEHxx6Q7EA=
 
-node-pty@0.11.0-beta30:
-  version "0.11.0-beta30"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta30.tgz#ea1ede12ada64115f83b8c6bbf519549b656dbac"
-  integrity sha512-4VqKeomvs5brx9Pf+3QdAAhsIcATREWSTCY8QPj5STp7jDpVbRt6SWhJz9EewJ9KiHbggXaQAzRiAVqARNiVvQ==
+node-pty@0.11.0-beta29:
+  version "0.11.0-beta29"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta29.tgz#863bce79346b453ed199614686008d1a3220abe8"
+  integrity sha512-pkSldLXjjwFrGd3EJWI0Pu1jnxeQaW0P9i2EQtO2RaK/pZ22pf99lQ8OfptYTPK2oKZbkjwzqh05uJJ2krH9iA==
   dependencies:
     nan "^2.17.0"
 
