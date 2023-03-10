@@ -84,7 +84,7 @@ func (r *TestConnectionRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.DialTimeout <= 0 {
-		r.DialTimeout = defaults.DefaultDialTimeout
+		r.DialTimeout = defaults.DefaultIOTimeout
 	}
 
 	return nil
