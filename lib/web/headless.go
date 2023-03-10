@@ -31,7 +31,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func (h *Handler) getHeadless(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
+func (h *Handler) getHeadless(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
 	headlessAuthenticationID := params.ByName("headless_authentication_id")
 	if headlessAuthenticationID == "" {
 		return nil, trace.NotFound("failed to find Headless session") // TODO this or just failed?
@@ -50,7 +50,7 @@ func (h *Handler) getHeadless(w http.ResponseWriter, r *http.Request, params htt
 	return headlessAuthn, nil
 }
 
-func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
+func (h *Handler) putHeadlessState(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
 	headlessAuthenticationID := params.ByName("headless_authentication_id")
 	if headlessAuthenticationID == "" {
 		return nil, trace.NotFound("failed to find Headless session") // TODO this or just failed?
@@ -61,8 +61,21 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, params h
 		return nil, trace.Wrap(err)
 	}
 
-	resp := &proto.MFAAuthenticateResponse{
-		Response: &proto.MFAAuthenticateResponse_Webauthn{Webauthn: wanlib.CredentialAssertionResponseToProto(req.WebauthnAssertionResponse)},
+	var action types.HeadlessAuthenticationState
+	var resp = &proto.MFAAuthenticateResponse{}
+
+	switch req.Action {
+	case "accept":
+		action = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
+		resp = &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wanlib.CredentialAssertionResponseToProto(req.WebauthnAssertionResponse),
+			},
+		}
+	case "denied":
+		action = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
+	default:
+		return nil, trace.BadParameter("unknown action %s", req.Action)
 	}
 
 	authClient, err := sctx.GetClient()
@@ -70,7 +83,8 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, params h
 		return nil, trace.Wrap(err)
 	}
 
-	err = authClient.UpdateHeadlessAuthenticationState(r.Context(), headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
+	err = authClient.UpdateHeadlessAuthenticationState(r.Context(), headlessAuthenticationID,
+		action, resp)
 	if err != nil {
 		return nil, trace.Wrap(err) // TODO replace with failed to authenticate always?
 	}

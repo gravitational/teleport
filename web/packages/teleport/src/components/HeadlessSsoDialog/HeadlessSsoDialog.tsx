@@ -26,8 +26,8 @@ import { ButtonPrimary, ButtonSecondary, Text } from 'design';
 
 export default function HeadlessSsoDialog({
   ipAddress,
-  onContinue,
-  onCancel,
+  onAccept,
+  onReject,
   errorText,
 }: Props) {
   return (
@@ -52,10 +52,10 @@ export default function HeadlessSsoDialog({
         </Text>
       </DialogContent>
       <DialogFooter textAlign="center">
-        <ButtonPrimary onClick={onContinue} autoFocus mr={3} width="130px">
+        <ButtonPrimary onClick={onAccept} autoFocus mr={3} width="130px">
           {errorText ? 'Retry' : 'Approve'}
         </ButtonPrimary>
-        <ButtonSecondary onClick={onCancel}>Cancel</ButtonSecondary>
+        <ButtonSecondary onClick={onReject}>Reject</ButtonSecondary>
       </DialogFooter>
     </Dialog>
   );
@@ -63,7 +63,7 @@ export default function HeadlessSsoDialog({
 
 export type Props = {
   ipAddress: string;
-  onContinue: () => void;
-  onCancel: () => void;
+  onAccept: () => void;
+  onReject: () => void;
   errorText: string;
 };

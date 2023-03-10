@@ -1,5 +1,4 @@
-/*
- *
+/**
  * Copyright 2023 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,15 +12,15 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * /
  *
  */
 
-import React, { useEffect, useState } from 'react';
+import React, {useEffect, useState} from 'react';
 import auth from 'teleport/services/auth';
 import { useParams } from 'teleport/components/Router';
-import CardSuccess from 'design/CardSuccess';
 import HeadlessSsoDialog from 'teleport/components/HeadlessSsoDialog/HeadlessSsoDialog';
+import {CardAccept, CardDenied} from "teleport/HeadlessSSO/Cards";
+
 
 export function HeadlessSSO() {
   const { requestId } = useParams<{ requestId: string }>();
@@ -58,40 +57,62 @@ export function HeadlessSSO() {
     setState({ ...state, status: 'success' });
   };
 
+  const setRejected = () => {
+    setState({ ...state, status: 'rejected' });
+  };
+
   if (state.status == '') {
     return <></>;
   }
 
-  return (
-    <div>
-      {state.status != 'success' && (
-        <HeadlessSsoDialog
-          ipAddress={state.ipAddress}
-          onContinue={() => {
-            setState({ ...state, status: 'in-progress' });
+  if (state.status == 'success') {
+    return (
+      <CardAccept title="Command has been approved">
+        You can now return to your terminal.
+      </CardAccept>
+    );
+  }
 
-            auth
-              .headlessSSOAccept(requestId)
-              .then(setSuccess)
-              .catch(e => {
-                setState({
-                  ...state,
-                  status: 'error',
-                  errorText: e.toString(),
-                });
-              });
-          }}
-          onCancel={() => {
-            window.close();
-          }}
-          errorText={state.errorText}
-        />
-      )}
-      {state.status == 'success' && (
-        <CardSuccess title="Command has been approved">
-          You can now return to your terminal.
-        </CardSuccess>
-      )}
-    </div>
+  if (state.status == 'rejected') {
+    return (
+      <CardDenied title="Request has been rejected">
+        The request has been rejected.
+      </CardDenied>
+    );
+  }
+
+  return (
+    <HeadlessSsoDialog
+      ipAddress={state.ipAddress}
+      onAccept={() => {
+        setState({ ...state, status: 'in-progress' });
+
+        auth
+          .headlessSSOAccept(requestId)
+          .then(setSuccess)
+          .catch(e => {
+            setState({
+              ...state,
+              status: 'error',
+              errorText: e.toString(),
+            });
+          });
+      }}
+      onReject={() => {
+        setState({ ...state, status: 'in-progress' });
+
+        auth
+          .headlessSSOReject(requestId)
+          .then(setRejected)
+          .catch(e => {
+            setState({
+              ...state,
+              status: 'error',
+              errorText: e.toString(),
+            });
+          });
+      }}
+      errorText={state.errorText}
+    />
   );
 }

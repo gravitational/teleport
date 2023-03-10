@@ -198,7 +198,7 @@ const auth = {
   headlessSSOGet(transactionId: string) {
     return auth
       .checkWebauthnSupport()
-      .then(() => api.get(cfg.getHeadlessRequest(transactionId)))
+      .then(() => api.get(cfg.getHeadlessSsoPath(transactionId)))
       .then((json: any) => {
         json = json || {};
 
@@ -220,12 +220,21 @@ const auth = {
         )
         .then(res => {
           const request = {
+            action: "accept",
             webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
           };
 
-          return api.post(cfg.getHeadlessAccept(transactionId), request);
+          return api.put(cfg.getHeadlessSsoPath(transactionId), request);
         })
     );
+  },
+
+  headlessSSOReject(transactionId: string) {
+    const request = {
+      action: "denied",
+    };
+
+    return api.put(cfg.getHeadlessSsoPath(transactionId), request);
   },
 
   createPrivilegeTokenWithTotp(secondFactorToken: string) {

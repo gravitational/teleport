@@ -110,7 +110,7 @@ const cfg = {
     userReset: '/web/reset/:tokenId',
     userResetContinue: '/web/reset/:tokenId/continue',
     kubernetes: '/web/cluster/:clusterId/kubernetes',
-    headlessSSO: `/web/headless/:requestId/accept`,
+    headlessSSO: `/web/headless/:requestId`,
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
@@ -179,8 +179,7 @@ const cfg = {
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
     mfaChangePasswordBegin: '/v1/webapi/mfa/authenticatechallenge/password',
 
-    headlessGet: `/v1/webapi/headless/:requestId`,
-    headlessAccept: `/v1/webapi/headless/:requestId/accept`,
+    headlessSsoPath: `/v1/webapi/headless/:requestId`,
 
     mfaCreateRegistrationChallengePath:
       '/v1/webapi/mfa/token/:tokenId/registerchallenge',
@@ -431,12 +430,8 @@ const cfg = {
     return generatePath(cfg.routes.userResetContinue, { tokenId });
   },
 
-  getHeadlessRequest(requestId: string) {
-    return generatePath(cfg.api.headlessGet, { requestId })
-  },
-
-  getHeadlessAccept(requestId: string) {
-    return generatePath(cfg.api.headlessAccept, { requestId })
+  getHeadlessSsoPath(requestId: string) {
+    return generatePath(cfg.api.headlessSsoPath, { requestId })
   },
 
   getUserInviteTokenRoute(tokenId = '') {

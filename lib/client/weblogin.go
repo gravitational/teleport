@@ -195,6 +195,8 @@ type AuthenticateWebUserRequest struct {
 }
 
 type HeadlessRequest struct {
+	// Actions can be either accept or deny.
+	Action string `json:"action"`
 	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
 	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
