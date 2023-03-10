@@ -29,12 +29,11 @@ import { NavigationItem } from './NavigationItem';
 
 function useNavigationItems(): (
   | {
-      type?: 'normal';
       title: string;
       Icon: React.ComponentType<{ fontSize: number }>;
       onNavigate: () => void;
     }
-  | { type: 'separator' }
+  | 'separator'
 )[] {
   const ctx = useAppContext();
   ctx.workspacesService.useState();
@@ -59,7 +58,7 @@ function useNavigationItems(): (
     },
     ...(areAccessRequestsSupported
       ? [
-          { type: 'separator' as const },
+          'separator' as const,
           {
             title: 'New Access Request',
             Icon: Add,
@@ -103,7 +102,7 @@ export function NavigationMenu() {
   const selectorRef = useRef<HTMLButtonElement>();
 
   const items = useNavigationItems().map((item, index) => {
-    if (item.type === 'separator') {
+    if (item === 'separator') {
       return <Separator key={index} />;
     }
     return (
