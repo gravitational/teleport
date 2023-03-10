@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -43,7 +42,7 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
-	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -200,11 +199,8 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 	clientParams := append(
 		[]roundtrip.ClientParam{
 			roundtrip.HTTPClient(&http.Client{
-				Timeout: defaults.HTTPRequestTimeout,
-				Transport: otelhttp.NewTransport(
-					breaker.NewRoundTripper(cb, transport),
-					otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
-				),
+				Timeout:   defaults.HTTPRequestTimeout,
+				Transport: tracehttp.NewTransport(breaker.NewRoundTripper(cb, transport)),
 			}),
 			roundtrip.SanitizerEnabled(true),
 		},
