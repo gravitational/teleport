@@ -1028,6 +1028,71 @@ export namespace SFTPEvent {
     }
 }
 
+export class AgentMetadataEvent extends jspb.Message { 
+    getVersion(): string;
+    setVersion(value: string): AgentMetadataEvent;
+
+    getHostId(): string;
+    setHostId(value: string): AgentMetadataEvent;
+
+    clearServicesList(): void;
+    getServicesList(): Array<string>;
+    setServicesList(value: Array<string>): AgentMetadataEvent;
+    addServices(value: string, index?: number): string;
+
+    getOs(): string;
+    setOs(value: string): AgentMetadataEvent;
+
+    getOsVersion(): string;
+    setOsVersion(value: string): AgentMetadataEvent;
+
+    getHostArchitecture(): string;
+    setHostArchitecture(value: string): AgentMetadataEvent;
+
+    getGlibcVersion(): string;
+    setGlibcVersion(value: string): AgentMetadataEvent;
+
+    clearInstallMethodsList(): void;
+    getInstallMethodsList(): Array<string>;
+    setInstallMethodsList(value: Array<string>): AgentMetadataEvent;
+    addInstallMethods(value: string, index?: number): string;
+
+    getContainerRuntime(): string;
+    setContainerRuntime(value: string): AgentMetadataEvent;
+
+    getContainerOrchestrator(): string;
+    setContainerOrchestrator(value: string): AgentMetadataEvent;
+
+    getCloudEnvironment(): string;
+    setCloudEnvironment(value: string): AgentMetadataEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AgentMetadataEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AgentMetadataEvent): AgentMetadataEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AgentMetadataEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AgentMetadataEvent;
+    static deserializeBinaryFromReader(message: AgentMetadataEvent, reader: jspb.BinaryReader): AgentMetadataEvent;
+}
+
+export namespace AgentMetadataEvent {
+    export type AsObject = {
+        version: string,
+        hostId: string,
+        servicesList: Array<string>,
+        os: string,
+        osVersion: string,
+        hostArchitecture: string,
+        glibcVersion: string,
+        installMethodsList: Array<string>,
+        containerRuntime: string,
+        containerOrchestrator: string,
+        cloudEnvironment: string,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -1243,6 +1308,12 @@ export class SubmitEventRequest extends jspb.Message {
     setSftp(value?: SFTPEvent): SubmitEventRequest;
 
 
+    hasAgentMetadataEvent(): boolean;
+    clearAgentMetadataEvent(): void;
+    getAgentMetadataEvent(): AgentMetadataEvent | undefined;
+    setAgentMetadataEvent(value?: AgentMetadataEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1293,6 +1364,7 @@ export namespace SubmitEventRequest {
         uiCreateNewRoleViewDocumentationClick?: UICreateNewRoleViewDocumentationClickEvent.AsObject,
         kubeRequest?: KubeRequestEvent.AsObject,
         sftp?: SFTPEvent.AsObject,
+        agentMetadataEvent?: AgentMetadataEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1365,6 +1437,8 @@ export namespace SubmitEventRequest {
     KUBE_REQUEST = 36,
 
     SFTP = 37,
+
+    AGENT_METADATA_EVENT = 38,
 
     }
 
