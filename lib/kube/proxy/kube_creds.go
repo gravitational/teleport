@@ -78,7 +78,41 @@ func (s *staticKubeCreds) wrapTransport(rt http.RoundTripper) (http.RoundTripper
 	if s == nil {
 		return rt, nil
 	}
-	return transport.HTTPWrappersForConfig(s.transportConfig, rt)
+
+	wrapped, err := transport.HTTPWrappersForConfig(s.transportConfig, rt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return enforceCloseIdleConnections(wrapped, rt), nil
+}
+
+// enforceCloseIdleConnections ensures that the returned [http.RoundTripper]
+// has a CloseIdleConnections method. [transport.HTTPWrappersForConfig] returns
+// a [http.RoundTripper] that does not implement it so any calls to [http.Client.CloseIdleConnections]
+// will result in a noop instead of forwarding the request onto its wrapped [http.RoundTripper].
+func enforceCloseIdleConnections(wrapper, wrapped http.RoundTripper) http.RoundTripper {
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+
+	type unwrapper struct {
+		http.RoundTripper
+		closeIdler
+	}
+
+	if _, ok := wrapper.(closeIdler); ok {
+		return wrapper
+	}
+
+	if c, ok := wrapped.(closeIdler); ok {
+		return &unwrapper{
+			RoundTripper: wrapper,
+			closeIdler:   c,
+		}
+	}
+
+	return wrapper
 }
 
 func (s *staticKubeCreds) close() error {
