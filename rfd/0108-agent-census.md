@@ -1,6 +1,6 @@
 ---
 authors: Vitor Enes (vitor@goteleport.com)
-state: implemented
+state: implemented (v11.3.8, v12.1.1)
 ---
 
 # RFD 108 - Agent Census
@@ -246,3 +246,4 @@ This will be tackled more holistically in a follow-up project.
 ### UX
 
 Data analysis and visualization are not a goal for this RFD, so no UX concerns for now.
+
