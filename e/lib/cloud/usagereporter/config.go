@@ -78,8 +78,8 @@ type ResourceAPIGetter interface {
 	GetDatabaseServers(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error)
 	// GetUsers retrieves users
 	GetUsers(withSecrets bool) ([]types.User, error)
-	// GetKubeServices retrieves kubernetes servers
-	GetKubeServices(context.Context) ([]types.Server, error)
+	// GetKubernetesServers retrieves kubernetes servers
+	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 	// GetApplicationServers retrieves application servers.
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
 	// GetRoles retrieves roles

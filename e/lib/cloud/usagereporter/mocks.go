@@ -45,7 +45,7 @@ type MockedResourceGetter struct {
 	MockedGetNodes              func() ([]types.Server, error)
 	MockedGetDatabaseServers    func() ([]types.DatabaseServer, error)
 	MockedGetUsers              func() ([]types.User, error)
-	MockedGetKubeServices       func() ([]types.Server, error)
+	MockedGetKubeServers        func() ([]types.KubeServer, error)
 	MockedGetApplicationServers func() ([]types.AppServer, error)
 	MockedGetRoles              func() ([]types.Role, error)
 	MockedSearchEvents          func() ([]events.AuditEvent, string, error)
@@ -81,12 +81,12 @@ func (g *MockedResourceGetter) GetUsers(withSecrets bool) ([]types.User, error) 
 	return nil, trace.NotImplemented("GetUsers is not implemented")
 }
 
-func (g *MockedResourceGetter) GetKubeServices(context.Context) ([]types.Server, error) {
-	if g.MockedGetKubeServices != nil {
-		return g.MockedGetKubeServices()
+func (g *MockedResourceGetter) GetKubernetesServers(context.Context) ([]types.KubeServer, error) {
+	if g.MockedGetKubeServers != nil {
+		return g.MockedGetKubeServers()
 	}
 
-	return nil, trace.NotImplemented("GetKubeServices is not implemented")
+	return nil, trace.NotImplemented("GetKubeServers is not implemented")
 }
 
 func (g *MockedResourceGetter) GetApplicationServers(context.Context, string) ([]types.AppServer, error) {

@@ -78,7 +78,7 @@ func (r *UsageReporter) reportUsage(ctx context.Context) {
 		r.Log.WithError(err).Error("Failed to report number of applications.")
 	}
 
-	kubeServers, err := r.ResourceGetter.GetKubeServices(ctx)
+	kubeServers, err := r.ResourceGetter.GetKubernetesServers(ctx)
 	if err != nil {
 		r.Log.WithError(err).Error("Failed to report number of kube clusters.")
 	}

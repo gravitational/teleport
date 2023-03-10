@@ -31,8 +31,8 @@ func TestUsageReport(t *testing.T) {
 		return []types.AppServer{&types.AppServerV3{}}, nil
 	}
 
-	m.apiGetters.MockedGetKubeServices = func() ([]types.Server, error) {
-		return []types.Server{&types.ServerV2{}}, nil
+	m.apiGetters.MockedGetKubeServers = func() ([]types.KubeServer, error) {
+		return []types.KubeServer{&types.KubernetesServerV3{}}, nil
 	}
 
 	m.apiGetters.MockedGetDatabaseServers = func() ([]types.DatabaseServer, error) {
@@ -109,7 +109,7 @@ func TestErrors(t *testing.T) {
 		return nil, trace.BadParameter("unable to return apps")
 	}
 
-	m.apiGetters.MockedGetKubeServices = func() ([]types.Server, error) {
+	m.apiGetters.MockedGetKubeServers = func() ([]types.KubeServer, error) {
 		return nil, trace.BadParameter("unable to return kube servers")
 	}
 
