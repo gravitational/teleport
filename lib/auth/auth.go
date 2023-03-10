@@ -274,7 +274,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Cache:           services,
 		keyStore:        keyStore,
 		getClaimsFun:    getClaims,
-		inventory:       inventory.NewController(cfg.Presence, inventory.WithAuthServerID(cfg.HostUUID)),
+		inventory:       inventory.NewController(cfg.Presence, services, inventory.WithAuthServerID(cfg.HostUUID)),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
 		loadAllCAs:      cfg.LoadAllCAs,
