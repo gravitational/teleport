@@ -1,4 +1,4 @@
-.version: &version "11.3.8-dev.ravicious.1"
+.version: &version "11.3.8-dev.ravicious.2"
 
 name: teleport-kube-agent
 apiVersion: v2
