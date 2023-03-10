@@ -28,7 +28,7 @@ export function NavigationItem({ item, closeMenu }: NavigationItemProps) {
   };
 
   return (
-    <StyledListItem onClick={handleClick}>
+    <StyledListItem as="button" type="button" onClick={handleClick}>
       <item.Icon fontSize={2} />
       <Text>{item.title}</Text>
     </StyledListItem>
