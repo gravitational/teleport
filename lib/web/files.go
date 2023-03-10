@@ -76,6 +76,22 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		proxyHostPort: h.ProxyHostPort(),
 	}
 
+	mfaReq, err := clt.IsMFARequired(r.Context(), &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_Node{
+			Node: &proto.NodeLogin{
+				Node:  p.ByName("server"),
+				Login: p.ByName("login"),
+			},
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if mfaReq.Required == true && query.Get("webauthn") == "" {
+		return nil, trace.BadParameter("MFA required for file transfer.")
+	}
+
 	isUpload := r.Method == http.MethodPost
 	if isUpload {
 		err = ft.upload(req, r)
