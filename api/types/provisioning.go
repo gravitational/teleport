@@ -590,13 +590,13 @@ func (a *ProvisionTokenSpecV2GitLab) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
 		return trace.BadParameter(
 			"the %q join method requires defined gitlab allow rules",
-			JoinMethodAzure,
+			JoinMethodGitLab,
 		)
 	}
 	for _, allowRule := range a.Allow {
-		if allowRule.Sub == "" {
+		if allowRule.Sub == "" && allowRule.NamespacePath == "" && allowRule.ProjectPath == "" {
 			return trace.BadParameter(
-				"the %q join method requires allow rules with non-empty sub field",
+				"the %q join method requires allow rules with at least 'sub', 'project_path' or 'namespace_path' to ensure security.",
 				JoinMethodGitLab,
 			)
 		}

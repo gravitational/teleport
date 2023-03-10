@@ -69,9 +69,24 @@ func checkGitLabAllowRules(token *types.ProvisionTokenV2, claims *gitlab.IDToken
 		if rule.Sub != "" && claims.Sub != rule.Sub {
 			continue
 		}
-
-		// TODO: Allow other rules
-
+		if rule.Ref != "" && claims.Ref != rule.Ref {
+			continue
+		}
+		if rule.RefType != "" && claims.RefType != rule.RefType {
+			continue
+		}
+		if rule.NamespacePath != "" && claims.NamespacePath != rule.NamespacePath {
+			continue
+		}
+		if rule.ProjectPath != "" && claims.ProjectPath != rule.ProjectPath {
+			continue
+		}
+		if rule.PipelineSource != "" && claims.PipelineSource != rule.PipelineSource {
+			continue
+		}
+		if rule.Environment != "" && claims.Environment != rule.Environment {
+			continue
+		}
 		// All provided rules met.
 		return nil
 	}
