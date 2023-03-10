@@ -279,8 +279,10 @@ export default class MainProcess {
       }
     });
 
-    ipcMain.handle('main-process-open-config-file', () => {
-      shell.openPath(this.configFileStorage.getFilePath());
+    ipcMain.handle('main-process-open-config-file', async () => {
+      const path = this.configFileStorage.getFilePath();
+      await shell.openPath(path);
+      return path;
     });
 
     subscribeToTerminalContextMenuEvent();

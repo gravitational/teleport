@@ -50,8 +50,11 @@ function useNavigationItems(): (
     {
       title: 'Open Config File',
       Icon: <Config fontSize={2} />,
-      onNavigate: () => {
-        ctx.mainProcessClient.openConfigFile();
+      onNavigate: async () => {
+        const path = await ctx.mainProcessClient.openConfigFile();
+        ctx.notificationsService.notifyInfo(
+          `Opened the config file at ${path} in the default editor.`
+        );
       },
     },
     { type: 'separator' as const },

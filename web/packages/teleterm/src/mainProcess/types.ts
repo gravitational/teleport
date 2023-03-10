@@ -73,7 +73,8 @@ export type MainProcessClient = {
    */
   removeTshSymlinkMacOs(): Promise<boolean>;
 
-  openConfigFile(): void;
+  /** Opens config file and returns a path to it. */
+  openConfigFile(): Promise<string>;
 };
 
 export type ChildProcessAddresses = {

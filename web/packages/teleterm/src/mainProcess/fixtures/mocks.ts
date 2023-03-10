@@ -65,7 +65,9 @@ export class MockMainProcessClient implements MainProcessClient {
     return true;
   }
 
-  openConfigFile() {}
+  async openConfigFile() {
+    return '';
+  }
 }
 
 const defaultRuntimeSettings = {

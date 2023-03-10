@@ -53,7 +53,7 @@ export default function createMainProcessClient(): MainProcessClient {
     removeTshSymlinkMacOs() {
       return ipcRenderer.invoke('main-process-remove-tsh-symlink-macos');
     },
-    openConfigFile() {
+    openConfigFile(): Promise<string> {
       return ipcRenderer.invoke('main-process-open-config-file');
     },
   };
