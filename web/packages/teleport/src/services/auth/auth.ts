@@ -66,7 +66,7 @@ const auth = {
 
   // mfaLoginBegin retrieves users mfa challenges for their
   // registered devices. Empty creds indicates request for passwordless challenges.
-  // Otherwise non-passwordless challenges requires creds to be verified.
+  // Otherwise, non-passwordless challenges requires creds to be verified.
   mfaLoginBegin(creds?: UserCredentials) {
     return api
       .post(cfg.api.mfaLoginBegin, {
@@ -204,34 +204,32 @@ const auth = {
 
         return {
           clientIpAddress: json.client_ip_address,
-        }
+        };
       });
   },
 
   headlessSSOAccept(transactionId: string) {
-    return (
-      auth
-        .checkWebauthnSupport()
-        .then(() => api.post(cfg.api.mfaAuthnChallengePath))
-        .then(res =>
-          navigator.credentials.get({
-            publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,
-          })
-        )
-        .then(res => {
-          const request = {
-            action: "accept",
-            webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
-          };
-
-          return api.put(cfg.getHeadlessSsoPath(transactionId), request);
+    return auth
+      .checkWebauthnSupport()
+      .then(() => api.post(cfg.api.mfaAuthnChallengePath))
+      .then(res =>
+        navigator.credentials.get({
+          publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,
         })
-    );
+      )
+      .then(res => {
+        const request = {
+          action: 'accept',
+          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+        };
+
+        return api.put(cfg.getHeadlessSsoPath(transactionId), request);
+      });
   },
 
   headlessSSOReject(transactionId: string) {
     const request = {
-      action: "denied",
+      action: 'denied',
     };
 
     return api.put(cfg.getHeadlessSsoPath(transactionId), request);

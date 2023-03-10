@@ -17,17 +17,18 @@
 
 import { render, screen, waitFor } from 'design/utils/testing';
 import React from 'react';
-import { HeadlessSSO } from 'teleport/HeadlessSSO/HeadlessSSO';
-import cfg from 'teleport/config';
 import { Route, Router } from 'react-router';
 import { createMemoryHistory } from 'history';
+
+import { HeadlessSso } from 'teleport/HeadlessSso/HeadlessSso';
+import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
 
 test('default error message', async () => {
   jest.spyOn(auth, 'headlessSSOGet').mockImplementation(
     () =>
-      new Promise(() => {
-        return { clientIpAddress: '1.1.1.1' };
+      new Promise((reject, resolve) => {
+        resolve({ clientIpAddress: '1.2.3.4' });
       })
   );
 
@@ -36,10 +37,10 @@ test('default error message', async () => {
     initialEntries: [headlessSSOPath],
   });
 
-  const { container } = render(
+  render(
     <Router history={mockHistory}>
-      <Route path={cfg.routes.headlessSSO}>
-        <HeadlessSSO />
+      <Route path={cfg.routes.headlessSso}>
+        <HeadlessSso />
       </Route>
     </Router>
   );
@@ -49,5 +50,6 @@ test('default error message', async () => {
       screen.getByText(/Someone has initiated a command from/i)
     ).toBeInTheDocument();
   });
-  expect(container).toMatchSnapshot();
+
+  await screen.findByText(/1.2.3.4/);
 });

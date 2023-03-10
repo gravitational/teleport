@@ -15,32 +15,55 @@
  *
  */
 
-import React, {useEffect, useState} from 'react';
+import React, { useEffect, useState } from 'react';
+import styled from 'styled-components';
+
+import { Spinner } from 'design/Icon';
+
+import { Box } from 'design';
+
 import auth from 'teleport/services/auth';
 import { useParams } from 'teleport/components/Router';
 import HeadlessSsoDialog from 'teleport/components/HeadlessSsoDialog/HeadlessSsoDialog';
-import {CardAccept, CardDenied} from "teleport/HeadlessSSO/Cards";
+import { CardAccept, CardDenied } from 'teleport/HeadlessSso/Cards';
 
+const Animate = styled(Box)`
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  padding: 2px 2px;
+  line-height: 12px;
+  font-size: 12px;
+  animation: spin 1s linear infinite;
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+`;
 
-export function HeadlessSSO() {
+export function HeadlessSso() {
   const { requestId } = useParams<{ requestId: string }>();
 
   const [state, setState] = useState({
     ipAddress: '',
-    status: '',
+    status: 'pending',
     errorText: '',
     publicKey: null as PublicKeyCredentialRequestOptions,
   });
 
-  const setIpAddress = (response: { clientIpAddress: string }) => {
-    setState({
-      ...state,
-      status: 'loaded',
-      ipAddress: response.clientIpAddress,
-    });
-  };
-
   useEffect(() => {
+    const setIpAddress = (response: { clientIpAddress: string }) => {
+      setState({
+        ...state,
+        status: 'loaded',
+        ipAddress: response.clientIpAddress,
+      });
+    };
+
     auth
       .headlessSSOGet(requestId)
       .then(setIpAddress)
@@ -51,7 +74,7 @@ export function HeadlessSSO() {
           errorText: e.toString(),
         });
       });
-  }, []);
+  }, [requestId]);
 
   const setSuccess = () => {
     setState({ ...state, status: 'success' });
@@ -61,8 +84,16 @@ export function HeadlessSSO() {
     setState({ ...state, status: 'rejected' });
   };
 
-  if (state.status == '') {
-    return <></>;
+  if (state.status == 'pending') {
+    return (
+      <Animate>
+        <Spinner
+          css={`
+            vertical-align: top;
+          `}
+        />
+      </Animate>
+    );
   }
 
   if (state.status == 'success') {

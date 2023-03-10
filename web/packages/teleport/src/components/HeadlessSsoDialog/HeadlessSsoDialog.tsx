@@ -44,8 +44,8 @@ export default function HeadlessSsoDialog({
           </Danger>
         )}
         <Text textAlign="center">
-          Someone has initiated a command from {ipAddress}. If it was not
-          you, click cancel and contact your administrator.
+          Someone has initiated a command from {ipAddress}. If it was not you,
+          click cancel and contact your administrator.
           <br />
           <br />
           If it was you, please use your hardware key to approve.

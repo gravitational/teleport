@@ -110,7 +110,7 @@ const cfg = {
     userReset: '/web/reset/:tokenId',
     userResetContinue: '/web/reset/:tokenId/continue',
     kubernetes: '/web/cluster/:clusterId/kubernetes',
-    headlessSSO: `/web/headless/:requestId`,
+    headlessSso: `/web/headless/:requestId`,
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
@@ -431,7 +431,7 @@ const cfg = {
   },
 
   getHeadlessSsoPath(requestId: string) {
-    return generatePath(cfg.api.headlessSsoPath, { requestId })
+    return generatePath(cfg.api.headlessSsoPath, { requestId });
   },
 
   getUserInviteTokenRoute(tokenId = '') {

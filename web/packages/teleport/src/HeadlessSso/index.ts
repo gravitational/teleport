@@ -15,4 +15,4 @@
  */
 
 // export as default for use with React.lazy
-export { HeadlessSSO as default } from './HeadlessSSO';
+export { HeadlessSso as default } from './HeadlessSso';

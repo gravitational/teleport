@@ -23,12 +23,13 @@ import Authenticated from 'teleport/components/Authenticated';
 
 import { getOSSFeatures } from 'teleport/features';
 
+import HeadlessSso from './HeadlessSso';
+
 import TeleportContextProvider from './TeleportContextProvider';
 import TeleportContext from './teleportContext';
 import cfg from './config';
 
 import type { History } from 'history';
-import HeadlessSSO from "teleport/HeadlessSSO";
 
 const AppLauncher = React.lazy(
   () => import(/* webpackChunkName: "app-launcher" */ './AppLauncher')
@@ -160,7 +161,11 @@ export function getSharedPrivateRoutes() {
     />,
     <Route key="console" path={cfg.routes.console} component={Console} />,
     <Route key="player" path={cfg.routes.player} component={Player} />,
-    <Route key="headlessSSO" path={cfg.routes.headlessSSO} component={HeadlessSSO} />,
+    <Route
+      key="headlessSSO"
+      path={cfg.routes.headlessSso}
+      component={HeadlessSso}
+    />,
   ];
 }
 
