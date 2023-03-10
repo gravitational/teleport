@@ -30,6 +30,7 @@ import { colors } from 'teleport/Console/colors';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import useWebAuthn from 'teleport/lib/useWebAuthn';
+import auth from 'teleport/services/auth';
 
 import Document from '../Document';
 
@@ -77,29 +78,53 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
           afterClose={handleCloseFileTransfer}
           backgroundColor={colors.primary.light}
           transferHandlers={{
-            getDownloader: async (location, abortController) =>
-              getHttpFileTransferHandlers().download(
+            getDownloader: async (location, abortController) => {
+              let wanResponse;
+              const isMfaRequired = await auth.checkMfaRequired({
+                node: {
+                  node_name: doc.clusterId,
+                  login: doc.login,
+                },
+              });
+              if (isMfaRequired.required === true) {
+                wanResponse = await auth.getWebauthnResponse();
+              }
+              return getHttpFileTransferHandlers().download(
                 cfg.getScpUrl({
                   location,
                   clusterId: doc.clusterId,
                   serverId: doc.serverId,
                   login: doc.login,
                   filename: location,
+                  webauthn: wanResponse,
                 }),
                 abortController
-              ),
-            getUploader: async (location, file, abortController) =>
-              getHttpFileTransferHandlers().upload(
+              );
+            },
+            getUploader: async (location, file, abortController) => {
+              let wanResponse;
+              const isMfaRequired = await auth.checkMfaRequired({
+                node: {
+                  node_name: doc.clusterId,
+                  login: doc.login,
+                },
+              });
+              if (isMfaRequired.required === true) {
+                wanResponse = await auth.getWebauthnResponse();
+              }
+              return getHttpFileTransferHandlers().upload(
                 cfg.getScpUrl({
                   location,
                   clusterId: doc.clusterId,
                   serverId: doc.serverId,
                   login: doc.login,
                   filename: file.name,
+                  webauthn: wanResponse,
                 }),
                 file,
                 abortController
-              ),
+              );
+            },
           }}
         />
       </FileTransferContextProvider>

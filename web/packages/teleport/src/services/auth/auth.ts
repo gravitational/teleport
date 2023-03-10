@@ -40,6 +40,9 @@ const auth = {
       )
     );
   },
+  checkMfaRequired(params) {
+    return api.post(cfg.getMfaRequiredUrl(), params);
+  },
 
   createMfaRegistrationChallenge(
     tokenId: string,
