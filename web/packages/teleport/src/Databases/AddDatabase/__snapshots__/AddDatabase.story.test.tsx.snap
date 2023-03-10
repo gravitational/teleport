@@ -388,7 +388,7 @@ exports[`render with token 1`] = `
 .c13 .react-select__control,
 .c13 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -926,7 +926,7 @@ exports[`render without token 1`] = `
 .c17 .react-select__control,
 .c17 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -1512,7 +1512,7 @@ exports[`render without token with SSO auth 1`] = `
 .c17 .react-select__control,
 .c17 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;

@@ -78,7 +78,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter(message, "missing parameter ProxyAddr")
 	}
 	if c.Timeout == 0 {
-		c.Timeout = defaults.DefaultDialTimeout
+		c.Timeout = defaults.DefaultIOTimeout
 	}
 	if c.TraceProvider == nil {
 		c.TraceProvider = tracing.DefaultProvider()
@@ -100,6 +100,7 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 		Proxy: func(req *http.Request) (*url.URL, error) {
 			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
 		},
+		IdleConnTimeout: defaults.DefaultIOTimeout,
 	}, nil)
 
 	return &http.Client{
