@@ -342,7 +342,7 @@ func (u *AgentMetadataEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventR
 		Event: &prehogv1.SubmitEventRequest_AgentMetadataEvent{
 			AgentMetadataEvent: &prehogv1.AgentMetadataEvent{
 				Version:               u.Version,
-				HostId:                u.HostId,
+				HostId:                a.AnonymizeString(u.HostId),
 				Services:              u.Services,
 				Os:                    u.Os,
 				OsVersion:             u.OsVersion,
