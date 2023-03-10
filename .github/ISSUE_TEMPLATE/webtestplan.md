@@ -733,7 +733,7 @@ Add the following to enable read access to trusted clusters
       - [ ] Verify that after re-login, requests that are not expired and are approved are assumable
         again
 - Configuration
-    - [ ] Verify that clicking on _three dots > Open Config File_ opens the `app_config.json` file in your editor.
+    - [ ] Verify that clicking on More Options icon `⋮` > Open Config File opens the `app_config.json` file in your editor.
     - Change a config property and restart the app. Verify that the change has been applied.
       - [ ] Change a keyboard shortcut.
       - [ ] Change `terminal.fontFamily`.
