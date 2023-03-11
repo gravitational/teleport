@@ -65,6 +65,7 @@ use rdp::model::link::{Link, Stream};
 use rdpdr::path::UnixPath;
 use rdpdr::ServerCreateDriveRequest;
 use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::ffi::{CStr, CString, NulError};
 use std::fmt::Debug;
 use std::io::Error as IoError;
@@ -76,6 +77,17 @@ use std::os::raw::c_char;
 use std::os::unix::io::AsRawFd;
 use std::sync::{Arc, Mutex};
 use std::{mem, ptr, slice, time};
+
+use ironrdp::session::connection_sequence::{process_connection_sequence, UpgradedStream};
+use ironrdp::session::{
+    ActiveStageProcessor, ErasedWriter, FramedReader, InputConfig, RdpError as IronRdpError,
+};
+use sspi::network_client::reqwest_network_client::RequestClientFactory;
+use sspi::{AuthIdentity, Secret};
+use tokio::io::AsyncWriteExt as _;
+use tokio::net::TcpStream as TokioTcpStream;
+use tokio_util::compat::TokioAsyncReadCompatExt as _;
+use x509_parser::prelude::{FromDer as _, X509Certificate};
 
 pub fn test() {}
 
@@ -111,6 +123,12 @@ impl Write for SharedStream {
     }
 }
 
+pub struct IronRDPClient {
+    reader: FramedReader,
+    writer: ErasedWriter,
+    processor: ActiveStageProcessor,
+}
+
 /// Client has an unusual lifecycle:
 /// - connect_rdp creates it on the heap, grabs a raw pointer and returns in to Go
 /// - most other exported rdp functions take the raw pointer, convert it to a reference for use
@@ -122,6 +140,7 @@ impl Write for SharedStream {
 /// synchronization.
 pub struct Client {
     rdp_client: Arc<Mutex<RdpClient<SharedStream>>>,
+    iron_rdp_client: IronRDPClient,
     tcp_fd: usize,
     go_ref: usize,
     tcp: SharedStream,
@@ -185,21 +204,25 @@ pub unsafe extern "C" fn connect_rdp(go_ref: usize, params: CGOConnectParams) ->
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
-    connect_rdp_inner(
-        go_ref,
-        ConnectParams {
-            addr,
-            username,
-            cert_der,
-            key_der,
-            screen_width: params.screen_width,
-            screen_height: params.screen_height,
-            allow_clipboard: params.allow_clipboard,
-            allow_directory_sharing: params.allow_directory_sharing,
-            show_desktop_wallpaper: params.show_desktop_wallpaper,
-        },
-    )
-    .into()
+    let result = tokio::runtime::Runtime::new().unwrap().block_on(async {
+        connect_rdp_inner(
+            go_ref,
+            ConnectParams {
+                addr,
+                username,
+                cert_der,
+                key_der,
+                screen_width: params.screen_width,
+                screen_height: params.screen_height,
+                allow_clipboard: params.allow_clipboard,
+                allow_directory_sharing: params.allow_directory_sharing,
+                show_desktop_wallpaper: params.show_desktop_wallpaper,
+            },
+        )
+        .await
+    });
+
+    result.into()
 }
 
 #[derive(Debug)]
@@ -207,6 +230,7 @@ enum ConnectError {
     Tcp(IoError),
     Rdp(RdpError),
     InvalidAddr(),
+    IronRdpError(IronRdpError),
 }
 
 impl From<IoError> for ConnectError {
@@ -252,7 +276,7 @@ struct ConnectParams {
     show_desktop_wallpaper: bool,
 }
 
-fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, ConnectError> {
+async fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, ConnectError> {
     // Connect and authenticate.
     let addr = params
         .addr
@@ -607,6 +631,54 @@ fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, Con
         cliprdr,
     };
 
+    let addr = ironrdp::session::connection_sequence::Address::lookup_addr(
+        "54.144.205.187:3389".to_owned(),
+    )?; //todo(isaiah): hardcoded
+
+    let stream = match TokioTcpStream::connect(addr.sock)
+        .await
+        .map_err(IronRdpError::Connection)
+    {
+        Ok(it) => it,
+        Err(err) => return Err(ConnectError::IronRdpError(err)),
+    };
+
+    let pass = std::env::var("RDP_PASSWORD").unwrap();
+
+    let input = InputConfig {
+        credentials: AuthIdentity {
+            username: "Administrator".to_string(),
+            password: Secret::new(pass), //todo(isaiah): hardcoded
+            domain: None,
+        },
+        security_protocol: ironrdp::core::SecurityProtocol::HYBRID_EX,
+        keyboard_type: ironrdp::core::gcc::KeyboardType::IbmEnhanced,
+        keyboard_subtype: 0,
+        keyboard_functional_keys_count: 12,
+        ime_file_name: "".to_string(),
+        dig_product_id: "".to_string(),
+        width: 1920,  //todo(isaiah): hardcoded
+        height: 1080, //todo(isaiah): hardcoded
+        global_channel_name: "GLOBAL".to_string(),
+        user_channel_name: "USER".to_string(),
+        graphics_config: None,
+    };
+
+    let (connection_sequence_result, reader, writer) = match process_connection_sequence(
+        stream.compat(),
+        &addr,
+        &input,
+        establish_tls,
+        Box::new(RequestClientFactory),
+    )
+    .await
+    {
+        Ok(it) => it,
+        Err(err) => return Err(ConnectError::IronRdpError(err)),
+    };
+
+    let processor = ActiveStageProcessor::new(input, None, connection_sequence_result);
+
     // Reset read timeout as rdp-rs isn't build to handle it internally.
     // This won't cause a lockup later since at that point the close_rdp() function will be called which
     // will terminate the connection if the websocket disconnects.
@@ -614,10 +686,87 @@ fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, Con
 
     Ok(Client {
         rdp_client: Arc::new(Mutex::new(rdp_client)),
+        iron_rdp_client: IronRDPClient {
+            reader,
+            writer,
+            processor,
+        },
         tcp_fd,
         go_ref,
         tcp: shared_tcp,
     })
+}
+
+type TlsStream = tokio_util::compat::Compat<tokio_rustls::client::TlsStream<TokioTcpStream>>;
+mod danger {
+    use std::time::SystemTime;
+
+    use tokio_rustls::rustls::client::ServerCertVerified;
+    use tokio_rustls::rustls::{Certificate, Error, ServerName};
+
+    pub struct NoCertificateVerification;
+
+    impl tokio_rustls::rustls::client::ServerCertVerifier for NoCertificateVerification {
+        fn verify_server_cert(
+            &self,
+            _end_entity: &Certificate,
+            _intermediates: &[Certificate],
+            _server_name: &ServerName,
+            _scts: &mut dyn Iterator<Item = &[u8]>,
+            _ocsp_response: &[u8],
+            _now: SystemTime,
+        ) -> Result<ServerCertVerified, Error> {
+            Ok(tokio_rustls::rustls::client::ServerCertVerified::assertion())
+        }
+    }
+}
+
+// TODO: this can be refactored into a separate `ironrdp-tls` crate (all native clients will do the same TLS dance)
+pub async fn establish_tls(
+    stream: tokio_util::compat::Compat<TokioTcpStream>,
+) -> Result<UpgradedStream<TlsStream>, IronRdpError> {
+    let stream = stream.into_inner();
+
+    let mut tls_stream = {
+        let mut client_config = tokio_rustls::rustls::client::ClientConfig::builder()
+            .with_safe_defaults()
+            .with_custom_certificate_verifier(std::sync::Arc::new(
+                danger::NoCertificateVerification,
+            ))
+            .with_no_client_auth();
+        // This adds support for the SSLKEYLOGFILE env variable (https://wiki.wireshark.org/TLS#using-the-pre-master-secret)
+        client_config.key_log = std::sync::Arc::new(tokio_rustls::rustls::KeyLogFile::new());
+        let rc_config = std::sync::Arc::new(client_config);
+        let example_com = "stub_string".try_into().unwrap();
+        let connector = tokio_rustls::TlsConnector::from(rc_config);
+        connector.connect(example_com, stream).await?
+    };
+
+    tls_stream.flush().await?;
+
+    let server_public_key = {
+        let cert = tls_stream
+            .get_ref()
+            .1
+            .peer_certificates()
+            .ok_or(IronRdpError::MissingPeerCertificate)?[0]
+            .as_ref();
+        get_tls_peer_pubkey(cert.to_vec())?
+    };
+
+    Ok(UpgradedStream {
+        stream: tls_stream.compat(),
+        server_public_key,
+    })
+}
+
+fn get_tls_peer_pubkey(cert: Vec<u8>) -> std::io::Result<Vec<u8>> {
+    let res = X509Certificate::from_der(&cert[..]).map_err(|_| {
+        std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid der certificate.")
+    })?;
+    let public_key = res.1.tbs_certificate.subject_pki.subject_public_key;
+
+    Ok(public_key.data.to_vec())
 }
 
 /// From rdp-rs/src/core/client.rs
