@@ -100,6 +100,43 @@ databases: []
 databaseResources: []
 
 ################################################################
+# Values that must be provided if Windows Desktop access is enabled.
+################################################################
+
+showDesktopWallpaper: false
+
+# Optional
+desktopLDAP:
+# addr:     '$LDAP_SERVER_ADDRESS'
+# domain:   '$LDAP_DOMAIN_NAME'
+# username: '$LDAP_USERNAME'
+# sid: '$LDAP_USER_SID'
+# insecure_skip_verify: false
+# ldap_ca_cert: |
+#   -----BEGIN CERTIFICATE-----
+#     *certificate data*
+#   -----END CERTIFICATE-----
+
+desktopADHosts: []
+
+desktopNonADHosts: []
+
+desktopDiscovery:
+# base_dn: '*'
+# filters:
+# - '(location=Oakland)'
+# - '(!(primaryGroupID=516))' # exclude domain controllers
+    # (optional) LDAP attributes to convert into Teleport labels.
+    # The key of the label will be "ldap/" + the value of the attribute.
+# label_attributes:
+# - location
+
+desktopHostLabels: []
+
+desktopLabels: 
+# teleport.internal/resource-id: "resource-id"
+
+################################################################
 # Values that you may need to change.
 ################################################################
 

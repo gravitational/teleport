@@ -112,6 +112,22 @@ db_service:
   enabled: false
 {{- end }}
 
+windows_desktop_service:
+  {{- if contains "windowsdesktop" (.Values.roles | toString) }}
+  enabled: true
+  {{- if not (or (.Values.desktopLDAP) (.Values.desktopNonADHosts) ) }}
+    {{- fail "at least one of 'desktopLDAP', 'desktopNonADHosts' is required in chart values when windowsdesktop role is enabled, see README" }}
+  {{- end }}
+  show_desktop_wallpaper: {{ .Values.showDesktopWallpaper }}
+  {{- if .Values.desktopNonADHosts }}
+  non_ad_hosts:
+    {{- toYaml .Values.desktopNonADHosts | nindent 6 }}
+  {{- end }}
+
+{{- else }}
+  enabled: false
+{{- end }}
+
 auth_service:
   enabled: false
 ssh_service:
