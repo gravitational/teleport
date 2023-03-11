@@ -16,34 +16,13 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import styled from 'styled-components';
 
 import { Spinner } from 'design/Icon';
-
-import { Box } from 'design';
 
 import auth from 'teleport/services/auth';
 import { useParams } from 'teleport/components/Router';
 import HeadlessSsoDialog from 'teleport/components/HeadlessSsoDialog/HeadlessSsoDialog';
 import { CardAccept, CardDenied } from 'teleport/HeadlessSso/Cards';
-
-const Animate = styled(Box)`
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  padding: 2px 2px;
-  line-height: 12px;
-  font-size: 12px;
-  animation: spin 1s linear infinite;
-  @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
-`;
 
 export function HeadlessSso() {
   const { requestId } = useParams<{ requestId: string }>();
@@ -85,14 +64,13 @@ export function HeadlessSso() {
   };
 
   if (state.status == 'pending') {
+    // Fix the spinner location.
     return (
-      <Animate>
-        <Spinner
-          css={`
-            vertical-align: top;
-          `}
-        />
-      </Animate>
+      <Spinner
+        css={`
+          vertical-align: top;
+        `}
+      />
     );
   }
 

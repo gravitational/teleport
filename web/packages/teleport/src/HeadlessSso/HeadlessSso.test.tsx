@@ -15,7 +15,7 @@
  *
  */
 
-import { render, screen, waitFor } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
 import React from 'react';
 import { Route, Router } from 'react-router';
 import { createMemoryHistory } from 'history';
@@ -24,15 +24,15 @@ import { HeadlessSso } from 'teleport/HeadlessSso/HeadlessSso';
 import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
 
-test('default error message', async () => {
+test('ip address should be visible', async () => {
   jest.spyOn(auth, 'headlessSSOGet').mockImplementation(
     () =>
-      new Promise((reject, resolve) => {
+      new Promise(resolve => {
         resolve({ clientIpAddress: '1.2.3.4' });
       })
   );
 
-  const headlessSSOPath = '/web/headless/00-request-id/accept';
+  const headlessSSOPath = '/web/headless/2a8dcaae-1fa5-533b-aad8-f97420df44de';
   const mockHistory = createMemoryHistory({
     initialEntries: [headlessSSOPath],
   });
@@ -45,11 +45,7 @@ test('default error message', async () => {
     </Router>
   );
 
-  await waitFor(() => {
-    expect(
-      screen.getByText(/Someone has initiated a command from/i)
-    ).toBeInTheDocument();
-  });
-
-  await screen.findByText(/1.2.3.4/);
+  await expect(
+    screen.findByText(/Someone has initiated a command from 1.2.3.4/i)
+  ).resolves.toBeInTheDocument();
 });
