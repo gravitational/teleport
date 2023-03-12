@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -285,10 +286,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login to the root cluster.
 	resp, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
+			Username:  user,
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
-		PublicKey:      pub,
 		TTL:            time.Hour,
 		RouteToCluster: s.clusterName.GetClusterName(),
 	})
@@ -324,10 +325,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login to the leaf cluster.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
+			Username:  user,
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
-		PublicKey:         pub,
 		TTL:               time.Hour,
 		RouteToCluster:    "leaf.localhost",
 		KubernetesCluster: "leaf-kube-cluster",
@@ -372,10 +373,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
+			Username:  user,
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
-		PublicKey:         pub,
 		TTL:               time.Hour,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		KubernetesCluster: "root-kube-cluster",
@@ -404,10 +405,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// automatically.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
+			Username:  user,
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
-		PublicKey:      pub,
 		TTL:            time.Hour,
 		RouteToCluster: s.clusterName.GetClusterName(),
 		// Intentionally empty, auth server should default to a registered
@@ -449,10 +450,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
+			Username:  user,
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
-		PublicKey:         pub,
 		TTL:               time.Hour,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		KubernetesCluster: "root-kube-cluster",
@@ -481,10 +482,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// automatically.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
+			Username:  user,
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
-		PublicKey:      pub,
 		TTL:            time.Hour,
 		RouteToCluster: s.clusterName.GetClusterName(),
 		// Intentionally empty, auth server should default to a registered
@@ -514,10 +515,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login specifying an invalid kube cluster. This should fail.
 	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
+			Username:  user,
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
-		PublicKey:         pub,
 		TTL:               time.Hour,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		KubernetesCluster: "invalid-kube-cluster",
@@ -1154,9 +1155,9 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 			Pass: &PassCreds{
 				Password: []byte(pass),
 			},
+			PublicKey: pub,
 		},
-		PublicKey: pub,
-		TTL:       1 * time.Hour,
+		TTL: 1 * time.Hour,
 	})
 	require.NoError(t, err, "AuthenticateSSHUser failed")
 
@@ -1221,9 +1222,9 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			xCert, identity := parseX509PEMAndIdentity(t, test.x509PEM)
 
-			// Prepare ctx and auth.Context.
-			ctx = context.WithValue(ctx, contextUserCertificate, xCert)
-			ctx = context.WithValue(ctx, ContextUser, LocalUser{
+			// Prepare ctx and authz.Context.
+			ctx = authz.ContextWithUserCertificate(ctx, xCert)
+			ctx = authz.ContextWithUser(ctx, authz.LocalUser{
 				Username: username,
 				Identity: *identity,
 			})
@@ -1311,9 +1312,9 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 				Pass: &PassCreds{
 					Password: []byte(pass),
 				},
+				PublicKey: ssh.MarshalAuthorizedKey(sPubKey),
 			},
-			PublicKey: ssh.MarshalAuthorizedKey(sPubKey),
-			TTL:       1 * time.Hour,
+			TTL: 1 * time.Hour,
 		})
 		require.NoError(t, err, "AuthenticateSSHUser(%q) failed", user)
 
@@ -1368,8 +1369,8 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 	// Issue augmented certs for user1.
 	// Used to test that re-issue of augmented certs is not allowed.
 	ctxFromAuthorize := testServer.APIConfig.Authorizer.Authorize
-	aCtx := context.WithValue(context.Background(), contextUserCertificate, xCert1)
-	aCtx = context.WithValue(aCtx, ContextUser, LocalUser{
+	aCtx := authz.ContextWithUserCertificate(context.Background(), xCert1)
+	aCtx = authz.ContextWithUser(aCtx, authz.LocalUser{
 		Username: identity1.Username,
 		Identity: *identity1,
 	})
@@ -1413,7 +1414,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 		x509Cert *x509.Certificate
 		identity *tlsca.Identity
 		// createAuthCtx defaults to ctxFromAuthorize.
-		createAuthCtx func(ctx context.Context) (*Context, error)
+		createAuthCtx func(ctx context.Context) (*authz.Context, error)
 		// createOpts defaults to optsFromBase.
 		createOpts func(t *testing.T) *AugmentUserCertificateOpts
 		wantErr    string
@@ -1423,7 +1424,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 			name:          "authCtx nil",
 			x509Cert:      xCert1,
 			identity:      identity1,
-			createAuthCtx: func(ctx context.Context) (*Context, error) { return nil, nil },
+			createAuthCtx: func(ctx context.Context) (*authz.Context, error) { return nil, nil },
 			wantErr:       "authCtx",
 		},
 		{
@@ -1616,7 +1617,7 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 			name:     "locked user",
 			x509Cert: xCert3,
 			identity: identity3, // user3 locked below.
-			createAuthCtx: func(ctx context.Context) (*Context, error) {
+			createAuthCtx: func(ctx context.Context) (*authz.Context, error) {
 				// Authorize user3...
 				authCtx, err := ctxFromAuthorize(ctx)
 				if err != nil {
@@ -1697,9 +1698,9 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 				test.createOpts = optsFromBase
 			}
 
-			// Prepare ctx and auth.Context.
-			ctx = context.WithValue(ctx, contextUserCertificate, test.x509Cert)
-			ctx = context.WithValue(ctx, ContextUser, LocalUser{
+			// Prepare ctx and authz.Context.
+			ctx = authz.ContextWithUserCertificate(ctx, test.x509Cert)
+			ctx = authz.ContextWithUser(ctx, authz.LocalUser{
 				Username: test.identity.Username,
 				Identity: *test.identity,
 			})
@@ -1778,10 +1779,10 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 
 	baseAuthRequest := AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Pass: &PassCreds{Password: pass},
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
 		TTL:            time.Hour,
-		PublicKey:      pub,
 		RouteToCluster: s.clusterName.GetClusterName(),
 	}
 
@@ -2619,15 +2620,15 @@ func newTestServices(t *testing.T) Services {
 	require.NoError(t, err)
 
 	return Services{
-		Trust:                local.NewCAService(bk),
-		PresenceInternal:     local.NewPresenceService(bk),
-		Provisioner:          local.NewProvisioningService(bk),
-		Identity:             local.NewIdentityService(bk),
-		Access:               local.NewAccessService(bk),
-		DynamicAccessExt:     local.NewDynamicAccessService(bk),
-		ClusterConfiguration: configService,
-		Events:               local.NewEventsService(bk),
-		IAuditLog:            events.NewDiscardAuditLog(),
+		Trust:                   local.NewCAService(bk),
+		PresenceInternal:        local.NewPresenceService(bk),
+		Provisioner:             local.NewProvisioningService(bk),
+		Identity:                local.NewIdentityService(bk),
+		Access:                  local.NewAccessService(bk),
+		DynamicAccessExt:        local.NewDynamicAccessService(bk),
+		ClusterConfiguration:    configService,
+		Events:                  local.NewEventsService(bk),
+		AuditLogSessionStreamer: events.NewDiscardAuditLog(),
 	}
 }
 

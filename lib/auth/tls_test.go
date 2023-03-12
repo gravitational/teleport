@@ -50,6 +50,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -191,7 +192,7 @@ func TestAcceptedUsage(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorIs(t, err, trace.ConnectionProblem(nil, `connection error: desc = "error reading server preface: EOF"`))
+	require.Error(t, err)
 
 	// restricted clients can will be rejected, for now if there is any mismatch,
 	// including extra usage.
@@ -201,7 +202,7 @@ func TestAcceptedUsage(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
-	require.ErrorIs(t, err, trace.ConnectionProblem(nil, `connection error: desc = "error reading server preface: EOF"`))
+	require.Error(t, err)
 }
 
 // TestRemoteRotation tests remote builtin role
@@ -969,7 +970,7 @@ func TestReadOwnRole(t *testing.T) {
 	require.NoError(t, err)
 
 	// user2 can't read user1 role
-	userClient2, err := tt.server.NewClient(TestIdentity{I: LocalUser{Username: user2.GetName()}})
+	userClient2, err := tt.server.NewClient(TestIdentity{I: authz.LocalUser{Username: user2.GetName()}})
 	require.NoError(t, err)
 
 	_, err = userClient2.GetRole(ctx, userRole.GetName())
@@ -985,7 +986,7 @@ func TestGetCurrentUser(t *testing.T) {
 	user1, _, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"}, nil)
 	require.NoError(t, err)
 
-	client1, err := srv.NewClient(TestIdentity{I: LocalUser{Username: user1.GetName()}})
+	client1, err := srv.NewClient(TestIdentity{I: authz.LocalUser{Username: user1.GetName()}})
 	require.NoError(t, err)
 
 	currentUser, err := client1.GetCurrentUser(ctx)
@@ -1015,7 +1016,7 @@ func TestGetCurrentUserRoles(t *testing.T) {
 	user1, user1Role, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user-role"}, nil)
 	require.NoError(t, err)
 
-	client1, err := srv.NewClient(TestIdentity{I: LocalUser{Username: user1.GetName()}})
+	client1, err := srv.NewClient(TestIdentity{I: authz.LocalUser{Username: user1.GetName()}})
 	require.NoError(t, err)
 
 	roles, err := client1.GetCurrentUserRoles(ctx)
@@ -1696,15 +1697,17 @@ func TestGetCertAuthority(t *testing.T) {
 	tt := setupAuthContext(ctx, t)
 
 	// generate server keys for node
-	nodeClt, err := tt.server.NewClient(TestIdentity{I: BuiltinRole{Username: "00000000-0000-0000-0000-000000000000", Role: types.RoleNode}})
+	nodeClt, err := tt.server.NewClient(TestIdentity{I: authz.BuiltinRole{Username: "00000000-0000-0000-0000-000000000000", Role: types.RoleNode}})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeClt.Close()) })
 
-	// node is authorized to fetch CA without secrets
-	ca, err := nodeClt.GetCertAuthority(ctx, types.CertAuthID{
+	hostCAID := types.CertAuthID{
 		DomainName: tt.server.ClusterName(),
 		Type:       types.HostCA,
-	}, false)
+	}
+
+	// node is authorized to fetch CA without secrets
+	ca, err := nodeClt.GetCertAuthority(ctx, hostCAID, false)
 	require.NoError(t, err)
 	for _, keyPair := range ca.GetActiveKeys().TLS {
 		require.Nil(t, keyPair.Key)
@@ -1714,15 +1717,12 @@ func TestGetCertAuthority(t *testing.T) {
 	}
 
 	// node is not authorized to fetch CA with secrets
-	_, err = nodeClt.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
-		Type:       types.HostCA,
-	}, true)
+	_, err = nodeClt.GetCertAuthority(ctx, hostCAID, true)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// generate server keys for proxy
 	proxyClt, err := tt.server.NewClient(TestIdentity{
-		I: BuiltinRole{
+		I: authz.BuiltinRole{
 			Username: "00000000-0000-0000-0000-000000000001",
 			Role:     types.RoleProxy,
 		},
@@ -1731,11 +1731,8 @@ func TestGetCertAuthority(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, proxyClt.Close()) })
 
 	// proxy can't fetch the host CA with secrets
-	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
-		Type:       types.HostCA,
-	}, true)
-	require.Error(t, err)
+	_, err = proxyClt.GetCertAuthority(ctx, hostCAID, true)
+	require.True(t, trace.IsAccessDenied(err))
 
 	// proxy can fetch SAML IdP CA with secrets
 	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
@@ -1749,7 +1746,7 @@ func TestGetCertAuthority(t *testing.T) {
 		DomainName: tt.server.ClusterName(),
 		Type:       types.DatabaseCA,
 	}, true)
-	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
 
 	// non-admin users are not allowed to get access to private key material
 	user, err := types.NewUser("bob")
@@ -1769,17 +1766,20 @@ func TestGetCertAuthority(t *testing.T) {
 	defer userClt.Close()
 
 	// user is authorized to fetch CA without secrets
-	_, err = userClt.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
-		Type:       types.HostCA,
-	}, false)
+	_, err = userClt.GetCertAuthority(ctx, hostCAID, false)
 	require.NoError(t, err)
 
 	// user is not authorized to fetch CA with secrets
-	_, err = userClt.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
-		Type:       types.HostCA,
-	}, true)
+	_, err = userClt.GetCertAuthority(ctx, hostCAID, true)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// user gets a not found message if a CA doesn't exist
+	require.NoError(t, tt.server.Auth().DeleteCertAuthority(hostCAID))
+	_, err = userClt.GetCertAuthority(ctx, hostCAID, false)
+	require.True(t, trace.IsNotFound(err))
+
+	// user is not authorized to fetch CA with secrets, even if CA doesn't exist
+	_, err = userClt.GetCertAuthority(ctx, hostCAID, true)
 	require.True(t, trace.IsAccessDenied(err))
 }
 
@@ -1896,7 +1896,7 @@ func TestGenerateCerts(t *testing.T) {
 
 	// generate server keys for node
 	hostID := "00000000-0000-0000-0000-000000000000"
-	hostClient, err := srv.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: types.RoleNode}})
+	hostClient, err := srv.NewClient(TestIdentity{I: authz.BuiltinRole{Username: hostID, Role: types.RoleNode}})
 	require.NoError(t, err)
 
 	certs, err := hostClient.GenerateHostCerts(context.Background(),
@@ -1916,7 +1916,7 @@ func TestGenerateCerts(t *testing.T) {
 
 	// sign server public keys for node
 	hostID = "00000000-0000-0000-0000-000000000000"
-	hostClient, err = srv.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: types.RoleNode}})
+	hostClient, err = srv.NewClient(TestIdentity{I: authz.BuiltinRole{Username: hostID, Role: types.RoleNode}})
 	require.NoError(t, err)
 
 	certs, err = hostClient.GenerateHostCerts(context.Background(),
@@ -2399,10 +2399,10 @@ func TestCertificateFormat(t *testing.T) {
 				Pass: &PassCreds{
 					Password: pass,
 				},
+				PublicKey: pub,
 			},
 			CompatibilityMode: ts.inClientCertificateFormat,
 			TTL:               apidefaults.CertDuration,
-			PublicKey:         pub,
 		})
 		require.NoError(t, err)
 
@@ -2685,8 +2685,8 @@ func TestLoginNoLocalAuth(t *testing.T) {
 			Pass: &PassCreds{
 				Password: pass,
 			},
+			PublicKey: pub,
 		},
-		PublicKey: pub,
 	})
 	require.True(t, trace.IsAccessDenied(err))
 }
@@ -3207,7 +3207,7 @@ func TestEventsNodePresence(t *testing.T) {
 	}
 	node.SetExpiry(time.Now().Add(2 * time.Second))
 	clt, err := tt.server.NewClient(TestIdentity{
-		I: BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: fmt.Sprintf("%v.%v", node.Metadata.Name, tt.server.ClusterName()),
 		},

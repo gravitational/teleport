@@ -8,7 +8,7 @@ jobs:
   analyze:
     name: Analyze
     if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
-    runs-on: ubuntu-22.04-32core
+    runs-on: ubuntu-22.04-16core
     permissions:
       actions: read
       contents: read
@@ -23,30 +23,18 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version-file: 'go.mod'
-      if: ${{ matrix.language == 'go' }}
-
     - name: Initialize the CodeQL tools for scanning
       uses: github/codeql-action/init@v2
       with:
         languages: ${{ matrix.language }}
-      timeout-minutes: 10
+      timeout-minutes: 5
 
     - name: Autobuild
       uses: github/codeql-action/autobuild@v2
-      if: ${{ matrix.language != 'go' }}
       timeout-minutes: 30
-
-    - name: Build Teleport OSS
-      run: |
-        make full
-      if: ${{ matrix.language == 'go' }}
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
       with:
         category: "/language:${{matrix.language}}"
-      timeout-minutes: 240
+      timeout-minutes: 10

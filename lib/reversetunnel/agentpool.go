@@ -670,7 +670,7 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 
 	c.mu.RUnlock()
 
-	ctx, cancel := context.WithTimeout(ctx, defaults.DefaultDialTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaults.DefaultIOTimeout)
 	defer cancel()
 
 	tlsRoutingEnabled := false
