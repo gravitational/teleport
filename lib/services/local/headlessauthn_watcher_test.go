@@ -39,7 +39,11 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 	watcherCtx, watcherCancel := context.WithCancel(ctx)
 	defer watcherCancel()
 
-	w, err := local.NewHeadlessAuthenticationWatcher(watcherCtx, identity.Backend)
+	watcherClock := clockwork.NewFakeClock()
+	w, err := local.NewHeadlessAuthenticationWatcher(watcherCtx, local.HeadlessAuthenticationWatcherConfig{
+		Clock:   watcherClock,
+		Backend: identity.Backend,
+	})
 	require.NoError(t, err)
 
 	pubUUID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
@@ -146,6 +150,28 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 		// the blocked waiter should perform a stale check and return a not found error.
 		err = <-errC
 		require.True(t, trace.IsNotFound(err), "Expected a not found error from Wait but got %v", err)
+	})
+
+	t.Run("WatchReset", func(t *testing.T) {
+		waitCtx, waitCancel := context.WithTimeout(ctx, time.Millisecond*500)
+		defer waitCancel()
+
+		headlessAuthnCh, errC := waitInGoroutine(waitCtx, t, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
+			return true, nil
+		})
+
+		// closed watchers should be handled gracefully and reset.
+		identity.Backend.CloseWatchers()
+		watcherClock.BlockUntil(1)
+
+		// The watcher should notify waiters of missed events.
+		stub, err := identity.CreateHeadlessAuthenticationStub(ctx, pubUUID)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, identity.DeleteHeadlessAuthentication(ctx, pubUUID)) })
+
+		watcherClock.Advance(w.MaxRetryPeriod)
+		require.NoError(t, <-errC)
+		require.Equal(t, stub, <-headlessAuthnCh)
 	})
 
 	t.Run("WatcherClosed", func(t *testing.T) {

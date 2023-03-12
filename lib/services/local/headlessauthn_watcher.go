@@ -18,13 +18,19 @@ package local
 
 import (
 	"context"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // maxWaiters is the maximum number of concurrent waiters that a headless authentication watcher
@@ -39,79 +45,167 @@ const maxWaiters = 1024
 
 var watcherClosedErr = trace.Errorf("headless authentication watcher closed")
 
+type HeadlessAuthenticationWatcherConfig struct {
+	// Backend is the storage backend used to create watchers.
+	Backend backend.Backend
+	// Log is a logger.
+	Log logrus.FieldLogger
+	// Clock is used to control time.
+	Clock clockwork.Clock
+	// MaxRetryPeriod is the maximum retry period on failed watchers.
+	MaxRetryPeriod time.Duration
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *HeadlessAuthenticationWatcherConfig) CheckAndSetDefaults() error {
+	if cfg.Backend == nil {
+		return trace.BadParameter("missing parameter Backend")
+	}
+	if cfg.Log == nil {
+		cfg.Log = logrus.StandardLogger()
+		cfg.Log.WithField("resource-kind", types.KindHeadlessAuthentication)
+	}
+	if cfg.MaxRetryPeriod == 0 {
+		// On watcher failure, we eagerly retry in order to avoid login delays.
+		cfg.MaxRetryPeriod = defaults.HighResPollingPeriod
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = cfg.Backend.Clock()
+	}
+	return nil
+}
+
 // HeadlessAuthenticationWatcher is a custom backend watcher for the headless authentication resource.
 type HeadlessAuthenticationWatcher struct {
-	log         logrus.FieldLogger
-	b           backend.Backend
-	watchersMux sync.Mutex
-	waiters     [maxWaiters]headlessAuthenticationWaiter
-	closed      chan struct{}
+	HeadlessAuthenticationWatcherConfig
+	identityService *IdentityService
+	retry           retryutils.Retry
+	mux             sync.Mutex
+	waiters         [maxWaiters]headlessAuthenticationWaiter
+	closed          chan struct{}
 }
 
 // NewHeadlessAuthenticationWatcher creates a new headless authentication resource watcher.
 // The watcher will close once the given ctx is closed.
-func NewHeadlessAuthenticationWatcher(ctx context.Context, b backend.Backend) (*HeadlessAuthenticationWatcher, error) {
-	if b == nil {
-		return nil, trace.BadParameter("missing required field backend")
-	}
-	watcher := &HeadlessAuthenticationWatcher{
-		log:    logrus.StandardLogger(),
-		b:      b,
-		closed: make(chan struct{}),
-	}
-
-	if err := watcher.start(ctx); err != nil {
+func NewHeadlessAuthenticationWatcher(ctx context.Context, cfg HeadlessAuthenticationWatcherConfig) (*HeadlessAuthenticationWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
+		First:  utils.FullJitter(cfg.MaxRetryPeriod / 10),
+		Step:   cfg.MaxRetryPeriod / 5,
+		Max:    cfg.MaxRetryPeriod,
+		Jitter: retryutils.NewHalfJitter(),
+		Clock:  cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	watcher := &HeadlessAuthenticationWatcher{
+		HeadlessAuthenticationWatcherConfig: cfg,
+		identityService:                     NewIdentityService(cfg.Backend),
+		retry:                               retry,
+		closed:                              make(chan struct{}),
+	}
+
+	go watcher.runWatchLoop(ctx)
 
 	return watcher, nil
 }
 
-func (h *HeadlessAuthenticationWatcher) start(ctx context.Context) error {
-	w, err := h.b.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{headlessAuthenticationKey("")}})
+func (h *HeadlessAuthenticationWatcher) close() {
+	h.mux.Lock()
+	defer h.mux.Unlock()
+	close(h.closed)
+}
+
+func (h *HeadlessAuthenticationWatcher) runWatchLoop(ctx context.Context) {
+	defer h.close()
+	for {
+		err := h.watch(ctx)
+
+		startedWaiting := h.Clock.Now()
+		select {
+		case t := <-h.retry.After():
+			h.Log.Debugf("Attempting to restart watch after waiting %v.", t.Sub(startedWaiting))
+			h.retry.Inc()
+		case <-ctx.Done():
+			h.Log.Debug("Context closed, returning from watch loop.")
+			return
+		case <-h.closed:
+			h.Log.Debug("Watcher closed, returning from watch loop.")
+			return
+		}
+		if err != nil {
+			h.Log.Warningf("Restart watch on error: %v.", err)
+		}
+	}
+}
+
+func (h *HeadlessAuthenticationWatcher) watch(ctx context.Context) error {
+	watcher, err := h.Backend.NewWatcher(ctx, backend.Watch{
+		Name:            types.KindHeadlessAuthentication,
+		MetricComponent: types.KindHeadlessAuthentication,
+		Prefixes:        [][]byte{headlessAuthenticationKey("")},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer watcher.Close()
+
+	select {
+	case <-watcher.Done():
+		return fmt.Errorf("watcher closed")
+	case <-ctx.Done():
+		return ctx.Err()
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			return trace.BadParameter("expected init event, got %v instead", event.Type)
+		}
+	}
+
+	headlessAuthns, err := h.identityService.GetHeadlessAuthentications(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	go func() {
-		defer w.Close()
-		for {
-			select {
-			case event := <-w.Events():
-				switch event.Type {
-				case types.OpPut:
-					headlessAuthn, err := unmarshalHeadlessAuthenticationFromItem(&event.Item)
-					if err != nil {
-						h.log.WithError(err).Debug("failed to unmarshal headless authentication from put event")
-					} else {
-						h.notify(headlessAuthn)
-					}
+	// Notify any waiters initiated before the new watcher initialized.
+	h.notify(headlessAuthns...)
+	h.retry.Reset()
+
+	for {
+		select {
+		case event := <-watcher.Events():
+			switch event.Type {
+			case types.OpPut:
+				headlessAuthn, err := unmarshalHeadlessAuthenticationFromItem(&event.Item)
+				if err != nil {
+					h.Log.WithError(err).Debug("failed to unmarshal headless authentication from put event")
+				} else {
+					h.notify(headlessAuthn)
 				}
-			case <-ctx.Done():
-				h.close()
-				return
 			}
+		case <-watcher.Done():
+			return fmt.Errorf("watcher closed")
+		case <-ctx.Done():
+			return ctx.Err()
 		}
-	}()
-
-	return nil
+	}
 }
 
-func (h *HeadlessAuthenticationWatcher) close() {
-	h.watchersMux.Lock()
-	defer h.watchersMux.Unlock()
-	close(h.closed)
-}
-
-func (h *HeadlessAuthenticationWatcher) notify(headlessAuthn *types.HeadlessAuthentication) {
-	h.watchersMux.Lock()
-	defer h.watchersMux.Unlock()
-	for i := range h.waiters {
-		if h.waiters[i].name == headlessAuthn.Metadata.Name {
-			select {
-			case h.waiters[i].ch <- headlessAuthn:
-			default:
-				h.markStaleUnderLock(&h.waiters[i])
+func (h *HeadlessAuthenticationWatcher) notify(headlessAuthns ...*types.HeadlessAuthentication) {
+	h.mux.Lock()
+	defer h.mux.Unlock()
+	for _, headlessAuthn := range headlessAuthns {
+		for i := range h.waiters {
+			if h.waiters[i].name == headlessAuthn.Metadata.Name {
+				select {
+				case h.waiters[i].ch <- headlessAuthn:
+				default:
+					h.markStaleUnderLock(&h.waiters[i])
+				}
 			}
 		}
 	}
@@ -120,8 +214,8 @@ func (h *HeadlessAuthenticationWatcher) notify(headlessAuthn *types.HeadlessAuth
 // CheckWaiter checks if there is an active waiter matching the given
 // headless authentication ID. Used in tests.
 func (h *HeadlessAuthenticationWatcher) CheckWaiter(name string) bool {
-	h.watchersMux.Lock()
-	defer h.watchersMux.Unlock()
+	h.mux.Lock()
+	defer h.mux.Unlock()
 	for i := range h.waiters {
 		if h.waiters[i].name == name {
 			return true
@@ -141,12 +235,7 @@ func (h *HeadlessAuthenticationWatcher) Wait(ctx context.Context, name string, c
 	defer h.unassignWaiter(waiter)
 
 	checkBackend := func() (*types.HeadlessAuthentication, bool, error) {
-		currentItem, err := h.b.Get(ctx, headlessAuthenticationKey(name))
-		if err != nil {
-			return nil, false, trace.Wrap(err)
-		}
-
-		headlessAuthn, err := unmarshalHeadlessAuthenticationFromItem(currentItem)
+		headlessAuthn, err := h.identityService.GetHeadlessAuthentication(ctx, name)
 		if err != nil {
 			return nil, false, trace.Wrap(err)
 		}
@@ -174,7 +263,8 @@ func (h *HeadlessAuthenticationWatcher) Wait(ctx context.Context, name string, c
 			// case it should check the backend for the latest resource version.
 			h.unmarkStale(waiter)
 
-			if headlessAuthn, ok, err := checkBackend(); err != nil {
+			headlessAuthn, ok, err := checkBackend()
+			if err != nil {
 				return nil, trace.Wrap(err)
 			} else if ok {
 				return headlessAuthn, nil
@@ -200,8 +290,8 @@ func (h *HeadlessAuthenticationWatcher) Wait(ctx context.Context, name string, c
 }
 
 func (h *HeadlessAuthenticationWatcher) assignWaiter(ctx context.Context, name string) (*headlessAuthenticationWaiter, error) {
-	h.watchersMux.Lock()
-	defer h.watchersMux.Unlock()
+	h.mux.Lock()
+	defer h.mux.Unlock()
 
 	select {
 	case <-h.closed:
@@ -223,8 +313,8 @@ func (h *HeadlessAuthenticationWatcher) assignWaiter(ctx context.Context, name s
 }
 
 func (h *HeadlessAuthenticationWatcher) unassignWaiter(waiter *headlessAuthenticationWaiter) {
-	h.watchersMux.Lock()
-	defer h.watchersMux.Unlock()
+	h.mux.Lock()
+	defer h.mux.Unlock()
 
 	// close channels.
 	close(waiter.ch)
@@ -261,7 +351,7 @@ func (h *HeadlessAuthenticationWatcher) markStaleUnderLock(waiter *headlessAuthe
 
 // unmarkStale marks a waiter as not stale. This should be called when the waiter performs a stale check.
 func (h *HeadlessAuthenticationWatcher) unmarkStale(waiter *headlessAuthenticationWaiter) {
-	h.watchersMux.Lock()
-	defer h.watchersMux.Unlock()
+	h.mux.Lock()
+	defer h.mux.Unlock()
 	waiter.stale = make(chan struct{})
 }

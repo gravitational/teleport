@@ -92,6 +92,27 @@ func (s *IdentityService) GetHeadlessAuthentication(ctx context.Context, name st
 	return headlessAuthn, nil
 }
 
+// GetHeadlessAuthentications returns all headless authentications from the backend.
+func (s *IdentityService) GetHeadlessAuthentications(ctx context.Context) ([]*types.HeadlessAuthentication, error) {
+	rangeStart := headlessAuthenticationKey("")
+	rangeEnd := backend.RangeEnd(rangeStart)
+	items, err := s.GetRange(ctx, rangeStart, rangeEnd, 0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	headlessAuthns := make([]*types.HeadlessAuthentication, len(items.Items))
+	for i, item := range items.Items {
+		headlessAuthn, err := unmarshalHeadlessAuthenticationFromItem(&item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		headlessAuthns[i] = headlessAuthn
+	}
+
+	return headlessAuthns, nil
+}
+
 // DeleteHeadlessAuthentication deletes a headless authentication from the backend by name.
 func (s *IdentityService) DeleteHeadlessAuthentication(ctx context.Context, name string) error {
 	err := s.Delete(ctx, headlessAuthenticationKey(name))
