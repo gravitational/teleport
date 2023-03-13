@@ -930,8 +930,6 @@ pub fn encode_png(
     height: u16,
     mut data: Vec<u8>,
 ) -> Result<(), png::EncodingError> {
-    convert_bgra_to_rgba(&mut data);
-
     let mut encoder = png::Encoder::new(dest, width as u32, height as u32);
     encoder.set_compression(png::Compression::Fast);
     encoder.set_color(png::ColorType::Rgba);
@@ -940,22 +938,6 @@ pub fn encode_png(
     writer.write_image_data(&data)?;
     writer.finish()?;
     Ok(())
-}
-
-/// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
-/// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
-/// a byte slice with 4-byte segments representing pixels (RGBA).
-///
-/// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/8ab64b94-59cb-43f4-97ca-79613838e0bd
-///
-/// Also, always force Alpha value to 100% (opaque). On some Windows
-/// versions (e.g. Windows 10) it's sent as 0% after decompression for some reason.
-fn convert_bgra_to_rgba(data: &mut [u8]) {
-    data.chunks_exact_mut(4).for_each(|chunk| {
-        chunk.swap(0, 2);
-        // set alpha to 100% opaque
-        chunk[3] = 255
-    });
 }
 
 impl Drop for CGOPNG {
