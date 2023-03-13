@@ -20,17 +20,24 @@ import { KubeMeta } from '../../useDiscover';
 
 import type { KubeImpersonation } from 'teleport/services/agents';
 import type { AgentStepProps } from '../../types';
+import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
 export function useTestConnection(props: AgentStepProps) {
   const { runConnectionDiagnostic, ...connectionDiagnostic } =
-    useConnectionDiagnostic(props);
+    useConnectionDiagnostic();
 
-  function testConnection(impersonate: KubeImpersonation) {
-    runConnectionDiagnostic({
-      resourceKind: 'kube_cluster',
-      resourceName: props.agentMeta.resourceName,
-      kubeImpersonation: impersonate,
-    });
+  function testConnection(
+    impersonate: KubeImpersonation,
+    mfaResponse?: MfaAuthnResponse
+  ) {
+    runConnectionDiagnostic(
+      {
+        resourceKind: 'kube_cluster',
+        resourceName: props.agentMeta.resourceName,
+        kubeImpersonation: impersonate,
+      },
+      mfaResponse
+    );
   }
 
   return {
