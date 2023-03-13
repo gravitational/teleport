@@ -16,6 +16,8 @@
 
 import { renderHook } from '@testing-library/react-hooks';
 
+import cfg from 'teleport/config';
+
 // Imports to be mocked
 import { fetchClusterAlerts } from 'teleport/services/alerts'; // eslint-disable-line
 import useStickyClusterId from 'teleport/useStickyClusterId'; // eslint-disable-line
@@ -73,6 +75,18 @@ describe('components/BannerList/useAlerts', () => {
     await waitFor(() => {
       expect(result.current.alerts).toEqual(ALERTS);
     });
+  });
+
+  it('will not return upgrade suggestions on dashboards', async () => {
+    cfg.isDashboard = true;
+    const { result, waitFor } = renderHook(() => useAlerts());
+    await waitFor(() => {
+      const alerts = result.current.alerts;
+      alerts.forEach(alert => {
+        expect(alert.metadata).not.toBe('upgrade-suggestion');
+      });
+    });
+    cfg.isDashboard = false;
   });
 
   it('provides a method that dismisses alerts for 24h', async () => {

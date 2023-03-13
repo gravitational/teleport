@@ -20,6 +20,8 @@ import Logger from 'shared/libs/logger';
 import { fetchClusterAlerts } from 'teleport/services/alerts';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
+import cfg from 'teleport/config';
+
 import type { ClusterAlert } from 'teleport/services/alerts';
 
 const logger = Logger.create('ClusterAlerts');
@@ -69,6 +71,17 @@ export function useAlerts(initialAlerts: ClusterAlert[] = []) {
         if (!res) {
           return;
         }
+
+        // filter upgrade suggestions from showing on dashboards
+        if (cfg.isDashboard) {
+          res = res.filter(alert => {
+            return (
+              alert.metadata.name !== 'upgrade-suggestion' &&
+              alert.metadata.name !== 'security-patch-available'
+            );
+          });
+        }
+
         setAlerts(res);
       })
       .catch(err => {
