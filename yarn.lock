@@ -2968,7 +2968,7 @@
     "@types/minimatch" "*"
     "@types/node" "*"
 
-"@types/google-protobuf@^3.10.0", "@types/google-protobuf@^3.7.2":
+"@types/google-protobuf@^3.10.0":
   version "3.15.6"
   resolved "https://registry.yarnpkg.com/@types/google-protobuf/-/google-protobuf-3.15.6.tgz#674a69493ef2c849b95eafe69167ea59079eb504"
   integrity sha512-pYVNNJ+winC4aek+lZp93sIKxnXt5qMkuKmaqS3WGuTq0Bw1ZDYNBgzG5kkdtwcv+GmYJGo3yEg6z2cKKAiEdw==
@@ -6653,10 +6653,10 @@ electron-to-chromium@^1.3.564, electron-to-chromium@^1.3.896:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.3.tgz#82480df3ef607f04bb38cc3f30a628d8b895339f"
   integrity sha512-hfpppjYhqIZB8jrNb0rNceQRkSnBN7QJl3W26O1jUv3F3BkQknqy1YTqVXkFnIcFtBc3Qnv5M7r5Lez2iOLgZA==
 
-electron@22.0.0:
-  version "22.0.0"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-22.0.0.tgz#ef84ab9cf23aa3f8c2f42a1e8e000ad7fd941058"
-  integrity sha512-cgRc4wjyM+81A0E8UGv1HNJjL1HBI5cWNh/DUIjzYvoUuiEM0SS0hAH/zaFQ18xOz2ced6Yih8SybpOiOYJhdg==
+electron@22.3.2:
+  version "22.3.2"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-22.3.2.tgz#6adf34561acc23938bfbe35ae771281eaf8706f2"
+  integrity sha512-rcE01ammPJ9RVDF3sCETyeHiDEVxV49Ywn+wXUGiG+jGtOB6erLx5jnBTf2eSVYoTXqoIbigoxGHLq4nLMLLUg==
   dependencies:
     "@electron/get" "^2.0.0"
     "@types/node" "^16.11.26"
