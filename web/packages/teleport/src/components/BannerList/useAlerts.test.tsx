@@ -84,6 +84,7 @@ describe('components/BannerList/useAlerts', () => {
       const alerts = result.current.alerts;
       alerts.forEach(alert => {
         expect(alert.metadata).not.toBe('upgrade-suggestion');
+        expect(alert.metadata).not.toBe('security-patch-available');
       });
     });
     cfg.isDashboard = false;
