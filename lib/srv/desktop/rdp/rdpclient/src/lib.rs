@@ -77,6 +77,7 @@ use std::{mem, ptr, slice, time};
 
 use bytes::{Bytes, BytesMut};
 use futures_util::io::{AsyncWrite, AsyncWriteExt};
+use ironrdp::geometry::Rectangle;
 use ironrdp::graphics::image_processing::PixelFormat;
 use ironrdp::session::connection_sequence::{process_connection_sequence, UpgradedStream};
 use ironrdp::session::image::DecodedImage;
@@ -88,6 +89,7 @@ use sspi::network_client::reqwest_network_client::RequestClientFactory;
 use sspi::{AuthIdentity, Secret};
 use tokio::io::AsyncWriteExt as _;
 use tokio::net::TcpStream as TokioTcpStream;
+use tokio::time::{sleep, Duration};
 use tokio_util::compat::TokioAsyncReadCompatExt as _;
 use x509_parser::prelude::{FromDer as _, X509Certificate};
 
@@ -916,6 +918,39 @@ impl TryFrom<&DecodedImage> for CGOPNG {
     }
 }
 
+impl CGOPNG {
+    fn from_image_region(image: &DecodedImage, region: &Rectangle) -> Result<Self, RdpError> {
+        let mut res = CGOPNG {
+            dest_left: region.left,
+            dest_top: region.top,
+            dest_right: region.right,
+            dest_bottom: region.bottom,
+            data_ptr: ptr::null_mut(),
+            data_len: 0,
+            data_cap: 0,
+        };
+
+        let mut encoded = Vec::with_capacity(8192);
+        encode_png(
+            &mut encoded,
+            region.width(),
+            region.height(),
+            extract_partial_image(image, region),
+        )
+        .map_err(|err| RdpError::TryError(format!("failed to encode bitmap to png: {err:?}")))?;
+
+        res.data_ptr = encoded.as_mut_ptr();
+        res.data_len = encoded.len();
+        res.data_cap = encoded.capacity();
+
+        // Prevent the data field from being freed while Go handles it.
+        // It will be dropped once CGOPNG is dropped (see below).
+        mem::forget(encoded);
+
+        Ok(res)
+    }
+}
+
 /// encodes png from the uncompressed bitmap data
 ///
 /// # Arguments
@@ -1237,11 +1272,20 @@ async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
                         };
                     }
                 },
-                ActiveStageOutput::GraphicsUpdate(_region) => {
-                    debug!("got graphics update");
-                    let mut cpng = match CGOPNG::try_from(&image) {
+                ActiveStageOutput::GraphicsUpdate(region) => {
+                    let mut cpng = match CGOPNG::from_image_region(&image, &region) {
                         Ok(cpng) => cpng,
                         Err(e) => {
+                            if region.left == 0
+                                && region.right == 0
+                                && region.top == 0
+                                && region.bottom == 0
+                            {
+                                debug!("got a blank frame, ignoring");
+                                // This is a special case where the server is sending us a
+                                // "blank" frame. We can safely ignore this.
+                                continue;
+                            }
                             error!("failed to convert image to png: {e:?}");
                             return ReadRdpOutputReturns {
                                 user_message: "Failed to convert image to png".to_string(),
@@ -1250,8 +1294,6 @@ async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
                             };
                         }
                     };
-
-                    debug!("successfully converted image to png");
 
                     let err = unsafe { handle_png(client_ref, &mut cpng) as CGOErrCode };
                     if err != CGOErrCode::ErrCodeSuccess {
@@ -1275,6 +1317,39 @@ async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
             }
         }
     }
+}
+
+fn extract_partial_image(image: &DecodedImage, region: &Rectangle) -> Vec<u8> {
+    let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
+
+    let image_width = usize::try_from(image.width()).unwrap();
+
+    let region_top = usize::from(region.top);
+    let region_left = usize::from(region.left);
+    let region_width = usize::from(region.width());
+    let region_height = usize::from(region.height());
+
+    let dst_buf_size = region_width * region_height * pixel_size;
+    let mut dst = vec![0; dst_buf_size];
+
+    let src = image.data();
+
+    let image_stride = image_width * pixel_size;
+    let region_stride = region_width * pixel_size;
+
+    for row in 0..region_height {
+        let src_begin = image_stride * (region_top + row) + region_left * pixel_size;
+        let src_end = src_begin + region_stride;
+        let src_slice = &src[src_begin..src_end];
+
+        let target_begin = region_stride * row;
+        let target_end = target_begin + region_stride;
+        let target_slice = &mut dst[target_begin..target_end];
+
+        target_slice.copy_from_slice(src_slice);
+    }
+
+    dst
 }
 
 /// CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
