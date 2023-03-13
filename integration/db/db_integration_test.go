@@ -623,6 +623,9 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 		idleTimeout = time.Minute
 	)
 
+	rootAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
+	leafAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
+
 	mkMySQLLeafDBClient := func(t *testing.T) *client.Conn {
 		// Connect to the database service in leaf cluster via root cluster.
 		client, err := mysql.MakeTestClient(common.TestClientConfig{

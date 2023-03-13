@@ -268,6 +268,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
 		bk:              cfg.Backend,
+		clock:           cfg.Clock,
 		limiter:         limiter,
 		Authority:       cfg.Authority,
 		AuthServiceName: cfg.AuthServiceName,
@@ -4600,8 +4601,11 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 	return trace.Wrap(a.keyStore.DeleteUnusedKeys(ctx, usedKeys))
 }
 
-// GetLicense return the license used the star the teleport enterprise auth server
+// GetLicense return the license used the start the teleport enterprise auth server
 func (a *Server) GetLicense(ctx context.Context) (string, error) {
+	if modules.GetModules().Features().Cloud {
+		return "", trace.AccessDenied("license cannot be downloaded on Cloud")
+	}
 	if a.license == nil {
 		return "", trace.NotFound("license not found")
 	}
