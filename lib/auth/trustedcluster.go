@@ -27,14 +27,14 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -174,7 +174,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			Type: events.TrustedClusterCreateEvent,
 			Code: events.TrustedClusterCreateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: trustedCluster.GetName(),
 		},
@@ -242,7 +242,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 			Type: events.TrustedClusterDeleteEvent,
 			Code: events.TrustedClusterDeleteCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
@@ -644,7 +644,7 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 		tr.TLSClientConfig = tlsConfig
 
 		insecureWebClient := &http.Client{
-			Transport: otelhttp.NewTransport(tr, otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter)),
+			Transport: tracehttp.NewTransport(tr),
 		}
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))
 	}

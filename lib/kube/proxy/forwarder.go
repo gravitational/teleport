@@ -46,7 +46,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"golang.org/x/net/http2"
@@ -65,13 +64,14 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -113,7 +113,7 @@ type ForwarderConfig struct {
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 	// Authz authenticates user
-	Authz auth.Authorizer
+	Authz authz.Authorizer
 	// AuthClient is a auth server client.
 	AuthClient auth.ClientI
 	// CachingAuthClient is a caching auth server client for read-only access.
@@ -342,7 +342,7 @@ func (f *Forwarder) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 // authContext is a context of authenticated user,
 // contains information about user, target cluster and authenticated groups
 type authContext struct {
-	auth.Context
+	authz.Context
 	kubeGroups        map[string]struct{}
 	kubeUsers         map[string]struct{}
 	kubeClusterLabels map[string]string
@@ -433,13 +433,17 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	const accessDeniedMsg = "[00] access denied"
 
 	var isRemoteUser bool
-	userTypeI := req.Context().Value(auth.ContextUser)
+	userTypeI, err := authz.UserFromContext(req.Context())
+	if err != nil {
+		f.log.WithError(err).Warn("error getting user from context")
+		return nil, trace.AccessDenied(accessDeniedMsg)
+	}
 	switch userTypeI.(type) {
-	case auth.LocalUser:
+	case authz.LocalUser:
 
-	case auth.RemoteUser:
+	case authz.RemoteUser:
 		isRemoteUser = true
-	case auth.BuiltinRole:
+	case authz.BuiltinRole:
 		f.log.Warningf("Denying proxy access to unauthenticated user of type %T - this can sometimes be caused by inadvertently using an HTTP load balancer instead of a TCP load balancer on the Kubernetes port.", userTypeI)
 		return nil, trace.AccessDenied(accessDeniedMsg)
 	default:
@@ -628,7 +632,7 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 	}
 }
 
-func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemoteUser bool, clientIdentity *tlsca.Identity, kubeResource *types.KubernetesResource) (*authContext, error) {
+func (f *Forwarder) setupContext(authCtx authz.Context, req *http.Request, isRemoteUser bool, clientIdentity *tlsca.Identity, kubeResource *types.KubernetesResource) (*authContext, error) {
 	roles := authCtx.Checker
 
 	// adjust session ttl to the smaller of two values: the session
@@ -1883,6 +1887,8 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 			return nil, trace.Wrap(err)
 		}
 	}
+	rt = tracehttp.NewTransport(rt)
+
 	return remotecommand.NewSPDYExecutorForTransports(rt, upgradeRoundTripper, req.Method, req.URL)
 }
 
@@ -1904,7 +1910,7 @@ func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.R
 		}
 	}
 	client := &http.Client{
-		Transport: otelhttp.NewTransport(rt, otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter)),
+		Transport: tracehttp.NewTransport(rt),
 	}
 
 	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), nil
@@ -2159,6 +2165,8 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forward
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	rt = tracehttp.NewTransport(rt)
 
 	forwarder, err := forward.New(
 		forward.FlushInterval(100*time.Millisecond),

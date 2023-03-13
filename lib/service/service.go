@@ -69,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/backend/etcdbk"
@@ -1624,7 +1625,7 @@ func (process *TeleportProcess) initAuthService() error {
 	// second, create the API Server: it's actually a collection of API servers,
 	// each serving requests for a "role" which is assigned to every connected
 	// client based on their certificate (user, server, admin, etc)
-	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
 		AccessPoint: authServer,
 		LockWatcher: lockWatcher,
@@ -2640,6 +2641,7 @@ func (process *TeleportProcess) initMetricsService() error {
 	server := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentMetrics),
 		TLSConfig:         tlsConfig,
 	}
@@ -2759,7 +2761,8 @@ func (process *TeleportProcess) initDiagnosticService() error {
 
 	server := &http.Server{
 		Handler:           mux,
-		ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
+		ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentDiagnostic),
 	}
 
@@ -3393,11 +3396,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	nodeWatcher, err := services.NewNodeWatcher(process.ExitContext(), services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentProxy,
-			Log:       process.log.WithField(trace.Component, teleport.ComponentProxy),
-			Client:    accessPoint,
+			Component:    teleport.ComponentProxy,
+			Log:          process.log.WithField(trace.Component, teleport.ComponentProxy),
+			Client:       accessPoint,
+			MaxStaleness: time.Minute,
 		},
-		NodesGetter: conn.Client,
+		NodesGetter: accessPoint,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3644,7 +3648,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		webServer, err = web.NewServer(web.ServerConfig{
 			Server: &http.Server{
 				Handler:           httplib.MakeTracingHandler(proxyLimiter, teleport.ComponentProxy),
-				ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
+				ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+				IdleTimeout:       apidefaults.DefaultIdleTimeout,
 				ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 				ConnState:         ingress.HTTPConnStateReporter(ingress.Web, ingressReporter),
 			},
@@ -3826,7 +3831,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var kubeServer *kubeproxy.TLSServer
 	if listeners.kube != nil && !process.Config.Proxy.DisableReverseTunnel {
-		authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 			ClusterName: clusterName,
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
@@ -3893,7 +3898,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// then routing them to a respective database server over the reverse tunnel
 	// framework.
 	if (!listeners.db.Empty() || alpnRouter != nil) && !process.Config.Proxy.DisableReverseTunnel {
-		authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 			ClusterName: clusterName,
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
@@ -4194,7 +4199,8 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 	minimalWebServer, err := web.NewServer(web.ServerConfig{
 		Server: &http.Server{
 			Handler:           httplib.MakeTracingHandler(minimalProxyLimiter, teleport.ComponentProxy),
-			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
+			ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+			IdleTimeout:       apidefaults.DefaultIdleTimeout,
 			ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentReverseTunnelServer),
 		},
 		Handler: minimalWebHandler,
@@ -4618,7 +4624,7 @@ func (process *TeleportProcess) initApps() {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 			ClusterName: clusterName,
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
@@ -5235,7 +5241,7 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 		return nil, trace.Wrap(err)
 	}
 
-	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
 		AccessPoint: cfg.accessPoint,
 		LockWatcher: cfg.lockWatcher,

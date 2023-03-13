@@ -37,11 +37,13 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
@@ -60,7 +62,7 @@ type ServerWithRoles struct {
 	authServer *Server
 	alog       events.IAuditLog
 	// context holds authorization context
-	context Context
+	context authz.Context
 }
 
 // CloseContext is closed when the auth server shuts down
@@ -85,7 +87,7 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace, re
 
 type actionConfig struct {
 	quiet   bool
-	context Context
+	context authz.Context
 }
 
 type actionOption func(*actionConfig)
@@ -193,7 +195,7 @@ func (a *ServerWithRoles) actionForKindSession(namespace string, sid session.ID)
 
 // serverAction returns an access denied error if the role is not one of the builtin server roles.
 func (a *ServerWithRoles) serverAction() error {
-	role, ok := a.context.Identity.(BuiltinRole)
+	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
@@ -213,8 +215,8 @@ func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 
 // HasBuiltinRole checks if the identity is a builtin role with the matching
 // name.
-func HasBuiltinRole(authContext Context, name string) bool {
-	if _, ok := authContext.Identity.(BuiltinRole); !ok {
+func HasBuiltinRole(authContext authz.Context, name string) bool {
+	if _, ok := authContext.Identity.(authz.BuiltinRole); !ok {
 		return false
 	}
 	if !authContext.Checker.HasRole(name) {
@@ -226,8 +228,8 @@ func HasBuiltinRole(authContext Context, name string) bool {
 
 // HasRemoteBuiltinRole checks if the identity is a remote builtin role with the
 // matching name.
-func HasRemoteBuiltinRole(authContext Context, name string) bool {
-	if _, ok := authContext.UnmappedIdentity.(RemoteBuiltinRole); !ok {
+func HasRemoteBuiltinRole(authContext authz.Context, name string) bool {
+	if _, ok := authContext.UnmappedIdentity.(authz.RemoteBuiltinRole); !ok {
 		return false
 	}
 	if !authContext.Checker.HasRole(name) {
@@ -243,14 +245,14 @@ func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 }
 
 // hasRemoteUserRole checks if the identity is a remote user or not.
-func hasRemoteUserRole(authContext Context) bool {
-	_, ok := authContext.UnmappedIdentity.(RemoteUser)
+func hasRemoteUserRole(authContext authz.Context) bool {
+	_, ok := authContext.UnmappedIdentity.(authz.RemoteUser)
 	return ok
 }
 
 // hasLocalUserRole checks if the identity is a local user or not.
-func hasLocalUserRole(authContext Context) bool {
-	_, ok := authContext.UnmappedIdentity.(LocalUser)
+func hasLocalUserRole(authContext authz.Context) bool {
+	_, ok := authContext.UnmappedIdentity.(authz.LocalUser)
 	return ok
 }
 
@@ -264,6 +266,13 @@ func (a *ServerWithRoles) DevicesClient() devicepb.DeviceTrustServiceClient {
 // It should not be called through ServerWithRoles and will always panic.
 func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 	panic("LoginRuleClient not implemented by ServerWithRoles")
+}
+
+// SAMLIdPClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
+	panic("SAMLIdPClient not implemented by ServerWithRoles")
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
@@ -341,7 +350,7 @@ func (a *ServerWithRoles) Export(ctx context.Context, req *collectortracev1.Expo
 	sb.WriteString(a.context.User.GetName())
 
 	// if forwarded on behalf of a Teleport service add its system roles
-	if role, ok := a.context.Identity.(BuiltinRole); ok {
+	if role, ok := a.context.Identity.(authz.BuiltinRole); ok {
 		sb.WriteRune(':')
 		sb.WriteString(role.Role.String())
 		if len(role.AdditionalSystemRoles) > 0 {
@@ -730,7 +739,7 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
 func (a *ServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *proto.HostCertsRequest) error {
 	// ensure requesting cert's primary role is a server role.
-	role, ok := a.context.Identity.(BuiltinRole)
+	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("additional system roles can only be claimed by a teleport built-in server")
 	}
@@ -781,7 +790,7 @@ Outer:
 }
 
 func (a *ServerWithRoles) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
-	role, ok := a.context.Identity.(BuiltinRole)
+	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("system role assertions can only be executed by a teleport built-in server")
 	}
@@ -809,7 +818,7 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	var hello proto.UpstreamInventoryHello
 
 	// Ensure that caller is a teleport server
-	role, ok := a.context.Identity.(BuiltinRole)
+	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return hello, trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
 	}
@@ -1328,7 +1337,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 				Type: events.AccessRequestResourceSearch,
 				Code: events.AccessRequestResourceSearchCode,
 			},
-			UserMetadata:        ClientUserMetadata(ctx),
+			UserMetadata:        authz.ClientUserMetadata(ctx),
 			SearchAsRoles:       a.context.Checker.RoleNames(),
 			ResourceType:        req.ResourceType,
 			Namespace:           req.Namespace,
@@ -1477,7 +1486,7 @@ type kubeChecker struct {
 	localUser bool
 }
 
-func newKubeChecker(authContext Context) *kubeChecker {
+func newKubeChecker(authContext authz.Context) *kubeChecker {
 	return &kubeChecker{
 		checker:   authContext.Checker,
 		localUser: hasLocalUserRole(authContext),
@@ -2524,6 +2533,16 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		return nil, trace.Wrap(err)
 	}
 
+	var verifiedMFADeviceID string
+	if req.MFAResponse != nil {
+		dev, _, err := a.authServer.validateMFAAuthResponse(
+			ctx, req.GetMFAResponse(), req.Username, false /* passwordless */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		verifiedMFADeviceID = dev.Id
+	}
+
 	// this prevents clients who have no chance at getting a cert and impersonating anyone
 	// from enumerating local users and hitting database
 	if !a.hasBuiltinRole(types.RoleAdmin) && !a.context.Checker.CanImpersonateSomeone() && req.Username != a.context.User.GetName() {
@@ -2696,6 +2715,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
 	certReq := certRequest{
+		mfaVerified:       verifiedMFADeviceID,
 		user:              user,
 		ttl:               req.Expires.Sub(a.authServer.GetClock().Now()),
 		compatibility:     req.Format,
@@ -3210,7 +3230,7 @@ func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	role, ok := a.context.Identity.(BuiltinRole)
+	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
@@ -3232,7 +3252,7 @@ func (a *ServerWithRoles) CreateAuditStream(ctx context.Context, sid session.ID)
 	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, ok := a.context.Identity.(BuiltinRole)
+	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
@@ -3252,7 +3272,7 @@ func (a *ServerWithRoles) ResumeAuditStream(ctx context.Context, sid session.ID,
 	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, ok := a.context.Identity.(BuiltinRole)
+	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
@@ -4159,7 +4179,7 @@ func (a *ServerWithRoles) GenerateSnowflakeJWT(ctx context.Context, req *proto.S
 // canImpersonateBuiltinRole checks if the current user can impersonate the
 // provided system role.
 func (a *ServerWithRoles) canImpersonateBuiltinRole(role types.SystemRole) error {
-	roleCtx, err := NewBuiltinRoleContext(role)
+	roleCtx, err := authz.NewBuiltinRoleContext(role)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4795,7 +4815,7 @@ func (a *ServerWithRoles) DeleteAllLocks(context.Context) error {
 
 // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
 func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error {
-	role, ok := a.context.Identity.(RemoteBuiltinRole)
+	role, ok := a.context.Identity.(authz.RemoteBuiltinRole)
 	if !a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) || !ok || role.ClusterName != clusterName {
 		return trace.AccessDenied("this request can be only executed by a remote proxy of cluster %q", clusterName)
 	}
@@ -5574,7 +5594,7 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		},
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:      sp.GetName(),
-			UpdatedBy: ClientUsername(ctx),
+			UpdatedBy: authz.ClientUsername(ctx),
 		},
 		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
 			ServiceProviderEntityID: sp.GetEntityID(),
@@ -5604,7 +5624,7 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		},
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:      sp.GetName(),
-			UpdatedBy: ClientUsername(ctx),
+			UpdatedBy: authz.ClientUsername(ctx),
 		},
 		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
 			ServiceProviderEntityID: sp.GetEntityID(),
@@ -5644,7 +5664,7 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 		},
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:      name,
-			UpdatedBy: ClientUsername(ctx),
+			UpdatedBy: authz.ClientUsername(ctx),
 		},
 		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
 			ServiceProviderEntityID: entityID,
@@ -5673,7 +5693,7 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 			Code: code,
 		},
 		ResourceMetadata: apievents.ResourceMetadata{
-			UpdatedBy: ClientUsername(ctx),
+			UpdatedBy: authz.ClientUsername(ctx),
 		},
 	}); emitErr != nil {
 		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider deleted all event.")
@@ -5739,7 +5759,7 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {
-	ctx, err := NewAdminContext()
+	ctx, err := authz.NewAdminContext()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

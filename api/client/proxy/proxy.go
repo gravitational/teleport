@@ -92,6 +92,16 @@ func NewHTTPRoundTripper(transport *http.Transport, extraHeaders map[string]stri
 	}
 }
 
+// CloseIdleConnections forwards closing of idle connections on to the wrapped
+// transport. This is required to ensure that the underlying [http.Transport] has
+// its idle connections closed per the [http.Client] docs:
+//
+//	> If the Client's Transport does not have a CloseIdleConnections method
+//	> then this method does nothing.
+func (rt *HTTPRoundTripper) CloseIdleConnections() {
+	rt.Transport.CloseIdleConnections()
+}
+
 // RoundTrip executes a single HTTP transaction. Part of the RoundTripper interface.
 func (rt *HTTPRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Add extra HTTP headers.

@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -89,12 +90,12 @@ func TestMiddlewareGetUser(t *testing.T) {
 	tests := []struct {
 		desc      string
 		peers     []*x509.Certificate
-		wantID    IdentityGetter
+		wantID    authz.IdentityGetter
 		assertErr require.ErrorAssertionFunc
 	}{
 		{
 			desc: "no client cert",
-			wantID: BuiltinRole{
+			wantID: authz.BuiltinRole{
 				Role:        types.RoleNop,
 				Username:    string(types.RoleNop),
 				ClusterName: localClusterName,
@@ -109,7 +110,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{localClusterName}},
 			}},
-			wantID: LocalUser{
+			wantID: authz.LocalUser{
 				Username: localUserIdentity.Username,
 				Identity: localUserIdentity,
 			},
@@ -122,7 +123,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{localClusterName}},
 			}},
-			wantID: LocalUser{
+			wantID: authz.LocalUser{
 				Username: localUserIdentity.Username,
 				Identity: localUserIdentity,
 			},
@@ -135,7 +136,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{localClusterName}},
 			}},
-			wantID: BuiltinRole{
+			wantID: authz.BuiltinRole{
 				Username:    localSystemRole.Username,
 				Role:        types.RoleNode,
 				ClusterName: localClusterName,
@@ -150,7 +151,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{remoteClusterName}},
 			}},
-			wantID: RemoteUser{
+			wantID: authz.RemoteUser{
 				ClusterName: remoteClusterName,
 				Username:    remoteUserIdentity.Username,
 				RemoteRoles: remoteUserIdentity.Groups,
@@ -165,7 +166,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{remoteClusterName}},
 			}},
-			wantID: RemoteUser{
+			wantID: authz.RemoteUser{
 				ClusterName: remoteClusterName,
 				Username:    remoteUserIdentity.Username,
 				RemoteRoles: remoteUserIdentity.Groups,
@@ -180,7 +181,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{remoteClusterName}},
 			}},
-			wantID: RemoteBuiltinRole{
+			wantID: authz.RemoteBuiltinRole{
 				Username:    remoteSystemRole.Username,
 				Role:        types.RoleNode,
 				ClusterName: remoteClusterName,
@@ -240,7 +241,7 @@ func TestWrapContextWithUser(t *testing.T) {
 	tests := []struct {
 		desc           string
 		peers          []*x509.Certificate
-		wantID         IdentityGetter
+		wantID         authz.IdentityGetter
 		needsHandshake bool
 	}{
 		{
@@ -250,7 +251,7 @@ func TestWrapContextWithUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{localClusterName}},
 			}},
-			wantID: LocalUser{
+			wantID: authz.LocalUser{
 				Username: localUserIdentity.Username,
 				Identity: localUserIdentity,
 			},
@@ -263,7 +264,7 @@ func TestWrapContextWithUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{localClusterName}},
 			}},
-			wantID: LocalUser{
+			wantID: authz.LocalUser{
 				Username: localUserIdentity.Username,
 				Identity: localUserIdentity,
 			},
@@ -287,8 +288,10 @@ func TestWrapContextWithUser(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.needsHandshake, conn.handshakeCalled)
 
-			cert := ctx.Value(contextUserCertificate)
-			user := ctx.Value(ContextUser)
+			cert, err := authz.UserCertificateFromContext(ctx)
+			require.NoError(t, err)
+			user, err := authz.UserFromContext(ctx)
+			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(cert, tt.peers[0], cmpopts.EquateEmpty()))
 			require.Empty(t, cmp.Diff(user, tt.wantID, cmpopts.EquateEmpty()))
 		})

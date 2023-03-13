@@ -342,21 +342,6 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 	return newGateway, nil
 }
 
-// GetAllServers returns a full list of nodes without pagination or sorting.
-func (s *Service) GetAllServers(ctx context.Context, clusterURI string) ([]clusters.Server, error) {
-	cluster, err := s.ResolveCluster(clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := cluster.GetAllServers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
-}
-
 // GetServers accepts parameterized input to enable searching, sorting, and pagination.
 func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*clusters.GetServersResponse, error) {
 	cluster, err := s.ResolveCluster(req.ClusterUri)
@@ -481,36 +466,6 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	}
 
 	return nil
-}
-
-// ListServers returns cluster servers
-func (s *Service) ListApps(ctx context.Context, clusterURI string) ([]clusters.App, error) {
-	cluster, err := s.ResolveCluster(clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	apps, err := cluster.GetApps(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return apps, nil
-}
-
-// GetAllKubes lists kubernetes clusters
-func (s *Service) GetAllKubes(ctx context.Context, uri string) ([]clusters.Kube, error) {
-	cluster, err := s.ResolveCluster(uri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	kubes, err := cluster.GetAllKubes(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return kubes, nil
 }
 
 // GetKubes accepts parameterized input to enable searching, sorting, and pagination.
