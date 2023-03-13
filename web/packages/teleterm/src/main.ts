@@ -43,6 +43,7 @@ function initializeApp(): void {
   let devRelaunchScheduled = false;
   const settings = getRuntimeSettings();
   const logger = initMainLogger(settings);
+  logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
   const appStateFileStorage = createFileStorage({
     filePath: path.join(settings.userDataDir, 'app_state.json'),
     debounceWrites: true,
