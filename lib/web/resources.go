@@ -46,7 +46,7 @@ func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http
 		return nil, trace.Wrap(err)
 	}
 
-	resourceKinds := []string{types.KindNode, types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindWindowsDesktop}
+	resourceKinds := []string{types.KindNode, types.KindDatabaseServer, types.KindAppServer, types.KindKubeServer, types.KindWindowsDesktop}
 	for _, kind := range resourceKinds {
 		res, err := clt.ListResources(r.Context(), proto.ListResourcesRequest{
 			ResourceType: kind,

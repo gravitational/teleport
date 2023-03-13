@@ -2399,10 +2399,10 @@ func TestCertificateFormat(t *testing.T) {
 				Pass: &PassCreds{
 					Password: pass,
 				},
+				PublicKey: pub,
 			},
 			CompatibilityMode: ts.inClientCertificateFormat,
 			TTL:               apidefaults.CertDuration,
-			PublicKey:         pub,
 		})
 		require.NoError(t, err)
 
@@ -2685,8 +2685,8 @@ func TestLoginNoLocalAuth(t *testing.T) {
 			Pass: &PassCreds{
 				Password: pass,
 			},
+			PublicKey: pub,
 		},
-		PublicKey: pub,
 	})
 	require.True(t, trace.IsAccessDenied(err))
 }

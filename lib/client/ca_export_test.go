@@ -43,8 +43,8 @@ func (m *mockAuthClient) GetCertAuthorities(ctx context.Context, caType types.Ce
 	return m.server.GetCertAuthorities(ctx, caType, loadKeys, opts...)
 }
 
-func (m *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
-	return m.server.GetCertAuthority(ctx, id, loadKeys, opts...)
+func (m *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+	return m.server.GetCertAuthority(ctx, id, loadKeys)
 }
 
 func TestExportAuthorities(t *testing.T) {
@@ -200,6 +200,15 @@ func TestExportAuthorities(t *testing.T) {
 					require.Contains(t, output, "@cert-authority localcluster,*.localcluster ssh-rsa")
 				},
 				assertSecrets: validatePrivateKeyPEMFunc,
+			},
+			{
+				name: "db-der",
+				req: ExportAuthoritiesRequest{
+					AuthType: "db-der",
+				},
+				errorCheck:      require.NoError,
+				assertNoSecrets: validateTLSCertificateDERFunc,
+				assertSecrets:   validatePrivateKeyDERFunc,
 			},
 		} {
 			t.Run(fmt.Sprintf("%s_exportSecrets_%v", tt.name, exportSecrets), func(t *testing.T) {

@@ -327,11 +327,12 @@ type mockClient struct {
 	cas            []types.CertAuthority
 	proxies        []types.Server
 	remoteClusters []types.RemoteCluster
-	kubeServices   []types.KubeServer
+	kubeServers    []types.KubeServer
 	appServices    []types.AppServer
 	dbServices     []types.DatabaseServer
 	appSession     types.WebSession
 	networkConfig  types.ClusterNetworkingConfig
+	crl            []byte
 }
 
 func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
@@ -350,7 +351,7 @@ func (c *mockClient) GenerateUserCerts(ctx context.Context, userCertsReq proto.U
 	return c.userCerts, nil
 }
 
-func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
 	for _, v := range c.cas {
 		if v.GetType() == id.Type && v.GetClusterName() == id.DomainName {
 			return v, nil
@@ -372,7 +373,7 @@ func (c *mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]types.
 }
 
 func (c *mockClient) GetKubernetesServers(context.Context) ([]types.KubeServer, error) {
-	return c.kubeServices, nil
+	return c.kubeServers, nil
 }
 
 func (c *mockClient) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
@@ -390,6 +391,10 @@ func (c *mockClient) CreateAppSession(ctx context.Context, req types.CreateAppSe
 
 func (c *mockClient) GetDatabaseServers(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return c.dbServices, nil
+}
+
+func (c *mockClient) GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error) {
+	return c.crl, nil
 }
 
 func TestCheckKubeCluster(t *testing.T) {
@@ -471,9 +476,9 @@ func TestCheckKubeCluster(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			client.kubeServices = []types.KubeServer{}
+			client.kubeServers = []types.KubeServer{}
 			for _, kube := range tt.registeredClusters {
-				client.kubeServices = append(client.kubeServices, &types.KubernetesServerV3{
+				client.kubeServers = append(client.kubeServers, &types.KubernetesServerV3{
 					Metadata: types.Metadata{
 						Name: kube.GetName(),
 					},
@@ -971,4 +976,22 @@ func TestGenerateAndSignKeys(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestGenerateCRLForCA(t *testing.T) {
+	ctx := context.Background()
+
+	for _, caType := range allowedCRLCertificateTypes {
+		t.Run(caType, func(t *testing.T) {
+			ac := AuthCommand{caType: caType}
+			authClient := &mockClient{crl: []byte{}}
+			require.NoError(t, ac.GenerateCRLForCA(ctx, authClient))
+		})
+	}
+
+	t.Run("InvalidCAType", func(t *testing.T) {
+		ac := AuthCommand{caType: "wrong-ca"}
+		authClient := &mockClient{crl: []byte{}}
+		require.Error(t, ac.GenerateCRLForCA(ctx, authClient))
+	})
 }
