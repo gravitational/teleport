@@ -10,7 +10,7 @@ This guide explains how to uninstall Teleport binaries completely.
 - A Node with Teleport installed.
 
 <Admonition type="warning">
-These instructions apply to bare-metal installations of Teleport only.
+These instructions only apply to non-containerized installations of Teleport.
 
 If you are running Teleport in Kubernetes, you should uninstall the Helm chart release instead:
 
@@ -122,6 +122,11 @@ $ docker stop teleport
   </TabItem>
   <TabItem label="Linux Tarball" scope="oss">
 
+  <Admonition type="notice">
+  These are the default paths to the Teleport binaries. If you have changed these from the defaults on your system, substitute those paths here.
+  You can use `dirname $(which teleport)` to look this up automatically.
+  </Admonition>
+
   Remove the Teleport binaries from the machine:
 
   ```code
@@ -133,6 +138,11 @@ $ docker stop teleport
 
   </TabItem>
   <TabItem label="MacOS" scope="oss">
+
+  <Admonition type="notice">
+  These are the default paths to the Teleport binaries. If you have changed these from the defaults on your system, substitute those paths here.
+  You can use `dirname $(which teleport)` to look this up automatically.
+  </Admonition>
 
   Remove the Teleport binaries from the machine:
 
@@ -228,6 +238,11 @@ $ docker stop teleport
   </TabItem>
   <TabItem label="Linux Tarball" scope="enterprise">
 
+  <Admonition type="notice">
+  These are the default paths to the Teleport binaries. If you have changed these from the defaults on your system, substitute those paths here.
+  You can use `dirname $(which teleport)` to look this up automatically.
+  </Admonition>
+
   Remove the Teleport binaries from the machine:
 
   ```code
@@ -238,7 +253,12 @@ $ docker stop teleport
   ```
 
   </TabItem>
-    <TabItem label="MacOS" scope="enterprise">
+  <TabItem label="MacOS" scope="enterprise">
+
+  <Admonition type="notice">
+  These are the default paths to the Teleport binaries. If you have changed these from the defaults on your system, substitute those paths here.
+  You can use `dirname $(which teleport)` to look this up automatically.
+  </Admonition>
 
   Remove the Teleport binaries from the machine:
 
@@ -332,6 +352,11 @@ $ docker stop teleport
   </TabItem>
   <TabItem label="Linux Tarball" scope="cloud">
 
+  <Admonition type="notice">
+  These are the default paths to the Teleport binaries. If you have changed these from the defaults on your system, substitute those paths here.
+  You can use `dirname $(which teleport)` to look this up automatically.
+  </Admonition>
+
   Remove the Teleport binaries from the machine:
 
   ```code
@@ -343,6 +368,11 @@ $ docker stop teleport
 
   </TabItem>
   <TabItem label="MacOS" scope="cloud">
+
+  <Admonition type="notice">
+  These are the default paths to the Teleport binaries. If you have changed these from the defaults on your system, substitute those paths here.
+  You can use `dirname $(which teleport)` to look this up automatically.
+  </Admonition>
 
   Remove the Teleport binaries from the machine:
 
@@ -398,10 +428,21 @@ $ docker stop teleport
     ```
     $ sudo rm -rf /var/lib/teleport
     ```
+
+    Optionally, also remove the global config file and local user data directory for `tsh`:
+
+    ```
+    $ sudo rm -f /etc/tsh.yaml
+    $ sudo rm -rf ~/.tsh
+    ```
   </TabItem>
   <TabItem label="Windows">
 
-   There are no further steps needed to remove Teleport on a Windows machine.
+   Remove the `tsh` data directory:
+
+   ```
+   $ rmdir /s /q %USERPROFILE%\.tsh
+   ```
 
   </TabItem>
 </Tabs>
