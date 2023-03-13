@@ -717,47 +717,96 @@ func TestServer_Authenticate_headless(t *testing.T) {
 	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 	ctx := context.Background()
 
-	// Approve the headless login in a goroutine
-	errC := make(chan error)
-	go func() {
-		defer close(errC)
+	timeout := time.Millisecond * 100
 
-		ctx, cancel := context.WithTimeout(ctx, time.Millisecond*100)
-		defer cancel()
+	updateHeadlessAuthnInGoroutine := func(ctx context.Context, update func(*types.HeadlessAuthentication)) chan error {
+		errC := make(chan error)
+		go func() {
+			defer close(errC)
 
-		headlessAuthn, err := srv.Auth().GetOrWaitForHeadlessAuthentication(ctx, headlessID)
-		if err != nil {
-			errC <- err
-			return
-		}
+			headlessAuthn, err := srv.Auth().GetOrWaitForHeadlessAuthentication(ctx, headlessID)
+			if err != nil {
+				errC <- err
+				return
+			}
 
-		// create a shallow copy with approval for the compare and swap below.
-		approvedHeadlessAuthn := *headlessAuthn
-		approvedHeadlessAuthn.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
-		approvedHeadlessAuthn.MfaDevice = mfa.WebDev.MFA
-		_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &approvedHeadlessAuthn)
-		if err != nil {
-			errC <- err
-			return
-		}
-	}()
+			// create a shallow copy and update for the compare and swap below.
+			replaceHeadlessAuthn := *headlessAuthn
+			update(&replaceHeadlessAuthn)
 
-	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*100)
-	defer cancel()
+			_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
+			if err != nil {
+				errC <- err
+				return
+			}
+		}()
+		return errC
+	}
 
-	_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username:                 username,
-			PublicKey:                []byte(sshPubKey),
-			HeadlessAuthenticationID: headlessID,
-			ClientMetadata: &ForwardedClientMetadata{
-				RemoteAddr: "0.0.0.0",
+	for _, tc := range []struct {
+		name     string
+		update   func(*types.HeadlessAuthentication)
+		checkErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "OK approved",
+			update: func(ha *types.HeadlessAuthentication) {
+				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
+				ha.MfaDevice = mfa.WebDev.MFA
 			},
+			checkErr: require.NoError,
+		}, {
+			name: "NOK approved without MFA",
+			update: func(ha *types.HeadlessAuthentication) {
+				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
+			},
+			checkErr: require.Error,
+		}, {
+			name: "NOK user mismatch",
+			update: func(ha *types.HeadlessAuthentication) {
+				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
+				ha.MfaDevice = mfa.WebDev.MFA
+				ha.User = "other-user"
+			},
+			checkErr: require.Error,
+		}, {
+			name: "NOK denied",
+			update: func(ha *types.HeadlessAuthentication) {
+				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
+			},
+			checkErr: require.Error,
+		}, {
+			name: "NOK timeout",
+			update: func(ha *types.HeadlessAuthentication) {
+				time.Sleep(timeout)
+			},
+			checkErr: require.Error,
 		},
-		TTL: 24 * time.Hour,
-	})
-	require.NoError(t, err)
-	require.NoError(t, <-errC)
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Cleanup(func() {
+				srv.Auth().DeleteHeadlessAuthentication(ctx, headlessID)
+			})
+
+			ctx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+
+			errC := updateHeadlessAuthnInGoroutine(ctx, tc.update)
+			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+				AuthenticateUserRequest: AuthenticateUserRequest{
+					Username:                 username,
+					PublicKey:                []byte(sshPubKey),
+					HeadlessAuthenticationID: headlessID,
+					ClientMetadata: &ForwardedClientMetadata{
+						RemoteAddr: "0.0.0.0",
+					},
+				},
+				TTL: defaults.CallbackTimeout,
+			})
+			tc.checkErr(t, err)
+			require.NoError(t, <-errC)
+		})
+	}
 }
 
 type configureMFAResp struct {

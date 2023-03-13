@@ -222,11 +222,14 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 		}
 		authErr = invalidUserPass2FError
 	case req.HeadlessAuthenticationID != "":
+		// handle authentication before the user lock to prevent locking out users
+		// due to timed-out/canceled headless authentication attempts.
+		mfaDevice, err := s.authenticateHeadless(ctx, req)
+		if err != nil {
+			log.Debugf("Headless Authentication for user %q failed while waiting for approval: %v", user, err)
+			return nil, "", trace.Wrap(invalidHeadlessAuthenticationError)
+		}
 		authenticateFn = func() (*types.MFADevice, error) {
-			mfaDevice, err := s.authenticateHeadless(ctx, req)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
 			return mfaDevice, nil
 		}
 		authErr = invalidHeadlessAuthenticationError
@@ -326,7 +329,16 @@ func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 	return dev, user, nil
 }
 
-func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserRequest) (*types.MFADevice, error) {
+func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserRequest) (mfa *types.MFADevice, err error) {
+	// Delete the headless authentication upon failure.
+	defer func() {
+		if err != nil {
+			if err := s.DeleteHeadlessAuthentication(ctx, req.HeadlessAuthenticationID); err != nil && !trace.IsNotFound(err) {
+				log.Debugf("Failed to delete headless authentication: %v", err)
+			}
+		}
+	}()
+
 	headlessAuthn := &types.HeadlessAuthentication{
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
@@ -359,11 +371,12 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 		return nil, trace.Wrap(err)
 	}
 
-	// Update headless authentication with login details and wait for it to be approved/denied.
+	// Update headless authentication with login details.
 	if _, err := s.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthnStub, headlessAuthn); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// Wait for the request to be approved/denied.
 	headlessAuthn, err = s.headlessAuthenticationWatcher.Wait(ctx, req.HeadlessAuthenticationID, func(ha *types.HeadlessAuthentication) (bool, error) {
 		switch ha.State {
 		case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED:
@@ -377,7 +390,12 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 		return false, nil
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+	}
+
+	// Verify that the headless authentication has not been tampered with.
+	if headlessAuthn.User != req.Username {
+		return nil, trace.AccessDenied("user mismatch")
 	}
 
 	return headlessAuthn.MfaDevice, nil

@@ -267,6 +267,9 @@ type Identity interface {
 	// GetHeadlessAuthentication retrieves a headless authentication by name.
 	GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error)
 
+	// DeleteHeadlessAuthentication deletes a headless authentication from the backend by name.
+	DeleteHeadlessAuthentication(ctx context.Context, name string) error
+
 	types.WebSessionsGetter
 	types.WebTokensGetter
 

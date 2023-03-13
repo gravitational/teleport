@@ -5742,7 +5742,7 @@ func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, id stri
 }
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
-func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, id string, newState types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
+func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
 	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, id)
 	if err != nil {
 		return trace.Wrap(err)
@@ -5753,12 +5753,17 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 		return trace.AccessDenied("cannot update a different user's headless authentication state")
 	}
 
+	if headlessAuthn.State != types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING {
+		return trace.AccessDenied("cannot update a headless authentication state from a non-pending state")
+	}
+
 	// Shallow copy headless authn for compare and swap below.
 	replaceHeadlessAuthn := *headlessAuthn
-	replaceHeadlessAuthn.State = newState
+	replaceHeadlessAuthn.State = state
 
-	// The user must authenticate with MFA to change the state to approved.
-	if newState == types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED {
+	switch state {
+	case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED:
+		// The user must authenticate with MFA to change the state to approved.
 		if mfaResp == nil {
 			return trace.BadParameter("expected MFA auth challenge response")
 		}
@@ -5774,6 +5779,10 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 		}
 
 		replaceHeadlessAuthn.MfaDevice = mfaDevice
+	case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED:
+		// continue to compare and swap without MFA.
+	default:
+		return trace.AccessDenied("cannot update a headless authentication state to %v", state.String())
 	}
 
 	_, err = a.authServer.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
