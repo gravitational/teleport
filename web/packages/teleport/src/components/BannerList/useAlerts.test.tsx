@@ -69,6 +69,10 @@ jest.mock('teleport/services/alerts', () => ({
 
 jest.mock('teleport/useStickyClusterId', () => () => ({ clusterId: 42 }));
 
+afterEach(() => {
+  cfg.isDashboard = false;
+});
+
 describe('components/BannerList/useAlerts', () => {
   it('fetches cluster alerts on load', async () => {
     const { result, waitFor } = renderHook(() => useAlerts());
@@ -87,7 +91,6 @@ describe('components/BannerList/useAlerts', () => {
         expect(alert.metadata).not.toBe('security-patch-available');
       });
     });
-    cfg.isDashboard = false;
   });
 
   it('provides a method that dismisses alerts for 24h', async () => {
