@@ -40,7 +40,7 @@ func (t testSite) GetClusterNetworkingConfig(ctx context.Context, opts ...servic
 	return t.cfg, nil
 }
 
-func (t testSite) GetNodes(fn func(n services.Node) bool) ([]types.Server, error) {
+func (t testSite) GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error) {
 	var out []types.Server
 	for _, s := range t.nodes {
 		if fn(s) {
@@ -409,7 +409,6 @@ func TestRouter_DialHost(t *testing.T) {
 			tt.assertion(t, conn, err)
 		})
 	}
-
 }
 
 func TestRouter_DialSite(t *testing.T) {

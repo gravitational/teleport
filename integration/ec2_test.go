@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -55,8 +56,8 @@ func newSilentLogger() utils.Logger {
 	return logger
 }
 
-func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
-	config := service.MakeDefaultConfig()
+func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
+	config := servicecfg.MakeDefaultConfig()
 	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = true
@@ -71,8 +72,8 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	return config
 }
 
-func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
-	config := service.MakeDefaultConfig()
+func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
+	config := servicecfg.MakeDefaultConfig()
 	config.Version = defaults.TeleportConfigVersionV2
 	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
@@ -93,7 +94,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	return config
 }
 
-func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
+func newAuthConfig(t *testing.T, clock clockwork.Clock) *servicecfg.Config {
 	var err error
 	storageConfig := backend.Config{
 		Type: lite.GetName(),
@@ -103,7 +104,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 		},
 	}
 
-	config := service.MakeDefaultConfig()
+	config := servicecfg.MakeDefaultConfig()
 	config.DataDir = t.TempDir()
 	config.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &config.FileDescriptors)
 	config.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
@@ -336,7 +337,7 @@ func TestEC2Labels(t *testing.T) {
 			"poll_stream_period": 50 * time.Millisecond,
 		},
 	}
-	tconf := service.MakeDefaultConfig()
+	tconf := servicecfg.MakeDefaultConfig()
 	tconf.Log = newSilentLogger()
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true
@@ -352,21 +353,21 @@ func TestEC2Labels(t *testing.T) {
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)
 
-	appConf := service.App{
+	appConf := servicecfg.App{
 		Name: "test-app",
 		URI:  "app.example.com",
 	}
 
 	tconf.Apps.Enabled = true
-	tconf.Apps.Apps = []service.App{appConf}
+	tconf.Apps.Apps = []servicecfg.App{appConf}
 
-	dbConfig := service.Database{
+	dbConfig := servicecfg.Database{
 		Name:     "test-db",
 		Protocol: "postgres",
 		URI:      "postgres://somewhere.example.com",
 	}
 	tconf.Databases.Enabled = true
-	tconf.Databases.Databases = []service.Database{dbConfig}
+	tconf.Databases.Databases = []servicecfg.Database{dbConfig}
 
 	helpers.EnableKubernetesService(t, tconf)
 
@@ -456,7 +457,7 @@ func TestEC2Hostname(t *testing.T) {
 			"poll_stream_period": 50 * time.Millisecond,
 		},
 	}
-	tconf := service.MakeDefaultConfig()
+	tconf := servicecfg.MakeDefaultConfig()
 	tconf.Log = newSilentLogger()
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true

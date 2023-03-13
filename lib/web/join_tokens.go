@@ -113,7 +113,7 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 
 			return &nodeJoinToken{
 				ID:     t.GetName(),
-				Expiry: *t.GetMetadata().Expires,
+				Expiry: t.Expiry(),
 				Method: t.GetJoinMethod(),
 			}, nil
 		}
@@ -143,7 +143,7 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 
 			return &nodeJoinToken{
 				ID:     t.GetName(),
-				Expiry: *t.GetMetadata().Expires,
+				Expiry: t.Expiry(),
 				Method: t.GetJoinMethod(),
 			}, nil
 		}

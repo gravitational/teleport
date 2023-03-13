@@ -39,22 +39,21 @@ if (app.requestSingleInstanceLock()) {
   app.exit(1);
 }
 
-function initializeApp(): void {
+async function initializeApp(): Promise<void> {
   let devRelaunchScheduled = false;
   const settings = getRuntimeSettings();
   const logger = initMainLogger(settings);
-  const appStateFileStorage = createFileStorage({
-    filePath: path.join(settings.userDataDir, 'app_state.json'),
-    debounceWrites: true,
+  const {
+    appStateFileStorage,
+    configFileStorage,
+    configJsonSchemaFileStorage,
+  } = await createFileStorages(settings.userDataDir);
+
+  const configService = createConfigService({
+    configFile: configFileStorage,
+    jsonSchemaFile: configJsonSchemaFileStorage,
+    platform: settings.platform,
   });
-  const appConfigFileStorage = createFileStorage({
-    filePath: path.join(settings.userDataDir, 'app_config.json'),
-    debounceWrites: false,
-  });
-  const configService = createConfigService(
-    appConfigFileStorage,
-    settings.platform
-  );
   const windowsManager = new WindowsManager(appStateFileStorage, settings);
 
   process.on('uncaughtException', error => {
@@ -91,16 +90,17 @@ function initializeApp(): void {
 
   app.on('will-quit', async event => {
     event.preventDefault();
+    const disposeMainProcess = async () => {
+      try {
+        await mainProcess.dispose();
+      } catch (e) {
+        logger.error('Failed to gracefully dispose of main process', e);
+      }
+    };
 
-    appStateFileStorage.putAllSync();
     globalShortcut.unregisterAll();
-    try {
-      await mainProcess.dispose();
-    } catch (e) {
-      logger.error('Failed to gracefully dispose of main process', e);
-    } finally {
-      app.exit();
-    }
+    await Promise.all([appStateFileStorage.write(), disposeMainProcess()]); // none of them can throw
+    app.exit();
   });
 
   app.on('quit', () => {
@@ -197,4 +197,26 @@ function initMainLogger(settings: types.RuntimeSettings) {
   Logger.init(service);
 
   return new Logger('Main');
+}
+
+function createFileStorages(userDataDir: string) {
+  return Promise.all([
+    createFileStorage({
+      filePath: path.join(userDataDir, 'app_state.json'),
+      debounceWrites: true,
+    }),
+    createFileStorage({
+      filePath: path.join(userDataDir, 'app_config.json'),
+      debounceWrites: false,
+      discardUpdatesOnLoadError: true,
+    }),
+    createFileStorage({
+      filePath: path.join(userDataDir, 'schema_app_config.json'),
+      debounceWrites: false,
+    }),
+  ]).then(storages => ({
+    appStateFileStorage: storages[0],
+    configFileStorage: storages[1],
+    configJsonSchemaFileStorage: storages[2],
+  }));
 }

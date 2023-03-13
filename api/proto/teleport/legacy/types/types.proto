@@ -687,6 +687,7 @@ message ServerV2List {
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
   reserved 8;
+  reserved 10;
 
   // Addr is server host:port address
   string Addr = 1 [(gogoproto.jsontag) = "addr"];
@@ -716,14 +717,6 @@ message ServerSpecV2 {
     (gogoproto.jsontag) = "apps,omitempty",
     deprecated = true
   ];
-  // KubernetesClusters is a list of kubernetes clusters provided by this
-  // Proxy or KubeService server.
-  //
-  // Important: jsontag must not be "kubernetes_clusters", because a
-  // different field with that jsontag existed in 4.4:
-  // https://github.com/gravitational/teleport/issues/4862
-  // DELETE IN 12.0.0. Deprecated, moved to KubernetesServerSpecV3.
-  repeated KubernetesCluster KubernetesClusters = 10 [(gogoproto.jsontag) = "kube_clusters,omitempty"];
   // PeerAddr is the address a proxy server is reachable at by its peer proxies.
   string PeerAddr = 11 [(gogoproto.jsontag) = "peer_addr,omitempty"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
@@ -4210,6 +4203,14 @@ message LockSpecV2 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expires,omitempty"
   ];
+  // CreatedAt is the date time that the lock was created.
+  google.protobuf.Timestamp CreatedAt = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "created_at,omitempty"
+  ];
+  // CreatedBy is the username of the author of the lock.
+  string CreatedBy = 5 [(gogoproto.jsontag) = "created_by,omitempty"];
 }
 
 // LockTarget lists the attributes of interactions to be disabled.
@@ -4833,10 +4834,11 @@ message AlertAcknowledgement {
   // Reason describes the reason why the alert can be considered
   // acknowledged (e.g. 'alice will fix next week').
   string Reason = 2 [(gogoproto.jsontag) = "reason,omitempty"];
-  // Severity is the maximum severity for which the acknowledgement will
-  // perform suppression (e.g. an ack with severity MEDIUM will suppress
-  // alerts with severity MEDIUM or lower, but not alerts with severity HIGH).
-  AlertSeverity Severity = 3 [(gogoproto.jsontag) = "severity,omitempty"];
+
+  // 3 is reserved for the previously used alert acknowledgement "severity"
+  reserved 3;
+  reserved "Severity";
+
   // Expires is the time after which the acknowledgement expires.
   google.protobuf.Timestamp Expires = 4 [
     (gogoproto.jsontag) = "expires,omitempty",
@@ -5184,4 +5186,42 @@ message OktaAssignmentActionTargetV1 {
   OktaAssignmentActionTargetType type = 1 [(gogoproto.jsontag) = "type"];
   // ID is the ID of the Okta resource that's being targeted.
   string id = 2 [(gogoproto.jsontag) = "id"];
+}
+
+// HeadlessAuthentication holds data for an ongoing headless authentication attempt.
+message HeadlessAuthentication {
+  // Header is the resource header.
+  ResourceHeader header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true
+  ];
+
+  // User is a teleport user name.
+  string user = 2;
+
+  // PublicKey is an ssh public key to sign in case of successful auth.
+  bytes public_key = 3;
+
+  // State is the headless authentication request state.
+  HeadlessAuthenticationState state = 4;
+
+  // MFADevice is the mfa device used to approve the request in case of successful auth.
+  types.MFADevice mfa_device = 5;
+
+  // ClientIPAddress is the IP address of the client being authenticated.
+  string client_ip_address = 6;
+}
+
+// HeadlessAuthenticationState is a headless authentication state.
+enum HeadlessAuthenticationState {
+  HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED = 0;
+
+  // authentication pending.
+  HEADLESS_AUTHENTICATION_STATE_PENDING = 1;
+
+  // authentication denied.
+  HEADLESS_AUTHENTICATION_STATE_DENIED = 2;
+
+  // authentication approved.
+  HEADLESS_AUTHENTICATION_STATE_APPROVED = 3;
 }

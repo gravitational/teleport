@@ -124,8 +124,15 @@ const (
 	// KindProxy is proxy resource
 	KindProxy = "proxy"
 
-	// KindNode is node resource
+	// KindNode is node resource. It can be either a Teleport node or
+	// a registered OpenSSH (agentless) node.
 	KindNode = "node"
+
+	// SubKindTeleportNode is a Teleport node.
+	SubKindTeleportNode = "teleport"
+
+	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
+	SubKindOpenSSHNode = "openssh"
 
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
@@ -252,10 +259,6 @@ const (
 	// KindState is local on disk process state
 	KindState = "state"
 
-	// KindKubeService is a kubernetes service resource
-	// DELETE in 13.0.0
-	KindKubeService = "kube_service"
-
 	// KindMFADevice is an MFA device for a user.
 	KindMFADevice = "mfa_device"
 
@@ -331,6 +334,9 @@ const (
 
 	// KindOktaAssignment is a set of actions to apply to Okta.
 	KindOktaAssignment = "okta_assignment"
+
+	// KindHeadlessAuthentication is a headless authentication resource.
+	KindHeadlessAuthentication = "headless_authentication"
 
 	// V6 is the sixth version of resources.
 	V6 = "v6"
@@ -427,6 +433,14 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
+	// SubscriptionIDLabel is used to identify virtual machines by Azure
+	// subscription ID found via automatic discovery, to avoid re-running
+	// installation commands on the node.
+	SubscriptionIDLabel = TeleportNamespace + "/subscription-id"
+	// VMIDLabel is used to identify virtual machines by ID found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	VMIDLabel = TeleportNamespace + "/vm-id"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"

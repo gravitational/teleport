@@ -72,13 +72,14 @@ func pushPipelines() []pipeline {
 	}
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:       buildType{os: "linux", arch: "arm64"},
-		trigger:         triggerPush,
-		namePrefix:      "push-",
-		uploadArtifacts: false,
-		slackOnError:    true,
-		srcRefVar:       "DRONE_COMMIT",
-		workflowRefVar:  "DRONE_BRANCH",
+		buildType:      buildType{os: "linux", arch: "arm64"},
+		trigger:        triggerPush,
+		pipelineName:   "push-build-linux-arm64",
+		ghaWorkflow:    "release-linux-arm64.yml",
+		slackOnError:   true,
+		srcRefVar:      "DRONE_COMMIT",
+		workflowRefVar: "DRONE_BRANCH",
+		inputs:         map[string]string{"upload-artifacts": "false"},
 	}))
 
 	// Only amd64 Windows is supported for now.

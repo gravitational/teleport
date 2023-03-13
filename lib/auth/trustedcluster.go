@@ -27,14 +27,14 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -174,7 +174,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			Type: events.TrustedClusterCreateEvent,
 			Code: events.TrustedClusterCreateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: trustedCluster.GetName(),
 		},
@@ -242,7 +242,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 			Type: events.TrustedClusterDeleteEvent,
 			Code: events.TrustedClusterDeleteCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
@@ -385,33 +385,24 @@ func (a *Server) GetRemoteCluster(clusterName string) (types.RemoteCluster, erro
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
 	remoteCluster, err := a.Services.GetRemoteCluster(clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.updateRemoteClusterStatus(remoteCluster); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return remoteCluster, nil
+	return remoteCluster, trace.Wrap(err)
 }
 
-func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) error {
-	ctx := context.TODO()
-	netConfig, err := a.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+// updateRemoteClusterStatus determines current connection status of remoteCluster and writes it to the backend
+// if there are changes. Returns true if backend was updated or false if update wasn't necessary.
+func (a *Server) updateRemoteClusterStatus(ctx context.Context, netConfig types.ClusterNetworkingConfig, remoteCluster types.RemoteCluster) (updated bool, err error) {
 	keepAliveCountMax := netConfig.GetKeepAliveCountMax()
 	keepAliveInterval := netConfig.GetKeepAliveInterval()
 
 	// fetch tunnel connections for the cluster to update runtime status
 	connections, err := a.GetTunnelConnections(remoteCluster.GetName())
 	if err != nil {
-		return trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
 	lastConn, err := services.LatestTunnelConnection(connections)
 	if err != nil {
 		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+			return false, trace.Wrap(err)
 		}
 		// No tunnel connections are known, mark the cluster offline (if it
 		// wasn't already).
@@ -424,11 +415,12 @@ func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) er
 				// case we should prioritize presenting our view in an internally-consistent
 				// manner rather than competing with another task.
 				if !trace.IsCompareFailed(err) {
-					return trace.Wrap(err)
+					return false, trace.Wrap(err)
 				}
 			}
+			return true, nil
 		}
-		return nil
+		return false, nil
 	}
 
 	offlineThreshold := time.Duration(keepAliveCountMax) * keepAliveInterval
@@ -451,12 +443,13 @@ func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) er
 			// case we should prioritize presenting our view in an internally-consistent
 			// manner rather than competing with another task.
 			if !trace.IsCompareFailed(err) {
-				return trace.Wrap(err)
+				return false, trace.Wrap(err)
 			}
 		}
+		return true, nil
 	}
 
-	return nil
+	return false, nil
 }
 
 // GetRemoteClusters returns remote clusters with updated statuses
@@ -464,15 +457,7 @@ func (a *Server) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remo
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
 	remoteClusters, err := a.Services.GetRemoteClusters(opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for i := range remoteClusters {
-		if err := a.updateRemoteClusterStatus(remoteClusters[i]); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	return remoteClusters, nil
+	return remoteClusters, trace.Wrap(err)
 }
 
 func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (resp *ValidateTrustedClusterResponse, err error) {
@@ -659,7 +644,7 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 		tr.TLSClientConfig = tlsConfig
 
 		insecureWebClient := &http.Client{
-			Transport: otelhttp.NewTransport(tr, otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter)),
+			Transport: tracehttp.NewTransport(tr),
 		}
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))
 	}

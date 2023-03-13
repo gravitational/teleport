@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -428,6 +429,9 @@ type CLIConf struct {
 
 	// Client only version display.  Skips checking proxy version.
 	clientOnlyVersionCheck bool
+
+	// tracer is the tracer used to trace tsh commands.
+	tracer oteltrace.Tracer
 }
 
 // Stdout returns the stdout writer.
@@ -3233,6 +3237,9 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		cf.TracingProvider = tracing.NoopProvider()
 	}
 	c.Tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
+	cf.tracer = c.Tracer
+	ctx, span := c.Tracer.Start(cf.Context, "makeClientForProxy/init")
+	defer span.End()
 
 	// ProxyJump is an alias of Proxy flag
 	if cf.ProxyJump != "" {
@@ -3275,7 +3282,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	c.ExplicitUsername = cf.ExplicitUsername
 	// if proxy is set, and proxy is not equal to profile's
 	// loaded addresses, override the values
-	if err := setClientWebProxyAddr(cf, c); err != nil {
+	if err := setClientWebProxyAddr(ctx, cf, c); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3418,7 +3425,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// Handle gracefully if the profile is empty, the key cannot
 	// be found, or the key isn't supported as an agent key.
 	if profileSiteName != "" {
-		if err := tc.LoadKeyForCluster(profileSiteName); err != nil {
+		if err := tc.LoadKeyForCluster(ctx, profileSiteName); err != nil {
 			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -3577,12 +3584,32 @@ var defaultWebProxyPorts = []int{
 	defaults.HTTPListenPort, teleport.StandardHTTPSPort,
 }
 
+// proxyHostsErrorMsgDefault returns the error message from attempting hosts at
+// different ports for the Web Proxy.
+func proxyHostsErrorMsgDefault(proxyAddress string, ports []int) string {
+	buf := &bytes.Buffer{}
+	buf.WriteString("Teleport proxy not available at proxy address ")
+
+	for i, port := range ports {
+		if i > 0 {
+			buf.WriteString(" or ")
+		}
+		buf.WriteString(proxyAddress)
+		buf.WriteString(":")
+		buf.WriteString(strconv.Itoa(port))
+	}
+
+	return buf.String()
+}
+
 // setClientWebProxyAddr configures the client WebProxyAddr and SSHProxyAddr
 // configuration values. Values that are not fully specified via configuration
 // or command-line options will be deduced if necessary.
 //
 // If successful, setClientWebProxyAddr will modify the client Config in-place.
-func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
+func setClientWebProxyAddr(ctx context.Context, cf *CLIConf, c *client.Config) error {
+	ctx, span := cf.tracer.Start(ctx, "makeClientForProxy/setClientWebProxyAddr")
+	defer span.End()
 	// If the user has specified a proxy on the command line, and one has not
 	// already been specified from configuration...
 
@@ -3595,13 +3622,13 @@ func setClientWebProxyAddr(cf *CLIConf, c *client.Config) error {
 		proxyAddress := parsedAddrs.WebProxyAddr
 		if parsedAddrs.UsingDefaultWebProxyPort {
 			log.Debug("Web proxy port was not set. Attempting to detect port number to use.")
-			timeout, cancel := context.WithTimeout(context.Background(), proxyDefaultResolutionTimeout)
+			timeout, cancel := context.WithTimeout(ctx, proxyDefaultResolutionTimeout)
 			defer cancel()
 
 			proxyAddress, err = pickDefaultAddr(
 				timeout, cf.InsecureSkipVerify, parsedAddrs.Host, defaultWebProxyPorts)
 			if err != nil {
-				return trace.Wrap(err)
+				return trace.Wrap(err, proxyHostsErrorMsgDefault(parsedAddrs.Host, defaultWebProxyPorts))
 			}
 		}
 

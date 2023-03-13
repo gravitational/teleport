@@ -64,7 +64,7 @@ RUN apt-get update -y --fix-missing && \
 
 ARG LIBBPF_VERSION
 RUN mkdir -p /opt && cd /opt &&  \
-    curl -Lf https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make &&  \
     BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install
@@ -279,14 +279,14 @@ ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protob
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-RUN go install github.com/daixiang0/gci@v0.8.2
+RUN go install github.com/daixiang0/gci@v0.9.1
 
 # Install golangci-lint.
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.1
+RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.14.0" && \
+    VERSION="1.15.1" && \
       curl -sSLf \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \

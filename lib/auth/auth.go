@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -89,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
@@ -208,7 +210,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.TraceClient = tracing.NewNoopClient()
 	}
 	if cfg.UsageReporter == nil {
-		cfg.UsageReporter = services.NewDiscardUsageReporter()
+		cfg.UsageReporter = usagereporter.DiscardUsageReporter{}
 	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
@@ -251,7 +253,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Kubernetes:              cfg.Kubernetes,
 		Databases:               cfg.Databases,
 		DatabaseServices:        cfg.DatabaseServices,
-		IAuditLog:               cfg.AuditLog,
+		AuditLogSessionStreamer: cfg.AuditLog,
 		Events:                  cfg.Events,
 		WindowsDesktops:         cfg.WindowsDesktops,
 		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
@@ -266,6 +268,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
 		bk:              cfg.Backend,
+		clock:           cfg.Clock,
 		limiter:         limiter,
 		Authority:       cfg.Authority,
 		AuthServiceName: cfg.AuthServiceName,
@@ -279,7 +282,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
-		inventory:       inventory.NewController(cfg.Presence, inventory.WithAuthServerID(cfg.HostUUID)),
+		inventory:       inventory.NewController(cfg.Presence, services, inventory.WithAuthServerID(cfg.HostUUID)),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
 		loadAllCAs:      cfg.LoadAllCAs,
@@ -349,9 +352,9 @@ type Services struct {
 	services.Enforcer
 	services.ConnectionsDiagnostic
 	services.StatusInternal
-	services.UsageReporter
+	usagereporter.UsageReporter
 	types.Events
-	events.IAuditLog
+	events.AuditLogSessionStreamer
 }
 
 // GetWebSession returns existing web session described by req.
@@ -645,6 +648,7 @@ func (a *Server) runPeriodicOperations() {
 		FirstDuration: firstReleaseCheck,
 		Jitter:        retryutils.NewFullJitter(),
 	})
+	defer releaseCheck.Stop()
 
 	// more frequent release check that just re-calculates alerts based on previously
 	// pulled versioning info.
@@ -653,7 +657,27 @@ func (a *Server) runPeriodicOperations() {
 		FirstDuration: utils.HalfJitter(time.Second * 10),
 		Jitter:        retryutils.NewHalfJitter(),
 	})
-	defer releaseCheck.Stop()
+	defer localReleaseCheck.Stop()
+
+	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
+	go func() {
+		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
+		remoteClustersRefresh := interval.New(interval.Config{
+			Duration: time.Second * 40,
+			Jitter:   retryutils.NewSeventhJitter(),
+		})
+		defer remoteClustersRefresh.Stop()
+
+		for {
+			select {
+			case <-a.closeCtx.Done():
+				return
+			case <-remoteClustersRefresh.Next():
+				a.refreshRemoteClusters(ctx, r)
+			}
+		}
+	}()
+
 	for {
 		select {
 		case <-a.closeCtx.Done():
@@ -909,6 +933,57 @@ func (a *Server) updateVersionMetrics() {
 	}
 }
 
+var (
+	// remoteClusterRefreshLimit is the maximum number of backend updates that will be performed
+	// during periodic remote cluster connection status refresh.
+	remoteClusterRefreshLimit = 50
+
+	// remoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
+	// of all remote clusters if their number exceeds remoteClusterRefreshLimit × remoteClusterRefreshBuckets.
+	remoteClusterRefreshBuckets = 12
+)
+
+// refreshRemoteClusters updates connection status of all remote clusters.
+func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Rand) {
+	remoteClusters, err := a.Services.GetRemoteClusters()
+	if err != nil {
+		log.WithError(err).Error("Failed to load remote clusters for status refresh")
+		return
+	}
+
+	netConfig, err := a.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		log.WithError(err).Error("Failed to load networking config for remote cluster status refresh")
+		return
+	}
+
+	// randomize the order to optimize for multiple auth servers running in parallel
+	rnd.Shuffle(len(remoteClusters), func(i, j int) {
+		remoteClusters[i], remoteClusters[j] = remoteClusters[j], remoteClusters[i]
+	})
+
+	// we want to limit the number of backend updates performed on each refresh to avoid overwhelming the backend.
+	updateLimit := remoteClusterRefreshLimit
+	if dynamicLimit := (len(remoteClusters) / remoteClusterRefreshBuckets) + 1; dynamicLimit > updateLimit {
+		// if the number of remote clusters is larger than remoteClusterRefreshLimit × remoteClusterRefreshBuckets,
+		// bump the limit to make sure all remote clusters will be updated within reasonable time.
+		updateLimit = dynamicLimit
+	}
+
+	var updateCount int
+	for _, remoteCluster := range remoteClusters {
+		if updated, err := a.updateRemoteClusterStatus(ctx, netConfig, remoteCluster); err != nil {
+			log.WithError(err).Error("Failed to perform remote cluster status refresh")
+		} else if updated {
+			updateCount++
+		}
+
+		if updateCount >= updateLimit {
+			break
+		}
+	}
+}
+
 func (a *Server) Close() error {
 	a.cancelFunc()
 
@@ -940,8 +1015,8 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 }
 
 // SetAuditLog sets the server's audit log
-func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
-	a.Services.IAuditLog = auditLog
+func (a *Server) SetAuditLog(auditLog events.AuditLogSessionStreamer) {
+	a.Services.AuditLogSessionStreamer = auditLog
 }
 
 // GetEmitter fetches the current audit log emitter implementation.
@@ -962,7 +1037,7 @@ func (a *Server) SetEnforcer(enforcer services.Enforcer) {
 
 // SetUsageReporter sets the server's usage reporter. Note that this is only
 // safe to use before server start.
-func (a *Server) SetUsageReporter(reporter services.UsageReporter) {
+func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
 	a.Services.UsageReporter = reporter
 }
 
@@ -1307,6 +1382,8 @@ type DatabaseTestCertRequest struct {
 	Username string
 	// RouteToDatabase contains database routing information.
 	RouteToDatabase tlsca.RouteToDatabase
+	// PinnedIP is an IP new certificate should be pinned to.
+	PinnedIP string
 }
 
 // GenerateDatabaseTestCert generates a database access certificate for the
@@ -1328,6 +1405,8 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		publicKey: req.PublicKey,
+		loginIP:   req.PinnedIP,
+		pinIP:     req.PinnedIP != "",
 		checker:   checker,
 		ttl:       time.Hour,
 		traits: map[string][]string{
@@ -1375,7 +1454,7 @@ type AugmentUserCertificateOpts struct {
 // Used by Device Trust to add device extensions to the user certificate.
 func (a *Server) AugmentContextUserCertificates(
 	ctx context.Context,
-	authCtx *Context, opts *AugmentUserCertificateOpts,
+	authCtx *authz.Context, opts *AugmentUserCertificateOpts,
 ) (*proto.Certs, error) {
 	switch {
 	case authCtx == nil:
@@ -1405,9 +1484,9 @@ func (a *Server) AugmentContextUserCertificates(
 	}
 
 	// Fetch user TLS certificate.
-	x509Cert, ok := ctx.Value(contextUserCertificate).(*x509.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("user certificate missing from context")
+	x509Cert, err := authz.UserCertificateFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Sanity check: x509Cert matches identity.
@@ -1625,7 +1704,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 		user = req.impersonator
 	}
 
-	if err := a.AnonymizeAndSubmit(&services.UsageCertificateIssued{
+	if err := a.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
 		UserName:        user,
 		Ttl:             durationpb.New(req.ttl),
 		IsBot:           bot,
@@ -2160,7 +2239,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 
 	default: // unset or CreateAuthenticateChallengeRequest_ContextUser.
 		var err error
-		username, err = GetClientUsername(ctx)
+		username, err = authz.GetClientUsername(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2311,7 +2390,7 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 
 	if username == "" {
 		var err error
-		username, err = GetClientUsername(ctx)
+		username, err = authz.GetClientUsername(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2421,7 +2500,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			Code:        events.MFADeviceDeleteEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata:      ClientUserMetadataWithUser(ctx, user),
+		UserMetadata:      authz.ClientUserMetadataWithUser(ctx, user),
 		MFADeviceMetadata: mfaDeviceEventMetadata(deviceToDelete),
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -2522,7 +2601,7 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 			Code:        events.MFADeviceAddEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata:      ClientUserMetadataWithUser(ctx, req.username),
+		UserMetadata:      authz.ClientUserMetadataWithUser(ctx, req.username),
 		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit add mfa device event.")
@@ -2815,7 +2894,7 @@ func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequ
 		return "", trace.Wrap(err)
 	}
 
-	userMetadata := ClientUserMetadata(ctx)
+	userMetadata := authz.ClientUserMetadata(ctx)
 	for _, role := range req.Roles {
 		if role == types.RoleTrustedCluster {
 			if err := a.emitter.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
@@ -3433,7 +3512,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,
 		},
-		UserMetadata: ClientUserMetadataWithUser(ctx, req.GetUser()),
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, req.GetUser()),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
@@ -3458,7 +3537,7 @@ func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
 			Type: events.AccessRequestDeleteEvent,
 			Code: events.AccessRequestDeleteCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		RequestID:    name,
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit access request delete event.")
@@ -3477,7 +3556,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 			Code: events.AccessRequestUpdateCode,
 		},
 		ResourceMetadata: apievents.ResourceMetadata{
-			UpdatedBy: ClientUsername(ctx),
+			UpdatedBy: authz.ClientUsername(ctx),
 			Expires:   req.GetAccessExpiry(),
 		},
 		RequestID:    params.RequestID,
@@ -3707,7 +3786,7 @@ func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
 			Type: events.AppCreateEvent,
 			Code: events.AppCreateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    app.GetName(),
 			Expires: app.Expiry(),
@@ -3733,7 +3812,7 @@ func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
 			Type: events.AppUpdateEvent,
 			Code: events.AppUpdateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    app.GetName(),
 			Expires: app.Expiry(),
@@ -3759,7 +3838,7 @@ func (a *Server) DeleteApp(ctx context.Context, name string) error {
 			Type: events.AppDeleteEvent,
 			Code: events.AppDeleteCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
@@ -3793,7 +3872,7 @@ func (a *Server) CreateDatabase(ctx context.Context, database types.Database) er
 			Type: events.DatabaseCreateEvent,
 			Code: events.DatabaseCreateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    database.GetName(),
 			Expires: database.Expiry(),
@@ -3823,7 +3902,7 @@ func (a *Server) UpdateDatabase(ctx context.Context, database types.Database) er
 			Type: events.DatabaseUpdateEvent,
 			Code: events.DatabaseUpdateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    database.GetName(),
 			Expires: database.Expiry(),
@@ -3853,7 +3932,7 @@ func (a *Server) DeleteDatabase(ctx context.Context, name string) error {
 			Type: events.DatabaseDeleteEvent,
 			Code: events.DatabaseDeleteCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
@@ -3914,7 +3993,7 @@ func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.
 			Type: events.KubernetesClusterCreateEvent,
 			Code: events.KubernetesClusterCreateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    kubeCluster.GetName(),
 			Expires: kubeCluster.Expiry(),
@@ -3938,7 +4017,7 @@ func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.
 			Type: events.KubernetesClusterUpdateEvent,
 			Code: events.KubernetesClusterUpdateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    kubeCluster.GetName(),
 			Expires: kubeCluster.Expiry(),
@@ -3962,7 +4041,7 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 			Type: events.KubernetesClusterDeleteEvent,
 			Code: events.KubernetesClusterDeleteCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
@@ -3974,12 +4053,12 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 
 // SubmitUsageEvent submits an external usage event.
 func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
-	username, err := GetClientUsername(ctx)
+	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	event, err := services.ConvertUsageEvent(req.GetEvent(), username)
+	event, err := usagereporter.ConvertUsageEvent(req.GetEvent(), username)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4522,8 +4601,11 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 	return trace.Wrap(a.keyStore.DeleteUnusedKeys(ctx, usedKeys))
 }
 
-// GetLicense return the license used the star the teleport enterprise auth server
+// GetLicense return the license used the start the teleport enterprise auth server
 func (a *Server) GetLicense(ctx context.Context) (string, error) {
+	if modules.GetModules().Features().Cloud {
+		return "", trace.AccessDenied("license cannot be downloaded on Cloud")
+	}
 	if a.license == nil {
 		return "", trace.NotFound("license not found")
 	}

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -43,8 +44,8 @@ import (
 type APIConfig struct {
 	PluginRegistry plugin.Registry
 	AuthServer     *Server
-	AuditLog       events.IAuditLog
-	Authorizer     Authorizer
+	AuditLog       events.AuditLogSessionStreamer
+	Authorizer     authz.Authorizer
 	Emitter        apievents.Emitter
 	// KeepAlivePeriod defines period between keep alives
 	KeepAlivePeriod time.Duration
@@ -694,6 +695,8 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 	return items, nil
 }
 
+// Deprecated: Use teleport.v1.trust.TrustService.GetCertAuthority instead.
+// DELETE IN 14.0.0
 func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
 	if err != nil {
@@ -931,12 +934,8 @@ func (s *APIServer) getSessionEvents(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		afterN = 0
 	}
-	includePrintEvents, err := strconv.ParseBool(r.URL.Query().Get("print"))
-	if err != nil {
-		includePrintEvents = false
-	}
 
-	return auth.GetSessionEvents(namespace, *sid, afterN, includePrintEvents)
+	return auth.GetSessionEvents(namespace, *sid, afterN)
 }
 
 type upsertNamespaceReq struct {

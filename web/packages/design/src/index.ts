@@ -44,7 +44,9 @@ import Flex from './Flex';
 import Menu, { MenuItem, MenuItemIcon } from './Menu';
 import { Pill } from './Pill';
 import Popover from './Popover';
-import { TextArea, type TextAreaProps } from './TextArea';
+import { TextArea } from './TextArea';
+
+import type { TextAreaProps } from './TextArea';
 
 export { AnimatedProgressBar } from './AnimatedProgressBar';
 export {
