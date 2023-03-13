@@ -9,7 +9,7 @@ Kubernetes Service automatically determines that it is running a Kubernetes
 cluster and, if so, registers itself with Teleport.
 
 You can register multiple Kubernetes clusters with Teleport by deploying the
-Teleport Kubernetes Service on each cluster you want to register. 
+Teleport Kubernetes Service on each cluster you want to register.
 
 ## Prerequisites
 
@@ -34,7 +34,7 @@ Teleport Kubernetes Service on each cluster you want to register.
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
-Teleport can act as an access plane for multiple Kubernetes clusters. 
+Teleport can act as an access plane for multiple Kubernetes clusters.
 
 We will assume that the domain of your Teleport cluster is `tele.example.com`.
 
@@ -47,7 +47,7 @@ We will need a join token from `tele.example.com`:
 # A trick to save the pod ID in tele.example.com
 $ POD=$(kubectl get pod -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
 # Create a join token for the cluster cookie to authenticate
-$ TOKEN=$(kubectl exec -ti "${POD?}" -- tctl nodes add --roles=kube --ttl=10000h --format=json | jq -r '.[0]')
+$ TOKEN=$(kubectl exec -ti "${POD?}" -- tctl nodes add --roles=kube --ttl=1h --format=json | jq -r '.[0]')
 $ echo $TOKEN
 ```
 
@@ -74,8 +74,8 @@ them using `tsh kube login`:
 ```code
 $ tsh kube ls
 
-# Kube Cluster Name Selected 
-# ----------------- -------- 
+# Kube Cluster Name Selected
+# ----------------- --------
 # cookie
 # tele.example.com    *
 
@@ -90,7 +90,7 @@ $ kubectl get pods
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Cloud">
 
-Teleport can act as an access plane for multiple Kubernetes clusters. 
+Teleport can act as an access plane for multiple Kubernetes clusters.
 
 We will assume that the domain of your Teleport cluster is `mytenant.teleport.sh`.
 
@@ -101,7 +101,7 @@ We will need a join token from `mytenant.teleport.sh`:
 
 ```code
 # Create a join token for the cluster cookie to authenticate
-$ TOKEN=$(tctl nodes add --roles=kube --ttl=10000h --format=json | jq -r '.[0]')
+$ TOKEN=$(tctl nodes add --roles=kube --ttl=1h --format=json | jq -r '.[0]')
 $ echo $TOKEN
 ```
 
@@ -128,8 +128,8 @@ them using `tsh kube login`:
 ```code
 $ tsh kube ls
 
-# Kube Cluster Name Selected 
-# ----------------- -------- 
+# Kube Cluster Name Selected
+# ----------------- --------
 # cookie
 # mytenant.teleport.sh    *
 
