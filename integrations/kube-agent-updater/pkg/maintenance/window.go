@@ -97,7 +97,7 @@ type kubeScheduleRepr struct {
 // it has no upcoming or ongoing maintenance window, or if it contains a window
 // whose start is after its end. This could happen if the agent looses
 // connectivity to its cluster or if we have a bug in the window calculation.
-// In this case we don't want to honour the schedule and will consider the
+// In this case we don't want to honor the schedule and will consider the
 // agent is not working properly.
 func (s kubeScheduleRepr) isValid(now time.Time) bool {
 	valid := false
