@@ -7,8 +7,9 @@ registered:
 - `LimitExceeded: Maximum policy size of 2048 bytes exceeded for user <iam-user>`
 - `LimitExceeded: Maximum policy size of 10240 bytes exceeded for role <iam-role>`
 
-For reference, a user policy can maintain permissions for approximately 6 Redshift databases, or 20 RDS databases. And a
-role policy can maintain permissions for approximately 30 Redshift databases, or 100 RDS databases.
+For reference, a user policy can maintain permissions for approximately 6 Redshift databases, or 20 RDS databases due to
+the IAM policy character limits. And a role policy can maintain permissions for approximately 30 Redshift databases, or
+100 RDS databases.
 
 One way to work around this is to manually manage the IAM policy used for database connection and use a wildcard `"*"`
 for `"Resource"` to reduce the policy size:
@@ -54,7 +55,7 @@ to `Get/Put/Delete` the user or role policy.
 </Details>
 
 Another option to resolve this is to deploy [Database Access in a Highly Available (HA)
-configuration](../../database-access/guides/ha) where databases can be sharded to separate Database Services with
+configuration](../../database-access/guides/ha.mdx) where databases can be sharded to separate Database Services with
 different IAM roles.
 
 If the limit is exceeded for a user policy, it is also recommended to use an IAM role for the Database Service instead.
