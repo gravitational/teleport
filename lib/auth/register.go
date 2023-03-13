@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"crypto/x509"
-	"github.com/gravitational/teleport/lib/gitlab"
 	"os"
 	"time"
 
@@ -41,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/githubactions"
+	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"

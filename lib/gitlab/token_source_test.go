@@ -1,9 +1,10 @@
 package gitlab
 
 import (
+	"testing"
+
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestIDTokenSource_GetIDToken(t *testing.T) {

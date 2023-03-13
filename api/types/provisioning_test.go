@@ -17,12 +17,13 @@ limitations under the License.
 package types
 
 import (
-	"github.com/gravitational/teleport/api/defaults"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/defaults"
 )
 
 func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
