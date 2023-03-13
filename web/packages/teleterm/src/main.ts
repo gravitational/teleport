@@ -63,8 +63,8 @@ function initializeApp(): void {
   });
   const windowsManager = new WindowsManager(appStateFileStorage, settings);
 
-  process.on('uncaughtException', error => {
-    logger.error(error);
+  process.on('uncaughtException', (error, origin) => {
+    logger.error(origin, error);
     app.quit();
   });
 

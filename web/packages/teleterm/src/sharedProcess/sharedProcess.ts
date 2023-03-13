@@ -56,7 +56,9 @@ function initializeLogger(): void {
   Logger.init(loggerService);
   const logger = new Logger('uncaught exception');
 
-  process.on('uncaughtException', error => logger.error(error));
+  process.on('uncaughtException', (error, origin) => {
+    logger.error(origin, error);
+  });
 }
 
 async function initializeServer(
