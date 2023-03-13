@@ -121,10 +121,10 @@ $ tctl create github.yaml
   able to determine team memberships for these organizations.
 </Admonition>
 
-After authentication Teleport will add the GitHub username
-to that user's `internal.logins` trait for their session. The preset `access`
-role has this trait variable configured to include the GitHub user as an
-authorized SSH login. Here is an example role configuration snippet using the trait variable. 
+After authentication Teleport will add the GitHub username to that user's
+`internal.logins` trait for their session. The preset `access` role has this
+trait variable configured to include the GitHub user as an authorized SSH login.
+Here is an example role configuration snippet using the trait variable. 
 
 ```yaml
   allow:
