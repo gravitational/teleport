@@ -845,6 +845,10 @@
               "slug": "/kubernetes-access/register-clusters/static-kubeconfig/"
             },
             {
+              "title": "Register a Cluster with IAM joining",
+              "slug": "/kubernetes-access/register-clusters/iam-joining/"
+            },
+            {
               "title": "Register Clusters Dynamically",
               "slug": "/kubernetes-access/register-clusters/dynamic-registration/"
             }
@@ -1565,6 +1569,11 @@
     {
       "source": "/database-access/",
       "destination": "/database-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/guides/standalone-teleport/",
+      "destination": "/kubernetes-access/register-clusters/iam-joining/",
       "permanent": true
     },
     {
