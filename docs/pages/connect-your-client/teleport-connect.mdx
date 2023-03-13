@@ -158,6 +158,30 @@ installation directory to the `Path` user environment variable.
 </TabItem>
 </Tabs>
 
+## Telemetry
+
+(!docs/pages/includes/teleport-connect-telemetry.mdx!)
+
+### Disabling telemetry
+
+If you initially agreed to share telemetry data, but now want to opt out, you need to update the `app_config.json` file:
+```json
+"usageReporting.enabled": false
+```
+<Tabs>
+<TabItem label="macOS">
+The Teleport Connect configuration file is located at `~/Library/Application Support/Teleport Connect/app_config.json`.
+</TabItem>
+<TabItem label="Linux">
+The Teleport Connect configuration file is located at `~/.config/Teleport Connect/app_config.json`.
+</TabItem>
+<TabItem label="Windows">
+The Teleport Connect configuration file is located at `C:\Users\%UserName%\AppData\Roaming\Teleport Connect\app_config.json`.
+</TabItem>
+</Tabs>
+
+The changes will take effect at the next launch.
+
 ## Troubleshooting
 
 Logging out of a cluster, closing the app and logging in again resets all app state related to that
