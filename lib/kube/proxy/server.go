@@ -161,6 +161,10 @@ type TLSServer struct {
 	// reconcileCh triggers reconciliation of proxied kube_clusters.
 	reconcileCh chan struct{}
 	log         *logrus.Entry
+
+	kubeServerWatcher *services.KubeServerWatcher
+	kubeServersMap    map[string][]types.KubeServer
+	kubeServersMapMu  sync.RWMutex
 }
 
 // NewTLSServer returns new unstarted TLS server
@@ -229,6 +233,11 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	}
 	server.TLS.GetConfigForClient = server.GetConfigForClient
 	server.closeContext, server.closeFunc = context.WithCancel(cfg.Context)
+	// register into the forwarder the method to get kubernetes servers for a kube cluster.
+	server.fwd.getKubernetesServersForKubeCluster, err = server.getKubernetesServersForKubeClusterFunc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return server, nil
 }
@@ -282,8 +291,14 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 
 	// Initialize watcher that will be dynamically (un-)registering
 	// proxied clusters based on the kube_cluster resources.
-	if t.watcher, err = t.startResourceWatcher(t.closeContext); err != nil {
+	if t.watcher, err = t.startKubeClusterResourceWatcher(t.closeContext); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if t.kubeServerWatcher != nil {
+		if err := t.kubeServerWatcher.WaitInitialization(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return t.Server.Serve(tls.NewListener(mux.TLS(), t.TLS))
@@ -316,6 +331,10 @@ func (t *TLSServer) close(ctx context.Context) error {
 	// Stop the kube_cluster resource watcher.
 	if t.watcher != nil {
 		t.watcher.Close()
+	}
+	// Stop the kube_server resource watcher.
+	if t.kubeServerWatcher != nil {
+		t.kubeServerWatcher.Close()
 	}
 	t.mu.Lock()
 	listClose := t.listener.Close()
@@ -523,4 +542,56 @@ func (t *TLSServer) setServiceLabels(cluster types.KubeCluster) {
 		maps.Copy(dstDynLabels, serviceDynLabels)
 		cluster.SetDynamicLabels(dstDynLabels)
 	}
+}
+
+// getKubernetesServersForKubeClusterFunc returns a function that returns the kubernetes servers
+// for a given kube cluster depending on the type of service.
+func (t *TLSServer) getKubernetesServersForKubeClusterFunc() (getKubernetesServersForKubeClusterFunc, error) {
+	switch t.KubeServiceType {
+	case KubeService:
+		return func(name string) ([]types.KubeServer, error) {
+			// If this is a kube_service, we can just return the local kube servers.
+			kube, err := t.getKubeClusterForHeartbeat(name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			srv, err := types.NewKubernetesServerV3FromCluster(kube, "", t.HostID)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return []types.KubeServer{srv}, nil
+		}, nil
+	default:
+		// If not a kube_service, we need to watch the kube_server objects.
+		var err error
+		// Start watching the kube_server objects.
+		t.kubeServerWatcher, err = t.startKubeServerResourceWatcher(t.fwd.ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return func(name string) ([]types.KubeServer, error) {
+			servers, err := t.getServersMapForCluster(name)
+			return servers, trace.Wrap(err)
+		}, nil
+	}
+}
+
+// storeKubeServersMap stores the servers map in the TLSServer.
+func (t *TLSServer) storeKubeServersMap(serversMap map[string][]types.KubeServer) {
+	t.kubeServersMapMu.Lock()
+	defer t.kubeServersMapMu.Unlock()
+	t.kubeServersMap = serversMap
+}
+
+func (t *TLSServer) getServersMapForCluster(clusterName string) ([]types.KubeServer, error) {
+	t.kubeServersMapMu.RLock()
+	defer t.kubeServersMapMu.RUnlock()
+	if t.kubeServersMap == nil {
+		return nil, trace.NotFound("no servers map found")
+	}
+	servers, ok := t.kubeServersMap[clusterName]
+	if !ok {
+		return nil, trace.NotFound("no servers found for cluster %q", clusterName)
+	}
+	return servers, nil
 }

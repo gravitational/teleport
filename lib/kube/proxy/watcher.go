@@ -82,9 +82,9 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 	return nil
 }
 
-// startResourceWatcher starts watching changes to Kube Clusters resources and
+// startKubeClusterResourceWatcher starts watching changes to Kube Clusters resources and
 // registers/unregisters the proxied Kube Cluster accordingly.
-func (s *TLSServer) startResourceWatcher(ctx context.Context) (*services.KubeClusterWatcher, error) {
+func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*services.KubeClusterWatcher, error) {
 	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService {
 		s.log.Debug("Not initializing Kube Cluster resource watcher.")
 		return nil, nil
@@ -247,4 +247,37 @@ func (s *TLSServer) deleteKubernetesServer(ctx context.Context, name string) err
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// startKubeServerResourceWatcher starts watching changes to Kube servers resources.
+func (s *TLSServer) startKubeServerResourceWatcher(ctx context.Context) (*services.KubeServerWatcher, error) {
+	s.log.Debug("Initializing Kube Server resource watcher.")
+	watcher, err := services.NewKubeServerWatcher(ctx, services.KubeServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: s.Component,
+			Log:       s.log,
+			Client:    s.AccessPoint,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go func() {
+		defer watcher.Close()
+		for {
+			select {
+			case servers := <-watcher.KubeServersC:
+				serversMap := make(map[string][]types.KubeServer)
+				for _, server := range servers {
+					kubeCluster := server.GetCluster()
+					serversMap[kubeCluster.GetName()] = append(serversMap[kubeCluster.GetName()], server)
+				}
+				s.storeKubeServersMap(serversMap)
+			case <-ctx.Done():
+				s.log.Debug("Kube server resource watcher done.")
+				return
+			}
+		}
+	}()
+	return watcher, nil
 }

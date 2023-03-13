@@ -172,7 +172,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.Clusters)+1)
-
+	client := newAuthClientWithStreamer(testCtx)
 	// Create kubernetes service server.
 	testCtx.KubeServer, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
@@ -186,12 +186,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			// directly to AuthClient solves the issue.
 			// We wrap the AuthClient with an events.TeeStreamer to send non-disk
 			// events like session.end to testCtx.emitter as well.
-			AuthClient: newAuthClientWithStreamer(testCtx),
+			AuthClient: client,
 			// StreamEmitter is required although not used because we are using
 			// "node-sync" as session recording mode.
 			StreamEmitter:     testCtx.Emitter,
 			DataDir:           t.TempDir(),
-			CachingAuthClient: testCtx.AuthClient,
+			CachingAuthClient: client,
 			HostID:            testCtx.HostID,
 			Context:           testCtx.Context,
 			KubeconfigPath:    kubeConfigLocation,
@@ -206,7 +206,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		},
 		DynamicLabels: nil,
 		TLS:           tlsConfig,
-		AccessPoint:   testCtx.AuthClient,
+		AccessPoint:   client,
 		LimiterConfig: limiter.Config{
 			MaxConnections:   1000,
 			MaxNumberOfUsers: 1000,
