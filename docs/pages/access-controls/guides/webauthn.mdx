@@ -41,9 +41,13 @@ Teleport configuration as below:
         # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
         second_factor: on
         webauthn:
+          # Required, replace with proxy web address (example.com, mytenant.teleport.sh),
+          #  see `webauthn` Fields Definitions for details.
           rp_id: example.com
+          # Optional, see `webauthn` Fields Definitions for details.
           attestation_allowed_cas:
           - "/path/to/allowed_ca.pem"
+          # Optional, see `webauthn` Fields Definitions for details.
           attestation_denied_cas:
           - "/path/to/denied_ca.pem"
     ```
@@ -70,9 +74,13 @@ Teleport configuration as below:
     # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
     second_factor: "on"
     webauthn:
+      # Required, replace with proxy web address (example.com, mytenant.teleport.sh),
+      #  see usage explanation below
       rp_id: example.com
+      # Optional, see `webauthn` Fields Definitions for details.
       attestation_allowed_cas:
       - "/path/to/allowed_ca.pem"
+      # Optional, see `webauthn` Fields Definitions for details.
       attestation_denied_cas:
       - "/path/to/denied_ca.pem"
   ```
@@ -110,12 +118,16 @@ spec:
   # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
   second_factor: "on"
   webauthn:
+    # Required, replace with proxy web address (example.com, mytenant.teleport.sh),
+    #  see `webauthn` Fields Definitions for details.
     rp_id: example.com
+    # Optional, see `webauthn` Fields Definitions for details.
     attestation_allowed_cas:
     - |
       -----BEGIN CERTIFICATE-----
       ...
       -----END CERTIFICATE-----
+    # Optional, see `webauthn` Fields Definitions for details.
     attestation_denied_cas:
     - |
       -----BEGIN CERTIFICATE-----
@@ -137,6 +149,8 @@ $ tctl create -f cap.yaml
 >
   Starting on Teleport v10, WebAuthn replaces U2F. See the [U2F](#u2f) section.
 </Details>
+
+### `webauthn` Fields Definitions
 
 `rp_id` is the public domain of the Teleport Proxy Service, *excluding* protocol
   (`https://`) and port number.
