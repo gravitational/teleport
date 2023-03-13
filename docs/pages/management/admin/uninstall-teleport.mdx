@@ -1,5 +1,5 @@
 ---
-title: Uninstalling Teleport
+title: Uninstall Teleport
 description: How to remove Teleport from your systems
 ---
 
@@ -86,6 +86,14 @@ $ docker stop teleport
   $ sudo rm -f /etc/apt/sources.list.d/teleport.list
   ```
 
+  <Admonition type="notice" title="Uninstall standalone DEB package">
+  If the commands above do not work, you may have installed Teleport using a standalone DEB package. Remove it with:
+
+  ```code
+  $ sudo dpkg -r teleport
+  ```
+  </Admonition>
+
   </TabItem>
   <TabItem label="Amazon Linux 2/RHEL (RPM)" scope="oss">
 
@@ -102,6 +110,14 @@ $ docker stop teleport
   ```code
   $ sudo rm -f /etc/yum.repos.d/teleport.repo
   ```
+
+  <Admonition type="notice" title="Uninstall standalone RPM package">
+  If the commands above do not work, you may have installed Teleport using a standalone RPM package. Remove it with:
+
+  ```code
+  $ sudo rpm -e teleport
+  ```
+  </Admonition>
 
   </TabItem>
   <TabItem label="Linux Tarball" scope="oss">
@@ -125,11 +141,16 @@ $ docker stop teleport
   $ sudo rm -f /usr/local/bin/tctl
   $ sudo rm -f /usr/local/bin/teleport
   $ sudo rm -f /usr/local/bin/tsh
-  # Optional: Also remove the signed MacOS tsh application if you installed it
-  # $ sudo rm -f /Applications/tsh.app
-  # Optional: Also remove Teleport Connect if you installed it
-  # $ sudo rm -f /Applications/Teleport\ Connect.app
   ```
+
+  <Admonition type="notice" title="Uninstall MacOS client tools">
+  If you installed the MacOS `tsh`-only package and/or Teleport Connect for MacOS, you can optionally remove those too:
+
+  ```code
+  $ sudo rm -f /Applications/tsh.app
+  $ sudo rm -f /Applications/Teleport\ Connect.app
+  ```
+  </Admonition>
 
   </TabItem>
   <TabItem label="Windows" scope="oss">
@@ -162,6 +183,17 @@ $ docker stop teleport
   $ sudo rm -f /etc/apt/sources.list.d/teleport.list
   ```
 
+  <Admonition type="notice" title="Uninstall standalone DEB package">
+  If the commands above do not work, you may have installed Teleport using a standalone DEB package. Remove it with:
+
+  ```code
+  # Enterprise
+  $ sudo dpkg -r teleport-ent
+  # Enterprise FIPS
+  # $ sudo dpkg -r teleport-ent-fips
+  ```
+  </Admonition>
+
   </TabItem>
   <TabItem label="Amazon Linux 2/RHEL (RPM)" scope="enterprise">
 
@@ -181,6 +213,17 @@ $ docker stop teleport
   ```code
   $ sudo rm -f /etc/yum.repos.d/teleport.repo
   ```
+
+  <Admonition type="notice" title="Uninstall standalone RPM package">
+  If the commands above do not work, you may have installed Teleport using a standalone RPM package. Remove it with:
+
+  ```code
+  # Enterprise
+  $ sudo rpm -e teleport-ent
+  # Enterprise FIPS
+  # $ sudo rpm -e teleport-ent-fips
+  ```
+  </Admonition>
 
   </TabItem>
   <TabItem label="Linux Tarball" scope="enterprise">
@@ -204,11 +247,16 @@ $ docker stop teleport
   $ sudo rm -f /usr/local/bin/tctl
   $ sudo rm -f /usr/local/bin/teleport
   $ sudo rm -f /usr/local/bin/tsh
-  # Optional: Also remove the signed MacOS tsh application if you installed it
-  # $ sudo rm -f /Applications/tsh.app
-  # Optional: Also remove Teleport Connect if you installed it
-  # $ sudo rm -f /Applications/Teleport\ Connect.app
   ```
+
+  <Admonition type="notice" title="Uninstall MacOS client tools">
+  If you installed the MacOS `tsh` client-only package and/or Teleport Connect for MacOS, you can optionally remove those too:
+
+  ```code
+  $ sudo rm -f /Applications/tsh.app
+  $ sudo rm -f /Applications/Teleport\ Connect.app
+  ```
+  </Admonition>
 
   </TabItem>
   <TabItem label="Windows" scope="enterprise">
@@ -241,6 +289,16 @@ $ docker stop teleport
   $ sudo rm -f /etc/apt/sources.list.d/teleport.list
   ```
 
+  <Admonition type="notice" title="Uninstall standalone DEB package">
+  If the commands above do not work, you may have installed Teleport using a standalone DEB package. Remove it with:
+
+  ```code
+  $ sudo dpkg -r teleport-ent
+  # NOTE: Older Cloud users may be running OSS binaries instead
+  # $ sudo dpkg -r teleport
+  ```
+  </Admonition>
+
   </TabItem>
   <TabItem label="Amazon Linux 2/RHEL (RPM)" scope="cloud">
 
@@ -260,6 +318,16 @@ $ docker stop teleport
   ```code
   $ sudo rm -f /etc/yum.repos.d/teleport.repo
   ```
+
+  <Admonition type="notice" title="Uninstall standalone RPM package">
+  If the commands above do not work, you may have installed Teleport using a standalone RPM package. Remove it with:
+
+  ```code
+  $ sudo rpm -e teleport-ent
+  # NOTE: Older Cloud users may be running OSS binaries instead
+  # $ sudo rpm -e teleport
+  ```
+  </Admonition>
 
   </TabItem>
   <TabItem label="Linux Tarball" scope="cloud">
@@ -283,11 +351,16 @@ $ docker stop teleport
   $ sudo rm -f /usr/local/bin/tctl
   $ sudo rm -f /usr/local/bin/teleport
   $ sudo rm -f /usr/local/bin/tsh
-  # Optional: Also remove the signed MacOS tsh application if you installed it
-  # $ sudo rm -f /Applications/tsh.app
-  # Optional: Also remove Teleport Connect if you installed it
-  # $ sudo rm -f /Applications/Teleport\ Connect.app
   ```
+
+  <Admonition type="notice" title="Uninstall MacOS client tools">
+  If you installed the MacOS `tsh` client-only package and/or Teleport Connect for MacOS, you can optionally remove those too:
+
+  ```code
+  $ sudo rm -f /Applications/tsh.app
+  $ sudo rm -f /Applications/Teleport\ Connect.app
+  ```
+  </Admonition>
 
   </TabItem>
   <TabItem label="Windows" scope="cloud">
@@ -305,25 +378,34 @@ $ docker stop teleport
 
 ## Step 3/3. Remove Teleport data and configuration files
 
-<Admonition type="notice">
-These are the default paths to the Teleport config files and data directory.
-If you have changed these from the defaults on your system, substitute those paths here.
-</Admonition>
+<Tabs>
+  <TabItem label="Linux/MacOS">
+    <Admonition type="notice">
+    These are the default paths to the Teleport config files and data directory.
+    If you have changed these from the defaults on your system, substitute those paths here.
+    </Admonition>
 
-Remove the Teleport config file:
+    Remove the Teleport config file:
 
-```code
-$ sudo rm -f /etc/teleport.yaml
-# Optional: Also remove the Machine ID config file, if you used it
-# $ sudo rm -f /etc/tbot.yaml
-```
+    ```code
+    $ sudo rm -f /etc/teleport.yaml
+    # Optional: Also remove the Machine ID config file, if you used it
+    # $ sudo rm -f /etc/tbot.yaml
+    ```
 
-Remove the Teleport data directory:
+    Remove the Teleport data directory:
 
-```
-$ sudo rm -rf /var/lib/teleport
-```
+    ```
+    $ sudo rm -rf /var/lib/teleport
+    ```
+  </TabItem>
+  <TabItem label="Windows">
+
+   There are no further steps needed to remove Teleport on a Windows machine.
+
+  </TabItem>
+</Tabs>
 
 Teleport is now removed from your system.
 
-Any Teleport Nodes will stop appearing in your Teleport web UI or the output of `tsh ls` once their last heartbeat has timed out. This usually occurs within 10-15 minutes of stopping the Teleport process.
+Any Teleport Services will stop appearing in your Teleport web UI or the output of `tsh ls` once their last heartbeat has timed out. This usually occurs within 10-15 minutes of stopping the Teleport process.
