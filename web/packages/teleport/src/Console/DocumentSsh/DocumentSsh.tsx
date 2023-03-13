@@ -80,7 +80,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
           transferHandlers={{
             getDownloader: async (location, abortController) => {
               const wanResponse = await auth.getAssertionResponseIfRequired({
-                node: { node_name: doc.clusterId, login: doc.login },
+                node: { node_name: doc.serverId, login: doc.login },
               });
               return getHttpFileTransferHandlers().download(
                 cfg.getScpUrl({
