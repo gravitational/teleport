@@ -97,6 +97,7 @@ export function ManageDevices({
         <ReAuthenticate
           onAuthenticated={setToken}
           onClose={hideReAuthenticate}
+          actionText="registering a new device"
         />
       )}
       {isAddDeviceVisible && (

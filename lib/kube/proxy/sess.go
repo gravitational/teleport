@@ -683,12 +683,12 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
 		ClusterName:  s.forwarder.cfg.ClusterName,
 	})
-
-	s.recorder = recorder
-	s.emitter = recorder
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.recorder = recorder
+	s.emitter = recorder
 
 	s.io.AddWriter(sessionRecorderID, recorder)
 
