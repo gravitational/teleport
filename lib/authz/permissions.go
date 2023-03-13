@@ -417,7 +417,6 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 					types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 					types.NewRule(types.KindClusterAuthPreference, services.RO()),
-					types.NewRule(types.KindKubeService, services.RO()),
 					types.NewRule(types.KindKubeServer, services.RO()),
 					types.NewRule(types.KindInstaller, services.RO()),
 					types.NewRule(types.KindUIConfig, services.RO()),
@@ -506,7 +505,6 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindAppServer, services.RO()),
 				types.NewRule(types.KindWebSession, services.RW()),
 				types.NewRule(types.KindWebToken, services.RW()),
-				types.NewRule(types.KindKubeService, services.RW()),
 				types.NewRule(types.KindKubeServer, services.RW()),
 				types.NewRule(types.KindDatabaseServer, services.RO()),
 				types.NewRule(types.KindLock, services.RO()),
@@ -741,7 +739,6 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					Namespaces:       []string{types.Wildcard},
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindKubeService, services.RW()),
 						types.NewRule(types.KindKubeServer, services.RW()),
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
@@ -884,20 +881,19 @@ func ContextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, cluster
 	}, nil
 }
 
-// TODO(mdwn): unexport this once enterprise has been moved.
-type ContextKey string
+type contextKey string
 
 const (
 	// contextUserCertificate is the X.509 certificate used by the contextUser to
 	// establish the mTLS connection.
 	// Holds a *x509.Certificate.
-	contextUserCertificate ContextKey = "teleport-user-cert"
+	contextUserCertificate contextKey = "teleport-user-cert"
 
 	// contextUser is a user set in the context of the request
-	contextUser ContextKey = "teleport-user"
+	contextUser contextKey = "teleport-user"
 
 	// contextClientAddr is a client address set in the context of the request
-	contextClientAddr ContextKey = "client-addr"
+	contextClientAddr contextKey = "client-addr"
 )
 
 // WithDelegator alias for backwards compatibility

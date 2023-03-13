@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -1161,14 +1160,10 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveKube:
-		if handle.HostID != "" {
-			if serverName != handle.HostID {
-				return trace.AccessDenied("access denied")
-			}
-		} else { // DELETE IN 13.0. Legacy kubeservice server is heartbeating back.
-			if serverName != handle.Name {
-				return trace.AccessDenied("access denied")
-			}
+		if handle.HostID == "" {
+			return trace.BadParameter("hostID is required for kubernetes keep alive")
+		} else if serverName != handle.HostID {
+			return trace.AccessDenied("access denied")
 		}
 
 		if !a.hasBuiltinRole(types.RoleKube) {
@@ -1420,7 +1415,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
+	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1518,93 +1513,11 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 	}
 }
 
-// kubeChecker is a resourceAccessChecker that checks for access to kubernetes services
-type kubeChecker struct {
-	checker   services.AccessChecker
-	localUser bool
-}
-
-func newKubeChecker(authContext authz.Context) *kubeChecker {
-	return &kubeChecker{
-		checker:   authContext.Checker,
-		localUser: hasLocalUserRole(authContext),
-	}
-}
-
-// CanAccess checks if a user has access to kubernetes clusters defined
-// in the server. Any clusters which aren't allowed will be removed from the
-// resource instead of an error being returned.
-func (k *kubeChecker) CanAccess(resource types.Resource) error {
-	switch server := resource.(type) {
-	case types.Server:
-		return k.canAccessKubernetesLegacy(server)
-	case types.KubeServer:
-		return k.canAccessKubernetes(server)
-	default:
-		return trace.BadParameter("unexpected resource type %T", resource)
-	}
-}
-
-// canAccessKubernetesLegacy checks if the user has access to Kubernetes Cluster when represented by `types.ServerV2`.
-// DELETE in 13.0.0
-func (k *kubeChecker) canAccessKubernetesLegacy(server types.Server) error {
-	// Filter out agents that don't have support for moderated sessions access
-	// checking if the user has any roles that require it.
-	if k.localUser {
-		roles := k.checker.Roles()
-		agentVersion, versionErr := semver.NewVersion(server.GetTeleportVersion())
-
-		hasK8SRequirePolicy := func() bool {
-			for _, role := range roles {
-				for _, policy := range role.GetSessionRequirePolicies() {
-					if ContainsSessionKind(policy.Kinds, types.KubernetesSessionKind) {
-						return true
-					}
-				}
-			}
-			return false
-		}
-
-		if hasK8SRequirePolicy() && (versionErr != nil || agentVersion.LessThan(*MinSupportedModeratedSessionsVersion)) {
-			return trace.AccessDenied("cannot use moderated sessions with pre-v9 kubernetes agents")
-		}
-	}
-
-	filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
-	for _, kube := range server.GetKubernetesClusters() {
-		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := k.checker.CheckAccess(k8sV3, services.AccessState{MFAVerified: true}); err != nil {
-			if trace.IsAccessDenied(err) {
-				continue
-			}
-
-			return trace.Wrap(err)
-		}
-
-		filtered = append(filtered, kube)
-	}
-
-	server.SetKubernetesClusters(filtered)
-	return nil
-}
-
-func (k *kubeChecker) canAccessKubernetes(server types.KubeServer) error {
-	kube := server.GetCluster()
-	err := k.checker.CheckAccess(kube, services.AccessState{MFAVerified: true})
-	return trace.Wrap(err)
-}
-
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode, types.KindKubeServer:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
-	case types.KindKubeService, types.KindKubeServer:
-		return newKubeChecker(a.context), nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
 	}
@@ -4614,40 +4527,6 @@ func (a *ServerWithRoles) Close() error {
 	return a.authServer.Close()
 }
 
-// UpsertKubeService creates or updates a Server representing a teleport
-// kubernetes service.
-func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server) error {
-	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	authPref, err := a.authServer.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	state := a.context.GetAccessState(authPref)
-	for _, kube := range s.GetKubernetesClusters() {
-		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), kube)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := a.context.Checker.CheckAccess(k8sV3, state); err != nil {
-			return utils.OpaqueAccessDenied(err)
-		}
-	}
-	return a.authServer.UpsertKubeService(ctx, s)
-}
-
-// UpsertKubeServiceV2 creates or updates a Server representing a teleport
-// kubernetes service.
-func (a *ServerWithRoles) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
-	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.UpsertKubeServiceV2(ctx, s)
-}
-
 func (a *ServerWithRoles) checkAccessToKubeCluster(cluster types.KubeCluster) error {
 	return a.context.Checker.CheckAccess(
 		cluster,
@@ -4703,46 +4582,6 @@ func (a *ServerWithRoles) DeleteAllKubernetesServers(ctx context.Context) error 
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAllKubernetesServers(ctx)
-}
-
-// GetKubeServices returns all Servers representing teleport kubernetes
-// services.
-// DELETE in 13.0.0
-func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, error) {
-	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers, err := a.authServer.GetKubeServices(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	checker := newKubeChecker(a.context)
-
-	for _, server := range servers {
-		err = checker.CanAccess(server)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return servers, nil
-}
-
-// DeleteKubeService deletes a named kubernetes service.
-func (a *ServerWithRoles) DeleteKubeService(ctx context.Context, name string) error {
-	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteKubeService(ctx, name)
-}
-
-// DeleteAllKubeService deletes all registered kubernetes services.
-func (a *ServerWithRoles) DeleteAllKubeServices(ctx context.Context) error {
-	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteAllKubeServices(ctx)
 }
 
 // GetNetworkRestrictions retrieves all the network restrictions (allow/deny lists).
@@ -5830,6 +5669,18 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 	}
 
 	return a.authServer.DeleteAllUserGroups(ctx)
+}
+
+// GetHeadlessAuthentication retrieves a headless authentication by id.
+func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error) {
+	// TODO (joerger): Add implementation - follow up PR
+	return nil, trace.NotImplemented("GetHeadlessAuthentication is not implemented")
+}
+
+// UpdateHeadlessAuthenticationState updates a headless authentication state.
+func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
+	// TODO (joerger): Add implementation - follow up PR
+	return trace.NotImplemented("UpdateHeadlessAuthenticationState is not implemented")
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,
