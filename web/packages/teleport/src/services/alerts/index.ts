@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { fetchClusterAlerts } from './alerts';
+import { fetchClusterAlerts, alertNames } from './alerts';
 
 import type { ClusterAlert } from './alerts';
 
-export { fetchClusterAlerts };
+export { fetchClusterAlerts, alertNames };
 
 export type { ClusterAlert };
