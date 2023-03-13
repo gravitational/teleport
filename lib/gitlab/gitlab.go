@@ -34,11 +34,12 @@ import (
 // ```
 //
 // We will require the user to configure this to be `TBOT_GITLAB_JWT` and to
-//
+// set this value to the name of their Teleport cluster.
 //
 // Valuable reference:
-// - https://docs.gitlab.com/ee/ci/yaml/index.html#id_tokens
+// - https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html
 // - https://docs.gitlab.com/ee/ci/cloud_services/
+// - https://docs.gitlab.com/ee/ci/yaml/index.html#id_tokens
 //
 // The GitLab issuer's well-known OIDC document is at
 // https://gitlab.com/.well-known/openid-configuration

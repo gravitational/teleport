@@ -65,7 +65,7 @@ func checkGitLabAllowRules(token *types.ProvisionTokenV2, claims *gitlab.IDToken
 	// If a single rule passes, accept the IDToken
 	for _, rule := range token.Spec.GitLab.Allow {
 		// Please consider keeping these field validators in the same order they
-		// are defined within the ProvisionTokenSpecV2Github proto spec.
+		// are defined within the ProvisionTokenSpecV2GitLab proto spec.
 		if rule.Sub != "" && claims.Sub != rule.Sub {
 			continue
 		}
