@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 )
 
 func responseFromAWSIdentity(id awsIdentity) string {
@@ -531,7 +532,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			}()
 
 			requestContext := context.Background()
-			requestContext = context.WithValue(requestContext, ContextClientAddr, &net.IPAddr{})
+			requestContext = authz.ContextWithClientAddr(requestContext, &net.IPAddr{})
 			requestContext = context.WithValue(requestContext, stsClientKey{}, tc.stsClient)
 
 			_, err = a.RegisterUsingIAMMethod(requestContext, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {

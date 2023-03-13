@@ -40,6 +40,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -172,7 +173,8 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		cfg: cfg,
 		httpServer: &http.Server{
 			Handler:           tracingHandler,
-			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
+			ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+			IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		},
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
@@ -389,9 +391,9 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 		return nil, trace.Wrap(err)
 	}
 
-	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(&tlsInfo.State))
-	ctx = context.WithValue(ctx, ContextClientAddr, peerInfo.Addr)
-	ctx = context.WithValue(ctx, ContextUser, user)
+	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(&tlsInfo.State))
+	ctx = authz.ContextWithClientAddr(ctx, peerInfo.Addr)
+	ctx = authz.ContextWithUser(ctx, user)
 	return ctx, nil
 }
 
@@ -471,7 +473,7 @@ func (a *authenticatedStream) Context() context.Context {
 }
 
 // GetUser returns authenticated user based on request metadata set by HTTP server
-func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, error) {
+func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGetter, error) {
 	peers := connState.PeerCertificates
 	if len(peers) > 1 {
 		// when turning intermediaries on, don't forget to verify
@@ -488,7 +490,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// for connections without auth, but this is not active use-case
 	// therefore it is not allowed to reduce scope
 	if len(peers) == 0 {
-		return BuiltinRole{
+		return authz.BuiltinRole{
 			Role:        types.RoleNop,
 			Username:    string(types.RoleNop),
 			ClusterName: localClusterName.GetClusterName(),
@@ -538,14 +540,14 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 		// to get unrestricted access to the local cluster
 		systemRole := findPrimarySystemRole(identity.Groups)
 		if systemRole != nil {
-			return RemoteBuiltinRole{
+			return authz.RemoteBuiltinRole{
 				Role:        *systemRole,
 				Username:    identity.Username,
 				ClusterName: certClusterName,
 				Identity:    *identity,
 			}, nil
 		}
-		return RemoteUser{
+		return authz.RemoteUser{
 			ClusterName:      certClusterName,
 			Username:         identity.Username,
 			Principals:       identity.Principals,
@@ -564,7 +566,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// in case if the system role is present, assume this is a service
 	// agent, e.g. Proxy, connecting to the cluster
 	if systemRole != nil {
-		return BuiltinRole{
+		return authz.BuiltinRole{
 			Role:                  *systemRole,
 			AdditionalSystemRoles: extractAdditionalSystemRoles(identity.SystemRoles),
 			Username:              identity.Username,
@@ -574,7 +576,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	}
 	// otherwise assume that is a local role, no need to pass the roles
 	// as it will be fetched from the local database
-	return LocalUser{
+	return authz.LocalUser{
 		Username: identity.Username,
 		Identity: *identity,
 	}, nil
@@ -621,8 +623,8 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// determine authenticated user based on the request parameters
 	ctx := r.Context()
-	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(r.TLS))
-	ctx = context.WithValue(ctx, ContextUser, user)
+	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(r.TLS))
+	ctx = authz.ContextWithUser(ctx, user)
 	a.Handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
@@ -648,8 +650,8 @@ func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tl
 		return nil, trace.Wrap(err)
 	}
 
-	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(&tlsState))
-	ctx = context.WithValue(ctx, ContextUser, user)
+	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(&tlsState))
+	ctx = authz.ContextWithUser(ctx, user)
 	return ctx, nil
 }
 
