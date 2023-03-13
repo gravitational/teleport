@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -4213,4 +4214,91 @@ func TestUnimplementedClients(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsNotImplemented(err), err)
 	})
+}
+
+func TestHeadlessAuthentication(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	mfa := configureForMFA(t, srv)
+
+	user1, _, err := CreateUserAndRole(srv.Auth(), mfa.User, nil, nil)
+	require.NoError(t, err)
+	client1, err := srv.NewClient(TestUser(user1.GetName()))
+	require.NoError(t, err)
+
+	user2, _, err := CreateUserAndRole(srv.Auth(), "user2", nil, nil)
+	require.NoError(t, err)
+	client2, err := srv.NewClient(TestUser(user2.GetName()))
+	require.NoError(t, err)
+
+	// Insert a headless authentication resource into the backend.
+	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
+	headlessAuthn := &types.HeadlessAuthentication{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: headlessID,
+			},
+		},
+		User:            user1.GetName(),
+		PublicKey:       []byte(sshPubKey),
+		ClientIpAddress: "0.0.0.0",
+	}
+	headlessAuthn.SetExpiry(time.Now().Add(time.Minute))
+
+	stub, err := srv.Auth().CreateHeadlessAuthenticationStub(ctx, headlessID)
+	require.NoError(t, err)
+	_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, stub, headlessAuthn)
+	require.NoError(t, err)
+
+	// user2 should fail to get headless authentication, and wait for ctx to timeout as if not found
+	// to prevent leaking other user's headless authentication attempts.
+	failedGetCtx, cancel := context.WithTimeout(ctx, time.Millisecond*100)
+	defer cancel()
+
+	_, err = client2.GetHeadlessAuthentication(failedGetCtx, headlessID)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "context deadline exceeded", "expected context deadline error but got: %v", err)
+
+	// user1 should successfully get headless authentication with up to date login details
+	retrievedHeadlessAuthn, err := client1.GetHeadlessAuthentication(ctx, headlessID)
+	require.NoError(t, err)
+	require.Equal(t, headlessAuthn, retrievedHeadlessAuthn)
+
+	// user2 should fail to update authentication state
+	err = client2.UpdateHeadlessAuthenticationState(ctx, headlessID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED, nil)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err), "expected not found error but got: %v", err)
+
+	// user1 should successfully update authentication state to denied
+	err = client1.UpdateHeadlessAuthenticationState(ctx, headlessID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED, nil)
+	require.NoError(t, err)
+
+	// reset to original state
+	retrievedHeadlessAuthn, err = client1.GetHeadlessAuthentication(ctx, headlessID)
+	require.NoError(t, err)
+	_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, retrievedHeadlessAuthn, headlessAuthn)
+	require.NoError(t, err)
+
+	// user1 should fail to update authentication state to approved without mfa
+	err = client1.UpdateHeadlessAuthenticationState(ctx, headlessID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: &webauthn.CredentialAssertionResponse{
+				Type: "bad response",
+			},
+		},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied error but got: %v", err)
+
+	// user1 should successfully update authentication state to approved with MFA
+	challenge, err := client1.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{},
+	})
+	require.NoError(t, err)
+	resp, err := mfa.WebDev.SolveAuthn(challenge)
+	require.NoError(t, err)
+
+	err = client1.UpdateHeadlessAuthenticationState(ctx, headlessID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
+	require.NoError(t, err)
 }

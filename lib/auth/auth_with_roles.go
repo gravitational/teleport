@@ -5748,9 +5748,9 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 		return trace.Wrap(err)
 	}
 
-	// Only users can approve their own headless auth requests.
+	// Only users can approve/deny their own headless auth requests.
 	if !hasLocalUserRole(a.context) || headlessAuthn.User != a.context.User.GetName() {
-		return trace.AccessDenied("cannot update a different user's headless authentication state")
+		return trace.NotFound("not found")
 	}
 
 	if headlessAuthn.State != types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING {
