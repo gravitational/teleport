@@ -361,6 +361,10 @@
       "icon": "wrench",
       "title": "Manage your Cluster",
       "entries": [
+      	{
+      	  "title": "Introduction",
+      	  "slug": "/management/introduction/"
+	},
         {
           "title": "Admin Guides",
           "slug": "/management/admin/",
@@ -971,6 +975,10 @@
       "title": "Reference",
       "entries": [
         {
+	  "title": "Introduction",
+	  "slug": "/reference/introduction/"
+	},
+        {
           "title": "Config File",
           "slug": "/reference/config/"
         },
@@ -1059,6 +1067,10 @@
       "icon": "integrations",
       "title": "Architecture",
       "entries": [
+      	{
+      	  "title": "Introduction",
+      	  "slug": "/architecture/introduction/"
+      	},
         {
           "title": "Overview",
           "slug": "/architecture/overview/"
