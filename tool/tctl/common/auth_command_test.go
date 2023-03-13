@@ -327,7 +327,7 @@ type mockClient struct {
 	cas            []types.CertAuthority
 	proxies        []types.Server
 	remoteClusters []types.RemoteCluster
-	kubeServices   []types.KubeServer
+	kubeServers    []types.KubeServer
 	appServices    []types.AppServer
 	dbServices     []types.DatabaseServer
 	appSession     types.WebSession
@@ -373,7 +373,7 @@ func (c *mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]types.
 }
 
 func (c *mockClient) GetKubernetesServers(context.Context) ([]types.KubeServer, error) {
-	return c.kubeServices, nil
+	return c.kubeServers, nil
 }
 
 func (c *mockClient) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
@@ -476,9 +476,9 @@ func TestCheckKubeCluster(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			client.kubeServices = []types.KubeServer{}
+			client.kubeServers = []types.KubeServer{}
 			for _, kube := range tt.registeredClusters {
-				client.kubeServices = append(client.kubeServices, &types.KubernetesServerV3{
+				client.kubeServers = append(client.kubeServers, &types.KubernetesServerV3{
 					Metadata: types.Metadata{
 						Name: kube.GetName(),
 					},

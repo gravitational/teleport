@@ -167,7 +167,6 @@ func TestIntegrations(t *testing.T) {
 	t.Run("UUIDBasedProxy", suite.bind(testUUIDBasedProxy))
 	t.Run("WindowChange", suite.bind(testWindowChange))
 	t.Run("SSHTracker", suite.bind(testSSHTracker))
-	t.Run("TestKubeAgentFiltering", suite.bind(testKubeAgentFiltering))
 	t.Run("ListResourcesAcrossClusters", suite.bind(testListResourcesAcrossClusters))
 	t.Run("SessionRecordingModes", suite.bind(testSessionRecordingModes))
 	t.Run("DifferentPinnedIP", suite.bind(testDifferentPinnedIP))
@@ -348,16 +347,19 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			inRecordLocation: types.RecordAtNode,
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
-		}, {
+		},
+		{
 			comment:          "recording proxy with upload to file server",
 			inRecordLocation: types.RecordAtProxy,
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
-		}, {
+		},
+		{
 			comment:          "normal teleport, sync recording",
 			inRecordLocation: types.RecordAtNodeSync,
 			inForwardAgent:   false,
-		}, {
+		},
+		{
 			comment:          "recording proxy, sync recording",
 			inRecordLocation: types.RecordAtProxySync,
 			inForwardAgent:   true,
@@ -1424,11 +1426,9 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		test := test
 		t.Run(fmt.Sprintf("Node test, node name %q source cluster %q -> target cluster %q",
 			test.nodeNme, test.instance.Secrets.SiteName, test.clusterName), func(t *testing.T) {
-
 			testNodeConnection(t, test.instance, test.clusterName, test.nodeNme)
 		})
 	}
-
 }
 
 // verifySessionJoin covers SSH into shell and joining the same session from another client
@@ -6780,119 +6780,6 @@ outer:
 	}
 
 	t.FailNow()
-}
-
-// TestKubeAgentFiltering tests that kube-agent filtering for pre-v8 agents and
-// moderated sessions users works as expected.
-func testKubeAgentFiltering(t *testing.T, suite *integrationTestSuite) {
-	ctx := context.Background()
-
-	type testCase struct {
-		name     string
-		server   types.Server
-		role     types.Role
-		user     types.User
-		wantsLen int
-	}
-
-	v8Agent, err := types.NewServer("kube-h", types.KindKubeService, types.ServerSpecV2{
-		Version:            "8.0.0",
-		KubernetesClusters: []*types.KubernetesCluster{{Name: "foo"}},
-	})
-	require.NoError(t, err)
-
-	v9Agent, err := types.NewServer("kube-h", types.KindKubeService, types.ServerSpecV2{
-		Version:            "9.0.0",
-		KubernetesClusters: []*types.KubernetesCluster{{Name: "foo"}},
-	})
-	require.NoError(t, err)
-
-	plainRole, err := types.NewRole("plain", types.RoleSpecV6{})
-	require.NoError(t, err)
-
-	moderatedRole, err := types.NewRole("moderated", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			RequireSessionJoin: []*types.SessionRequirePolicy{
-				{
-					Name:  "bar",
-					Kinds: []string{string(types.KubernetesSessionKind)},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	plainUser, err := types.NewUser("bob")
-	require.NoError(t, err)
-	plainUser.SetRoles([]string{plainRole.GetName()})
-
-	moderatedUser, err := types.NewUser("alice")
-	require.NoError(t, err)
-	moderatedUser.SetRoles([]string{moderatedRole.GetName()})
-
-	testCases := []testCase{
-		{
-			name:     "unrestricted user, v8 agent",
-			server:   v8Agent,
-			role:     plainRole,
-			user:     plainUser,
-			wantsLen: 1,
-		},
-		{
-			name:     "restricted user, v8 agent",
-			server:   v8Agent,
-			role:     moderatedRole,
-			user:     moderatedUser,
-			wantsLen: 0,
-		},
-		{
-			name:     "unrestricted user, v9 agent",
-			server:   v9Agent,
-			role:     plainRole,
-			user:     plainUser,
-			wantsLen: 1,
-		},
-		{
-			name:     "restricted user, v9 agent",
-			server:   v9Agent,
-			role:     moderatedRole,
-			user:     moderatedUser,
-			wantsLen: 1,
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			teleport := suite.newTeleport(t, nil, true)
-			defer teleport.StopAll()
-
-			adminSite := teleport.Process.GetAuthServer()
-			_, err := adminSite.UpsertKubeServiceV2(ctx, testCase.server)
-			require.NoError(t, err)
-			err = adminSite.UpsertRole(ctx, testCase.role)
-			require.NoError(t, err)
-			err = adminSite.CreateUser(ctx, testCase.user)
-			require.NoError(t, err)
-
-			cl, err := teleport.NewClient(helpers.ClientConfig{
-				Login:   testCase.user.GetName(),
-				Cluster: helpers.Site,
-				Host:    Host,
-				Port:    helpers.Port(t, teleport.SSH),
-			})
-			require.NoError(t, err)
-
-			proxy, err := cl.ConnectToProxy(ctx)
-			require.NoError(t, err)
-
-			userSite, err := proxy.ConnectToCluster(ctx, helpers.Site)
-			require.NoError(t, err)
-
-			services, err := userSite.GetKubeServices(ctx)
-			require.NoError(t, err)
-			require.Len(t, services, testCase.wantsLen)
-		})
-	}
 }
 
 func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraServices func(*testing.T, *helpers.TeleInstance, *helpers.TeleInstance)) (*client.TeleportClient, *helpers.TeleInstance, *helpers.TeleInstance) {

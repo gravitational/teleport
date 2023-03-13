@@ -99,7 +99,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
 		{Kind: types.KindWebToken},
 		{Kind: types.KindRemoteCluster},
-		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindDatabase},
@@ -145,7 +144,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
 		{Kind: types.KindWebToken},
 		{Kind: types.KindRemoteCluster},
-		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindDatabase},
@@ -193,7 +191,6 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindAppServer},
 		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindRemoteCluster},
-		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindKubeServer},
@@ -227,7 +224,6 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindAppServer},
 		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindRemoteCluster},
-		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindKubeServer},
@@ -281,7 +277,6 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
-		{Kind: types.KindKubeService},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindKubernetesCluster},
 	}
@@ -1900,21 +1895,6 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 	}
 	defer rg.Release()
 	return rg.presence.GetAllTunnelConnections(opts...)
-}
-
-// GetKubeServices is a part of auth.Cache implementation
-//
-// DELETE IN 13.0.0 Deprecated, use GetKubernetesServers.
-func (c *Cache) GetKubeServices(ctx context.Context) ([]types.Server, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetKubeServices")
-	defer span.End()
-
-	rg, err := c.read()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.presence.GetKubeServices(ctx)
 }
 
 // GetKubernetesServers is a part of auth.Cache implementation

@@ -42,15 +42,6 @@ type Announcer interface {
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertAuthServer(s types.Server) error
 
-	// UpsertKubeService registers kubernetes presence, permanently if ttl is 0
-	// or for the specified duration with second resolution if it's >= 1 second
-	// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
-	UpsertKubeService(context.Context, types.Server) error
-
-	// UpsertKubeServiceV2 registers a kubernetes service
-	// DELETE IN 13.0. Deprecated, use UpsertKubernetesServer
-	UpsertKubeServiceV2(context.Context, types.Server) (*types.KeepAlive, error)
-
 	// UpsertKubernetesServer registers a kubernetes server
 	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
 
@@ -254,10 +245,6 @@ type ReadProxyAccessPoint interface {
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
-	// GetKubeServices returns a list of kubernetes services registered in the cluster
-	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
-	GetKubeServices(context.Context) ([]types.Server, error)
-
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
@@ -391,10 +378,6 @@ type ReadRemoteProxyAccessPoint interface {
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
-	// GetKubeServices returns a list of kubernetes services registered in the cluster
-	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
-	GetKubeServices(context.Context) ([]types.Server, error)
-
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
@@ -458,10 +441,6 @@ type ReadKubernetesAccessPoint interface {
 
 	// GetNamespace returns namespace by name
 	GetNamespace(name string) (*types.Namespace, error)
-
-	// GetKubeServices returns a list of kubernetes services registered in the cluster
-	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
-	GetKubeServices(context.Context) ([]types.Server, error)
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
@@ -863,10 +842,6 @@ type Cache interface {
 
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
-
-	// GetKubeServices returns a list of kubernetes services registered in the cluster
-	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
-	GetKubeServices(context.Context) ([]types.Server, error)
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
