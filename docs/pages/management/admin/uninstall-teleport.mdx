@@ -7,7 +7,7 @@ This guide explains how to uninstall Teleport binaries completely.
 
 ## Prerequisites
 
-- A Node with Teleport installed.
+- A system with Teleport installed.
 
 <Admonition type="warning">
 These instructions only apply to non-containerized installations of Teleport.
@@ -67,7 +67,7 @@ $ docker stop teleport
   </TabItem>
 </Tabs>
 
-## Step 2/3. Remove Teleport binaries from the Node
+## Step 2/3. Remove Teleport binaries
 
 <Tabs dropdownView dropdownCaption="Teleport Edition">
   <TabItem label="Open Source" scope="oss">
@@ -170,6 +170,10 @@ $ docker stop teleport
   ```code
   $ del C:\Path\To\tsh.exe
   ```
+
+  You can uninstall Teleport Connect from the "Apps and Features" section of the Control Panel.
+
+  For reference, Teleport Connect binaries are installed to `%LOCALAPPDATA%\Programs\teleport-connect`.
 
   </TabItem>
   </Tabs>
@@ -287,6 +291,10 @@ $ docker stop teleport
   $ del C:\Path\To\tsh.exe
   ```
 
+  You can uninstall Teleport Connect from the "Apps and Features" section of the Control Panel.
+
+  For reference, Teleport Connect binaries are installed to `%LOCALAPPDATA%\Programs\teleport-connect`.
+
   </TabItem>
   </Tabs>
   </TabItem>
@@ -401,6 +409,10 @@ $ docker stop teleport
   $ del C:\Path\To\tsh.exe
   ```
 
+  You can uninstall Teleport Connect from the "Apps and Features" section of the Control Panel.
+
+  For reference, Teleport Connect binaries are installed to `%LOCALAPPDATA%\Programs\teleport-connect`.
+
   </TabItem>
   </Tabs>
   </TabItem>
@@ -409,7 +421,7 @@ $ docker stop teleport
 ## Step 3/3. Remove Teleport data and configuration files
 
 <Tabs>
-  <TabItem label="Linux/MacOS">
+  <TabItem label="Linux">
     <Admonition type="notice">
     These are the default paths to the Teleport config files and data directory.
     If you have changed these from the defaults on your system, substitute those paths here.
@@ -425,23 +437,61 @@ $ docker stop teleport
 
     Remove the Teleport data directory:
 
-    ```
+    ```code
     $ sudo rm -rf /var/lib/teleport
     ```
 
-    Optionally, also remove the global config file and local user data directory for `tsh`:
+     Optionally, also remove the global config file and local user data directory for `tsh`:
 
-    ```
+    ```code
     $ sudo rm -f /etc/tsh.yaml
     $ sudo rm -rf ~/.tsh
     ```
   </TabItem>
+  <TabItem label="MacOS">
+    <Admonition type="notice">
+    These are the default paths to the Teleport config files and data directory.
+    If you have changed these from the defaults on your system, substitute those paths here.
+    </Admonition>
+
+    Remove the Teleport config file:
+
+    ```code
+    $ sudo rm -f /etc/teleport.yaml
+    # Optional: Also remove the Machine ID config file, if you used it
+    # $ sudo rm -f /etc/tbot.yaml
+    ```
+
+    Remove the Teleport data directory:
+
+    ```code
+    $ sudo rm -rf /var/lib/teleport
+    ```
+
+    Optionally, also remove:
+    - the global config file and local user data directory for `tsh`
+    - the local user data directory for Teleport Connect
+
+    ```code
+    # tsh
+    $ sudo rm -f /etc/tsh.yaml
+    $ sudo rm -rf ~/.tsh
+    # Teleport Connect
+    $ sudo rm -rf ~/Library/Application\ Support/Teleport\ Connect
+    ```
+  </TabItem>
   <TabItem label="Windows">
 
-   Remove the `tsh` data directory:
+   Remove the local user data directory for `tsh`:
 
-   ```
+   ```code
    $ rmdir /s /q %USERPROFILE%\.tsh
+   ```
+
+   Optionally, also remove the local user data directory for Teleport Connect:
+
+   ```code
+   $ rmdir /s /q "%APPDATA%\Teleport Connect"
    ```
 
   </TabItem>
