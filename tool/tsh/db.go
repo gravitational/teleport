@@ -685,7 +685,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
 		insecure:  arg.cliConf.InsecureSkipVerify,
 		certs:     certs,
 	}
-	opts.configOpts = append(opts.configOpts, alpnproxy.WithALPNConnUpgradeTest(arg.teleportClient.RootClusterCACertPool))
+	opts.configOpts = append(opts.configOpts, alpnproxy.WithALPNConnUpgradeTest(arg.cliConf.Context, arg.teleportClient.RootClusterCACertPool))
 
 	if arg.localProxyTunnel {
 		dbRoute := *arg.routeToDatabase

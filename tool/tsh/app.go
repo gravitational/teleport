@@ -209,7 +209,7 @@ WARNING: tsh was called with --insecure, so this curl command will be unable to 
 `))
 
 // appLoginLocalProxyTpl is the message that gets printed to a user upon successful login
-// into an HTTP applicationi and local proxy is required.
+// into an HTTP application and local proxy is required.
 var appLoginLocalProxyTpl = template.Must(template.New("").Parse(
 	`Logged into app {{.appName}}. Start the local proxy for it:
 

@@ -92,7 +92,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 		Listener:           cfg.Listener,
 		ParentContext:      ctx,
 		Certs:              []tls.Certificate{*tlsCert},
-	}, alpnproxy.WithALPNConnUpgradeTest(getClusterCACertPool(ctx, cfg.AuthClient)))
+	}, alpnproxy.WithALPNConnUpgradeTest(ctx, getClusterCACertPool(cfg.AuthClient)))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -137,8 +137,8 @@ func getUserCerts(ctx context.Context, client ALPNAuthClient, expires time.Time,
 	return &tlsCert, nil
 }
 
-func getClusterCACertPool(ctx context.Context, authClient ALPNAuthClient) alpnproxy.GetClusterCACertPoolFunc {
-	return func() (*x509.CertPool, error) {
+func getClusterCACertPool(authClient ALPNAuthClient) alpnproxy.GetClusterCACertPoolFunc {
+	return func(ctx context.Context) (*x509.CertPool, error) {
 		caCert, err := authClient.GetClusterCACert(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)

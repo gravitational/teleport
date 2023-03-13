@@ -73,6 +73,8 @@ type LocalProxyConfig struct {
 	Clock clockwork.Clock
 	// Log is the Logger.
 	Log logrus.FieldLogger
+	// verifyUpstreamConnection is a callback function to verify upstream connection state.
+	verifyUpstreamConnection func(tls.ConnectionState) error
 }
 
 // LocalProxyMiddleware provides callback functions for LocalProxy.

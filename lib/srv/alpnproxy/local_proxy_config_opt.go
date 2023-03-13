@@ -17,6 +17,7 @@ limitations under the License.
 package alpnproxy
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 
@@ -29,14 +30,14 @@ import (
 type LocalProxyConfigOpt func(*LocalProxyConfig) error
 
 // GetClusterCACertPoolFunc is a function to fetch cluster CAs.
-type GetClusterCACertPoolFunc func() (*x509.CertPool, error)
+type GetClusterCACertPoolFunc func(ctx context.Context) (*x509.CertPool, error)
 
 // WithALPNConnUpgradeTest performs the test to see if ALPN connection upgrade
 // is required and update other configs if necessary.
 //
 // This LocalProxyConfigOpt assumes RemoteProxyAddr and InsecureSkipVerify has
 // already been set.
-func WithALPNConnUpgradeTest(getClusterCertPool GetClusterCACertPoolFunc) LocalProxyConfigOpt {
+func WithALPNConnUpgradeTest(ctx context.Context, getClusterCertPool GetClusterCACertPoolFunc) LocalProxyConfigOpt {
 	return func(config *LocalProxyConfig) error {
 		config.ALPNConnUpgradeRequired = IsALPNConnUpgradeRequired(config.RemoteProxyAddr, config.InsecureSkipVerify)
 		if !config.ALPNConnUpgradeRequired {
@@ -45,7 +46,7 @@ func WithALPNConnUpgradeTest(getClusterCertPool GetClusterCACertPoolFunc) LocalP
 
 		// If ALPN connection upgrade is required, explicitly use the cluster
 		// CAs since the tunneled TLS routing connection serves the Host cert.
-		clusterCAs, err := getClusterCertPool()
+		clusterCAs, err := getClusterCertPool(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}

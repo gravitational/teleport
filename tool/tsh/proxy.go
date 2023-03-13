@@ -612,7 +612,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		makeBasicLocalProxyConfig(cf, tc, listener),
 		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
 		alpnproxy.WithClientCert(appCerts),
-		alpnproxy.WithALPNConnUpgradeTest(tc.RootClusterCACertPool),
+		alpnproxy.WithALPNConnUpgradeTest(cf.Context, tc.RootClusterCACertPool),
 	)
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
