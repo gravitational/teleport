@@ -48,6 +48,7 @@ func (s *IdentityService) CreateHeadlessAuthenticationStub(ctx context.Context, 
 	if _, err = s.Create(ctx, *item); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return headlessAuthn, nil
 }
 
@@ -87,7 +88,29 @@ func (s *IdentityService) GetHeadlessAuthentication(ctx context.Context, name st
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return headlessAuthn, nil
+}
+
+// GetHeadlessAuthentications returns all headless authentications from the backend.
+func (s *IdentityService) GetHeadlessAuthentications(ctx context.Context) ([]*types.HeadlessAuthentication, error) {
+	rangeStart := headlessAuthenticationKey("")
+	rangeEnd := backend.RangeEnd(rangeStart)
+	items, err := s.GetRange(ctx, rangeStart, rangeEnd, 0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	headlessAuthns := make([]*types.HeadlessAuthentication, len(items.Items))
+	for i, item := range items.Items {
+		headlessAuthn, err := unmarshalHeadlessAuthenticationFromItem(&item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		headlessAuthns[i] = headlessAuthn
+	}
+
+	return headlessAuthns, nil
 }
 
 // DeleteHeadlessAuthentication deletes a headless authentication from the backend by name.
@@ -119,7 +142,9 @@ func unmarshalHeadlessAuthenticationFromItem(item *backend.Item) (*types.Headles
 		return nil, trace.Wrap(err, "error unmarshalling headless authentication from storage")
 	}
 
-	headlessAuthn.Metadata.Expires = &item.Expires
+	// Copy item.Expires without pointer to avoid race conditions with memory backend.
+	headlessAuthn.Metadata.Expires = new(time.Time)
+	*headlessAuthn.Metadata.Expires = item.Expires
 	if err := headlessAuthn.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
