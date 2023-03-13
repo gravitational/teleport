@@ -17,7 +17,7 @@ limitations under the License.
 import { useState, useEffect } from 'react';
 import Logger from 'shared/libs/logger';
 
-import { fetchClusterAlerts } from 'teleport/services/alerts';
+import { alertNames, fetchClusterAlerts } from 'teleport/services/alerts';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import cfg from 'teleport/config';
@@ -76,8 +76,8 @@ export function useAlerts(initialAlerts: ClusterAlert[] = []) {
         if (cfg.isDashboard) {
           res = res.filter(alert => {
             return (
-              alert.metadata.name !== 'upgrade-suggestion' &&
-              alert.metadata.name !== 'security-patch-available'
+              alert.metadata.name !== alertNames.RELEASE_ALERT_ID &&
+              alert.metadata.name !== alertNames.SEC_ALERT_ID
             );
           });
         }
