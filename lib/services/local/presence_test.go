@@ -581,23 +581,30 @@ func TestListResources(t *testing.T) {
 				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
 			},
 		},
-		"KubeService": {
-			resourceType: types.KindKubeService,
+		"KubeServer": {
+			resourceType: types.KindKubeServer,
 			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
-				server, err := types.NewServerWithLabels(name, types.KindKubeService, types.ServerSpecV2{
-					KubernetesClusters: []*types.KubernetesCluster{
-						{Name: name, StaticLabels: labels},
+				kube, err := types.NewKubernetesClusterV3(
+					types.Metadata{
+						Name:   name,
+						Labels: labels,
 					},
-				}, labels)
+					types.KubernetesClusterSpecV3{},
+				)
+				if err != nil {
+					return err
+				}
+				kubeServer, err := types.NewKubernetesServerV3FromCluster(kube, "host", "hostID")
 				if err != nil {
 					return err
 				}
 
 				// Upsert server.
-				return presence.UpsertKubeService(ctx, server)
+				_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
+				return err
 			},
 			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
-				return presence.DeleteAllKubeServices(ctx)
+				return presence.DeleteAllKubernetesServers(ctx)
 			},
 		},
 		"Node": {
@@ -1247,7 +1254,8 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 								Name:   names[i],
 								Labels: labels[i],
 							},
-							Spec: types.AppSpecV3{URI: "_"}},
+							Spec: types.AppSpecV3{URI: "_"},
+						},
 					})
 					require.NoError(t, err)
 					_, err = presence.UpsertApplicationServer(ctx, server)
@@ -1260,16 +1268,25 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			kind: types.KindKubernetesCluster,
 			insertResources: func() {
 				for i := 0; i < len(names); i++ {
-					server, err := types.NewServer(fmt.Sprintf("name-%v", i), types.KindKubeService, types.ServerSpecV2{
-						KubernetesClusters: []*types.KubernetesCluster{
-							// Test dedup inside this list as well as from each service.
-							{Name: names[i], StaticLabels: labels[i]},
-							{Name: names[i], StaticLabels: labels[i]},
+
+					kube, err := types.NewKubernetesClusterV3(
+						types.Metadata{
+							Name:   names[i],
+							Labels: labels[i],
 						},
-					})
+						types.KubernetesClusterSpecV3{},
+					)
 					require.NoError(t, err)
-					_, err = presence.UpsertKubeServiceV2(ctx, server)
+					kubeServer, err := types.NewKubernetesServerV3FromCluster(
+						kube,
+						fmt.Sprintf("host-%v", i),
+						fmt.Sprintf("hostID-%v", i),
+					)
 					require.NoError(t, err)
+					// Upsert server.
+					_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
+					require.NoError(t, err)
+
 				}
 			},
 		},

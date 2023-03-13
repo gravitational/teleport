@@ -150,7 +150,7 @@ function getRenderedContent(
           `}
         >
           <Text
-            fontSize={14}
+            fontSize={13}
             bold
             mr="30px"
             css={`

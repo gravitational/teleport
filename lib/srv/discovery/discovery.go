@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
@@ -301,7 +302,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []services.GCPMat
 }
 
 func (s *Server) filterExistingEC2Nodes(instances *server.EC2Instances) {
-	nodes := s.nodeWatcher.GetNodes(func(n services.Node) bool {
+	nodes := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
 		labels := n.GetAllLabels()
 		_, accountOK := labels[types.AWSAccountIDLabel]
 		_, instanceOK := labels[types.AWSInstanceIDLabel]
@@ -410,7 +411,7 @@ func (s *Server) handleEC2Discovery() {
 }
 
 func (s *Server) filterExistingAzureNodes(instances *server.AzureInstances) {
-	nodes := s.nodeWatcher.GetNodes(func(n services.Node) bool {
+	nodes := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
 		labels := n.GetAllLabels()
 		_, subscriptionOK := labels[types.SubscriptionIDLabel]
 		_, vmOK := labels[types.VMIDLabel]
@@ -546,9 +547,10 @@ func (s *Server) getAzureSubscriptions(ctx context.Context, subs []string) ([]st
 func (s *Server) initTeleportNodeWatcher() (err error) {
 	s.nodeWatcher, err = services.NewNodeWatcher(s.ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentDiscovery,
-			Log:       s.Log,
-			Client:    s.AccessPoint,
+			Component:    teleport.ComponentDiscovery,
+			Log:          s.Log,
+			Client:       s.AccessPoint,
+			MaxStaleness: time.Minute,
 		},
 	})
 

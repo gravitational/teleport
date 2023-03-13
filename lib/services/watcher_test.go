@@ -864,6 +864,68 @@ func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) type
 	return ca
 }
 
+type unhealthyWatcher struct{}
+
+func (f unhealthyWatcher) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	return nil, trace.LimitExceeded("too many watchers")
+}
+
+// TestNodeWatcherFallback validates that calling GetNodes on
+// a NodeWatcher will pull data from the cache if the resourceWatcher
+// run loop is unhealthy due to issues creating a types.Watcher.
+func TestNodeWatcherFallback(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Presence
+		types.Events
+	}
+
+	presence := local.NewPresenceService(bk)
+	w, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client: &client{
+				Presence: presence,
+				Events:   unhealthyWatcher{},
+			},
+			MaxStaleness: time.Minute,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	// Add some servers.
+	nodes := make([]types.Server, 0, 5)
+	for i := 0; i < 5; i++ {
+		node := newNodeServer(t, fmt.Sprintf("node%d", i), "127.0.0.1:2023", i%2 == 0)
+		_, err = presence.UpsertNode(ctx, node)
+		require.NoError(t, err)
+		nodes = append(nodes, node)
+	}
+
+	require.Empty(t, w.NodeCount())
+	require.False(t, w.IsInitialized())
+
+	got := w.GetNodes(ctx, func(n services.Node) bool {
+		return true
+	})
+	require.Equal(t, len(nodes), len(got))
+
+	require.Equal(t, len(nodes), w.NodeCount())
+	require.False(t, w.IsInitialized())
+}
+
 func TestNodeWatcher(t *testing.T) {
 	t.Parallel()
 
@@ -889,6 +951,7 @@ func TestNodeWatcher(t *testing.T) {
 				Presence: presence,
 				Events:   local.NewEventsService(bk),
 			},
+			MaxStaleness: time.Minute,
 		},
 	})
 	require.NoError(t, err)
@@ -904,24 +967,24 @@ func TestNodeWatcher(t *testing.T) {
 	}
 
 	require.Eventually(t, func() bool {
-		filtered := w.GetNodes(func(n services.Node) bool {
+		filtered := w.GetNodes(ctx, func(n services.Node) bool {
 			return true
 		})
 		return len(filtered) == len(nodes)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
-	require.Len(t, w.GetNodes(func(n services.Node) bool { return n.GetUseTunnel() }), 3)
+	require.Len(t, w.GetNodes(ctx, func(n services.Node) bool { return n.GetUseTunnel() }), 3)
 
 	require.NoError(t, presence.DeleteNode(ctx, apidefaults.Namespace, nodes[0].GetName()))
 
 	require.Eventually(t, func() bool {
-		filtered := w.GetNodes(func(n services.Node) bool {
+		filtered := w.GetNodes(ctx, func(n services.Node) bool {
 			return true
 		})
 		return len(filtered) == len(nodes)-1
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
-	require.Empty(t, w.GetNodes(func(n services.Node) bool { return n.GetName() == nodes[0].GetName() }))
+	require.Empty(t, w.GetNodes(ctx, func(n services.Node) bool { return n.GetName() == nodes[0].GetName() }))
 }
 
 func newNodeServer(t *testing.T, name, addr string, tunnel bool) types.Server {

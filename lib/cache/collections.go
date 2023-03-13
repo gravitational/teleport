@@ -151,7 +151,8 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 			collections[resourceKind] = &genericCollection[types.CertAuthority, certAuthorityExecutor]{
 				cache: c,
 				watch: watch,
-				exec:  certAuthorityExecutor{filter: filter}}
+				exec:  certAuthorityExecutor{filter: filter},
+			}
 		case types.KindStaticTokens:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
@@ -280,11 +281,6 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter WebToken")
 			}
 			collections[resourceKind] = &genericCollection[types.WebToken, webTokenExecutor]{cache: c, watch: watch}
-		case types.KindKubeService:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections[resourceKind] = &genericCollection[types.Server, kubeServiceExecutor]{cache: c, watch: watch}
 		case types.KindKubeServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -1084,30 +1080,6 @@ func (webTokenExecutor) delete(ctx context.Context, cache *Cache, resource types
 func (webTokenExecutor) isSingleton() bool { return false }
 
 var _ executor[types.WebToken] = webTokenExecutor{}
-
-// DELETE in 13.0
-type kubeServiceExecutor struct{}
-
-func (kubeServiceExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Server, error) {
-	return cache.Presence.GetKubeServices(ctx)
-}
-
-func (kubeServiceExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	_, err := cache.presenceCache.UpsertKubeServiceV2(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (kubeServiceExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllKubeServices(ctx)
-}
-
-func (kubeServiceExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteKubeService(ctx, resource.GetName())
-}
-
-func (kubeServiceExecutor) isSingleton() bool { return false }
-
-var _ executor[types.Server] = kubeServiceExecutor{}
 
 type kubeServerExecutor struct{}
 
