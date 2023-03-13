@@ -124,8 +124,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newRemoteClusterParser()
 		case types.KindKubeServer:
 			parser = newKubeServerParser()
-		case types.KindKubeService:
-			parser = newKubeServiceParser()
 		case types.KindDatabaseServer:
 			parser = newDatabaseServerParser()
 		case types.KindDatabaseService:
@@ -947,6 +945,7 @@ func newAppSessionParser() *webSessionParser {
 		},
 	}
 }
+
 func newWebSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: newBaseParser(backend.Key(webPrefix, sessionsPrefix)),
@@ -1044,20 +1043,6 @@ func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
-}
-
-func newKubeServiceParser() *kubeServiceParser {
-	return &kubeServiceParser{
-		baseParser: newBaseParser(backend.Key(kubeServicesPrefix)),
-	}
-}
-
-type kubeServiceParser struct {
-	baseParser
-}
-
-func (p *kubeServiceParser) parse(event backend.Event) (types.Resource, error) {
-	return parseServer(event, types.KindKubeService)
 }
 
 func newDatabaseServerParser() *databaseServerParser {
