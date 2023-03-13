@@ -52,7 +52,7 @@ function useNavigationItems(): (
       onNavigate: async () => {
         const path = await ctx.mainProcessClient.openConfigFile();
         ctx.notificationsService.notifyInfo(
-          `Opened the config file at ${path} in the default editor.`
+          `Opened the config file at ${path}.`
         );
       },
     },
