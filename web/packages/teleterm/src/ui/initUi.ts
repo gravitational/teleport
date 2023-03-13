@@ -66,8 +66,7 @@ function notifyAboutStoredConfigErrors(
         isKeymapError &&
         'A valid shortcut contains at least one modifier and a single key code, for example "Shift+Tab".\nFunction keys do not require a modifier.',
       link: {
-        // TODO(gzdunek): point to the properer section
-        href: 'https://goteleport.com/docs/connect-your-client/teleport-connect/',
+        href: 'https://goteleport.com/docs/connect-your-client/teleport-connect/#configuration',
         text: 'See the config file documentation',
       },
     });
