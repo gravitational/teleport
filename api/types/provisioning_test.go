@@ -536,6 +536,67 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "overridden domain",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab: &ProvisionTokenSpecV2GitLab{
+						Allow: []*ProvisionTokenSpecV2GitLab_Rule{
+							{
+								Sub: "asub",
+							},
+						},
+						Domain: "gitlab.example.com",
+					},
+				},
+			},
+			expected: &ProvisionTokenV2{
+				Kind:    KindToken,
+				Version: V2,
+				Metadata: Metadata{
+					Name:      "test",
+					Namespace: defaults.Namespace,
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab: &ProvisionTokenSpecV2GitLab{
+						Allow: []*ProvisionTokenSpecV2GitLab_Rule{
+							{
+								Sub: "asub",
+							},
+						},
+						Domain: "gitlab.example.com",
+					},
+				},
+			},
+		},
+		{
+			desc: "invalid overridden domain",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab: &ProvisionTokenSpecV2GitLab{
+						Allow: []*ProvisionTokenSpecV2GitLab_Rule{
+							{
+								Sub: "asub",
+							},
+						},
+						Domain: "http://gitlab.example.com",
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
 	}
 
 	for _, tc := range testcases {
