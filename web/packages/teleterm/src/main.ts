@@ -49,7 +49,7 @@ function initializeApp(): void {
   const windowsManager = new WindowsManager(fileStorage, settings);
 
   process.on('uncaughtException', error => {
-    logger.error('', error);
+    logger.error(error);
     app.quit();
   });
 
