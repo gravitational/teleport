@@ -436,8 +436,8 @@ type CLIConf struct {
 	// Headless uses headless login for the client session.
 	Headless bool
 
-	// HeadlessRequestID ...
-	HeadlessRequestID string
+	// HeadlessAuthenticationID is the ID of a headless authentication.
+	HeadlessAuthenticationID string
 }
 
 // Stdout returns the stdout writer.
@@ -932,7 +932,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// Headless login approval
 	headless := app.Command("headless", "headless commands").Interspersed(true)
 	approve := headless.Command("approve", "headless approval").Interspersed(true)
-	approve.Arg("request id", "headless authentication request id").StringVar(&cf.HeadlessRequestID)
+	approve.Arg("request id", "headless authentication request id").StringVar(&cf.HeadlessAuthenticationID)
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
@@ -4666,7 +4666,7 @@ func onHeadlessApprove(cf *CLIConf) error {
 
 	tc.Stdin = os.Stdin
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.HeadlessApprove(cf.Context, cf.HeadlessRequestID)
+		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID)
 	})
 	return trace.Wrap(err)
 }
