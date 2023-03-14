@@ -189,14 +189,14 @@ func tagPipelines() []pipeline {
 	}
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:      buildType{os: "linux", arch: "arm64", fips: false},
-		trigger:        triggerTag,
-		pipelineName:   "build-linux-arm64",
-		ghaWorkflow:    "release-linux-arm64.yml",
-		srcRefVar:      "DRONE_TAG",
-		workflowRefVar: "DRONE_TAG",
-		dependsOn:      []string{tagCleanupPipelineName},
-		inputs:         map[string]string{"upload-artifacts": "true"},
+		buildType:    buildType{os: "linux", arch: "arm64", fips: false},
+		trigger:      triggerTag,
+		pipelineName: "build-linux-arm64",
+		ghaWorkflow:  "release-linux-arm64.yml",
+		srcRefVar:    "DRONE_TAG",
+		workflowRef:  "${DRONE_TAG}",
+		dependsOn:    []string{tagCleanupPipelineName},
+		inputs:       map[string]string{"upload-artifacts": "true"},
 	}))
 
 	// Only amd64 Windows is supported for now.
