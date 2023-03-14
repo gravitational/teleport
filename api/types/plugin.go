@@ -23,6 +23,16 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// PluginType represents the type of the plugin
+type PluginType string
+
+const (
+	// PluginTypeUnknown is returned when no plugin type matches.
+	PluginTypeUnknown PluginType = ""
+	// PluginTypeSlack is the Slack access request plugin
+	PluginTypeSlack = "slack"
+)
+
 // Plugin represents a plugin instance
 type Plugin interface {
 	// ResourceWithSecrets provides common resource methods.
@@ -30,6 +40,7 @@ type Plugin interface {
 	Clone() Plugin
 	GetCredentials() PluginCredentials
 	GetStatus() PluginStatus
+	GetType() PluginType
 	SetCredentials(PluginCredentials) error
 	SetStatus(PluginStatus) error
 }
@@ -209,6 +220,16 @@ func (p *PluginV1) SetStatus(status PluginStatus) error {
 		Code: status.GetCode(),
 	}
 	return nil
+}
+
+// GetType implements Plugin
+func (p *PluginV1) GetType() PluginType {
+	switch p.Spec.Settings.(type) {
+	case *PluginSpecV1_SlackAccessPlugin:
+		return PluginTypeSlack
+	default:
+		return PluginTypeUnknown
+	}
 }
 
 // CheckAndSetDefaults validates and set the default values
