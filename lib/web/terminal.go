@@ -459,7 +459,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, ws *websocket.Conn) (*
 	clientConfig.Tracer = t.tracer
 
 	if len(t.interactiveCommand) > 0 {
-		clientConfig.Interactive = true
+		clientConfig.InteractiveCommand = true
 	}
 
 	tc, err := client.NewClient(clientConfig)
