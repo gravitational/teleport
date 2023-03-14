@@ -19,10 +19,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/integrations/lib/stringset"
 )
 

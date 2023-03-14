@@ -21,10 +21,10 @@ import (
 	"strings"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/pelletier/go-toml"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/auth"
 	"github.com/gravitational/teleport/integrations/lib"

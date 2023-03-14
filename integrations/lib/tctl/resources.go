@@ -21,9 +21,10 @@ import (
 	"io"
 
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func writeResourcesYAML(w io.Writer, resources []types.Resource) error {

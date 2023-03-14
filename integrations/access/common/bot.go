@@ -17,9 +17,9 @@ limitations under the License.
 package common
 
 import (
-	"github.com/gravitational/teleport/api/types"
 	"golang.org/x/net/context"
 
+	"github.com/gravitational/teleport/api/types"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 

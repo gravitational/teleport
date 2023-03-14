@@ -20,7 +20,6 @@ import (
 	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
-
 	"github.com/gravitational/teleport/integrations/lib/stringset"
 )
 

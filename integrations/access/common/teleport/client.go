@@ -19,7 +19,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-
 	"github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 

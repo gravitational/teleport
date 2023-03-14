@@ -19,12 +19,12 @@ package common
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	grpcbackoff "google.golang.org/grpc/backoff"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/credentials"
