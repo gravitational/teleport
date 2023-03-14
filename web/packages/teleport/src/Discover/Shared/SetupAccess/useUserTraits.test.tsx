@@ -18,7 +18,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { renderHook, act } from '@testing-library/react-hooks';
 
-import { baseContext } from 'teleport/mocks/contexts';
+import { getUserContext } from 'teleport/mocks/contexts';
 import makeUserContext from 'teleport/services/user/makeUserContext';
 import { ContextProvider, Context as TeleportContext } from 'teleport';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
@@ -384,7 +384,7 @@ describe('static and dynamic traits are correctly separated and correctly create
 
 function createTeleportContext() {
   const ctx = new TeleportContext();
-  const userCtx = makeUserContext(baseContext);
+  const userCtx = makeUserContext(getUserContext());
 
   ctx.storeUser.setState(userCtx);
 
