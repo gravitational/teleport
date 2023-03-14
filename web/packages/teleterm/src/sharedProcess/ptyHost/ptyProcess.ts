@@ -54,6 +54,8 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
       // https://unix.stackexchange.com/questions/123858
       cwd: this.options.cwd || getDefaultCwd(this.options.env),
       env: this.options.env,
+      // Turn off ConPTY due to an uncaught exception being thrown when a PTY is closed.
+      useConpty: false,
     });
 
     this._setStatus('open');
