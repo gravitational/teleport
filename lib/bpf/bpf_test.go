@@ -49,9 +49,6 @@ import (
 )
 
 func TestRootWatch(t *testing.T) {
-	// TODO(jakule): Find a way to run this test in CI. Disable for now to not block all BPF tests.
-	t.Skip("this test always fails when running inside a CGroup/Docker")
-
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
 	if !bpfTestEnabled() {
@@ -111,11 +108,7 @@ func TestRootWatch(t *testing.T) {
 	// Execute "ls" a few times
 	for i := 0; i < 5; i++ {
 		// Run "ls".
-		err = osexec.Command(lsPath).Run()
-		require.NoError(t, err)
-
-		// Delay.
-		time.Sleep(25 * time.Millisecond)
+		runCmd(t, reexecInCGroupCmd, lsPath, nil)
 	}
 
 	// Make sure no events from "ls" were generated
@@ -553,21 +546,24 @@ func runCmd(t *testing.T, reexecCmd string, arg string, traceCgroup cgroupRegist
 	cgroupID, err := moveIntoCgroup(t, cmd.Process.Pid)
 	require.NoError(t, err)
 
-	// Register the process in the BPF module
-	err = traceCgroup.startSession(cgroupID)
-	require.NoError(t, err)
+	if traceCgroup != nil {
+		// Register the process in the BPF module
+		err = traceCgroup.startSession(cgroupID)
+		require.NoError(t, err)
 
+		defer func() {
+			// Remove the registered cgroup from the BPF module. Do not call it after
+			// BPF module is deregistered.
+			err = traceCgroup.endSession(cgroupID)
+			require.NoError(t, err)
+		}()
+	}
 	// Send one byte to continue the subprocess execution.
 	_, err = writeP.Write([]byte{1})
 	require.NoError(t, err)
 
 	// Wait for the command to exit. Otherwise, we cannot clean up the cgroup.
 	require.NoError(t, cmd.Wait())
-
-	// Remove the registered cgroup from the BPF module. Do not call it after
-	// BPF module is deregistered.
-	err = traceCgroup.endSession(cgroupID)
-	require.NoError(t, err)
 }
 
 // executeHTTP will perform a HTTP GET to some endpoint in a loop.
