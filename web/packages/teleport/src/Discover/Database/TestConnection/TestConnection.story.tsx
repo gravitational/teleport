@@ -63,4 +63,6 @@ const props: State = {
     hostname: 'db-hostname',
   },
   dbEngine: DatabaseEngine.MySQL,
+  showMfaDialog: false,
+  cancelMfaDialog: () => null,
 };

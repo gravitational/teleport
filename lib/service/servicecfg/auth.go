@@ -16,6 +16,7 @@ package servicecfg
 
 import (
 	"github.com/coreos/go-oidc/oauth2"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -96,6 +97,10 @@ type AuthConfig struct {
 
 	// HostedPlugins configures the Enterprise hosted plugin runtime
 	HostedPlugins HostedPluginsConfig
+
+	// Clock is the clock instance auth uses. Typically you'd only want to set
+	// this during testing.
+	Clock clockwork.Clock
 }
 
 // HostedPluginsConfig configures the hosted plugin runtime.

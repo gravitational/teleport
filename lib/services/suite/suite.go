@@ -432,36 +432,6 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	auth.SetResourceID(out[0].GetResourceID())
 	require.Empty(t, cmp.Diff(out, []types.Server{auth}))
-
-	// Kubernetes service.
-	out, err = s.PresenceS.GetKubeServices(ctx)
-	require.NoError(t, err)
-	require.Equal(t, len(out), 0)
-
-	kube1 := NewServer(types.KindKubeService, "kube1", "10.0.0.1:3026", apidefaults.Namespace)
-	_, err = s.PresenceS.UpsertKubeServiceV2(ctx, kube1)
-	require.NoError(t, err)
-	kube2 := NewServer(types.KindKubeService, "kube2", "10.0.0.2:3026", apidefaults.Namespace)
-	_, err = s.PresenceS.UpsertKubeServiceV2(ctx, kube2)
-	require.NoError(t, err)
-
-	out, err = s.PresenceS.GetKubeServices(ctx)
-	require.NoError(t, err)
-	require.Len(t, out, 2)
-	kube1.SetResourceID(out[0].GetResourceID())
-	kube2.SetResourceID(out[1].GetResourceID())
-	require.Empty(t, cmp.Diff(out, []types.Server{kube1, kube2}))
-
-	require.NoError(t, s.PresenceS.DeleteKubeService(ctx, kube1.GetName()))
-	out, err = s.PresenceS.GetKubeServices(ctx)
-	require.NoError(t, err)
-	require.Len(t, out, 1)
-	require.Empty(t, cmp.Diff(out, []types.Server{kube2}))
-
-	require.NoError(t, s.PresenceS.DeleteAllKubeServices(ctx))
-	out, err = s.PresenceS.GetKubeServices(ctx)
-	require.NoError(t, err)
-	require.Len(t, out, 0)
 }
 
 // AppServerCRUD tests CRUD functionality for services.Server.
