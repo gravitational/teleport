@@ -141,6 +141,10 @@ func TestIdentityService_HeadlessAuthenticationBackend(t *testing.T) {
 			retrieved, err := identity.GetHeadlessAuthentication(ctx, test.ha.Metadata.Name)
 			require.NoError(t, err, "GetHeadlessAuthentication returned non-nil error")
 			require.Equal(t, swapped, retrieved)
+
+			retrievedList, err := identity.GetHeadlessAuthentications(ctx)
+			require.NoError(t, err, "GetHeadlessAuthentications returned non-nil error")
+			require.Equal(t, []*types.HeadlessAuthentication{swapped}, retrievedList)
 		})
 	}
 }

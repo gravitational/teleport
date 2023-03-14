@@ -1549,6 +1549,7 @@ func (process *TeleportProcess) initAuthService() error {
 		TraceClient:             traceClt,
 		FIPS:                    cfg.FIPS,
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
+		Clock:                   cfg.Clock,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1587,6 +1588,14 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	authServer.SetLockWatcher(lockWatcher)
+
+	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(process.ExitContext(), local.HeadlessAuthenticationWatcherConfig{
+		Backend: b,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authServer.SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher)
 
 	process.setLocalAuth(authServer)
 

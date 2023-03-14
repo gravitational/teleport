@@ -106,7 +106,10 @@ export class StatePersistenceService {
         askedForUserJobRole: false,
       },
     };
-    return { ...defaultState, ...this._fileStorage.get('state') };
+    return {
+      ...defaultState,
+      ...(this._fileStorage.get('state') as StatePersistenceState),
+    };
   }
 
   private putState(state: StatePersistenceState): void {

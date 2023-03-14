@@ -72,6 +72,9 @@ export type MainProcessClient = {
    * prompt. The promise gets rejected if osascript encountered an error.
    */
   removeTshSymlinkMacOs(): Promise<boolean>;
+
+  /** Opens config file and returns a path to it. */
+  openConfigFile(): Promise<string>;
 };
 
 export type ChildProcessAddresses = {
@@ -125,13 +128,14 @@ export enum TabContextMenuEventType {
 export enum ConfigServiceEventType {
   Get = 'Get',
   Set = 'Set',
-  GetStoredConfigErrors = 'GetStoredConfigErrors',
+  GetConfigError = 'GetConfigError',
 }
 
 export enum FileStorageEventType {
   Get = 'Get',
   Put = 'Put',
-  WriteSync = 'WriteSync',
+  Write = 'Write',
   Replace = 'Replace',
   GetFilePath = 'GetFilePath',
+  GetFileLoadingError = 'GetFileLoadingError',
 }
