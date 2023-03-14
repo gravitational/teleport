@@ -48,8 +48,8 @@ function initializeApp(): void {
   const configService = new ConfigServiceImpl();
   const windowsManager = new WindowsManager(fileStorage, settings);
 
-  process.on('uncaughtException', error => {
-    logger.error('', error);
+  process.on('uncaughtException', (error, origin) => {
+    logger.error(origin, error);
     app.quit();
   });
 
