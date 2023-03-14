@@ -38,7 +38,7 @@ type MessageData struct {
 	MessageID string
 }
 
-type SentMessages = []MessageData
+type SentMessages []MessageData
 
 // DecodePluginData deserializes a string map to GenericPluginData struct.
 func DecodePluginData(dataMap map[string]string) (GenericPluginData, error) {
