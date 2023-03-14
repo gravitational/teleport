@@ -50,6 +50,8 @@ extern crate log;
 extern crate num_derive;
 
 use errors::try_error;
+use ironrdp::core::input::MousePdu;
+use ironrdp::PduParsing;
 use rand::Rng;
 use rand::SeedableRng;
 use rdp::core::event::*;
@@ -77,6 +79,8 @@ use std::{mem, ptr, slice, time};
 
 use bytes::{Bytes, BytesMut};
 use futures_util::io::{AsyncWrite, AsyncWriteExt};
+use ironrdp::core::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
+use ironrdp::core::input::mouse::PointerFlags;
 use ironrdp::geometry::Rectangle;
 use ironrdp::graphics::image_processing::PixelFormat;
 use ironrdp::session::connection_sequence::{process_connection_sequence, UpgradedStream};
@@ -182,7 +186,7 @@ impl Client {
 
     fn write_frame<'a>(
         &'a mut self,
-        frame: &'a BytesMut,
+        frame: &'a [u8],
     ) -> futures_util::io::WriteAll<'a, Pin<Box<(dyn AsyncWrite + Send + 'static)>>> {
         self.iron_rdp_client.writer.write_all(frame)
     }
@@ -597,8 +601,8 @@ async fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Clien
         keyboard_functional_keys_count: 12,
         ime_file_name: "".to_string(),
         dig_product_id: "".to_string(),
-        width: 1920,  //todo(isaiah): hardcoded
-        height: 1080, //todo(isaiah): hardcoded
+        width: 1728, //todo(isaiah): hardcoded
+        height: 932, //todo(isaiah): hardcoded
         global_channel_name: "GLOBAL".to_string(),
         user_channel_name: "USER".to_string(),
         graphics_config: None,
@@ -619,7 +623,7 @@ async fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Clien
 
     let processor = ActiveStageProcessor::new(input, None, connection_sequence_result);
 
-    let mut client = Client {
+    let client = Client {
         iron_rdp_client: IronRDPClient {
             reader,
             writer,
@@ -1209,17 +1213,22 @@ pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOReadRdpO
         .into();
     }
 
-    let rt = client.tokio_rt.take().unwrap();
-
-    rt.block_on(async { read_rdp_output_inner(client).await.into() })
+    // TODO(isaiah): make a client.block_on()
+    client
+        .tokio_rt
+        .as_ref()
+        .unwrap()
+        .handle()
+        .clone()
+        .block_on(async { read_rdp_output_inner(client).await.into() })
 }
 
 async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
     let client_ref = client.go_ref;
     let mut image = DecodedImage::new(
         PixelFormat::RgbA32,
-        1920, //todo(isaiah): hardcoded
-        1080, //todo(isaiah): hardcoded
+        1728, //todo(isaiah): hardcoded
+        932,  //todo(isaiah): hardcoded
     );
 
     loop {
@@ -1364,7 +1373,7 @@ pub struct CGOMousePointerEvent {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum CGOPointerButton {
     PointerButtonNone,
     PointerButtonLeft,
@@ -1373,7 +1382,7 @@ pub enum CGOPointerButton {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum CGOPointerWheel {
     PointerWheelNone,
     PointerWheelVertical,
@@ -1416,7 +1425,63 @@ pub unsafe extern "C" fn write_rdp_pointer(
     client_ptr: *mut Client,
     pointer: CGOMousePointerEvent,
 ) -> CGOErrCode {
-    warn!("unimplemented: write_rdp_pointer");
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+
+    let mut fastpath_events = Vec::new();
+    // TODO(isaiah): impl From for this
+    let mut flags = match pointer.button {
+        CGOPointerButton::PointerButtonLeft => PointerFlags::LEFT_BUTTON,
+        CGOPointerButton::PointerButtonRight => PointerFlags::RIGHT_BUTTON,
+        CGOPointerButton::PointerButtonMiddle => PointerFlags::MIDDLE_BUTTON_OR_WHEEL,
+        _ => PointerFlags::empty(),
+    };
+
+    flags |= match pointer.wheel {
+        CGOPointerWheel::PointerWheelVertical => PointerFlags::VERTICAL_WHEEL,
+        CGOPointerWheel::PointerWheelHorizontal => PointerFlags::HORIZONTAL_WHEEL,
+        _ => PointerFlags::empty(),
+    };
+
+    if pointer.button == CGOPointerButton::PointerButtonNone
+        && pointer.wheel == CGOPointerWheel::PointerWheelNone
+    {
+        flags |= PointerFlags::MOVE;
+    }
+
+    if pointer.down {
+        flags |= PointerFlags::DOWN;
+    }
+
+    // MousePdu.to_buffer takes care of the rest of the flags.
+    let event = FastPathInputEvent::MouseEvent(MousePdu {
+        flags,
+        number_of_wheel_rotation_units: pointer.wheel_delta,
+        x_position: pointer.x,
+        y_position: pointer.y,
+    });
+    fastpath_events.push(event);
+
+    let mut data: Vec<u8> = Vec::new();
+    let input_pdu = FastPathInput(fastpath_events);
+    input_pdu.to_buffer(&mut data).unwrap();
+
+    client
+        .tokio_rt
+        .as_ref()
+        .unwrap()
+        .handle()
+        .clone()
+        .block_on(async {
+            // todo(isaiah): need a lock here? client.write_frame is also used in the main bitmap handling loop.
+            client.write_frame(data.as_slice()).await.unwrap(); // todo(isaiah): handle error
+                                                                // todo(isaiah): need to flush here?
+        });
+
     CGOErrCode::ErrCodeSuccess
 }
 
