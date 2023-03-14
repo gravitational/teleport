@@ -678,17 +678,11 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 				},
 			})
 	case types.RoleProxy:
-		// if in recording mode, return a different set of permissions than regular
-		// mode. recording proxy needs to be able to generate host certificates.
-		if services.IsRecordAtProxy(recConfig.GetMode()) {
-			return services.RoleFromSpec(
-				role.String(),
-				roleSpecForProxyWithRecordAtProxy(clusterName),
-			)
-		}
+		// to support connecting to Agentless nodes, proxy needs to be
+		// able to generate host certificates.
 		return services.RoleFromSpec(
 			role.String(),
-			roleSpecForProxy(clusterName),
+			roleSpecForProxyWithRecordAtProxy(clusterName),
 		)
 	case types.RoleSignup:
 		return services.RoleFromSpec(

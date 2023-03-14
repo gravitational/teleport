@@ -764,6 +764,16 @@ func (c *Client) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	return certs, nil
 }
 
+// GenerateOpenSSHCert signs a SSH certificate that can be used
+// to connect to Agentless nodes.
+func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
+	cert, err := c.grpc.GenerateOpenSSHCert(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return cert, nil
+}
+
 // UnstableAssertSystemRole is not a stable part of the public API.  Used by older
 // instances to prove that they hold a given system role.
 //
