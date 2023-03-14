@@ -87,6 +87,17 @@ type Authorizer interface {
 	Authorize(ctx context.Context) (*Context, error)
 }
 
+// The AuthorizerFunc type is an adapter to allow the use of
+// ordinary functions as an Authorizer. If f is a function
+// with the appropriate signature, AuthorizerFunc(f) is a
+// Authorizer that calls f.
+type AuthorizerFunc func(ctx context.Context) (*Context, error)
+
+// Authorize calls f(ctx).
+func (f AuthorizerFunc) Authorize(ctx context.Context) (*Context, error) {
+	return f(ctx)
+}
+
 // AuthorizerAccessPoint is the access point contract required by an Authorizer
 type AuthorizerAccessPoint interface {
 	// GetAuthPreference returns the cluster authentication configuration.
