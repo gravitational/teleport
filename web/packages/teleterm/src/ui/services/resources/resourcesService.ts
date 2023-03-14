@@ -52,6 +52,35 @@ export class ResourcesService {
   fetchKubes(params: types.GetResourcesParams) {
     return this.tshClient.getKubes(params);
   }
+
+  /**
+   * searchResources searches for the given list of space-separated keywords across all resource
+   * types on the given cluster.
+   *
+   * It does so by issuing a separate request for each resource type. It fails if any of those
+   * requests fail.
+   *
+   * The results need to be wrapped in SearchResult because if we returned raw types (Server,
+   * Database, Kube) then there would be no easy way to differentiate between them on type level.
+   */
+  async searchResources(
+    clusterUri: uri.ClusterUri,
+    search: string
+  ): Promise<SearchResult[]> {
+    const params = { search, clusterUri, sort: null, limit: 100 };
+
+    const servers = this.fetchServers(params).then(res =>
+      res.agentsList.map(resource => ({ kind: 'server' as const, resource }))
+    );
+    const databases = this.fetchDatabases(params).then(res =>
+      res.agentsList.map(resource => ({ kind: 'database' as const, resource }))
+    );
+    const kubes = this.fetchKubes(params).then(res =>
+      res.agentsList.map(resource => ({ kind: 'kube' as const, resource }))
+    );
+
+    return (await Promise.all([servers, databases, kubes])).flat();
+  }
 }
 
 export class AmbiguousHostnameError extends Error {
@@ -60,3 +89,17 @@ export class AmbiguousHostnameError extends Error {
     this.name = 'AmbiguousHostname';
   }
 }
+
+type SearchResultBase<Kind, Resource> = {
+  kind: Kind;
+  resource: Resource;
+};
+
+export type SearchResultServer = SearchResultBase<'server', types.Server>;
+export type SearchResultDatabase = SearchResultBase<'database', types.Database>;
+export type SearchResultKube = SearchResultBase<'kube', types.Kube>;
+
+export type SearchResult =
+  | SearchResultServer
+  | SearchResultDatabase
+  | SearchResultKube;
