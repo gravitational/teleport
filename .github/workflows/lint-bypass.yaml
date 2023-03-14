@@ -19,8 +19,8 @@ on:
       - 'rfd/**'
   merge_group:
     paths:
-       - 'docs/**'
-       - 'rfd/**'
+      - 'docs/**'
+      - 'rfd/**'
 
 jobs:
   lint:
