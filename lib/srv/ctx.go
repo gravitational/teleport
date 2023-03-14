@@ -104,7 +104,7 @@ type AccessPoint interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
 	services.ConnectionDiagnosticTraceAppender

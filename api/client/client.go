@@ -3293,6 +3293,24 @@ func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, load
 	return ca, trail.FromGRPC(err)
 }
 
+// GetCertAuthorities retrieves CAs by type.
+func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
+	resp, err := c.TrustClient().GetCertAuthorities(ctx, &trustpb.GetCertAuthoritiesRequest{
+		Type:       string(caType),
+		IncludeKey: loadKeys,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cas := make([]types.CertAuthority, 0, len(resp.CertAuthoritiesV2))
+	for _, ca := range resp.CertAuthoritiesV2 {
+		cas = append(cas, ca)
+	}
+
+	return cas, trail.FromGRPC(err)
+}
+
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
 func (c *Client) UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error {
 	_, err := c.grpc.UpdateHeadlessAuthenticationState(ctx, &proto.UpdateHeadlessAuthenticationStateRequest{

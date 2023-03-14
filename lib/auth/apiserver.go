@@ -675,6 +675,9 @@ func (s *APIServer) rotateExternalCertAuthority(auth ClientI, w http.ResponseWri
 	return message("ok"), nil
 }
 
+// getCertAuthorities returns all cert authorities that match the provided type.
+// Deprecated: Use teleport.v1.trust.TrustService/GetCertAuthorities instead.
+// DELETE IN 14.0.0
 func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
 	if err != nil {
@@ -695,7 +698,8 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 	return items, nil
 }
 
-// Deprecated: Use teleport.v1.trust.TrustService.GetCertAuthority instead.
+// getCertAuthority returns a single matching cert authority.
+// Deprecated: Use teleport.v1.trust.TrustService/GetCertAuthority instead.
 // DELETE IN 14.0.0
 func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")

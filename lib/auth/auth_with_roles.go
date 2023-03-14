@@ -627,16 +627,29 @@ func (a *ServerWithRoles) CompareAndSwapCertAuthority(new, existing types.CertAu
 	return a.authServer.CompareAndSwapCertAuthority(new, existing)
 }
 
-func (a *ServerWithRoles) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
-	if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbList, types.VerbReadNoSecrets); err != nil {
+func (a *ServerWithRoles) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
+	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:   a.authServer.Cache,
+		Backend: a.authServer.Services,
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if loadKeys {
-		if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+
+	resp, err := trust.GetCertAuthorities(ctx, &trustpb.GetCertAuthoritiesRequest{Type: string(caType), IncludeKey: loadKeys})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetCertAuthorities(ctx, caType, loadKeys, opts...)
+
+	cas := make([]types.CertAuthority, 0, len(resp.CertAuthoritiesV2))
+	for _, ca := range resp.CertAuthoritiesV2 {
+		cas = append(cas, ca)
+	}
+
+	return cas, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
