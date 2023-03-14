@@ -22,9 +22,11 @@ package config
 
 import (
 	"crypto/x509"
+	"fmt"
 	"io"
 	stdlog "log"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -452,6 +454,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.Discovery.Enabled() {
 		if err := applyDiscoveryConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if fc.Okta.Enabled() {
+		if err := applyOktaConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2265,5 +2273,32 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
+	return nil
+}
+
+func applyOktaConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+	if fc.Okta.APIEndpoint == "" {
+		return trace.BadParameter("okta_service is enabled but no api_endpoint is specified")
+	}
+	if fc.Okta.APITokenPath == "" {
+		return trace.BadParameter("okta_service is enabled but no api_token_path is specified")
+	}
+
+	// Make sure the URL is valid
+	url, err := url.Parse(fc.Okta.APIEndpoint)
+	if err != nil {
+		return trace.NewAggregate(trace.BadParameter("malformed URL %s", fc.Okta.APIEndpoint), err)
+	}
+	fmt.Printf("%s\n", url)
+
+	// Make sure the API token exists.
+	_, err = utils.StatFile(fc.Okta.APITokenPath)
+	if err != nil {
+		return trace.NewAggregate(trace.BadParameter("error trying to find file %s", fc.Okta.APITokenPath), err)
+	}
+
+	cfg.Okta.Enabled = fc.Okta.Enabled()
+	cfg.Okta.APIEndpoint = fc.Okta.APIEndpoint
+	cfg.Okta.APITokenPath = fc.Okta.APITokenPath
 	return nil
 }
