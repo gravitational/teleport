@@ -190,7 +190,7 @@ func (p *transport) start() {
 		if req == nil {
 			return
 		}
-	case <-time.After(apidefaults.DefaultDialTimeout):
+	case <-time.After(apidefaults.DefaultIOTimeout):
 		p.log.Warnf("Transport request failed: timed out waiting for request.")
 		return
 	}
@@ -490,7 +490,7 @@ func (p *transport) directDial(addr string) (net.Conn, error) {
 	}
 
 	d := net.Dialer{
-		Timeout: apidefaults.DefaultDialTimeout,
+		Timeout: apidefaults.DefaultIOTimeout,
 	}
 	conn, err := d.DialContext(p.closeContext, "tcp", addr)
 	if err != nil {

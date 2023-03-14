@@ -440,7 +440,8 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 				// Solve challenge (client-side)
 				resp, err := test.solveChallenge(challenge)
 				authReq := AuthenticateUserRequest{
-					Username: username,
+					Username:  username,
+					PublicKey: []byte(sshPubKey),
 				}
 				require.NoError(t, err)
 
@@ -463,7 +464,6 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 		t.Run(test.name+"/ssh", makeRun(func(s *Server, req AuthenticateUserRequest) error {
 			_, err := s.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: req,
-				PublicKey:               []byte(sshPubKey),
 				TTL:                     24 * time.Hour,
 			})
 			return err
@@ -560,10 +560,10 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 					AuthenticateUserRequest: AuthenticateUserRequest{
-						Webauthn: resp,
+						Webauthn:  resp,
+						PublicKey: []byte(sshPubKey),
 					},
-					PublicKey: []byte(sshPubKey),
-					TTL:       24 * time.Hour,
+					TTL: 24 * time.Hour,
 				})
 				require.NoError(t, err, "Failed to perform passwordless authentication")
 				require.NotNil(t, loginResp, "SSH response nil")
@@ -587,11 +587,11 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			// Fail a login attempt so have a non-empty list of attempts.
 			_, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: AuthenticateUserRequest{
-					Username: user,
-					Webauthn: &wanlib.CredentialAssertionResponse{}, // bad response
+					Username:  user,
+					Webauthn:  &wanlib.CredentialAssertionResponse{}, // bad response
+					PublicKey: []byte(sshPubKey),
 				},
-				PublicKey: []byte(sshPubKey),
-				TTL:       24 * time.Hour,
+				TTL: 24 * time.Hour,
 			})
 			require.True(t, trace.IsAccessDenied(err), "got err = %v, want AccessDenied")
 			attempts, err := authServer.GetUserLoginAttempts(user)
@@ -667,7 +667,9 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			mfaResp, err := test.dev.SolveAuthn(mfaChallenge)
 			require.NoError(t, err)
 
-			var req AuthenticateUserRequest
+			req := AuthenticateUserRequest{
+				PublicKey: []byte(sshPubKey),
+			}
 			switch {
 			case mfaResp.GetWebauthn() != nil:
 				req.Webauthn = wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn())
@@ -681,7 +683,6 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			// SSH.
 			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: req,
-				PublicKey:               []byte(sshPubKey),
 				TTL:                     24 * time.Hour,
 			})
 			require.Error(t, err, "SSH authentication expected fail (missing username)")

@@ -1797,6 +1797,40 @@ func TestUserGroups(t *testing.T) {
 	})
 }
 
+// TestLocks tests that CRUD operations on lock resources are
+// replicated from the backend to the cache.
+func TestLocks(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.Lock]{
+		newResource: func(name string) (types.Lock, error) {
+			return types.NewLock(
+				name,
+				types.LockSpecV2{
+					Target: types.LockTarget{
+						Role: "target-role",
+					},
+				},
+			)
+		},
+		create: p.accessS.UpsertLock,
+		list: func(ctx context.Context) ([]types.Lock, error) {
+			results, err := p.accessS.GetLocks(ctx, false)
+			return results, err
+		},
+		cacheGet: p.cache.GetLock,
+		cacheList: func(ctx context.Context) ([]types.Lock, error) {
+			results, err := p.cache.GetLocks(ctx, false)
+			return results, err
+		},
+		update:    p.accessS.UpsertLock,
+		deleteAll: p.accessS.DeleteAllLocks,
+	})
+}
+
 // testResources is a generic tester for resources.
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
@@ -2181,7 +2215,6 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindSAMLIdPSession:          &types.WebSessionV2{SubKind: types.KindSAMLIdPServiceProvider},
 		types.KindWebToken:                &types.WebTokenV3{},
 		types.KindRemoteCluster:           &types.RemoteClusterV3{},
-		types.KindKubeService:             &types.ServerV2{},
 		types.KindKubeServer:              &types.KubernetesServerV3{},
 		types.KindDatabaseService:         &types.DatabaseServiceV1{},
 		types.KindDatabaseServer:          &types.DatabaseServerV3{},
