@@ -220,7 +220,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 
 	// Remove all CAs
 	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.OpenSSHCA} {
-		if err := a.DeleteCertAuthority(types.CertAuthID{Type: caType, DomainName: name}); err != nil {
+		if err := a.DeleteCertAuthority(ctx, types.CertAuthID{Type: caType, DomainName: name}); err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
@@ -346,7 +346,7 @@ func (a *Server) addCertAuthorities(trustedCluster types.TrustedCluster, remoteC
 
 // DeleteRemoteCluster deletes remote cluster resource, all certificate authorities
 // associated with it
-func (a *Server) DeleteRemoteCluster(clusterName string) error {
+func (a *Server) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
 	_, err := a.GetRemoteCluster(clusterName)
@@ -354,7 +354,7 @@ func (a *Server) DeleteRemoteCluster(clusterName string) error {
 		return trace.Wrap(err)
 	}
 	// delete cert authorities associated with the cluster
-	err = a.DeleteCertAuthority(types.CertAuthID{
+	err = a.DeleteCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName,
 	})
@@ -368,7 +368,7 @@ func (a *Server) DeleteRemoteCluster(clusterName string) error {
 	}
 	// there should be no User CA in trusted clusters on the main cluster side
 	// per standard automation but clean up just in case
-	err = a.DeleteCertAuthority(types.CertAuthID{
+	err = a.DeleteCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: clusterName,
 	})
@@ -377,7 +377,7 @@ func (a *Server) DeleteRemoteCluster(clusterName string) error {
 			return trace.Wrap(err)
 		}
 	}
-	return a.Services.DeleteRemoteCluster(clusterName)
+	return a.Services.DeleteRemoteCluster(ctx, clusterName)
 }
 
 // GetRemoteCluster returns remote cluster by name

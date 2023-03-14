@@ -3312,6 +3312,16 @@ func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthTy
 	return cas, trail.FromGRPC(err)
 }
 
+// DeleteCertAuthority removes a CA matching the type and domain.
+func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
+	_, err := c.TrustClient().DeleteCertAuthority(ctx, &trustpb.DeleteCertAuthorityRequest{
+		Type:   string(id.Type),
+		Domain: id.DomainName,
+	})
+
+	return trail.FromGRPC(err)
+}
+
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
 func (c *Client) UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error {
 	_, err := c.grpc.UpdateHeadlessAuthenticationState(ctx, &proto.UpdateHeadlessAuthenticationStateRequest{

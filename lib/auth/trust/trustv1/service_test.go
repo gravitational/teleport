@@ -267,6 +267,44 @@ func TestRBAC(t *testing.T) {
 				{types.KindCertAuthority, types.VerbRead},
 			},
 		},
+		{
+			desc: "delete no access",
+			f: func(t *testing.T, service *Service) {
+				_, err := service.DeleteCertAuthority(ctx, &trustpb.DeleteCertAuthorityRequest{
+					Type:   string(ca.GetType()),
+					Domain: ca.GetClusterName(),
+				})
+
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
+			},
+			authorizer: fakeAuthorizer{
+				checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindCertAuthority, types.VerbDelete}: false,
+					},
+				},
+			},
+			expectChecks: []check{{types.KindCertAuthority, types.VerbDelete}},
+		},
+		{
+			desc: "delete",
+			f: func(t *testing.T, service *Service) {
+				_, err := service.DeleteCertAuthority(ctx, &trustpb.DeleteCertAuthorityRequest{
+					Type:   string(ca.GetType()),
+					Domain: ca.GetClusterName(),
+				})
+
+				require.NoError(t, err)
+			},
+			authorizer: fakeAuthorizer{
+				checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindCertAuthority, types.VerbDelete}: true,
+					},
+				},
+			},
+			expectChecks: []check{{types.KindCertAuthority, types.VerbDelete}},
+		},
 	}
 
 	for _, test := range tests {
@@ -467,6 +505,75 @@ func TestGetCertAuthorities(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			resp, err := service.GetCertAuthorities(ctx, test.request)
 			test.assertion(t, resp, err)
+		})
+	}
+}
+
+func TestDeleteCertAuthority(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newTestPack(t)
+
+	authorizer := &fakeAuthorizer{
+		checker: &fakeChecker{
+			allow: map[check]bool{
+				{types.KindCertAuthority, types.VerbReadNoSecrets}: true,
+				{types.KindCertAuthority, types.VerbDelete}:        true,
+			},
+		},
+	}
+
+	trust := local.NewCAService(p.mem)
+	cfg := &ServiceConfig{
+		Cache:      trust,
+		Backend:    trust,
+		Authorizer: authorizer,
+	}
+
+	service, err := NewService(cfg)
+	require.NoError(t, err)
+
+	// bootstrap a CA
+	ca := newCertAuthority(t, types.HostCA, "test")
+	require.NoError(t, trust.CreateCertAuthority(ca))
+
+	tests := []struct {
+		name      string
+		request   *trustpb.DeleteCertAuthorityRequest
+		assertion func(t *testing.T, err error)
+	}{
+		{
+			name: "ca not found",
+			request: &trustpb.DeleteCertAuthorityRequest{
+				Type:   string(types.SAMLIDPCA),
+				Domain: "unknown",
+			},
+			assertion: func(t *testing.T, err error) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			name: "ca deleted",
+			request: &trustpb.DeleteCertAuthorityRequest{
+				Type:   string(types.HostCA),
+				Domain: "test",
+			},
+			assertion: func(t *testing.T, err error) {
+				require.NoError(t, err)
+
+				ca, err := service.GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{Domain: "test", Type: string(types.HostCA)})
+				require.True(t, trace.IsNotFound(err), "got unexpected error retrieving a deleted ca: %v", err)
+				require.Nil(t, ca)
+
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := service.DeleteCertAuthority(ctx, test.request)
+			test.assertion(t, err)
 		})
 	}
 }

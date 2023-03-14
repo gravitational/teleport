@@ -56,7 +56,7 @@ type Trust interface {
 	CompareAndSwapCertAuthority(new, existing types.CertAuthority) error
 
 	// DeleteCertAuthority deletes particular certificate authority
-	DeleteCertAuthority(id types.CertAuthID) error
+	DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error
 
 	// DeleteAllCertAuthorities deletes cert authorities of a certain type
 	DeleteAllCertAuthorities(caType types.CertAuthType) error

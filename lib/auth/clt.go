@@ -407,12 +407,21 @@ func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, load
 }
 
 // DeleteCertAuthority deletes cert authority by ID
-func (c *Client) DeleteCertAuthority(id types.CertAuthID) error {
+func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
 	if err := id.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("authorities", string(id.Type), id.DomainName))
-	return trace.Wrap(err)
+
+	err := c.APIClient.DeleteCertAuthority(ctx, id)
+	switch {
+	case err == nil:
+		return nil
+	case trace.IsNotImplemented(err):
+		_, err := c.Delete(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName))
+		return trace.Wrap(err)
+	default:
+		return trace.Wrap(err)
+	}
 }
 
 // ActivateCertAuthority not implemented: can only be called locally.
@@ -649,11 +658,12 @@ func (c *Client) GetRemoteCluster(clusterName string) (types.RemoteCluster, erro
 }
 
 // DeleteRemoteCluster deletes remote cluster by name
-func (c *Client) DeleteRemoteCluster(clusterName string) error {
+func (c *Client) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing parameter cluster name")
 	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("remoteclusters", clusterName))
+
+	_, err := c.Delete(ctx, c.Endpoint("remoteclusters", clusterName))
 	return trace.Wrap(err)
 }
 
