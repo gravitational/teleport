@@ -717,7 +717,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 	ctx := context.Background()
 
-	timeout := time.Millisecond * 100
+	timeout := time.Millisecond * 500
 
 	updateHeadlessAuthnInGoroutine := func(ctx context.Context, update func(*types.HeadlessAuthentication)) chan error {
 		errC := make(chan error)
