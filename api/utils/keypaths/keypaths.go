@@ -75,6 +75,7 @@ const (
 //    │   ├── foo.pub                  --> Public Key
 //    │   ├── foo.ppk                  --> PuTTY PPK-formatted keypair for user "foo"
 //    │   ├── foo-x509.pem             --> TLS client certificate for Auth Server
+//    │   ├── foo-localca.pem          --> Self-signed localhost CA cert for user "foo"
 //    │   ├── foo-ssh                  --> SSH certs for user "foo"
 //    │   │   ├── root-cert.pub        --> SSH cert for Teleport cluster "root"
 //    │   │   └── leaf-cert.pub        --> SSH cert for Teleport cluster "leaf"
@@ -82,7 +83,6 @@ const (
 //    │   │   ├── root                 --> Database access certs for cluster "root"
 //    │   │   │   ├── appA-x509.pem    --> TLS cert for app service "appA"
 //    │   │   │   └── appB-x509.pem    --> TLS cert for app service "appB"
-//    │   │   │   └── appB-localca.pem --> Self-signed localhost CA cert for app service "appB"
 //    │   │   └── leaf                 --> Database access certs for cluster "leaf"
 //    │   │       └── appC-x509.pem    --> TLS cert for app service "appC"
 //    │   ├── foo-db                   --> App access certs for user "foo"
@@ -235,12 +235,12 @@ func AppCertPath(baseDir, proxy, username, cluster, appname string) string {
 	return filepath.Join(AppCertDir(baseDir, proxy, username, cluster), appname+fileExtTLSCert)
 }
 
-// AppLocalCAPath returns the path to a self-signed localhost CA for the given
-// proxy, cluster, and app.
+// LocalCAPath returns the path to a self-signed localhost CA for the given
+// user.
 //
-// <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>-localca.pem
-func AppLocalCAPath(baseDir, proxy, username, cluster, appname string) string {
-	return filepath.Join(AppCertDir(baseDir, proxy, username, cluster), appname+fileExtLocalCA)
+// <baseDir>/keys/<proxy>/<username>-localca.pem
+func LocalCAPath(baseDir, proxy, username string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+fileExtLocalCA)
 }
 
 // DatabaseDir returns the path to the user's database directory

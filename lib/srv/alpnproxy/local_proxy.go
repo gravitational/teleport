@@ -99,18 +99,6 @@ type LocalProxyMiddleware interface {
 	OnStart(ctx context.Context, lp *LocalProxy) error
 }
 
-// LocalProxyHTTPMiddleware provides callback functions for LocalProxy in HTTP proxy mode.
-type LocalProxyHTTPMiddleware interface {
-	// CheckAndSetDefaults checks configuration validity and sets defaults
-	CheckAndSetDefaults() error
-
-	// HandleRequest returns true if requests has been handled and must not be processed further, false otherwise.
-	HandleRequest(rw http.ResponseWriter, req *http.Request) bool
-
-	// HandleResponse processes the server response before sending it to the client.
-	HandleResponse(resp *http.Response) error
-}
-
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
 func (cfg *LocalProxyConfig) CheckAndSetDefaults() error {
 	if cfg.RemoteProxyAddr == "" {
@@ -171,6 +159,10 @@ func NewLocalProxy(cfg LocalProxyConfig, opts ...LocalProxyConfigOpt) (*LocalPro
 
 // Start starts the LocalProxy.
 func (l *LocalProxy) Start(ctx context.Context) error {
+	if l.cfg.HTTPMiddleware != nil {
+		return trace.Wrap(l.StartHTTPAccessProxy(ctx))
+	}
+
 	if l.cfg.Middleware != nil {
 		err := l.cfg.Middleware.OnStart(ctx, l)
 		if err != nil {
@@ -218,6 +210,15 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 // GetAddr returns the LocalProxy listener address.
 func (l *LocalProxy) GetAddr() string {
 	return l.cfg.Listener.Addr().String()
+}
+
+// GetPort returns the port used by the listener.
+func (l *LocalProxy) GetPort() string {
+	_, port, err := net.SplitHostPort(l.GetAddr())
+	if err != nil {
+		return ""
+	}
+	return port
 }
 
 // handleDownstreamConnection proxies the downstreamConn (connection established to the local proxy) and forward the
@@ -268,17 +269,8 @@ func (l *LocalProxy) getALPNDialerConfig(certs []tls.Certificate) ALPNDialerConf
 	}
 }
 
-// StartHTTPAccessProxy starts the local HTTP access proxy.
-func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
-	if l.cfg.HTTPMiddleware == nil {
-		return trace.BadParameter("Missing HTTPMiddleware in configuration")
-	}
-
-	if err := l.cfg.HTTPMiddleware.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	proxy := &httputil.ReverseProxy{
+func (l *LocalProxy) makeHTTPReverseProxy(certs []tls.Certificate) *httputil.ReverseProxy {
+	return &httputil.ReverseProxy{
 		Director: func(outReq *http.Request) {
 			outReq.URL.Scheme = "https"
 			outReq.URL.Host = l.cfg.RemoteProxyAddr
@@ -306,9 +298,24 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 			http.Error(w, http.StatusText(code), code)
 		},
 		Transport: &http.Transport{
-			DialTLSContext: NewALPNDialer(l.getALPNDialerConfig(l.getCerts())).DialContext,
+			DialTLSContext: NewALPNDialer(l.getALPNDialerConfig(certs)).DialContext,
 		},
 	}
+}
+
+// StartHTTPAccessProxy starts the local HTTP access proxy.
+func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
+	if l.cfg.HTTPMiddleware == nil {
+		return trace.BadParameter("Missing HTTPMiddleware in configuration")
+	}
+
+	if err := l.cfg.HTTPMiddleware.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	l.cfg.Log.Info("Starting HTTP access proxy")
+	defer l.cfg.Log.Info("HTTP access proxy stopped")
+	defaultProxy := l.makeHTTPReverseProxy(l.getCerts())
 	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if l.cfg.HTTPMiddleware.HandleRequest(rw, req) {
 			return
@@ -320,7 +327,18 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 			req.Header.Set("X-Forwarded-Host", req.Host)
 		}
 
-		proxy.ServeHTTP(rw, req)
+		overwriteClientCerts, err := l.cfg.HTTPMiddleware.OverwriteClientCerts(req)
+		if err != nil {
+			l.cfg.Log.Warnf("Failed to get client certs: %v", err)
+			trace.WriteError(rw, trace.Wrap(err))
+			return
+		}
+
+		if overwriteClientCerts != nil {
+			l.makeHTTPReverseProxy(overwriteClientCerts).ServeHTTP(rw, req)
+		} else {
+			defaultProxy.ServeHTTP(rw, req)
+		}
 	}))
 	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
 		return trace.Wrap(err)

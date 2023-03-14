@@ -762,6 +762,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyGcloud.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyGcloud.Alias("gcp")
 
+	proxyKube := newProxyKubeCommand(proxy)
+
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
 	db.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -1184,6 +1186,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onProxyCommandAzure(&cf)
 	case proxyGcloud.FullCommand():
 		err = onProxyCommandGCloud(&cf)
+	case proxyKube.FullCommand():
+		err = proxyKube.run(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)

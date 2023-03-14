@@ -177,7 +177,9 @@ test-0@other-999999.iam.gserviceaccount.com
 
 func Test_gcpApp_Config(t *testing.T) {
 	cf := &CLIConf{HomePath: t.TempDir()}
-	profile := &client.ProfileStatus{}
+	profile := &client.ProfileStatus{
+		Username: "example-user",
+	}
 	route := tlsca.RouteToApp{
 		ClusterName:       "test.teleport.io",
 		Name:              "myapp",
@@ -221,7 +223,7 @@ gs_external_account_authorized_user_file = %v/gcp/test.teleport.io/myapp/c45b440
 	require.NoError(t, err)
 	require.Equal(t, map[string]string{
 		"CLOUDSDK_AUTH_ACCESS_TOKEN":         "my_secret",
-		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": "keys/-app/myapp-localca.pem",
+		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": "keys/example-user-localca.pem",
 		"CLOUDSDK_CORE_PROJECT":              "myproject-123456",
 		"CLOUDSDK_CONFIG":                    app.getGcloudConfigPath(),
 		"BOTO_CONFIG":                        app.getBotoConfigPath(),

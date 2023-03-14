@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
 	"net"
 	"sync"
 
@@ -137,6 +138,10 @@ type CertGenListenerConfig struct {
 	ListenAddr string
 	// CA is the certificate authority for signing certificates.
 	CA tls.Certificate
+	// ClientAuth specifies the Client Authentication type for the server TLS listener.
+	ClientAuth tls.ClientAuthType
+	// ClientCAs specifies CAs used to verify client certs.
+	ClientCAs *x509.CertPool
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -186,6 +191,8 @@ func NewCertGenListener(config CertGenListenerConfig) (*CertGenListener, error) 
 
 	r.Listener, err = tls.Listen("tcp", r.cfg.ListenAddr, &tls.Config{
 		GetCertificate: r.GetCertificate,
+		ClientAuth:     config.ClientAuth,
+		ClientCAs:      config.ClientCAs,
 	})
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)

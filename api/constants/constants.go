@@ -327,6 +327,8 @@ const (
 	KubeSNIPrefix = "kube."
 	// KubeTeleportProxyALPNPrefix is a SNI Kubernetes prefix used for distinguishing the Kubernetes HTTP traffic.
 	KubeTeleportProxyALPNPrefix = "kube-teleport-proxy-alpn."
+	// KubeTeleportLocalProxyDelimiter is the delimiter used to craft SNIs for Kubernetes local proxy.
+	KubeTeleportLocalProxyDelimiter = ".kube-teleport-localproxy-alpn."
 )
 
 // SessionRecordingService is used to differentiate session recording services.

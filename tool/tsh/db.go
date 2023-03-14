@@ -331,7 +331,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, route tlsca.RouteToDa
 	} else {
 		var key *client.Key
 		if err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			key, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+			key, _, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 				RouteToCluster: tc.SiteName,
 				RouteToDatabase: proto.RouteToDatabase{
 					ServiceName: route.ServiceName,

@@ -125,30 +125,35 @@ func (s *Store) AddTrustedHostKeys(proxyHost string, clusterName string, hostKey
 // ReadProfileStatus returns the profile status for the given profile name.
 // If no profile name is provided, return the current profile.
 func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
+	profile, _, err := s.readProfileStatusAndKey(profileName, WithAllCerts...)
+	return profile, trace.Wrap(err)
+}
+
+func (s *Store) readProfileStatusAndKey(profileName string, certOpts ...CertOption) (*ProfileStatus, *Key, error) {
 	var err error
 	if profileName == "" {
 		profileName, err = s.CurrentProfile()
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 	} else {
 		// remove ports from proxy host, because profile name is stored by host name
 		profileName, err = utils.Host(profileName)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 	}
 
 	profile, err := s.GetProfile(profileName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	idx := KeyIndex{
 		ProxyHost:   profileName,
 		ClusterName: profile.SiteName,
 		Username:    profile.Username,
 	}
-	key, err := s.GetKey(idx, WithAllCerts...)
+	key, err := s.GetKey(idx, certOpts...)
 	if err != nil {
 		if trace.IsNotFound(err) || trace.IsConnectionProblem(err) {
 			// If we can't find a key to match the profile, or can't connect to
@@ -166,14 +171,14 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 				KubeEnabled: profile.KubeProxyAddr != "",
 				// Set ValidUntil to now to show that the keys are not available.
 				ValidUntil: time.Now(),
-			}, nil
+			}, key, nil
 		}
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	_, onDisk := s.KeyStore.(*FSKeyStore)
 
-	return profileStatusFromKey(key, profileOptions{
+	profileStatus, err := profileStatusFromKey(key, profileOptions{
 		ProfileName:   profileName,
 		ProfileDir:    profile.Dir,
 		WebProxyAddr:  profile.WebProxyAddr,
@@ -182,6 +187,7 @@ func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 		KubeProxyAddr: profile.KubeProxyAddr,
 		IsVirtual:     !onDisk,
 	})
+	return profileStatus, key, trace.Wrap(err)
 }
 
 // FullProfileStatus returns the name of the current profile with a

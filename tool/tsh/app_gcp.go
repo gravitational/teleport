@@ -245,7 +245,7 @@ func (a *gcpApp) GetEnvVars() (map[string]string, error) {
 
 		// Set core.custom_ca_certs_file via env variable, customizing the path to CA certs file.
 		// https://cloud.google.com/sdk/gcloud/reference/config/set#:~:text=custom_ca_certs_file
-		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.profile.AppLocalCAPath(a.app.Name),
+		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.profile.LocalCAPath(),
 
 		// We need to set project ID. This is sourced from the account name.
 		// https://cloud.google.com/sdk/gcloud/reference/config#GROUP:~:text=authentication%20to%20gsutil.-,project,-Project%20ID%20of
@@ -297,25 +297,20 @@ func (a *gcpApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	localCA, err := loadAppSelfSignedCA(a.profile, tc, a.app.Name)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	appCerts, err := loadAppCertificate(tc, a.app.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	listenAddr := "localhost:0"
-	if port != "" {
-		listenAddr = fmt.Sprintf("localhost:%s", port)
+	localCA, err := loadSelfSignedCA(a.profile)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Create a listener that is able to sign certificates when receiving GCP
 	// requests tunneled from the local forward proxy.
 	listener, err := alpnproxy.NewCertGenListener(alpnproxy.CertGenListenerConfig{
-		ListenAddr: listenAddr,
+		ListenAddr: localListenAddr(port),
 		CA:         localCA,
 	})
 	if err != nil {
@@ -348,14 +343,9 @@ func (a *gcpApp) startLocalALPNProxy(port string) error {
 
 // startLocalForwardProxy starts the local forward proxy.
 func (a *gcpApp) startLocalForwardProxy(port string) error {
-	listenAddr := "localhost:0"
-	if port != "" {
-		listenAddr = fmt.Sprintf("localhost:%s", port)
-	}
-
 	// Note that the created forward proxy serves HTTP instead of HTTPS, to
 	// eliminate the need to install temporary CA for various GCP clients.
-	listener, err := net.Listen("tcp", listenAddr)
+	listener, err := net.Listen("tcp", localListenAddr(port))
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -246,7 +246,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+	key, _, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
 			WindowsDesktop: desktopName,
 			Login:          username,

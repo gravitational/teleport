@@ -155,7 +155,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		} else {
 			err = client.RetryWithRelogin(cf.Context, tc, func() error {
 				var err error
-				k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+				k, _, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 					RouteToCluster:    cluster,
 					KubernetesCluster: kubeCluster,
 				}, nil /*applyOpts*/)
@@ -627,7 +627,7 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	ctx, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/RetryWithRelogin")
 	err = client.RetryWithRelogin(ctx, tc, func() error {
 		var err error
-		k, err = tc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+		k, _, err = tc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 			RouteToCluster:    c.teleportCluster,
 			KubernetesCluster: c.kubeCluster,
 		}, nil /*applyOpts*/)
