@@ -24,7 +24,7 @@ to automatically join the cluster on subsequent restarts.
   [Connect a Kubernetes Cluster to Teleport](../getting-started.mdx)
 - An additional Kubernetes cluster version >=
   v(=kubernetes.major_version=).(=kubernetes.minor_version=).0
-- An existing [IAM OpenID Connect (OIDC)](https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html) provider for your cluster.
+- An existing [IAM OpenID Connect (OIDC)](https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html) provider for your cluster
 - Helm >= (=helm.version=)
 - AWS CLI >= `2.10.3` or `1.27.81`
 
@@ -33,23 +33,23 @@ to automatically join the cluster on subsequent restarts.
 (!docs/pages/includes/tctl.mdx!)
 
 
-## Step 1/3. Create a Kubernetes Service Account with IAM Identity
+## Step 1/3. Create a Kubernetes service account with an IAM identity
 
 Teleport supports a mode where agents running in AWS can join the cluster using the
 IAM identity they are running as. It allows you to register Kubernetes
 clusters running in AWS without having to distribute a joining secret to the
 Kubernetes cluster.
 
-To securely join the cluster without relying on the EKS node's Identity, Teleport agent
+To securely join the cluster without relying on the EKS node's Identity, a Teleport agent
 must run as a separate Kubernetes Service Account with an attached IAM role. Relying
 on the node's identity is not recommended as it can be easily compromised since every
 pod running on the node has access to the node's identity if IAM Roles for Service Accounts
 (IRSA) is not configured.
 
-For IRSA to work correctly, it requires the Kubernetes cluster must have an IAM OpenID Connect
+For IRSA to work correctly, it requires the Kubernetes cluster to have an IAM OpenID Connect
 that maps IAM roles to Kubernetes Service Accounts.
 
-The Kubernetes Service Account must have access to `sts:GetCallerIdentity` API but
+The Kubernetes Service Account must have access to the `sts:GetCallerIdentity` API but
 does not require any other permissions.
 
 To create the IAM policy, run the following command:
@@ -198,18 +198,18 @@ Then attach the service account with the IAM role annotation:
 $ kubectl annotate serviceaccount -n <Var name="teleport-agent"/> <Var name="teleport-kube-agent-sa"/> eks.amazonaws.com/role-arn=arn:aws:iam::$account_id:role/<Var name="kube-iam-role"/>
 ```
 
-At this point, the IAM role is ready to be used by the Teleport Kubernetes Agent Service Account.
+At this point, the IAM role is ready to be used by the Teleport Kubernetes Service's service account.
 
 </TabItem>
 </Tabs>
 
 ## Step 2/3. Create the AWS joining token
 
-Configure your Teleport Auth Server with a special dynamic token which will
+Configure your Teleport Auth Service with a special dynamic token which will
 allow agents from your AWS account to join your Teleport cluster using the roles
 defined.
 
-Under the hood, Kubernetes Agents will prove that they are running in your AWS account by
+Under the hood, Kubernetes Service instances will prove that they are running in your AWS account by
 sending a signed Identity Document which matches an allow rule
 configured in your AWS joining token.
 
@@ -241,7 +241,7 @@ EOF
 
 Run `tctl create token.yaml` to create the token.
 
-## Step 3/3. Deploy the Teleport Kubernetes Agent
+## Step 3/3. Deploy the Teleport Kubernetes Service
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
