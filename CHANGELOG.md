@@ -1,5 +1,24 @@
 # Changelog
 
+## 12.1.1
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed issue with Access Management's connection tester not working with per-session MFA. [#22918](https://github.com/gravitational/teleport/pull/22918), [#22943](https://github.com/gravitational/teleport/pull/22943)
+* Fixed Kubernetes access panic when using moderated sessions. [#22930](https://github.com/gravitational/teleport/pull/22930)
+* Fixed `tsh db config` reporting incorrect port in TLS routing mode. [#22889](https://github.com/gravitational/teleport/pull/22889)
+* Fixed issue with Teleport always performing OS group check even without auto user provisioning enabled. [#22805](https://github.com/gravitational/teleport/pull/22805)
+* Fixed issue with desktop access crashing on systems that consume many file descriptors. [#22798](https://github.com/gravitational/teleport/pull/22798)
+* Fixed issue with `teleport start --bootstrap` command failing on unexpected resource. [#22721](https://github.com/gravitational/teleport/pull/22721)
+* Fixed issue with install script not refreshing repository metadata before installing new version. [#22585](https://github.com/gravitational/teleport/pull/22585)
+* Added ability to export database CA in DER format via `tctl auth export`. [#22896](https://github.com/gravitational/teleport/pull/22896)
+* Reduced log spam from proxy multiplexer. [#22802](https://github.com/gravitational/teleport/pull/22802)
+* Updated EC2 auto-discovery install script to use enterprise binaries for enterprise clusters. [#22769](https://github.com/gravitational/teleport/pull/22769)
+* Upgraded Go to `v1.19.7`. [#22725](https://github.com/gravitational/teleport/pull/22725)
+* Improved idle connections handling. [#22908](https://github.com/gravitational/teleport/pull/22908), [#22893](https://github.com/gravitational/teleport/pull/22893)
+* Improved Kubernetes service labels validation upon startup. [#22777](https://github.com/gravitational/teleport/pull/22777)
+* Improved `tsh login` error reporting when proxy is not available. [#22763](https://github.com/gravitational/teleport/pull/22763)
+
 ## 12.1.0
 
 This release of Teleport contains multiple improvements and bug fixes.

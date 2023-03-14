@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -59,7 +60,7 @@ import (
 )
 
 var (
-	identity = auth.WrapIdentity(tlsca.Identity{
+	identity = authz.WrapIdentity(tlsca.Identity{
 		Username:         "remote-bob",
 		Groups:           []string{"remote group a", "remote group b"},
 		Usage:            []string{"usage a", "usage b"},
@@ -67,7 +68,7 @@ var (
 		KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
 		Traits:           map[string][]string{"trait a": {"b", "c"}},
 	})
-	unmappedIdentity = auth.WrapIdentity(tlsca.Identity{
+	unmappedIdentity = authz.WrapIdentity(tlsca.Identity{
 		Username:         "bob",
 		Groups:           []string{"group a", "group b"},
 		Usage:            []string{"usage a", "usage b"},
@@ -93,7 +94,7 @@ func TestRequestCertificate(t *testing.T) {
 		teleportCluster: teleportClusterClient{
 			name: "site a",
 		},
-		Context: auth.Context{
+		Context: authz.Context{
 			User:             user,
 			Identity:         identity,
 			UnmappedIdentity: unmappedIdentity,
@@ -163,7 +164,7 @@ func TestAuthenticate(t *testing.T) {
 	activeAccessRequests := []string{uuid.NewString(), uuid.NewString()}
 	tests := []struct {
 		desc              string
-		user              auth.IdentityGetter
+		user              authz.IdentityGetter
 		authzErr          bool
 		roleKubeUsers     []string
 		roleKubeGroups    []string
@@ -180,7 +181,7 @@ func TestAuthenticate(t *testing.T) {
 	}{
 		{
 			desc:           "local user and cluster with active access request",
-			user:           auth.LocalUser{},
+			user:           authz.LocalUser{},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "local",
 			haveKubeCreds:  true,
@@ -218,7 +219,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:           "local user and cluster",
-			user:           auth.LocalUser{},
+			user:           authz.LocalUser{},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "local",
 			haveKubeCreds:  true,
@@ -255,7 +256,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:           "local user and cluster, no kubeconfig",
-			user:           auth.LocalUser{},
+			user:           authz.LocalUser{},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "local",
 			haveKubeCreds:  false,
@@ -287,7 +288,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:           "remote user and local cluster",
-			user:           auth.RemoteUser{},
+			user:           authz.RemoteUser{},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "local",
 			haveKubeCreds:  true,
@@ -318,7 +319,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:           "remote user and local cluster with active request id",
-			user:           auth.RemoteUser{},
+			user:           authz.RemoteUser{},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "local",
 			haveKubeCreds:  true,
@@ -350,7 +351,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:           "local user and remote cluster",
-			user:           auth.LocalUser{},
+			user:           authz.LocalUser{},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "remote",
 			haveKubeCreds:  true,
@@ -369,7 +370,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:           "local user and remote cluster, no kubeconfig",
-			user:           auth.LocalUser{},
+			user:           authz.LocalUser{},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "remote",
 			haveKubeCreds:  false,
@@ -388,7 +389,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:           "local user and remote cluster, no local kube users or groups",
-			user:           auth.LocalUser{},
+			user:           authz.LocalUser{},
 			roleKubeGroups: nil,
 			routeToCluster: "remote",
 			haveKubeCreds:  true,
@@ -407,7 +408,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:           "remote user and remote cluster",
-			user:           auth.RemoteUser{},
+			user:           authz.RemoteUser{},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "remote",
 			haveKubeCreds:  true,
@@ -418,7 +419,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:           "kube users passed in request",
-			user:           auth.LocalUser{},
+			user:           authz.LocalUser{},
 			roleKubeUsers:  []string{"kube-user-a", "kube-user-b"},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "local",
@@ -451,7 +452,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:     "authorization failure",
-			user:     auth.LocalUser{},
+			user:     authz.LocalUser{},
 			authzErr: true,
 			tunnel:   tun,
 
@@ -460,7 +461,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:   "unsupported user type",
-			user:   auth.BuiltinRole{},
+			user:   authz.BuiltinRole{},
 			tunnel: tun,
 
 			wantErr:     true,
@@ -468,7 +469,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:           "local user and cluster, no tunnel",
-			user:           auth.LocalUser{},
+			user:           authz.LocalUser{},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "local",
 			haveKubeCreds:  true,
@@ -499,7 +500,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:           "local user and remote cluster, no tunnel",
-			user:           auth.LocalUser{},
+			user:           authz.LocalUser{},
 			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
 			routeToCluster: "remote",
 			haveKubeCreds:  true,
@@ -508,7 +509,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:              "unknown kubernetes cluster in local cluster",
-			user:              auth.LocalUser{},
+			user:              authz.LocalUser{},
 			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
 			routeToCluster:    "local",
 			kubernetesCluster: "foo",
@@ -519,7 +520,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:              "custom kubernetes cluster in local cluster",
-			user:              auth.LocalUser{},
+			user:              authz.LocalUser{},
 			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
 			routeToCluster:    "local",
 			kubernetesCluster: "foo",
@@ -557,7 +558,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 		{
 			desc:              "custom kubernetes cluster in remote cluster",
-			user:              auth.LocalUser{},
+			user:              authz.LocalUser{},
 			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
 			routeToCluster:    "remote",
 			kubernetesCluster: "foo",
@@ -589,22 +590,22 @@ func TestAuthenticate(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			authCtx := auth.Context{
+			authCtx := authz.Context{
 				User: user,
 				Checker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 					Roles: roles.RoleNames(),
 				}, "local", roles),
-				Identity: auth.WrapIdentity(tlsca.Identity{
+				Identity: authz.WrapIdentity(tlsca.Identity{
 					RouteToCluster:    tt.routeToCluster,
 					KubernetesCluster: tt.kubernetesCluster,
 					ActiveRequests:    tt.activeRequests,
 				}),
 			}
-			authz := mockAuthorizer{ctx: &authCtx}
+			authorizer := mockAuthorizer{ctx: &authCtx}
 			if tt.authzErr {
-				authz.err = trace.AccessDenied("denied!")
+				authorizer.err = trace.AccessDenied("denied!")
 			}
-			f.cfg.Authz = authz
+			f.cfg.Authz = authorizer
 
 			req := &http.Request{
 				Host:       "example.com",
@@ -621,7 +622,7 @@ func TestAuthenticate(t *testing.T) {
 					},
 				},
 			}
-			ctx := context.WithValue(context.Background(), auth.ContextUser, tt.user)
+			ctx := authz.ContextWithUser(context.Background(), tt.user)
 			req = req.WithContext(ctx)
 
 			if tt.haveKubeCreds {
@@ -819,7 +820,7 @@ func mockAuthCtx(ctx context.Context, t *testing.T, kubeCluster string, isRemote
 	require.NoError(t, err)
 
 	return authContext{
-		Context: auth.Context{
+		Context: authz.Context{
 			User:             user,
 			Identity:         identity,
 			UnmappedIdentity: unmappedIdentity,
@@ -1230,11 +1231,11 @@ func (t mockRevTunnel) GetSites() ([]reversetunnel.RemoteSite, error) {
 }
 
 type mockAuthorizer struct {
-	ctx *auth.Context
+	ctx *authz.Context
 	err error
 }
 
-func (a mockAuthorizer) Authorize(context.Context) (*auth.Context, error) {
+func (a mockAuthorizer) Authorize(context.Context) (*authz.Context, error) {
 	return a.ctx, a.err
 }
 
@@ -1369,9 +1370,9 @@ func TestKubernetesConnectionLimit(t *testing.T) {
 			})
 
 			identity := &authContext{
-				Context: auth.Context{
+				Context: authz.Context{
 					User: user,
-					Identity: auth.WrapIdentity(tlsca.Identity{
+					Identity: authz.WrapIdentity(tlsca.Identity{
 						Username: user.GetName(),
 						Groups:   []string{testCase.role.GetName()},
 					}),
@@ -1432,7 +1433,7 @@ func TestForwarder_clientCreds_cache(t *testing.T) {
 					kubeUsers:       utils.StringsSet([]string{"user-a"}),
 					kubeGroups:      utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 					kubeClusterName: "local",
-					Context: auth.Context{
+					Context: authz.Context{
 						User: &types.UserV2{
 							Metadata: types.Metadata{
 								Name: "user-a",
@@ -1457,7 +1458,7 @@ func TestForwarder_clientCreds_cache(t *testing.T) {
 					kubeUsers:       utils.StringsSet([]string{"user-a"}),
 					kubeGroups:      utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 					kubeClusterName: "local",
-					Context: auth.Context{
+					Context: authz.Context{
 						User: &types.UserV2{
 							Metadata: types.Metadata{
 								Name: "user-a",
@@ -1482,7 +1483,7 @@ func TestForwarder_clientCreds_cache(t *testing.T) {
 					kubeUsers:       utils.StringsSet([]string{"user-a"}),
 					kubeGroups:      utils.StringsSet([]string{"kube-group-b", teleport.KubeSystemAuthenticated}),
 					kubeClusterName: "local",
-					Context: auth.Context{
+					Context: authz.Context{
 						User: &types.UserV2{
 							Metadata: types.Metadata{
 								Name: "user-a",
@@ -1507,7 +1508,7 @@ func TestForwarder_clientCreds_cache(t *testing.T) {
 					kubeUsers:       utils.StringsSet([]string{"user-test"}),
 					kubeGroups:      utils.StringsSet([]string{"kube-group-b", teleport.KubeSystemAuthenticated}),
 					kubeClusterName: "local",
-					Context: auth.Context{
+					Context: authz.Context{
 						User: &types.UserV2{
 							Metadata: types.Metadata{
 								Name: "user-a",
@@ -1532,7 +1533,7 @@ func TestForwarder_clientCreds_cache(t *testing.T) {
 					kubeUsers:       utils.StringsSet([]string{"user-test"}),
 					kubeGroups:      utils.StringsSet([]string{"kube-group-b", teleport.KubeSystemAuthenticated}),
 					kubeClusterName: "local",
-					Context: auth.Context{
+					Context: authz.Context{
 						User: &types.UserV2{
 							Metadata: types.Metadata{
 								Name: "user-b",

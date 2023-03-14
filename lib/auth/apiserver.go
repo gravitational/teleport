@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -44,7 +45,7 @@ type APIConfig struct {
 	PluginRegistry plugin.Registry
 	AuthServer     *Server
 	AuditLog       events.IAuditLog
-	Authorizer     Authorizer
+	Authorizer     authz.Authorizer
 	Emitter        apievents.Emitter
 	// KeepAlivePeriod defines period between keep alives
 	KeepAlivePeriod time.Duration

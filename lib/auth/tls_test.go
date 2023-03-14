@@ -50,6 +50,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -967,7 +968,7 @@ func TestReadOwnRole(t *testing.T) {
 	require.NoError(t, err)
 
 	// user2 can't read user1 role
-	userClient2, err := tt.server.NewClient(TestIdentity{I: LocalUser{Username: user2.GetName()}})
+	userClient2, err := tt.server.NewClient(TestIdentity{I: authz.LocalUser{Username: user2.GetName()}})
 	require.NoError(t, err)
 
 	_, err = userClient2.GetRole(ctx, userRole.GetName())
@@ -983,7 +984,7 @@ func TestGetCurrentUser(t *testing.T) {
 	user1, _, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"})
 	require.NoError(t, err)
 
-	client1, err := srv.NewClient(TestIdentity{I: LocalUser{Username: user1.GetName()}})
+	client1, err := srv.NewClient(TestIdentity{I: authz.LocalUser{Username: user1.GetName()}})
 	require.NoError(t, err)
 
 	currentUser, err := client1.GetCurrentUser(ctx)
@@ -1013,7 +1014,7 @@ func TestGetCurrentUserRoles(t *testing.T) {
 	user1, user1Role, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user-role"})
 	require.NoError(t, err)
 
-	client1, err := srv.NewClient(TestIdentity{I: LocalUser{Username: user1.GetName()}})
+	client1, err := srv.NewClient(TestIdentity{I: authz.LocalUser{Username: user1.GetName()}})
 	require.NoError(t, err)
 
 	roles, err := client1.GetCurrentUserRoles(ctx)
@@ -1708,7 +1709,7 @@ func TestGetCertAuthority(t *testing.T) {
 	tt := setupAuthContext(ctx, t)
 
 	// generate server keys for node
-	nodeClt, err := tt.server.NewClient(TestIdentity{I: BuiltinRole{Username: "00000000-0000-0000-0000-000000000000", Role: types.RoleNode}})
+	nodeClt, err := tt.server.NewClient(TestIdentity{I: authz.BuiltinRole{Username: "00000000-0000-0000-0000-000000000000", Role: types.RoleNode}})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeClt.Close()) })
 
@@ -1734,7 +1735,7 @@ func TestGetCertAuthority(t *testing.T) {
 
 	// generate server keys for proxy
 	proxyClt, err := tt.server.NewClient(TestIdentity{
-		I: BuiltinRole{
+		I: authz.BuiltinRole{
 			Username: "00000000-0000-0000-0000-000000000001",
 			Role:     types.RoleProxy,
 		},
@@ -1908,7 +1909,7 @@ func TestGenerateCerts(t *testing.T) {
 
 	// generate server keys for node
 	hostID := "00000000-0000-0000-0000-000000000000"
-	hostClient, err := srv.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: types.RoleNode}})
+	hostClient, err := srv.NewClient(TestIdentity{I: authz.BuiltinRole{Username: hostID, Role: types.RoleNode}})
 	require.NoError(t, err)
 
 	certs, err := hostClient.GenerateHostCerts(context.Background(),
@@ -1928,7 +1929,7 @@ func TestGenerateCerts(t *testing.T) {
 
 	// sign server public keys for node
 	hostID = "00000000-0000-0000-0000-000000000000"
-	hostClient, err = srv.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: types.RoleNode}})
+	hostClient, err = srv.NewClient(TestIdentity{I: authz.BuiltinRole{Username: hostID, Role: types.RoleNode}})
 	require.NoError(t, err)
 
 	certs, err = hostClient.GenerateHostCerts(context.Background(),
@@ -3219,7 +3220,7 @@ func TestEventsNodePresence(t *testing.T) {
 	}
 	node.SetExpiry(time.Now().Add(2 * time.Second))
 	clt, err := tt.server.NewClient(TestIdentity{
-		I: BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: fmt.Sprintf("%v.%v", node.Metadata.Name, tt.server.ClusterName()),
 		},

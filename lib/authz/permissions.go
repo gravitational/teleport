@@ -14,11 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package auth
+package authz
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -41,7 +43,7 @@ func NewAdminContext() (*Context, error) {
 
 // NewBuiltinRoleContext create auth context for the provided builtin role.
 func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
-	authContext, err := contextForBuiltinRole(BuiltinRole{Role: role, Username: fmt.Sprintf("%v", role)}, nil)
+	authContext, err := ContextForBuiltinRole(BuiltinRole{Role: role, Username: fmt.Sprintf("%v", role)}, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -206,7 +208,10 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if ctx == nil {
 		return nil, trace.AccessDenied("missing authentication context")
 	}
-	userI := ctx.Value(ContextUser)
+	userI, err := UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	authContext, err := a.fromUser(ctx, userI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -272,7 +277,7 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 
 // authorizeLocalUser returns authz context based on the username
 func (a *authorizer) authorizeLocalUser(u LocalUser) (*Context, error) {
-	return contextForLocalUser(u, a.accessPoint, a.clusterName, a.disableDeviceAuthorization)
+	return ContextForLocalUser(u, a.accessPoint, a.clusterName, a.disableDeviceAuthorization)
 }
 
 // authorizeRemoteUser returns checker based on cert authority roles
@@ -366,7 +371,7 @@ func (a *authorizer) authorizeBuiltinRole(ctx context.Context, r BuiltinRole) (*
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return contextForBuiltinRole(r, recConfig)
+	return ContextForBuiltinRole(r, recConfig)
 }
 
 func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, error) {
@@ -788,7 +793,8 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 	return nil, trace.NotFound("builtin role %q is not recognized", role.String())
 }
 
-func contextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig) (*Context, error) {
+// ContextForBuiltinRole returns a context with the builtin role information embedded.
+func ContextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig) (*Context, error) {
 	var systemRoles []types.SystemRole
 	if r.Role == types.RoleInstance {
 		// instance certs encode multiple system roles in a separate field
@@ -829,7 +835,8 @@ func contextForBuiltinRole(r BuiltinRole, recConfig types.SessionRecordingConfig
 	}, nil
 }
 
-func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, clusterName string, disableDeviceAuthz bool) (*Context, error) {
+// ContextForLocalUser returns a context with the local user info embedded.
+func ContextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, clusterName string, disableDeviceAuthz bool) (*Context, error) {
 	// User has to be fetched to check if it's a blocked username
 	user, err := accessPoint.GetUser(u.Username, false)
 	if err != nil {
@@ -865,15 +872,16 @@ func contextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, cluster
 type contextKey string
 
 const (
-	// contextUserCertificate is the X.509 certificate used by the ContextUser to
+	// contextUserCertificate is the X.509 certificate used by the contextUser to
 	// establish the mTLS connection.
 	// Holds a *x509.Certificate.
 	contextUserCertificate contextKey = "teleport-user-cert"
 
-	// ContextUser is a user set in the context of the request
-	ContextUser contextKey = "teleport-user"
-	// ContextClientAddr is a client address set in the context of the request
-	ContextClientAddr contextKey = "client-addr"
+	// contextUser is a user set in the context of the request
+	contextUser contextKey = "teleport-user"
+
+	// contextClientAddr is a client address set in the context of the request
+	contextClientAddr contextKey = "client-addr"
 )
 
 // WithDelegator alias for backwards compatibility
@@ -883,9 +891,8 @@ var WithDelegator = utils.WithDelegator
 // If ctx didn't pass through auth middleware or did not come from an HTTP
 // request, teleport.UserSystem is returned.
 func ClientUsername(ctx context.Context) string {
-	userI := ctx.Value(ContextUser)
-	userWithIdentity, ok := userI.(IdentityGetter)
-	if !ok {
+	userWithIdentity, err := UserFromContext(ctx)
+	if err != nil {
 		return teleport.UserSystem
 	}
 	identity := userWithIdentity.GetIdentity()
@@ -899,9 +906,8 @@ func ClientUsername(ctx context.Context) string {
 // If ctx didn't pass through auth middleware or did not come from an HTTP
 // request, returns an error.
 func GetClientUsername(ctx context.Context) (string, error) {
-	userI := ctx.Value(ContextUser)
-	userWithIdentity, ok := userI.(IdentityGetter)
-	if !ok {
+	userWithIdentity, err := UserFromContext(ctx)
+	if err != nil {
 		return "", trace.AccessDenied("missing identity")
 	}
 	identity := userWithIdentity.GetIdentity()
@@ -914,9 +920,8 @@ func GetClientUsername(ctx context.Context) (string, error) {
 // ClientImpersonator returns the impersonator username of a remote client
 // making the call. If not present, returns an empty string
 func ClientImpersonator(ctx context.Context) string {
-	userI := ctx.Value(ContextUser)
-	userWithIdentity, ok := userI.(IdentityGetter)
-	if !ok {
+	userWithIdentity, err := UserFromContext(ctx)
+	if err != nil {
 		return ""
 	}
 	identity := userWithIdentity.GetIdentity()
@@ -928,8 +933,8 @@ func ClientImpersonator(ctx context.Context) string {
 // did not come from an HTTP request, metadata for teleport.UserSystem is
 // returned.
 func ClientUserMetadata(ctx context.Context) apievents.UserMetadata {
-	identityGetter, ok := ctx.Value(ContextUser).(IdentityGetter)
-	if !ok {
+	identityGetter, err := UserFromContext(ctx)
+	if err != nil {
 		return apievents.UserMetadata{
 			User: teleport.UserSystem,
 		}
@@ -1080,4 +1085,46 @@ type RemoteUser struct {
 // GetIdentity returns client identity
 func (r RemoteUser) GetIdentity() tlsca.Identity {
 	return r.Identity
+}
+
+// ContextWithUserCertificate returns the context with the user certificate embedded.
+func ContextWithUserCertificate(ctx context.Context, cert *x509.Certificate) context.Context {
+	return context.WithValue(ctx, contextUserCertificate, cert)
+}
+
+// UserCertificateFromContext returns the user certificate from the context.
+func UserCertificateFromContext(ctx context.Context) (*x509.Certificate, error) {
+	cert, ok := ctx.Value(contextUserCertificate).(*x509.Certificate)
+	if !ok {
+		return nil, trace.BadParameter("expected type *x509.Certificate, got %T", cert)
+	}
+	return cert, nil
+}
+
+// ContextWithClientAddr returns the context with the address embedded.
+func ContextWithClientAddr(ctx context.Context, addr net.Addr) context.Context {
+	return context.WithValue(ctx, contextClientAddr, addr)
+}
+
+// ClientAddrFromContext returns the client address from the context.
+func ClientAddrFromContext(ctx context.Context) (net.Addr, error) {
+	addr, ok := ctx.Value(contextClientAddr).(net.Addr)
+	if !ok {
+		return nil, trace.BadParameter("expected type net.Addr, got %T", addr)
+	}
+	return addr, nil
+}
+
+// ContextWithUser returns the context with the user embedded.
+func ContextWithUser(ctx context.Context, user IdentityGetter) context.Context {
+	return context.WithValue(ctx, contextUser, user)
+}
+
+// UserFromContext returns the user from the context.
+func UserFromContext(ctx context.Context) (IdentityGetter, error) {
+	user, ok := ctx.Value(contextUser).(IdentityGetter)
+	if !ok {
+		return nil, trace.BadParameter("expected type IdentityGetter, got %T", user)
+	}
+	return user, nil
 }
