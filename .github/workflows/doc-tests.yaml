@@ -6,12 +6,12 @@ on:
       - master
   pull_request:
     paths:
-       - 'docs/**'
-       - 'examples/**'
+      - 'docs/**'
+      - 'examples/**'
   merge_group:
     paths:
-       - 'docs/**'
-       - 'examples/**'
+      - 'docs/**'
+      - 'examples/**'
 
 jobs:
   doc-tests:
