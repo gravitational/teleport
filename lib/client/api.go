@@ -4480,24 +4480,19 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.Wrap(err)
 	}
 
-	sshPub, _, _, _, err := ssh.ParseAuthorizedKey(headlessAuthn.PublicKey)
-	if err != nil {
-		return trace.Wrap(err)
+	if headlessAuthn.State != types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING {
+		return trace.Errorf("cannot approve a headless authentication from a non-pending state: %v", headlessAuthn.State.Stringify())
 	}
 
-	confirmationPrompt := fmt.Sprintf(`Headless login attempt requires approval. Contact your administrator if you didn't initiate this login attempt.
-Additional details:
-	- request id: %v
-	- public key: %v
-	- ip address: %v
-Approve login?`, headlessAuthenticationID, ssh.FingerprintSHA256(sshPub), headlessAuthn.ClientIpAddress)
+	confirmationPrompt := fmt.Sprintf("Headless login attempt from IP address %q requires approval.\nContact your administrator if you didn't initiate this login attempt.\nApprove?", headlessAuthn.ClientIpAddress)
 	ok, err := prompt.Confirmation(ctx, tc.Stdout, prompt.Stdin(), confirmationPrompt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	if !ok {
-		return trace.AccessDenied("headless login denied")
+		err = proxyClient.currentCluster.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED, nil)
+		return trace.Wrap(err)
 	}
 
 	chall, err := proxyClient.currentCluster.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
