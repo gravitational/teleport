@@ -202,6 +202,27 @@ message HostCertsRequest {
   string UnstableSystemRoleAssertionID = 12 [(gogoproto.jsontag) = "system_role_assertion_id,omitempty"];
 }
 
+// OpenSSHCertRequest specifies certificate-generation parameters
+// for a certificates used to connect to Agentless nodes.
+message OpenSSHCertRequest {
+  // Username is the Teleport username.
+  string Username = 1 [(gogoproto.jsontag) = "username"];
+  // PublicKey is the public key to sign.
+  bytes PublicKey = 2 [(gogoproto.jsontag) = "public_key"];
+  // TTL is the duration the certificate will be valid for.
+  int64 TTL = 3 [
+    (gogoproto.jsontag) = "ttl",
+    (gogoproto.casttype) = "Duration"
+  ];
+  // Cluster is the Teleport cluster name.
+  string Cluster = 4 [(gogoproto.jsontag) = "cluster"];
+}
+
+// OpenSSHCert is a SSH certificate signed by OpenSSH CA.
+message OpenSSHCert {
+  bytes Cert = 1 [(gogoproto.jsontag) = "cert"];
+}
+
 // UserCertRequest specifies certificate-generation parameters
 // for a user.
 message UserCertsRequest {
@@ -2295,6 +2316,9 @@ service AuthService {
   // GenerateUserSingleUseCerts generates a set of single-use user
   // certificates.
   rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest) returns (stream UserSingleUseCertsResponse);
+  // GenerateOpenSSHCert signs a SSH certificate that can be used
+  // to connect to Agentless nodes.
+  rpc GenerateOpenSSHCert(OpenSSHCertRequest) returns (OpenSSHCert);
   // IsMFARequired checks whether MFA is required to access the specified
   // target.
   rpc IsMFARequired(IsMFARequiredRequest) returns (IsMFARequiredResponse);
