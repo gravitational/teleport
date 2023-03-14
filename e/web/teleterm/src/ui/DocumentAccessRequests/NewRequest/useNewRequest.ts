@@ -18,13 +18,15 @@ import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 
 import type {
   AgentLabel,
-  AgentFilter,
+  AgentFilter as WeakAgentFilter,
   AgentResponse,
   AgentKind,
   AgentIdKind,
 } from 'teleport/services/agents';
 
 const pageSize = 10;
+
+type AgentFilter = WeakAgentFilter & { sort: SortType };
 
 export default function useNewRequest() {
   const ctx = useAppContext();
@@ -83,11 +85,11 @@ export default function useNewRequest() {
   function getFetchCallback(params: ServerSideParams) {
     switch (selectedResource) {
       case 'node':
-        return retry(() => ctx.clustersService.client.getServers(params));
+        return retry(() => ctx.resourcesService.fetchServers(params));
       case 'db':
-        return retry(() => ctx.clustersService.client.getDatabases(params));
+        return retry(() => ctx.resourcesService.fetchDatabases(params));
       case 'kube_cluster':
-        return retry(() => ctx.clustersService.fetchKubes(params));
+        return retry(() => ctx.resourcesService.fetchKubes(params));
       default: {
         throw new Error(`Fetch not implemented for: ${selectedResource}`);
       }
