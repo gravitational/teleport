@@ -34,14 +34,10 @@ type TerminalServiceClient interface {
 	// ListLeafClusters lists leaf clusters
 	// Does not include detailed cluster information that would require a network request.
 	ListLeafClusters(ctx context.Context, in *ListLeafClustersRequest, opts ...grpc.CallOption) (*ListClustersResponse, error)
-	// GetAllDatabases lists all databases without pagination
-	GetAllDatabases(ctx context.Context, in *GetAllDatabasesRequest, opts ...grpc.CallOption) (*GetAllDatabasesResponse, error)
 	// GetDatabases returns a filtered and paginated list of databases
 	GetDatabases(ctx context.Context, in *GetDatabasesRequest, opts ...grpc.CallOption) (*GetDatabasesResponse, error)
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
 	ListDatabaseUsers(ctx context.Context, in *ListDatabaseUsersRequest, opts ...grpc.CallOption) (*ListDatabaseUsersResponse, error)
-	// GetAllServers returns all servers
-	GetAllServers(ctx context.Context, in *GetAllServersRequest, opts ...grpc.CallOption) (*GetAllServersResponse, error)
 	// GetServers returns filtered, sorted, and paginated servers
 	GetServers(ctx context.Context, in *GetServersRequest, opts ...grpc.CallOption) (*GetServersResponse, error)
 	// GetAccessRequests lists filtered AccessRequests
@@ -58,12 +54,8 @@ type TerminalServiceClient interface {
 	GetRequestableRoles(ctx context.Context, in *GetRequestableRolesRequest, opts ...grpc.CallOption) (*GetRequestableRolesResponse, error)
 	// AssumeRole assumes the role of the given access request
 	AssumeRole(ctx context.Context, in *AssumeRoleRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
-	// GetAllKubes list all kubes
-	GetAllKubes(ctx context.Context, in *GetAllKubesRequest, opts ...grpc.CallOption) (*GetAllKubesResponse, error)
 	// GetKubes returns filtered, sorted, and paginated kubes
 	GetKubes(ctx context.Context, in *GetKubesRequest, opts ...grpc.CallOption) (*GetKubesResponse, error)
-	// ListApps list apps
-	ListApps(ctx context.Context, in *ListAppsRequest, opts ...grpc.CallOption) (*ListAppsResponse, error)
 	// AddCluster adds a cluster to profile
 	AddCluster(ctx context.Context, in *AddClusterRequest, opts ...grpc.CallOption) (*Cluster, error)
 	// RemoveCluster removes a cluster from profile
@@ -149,15 +141,6 @@ func (c *terminalServiceClient) ListLeafClusters(ctx context.Context, in *ListLe
 	return out, nil
 }
 
-func (c *terminalServiceClient) GetAllDatabases(ctx context.Context, in *GetAllDatabasesRequest, opts ...grpc.CallOption) (*GetAllDatabasesResponse, error) {
-	out := new(GetAllDatabasesResponse)
-	err := c.cc.Invoke(ctx, "/teleport.lib.teleterm.v1.TerminalService/GetAllDatabases", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *terminalServiceClient) GetDatabases(ctx context.Context, in *GetDatabasesRequest, opts ...grpc.CallOption) (*GetDatabasesResponse, error) {
 	out := new(GetDatabasesResponse)
 	err := c.cc.Invoke(ctx, "/teleport.lib.teleterm.v1.TerminalService/GetDatabases", in, out, opts...)
@@ -170,15 +153,6 @@ func (c *terminalServiceClient) GetDatabases(ctx context.Context, in *GetDatabas
 func (c *terminalServiceClient) ListDatabaseUsers(ctx context.Context, in *ListDatabaseUsersRequest, opts ...grpc.CallOption) (*ListDatabaseUsersResponse, error) {
 	out := new(ListDatabaseUsersResponse)
 	err := c.cc.Invoke(ctx, "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *terminalServiceClient) GetAllServers(ctx context.Context, in *GetAllServersRequest, opts ...grpc.CallOption) (*GetAllServersResponse, error) {
-	out := new(GetAllServersResponse)
-	err := c.cc.Invoke(ctx, "/teleport.lib.teleterm.v1.TerminalService/GetAllServers", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -257,27 +231,9 @@ func (c *terminalServiceClient) AssumeRole(ctx context.Context, in *AssumeRoleRe
 	return out, nil
 }
 
-func (c *terminalServiceClient) GetAllKubes(ctx context.Context, in *GetAllKubesRequest, opts ...grpc.CallOption) (*GetAllKubesResponse, error) {
-	out := new(GetAllKubesResponse)
-	err := c.cc.Invoke(ctx, "/teleport.lib.teleterm.v1.TerminalService/GetAllKubes", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *terminalServiceClient) GetKubes(ctx context.Context, in *GetKubesRequest, opts ...grpc.CallOption) (*GetKubesResponse, error) {
 	out := new(GetKubesResponse)
 	err := c.cc.Invoke(ctx, "/teleport.lib.teleterm.v1.TerminalService/GetKubes", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *terminalServiceClient) ListApps(ctx context.Context, in *ListAppsRequest, opts ...grpc.CallOption) (*ListAppsResponse, error) {
-	out := new(ListAppsResponse)
-	err := c.cc.Invoke(ctx, "/teleport.lib.teleterm.v1.TerminalService/ListApps", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -471,14 +427,10 @@ type TerminalServiceServer interface {
 	// ListLeafClusters lists leaf clusters
 	// Does not include detailed cluster information that would require a network request.
 	ListLeafClusters(context.Context, *ListLeafClustersRequest) (*ListClustersResponse, error)
-	// GetAllDatabases lists all databases without pagination
-	GetAllDatabases(context.Context, *GetAllDatabasesRequest) (*GetAllDatabasesResponse, error)
 	// GetDatabases returns a filtered and paginated list of databases
 	GetDatabases(context.Context, *GetDatabasesRequest) (*GetDatabasesResponse, error)
 	// ListDatabaseUsers lists allowed users for the given database based on the role set.
 	ListDatabaseUsers(context.Context, *ListDatabaseUsersRequest) (*ListDatabaseUsersResponse, error)
-	// GetAllServers returns all servers
-	GetAllServers(context.Context, *GetAllServersRequest) (*GetAllServersResponse, error)
 	// GetServers returns filtered, sorted, and paginated servers
 	GetServers(context.Context, *GetServersRequest) (*GetServersResponse, error)
 	// GetAccessRequests lists filtered AccessRequests
@@ -495,12 +447,8 @@ type TerminalServiceServer interface {
 	GetRequestableRoles(context.Context, *GetRequestableRolesRequest) (*GetRequestableRolesResponse, error)
 	// AssumeRole assumes the role of the given access request
 	AssumeRole(context.Context, *AssumeRoleRequest) (*EmptyResponse, error)
-	// GetAllKubes list all kubes
-	GetAllKubes(context.Context, *GetAllKubesRequest) (*GetAllKubesResponse, error)
 	// GetKubes returns filtered, sorted, and paginated kubes
 	GetKubes(context.Context, *GetKubesRequest) (*GetKubesResponse, error)
-	// ListApps list apps
-	ListApps(context.Context, *ListAppsRequest) (*ListAppsResponse, error)
 	// AddCluster adds a cluster to profile
 	AddCluster(context.Context, *AddClusterRequest) (*Cluster, error)
 	// RemoveCluster removes a cluster from profile
@@ -565,17 +513,11 @@ func (UnimplementedTerminalServiceServer) ListRootClusters(context.Context, *Lis
 func (UnimplementedTerminalServiceServer) ListLeafClusters(context.Context, *ListLeafClustersRequest) (*ListClustersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListLeafClusters not implemented")
 }
-func (UnimplementedTerminalServiceServer) GetAllDatabases(context.Context, *GetAllDatabasesRequest) (*GetAllDatabasesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAllDatabases not implemented")
-}
 func (UnimplementedTerminalServiceServer) GetDatabases(context.Context, *GetDatabasesRequest) (*GetDatabasesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDatabases not implemented")
 }
 func (UnimplementedTerminalServiceServer) ListDatabaseUsers(context.Context, *ListDatabaseUsersRequest) (*ListDatabaseUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDatabaseUsers not implemented")
-}
-func (UnimplementedTerminalServiceServer) GetAllServers(context.Context, *GetAllServersRequest) (*GetAllServersResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAllServers not implemented")
 }
 func (UnimplementedTerminalServiceServer) GetServers(context.Context, *GetServersRequest) (*GetServersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetServers not implemented")
@@ -601,14 +543,8 @@ func (UnimplementedTerminalServiceServer) GetRequestableRoles(context.Context, *
 func (UnimplementedTerminalServiceServer) AssumeRole(context.Context, *AssumeRoleRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AssumeRole not implemented")
 }
-func (UnimplementedTerminalServiceServer) GetAllKubes(context.Context, *GetAllKubesRequest) (*GetAllKubesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAllKubes not implemented")
-}
 func (UnimplementedTerminalServiceServer) GetKubes(context.Context, *GetKubesRequest) (*GetKubesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetKubes not implemented")
-}
-func (UnimplementedTerminalServiceServer) ListApps(context.Context, *ListAppsRequest) (*ListAppsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListApps not implemented")
 }
 func (UnimplementedTerminalServiceServer) AddCluster(context.Context, *AddClusterRequest) (*Cluster, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddCluster not implemented")
@@ -719,24 +655,6 @@ func _TerminalService_ListLeafClusters_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TerminalService_GetAllDatabases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAllDatabasesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).GetAllDatabases(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/teleport.lib.teleterm.v1.TerminalService/GetAllDatabases",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).GetAllDatabases(ctx, req.(*GetAllDatabasesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _TerminalService_GetDatabases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetDatabasesRequest)
 	if err := dec(in); err != nil {
@@ -769,24 +687,6 @@ func _TerminalService_ListDatabaseUsers_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).ListDatabaseUsers(ctx, req.(*ListDatabaseUsersRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TerminalService_GetAllServers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAllServersRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).GetAllServers(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/teleport.lib.teleterm.v1.TerminalService/GetAllServers",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).GetAllServers(ctx, req.(*GetAllServersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -935,24 +835,6 @@ func _TerminalService_AssumeRole_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TerminalService_GetAllKubes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAllKubesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).GetAllKubes(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/teleport.lib.teleterm.v1.TerminalService/GetAllKubes",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).GetAllKubes(ctx, req.(*GetAllKubesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _TerminalService_GetKubes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetKubesRequest)
 	if err := dec(in); err != nil {
@@ -967,24 +849,6 @@ func _TerminalService_GetKubes_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(TerminalServiceServer).GetKubes(ctx, req.(*GetKubesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _TerminalService_ListApps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListAppsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(TerminalServiceServer).ListApps(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/teleport.lib.teleterm.v1.TerminalService/ListApps",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TerminalServiceServer).ListApps(ctx, req.(*ListAppsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1272,20 +1136,12 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TerminalService_ListLeafClusters_Handler,
 		},
 		{
-			MethodName: "GetAllDatabases",
-			Handler:    _TerminalService_GetAllDatabases_Handler,
-		},
-		{
 			MethodName: "GetDatabases",
 			Handler:    _TerminalService_GetDatabases_Handler,
 		},
 		{
 			MethodName: "ListDatabaseUsers",
 			Handler:    _TerminalService_ListDatabaseUsers_Handler,
-		},
-		{
-			MethodName: "GetAllServers",
-			Handler:    _TerminalService_GetAllServers_Handler,
 		},
 		{
 			MethodName: "GetServers",
@@ -1320,16 +1176,8 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TerminalService_AssumeRole_Handler,
 		},
 		{
-			MethodName: "GetAllKubes",
-			Handler:    _TerminalService_GetAllKubes_Handler,
-		},
-		{
 			MethodName: "GetKubes",
 			Handler:    _TerminalService_GetKubes_Handler,
-		},
-		{
-			MethodName: "ListApps",
-			Handler:    _TerminalService_ListApps_Handler,
 		},
 		{
 			MethodName: "AddCluster",

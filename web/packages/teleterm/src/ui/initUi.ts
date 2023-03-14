@@ -43,34 +43,47 @@ export async function initUi(ctx: IAppContext): Promise<void> {
   // "User job role" dialog is shown on the second launch (only if user agreed to reporting earlier).
   await setUpUsageReporting(configService, ctx.modalsService);
   ctx.workspacesService.restorePersistedState();
-  notifyAboutStoredConfigErrors(configService, ctx.notificationsService);
+  notifyAboutConfigErrors(configService, ctx.notificationsService);
   notifyAboutDuplicatedShortcutsCombinations(
     ctx.keyboardShortcutsService,
     ctx.notificationsService
   );
 }
 
-function notifyAboutStoredConfigErrors(
+function notifyAboutConfigErrors(
   configService: ConfigService,
   notificationsService: NotificationsService
 ): void {
-  const errors = configService.getStoredConfigErrors();
-  if (errors) {
-    const isKeymapError = errors.some(e =>
-      e.path[0].toString().startsWith('keymap.')
-    );
-    notificationsService.notifyError({
-      title: 'Encountered errors in config file',
-      list: errors.map(e => `${e.path[0].toString()}: ${e.message}`),
-      description:
-        isKeymapError &&
-        'A valid shortcut contains at least one modifier and a single key code, for example "Shift+Tab".\nFunction keys do not require a modifier.',
-      link: {
-        // TODO(gzdunek): point to the properer section
-        href: 'https://goteleport.com/docs/connect-your-client/teleport-connect/',
-        text: 'See the config file documentation',
-      },
-    });
+  const configError = configService.getConfigError();
+  if (configError) {
+    switch (configError.source) {
+      case 'file-loading': {
+        notificationsService.notifyError({
+          title: 'Failed to load config file',
+          description: `Using the default config instead.\n${configError.error}`,
+        });
+        break;
+      }
+      case 'validation': {
+        const isKeymapError = configError.errors.some(e =>
+          e.path[0].toString().startsWith('keymap.')
+        );
+        notificationsService.notifyError({
+          title: 'Encountered errors in config file',
+          list: configError.errors.map(
+            e => `${e.path[0].toString()}: ${e.message}`
+          ),
+          description:
+            isKeymapError &&
+            'A valid shortcut contains at least one modifier and a single key code, for example "Shift+Tab".\nFunction keys do not require a modifier.',
+          link: {
+            // TODO(gzdunek): point to the properer section
+            href: 'https://goteleport.com/docs/connect-your-client/teleport-connect/',
+            text: 'See the config file documentation',
+          },
+        });
+      }
+    }
   }
 }
 

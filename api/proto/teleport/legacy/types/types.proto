@@ -687,6 +687,7 @@ message ServerV2List {
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
   reserved 8;
+  reserved 10;
 
   // Addr is server host:port address
   string Addr = 1 [(gogoproto.jsontag) = "addr"];
@@ -716,14 +717,6 @@ message ServerSpecV2 {
     (gogoproto.jsontag) = "apps,omitempty",
     deprecated = true
   ];
-  // KubernetesClusters is a list of kubernetes clusters provided by this
-  // Proxy or KubeService server.
-  //
-  // Important: jsontag must not be "kubernetes_clusters", because a
-  // different field with that jsontag existed in 4.4:
-  // https://github.com/gravitational/teleport/issues/4862
-  // DELETE IN 12.0.0. Deprecated, moved to KubernetesServerSpecV3.
-  repeated KubernetesCluster KubernetesClusters = 10 [(gogoproto.jsontag) = "kube_clusters,omitempty"];
   // PeerAddr is the address a proxy server is reachable at by its peer proxies.
   string PeerAddr = 11 [(gogoproto.jsontag) = "peer_addr,omitempty"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
@@ -4210,6 +4203,14 @@ message LockSpecV2 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expires,omitempty"
   ];
+  // CreatedAt is the date time that the lock was created.
+  google.protobuf.Timestamp CreatedAt = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "created_at,omitempty"
+  ];
+  // CreatedBy is the username of the author of the lock.
+  string CreatedBy = 5 [(gogoproto.jsontag) = "created_by,omitempty"];
 }
 
 // LockTarget lists the attributes of interactions to be disabled.
