@@ -390,7 +390,7 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 		return false, nil
 	})
 	if err != nil {
-		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+		return nil, trace.Wrap(err)
 	}
 
 	// Verify that the headless authentication has not been tampered with.
