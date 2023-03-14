@@ -1,0 +1,57 @@
+# Defines a workflow that scans all of the Major-Version Distroless Teleport 
+# OCI container images with trivy and injects the scan results results into
+# the teleport.e GitHub Security Tab
+#
+name: Monitor Teleport Distroless OCI Container Images
+
+on:
+  schedule:
+    # Run daily at 7.17 am UTC. 7am UTC is 0:00 PDT, and the 17 
+    # minute offset is not important; just a random offset to
+    # stagger jobs.
+    - cron: '17 7 * * *'  
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        teleport-major-version: [12, 13]
+        arch: [amd64, arm64]
+        mode: ['debug', 'production']
+        release: ['oss', 'enterprise']
+        include:
+          - mode: 'production'
+            repo-debug-suffix: ''
+          - mode: 'debug'
+            repo-debug-suffix: '-debug'
+          - release: 'oss'
+            repo-enterprise-infix: ''
+          - release: 'enterprise'
+            repo-enterprise-infix: '-ent'
+    permissions:
+      contents: read
+      security-events: write # to upload SARIF results
+    name: Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master  # Deliberately tracking master to keep scanner fresh
+        with:
+          image-ref: 'public.ecr.aws/gravitational/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}:${{ matrix.teleport-major-version }}'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          format: 'template'
+          template: '@/contrib/sarif.tpl'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'teleport-distroless-${{ matrix.release }}-${{ matrix.arch }}-${{ matrix.mode }}-v${{ matrix.teleport-major-version }}'
