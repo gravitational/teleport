@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	commonApp "github.com/gravitational/teleport/lib/srv/app/common"
@@ -60,14 +59,6 @@ type LocalProxyConfig struct {
 	SNI string
 	// ParentContext is a parent context, used to signal global closure>
 	ParentContext context.Context
-	// SSHUser is an SSH username.
-	SSHUser string
-	// SSHUserHost is user host requested by ssh subsystem.
-	SSHUserHost string
-	// SSHHostKeyCallback is the function type used for verifying server keys.
-	SSHHostKeyCallback ssh.HostKeyCallback
-	// SSHTrustedCluster allows selecting trusted cluster ssh subsystem request.
-	SSHTrustedCluster string
 	// Certs are the client certificates used to connect to the remote Teleport Proxy.
 	Certs []tls.Certificate
 	// RootCAs overwrites the root CAs used in tls.Config if specified.
@@ -82,6 +73,8 @@ type LocalProxyConfig struct {
 	Clock clockwork.Clock
 	// Log is the Logger.
 	Log logrus.FieldLogger
+	// verifyUpstreamConnection is a callback function to verify upstream connection state.
+	verifyUpstreamConnection func(tls.ConnectionState) error
 }
 
 // LocalProxyMiddleware provides callback functions for LocalProxy.
@@ -123,21 +116,29 @@ func (cfg *LocalProxyConfig) CheckAndSetDefaults() error {
 	if cfg.Log == nil {
 		cfg.Log = logrus.WithField(trace.Component, "localproxy")
 	}
+
+	// If SNI is not set, default to cfg.RemoteProxyAddr.
+	if cfg.SNI == "" {
+		address, err := utils.ParseAddr(cfg.RemoteProxyAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.SNI = address.Host()
+	}
+
+	// Update the list with Ping protocols.
+	cfg.Protocols = common.WithPingProtocols(cfg.Protocols)
 	return nil
 }
 
-func (cfg *LocalProxyConfig) GetProtocols() []string {
-	protos := make([]string, 0, len(cfg.Protocols))
-
-	for _, proto := range cfg.Protocols {
-		protos = append(protos, string(proto))
+// NewLocalProxy creates a new instance of LocalProxy.
+func NewLocalProxy(cfg LocalProxyConfig, opts ...LocalProxyConfigOpt) (*LocalProxy, error) {
+	for _, applyOpt := range opts {
+		if err := applyOpt(&cfg); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	return protos
-}
-
-// NewLocalProxy creates a new instance of LocalProxy.
-func NewLocalProxy(cfg LocalProxyConfig) (*LocalProxy, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -205,16 +206,7 @@ func (l *LocalProxy) GetAddr() string {
 func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn) error {
 	defer downstreamConn.Close()
 
-	tlsConn, err := DialALPN(ctx, l.cfg.RemoteProxyAddr, ALPNDialerConfig{
-		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
-		TLSConfig: &tls.Config{
-			NextProtos:         l.cfg.GetProtocols(),
-			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
-			ServerName:         l.cfg.SNI,
-			Certificates:       l.getCerts(),
-			RootCAs:            l.cfg.RootCAs,
-		},
-	})
+	tlsConn, err := DialALPN(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -239,6 +231,19 @@ func (l *LocalProxy) Close() error {
 	return nil
 }
 
+func (l *LocalProxy) getALPNDialerConfig() ALPNDialerConfig {
+	return ALPNDialerConfig{
+		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
+		TLSConfig: &tls.Config{
+			NextProtos:         common.ProtocolsToString(l.cfg.Protocols),
+			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
+			ServerName:         l.cfg.SNI,
+			Certificates:       l.getCerts(),
+			RootCAs:            l.cfg.RootCAs,
+		},
+	}
+}
+
 // StartHTTPAccessProxy starts the local HTTP access proxy.
 func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 	if l.cfg.HTTPMiddleware == nil {
@@ -249,14 +254,6 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			NextProtos:         l.cfg.GetProtocols(),
-			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
-			ServerName:         l.cfg.SNI,
-			Certificates:       l.getCerts(),
-		},
-	}
 	proxy := &httputil.ReverseProxy{
 		Director: func(outReq *http.Request) {
 			outReq.URL.Scheme = "https"
@@ -284,7 +281,9 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 			code := trace.ErrorToCode(err)
 			http.Error(w, http.StatusText(code), code)
 		},
-		Transport: tr,
+		Transport: &http.Transport{
+			DialTLSContext: NewALPNDialer(l.getALPNDialerConfig()).DialContext,
+		},
 	}
 	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if l.cfg.HTTPMiddleware.HandleRequest(rw, req) {
