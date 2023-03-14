@@ -3,9 +3,15 @@ run-name: make lint
 on:
   push:
     branches:
-      - master
+      - branch/v11
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'rfd/**'
   merge_group:
+    paths-ignore:
+      - 'docs/**'
+      - 'rfd/**'
 
 jobs:
   lint:
