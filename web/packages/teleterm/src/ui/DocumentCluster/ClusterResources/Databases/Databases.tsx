@@ -170,7 +170,7 @@ function getMenuLoginOptions(
 async function getDatabaseUsers(appContext: IAppContext, dbUri: DatabaseUri) {
   try {
     const dbUsers = await retryWithRelogin(appContext, dbUri, () =>
-      appContext.clustersService.getDbUsers(dbUri)
+      appContext.resourcesService.getDbUsers(dbUri)
     );
     return dbUsers.map(user => ({ login: user, url: '' }));
   } catch (e) {

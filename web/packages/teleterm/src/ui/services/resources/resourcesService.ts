@@ -53,6 +53,10 @@ export class ResourcesService {
     return this.tshClient.getKubes(params);
   }
 
+  async getDbUsers(dbUri: uri.DatabaseUri): Promise<string[]> {
+    return await this.tshClient.listDatabaseUsers(dbUri);
+  }
+
   /**
    * searchResources searches for the given list of space-separated keywords across all resource
    * types on the given cluster.
