@@ -41,7 +41,6 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 	cmd.WriteString(`go run ./cmd/gh-trigger-workflow `)
 	cmd.WriteString(`-owner ${DRONE_REPO_OWNER} `)
 	cmd.WriteString(`-repo teleport.e `)
-	cmd.WriteString(`-tag-workflow `)
 	fmt.Fprintf(&cmd, `-workflow %s `, b.ghaWorkflow)
 	fmt.Fprintf(&cmd, `-workflow-ref=%s `, b.workflowRef)
 
