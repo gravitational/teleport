@@ -49,6 +49,8 @@ import (
 	_ "github.com/go-piv/piv-go/piv"
 	_ "github.com/google/go-attestation/attest"
 	_ "github.com/gravitational/form"
+	_ "github.com/gravitational/teleport-plugins/access/common"
+	_ "github.com/gravitational/teleport-plugins/access/slack"
 	_ "google.golang.org/api/admin/directory/v1"
 	_ "google.golang.org/api/cloudidentity/v1"
 	_ "google.golang.org/genproto/googleapis/rpc/status"

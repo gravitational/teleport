@@ -15,7 +15,6 @@
 package main
 
 import (
-	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -32,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
-	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -214,11 +212,6 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	address, err := utils.ParseAddr(tc.WebProxyAddr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	listenAddr := "localhost:0"
 	if port != "" {
 		listenAddr = fmt.Sprintf("localhost:%s", port)
@@ -245,15 +238,11 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	a.localALPNProxy, err = alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		Listener:           listener,
-		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolHTTP},
-		InsecureSkipVerify: a.cf.InsecureSkipVerify,
-		ParentContext:      a.cf.Context,
-		SNI:                address.Host(),
-		Certs:              []tls.Certificate{appCerts},
-		HTTPMiddleware: &alpnproxy.AzureMSIMiddleware{
+	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
+		makeBasicLocalProxyConfig(a.cf, tc, listener),
+		alpnproxy.WithClientCert(appCerts),
+		alpnproxy.WithALPNConnUpgradeTest(a.cf.Context, tc.RootClusterCACertPool),
+		alpnproxy.WithHTTPMiddleware(&alpnproxy.AzureMSIMiddleware{
 			Key:    wsPK,
 			Secret: a.msiSecret,
 			// we could, in principle, get the actual TenantID either from live data or from static configuration,
@@ -261,8 +250,8 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 			TenantID: uuid.New().String(),
 			ClientID: uuid.New().String(),
 			Identity: a.app.AzureIdentity,
-		},
-	})
+		}),
+	)
 
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {

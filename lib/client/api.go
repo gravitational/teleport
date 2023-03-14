@@ -4367,3 +4367,26 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 	}
 	return kubeproto.NewKubeServiceClient(clt.GetConnection()), nil
 }
+
+// RootClusterCACertPool returns a *x509.CertPool with the root cluster CA.
+func (tc *TeleportClient) RootClusterCACertPool(ctx context.Context) (*x509.CertPool, error) {
+	_, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/RootClusterCACertPool",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	key, err := tc.localAgent.GetCoreKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rootClusterName, err := key.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pool, err := key.clientCertPool(rootClusterName)
+	return pool, trace.Wrap(err)
+}

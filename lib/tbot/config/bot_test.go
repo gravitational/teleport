@@ -109,7 +109,7 @@ func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, lo
 	return ca, nil
 }
 
-func (m *mockAuth) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (m *mockAuth) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
 	require.NotNil(m.t, ctx)
 	require.False(m.t, loadKeys)
 

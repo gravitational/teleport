@@ -145,6 +145,10 @@ type Pack struct {
 	flushAppURI         string
 }
 
+func (p *Pack) RootWebAddr() string {
+	return p.rootCluster.Web
+}
+
 func (p *Pack) RootAppClusterName() string {
 	return p.rootAppClusterName
 }
@@ -297,6 +301,20 @@ func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) []
 			Value: casResp.SubjectCookieValue,
 		},
 	}
+}
+
+// CreateAppSessionWithClientCert creates an application session with the root
+// cluster and returns the client cert that can be used for an application
+// request.
+func (p *Pack) CreateAppSessionWithClientCert(t *testing.T) []tls.Certificate {
+	session, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+		Username:    p.username,
+		PublicAddr:  p.rootAppPublicAddr,
+		ClusterName: p.rootAppClusterName,
+	})
+	require.NoError(t, err)
+	config := p.makeTLSConfig(t, session.GetName(), session.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName)
+	return config.Certificates
 }
 
 // LockUser will lock the configured user for this pack.

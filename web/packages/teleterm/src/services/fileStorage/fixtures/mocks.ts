@@ -29,14 +29,18 @@ export function createMockFileStorage(opts?: {
       return key ? state[key] : (state as T);
     },
 
-    writeSync() {},
+    async write() {},
 
     replace(json: any) {
       state = json;
     },
 
-    getFilePath(): string {
+    getFilePath() {
       return opts?.filePath || '';
+    },
+
+    getFileLoadingError() {
+      return undefined;
     },
   };
 }
