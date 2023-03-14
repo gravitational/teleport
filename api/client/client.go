@@ -1976,6 +1976,10 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID string, star
 
 			event, err := events.FromOneOf(*oneOf)
 			if err != nil {
+				if trace.IsBadParameter(err) {
+					log.Warnf("skipping unknown event: %v", err)
+					continue
+				}
 				e <- trace.Wrap(trail.FromGRPC(err))
 				break outer
 			}
@@ -2044,6 +2048,10 @@ func (c *Client) SearchSessionEvents(ctx context.Context, fromUTC time.Time, toU
 	for _, rawEvent := range response.Items {
 		event, err := events.FromOneOf(*rawEvent)
 		if err != nil {
+			if trace.IsBadParameter(err) {
+				log.Warnf("skipping unknown event: %v", err)
+				continue
+			}
 			return nil, "", trace.Wrap(err)
 		}
 		decodedEvents = append(decodedEvents, event)
