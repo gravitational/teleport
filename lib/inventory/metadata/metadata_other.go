@@ -1,3 +1,6 @@
+//go:build !darwin && !linux
+// +build !darwin,!linux
+
 /*
 Copyright 2023 Gravitational, Inc.
 
@@ -14,14 +17,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package servicecfg
+package metadata
 
-import "github.com/gravitational/teleport/lib/service"
+import (
+	"runtime"
 
-// Config is a temporary alias to aid in migrating configuration
-// from lib/service to lib/service/servicecfg.
-type Config = service.Config
+	log "github.com/sirupsen/logrus"
+)
 
-type AuthConfig = service.AuthConfig
+// fetchOSVersion returns "" if not on linux and not on darwin.
+func (c *fetchConfig) fetchOSVersion() string {
+	log.Warningf("fetchOSVersion is not implemented for %s", runtime.GOOS)
+	return ""
+}
 
-type ProxyConfig = service.ProxyConfig
+// fetchGlibcVersion returns "" if not on linux and not on darwin.
+func (c *fetchConfig) fetchGlibcVersion() string {
+	log.Warningf("fetchGlibcVersion is not implemented for %s", runtime.GOOS)
+	return ""
+}

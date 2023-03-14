@@ -22,6 +22,7 @@ export { AuditLogIcon } from './AuditLog';
 export { AuthConnectorsIcon } from './AuthConnectors';
 export { ChevronRightIcon } from './ChevronRight';
 export { DatabasesIcon } from './Databases';
+export { DevicesIcon } from './Devices';
 export { DesktopsIcon } from './Desktops';
 export { DownloadsIcon } from './Downloads';
 export { ExternalLinkIcon } from './ExternalLink';

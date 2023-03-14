@@ -13,6 +13,8 @@ limitations under the License.
 
 import { Store } from 'shared/libs/stores';
 
+import cfg from 'teleport/config';
+
 import { UserContext } from 'teleport/services/user';
 
 export default class StoreUserContext extends Store<UserContext> {
@@ -142,8 +144,12 @@ export default class StoreUserContext extends Store<UserContext> {
   // has access to download either teleport binaries or the license.
   // Since the page is used to download both of them, having access to one
   // is enough to show access this page.
+  // This page is only available for `dashboards`.
   hasDownloadCenterListAccess() {
-    return this.state.acl.license.read || this.state.acl.download.list;
+    return (
+      cfg.isDashboard &&
+      (this.state.acl.license.read || this.state.acl.download.list)
+    );
   }
 
   // hasAccessToAgentQuery checks for at least one valid query permission.

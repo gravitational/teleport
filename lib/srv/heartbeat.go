@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// HeartbeatI abstracts over the basic interfact of Heartbeat and HeartbeatV2. This can be removed
+// HeartbeatI abstracts over the basic interface of Heartbeat and HeartbeatV2. This can be removed
 // once we've fully transitioned to HeartbeatV2.
 type HeartbeatI interface {
 	Run() error
@@ -454,18 +454,13 @@ func (h *Heartbeat) announce() error {
 			)
 
 			switch current := h.current.(type) {
-			case types.Server:
-				keepAlive, err = h.Announcer.UpsertKubeServiceV2(h.cancelCtx, current)
-				if err != nil {
-					return trace.Wrap(err)
-				}
 			case types.KubeServer:
 				keepAlive, err = h.Announcer.UpsertKubernetesServer(h.cancelCtx, current)
 				if err != nil {
 					return trace.Wrap(err)
 				}
 			default:
-				return trace.BadParameter("expected types.KubeServer or types.Server, got %#v", h.current)
+				return trace.BadParameter("expected types.KubeServer, got %#v", h.current)
 			}
 
 			h.notifySend()

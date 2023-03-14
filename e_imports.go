@@ -55,4 +55,6 @@ import (
 	_ "google.golang.org/api/cloudidentity/v1"
 	_ "google.golang.org/genproto/googleapis/rpc/status"
 	_ "gopkg.in/check.v1"
+
+	_ "github.com/gravitational/teleport-plugins/access/common"
 )
