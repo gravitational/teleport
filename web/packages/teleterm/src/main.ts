@@ -43,6 +43,7 @@ async function initializeApp(): Promise<void> {
   let devRelaunchScheduled = false;
   const settings = getRuntimeSettings();
   const logger = initMainLogger(settings);
+  logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
   const {
     appStateFileStorage,
     configFileStorage,
@@ -56,8 +57,8 @@ async function initializeApp(): Promise<void> {
   });
   const windowsManager = new WindowsManager(appStateFileStorage, settings);
 
-  process.on('uncaughtException', error => {
-    logger.error('', error);
+  process.on('uncaughtException', (error, origin) => {
+    logger.error(origin, error);
     app.quit();
   });
 
@@ -66,7 +67,8 @@ async function initializeApp(): Promise<void> {
     settings,
     logger,
     configService,
-    fileStorage: appStateFileStorage,
+    appStateFileStorage,
+    configFileStorage,
     windowsManager,
   });
 
