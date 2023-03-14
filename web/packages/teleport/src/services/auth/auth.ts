@@ -55,7 +55,6 @@ const auth = {
     if (isMfaRequired.required === true) {
       return auth.getWebauthnResponse();
     }
-    return;
   },
 
   createMfaRegistrationChallenge(
