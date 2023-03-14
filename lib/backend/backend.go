@@ -21,14 +21,16 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Forever means that object TTL will not expire unless deleted
@@ -105,6 +107,35 @@ func IterateRange(ctx context.Context, bk Backend, startKey []byte, endKey []byt
 	}
 }
 
+// StreamRange constructs a Stream for the given key range. This helper just
+// uses standard pagination under the hood, lazily loading pages as needed. Streams
+// are currently only used for periodic operations, but if they become more widely
+// used in the future, it may become worthwhile to optimize the streaming of backend
+// items further. Two potential improvements of note:
+//
+// 1. update this helper to concurrently load the next page in the background while
+// items from the current page are being yielded.
+//
+// 2. allow individual backends to expose custom streaming methods s.t. the most performant
+// impl for a given backend may be used.
+func StreamRange(ctx context.Context, bk Backend, startKey, endKey []byte, pageSize int) stream.Stream[Item] {
+	return stream.PageFunc[Item](func() ([]Item, error) {
+		if startKey == nil {
+			return nil, io.EOF
+		}
+		rslt, err := bk.GetRange(ctx, startKey, endKey, pageSize)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(rslt.Items) < pageSize {
+			startKey = nil
+		} else {
+			startKey = nextKey(rslt.Items[pageSize-1].Key)
+		}
+		return rslt.Items, nil
+	})
+}
+
 // Batch implements some batch methods
 // that are not mandatory for all interfaces,
 // only the ones used in bulk operations.
@@ -118,11 +149,10 @@ type Batch interface {
 //
 // Here is an example of renewing object TTL:
 //
-// lease, err := backend.Create()
-// lease.Expires = time.Now().Add(time.Second)
-// Item TTL is extended
-// err = backend.KeepAlive(lease)
-//
+// item.Expires = time.Now().Add(10 * time.Second)
+// lease, err := backend.Create(ctx, item)
+// expires := time.Now().Add(20 * time.Second)
+// err = backend.KeepAlive(ctx, lease, expires)
 type Lease struct {
 	// Key is an object representing lease
 	Key []byte
@@ -161,7 +191,7 @@ type Watcher interface {
 	// Events returns channel with events
 	Events() <-chan Event
 
-	// Done returns the channel signalling the closure
+	// Done returns the channel signaling the closure
 	Done() <-chan struct{}
 
 	// Close closes the watcher and releases
@@ -269,6 +299,8 @@ func NextPaginationKey(r types.Resource) string {
 		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
 	case types.AppServer:
 		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
+	case types.KubeServer:
+		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
 	default:
 		return string(nextKey([]byte(r.GetName())))
 	}
@@ -280,6 +312,8 @@ func GetPaginationKey(r types.Resource) string {
 	case types.DatabaseServer:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
 	case types.AppServer:
+		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
+	case types.KubeServer:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
 	case types.WindowsDesktop:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
@@ -372,6 +406,14 @@ const Separator = '/'
 // makes sure path always starts with Separator ("/")
 func Key(parts ...string) []byte {
 	return internalKey("", parts...)
+}
+
+// ExactKey is like Key, except a Separator is appended to the result
+// path of Key. This is to ensure range matching of a path will only
+// math child paths and not other paths that have the resulting path
+// as a prefix.
+func ExactKey(parts ...string) []byte {
+	return append(Key(parts...), Separator)
 }
 
 func internalKey(internalPrefix string, parts ...string) []byte {

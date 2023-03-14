@@ -1,5 +1,5 @@
 #!/bin/bash
-if [[ "${DEBUG}" == "true" ]]; then
+if [[ "${DEBUG:-false}" == "true" ]]; then
     set -x
 fi
 
@@ -64,8 +64,8 @@ aws_metadata_get() {
 
     if ! is_test; then
         IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
-        IMDS_TOKEN_HEADER="-H \"X-aws-ec2-metadata-token: ${IMDS_TOKEN}\""
-        curl -m5 -sS "${IMDS_TOKEN_HEADER}" ${CURL_EXTRA_ARGS} http://169.254.169.254/latest/${REQUEST_PATH}
+        IMDS_TOKEN_HEADER="X-aws-ec2-metadata-token: ${IMDS_TOKEN}"
+        curl -m5 -sS -H "${IMDS_TOKEN_HEADER}" ${CURL_EXTRA_ARGS} http://169.254.169.254/latest/${REQUEST_PATH}
     else
         # return a pre-calculated value
         VARIABLE="TELEPORT_TESTVAR_${REQUEST}"
@@ -79,6 +79,49 @@ write_https_keypairs_section() {
     - cert_file: /var/lib/teleport/fullchain.pem
       key_file: /var/lib/teleport/privkey.pem
 EOS
+}
+
+write_database_section() {
+    # use the value of the variable name which was passed in
+    # this is done because there are two different ways of getting the external hostname
+    # depending on how the AMI is being used and we should support both
+    EXTERNAL_HOSTNAME="${!1}"
+    if [[ "${USE_ACM}" == "true" && "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
+        # if an alias for the ACM NLB is configured, use that for proxy's database public_addrs
+        if [[ "${TELEPORT_PROXY_SERVER_NLB_ALIAS}" != "" ]]; then
+            MYSQL_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_NLB_ALIAS}:3036'"
+            POSTGRES_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_NLB_ALIAS}:5432'"
+            MONGO_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_NLB_ALIAS}:27017'"
+        else
+            MYSQL_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_LB}:3036'"
+            POSTGRES_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_LB}:5432'"
+            MONGO_PUBLIC_ADDR="'${TELEPORT_PROXY_SERVER_LB}:27017'"
+        fi
+    else
+        MYSQL_PUBLIC_ADDR="'${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:3036'"
+        POSTGRES_PUBLIC_ADDR="'${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:5432'"
+        MONGO_PUBLIC_ADDR="'${EXTERNAL_HOSTNAME:-$PUBLIC_IP}:27017'"
+    fi
+   # set up the database listeners and public addresses
+    if [[ "${TELEPORT_ENABLE_MYSQL}" == "true" ]]; then
+    cat << EOS >> ${USE_CONFIG_PATH}
+  mysql_listen_addr: "0.0.0.0:3036"
+  mysql_public_addr: ${MYSQL_PUBLIC_ADDR}
+EOS
+   fi
+   # Add the postgres listener only if the POSTGRES_HOST is blank
+   if [[ "${TELEPORT_ENABLE_POSTGRES}" == "true" && "${POSTGRES_HOSTNAME}" == "" ]]; then
+    cat << EOS >> ${USE_CONFIG_PATH}
+  postgres_listen_addr: "0.0.0.0:5432"
+  postgres_public_addr: ${POSTGRES_PUBLIC_ADDR}
+EOS
+   fi
+   if [[ "${TELEPORT_ENABLE_MONGODB}" == "true" ]]; then
+    cat << EOS >> ${USE_CONFIG_PATH}
+  mongo_listen_addr: "0.0.0.0:27017"
+  mongo_public_addr: ${MONGO_PUBLIC_ADDR}
+EOS
+   fi
 }
 
 write_kubernetes_section() {
@@ -264,6 +307,7 @@ elif [[ "${TELEPORT_ROLE}" == "proxy" ]]; then
     # Teleport proxy proxies and optionally records
     # SSH sessions
     cat >${USE_CONFIG_PATH} <<EOF
+version: v3
 teleport:
   auth_token: /var/lib/teleport/token
   ca_pin: CA_PIN_HASH_PLACEHOLDER
@@ -281,8 +325,7 @@ teleport:
   storage:
     type: dir
     path: /var/lib/teleport/backend
-  auth_servers:
-    - ${TELEPORT_AUTH_SERVER_LB}:3025
+  auth_server: ${TELEPORT_AUTH_SERVER_LB}:3025
 
 auth_service:
   enabled: no
@@ -306,6 +349,9 @@ EOF
         write_https_keypairs_section
     fi
 
+    # set up the database listeners
+    write_database_section TELEPORT_DOMAIN_NAME
+
     # set up the kubernetes listener
     write_kubernetes_section TELEPORT_DOMAIN_NAME
 
@@ -328,6 +374,7 @@ elif [[ "${TELEPORT_ROLE}" == "node" ]]; then
     echo "node" > ${USE_CONFD_DIR}/role.node
     # Teleport node handles incoming connections
     cat >${USE_CONFIG_PATH} <<EOF
+version: v3
 teleport:
   auth_token: /var/lib/teleport/token
   ca_pin: CA_PIN_HASH_PLACEHOLDER
@@ -340,8 +387,7 @@ teleport:
   storage:
     type: dir
     path: /var/lib/teleport/backend
-  auth_servers:
-    - ${TELEPORT_AUTH_SERVER_LB}:3025
+  auth_server: ${TELEPORT_AUTH_SERVER_LB}:3025
 
 auth_service:
   enabled: no
@@ -423,6 +469,7 @@ auth_service:
   listen_addr: 0.0.0.0:3025
   authentication:
     ${AUTHENTICATION_STANZA}
+  cluster_name: ${TELEPORT_CLUSTER_NAME}
 EOF
 
     # copy and set up license if provided
@@ -457,6 +504,9 @@ EOF
         if [[ "${TELEPORT_DOMAIN_ADMIN_EMAIL}" != "" && "${TELEPORT_DOMAIN_NAME}" != "" && "${TELEPORT_S3_BUCKET}" != "" ]]; then
             write_https_keypairs_section
 
+            # set up the database listeners
+            write_database_section TELEPORT_EXTERNAL_HOSTNAME
+
             # set up the kubernetes listener
             write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
 
@@ -474,6 +524,9 @@ EOF
       fi
     elif [[ "${USE_ACM}" == "true" ]]; then
         echo "ACM support enabled"
+
+        # set up the database listeners
+        write_database_section TELEPORT_EXTERNAL_HOSTNAME
 
         # set up the kubernetes listener
         write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
@@ -519,6 +572,7 @@ auth_service:
   listen_addr: 0.0.0.0:3025
   authentication:
     ${AUTHENTICATION_STANZA}
+  cluster_name: ${TELEPORT_CLUSTER_NAME}
 
 ssh_service:
   enabled: yes
@@ -534,6 +588,9 @@ EOF
 
     # write ssh/tunnel config
     write_ssh_and_tunnel_section 3080
+
+    # set up the database listeners
+    write_database_section TELEPORT_EXTERNAL_HOSTNAME
 
     # set up the kubernetes listener
     write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
@@ -560,9 +617,6 @@ EOF
         fi
     elif [[ "${USE_ACM}" == "true" ]]; then
         echo "ACM support enabled"
-
-        # set up the kubernetes listener
-        write_kubernetes_section TELEPORT_EXTERNAL_HOSTNAME
 
         systemctl_wrap disable teleport.service
         systemctl_wrap stop --no-block teleport.service
@@ -713,13 +767,14 @@ EOF
 elif [[ "${TELEPORT_ROLE}" == "agent" ]]; then
     echo "agent" > ${USE_CONFD_DIR}/role.agent
     cat >${USE_CONFIG_PATH} <<EOF
+version: v3
 teleport:
   log:
     output: stderr
     severity: INFO
   data_dir: /var/lib/teleport
   auth_token: ${TELEPORT_JOIN_TOKEN}
-  auth_servers: ['${TELEPORT_PROXY_SERVER_LB}']
+  proxy_server: ${TELEPORT_PROXY_SERVER_LB}
 
 auth_service:
   enabled: no

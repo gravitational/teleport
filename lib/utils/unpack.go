@@ -19,15 +19,14 @@ package utils
 import (
 	"archive/tar"
 	"io"
-	"strings"
-
 	"os"
 	"path/filepath"
-
-	"github.com/gravitational/teleport"
+	"strings"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
 )
 
 // Extract extracts the contents of the specified tarball under dir. The
@@ -64,7 +63,7 @@ func extractFile(tarball *tar.Reader, header *tar.Header, dir string) error {
 	switch header.Typeflag {
 	case tar.TypeDir:
 		return withDir(filepath.Join(dir, header.Name), nil)
-	case tar.TypeBlock, tar.TypeChar, tar.TypeReg, tar.TypeRegA, tar.TypeFifo:
+	case tar.TypeBlock, tar.TypeChar, tar.TypeReg, tar.TypeFifo:
 		return writeFile(filepath.Join(dir, header.Name), tarball, header.FileInfo().Mode())
 	case tar.TypeLink:
 		return writeHardLink(filepath.Join(dir, header.Name), filepath.Join(dir, header.Linkname))

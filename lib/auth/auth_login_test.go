@@ -19,15 +19,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
-
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
@@ -73,8 +73,7 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorWebauthn,
 				U2F: &types.U2F{
-					AppID:  "https://localhost",
-					Facets: []string{"https://localhost"},
+					AppID: "https://localhost",
 				},
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
@@ -103,10 +102,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 				SecondFactor: constants.SecondFactorWebauthn,
 				U2F: &types.U2F{
 					AppID: "https://myoldappid.com",
-					Facets: []string{
-						"https://myoldappid.com",
-						"https://localhost",
-					},
 				},
 				Webauthn: &types.Webauthn{
 					RPID: "myexplicitid",
@@ -413,6 +408,7 @@ const sshPubKey = `ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzd
 func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
 	svr := newTestTLSServer(t)
 	authServer := svr.Auth()
 	mfa := configureForMFA(t, svr)
@@ -433,7 +429,7 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 		makeRun := func(authenticate func(*Server, AuthenticateUserRequest) error) func(t *testing.T) {
 			return func(t *testing.T) {
 				// 1st step: acquire challenge
-				challenge, err := authServer.CreateAuthenticateChallenge(context.Background(), &proto.CreateAuthenticateChallengeRequest{
+				challenge, err := authServer.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 					Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
 						Username: username,
 						Password: []byte(password),
@@ -444,7 +440,8 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 				// Solve challenge (client-side)
 				resp, err := test.solveChallenge(challenge)
 				authReq := AuthenticateUserRequest{
-					Username: username,
+					Username:  username,
+					PublicKey: []byte(sshPubKey),
 				}
 				require.NoError(t, err)
 
@@ -465,15 +462,14 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 			}
 		}
 		t.Run(test.name+"/ssh", makeRun(func(s *Server, req AuthenticateUserRequest) error {
-			_, err := s.AuthenticateSSHUser(AuthenticateSSHRequest{
+			_, err := s.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: req,
-				PublicKey:               []byte(sshPubKey),
 				TTL:                     24 * time.Hour,
 			})
 			return err
 		}))
 		t.Run(test.name+"/web", makeRun(func(s *Server, req AuthenticateUserRequest) error {
-			_, err := s.AuthenticateWebUser(req)
+			_, err := s.AuthenticateWebUser(ctx, req)
 			return err
 		}))
 	}
@@ -500,7 +496,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	// Create user and initial WebAuthn device (MFA).
 	const user = "llama"
 	const password = "p@ssw0rd"
-	_, _, err = CreateUserAndRole(authServer, user, []string{"llama", "root"})
+	_, _, err = CreateUserAndRole(authServer, user, []string{"llama", "root"}, nil)
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertPassword(user, []byte(password)))
 	userClient, err := svr.NewClient(TestUser(user))
@@ -562,12 +558,12 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 		{
 			name: "ssh",
 			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
-				loginResp, err := proxyClient.AuthenticateSSHUser(AuthenticateSSHRequest{
+				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 					AuthenticateUserRequest: AuthenticateUserRequest{
-						Webauthn: resp,
+						Webauthn:  resp,
+						PublicKey: []byte(sshPubKey),
 					},
-					PublicKey: []byte(sshPubKey),
-					TTL:       24 * time.Hour,
+					TTL: 24 * time.Hour,
 				})
 				require.NoError(t, err, "Failed to perform passwordless authentication")
 				require.NotNil(t, loginResp, "SSH response nil")
@@ -578,7 +574,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 		{
 			name: "web",
 			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
-				session, err := proxyClient.AuthenticateWebUser(AuthenticateUserRequest{
+				session, err := proxyClient.AuthenticateWebUser(ctx, AuthenticateUserRequest{
 					Webauthn: resp,
 				})
 				require.NoError(t, err, "Failed to perform passwordless authentication")
@@ -589,13 +585,13 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Fail a login attempt so have a non-empty list of attempts.
-			_, err := proxyClient.AuthenticateSSHUser(AuthenticateSSHRequest{
+			_, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: AuthenticateUserRequest{
-					Username: user,
-					Webauthn: &wanlib.CredentialAssertionResponse{}, // bad response
+					Username:  user,
+					Webauthn:  &wanlib.CredentialAssertionResponse{}, // bad response
+					PublicKey: []byte(sshPubKey),
 				},
-				PublicKey: []byte(sshPubKey),
-				TTL:       24 * time.Hour,
+				TTL: 24 * time.Hour,
 			})
 			require.True(t, trace.IsAccessDenied(err), "got err = %v, want AccessDenied")
 			attempts, err := authServer.GetUserLoginAttempts(user)
@@ -671,7 +667,9 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			mfaResp, err := test.dev.SolveAuthn(mfaChallenge)
 			require.NoError(t, err)
 
-			var req AuthenticateUserRequest
+			req := AuthenticateUserRequest{
+				PublicKey: []byte(sshPubKey),
+			}
 			switch {
 			case mfaResp.GetWebauthn() != nil:
 				req.Webauthn = wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn())
@@ -683,22 +681,21 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			}
 
 			// SSH.
-			_, err = proxyClient.AuthenticateSSHUser(AuthenticateSSHRequest{
+			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: req,
-				PublicKey:               []byte(sshPubKey),
 				TTL:                     24 * time.Hour,
 			})
 			require.Error(t, err, "SSH authentication expected fail (missing username)")
 			require.Contains(t, err.Error(), test.wantErr)
 
 			// Web.
-			_, err = proxyClient.AuthenticateWebUser(req)
+			_, err = proxyClient.AuthenticateWebUser(ctx, req)
 			require.Error(t, err, "Web authentication expected fail (missing username)")
 			require.Contains(t, err.Error(), test.wantErr)
 
 			// Get one right so we don't lock the user between tests.
 			req.Username = username
-			_, err = proxyClient.AuthenticateWebUser(req)
+			_, err = proxyClient.AuthenticateWebUser(ctx, req)
 			require.NoError(t, err, "Web authentication expected to succeed")
 		})
 	}
@@ -727,7 +724,7 @@ func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 	// Create user with a default password.
 	const username = "llama@goteleport.com"
 	const password = "supersecurepass"
-	_, _, err = CreateUserAndRole(authServer, username, []string{"llama", "root"})
+	_, _, err = CreateUserAndRole(authServer, username, []string{"llama", "root"}, nil)
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertPassword(username, []byte(password)))
 

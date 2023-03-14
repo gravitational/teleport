@@ -27,20 +27,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/teleport/api/utils/sshutils"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
+
+	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 const (
 	// profileDir is the default root directory where tsh stores profiles.
 	profileDir = ".tsh"
-	// currentProfileFilename is a file which stores the name of the
-	// currently active profile.
-	currentProfileFilename = "current-profile"
 )
 
 // Profile is a collection of most frequently used CLI flags
@@ -48,7 +46,6 @@ const (
 //
 // Profiles can be stored in a profile file, allowing TSH users to
 // type fewer CLI args.
-//
 type Profile struct {
 	// WebProxyAddr is the host:port the web proxy can be accessed at.
 	WebProxyAddr string `yaml:"web_proxy_addr,omitempty"`
@@ -71,10 +68,7 @@ type Profile struct {
 	// Username is the Teleport username for the client.
 	Username string `yaml:"user,omitempty"`
 
-	// AuthType (like "google")
-	AuthType string `yaml:"auth_type,omitempty"`
-
-	// SiteName is equivalient to --cluster argument
+	// SiteName is equivalent to the --cluster flag
 	SiteName string `yaml:"cluster,omitempty"`
 
 	// ForwardedPorts is the list of ports to forward to the target node.
@@ -90,6 +84,30 @@ type Profile struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool `yaml:"tls_routing_enabled,omitempty"`
+
+	// AuthConnector (like "google", "passwordless").
+	// Equivalent to the --auth tsh flag.
+	AuthConnector string `yaml:"auth_connector,omitempty"`
+
+	// LoadAllCAs indicates that tsh should load the CAs of all clusters
+	// instead of just the current cluster.
+	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
+
+	// MFAMode ("auto", "platform", "cross-platform").
+	// Equivalent to the --mfa-mode tsh flag.
+	MFAMode string `yaml:"mfa_mode,omitempty"`
+
+	// PrivateKeyPolicy is a key policy enforced for this profile.
+	PrivateKeyPolicy keys.PrivateKeyPolicy `yaml:"private_key_policy"`
+}
+
+// Copy returns a shallow copy of p, or nil if p is nil.
+func (p *Profile) Copy() *Profile {
+	if p == nil {
+		return nil
+	}
+	copy := *p
+	return &copy
 }
 
 // Name returns the name of the profile.
@@ -104,13 +122,46 @@ func (p *Profile) Name() string {
 
 // TLSConfig returns the profile's associated TLSConfig.
 func (p *Profile) TLSConfig() (*tls.Config, error) {
-	cert, err := tls.LoadX509KeyPair(p.TLSCertPath(), p.UserKeyPath())
+	cert, err := keys.LoadX509KeyPair(p.TLSCertPath(), p.UserKeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	pool, err := certPoolFromProfile(p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      pool,
+	}, nil
+}
+
+func certPoolFromProfile(p *Profile) (*x509.CertPool, error) {
+	// Check if CAS dir exist if not try to load certs from legacy certs.pem file.
+	if _, err := os.Stat(p.TLSClusterCASDir()); err != nil {
+		if !os.IsNotExist(err) {
+			return nil, trace.Wrap(err)
+		}
+		pool, err := certPoolFromLegacyCAFile(p)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return pool, nil
+	}
+
+	// Load CertPool from CAS directory.
+	pool, err := certPoolFromCASDir(p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pool, nil
+}
+
+func certPoolFromCASDir(p *Profile) (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
-	err = filepath.Walk(p.TLSClusterCASDir(), func(path string, info fs.FileInfo, err error) error {
+	err := filepath.Walk(p.TLSClusterCASDir(), func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -129,11 +180,19 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return pool, nil
+}
 
-	return &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		RootCAs:      pool,
-	}, nil
+func certPoolFromLegacyCAFile(p *Profile) (*x509.CertPool, error) {
+	caCerts, err := os.ReadFile(p.TLSCAsPath())
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(caCerts) {
+		return nil, trace.BadParameter("invalid CA cert PEM")
+	}
+	return pool, nil
 }
 
 // SSHClientConfig returns the profile's associated SSHClientConfig.
@@ -143,7 +202,7 @@ func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := os.ReadFile(p.UserKeyPath())
+	sshCert, err := sshutils.ParseCertificate(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -153,7 +212,12 @@ func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	ssh, err := sshutils.ProxyClientSSHConfig(cert, key, [][]byte{caCerts})
+	priv, err := keys.LoadPrivateKey(p.UserKeyPath())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ssh, err := sshutils.ProxyClientSSHConfig(sshCert, priv, caCerts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -166,10 +230,20 @@ func SetCurrentProfileName(dir string, name string) error {
 		return trace.BadParameter("cannot set current profile: missing dir")
 	}
 
-	path := filepath.Join(dir, currentProfileFilename)
+	path := keypaths.CurrentProfileFilePath(dir)
 	if err := os.WriteFile(path, []byte(strings.TrimSpace(name)+"\n"), 0660); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+// RemoveProfile removes cluster profile file
+func RemoveProfile(dir, name string) error {
+	profilePath := filepath.Join(dir, name+".yaml")
+	if err := os.Remove(profilePath); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
 	return nil
 }
 
@@ -179,7 +253,7 @@ func GetCurrentProfileName(dir string) (name string, err error) {
 		return "", trace.BadParameter("cannot get current profile: missing dir")
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, currentProfileFilename))
+	data, err := os.ReadFile(keypaths.CurrentProfileFilePath(dir))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", trace.NotFound("current-profile is not set")
@@ -251,7 +325,7 @@ func FromDir(dir string, name string) (*Profile, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	p, err := profileFromFile(filepath.Join(dir, name+".yaml"))
+	p, err := profileFromFile(keypaths.ProfileFilePath(dir, name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -285,7 +359,7 @@ func (p *Profile) SaveToDir(dir string, makeCurrent bool) error {
 	if dir == "" {
 		return trace.BadParameter("cannot save profile: missing dir")
 	}
-	if err := p.saveToFile(filepath.Join(dir, p.Name()+".yaml")); err != nil {
+	if err := p.saveToFile(keypaths.ProfileFilePath(dir, p.Name())); err != nil {
 		return trace.Wrap(err)
 	}
 	if makeCurrent {
@@ -326,6 +400,11 @@ func (p *Profile) TLSCertPath() string {
 	return keypaths.TLSCertPath(p.Dir, p.Name(), p.Username)
 }
 
+// TLSCAsLegacyPath returns the path to the profile's TLS certificate authorities.
+func (p *Profile) TLSCAsLegacyPath() string {
+	return keypaths.TLSCAsPath(p.Dir, p.Name())
+}
+
 // TLSCAPathCluster returns CA for particular cluster.
 func (p *Profile) TLSCAPathCluster(cluster string) string {
 	return keypaths.TLSCAsPathCluster(p.Dir, p.Name(), cluster)
@@ -336,6 +415,11 @@ func (p *Profile) TLSClusterCASDir() string {
 	return keypaths.CAsDir(p.Dir, p.Name())
 }
 
+// TLSCAsPath returns the legacy path to the profile's TLS certificate authorities.
+func (p *Profile) TLSCAsPath() string {
+	return keypaths.TLSCAsPath(p.Dir, p.Name())
+}
+
 // SSHDir returns the path to the profile's ssh directory.
 func (p *Profile) SSHDir() string {
 	return keypaths.SSHDir(p.Dir, p.Name(), p.Username)
@@ -344,6 +428,11 @@ func (p *Profile) SSHDir() string {
 // SSHCertPath returns the path to the profile's ssh certificate.
 func (p *Profile) SSHCertPath() string {
 	return keypaths.SSHCertPath(p.Dir, p.Name(), p.Username, p.SiteName)
+}
+
+// PPKFilePath returns the path to the profile's PuTTY PPK-formatted keypair.
+func (p *Profile) PPKFilePath() string {
+	return keypaths.PPKFilePath(p.Dir, p.Name(), p.Username)
 }
 
 // KnownHostsPath returns the path to the profile's ssh certificate authorities.

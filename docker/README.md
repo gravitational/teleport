@@ -3,7 +3,7 @@
 This directory contains Docker-based flow to run Teleport clusters locally
 for testing & development purposes.
 
-### Building 
+### Building
 
 First, you need to build `teleport:latest` Docker image.
 
@@ -15,7 +15,7 @@ $ cd docker
 $ make build
 ```
 
-### Starting 
+### Starting
 
 ```bash
 $ make up
@@ -42,10 +42,10 @@ $ make export-certs
 
 ### Configuration
 
-Look at the [Makefile](Makefile): the containers are started with their 
-`/var/lib/teleport` mounted to `data/one` or `data/two` on a host. 
+Look at the [Makefile](Makefile): the containers are started with their
+`/var/lib/teleport` mounted to `data/one` or `data/two` on a host.
 
-The configuration is passed via YAML files located in `/teleport/docker/xxx.yaml` 
+The configuration is passed via YAML files located in `/teleport/docker/xxx.yaml`
 inside each container.
 
 Since the cluster data is preserved between restarts, so you can edit the configuration
@@ -79,12 +79,10 @@ For cluster "two":
 $ make enter-two
 ```
 
-... and then you can use stuff like `tctl users add`, etc. Make sure to pass 
+... and then you can use stuff like `tctl users add`, etc. Make sure to pass
 the YAML file to `tctl` via `-c` flag.
 
-### Trusted Clusters
-
-#### Trusted Clusters with Resources
+### Trusted Clusters with Resources
 
 1. Update `two-role.yaml` and replace `username_goes_here` with your username.
 1. Create a `Role` and `TrustedCluster` resource on Cluster Two.
@@ -94,41 +92,6 @@ the YAML file to `tctl` via `-c` flag.
     tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml create -f docker/two-role-admin.yaml
     tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml create -f docker/two-tc.yaml
     ```
-
-#### Trusted Clusters with File Configuration
-
-##### Export CAs
-
-Run the following commands to export your CAs.
-
-```bash
-# enter cluster two and export ca
-make enter-two
-tctl -c /root/go/src/github.com/gravitational/teleport/docker/two-auth.yaml auth export > docker/data/two/two.ca
-exit
-
-# enter cluster one and export ca
-make enter-one
-tctl auth export > docker/data/one/one.ca
-exit
-```
-
-##### Upate Configuration
-
-Stop both clusters with `make stop`, update the file configuration for both clusters, and start again with `make`.
-
-```bash
-# update docker/one.yaml with the following under "auth_service"
-trusted_clusters:
-  - key_file: /root/go/src/github.com/gravitational/teleport/docker/data/two/two.ca
-```
-```bash
-# update docker/two-auth.yaml with the following under "auth_service"
-trusted_clusters:
-  - key_file: /root/go/src/github.com/gravitational/teleport/docker/data/one/one.ca
-    allow_logins: root
-    tunnel_addr: one
-```
 
 ### Ansible
 
@@ -174,7 +137,7 @@ To setup Ansible:
     ```bash
     $ ansible all -m ping
     172.10.1.2 | success >> {
-        "changed": false, 
+        "changed": false,
         "ping": "pong"
     }
     ```
@@ -188,13 +151,13 @@ To setup Ansible:
     # run playbook
     ansible-playbook playbook.yaml
     ```
-    
+
 ### Interactive Usage
 
-Also you can start an empty container from which you can manually invoke `teleport start`. 
+Also you can start an empty container from which you can manually invoke `teleport start`.
 This is similar to launching an empty Linux VM with a Teleport binary.
 
-To get shell inside the same "one" (single-node cluster) container without 
+To get shell inside the same "one" (single-node cluster) container without
 Teleport running:
 
 ```bash
@@ -203,7 +166,7 @@ $ make shell
 
 NOTE: If you get "network already exists" error, do `make stop` first.
 
-Once inside, you'll get the same `/var/lib/teleport` as "one", so you 
+Once inside, you'll get the same `/var/lib/teleport` as "one", so you
 can start (and even build) `teleport` daemon manually. This container also
 comes with a fully configured `screen` so you can treat it as a real VM.
 

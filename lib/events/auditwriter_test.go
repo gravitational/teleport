@@ -19,19 +19,20 @@ package events
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"errors"
 	"io"
-	"math/rand"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/trace"
-
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 )
 
 // TestAuditWriter tests audit writer - a component used for
@@ -80,15 +81,14 @@ func TestAuditWriter(t *testing.T) {
 
 	// ResumeStart resumes stream after it was broken at the start of transmission
 	t.Run("ResumeStart", func(t *testing.T) {
-		streamCreated := atomic.NewUint64(0)
-		terminateConnection := atomic.NewUint64(1)
-		streamResumed := atomic.NewUint64(0)
+		var streamCreated, terminateConnection, streamResumed atomic.Uint64
+		terminateConnection.Store(1)
 
 		test := newAuditWriterTest(t, func(streamer Streamer) (*CallbackStreamer, error) {
 			return NewCallbackStreamer(CallbackStreamerConfig{
 				Inner: streamer,
 				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
-					if event.GetIndex() > 1 && terminateConnection.CAS(1, 0) == true {
+					if event.GetIndex() > 1 && terminateConnection.CompareAndSwap(1, 0) == true {
 						log.Debugf("Terminating connection at event %v", event.GetIndex())
 						return trace.ConnectionProblem(nil, "connection terminated")
 					}
@@ -97,7 +97,7 @@ func TestAuditWriter(t *testing.T) {
 				OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.CreateAuditStream(ctx, sid)
 					require.NoError(t, err)
-					if streamCreated.Inc() == 1 {
+					if streamCreated.Add(1) == 1 {
 						// simulate status update loss
 						select {
 						case <-stream.Status():
@@ -111,7 +111,7 @@ func TestAuditWriter(t *testing.T) {
 				OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
 					require.NoError(t, err)
-					streamResumed.Inc()
+					streamResumed.Add(1)
 					return stream, nil
 				},
 			})
@@ -143,15 +143,14 @@ func TestAuditWriter(t *testing.T) {
 
 	// ResumeMiddle resumes stream after it was broken in the middle of transmission
 	t.Run("ResumeMiddle", func(t *testing.T) {
-		streamCreated := atomic.NewUint64(0)
-		terminateConnection := atomic.NewUint64(1)
-		streamResumed := atomic.NewUint64(0)
+		var streamCreated, terminateConnection, streamResumed atomic.Uint64
+		terminateConnection.Store(1)
 
 		test := newAuditWriterTest(t, func(streamer Streamer) (*CallbackStreamer, error) {
 			return NewCallbackStreamer(CallbackStreamerConfig{
 				Inner: streamer,
 				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
-					if event.GetIndex() > 600 && terminateConnection.CAS(1, 0) == true {
+					if event.GetIndex() > 600 && terminateConnection.CompareAndSwap(1, 0) == true {
 						log.Debugf("Terminating connection at event %v", event.GetIndex())
 						return trace.ConnectionProblem(nil, "connection terminated")
 					}
@@ -160,13 +159,13 @@ func TestAuditWriter(t *testing.T) {
 				OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.CreateAuditStream(ctx, sid)
 					require.NoError(t, err)
-					streamCreated.Inc()
+					streamCreated.Add(1)
 					return stream, nil
 				},
 				OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
 					require.NoError(t, err)
-					streamResumed.Inc()
+					streamResumed.Add(1)
 					return stream, nil
 				},
 			})
@@ -198,9 +197,8 @@ func TestAuditWriter(t *testing.T) {
 
 	// Backoff loses the events on emitter hang, but does not lock
 	t.Run("Backoff", func(t *testing.T) {
-		streamCreated := atomic.NewUint64(0)
-		terminateConnection := atomic.NewUint64(1)
-		streamResumed := atomic.NewUint64(0)
+		var streamCreated, terminateConnection, streamResumed atomic.Uint64
+		terminateConnection.Store(1)
 
 		submitEvents := 600
 		hangCtx, hangCancel := context.WithCancel(context.TODO())
@@ -210,7 +208,7 @@ func TestAuditWriter(t *testing.T) {
 			return NewCallbackStreamer(CallbackStreamerConfig{
 				Inner: streamer,
 				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
-					if event.GetIndex() >= int64(submitEvents-1) && terminateConnection.CAS(1, 0) == true {
+					if event.GetIndex() >= int64(submitEvents-1) && terminateConnection.CompareAndSwap(1, 0) == true {
 						log.Debugf("Locking connection at event %v", event.GetIndex())
 						<-hangCtx.Done()
 						return trace.ConnectionProblem(hangCtx.Err(), "stream hangs")
@@ -220,13 +218,13 @@ func TestAuditWriter(t *testing.T) {
 				OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.CreateAuditStream(ctx, sid)
 					require.NoError(t, err)
-					streamCreated.Inc()
+					streamCreated.Add(1)
 					return stream, nil
 				},
 				OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer Streamer) (apievents.Stream, error) {
 					stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
 					require.NoError(t, err)
-					streamResumed.Inc()
+					streamResumed.Add(1)
 					return stream, nil
 				},
 			})
@@ -285,6 +283,35 @@ func TestAuditWriter(t *testing.T) {
 		for _, event := range emittedEvents {
 			require.Equal(t, event.GetClusterName(), "cluster")
 		}
+	})
+
+	t.Run("NonRecoverable", func(t *testing.T) {
+		test := newAuditWriterTest(t, func(streamer Streamer) (*CallbackStreamer, error) {
+			return NewCallbackStreamer(CallbackStreamerConfig{
+				Inner: streamer,
+				OnEmitAuditEvent: func(_ context.Context, _ session.ID, _ apievents.AuditEvent) error {
+					// Returns an unrecoverable error.
+					return errors.New(uploaderReservePartErrorMessage)
+				},
+			})
+		})
+
+		// First event will not fail since it is processed in the goroutine.
+		events := GenerateTestSession(SessionParams{SessionID: string(test.sid)})
+		require.NoError(t, test.writer.EmitAuditEvent(test.ctx, events[1]))
+
+		// Subsequent events will fail.
+		err := test.writer.EmitAuditEvent(test.ctx, events[1])
+		require.Error(t, err)
+
+		require.Eventually(t, func() bool {
+			select {
+			case <-test.writer.Done():
+				return true
+			default:
+				return false
+			}
+		}, 300*time.Millisecond, 100*time.Millisecond)
 	})
 }
 
@@ -387,4 +414,71 @@ func (a *auditWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 
 func (a *auditWriterTest) Close(ctx context.Context) error {
 	return a.writer.Close(ctx)
+}
+
+func TestIsPermanentEmitError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "badParameter err",
+			err:  trace.BadParameter(""),
+			want: true,
+		},
+		{
+			name: "agg badParameter and nil",
+			err:  trace.NewAggregate(trace.BadParameter(""), nil),
+			want: true,
+		},
+		{
+			name: "agg badParameter and badParameter",
+			err: trace.NewAggregate(
+				trace.BadParameter(""),
+				trace.BadParameter(""),
+			),
+			want: true,
+		},
+		{
+			name: "agg badParameter and accessDenied",
+			err: trace.NewAggregate(
+				trace.BadParameter(""),
+				trace.AccessDenied(""),
+			),
+			want: false,
+		},
+		{
+			name: "add accessDenied and badParameter",
+			err: trace.NewAggregate(
+				trace.AccessDenied(""),
+				trace.BadParameter(""),
+			),
+			want: false,
+		},
+		{
+			name: "agg badParameter with wrap",
+			err: trace.Wrap(
+				trace.NewAggregate(
+					trace.Wrap(trace.BadParameter("")),
+					trace.Wrap(trace.BadParameter(""))),
+			),
+			want: true,
+		},
+		{
+			name: "agg badParameter and accessDenied with wrap",
+			err: trace.Wrap(
+				trace.NewAggregate(
+					trace.Wrap(trace.BadParameter("")),
+					trace.Wrap(trace.AccessDenied(""))),
+			),
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsPermanentEmitError(tt.err)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

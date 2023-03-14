@@ -21,21 +21,24 @@ package httplib
 import (
 	"encoding/json"
 	"errors"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // timeoutMessage is a generic "timeout" error message that is displayed as a more user-friendly alternative to
@@ -57,12 +60,51 @@ func MakeHandler(fn HandlerFunc) httprouter.Handle {
 	return MakeHandlerWithErrorWriter(fn, trace.WriteError)
 }
 
+// MakeSecurityHeaderHandler returns a new httprouter.Handle func that wraps the provided handler func
+// with one that will ensure the headers from SetDefaultSecurityHeaders are applied.
+func MakeSecurityHeaderHandler(h http.Handler) http.Handler {
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		SetDefaultSecurityHeaders(w.Header())
+
+		h.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(handler)
+}
+
+// MakeTracingHandler returns a new httprouter.Handle func that wraps the provided handler func
+// with one that will add a tracing span for each request.
+func MakeTracingHandler(h http.Handler, component string) http.Handler {
+	// Wrap the provided handler with one that will inject
+	// any propagated tracing context provided via a query parameter
+	// if there isn't already a header containing tracing context.
+	// This is required for scenarios using web sockets as headers
+	// cannot be modified to inject the tracing context.
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		// ensure headers have priority over query parameters
+		if r.Header.Get(tracing.TraceParent) != "" {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		traceParent := r.URL.Query()[tracing.TraceParent]
+		if len(traceParent) > 0 {
+			r.Header.Add(tracing.TraceParent, traceParent[0])
+		}
+
+		h.ServeHTTP(w, r)
+	}
+
+	return otelhttp.NewHandler(http.HandlerFunc(handler), component, otelhttp.WithSpanNameFormatter(tracehttp.HandlerFormatter))
+}
+
 // MakeHandlerWithErrorWriter returns a httprouter.Handle from the HandlerFunc,
 // and sends all errors to ErrorWriter.
 func MakeHandlerWithErrorWriter(fn HandlerFunc, errWriter ErrorWriter) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		// ensure that neither proxies nor browsers cache http traffic
 		SetNoCacheHeaders(w.Header())
+		// ensure that default security headers are set
+		SetDefaultSecurityHeaders(w.Header())
 
 		out, err := fn(w, r, p)
 		if err != nil {
@@ -75,17 +117,14 @@ func MakeHandlerWithErrorWriter(fn HandlerFunc, errWriter ErrorWriter) httproute
 	}
 }
 
-// MakeStdHandler returns a new http.Handle func from http.HandlerFunc
-func MakeStdHandler(fn StdHandlerFunc) http.HandlerFunc {
-	return MakeStdHandlerWithErrorWriter(fn, trace.WriteError)
-}
-
 // MakeStdHandlerWithErrorWriter returns a http.HandlerFunc from the
 // StdHandlerFunc, and sends all errors to ErrorWriter.
 func MakeStdHandlerWithErrorWriter(fn StdHandlerFunc, errWriter ErrorWriter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// ensure that neither proxies nor browsers cache http traffic
 		SetNoCacheHeaders(w.Header())
+		// ensure that default security headers are set
+		SetDefaultSecurityHeaders(w.Header())
 
 		out, err := fn(w, r)
 		if err != nil {
@@ -115,6 +154,18 @@ func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
 // ReadJSON reads HTTP json request and unmarshals it
 // into passed interface{} obj
 func ReadJSON(r *http.Request, val interface{}) error {
+	// Check content type to mitigate CSRF attack.
+	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		log.Warningf("Error parsing media type for reading JSON: %v", err)
+		return trace.BadParameter("invalid request")
+	}
+
+	if contentType != "application/json" {
+		log.Warningf("Invalid HTTP request header content-type %q for reading JSON", contentType)
+		return trace.BadParameter("invalid request")
+	}
+
 	data, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPRequestSize)
 	if err != nil {
 		return trace.Wrap(err)
@@ -129,10 +180,12 @@ func ReadJSON(r *http.Request, val interface{}) error {
 // based on HTTP response code and HTTP body contents
 func ConvertResponse(re *roundtrip.Response, err error) (*roundtrip.Response, error) {
 	if err != nil {
-		if uerr, ok := err.(*url.Error); ok && uerr != nil && uerr.Err != nil {
-			return nil, trace.ConnectionProblem(uerr.Err, uerr.Error())
+		var uErr *url.Error
+		if errors.As(err, &uErr) && uErr.Err != nil {
+			return nil, trace.ConnectionProblem(uErr.Err, "")
 		}
-		if nerr, ok := errors.Unwrap(err).(net.Error); ok && nerr.Timeout() {
+		var nErr net.Error
+		if errors.As(err, &nErr) && nErr.Timeout() {
 			// Using `ConnectionProblem` instead of `LimitExceeded` allows us to preserve the original error
 			// while adding a more user-friendly message.
 			return nil, trace.ConnectionProblem(err, timeoutMessage)
@@ -193,4 +246,52 @@ func SafeRedirect(w http.ResponseWriter, r *http.Request, redirectURL string) er
 	}
 	http.Redirect(w, r, parsedURL.RequestURI(), http.StatusFound)
 	return nil
+}
+
+// ResponseStatusRecorder is an http.ResponseWriter that records the response status code.
+type ResponseStatusRecorder struct {
+	http.ResponseWriter
+	flusher http.Flusher
+	status  int
+}
+
+// NewResponseStatusRecorder makes and returns a ResponseStatusRecorder.
+func NewResponseStatusRecorder(w http.ResponseWriter) *ResponseStatusRecorder {
+	rec := &ResponseStatusRecorder{ResponseWriter: w}
+	if flusher, ok := w.(http.Flusher); ok {
+		rec.flusher = flusher
+	}
+	return rec
+}
+
+// WriteHeader sends an HTTP response header with the provided
+// status code and save the status code in the recorder.
+func (r *ResponseStatusRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+
+// Flush optionally flushes the inner ResponseWriter if it supports that.
+// Otherwise, Flush is a noop.
+//
+// Flush is optionally used by github.com/gravitational/oxy/forward to flush
+// pending data on streaming HTTP responses (like streaming pod logs).
+//
+// Without this, oxy/forward will handle streaming responses by accumulating
+// ~32kb of response in a buffer before flushing it.
+func (r *ResponseStatusRecorder) Flush() {
+	if r.flusher != nil {
+		r.flusher.Flush()
+	}
+}
+
+// Status returns the recorded status after WriteHeader is called, or StatusOK if WriteHeader hasn't been called
+// explicitly.
+func (r *ResponseStatusRecorder) Status() int {
+	// http.ResponseWriter implicitly sets StatusOK, if WriteHeader hasn't been
+	// explicitly called.
+	if r.status == 0 {
+		return http.StatusOK
+	}
+	return r.status
 }

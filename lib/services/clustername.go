@@ -17,12 +17,11 @@ limitations under the License.
 package services
 
 import (
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/uuid"
 )
 
 // NewClusterNameWithRandomID creates a ClusterName, supplying a random

@@ -38,7 +38,7 @@ limitations under the License.
 // using connection URI instead of host + port combination.
 // Example:
 //
-//  - name: "redis-cluster"
-//    protocol: "redis"
-//    uri: "rediss://redis.example.com:6379?mode=cluster"
+//   - name: "redis-cluster"
+//     protocol: "redis"
+//     uri: "rediss://redis.example.com:6379?mode=cluster"
 package redis

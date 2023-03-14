@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"unsafe"
 
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/trace"
@@ -74,12 +75,14 @@ func (t *ipTrie) toKey(n net.IPNet) []byte {
 
 // Add upserts (prefixLen, prefix) -> value entry in BPF trie
 func (t *ipTrie) add(n net.IPNet) error {
-	return t.bpfMap.Update(t.toKey(n), unit)
+	key := t.toKey(n)
+	return t.bpfMap.Update(unsafe.Pointer(&key[0]), unsafe.Pointer(&unit[0]))
 }
 
 // Remove removes the entry for the given network
 func (t *ipTrie) remove(n net.IPNet) error {
-	return t.bpfMap.DeleteKey(t.toKey(n))
+	key := t.toKey(n)
+	return t.bpfMap.DeleteKey(unsafe.Pointer(&key[0]))
 }
 
 // cmp is 3-way integral compare

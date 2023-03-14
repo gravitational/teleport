@@ -21,24 +21,24 @@ import (
 	"io"
 	"net"
 
-	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types/events"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
-func init() {
-	common.RegisterEngine(newEngine, defaults.ProtocolSQLServer)
-}
-
-func newEngine(ec common.EngineConfig) common.Engine {
+// NewEngine create new SQL Server engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 		Connector: &connector{
-			Auth: ec.Auth,
+			DBAuth:     ec.Auth,
+			AuthClient: ec.AuthClient,
+			DataDir:    ec.DataDir,
 		},
 	}
 }
@@ -99,13 +99,77 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	// Start proxying packets between client and server.
-	err = e.proxy(ctx, serverConn)
-	if err != nil {
-		return trace.Wrap(err)
+	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
+	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
+
+	clientErrCh := make(chan error, 1)
+	serverErrCh := make(chan error, 1)
+	go e.receiveFromClient(e.clientConn, serverConn, clientErrCh, sessionCtx)
+	go e.receiveFromServer(serverConn, e.clientConn, serverErrCh)
+
+	select {
+	case err := <-clientErrCh:
+		e.Log.WithError(err).Debug("Client done.")
+	case err := <-serverErrCh:
+		e.Log.WithError(err).Debug("Server done.")
+	case <-ctx.Done():
+		e.Log.Debug("Context canceled.")
 	}
 
 	return nil
+}
+
+// receiveFromClient relays protocol messages received from  SQL Server client
+// to SQL Server database.
+func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, clientErrCh chan<- error, sessionCtx *common.Session) {
+	defer func() {
+		if r := recover(); r != nil {
+			e.Log.Warnf("Recovered while handling DB connection %v", r)
+			err := trace.BadParameter("failed to handle client connection")
+			e.SendError(err)
+		}
+		serverConn.Close()
+		e.Log.Debug("Stop receiving from client.")
+		close(clientErrCh)
+	}()
+	for {
+		p, err := protocol.ReadPacket(clientConn)
+		if err != nil {
+			if utils.IsOKNetworkError(err) {
+				e.Log.Debug("Client connection closed.")
+				return
+			}
+			e.Log.WithError(err).Error("Failed to read client packet.")
+			clientErrCh <- err
+			return
+		}
+
+		sqlPacket, err := protocol.ToSQLPacket(p)
+		switch {
+		case err != nil:
+			e.Log.WithError(err).Errorf("Failed to parse SQLServer packet.")
+			e.emitMalformedPacket(e.Context, sessionCtx, p)
+		default:
+			e.auditPacket(e.Context, sessionCtx, sqlPacket)
+		}
+
+		_, err = serverConn.Write(p.Bytes())
+		if err != nil {
+			e.Log.WithError(err).Error("Failed to write server packet.")
+			clientErrCh <- err
+			return
+		}
+	}
+}
+
+// receiveFromServer relays protocol messages received from MySQL database
+// to MySQL client.
+func (e *Engine) receiveFromServer(serverConn, clientConn io.ReadWriteCloser, serverErrCh chan<- error) {
+	defer clientConn.Close()
+	_, err := io.Copy(clientConn, serverConn)
+	if err != nil && !utils.IsOKNetworkError(err) {
+		serverErrCh <- trace.Wrap(err)
+	}
 }
 
 // handleLogin7 processes Login7 packet received from the client.
@@ -127,20 +191,15 @@ func (e *Engine) handleLogin7(sessionCtx *common.Session) (*protocol.Login7Packe
 }
 
 func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
-	ap, err := e.Auth.GetAuthPreference(ctx)
+	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	mfaParams := services.AccessMFAParams{
-		Verified:       sessionCtx.Identity.MFAVerified != "",
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
-
-	err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, mfaParams,
-		&services.DatabaseUserMatcher{
-			User: sessionCtx.DatabaseUser,
-		})
+	state := sessionCtx.GetAccessState(authPref)
+	err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, state,
+		services.NewDatabaseUserMatcher(sessionCtx.Database, sessionCtx.DatabaseUser),
+	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)
@@ -148,34 +207,34 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 
 	return nil
 }
+func (e *Engine) emitMalformedPacket(ctx context.Context, sessCtx *common.Session, packet protocol.Packet) {
+	e.Audit.EmitEvent(ctx, &events.DatabaseSessionMalformedPacket{
+		Metadata: common.MakeEventMetadata(sessCtx,
+			libevents.DatabaseSessionMalformedPacketEvent,
+			libevents.DatabaseSessionMalformedPacketCode,
+		),
+		UserMetadata:     common.MakeUserMetadata(sessCtx),
+		SessionMetadata:  common.MakeSessionMetadata(sessCtx),
+		DatabaseMetadata: common.MakeDatabaseMetadata(sessCtx),
+		Payload:          packet.Bytes(),
+	})
+}
 
-// proxy proxies all traffic between the client and server connections.
-func (e *Engine) proxy(ctx context.Context, serverConn io.ReadWriteCloser) error {
-	errCh := make(chan error, 2)
-
-	go func() {
-		defer serverConn.Close()
-		_, err := io.Copy(serverConn, e.clientConn)
-		errCh <- err
-	}()
-
-	go func() {
-		defer serverConn.Close()
-		_, err := io.Copy(e.clientConn, serverConn)
-		errCh <- err
-	}()
-
-	var errs []error
-	for i := 0; i < 2; i++ {
-		select {
-		case err := <-errCh:
-			if err != nil && !utils.IsOKNetworkError(err) {
-				errs = append(errs, err)
-			}
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
-		}
+func (e *Engine) auditPacket(ctx context.Context, sessCtx *common.Session, packet protocol.Packet) {
+	switch t := packet.(type) {
+	case *protocol.SQLBatch:
+		e.Audit.OnQuery(ctx, sessCtx, common.Query{Query: t.SQLText})
+	case *protocol.RPCRequest:
+		e.Audit.EmitEvent(ctx, &events.SQLServerRPCRequest{
+			Metadata: common.MakeEventMetadata(sessCtx,
+				libevents.DatabaseSessionSQLServerRPCRequestEvent,
+				libevents.SQLServerRPCRequestCode,
+			),
+			UserMetadata:     common.MakeUserMetadata(sessCtx),
+			SessionMetadata:  common.MakeSessionMetadata(sessCtx),
+			DatabaseMetadata: common.MakeDatabaseMetadata(sessCtx),
+			Procname:         t.ProcName,
+			Parameters:       t.Parameters,
+		})
 	}
-
-	return trace.NewAggregate(errs...)
 }

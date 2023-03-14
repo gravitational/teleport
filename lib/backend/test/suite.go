@@ -20,23 +20,22 @@ package test
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/rand"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
-
-	"github.com/gravitational/trace"
-
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 var (
@@ -936,7 +935,11 @@ func testConcurrentOperations(t *testing.T, newBackend Constructor) {
 		}(i)
 	}
 
-	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 3*time.Second)
+	// Give the database some time to update. A single-node in-memory database
+	// will finish faster than a 3-node cluster. Some latency is expected
+	// since this test intentionally creates conflict on the same key. Most tests
+	// should complete in less than a few seconds.
+	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer timeoutCancel()
 	requireWaitGroupToFinish(timeoutCtx, t, &asyncOps)
 

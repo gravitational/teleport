@@ -22,9 +22,12 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -69,13 +72,11 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 	secondFactorAll := []constants.SecondFactorType{
 		constants.SecondFactorOff,
 		constants.SecondFactorOTP,
-		constants.SecondFactorU2F,
 		constants.SecondFactorWebauthn,
 		constants.SecondFactorOn,
 		constants.SecondFactorOptional,
 	}
 	secondFactorWebActive := []constants.SecondFactorType{
-		constants.SecondFactorU2F,
 		constants.SecondFactorWebauthn,
 		constants.SecondFactorOn,
 		constants.SecondFactorOptional,
@@ -83,12 +84,6 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 
 	minimalU2F := &types.U2F{
 		AppID: "https://localhost:3080",
-		Facets: []string{
-			"https://localhost:3080",
-			"https://localhost",
-			"localhost:3080",
-			"localhost",
-		},
 	}
 	minimalWeb := &types.Webauthn{
 		RPID: "localhost",
@@ -154,7 +149,6 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			spec: types.AuthPreferenceSpecV2{
 				U2F: &types.U2F{
 					AppID:                "https://example.com:1234",
-					Facets:               []string{"https://example.com:1234"},
 					DeviceAttestationCAs: []string{yubicoU2FCA},
 				},
 			},
@@ -178,8 +172,7 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			secondFactors: secondFactorWebActive,
 			spec: types.AuthPreferenceSpecV2{
 				U2F: &types.U2F{
-					AppID:  "teleport", // "teleport" gets parsed as a Path, not a Host.
-					Facets: []string{"teleport"},
+					AppID: "teleport", // "teleport" gets parsed as a Path, not a Host.
 				},
 			},
 			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
@@ -242,12 +235,10 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			name: "OK second factor enforced",
 			secondFactors: []constants.SecondFactorType{
 				constants.SecondFactorOTP,
-				constants.SecondFactorU2F,
 				constants.SecondFactorWebauthn,
 				constants.SecondFactorOn,
 			},
 			spec: types.AuthPreferenceSpecV2{
-				U2F:      minimalU2F,
 				Webauthn: minimalWeb,
 			},
 			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
@@ -286,7 +277,6 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			name: "OK OTP second factor not allowed",
 			secondFactors: []constants.SecondFactorType{
 				constants.SecondFactorOff,
-				constants.SecondFactorU2F,
 				constants.SecondFactorWebauthn,
 			},
 			spec: types.AuthPreferenceSpecV2{
@@ -298,26 +288,8 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			},
 		},
 		{
-			name: "OK U2F second factor never allowed",
-			secondFactors: []constants.SecondFactorType{
-				constants.SecondFactorOff,
-				constants.SecondFactorOTP,
-				constants.SecondFactorU2F,
-				constants.SecondFactorWebauthn,
-				constants.SecondFactorOn,
-				constants.SecondFactorOptional,
-			},
-			spec: types.AuthPreferenceSpecV2{
-				U2F: minimalU2F,
-			},
-			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
-				require.False(t, got.IsSecondFactorU2FAllowed(), "U2F allowed")
-			},
-		},
-		{
 			name: "OK Webauthn second factor allowed",
 			secondFactors: []constants.SecondFactorType{
-				constants.SecondFactorU2F,
 				constants.SecondFactorWebauthn,
 				constants.SecondFactorOn,
 				constants.SecondFactorOptional,
@@ -365,18 +337,305 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 		{
 			name: "OK preferred local MFA = Webauthn",
 			secondFactors: []constants.SecondFactorType{
-				constants.SecondFactorU2F,
 				constants.SecondFactorWebauthn,
 				constants.SecondFactorOn,
 				constants.SecondFactorOptional,
 			},
 			spec: types.AuthPreferenceSpecV2{
-				U2F:      minimalU2F,
 				Webauthn: minimalWeb,
 			},
 			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
 				require.Equal(t, constants.SecondFactorWebauthn, got.GetPreferredLocalMFA())
 			},
+		},
+		// AllowLocalAuth
+		{
+			name: "OK AllowLocalAuth preserve explicit false for type=local",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff, // doesn't matter for this test
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:           constants.Local,
+				AllowLocalAuth: types.NewBoolOption(false),
+			},
+			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+				assert.False(t, got.GetAllowLocalAuth(), "AllowLocalAuth")
+			},
+		},
+		// AllowLocalAuth
+		{
+			name: "OK AllowLocalAuth default to true for type=local",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff, // doesn't matter for this test
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type: constants.Local,
+			},
+			assertFn: func(t *testing.T, got *types.AuthPreferenceV2) {
+				assert.True(t, got.GetAllowLocalAuth(), "AllowLocalAuth")
+			},
+		},
+		// AllowPasswordless
+		{
+			name: "OK AllowPasswordless defaults to false without Webauthn",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff,
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:              constants.Local,
+				AllowPasswordless: nil, // aka unset
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.False(t, cap.GetAllowPasswordless(), "AllowPasswordless")
+			},
+		},
+		{
+			name: "OK AllowPasswordless=false without Webauthn",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff,
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:              constants.Local,
+				AllowPasswordless: types.NewBoolOption(false),
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.False(t, cap.GetAllowPasswordless(), "AllowPasswordless")
+			},
+		},
+		{
+			name: "NOK AllowPasswordless=true without Webauthn",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff,
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:              constants.Local,
+				AllowPasswordless: types.NewBoolOption(true),
+			},
+			wantErr: "required Webauthn",
+		},
+		{
+			name:          "OK AllowPasswordless defaults to true with Webauthn",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:              constants.Local,
+				Webauthn:          minimalWeb,
+				AllowPasswordless: nil, // aka unset
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.True(t, cap.GetAllowPasswordless(), "AllowPasswordless")
+			},
+		},
+		{
+			name:          "OK AllowPasswordless=false with Webauthn",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:              constants.Local,
+				Webauthn:          minimalWeb,
+				AllowPasswordless: types.NewBoolOption(false),
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.False(t, cap.GetAllowPasswordless(), "AllowPasswordless")
+			},
+		},
+		{
+			name:          "OK AllowPasswordless=true with Webauthn",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:              constants.Local,
+				Webauthn:          minimalWeb,
+				AllowPasswordless: types.NewBoolOption(true),
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.True(t, cap.GetAllowPasswordless(), "AllowPasswordless")
+			},
+		},
+		// AllowHeadless
+		{
+			name: "OK AllowHeadless defaults to false without Webauthn",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff,
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				AllowHeadless: nil, // aka unset
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.False(t, cap.GetAllowHeadless(), "AllowHeadless")
+			},
+		},
+		{
+			name: "OK AllowHeadless=false without Webauthn",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff,
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				AllowHeadless: types.NewBoolOption(false),
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.False(t, cap.GetAllowHeadless(), "AllowHeadless")
+			},
+		},
+		{
+			name: "NOK AllowHeadless=true without Webauthn",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff,
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				AllowHeadless: types.NewBoolOption(true),
+			},
+			wantErr: "required Webauthn",
+		},
+		{
+			name:          "OK AllowHeadless defaults to true with Webauthn",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				Webauthn:      minimalWeb,
+				AllowHeadless: nil, // aka unset
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.True(t, cap.GetAllowHeadless(), "AllowHeadless")
+			},
+		},
+		{
+			name:          "OK AllowHeadless=false with Webauthn",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				Webauthn:      minimalWeb,
+				AllowHeadless: types.NewBoolOption(false),
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.False(t, cap.GetAllowHeadless(), "AllowHeadless")
+			},
+		},
+		{
+			name:          "OK AllowHeadless=true with Webauthn",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				Webauthn:      minimalWeb,
+				AllowHeadless: types.NewBoolOption(true),
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.True(t, cap.GetAllowHeadless(), "AllowHeadless")
+			},
+		},
+		// ConnectorName
+		{
+			name:          "OK type=local and local connector",
+			secondFactors: secondFactorAll,
+			spec: types.AuthPreferenceSpecV2{
+				Type:              constants.Local,
+				ConnectorName:     constants.LocalConnector,
+				Webauthn:          minimalWeb,
+				AllowPasswordless: types.NewBoolOption(false), // restriction makes no difference
+			},
+		},
+		{
+			name:          "OK type=oidc and local connector",
+			secondFactors: secondFactorAll,
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.OIDC,           // or SAML
+				ConnectorName: constants.LocalConnector, // not validated
+				Webauthn:      minimalWeb,
+			},
+		},
+		{
+			name:          "OK type=oidc and arbitrary connector",
+			secondFactors: secondFactorAll,
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.OIDC, // or SAML
+				ConnectorName: "myconnector",
+				Webauthn:      minimalWeb,
+			},
+		},
+		{
+			name:          "OK type=local and passwordless connector",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				ConnectorName: constants.PasswordlessConnector,
+				Webauthn:      minimalWeb,
+			},
+		},
+		{
+			name:          "OK type=local and headless connector",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				ConnectorName: constants.HeadlessConnector,
+				Webauthn:      minimalWeb,
+			},
+		},
+		{
+			name: "NOK type=local and passwordless connector",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff, // webauthn disabled
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				ConnectorName: constants.PasswordlessConnector,
+				Webauthn:      minimalWeb,
+			},
+			wantErr: "passwordless not allowed",
+		},
+		{
+			name:          "NOK type=local, allow_passwordless=false and passwordless connector",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:              constants.Local,
+				ConnectorName:     constants.PasswordlessConnector,
+				Webauthn:          minimalWeb,
+				AllowPasswordless: types.NewBoolOption(false),
+			},
+			wantErr: "passwordless not allowed",
+		},
+
+		{
+			name: "NOK type=local and headless connector",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff, // webauthn disabled
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				ConnectorName: constants.HeadlessConnector,
+				Webauthn:      minimalWeb,
+			},
+			wantErr: "headless not allowed",
+		},
+		{
+			name:          "NOK type=local, allow_headless=false and headless connector",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				ConnectorName: constants.HeadlessConnector,
+				Webauthn:      minimalWeb,
+				AllowHeadless: types.NewBoolOption(false),
+			},
+			wantErr: "headless not allowed",
+		},
+		{
+			name:          "NOK type=local and unknown connector",
+			secondFactors: secondFactorAll,
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				ConnectorName: "bad",
+				Webauthn:      minimalWeb,
+			},
+			wantErr: "invalid local connector",
 		},
 	}
 	for _, test := range tests {
@@ -405,6 +664,77 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 					}
 					test.assertFn(t, cap)
 				})
+			}
+		})
+	}
+}
+
+func TestAuthPreferenceV2_CheckAndSetDefaults_deviceTrust(t *testing.T) {
+	tests := []struct {
+		name     string
+		authPref *types.AuthPreferenceV2
+		wantErr  string
+	}{
+		{
+			name: "Mode default",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode: "", // "off" for OSS, "optional" for Enterprise.
+					},
+				},
+			},
+		},
+		{
+			name: "Mode=off",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode: constants.DeviceTrustModeOff,
+					},
+				},
+			},
+		},
+		{
+			name: "Mode=optional",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode: constants.DeviceTrustModeOptional,
+					},
+				},
+			},
+		},
+		{
+			name: "Mode=required",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode: constants.DeviceTrustModeRequired,
+					},
+				},
+			},
+		},
+		{
+			name: "Mode invalid",
+			authPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					DeviceTrust: &types.DeviceTrust{
+						Mode: "bad",
+					},
+				},
+			},
+			wantErr: "device trust mode",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.authPref.CheckAndSetDefaults()
+			if test.wantErr == "" {
+				assert.NoError(t, err, "CheckAndSetDefaults returned non-nil error")
+			} else {
+				assert.ErrorContains(t, err, test.wantErr, "CheckAndSetDefaults mismatch")
+				assert.True(t, trace.IsBadParameter(err), "gotErr is not a trace.BadParameter error")
 			}
 		})
 	}

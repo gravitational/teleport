@@ -17,14 +17,14 @@ limitations under the License.
 package events
 
 import (
-	"github.com/gravitational/teleport/api/types/events"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/utils"
+	"encoding/json"
+
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
-	"encoding/json"
+	"github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // FromEventFields converts from the typed dynamic representation
@@ -32,14 +32,23 @@ import (
 //
 // This is mainly used to convert from the backend format used by
 // our various event backends.
-func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
+func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	data, err := json.Marshal(fields)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	eventType := fields.GetString(EventType)
-	var e apievents.AuditEvent
+	getFieldEmpty := func(field string) string {
+		i, ok := fields[field]
+		if !ok {
+			return ""
+		}
+		s, _ := i.(string)
+		return s
+	}
+
+	var eventType = getFieldEmpty(EventType)
+	var e events.AuditEvent
 
 	switch eventType {
 	case SessionPrintEvent:
@@ -78,6 +87,8 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		e = &events.AccessRequestCreate{}
 	case AccessRequestUpdateEvent:
 		e = &events.AccessRequestCreate{}
+	case AccessRequestResourceSearch:
+		e = &events.AccessRequestResourceSearch{}
 	case BillingCardCreateEvent:
 		e = &events.BillingCardCreate{}
 	case BillingCardUpdateEvent:
@@ -134,10 +145,14 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		e = &events.SessionReject{}
 	case AppSessionStartEvent:
 		e = &events.AppSessionStart{}
+	case AppSessionEndEvent:
+		e = &events.AppSessionEnd{}
 	case AppSessionChunkEvent:
 		e = &events.AppSessionChunk{}
 	case AppSessionRequestEvent:
 		e = &events.AppSessionRequest{}
+	case AppSessionDynamoDBRequestEvent:
+		e = &events.AppSessionDynamoDBRequest{}
 	case AppCreateEvent:
 		e = &events.AppCreate{}
 	case AppUpdateEvent:
@@ -156,6 +171,8 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		e = &events.DatabaseSessionEnd{}
 	case DatabaseSessionQueryEvent, DatabaseSessionQueryFailedEvent:
 		e = &events.DatabaseSessionQuery{}
+	case DatabaseSessionMalformedPacketEvent:
+		e = &events.DatabaseSessionMalformedPacket{}
 	case DatabaseSessionPostgresParseEvent:
 		e = &events.PostgresParse{}
 	case DatabaseSessionPostgresBindEvent:
@@ -180,12 +197,34 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		e = &events.MySQLStatementFetch{}
 	case DatabaseSessionMySQLStatementBulkExecuteEvent:
 		e = &events.MySQLStatementBulkExecute{}
+	case DatabaseSessionMySQLInitDBEvent:
+		e = &events.MySQLInitDB{}
+	case DatabaseSessionMySQLCreateDBEvent:
+		e = &events.MySQLCreateDB{}
+	case DatabaseSessionMySQLDropDBEvent:
+		e = &events.MySQLDropDB{}
+	case DatabaseSessionMySQLShutDownEvent:
+		e = &events.MySQLShutDown{}
+	case DatabaseSessionMySQLProcessKillEvent:
+		e = &events.MySQLProcessKill{}
+	case DatabaseSessionMySQLDebugEvent:
+		e = &events.MySQLDebug{}
+	case DatabaseSessionMySQLRefreshEvent:
+		e = &events.MySQLRefresh{}
+	case DatabaseSessionSQLServerRPCRequestEvent:
+		e = &events.SQLServerRPCRequest{}
+	case DatabaseSessionElasticsearchRequestEvent:
+		e = &events.ElasticsearchRequest{}
+	case DatabaseSessionDynamoDBRequestEvent:
+		e = &events.DynamoDBRequest{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:
 		e = &events.MFADeviceAdd{}
 	case MFADeviceDeleteEvent:
 		e = &events.MFADeviceDelete{}
+	case DeviceEvent:
+		e = &events.DeviceEvent{}
 	case LockCreatedEvent:
 		e = &events.LockCreate{}
 	case LockDeletedEvent:
@@ -214,8 +253,57 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		e = &events.CertificateCreate{}
 	case RenewableCertificateGenerationMismatchEvent:
 		e = &events.RenewableCertificateGenerationMismatch{}
+	case SFTPEvent:
+		e = &events.SFTP{}
+	case UpgradeWindowStartUpdateEvent:
+		e = &events.UpgradeWindowStartUpdate{}
+	case SessionRecordingAccessEvent:
+		e = &events.SessionRecordingAccess{}
+	case SSMRunEvent:
+		e = &events.SSMRun{}
+	case KubernetesClusterCreateEvent:
+		e = &events.KubernetesClusterCreate{}
+	case KubernetesClusterUpdateEvent:
+		e = &events.KubernetesClusterUpdate{}
+	case KubernetesClusterDeleteEvent:
+		e = &events.KubernetesClusterDelete{}
+	case DesktopSharedDirectoryStartEvent:
+		e = &events.DesktopSharedDirectoryStart{}
+	case DesktopSharedDirectoryReadEvent:
+		e = &events.DesktopSharedDirectoryRead{}
+	case DesktopSharedDirectoryWriteEvent:
+		e = &events.DesktopSharedDirectoryWrite{}
+	case BotJoinEvent:
+		e = &events.BotJoin{}
+	case InstanceJoinEvent:
+		e = &events.InstanceJoin{}
+	case LoginRuleCreateEvent:
+		e = &events.LoginRuleCreate{}
+	case LoginRuleDeleteEvent:
+		e = &events.LoginRuleDelete{}
+	case SAMLIdPAuthAttemptEvent:
+		e = &events.SAMLIdPAuthAttempt{}
+	case SAMLIdPServiceProviderCreateEvent:
+		e = &events.SAMLIdPServiceProviderCreate{}
+	case SAMLIdPServiceProviderUpdateEvent:
+		e = &events.SAMLIdPServiceProviderUpdate{}
+	case SAMLIdPServiceProviderDeleteEvent:
+		e = &events.SAMLIdPServiceProviderDelete{}
+	case SAMLIdPServiceProviderDeleteAllEvent:
+		e = &events.SAMLIdPServiceProviderDeleteAll{}
 	case UnknownEvent:
 		e = &events.Unknown{}
+
+	// Cassandra events.
+	case CassandraBatchEventCode:
+		e = &events.CassandraBatch{}
+	case CassandraRegisterEventCode:
+		e = &events.CassandraRegister{}
+	case CassandraPrepareEventCode:
+		e = &events.CassandraPrepare{}
+	case CassandraExecuteEventCode:
+		e = &events.CassandraExecute{}
+
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", eventType)
 		unknown := &events.Unknown{}
@@ -226,7 +314,7 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 		unknown.Type = UnknownEvent
 		unknown.Code = UnknownCode
 		unknown.UnknownType = eventType
-		unknown.UnknownCode = fields.GetString(EventCode)
+		unknown.UnknownCode = getFieldEmpty(EventCode)
 		unknown.Data = string(data)
 		return unknown, nil
 	}
@@ -240,7 +328,7 @@ func FromEventFields(fields EventFields) (apievents.AuditEvent, error) {
 
 // GetSessionID pulls the session ID from the events that have a
 // SessionMetadata. For other events an empty string is returned.
-func GetSessionID(event apievents.AuditEvent) string {
+func GetSessionID(event events.AuditEvent) string {
 	var sessionID string
 
 	if g, ok := event.(SessionMetadataGetter); ok {
@@ -253,7 +341,7 @@ func GetSessionID(event apievents.AuditEvent) string {
 // ToEventFields converts from the typed interface-style event representation
 // to the old dynamic map style representation in order to provide outer compatibility
 // with existing public API routes when the backend is updated with the typed events.
-func ToEventFields(event apievents.AuditEvent) (EventFields, error) {
+func ToEventFields(event events.AuditEvent) (EventFields, error) {
 	var fields EventFields
 	if err := apiutils.ObjectToStruct(event, &fields); err != nil {
 		return nil, trace.Wrap(err)

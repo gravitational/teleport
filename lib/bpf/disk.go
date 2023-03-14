@@ -20,14 +20,16 @@ limitations under the License.
 package bpf
 
 import (
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
+	_ "embed"
+	"runtime"
+	"unsafe"
 
 	"github.com/aquasecurity/libbpfgo"
+	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
-	_ "embed"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 var (
@@ -41,6 +43,7 @@ var (
 
 const (
 	diskEventsBuffer = "open_events"
+	monitoredCGroups = "monitored_cgroups"
 )
 
 // rawOpenEvent is sent by the eBPF program that Teleport pulls off the perf
@@ -65,6 +68,11 @@ type rawOpenEvent struct {
 	Flags int32
 }
 
+type cgroupRegister interface {
+	startSession(cgroupID uint64) error
+	endSession(cgroupID uint64) error
+}
+
 type open struct {
 	module *libbpfgo.Module
 
@@ -75,7 +83,7 @@ type open struct {
 // startOpen will compile, load, start, and pull events off the perf buffer
 // for the BPF program.
 func startOpen(bufferSize int) (*open, error) {
-	err := utils.RegisterPrometheusCollectors(lostDiskEvents)
+	err := metrics.RegisterPrometheusCollectors(lostDiskEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,7 +111,12 @@ func startOpen(bufferSize int) (*open, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	syscalls := []string{"open", "openat", "openat2"}
+	syscalls := []string{"openat", "openat2"}
+
+	if runtime.GOARCH != "arm64" {
+		// open is not implemented on arm64.
+		syscalls = append(syscalls, "open")
+	}
 
 	for _, syscall := range syscalls {
 		if err = AttachSyscallTracepoint(o.module, syscall); err != nil {
@@ -135,4 +148,35 @@ func (o *open) close() {
 // events contains raw events off the perf buffer.
 func (o *open) events() <-chan []byte {
 	return o.eventBuf.EventCh
+}
+
+// startSession registers the given cgroup in the BPF module. Only registered
+// cgroups will return events to the userspace.
+func (o *open) startSession(cgroupID uint64) error {
+	cgroupMap, err := o.module.GetMap(monitoredCGroups)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	dummyVal := 0
+	err = cgroupMap.Update(unsafe.Pointer(&cgroupID), unsafe.Pointer(&dummyVal))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// endSession removes the previously registered cgroup from the BPF module.
+func (o *open) endSession(cgroupID uint64) error {
+	cgroupMap, err := o.module.GetMap(monitoredCGroups)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := cgroupMap.DeleteKey(unsafe.Pointer(&cgroupID)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

@@ -22,16 +22,16 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/siddontang/go-mysql/client"
-	"github.com/siddontang/go-mysql/mysql"
-	"github.com/siddontang/go-mysql/server"
-
+	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/go-mysql-org/go-mysql/server"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // MakeTestClient returns MySQL client connection according to the provided
@@ -54,15 +54,30 @@ func MakeTestClient(config common.TestClientConfig) (*client.Conn, error) {
 	return conn, nil
 }
 
+// MakeTestClientWithoutTLS returns a MySQL client connection without setting
+// TLS config to the MySQL client.
+func MakeTestClientWithoutTLS(addr string, routeToDatabase tlsca.RouteToDatabase) (*client.Conn, error) {
+	conn, err := client.Connect(addr,
+		routeToDatabase.Username,
+		"",
+		routeToDatabase.Database,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conn, nil
+}
+
 // TestServer is a test MySQL server used in functional database
 // access tests.
 type TestServer struct {
-	cfg       common.TestServerConfig
-	listener  net.Listener
-	port      string
-	tlsConfig *tls.Config
-	log       logrus.FieldLogger
-	handler   *testHandler
+	cfg           common.TestServerConfig
+	listener      net.Listener
+	port          string
+	tlsConfig     *tls.Config
+	log           logrus.FieldLogger
+	handler       *testHandler
+	serverVersion string
 
 	// serverConnsMtx is a mutex that guards serverConns.
 	serverConnsMtx sync.Mutex
@@ -70,29 +85,39 @@ type TestServer struct {
 	serverConns []*server.Conn
 }
 
-// NewTestServer returns a new instance of a test MySQL server.
-func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
-	address := "localhost:0"
-	if config.Address != "" {
-		address = config.Address
+// TestServerOption allows to set test server options.
+type TestServerOption func(*TestServer)
+
+// WithServerVersion sets the test MySQL server version.
+func WithServerVersion(serverVersion string) TestServerOption {
+	return func(ts *TestServer) {
+		ts.serverVersion = serverVersion
 	}
+}
+
+// NewTestServer returns a new instance of a test MySQL server.
+func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (svr *TestServer, err error) {
+	err = config.CheckAndSetDefaults()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer config.CloseOnError(&err)
+
+	port, err := config.Port()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	tlsConfig, err := common.MakeTestServerTLSConfig(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var listener net.Listener
+
+	listener := config.Listener
 	if config.ListenTLS {
-		listener, err = tls.Listen("tcp", address, tlsConfig)
-	} else {
-		listener, err = net.Listen("tcp", address)
+		listener = tls.NewListener(listener, tlsConfig)
 	}
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	_, port, err := net.SplitHostPort(listener.Addr().String())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: defaults.ProtocolMySQL,
 		"name":          config.Name,
@@ -104,8 +129,13 @@ func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
 		log:      log,
 		handler:  &testHandler{log: log},
 	}
+
 	if !config.ListenTLS {
 		server.tlsConfig = tlsConfig
+	}
+
+	for _, o := range opts {
+		o(server)
 	}
 	return server, nil
 }
@@ -148,7 +178,7 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 	serverConn, err := server.NewCustomizedConn(
 		conn,
 		server.NewServer(
-			serverVersion,
+			s.serverVersion,
 			mysql.DEFAULT_COLLATION_ID,
 			mysql.AUTH_NATIVE_PASSWORD,
 			nil,

@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,17 +16,16 @@ limitations under the License.
 package utils
 
 import (
-	"io/ioutil"
 	"os"
+	"testing"
 
-	"gopkg.in/check.v1"
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 )
 
-type EnvironmentSuite struct{}
+func TestReadEnvironmentFile(t *testing.T) {
+	t.Parallel()
 
-var _ = check.Suite(&EnvironmentSuite{})
-
-func (s *EnvironmentSuite) TestReadEnvironmentFile(c *check.C) {
 	// contents of environment file
 	rawenv := []byte(`
 foo=bar
@@ -40,18 +39,18 @@ foo=
 `)
 
 	// create a temp file with an environment in it
-	f, err := ioutil.TempFile("", "teleport-environment-")
-	c.Assert(err, check.IsNil)
+	f, err := os.CreateTemp("", "teleport-environment-")
+	require.NoError(t, err)
 	defer os.Remove(f.Name())
 	_, err = f.Write(rawenv)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	err = f.Close()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// read in the temp file
 	env, err := ReadEnvironmentFile(f.Name())
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	// check we parsed it correctly
-	c.Assert(env, check.DeepEquals, []string{"foo=bar", "foo=bar=baz", "foo="})
+	require.Empty(t, cmp.Diff(env, []string{"foo=bar", "foo=bar=baz", "foo="}))
 }

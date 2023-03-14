@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"context"
+	_ "embed" // enable embed
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -25,15 +26,12 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	libclient "github.com/gravitational/teleport/lib/client"
-
-	_ "embed" // enable embed
 )
 
 //go:embed index.html
@@ -129,7 +127,7 @@ func (s *server) login1(w http.ResponseWriter, r *http.Request) {
 		log.Printf("INFO /mfa/login/begin: %#v", resp)
 		http.Error(w, "Unexpected status from /mfa/login/begin", http.StatusBadRequest)
 	}
-	var challenge client.MFAAuthenticateChallenge
+	var challenge libclient.MFAAuthenticateChallenge
 	if err := json.NewDecoder(resp.Body).Decode(&challenge); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

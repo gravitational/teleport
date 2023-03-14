@@ -27,15 +27,16 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 type BotsCommand struct {
@@ -49,6 +50,8 @@ type BotsCommand struct {
 	tokenID  string
 	tokenTTL time.Duration
 
+	allowedLogins []string
+
 	botsList   *kingpin.CmdClause
 	botsAdd    *kingpin.CmdClause
 	botsRemove *kingpin.CmdClause
@@ -56,7 +59,7 @@ type BotsCommand struct {
 }
 
 // Initialize sets up the "tctl bots" command.
-func (c *BotsCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *BotsCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	bots := app.Command("bots", "Operate on certificate renewal bots registered with the cluster.")
 
 	c.botsList = bots.Command("ls", "List all certificate renewal bots registered with the cluster.")
@@ -68,7 +71,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.botsAdd.Flag("ttl", "TTL for the bot join token.").DurationVar(&c.tokenTTL)
 	c.botsAdd.Flag("token", "Name of an existing token to use.").StringVar(&c.tokenID)
 	c.botsAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
-	// TODO: --ttl for setting a ttl on the join token
+	c.botsAdd.Flag("logins", "List of allowed SSH logins for the bot user").StringsVar(&c.allowedLogins)
 
 	c.botsRemove = bots.Command("rm", "Permanently remove a certificate renewal bot from the cluster.")
 	c.botsRemove.Arg("name", "Name of an existing bot to remove.").Required().StringVar(&c.botName)
@@ -81,16 +84,16 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, config *service.Confi
 }
 
 // TryRun attempts to run subcommands.
-func (c *BotsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *BotsCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.botsList.FullCommand():
-		err = c.ListBots(client)
+		err = c.ListBots(ctx, client)
 	case c.botsAdd.FullCommand():
-		err = c.AddBot(client)
+		err = c.AddBot(ctx, client)
 	case c.botsRemove.FullCommand():
-		err = c.RemoveBot(client)
+		err = c.RemoveBot(ctx, client)
 	case c.botsLock.FullCommand():
-		err = c.LockBot(client)
+		err = c.LockBot(ctx, client)
 	default:
 		return false, nil
 	}
@@ -100,9 +103,9 @@ func (c *BotsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 
 // ListBots writes a listing of the cluster's certificate renewal bots
 // to standard out.
-func (c *BotsCommand) ListBots(client auth.ClientI) error {
+func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
 	// TODO: consider adding a custom column for impersonator roles, locks, ??
-	users, err := client.GetBotUsers(context.Background())
+	users, err := client.GetBotUsers(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -144,8 +147,8 @@ func bold(text string) string {
 
 var startMessageTemplate = template.Must(template.New("node").Funcs(template.FuncMap{
 	"bold": bold,
-}).Parse(`The bot token: {{.token}}
-This token will expire in {{.minutes}} minutes.
+}).Parse(`The bot token: {{.token}}{{if .minutes}}
+This token will expire in {{.minutes}} minutes.{{end}}
 
 Optionally, if running the bot under an isolated user account, first initialize
 the data directory by running the following command {{ bold "as root" }}:
@@ -163,9 +166,8 @@ certificates:
 
 > tbot start \
    --destination-dir=./tbot-user \
-   --token={{.token}} \{{range .ca_pins}}
-   --ca-pin={{.}} \{{end}}
-   --auth-server={{.auth_server}}{{if .join_method}} \
+   --token={{.token}} \
+   --auth-server={{.addr}}{{if .join_method}} \
    --join-method={{.join_method}}{{end}}
 
 Please note:
@@ -174,16 +176,26 @@ Please note:
   - /var/lib/teleport/bot must be accessible to the bot user, or --data-dir
     must point to another accessible directory to store internal bot data.
   - This invitation token will expire in {{.minutes}} minutes
-  - {{.auth_server}} must be reachable from the new node
+  - {{.addr}} must be reachable from the new node
 `))
 
 // AddBot adds a new certificate renewal bot to the cluster.
-func (c *BotsCommand) AddBot(client auth.ClientI) error {
-	response, err := client.CreateBot(context.Background(), &proto.CreateBotRequest{
+func (c *BotsCommand) AddBot(ctx context.Context, client auth.ClientI) error {
+	roles := splitRoles(c.botRoles)
+	if len(roles) == 0 {
+		return trace.BadParameter("at least one role must be specified with --roles")
+	}
+
+	traits := map[string][]string{
+		constants.TraitLogins: flattenSlice(c.allowedLogins),
+	}
+
+	response, err := client.CreateBot(ctx, &proto.CreateBotRequest{
 		Name:    c.botName,
 		TTL:     proto.Duration(c.tokenTTL),
-		Roles:   splitRoles(c.botRoles),
+		Roles:   roles,
 		TokenID: c.tokenID,
+		Traits:  traits,
 	})
 	if err != nil {
 		return trace.WrapWithMessage(err, "error while creating bot")
@@ -199,28 +211,16 @@ func (c *BotsCommand) AddBot(client auth.ClientI) error {
 		return nil
 	}
 
-	// Calculate the CA pins for this cluster. The CA pins are used by the
-	// client to verify the identity of the Auth Server.
-	localCAResponse, err := client.GetClusterCACert()
+	proxies, err := client.GetProxies()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	caPins, err := tlsca.CalculatePins(localCAResponse.TLSCA)
-	if err != nil {
-		return trace.Wrap(err)
+	if len(proxies) == 0 {
+		return trace.Errorf("This cluster does not have any proxy servers running.")
 	}
-
-	authServers, err := client.GetAuthServers()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if len(authServers) == 0 {
-		return trace.Errorf("This cluster does not have any auth servers running.")
-	}
-
-	addr := authServers[0].GetPublicAddr()
+	addr := proxies[0].GetPublicAddr()
 	if addr == "" {
-		addr = authServers[0].GetAddr()
+		addr = proxies[0].GetAddr()
 	}
 
 	joinMethod := response.JoinMethod
@@ -235,14 +235,13 @@ func (c *BotsCommand) AddBot(client auth.ClientI) error {
 	return startMessageTemplate.Execute(os.Stdout, map[string]interface{}{
 		"token":       response.TokenID,
 		"minutes":     int(time.Duration(response.TokenTTL).Minutes()),
-		"ca_pins":     caPins,
-		"auth_server": addr,
+		"addr":        addr,
 		"join_method": joinMethod,
 	})
 }
 
-func (c *BotsCommand) RemoveBot(client auth.ClientI) error {
-	if err := client.DeleteBot(context.Background(), c.botName); err != nil {
+func (c *BotsCommand) RemoveBot(ctx context.Context, client auth.ClientI) error {
+	if err := client.DeleteBot(ctx, c.botName); err != nil {
 		return trace.WrapWithMessage(err, "error deleting bot")
 	}
 
@@ -251,7 +250,7 @@ func (c *BotsCommand) RemoveBot(client auth.ClientI) error {
 	return nil
 }
 
-func (c *BotsCommand) LockBot(client auth.ClientI) error {
+func (c *BotsCommand) LockBot(ctx context.Context, client auth.ClientI) error {
 	lockExpiry, err := computeLockExpiry(c.lockExpires, c.lockTTL)
 	if err != nil {
 		return trace.Wrap(err)
@@ -283,7 +282,7 @@ func (c *BotsCommand) LockBot(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	if err := client.UpsertLock(context.Background(), lock); err != nil {
+	if err := client.UpsertLock(ctx, lock); err != nil {
 		return trace.Wrap(err)
 	}
 

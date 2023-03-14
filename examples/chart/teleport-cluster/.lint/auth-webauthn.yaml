@@ -1,0 +1,8 @@
+clusterName: helm-lint
+authentication:
+  secondFactor: "on"
+  webauthn:
+    attestationAllowedCas:
+      - "/etc/ssl/certs/ca-certificates.crt"
+    attestationDeniedCas:
+      - "/etc/ssl/certs/ca-certificates.crt"

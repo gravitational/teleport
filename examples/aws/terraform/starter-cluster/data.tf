@@ -1,8 +1,9 @@
 terraform {
+  required_version = ">= 1.0, < 2.0.0"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 3.0"
+      version = "~> 4.0"
     }
   }
 }
@@ -15,8 +16,11 @@ data "aws_vpc" "default" {
   default = true
 }
 
-data "aws_subnet_ids" "all" {
-  vpc_id = data.aws_vpc.default.id
+data "aws_subnets" "all" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
 }
 
 data "aws_ami" "base" {
@@ -38,9 +42,6 @@ data "aws_caller_identity" "current" {
 
 data "aws_region" "current" {
   name = var.region
-}
-
-data "aws_availability_zones" "available" {
 }
 
 // SSM is picking alias for key to use for encryption in SSM

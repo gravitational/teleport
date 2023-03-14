@@ -23,15 +23,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 )
 
@@ -74,7 +74,11 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 	require.NoError(t, err)
 	ccr, err := webKey.SignCredentialCreation(webOrigin, cc)
 	require.NoError(t, err)
-	_, err = webRegistration.Finish(ctx, webUser, "webauthn1" /* deviceName */, ccr)
+	_, err = webRegistration.Finish(ctx, wanlib.RegisterResponse{
+		User:             webUser,
+		DeviceName:       "webauthn1",
+		CreationResponse: ccr,
+	})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -240,7 +244,11 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 	require.NoError(t, err)
 	ccr, err := key.SignCredentialCreation(webOrigin, cc)
 	require.NoError(t, err)
-	_, err = webRegistration.Finish(ctx, user, "webauthn1" /* deviceName */, ccr)
+	_, err = webRegistration.Finish(ctx, wanlib.RegisterResponse{
+		User:             user,
+		DeviceName:       "webauthn1",
+		CreationResponse: ccr,
+	})
 	require.NoError(t, err)
 
 	webLogin := wanlib.LoginFlow{
@@ -362,7 +370,12 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 	require.NoError(t, err)
 	ccr, err := webKey.SignCredentialCreation(webOrigin, cc)
 	require.NoError(t, err)
-	_, err = webRegistration.Finish(ctx, user, "webauthn1" /* deviceName */, ccr)
+	_, err = webRegistration.Finish(ctx, wanlib.RegisterResponse{
+		User:             user,
+		DeviceName:       "webauthn1",
+		CreationResponse: ccr,
+		Passwordless:     true,
+	})
 	require.NoError(t, err)
 
 	webLogin := &wanlib.PasswordlessFlow{

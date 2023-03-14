@@ -22,6 +22,8 @@ import (
 
 // TestSlice tests sync pool holding slices - SliceSyncPool
 func TestSlice(t *testing.T) {
+	t.Parallel()
+
 	pool := NewSliceSyncPool(1024)
 	// having a loop is not a guarantee that the same slice
 	// will be reused, but a good enough bet

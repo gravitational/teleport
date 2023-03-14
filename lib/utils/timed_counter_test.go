@@ -23,17 +23,23 @@ import (
 )
 
 func TestTimedCounterReturnsZeroOnConstruction(t *testing.T) {
+	t.Parallel()
+
 	uut := NewTimedCounter(clockwork.NewFakeClock(), time.Second)
 	require.Zero(t, uut.Count())
 }
 
 func TestTimedCounterIncrement(t *testing.T) {
+	t.Parallel()
+
 	clock := clockwork.NewFakeClock()
 	uut := NewTimedCounter(clock, time.Second)
 	require.Equal(t, uut.Increment(), 1)
 }
 
 func TestTimedCounterExpiresEvents(t *testing.T) {
+	t.Parallel()
+
 	// Given a counter with a 10-second cutoff, primed with events at 1 second
 	// intervals
 	clock := clockwork.NewFakeClock()
@@ -72,6 +78,8 @@ func TestTimedCounterExpiresEvents(t *testing.T) {
 }
 
 func TestTimedCounterIncrementExpiresValues(t *testing.T) {
+	t.Parallel()
+
 	// Given a counter with a 10-second cutoff, primed with 5 events at 1-
 	// second intervals
 	clock := clockwork.NewFakeClock()

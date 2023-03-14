@@ -2,21 +2,27 @@
     "$schema": "http://json-schema.org/draft-07/schema",
     "type": "object",
     "required": [
-        "authToken",
         "proxyAddr",
         "roles",
+        "joinParams",
         "kubeClusterName",
         "apps",
+        "appResources",
         "awsDatabases",
+        "azureDatabases",
         "databases",
+        "databaseResources",
         "teleportVersionOverride",
         "insecureSkipProxyTLSVerify",
+        "teleportConfig",
         "existingDataVolume",
         "podSecurityPolicy",
         "labels",
         "image",
         "clusterRoleName",
         "clusterRoleBindingName",
+        "roleName",
+        "roleBindingName",
         "serviceAccountName",
         "secretName",
         "log",
@@ -27,7 +33,8 @@
         "imagePullPolicy",
         "initContainers",
         "resources",
-        "tolerations"
+        "tolerations",
+        "probeTimeoutSeconds"
     ],
     "properties": {
         "authToken": {
@@ -44,6 +51,24 @@
             "$id": "#/properties/roles",
             "type": "string",
             "default": "kube"
+        },
+        "joinParams": {
+            "$id": "#/properties/joinParams",
+            "type": "object",
+            "required": ["method"],
+            "properties": {
+                "tokenName": {
+                    "$id": "#/properties/joinParams/tokenName",
+                    "type": "string",
+                    "default": ""
+                },
+                "method": {
+                    "$id": "#/properties/joinParams/method",
+                    "type": "string",
+                    "default": "token"
+                },
+                "additionalProperties": false
+            }
         },
         "kubeClusterName": {
             "$id": "#/properties/kubeClusterName",
@@ -70,6 +95,21 @@
                     "default": ""
                 },
                 "additionalProperties": true
+            }
+        },
+        "appResources": {
+            "$id": "#/properties/appResources",
+            "type": "array",
+            "default": [],
+            "required": [
+                "labels"
+            ],
+            "properties": {
+                "labels": {
+                    "$id": "#/properties/appResources/labels",
+                    "type": "object"
+                },
+                "additionalProperties": false
             }
         },
         "awsDatabases": {
@@ -100,20 +140,128 @@
                 "additionalProperties": false
             }
         },
+        "azureDatabases": {
+            "$id": "#/properties/azureDatabases",
+            "type": "array",
+            "default": [],
+            "items": {
+                "type": "object",
+                "default": {},
+                "required": [
+                    "types",
+                    "tags"
+                ],
+                "properties": {
+                    "types": {
+                        "$id": "#/properties/azureDatabases/types",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "tags": {
+                        "$id": "#/properties/azureDatabases/tags",
+                        "type": "object",
+                        "default": {},
+                        "additionalProperties": {
+                            "oneOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "subscriptions": {
+                        "$id": "#/properties/azureDatabases/subscriptions",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "regions": {
+                        "$id": "#/properties/azureDatabases/regions",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "resource_groups": {
+                        "$id": "#/properties/azureDatabases/resource_groups",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "default": []
+                    },
+                    "additionalProperties": false
+                }
+            }
+        },
         "databases": {
             "$id": "#/properties/databases",
             "type": "array",
             "default": []
+        },
+        "databaseResources": {
+            "$id": "#/properties/databaseResources",
+            "type": "array",
+            "default": [],
+            "required": [
+                "labels"
+            ],
+            "properties": {
+                "labels": {
+                    "$id": "#/properties/databaseResources/labels",
+                    "type": "object"
+                },
+                "additionalProperties": false
+            }
         },
         "teleportVersionOverride": {
             "$id": "#/properties/teleportVersionOverride",
             "type": "string",
             "default": ""
         },
+        "caPin": {
+            "$id": "#/properties/caPin",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
         "insecureSkipProxyTLSVerify": {
             "$id": "#/properties/insecureSkipProxyTLSVerify",
             "type": "boolean",
             "default": false
+        },
+        "teleportConfig": {
+            "$id": "#/properties/teleportConfig",
+            "type": "object",
+            "default": {}
+        },
+        "tls": {
+            "$id": "#/properties/tls",
+            "type": "object",
+            "required": [
+                "existingCASecretName"
+            ],
+            "properties": {
+                "existingCASecretName": {
+                    "$id": "#/properties/tls/properties/existingCASecretName",
+                    "type": "string",
+                    "default": ""
+                }
+            }
         },
         "existingDataVolume": {
             "$id": "#/properties/existingDataVolume",
@@ -142,7 +290,7 @@
         "image": {
             "$id": "#/properties/image",
             "type": "string",
-            "default": "quay.io/gravitational/teleport"
+            "default": "public.ecr.aws/gravitational/teleport"
         },
         "imagePullSecrets": {
             "$id": "#/properties/imagePullSecrets",
@@ -161,6 +309,16 @@
         },
         "clusterRoleBindingName": {
             "$id": "#/properties/clusterRoleBindingName",
+            "type": "string",
+            "default": ""
+        },
+        "roleName": {
+            "$id": "#/properties/roleName",
+            "type": "string",
+            "default": ""
+        },
+        "roleBindingName": {
+            "$id": "#/properties/roleBindingName",
             "type": "string",
             "default": ""
         },
@@ -205,6 +363,11 @@
                 }
             }
         },
+        "priorityClassName": {
+            "$id": "#/properties/priorityClassName",
+            "type": "string",
+            "default": ""
+        },
         "serviceAccountName": {
             "$id": "#/properties/serviceAccountName",
             "type": "string",
@@ -227,7 +390,13 @@
                 "level": {
                     "$id": "#/properties/log/properties/level",
                     "type": "string",
-                    "enum": ["DEBUG", "INFO", "WARN", "WARNING", "ERROR"],
+                    "enum": [
+                        "DEBUG",
+                        "INFO",
+                        "WARN",
+                        "WARNING",
+                        "ERROR"
+                    ],
                     "default": "INFO"
                 },
                 "deployment": {
@@ -251,6 +420,77 @@
             "$id": "#/properties/affinity",
             "type": "object",
             "default": {}
+        },
+        "dnsConfig": {
+            "$id": "#/properties/dnsConfig",
+            "type": "object",
+            "default": {}
+        },
+        "dnsPolicy": {
+            "$id": "#/properties/dnsPolicy",
+            "type": "string",
+            "default": ""
+        },
+        "extraLabels": {
+            "$id": "#/properties/extraLabels",
+            "type": "object",
+            "properties": {
+                "clusterRole": {
+                    "$id": "#/properties/extraLabels/properties/clusterRole",
+                    "type": "object",
+                    "default": {}
+                },
+                "clusterRoleBinding": {
+                    "$id": "#/properties/extraLabels/properties/clusterRoleBinding",
+                    "type": "object",
+                    "default": {}
+                },
+                "role": {
+                    "$id": "#/properties/extraLabels/properties/role",
+                    "type": "object",
+                    "default": {}
+                },
+                "roleBinding": {
+                    "$id": "#/properties/extraLabels/properties/roleBinding",
+                    "type": "object",
+                    "default": {}
+                },
+                "config": {
+                    "$id": "#/properties/extraLabels/properties/config",
+                    "type": "object",
+                    "default": {}
+                },
+                "deployment": {
+                    "$id": "#/properties/extraLabels/properties/deployment",
+                    "type": "object",
+                    "default": {}
+                },
+                "pod": {
+                    "$id": "#/properties/extraLabels/properties/pod",
+                    "type": "object",
+                    "default": {}
+                },
+                "podDisruptionBudget": {
+                    "$id": "#/properties/extraLabels/properties/podDisruptionBudget",
+                    "type": "object",
+                    "default": {}
+                },
+                "podSecurityPolicy": {
+                    "$id": "#/properties/extraLabels/properties/podSecurityPolicy",
+                    "type": "object",
+                    "default": {}
+                },
+                "secret": {
+                    "$id": "#/properties/extraLabels/properties/secret",
+                    "type": "object",
+                    "default": {}
+                },
+                "serviceAccount": {
+                    "$id": "#/properties/extraLabels/properties/serviceAccount",
+                    "type": "object",
+                    "default": {}
+                }
+            }
         },
         "annotations": {
             "$id": "#/properties/annotations",
@@ -281,6 +521,35 @@
                     "$id": "#/properties/annotations/properties/serviceAccount",
                     "type": "object",
                     "default": {}
+                }
+            }
+        },
+        "serviceAccount": {
+            "$id": "#/properties/serviceAccount",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "name": {
+                    "$id": "#properties/serviceAccount/name",
+                    "type": "string",
+                    "default": ""
+                },
+                "create": {
+                    "$id": "#properties/serviceAccount/create",
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "rbac": {
+            "$id": "#/properties/rbac",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "create": {
+                    "$id": "#properties/rbac/create",
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -328,6 +597,11 @@
             "$id": "#/properties/tolerations",
             "type": "array",
             "default": []
+        },
+        "probeTimeoutSeconds": {
+            "$id": "#/properties/probeTimeoutSeconds",
+            "type": "integer",
+            "default": 1
         }
     }
 }

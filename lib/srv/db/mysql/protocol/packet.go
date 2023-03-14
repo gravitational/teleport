@@ -19,8 +19,8 @@ package protocol
 import (
 	"io"
 
+	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
-	"github.com/siddontang/go-mysql/mysql"
 )
 
 // Packet is the common interface for MySQL wire protocol packets.
@@ -71,17 +71,19 @@ func ParsePacket(conn io.Reader) (Packet, error) {
 //
 // MySQL wire protocol packet has the following structure:
 //
-//   4-byte
-//   header      payload
-//   ________    _________ ...
-//  |        |  |
+//	 4-byte
+//	 header      payload
+//	 ________    _________ ...
+//	|        |  |
+//
 // xx xx xx xx xx xx xx xx ...
-//  |_____|  |  |
-//  payload  |  message
-//  length   |  type
-//           |
-//           sequence
-//           number
+//
+//	|_____|  |  |
+//	payload  |  message
+//	length   |  type
+//	         |
+//	         sequence
+//	         number
 //
 // https://dev.mysql.com/doc/internals/en/mysql-packet.html
 func ReadPacket(conn io.Reader) (pkt []byte, pktType byte, err error) {
@@ -129,9 +131,16 @@ var packetParsersByType = []func([]byte) (Packet, error){
 	mysql.ERR_HEADER: parseErrorPacket,
 
 	// Text protocol commands.
-	mysql.COM_QUERY:       parseQueryPacket,
-	mysql.COM_QUIT:        parseQuitPacket,
-	mysql.COM_CHANGE_USER: parseChangeUserPacket,
+	mysql.COM_QUERY:        parseQueryPacket,
+	mysql.COM_QUIT:         parseQuitPacket,
+	mysql.COM_CHANGE_USER:  parseChangeUserPacket,
+	mysql.COM_INIT_DB:      parseInitDBPacket,
+	mysql.COM_CREATE_DB:    parseCreateDBPacket,
+	mysql.COM_DROP_DB:      parseDropDBPacket,
+	mysql.COM_SHUTDOWN:     parseShutDownPacket,
+	mysql.COM_PROCESS_KILL: parseProcessKillPacket,
+	mysql.COM_DEBUG:        parseDebugPacket,
+	mysql.COM_REFRESH:      parseRefreshPacket,
 
 	// Prepared statement commands.
 	mysql.COM_STMT_PREPARE:         parseStatementPreparePacket,

@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -29,13 +28,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
@@ -65,7 +63,7 @@ func TestHTTPSendFile(t *testing.T) {
 	require.NoError(t, err)
 	err = runSCP(cmd, "-v", "-t", outDir)
 	require.NoError(t, err)
-	bytesReceived, err := ioutil.ReadFile(filepath.Join(outDir, "filename"))
+	bytesReceived, err := os.ReadFile(filepath.Join(outDir, "filename"))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(string(bytesReceived), string(expectedBytes)))
 }
@@ -74,7 +72,7 @@ func TestHTTPReceiveFile(t *testing.T) {
 	source := filepath.Join(t.TempDir(), "target")
 
 	contents := []byte("hello, file contents!")
-	err := ioutil.WriteFile(source, contents, 0666)
+	err := os.WriteFile(source, contents, 0666)
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
@@ -91,7 +89,7 @@ func TestHTTPReceiveFile(t *testing.T) {
 	err = runSCP(cmd, "-v", "-f", source)
 	require.NoError(t, err)
 
-	data, err := ioutil.ReadAll(w.Body)
+	data, err := io.ReadAll(w.Body)
 	contentLengthStr := strconv.Itoa(len(data))
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(string(data), string(contents)))
@@ -428,7 +426,7 @@ func TestInvalidDir(t *testing.T) {
 			doneC := make(chan struct{})
 			// Service stderr
 			go func() {
-				io.Copy(ioutil.Discard, stderr)
+				io.Copy(io.Discard, stderr)
 				close(doneC)
 			}()
 
@@ -452,7 +450,7 @@ func TestVerifyDirectoryModeFailsWithFile(t *testing.T) {
 	// Create temporary directory with a file "target" in it.
 	dir := t.TempDir()
 	target := filepath.Join(dir, "target")
-	err := ioutil.WriteFile(target, []byte{}, 0666)
+	err := os.WriteFile(target, []byte{}, 0666)
 	require.NoError(t, err)
 
 	cmd, err := CreateCommand(
@@ -478,7 +476,7 @@ func TestVerifyDirectoryModeIsRequiredForDirectory(t *testing.T) {
 	// Create temporary directory with a file "target" in it.
 	dir := t.TempDir()
 	target := filepath.Join(dir, "target")
-	err := ioutil.WriteFile(target, []byte{}, 0666)
+	err := os.WriteFile(target, []byte{}, 0666)
 	require.NoError(t, err)
 
 	cmd, err := CreateCommand(
@@ -607,13 +605,13 @@ func fromOS(t *testing.T, dir string, fs *testFS) {
 		}
 		if fi.IsDir() {
 			require.NoError(t, fs.MkDir(relpath, int(fi.Mode())))
-			require.NoError(t, fs.Chtimes(relpath, atime(fi), fi.ModTime()))
+			require.NoError(t, fs.Chtimes(relpath, GetAtime(fi), fi.ModTime()))
 			return nil
 		}
 		wc, err := fs.CreateFile(relpath, uint64(fi.Size()))
 		require.NoError(t, err)
 		defer wc.Close()
-		require.NoError(t, fs.Chtimes(relpath, atime(fi), fi.ModTime()))
+		require.NoError(t, fs.Chtimes(relpath, GetAtime(fi), fi.ModTime()))
 		f, err := os.Open(path)
 		require.NoError(t, err)
 		defer f.Close()
@@ -666,7 +664,7 @@ func validateSCPContents(t *testing.T, expected *testFS, actual FileSystem) {
 		rc, err := actual.OpenFile(path)
 		require.NoError(t, err)
 		defer rc.Close()
-		bytes, err := ioutil.ReadAll(rc)
+		bytes, err := io.ReadAll(rc)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(fileinfo.contents.String(), string(bytes)))
 	}

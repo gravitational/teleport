@@ -17,14 +17,13 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"gopkg.in/yaml.v2"
 )
 
 func main() {
-	if err := checkTDR(); err != nil {
+	if err := checkDrone(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -33,9 +32,12 @@ func main() {
 	pipelines = append(pipelines, pushPipelines()...)
 	pipelines = append(pipelines, tagPipelines()...)
 	pipelines = append(pipelines, cronPipelines()...)
-	pipelines = append(pipelines, promoteBuildPipeline())
+	pipelines = append(pipelines, buildOsRepoPipelines()...)
+	pipelines = append(pipelines, promoteBuildPipelines()...)
 	pipelines = append(pipelines, updateDocsPipeline())
 	pipelines = append(pipelines, buildboxPipeline())
+	pipelines = append(pipelines, buildContainerImagePipelines()...)
+	pipelines = append(pipelines, publishReleasePipeline())
 
 	if err := writePipelines(".drone.yml", pipelines); err != nil {
 		fmt.Println("failed writing drone pipelines:", err)
@@ -55,7 +57,7 @@ func writePipelines(path string, newPipelines []pipeline) error {
 	// TODO: When all pipelines are migrated, remove this merging logic and
 	// write the file directly. This will be simpler and allow cleanup of
 	// pipelines when they are removed from this generator.
-	existingConfig, err := ioutil.ReadFile(path)
+	existingConfig, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to read existing config: %w", err)
 	}
@@ -104,7 +106,7 @@ func writePipelines(path string, newPipelines []pipeline) error {
 	}
 	configData := bytes.Join(pipelinesEnc, []byte("\n---\n"))
 
-	return ioutil.WriteFile(path, configData, 0664)
+	return os.WriteFile(path, configData, 0664)
 }
 
 // parsedPipeline is a single pipeline parsed from .drone.yml along with its

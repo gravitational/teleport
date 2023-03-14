@@ -24,18 +24,19 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/pquerna/otp"
-	"github.com/pquerna/otp/totp"
-
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -163,7 +164,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.Identity.CreateUserToken(ctx, token)
+	_, err = s.CreateUserToken(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -173,7 +174,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 			Type: events.ResetPasswordTokenCreateEvent,
 			Code: events.ResetPasswordTokenCreateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),
@@ -187,7 +188,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 }
 
 func (s *Server) resetMFA(ctx context.Context, user string) error {
-	devs, err := s.Identity.GetMFADevices(ctx, user, false)
+	devs, err := s.Services.GetMFADevices(ctx, user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -238,28 +239,6 @@ func formatAccountName(s proxyDomainGetter, username string, authHostname string
 	}
 
 	return fmt.Sprintf("%v@%v", username, proxyHost), nil
-}
-
-// DELETE IN 9.0.0 replaced by CreateRegisterChallenge.
-//
-// RotateUserTokenSecrets rotates secrets for a given tokenID.
-// It gets called every time a user fetches 2nd-factor secrets during registration attempt.
-// This ensures that an attacker that gains the user token link can not view it,
-// extract the OTP key from the QR code, then allow the user to signup with
-// the same OTP token.
-func (s *Server) RotateUserTokenSecrets(ctx context.Context, tokenID string) (types.UserTokenSecrets, error) {
-	token, err := s.GetUserToken(ctx, tokenID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	otpKey, _, err := s.newTOTPKey(token.GetUser())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	secrets, err := s.createTOTPUserTokenSecrets(ctx, token, otpKey)
-	return secrets, trace.Wrap(err)
 }
 
 // createTOTPUserTokenSecrets creates new UserTokenSecretes resource for the given token.
@@ -412,8 +391,7 @@ func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN 9.0.0: remove checking for empty string.
-	if token.GetSubKind() != "" && token.GetSubKind() != UserTokenTypeResetPassword && token.GetSubKind() != UserTokenTypeResetPasswordInvite {
+	if token.GetSubKind() != UserTokenTypeResetPassword && token.GetSubKind() != UserTokenTypeResetPasswordInvite {
 		return nil, trace.BadParameter("invalid token")
 	}
 
@@ -447,7 +425,7 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 	// Mark what recover type user requested.
 	newToken.SetUsage(usage)
 
-	if _, err := s.Identity.CreateUserToken(ctx, newToken); err != nil {
+	if _, err := s.CreateUserToken(ctx, newToken); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -456,9 +434,7 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 			Type: events.RecoveryTokenCreateEvent,
 			Code: events.RecoveryTokenCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: username,
-		},
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),
@@ -473,7 +449,7 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 
 // CreatePrivilegeToken implements AuthService.CreatePrivilegeToken.
 func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
-	username, err := GetClientUsername(ctx)
+	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -481,10 +457,6 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	authPref, err := s.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if !authPref.GetAllowLocalAuth() {
-		return nil, trace.AccessDenied("local auth needs to be enabled")
 	}
 
 	// For a user to add a device, second factor must be enabled.
@@ -499,7 +471,7 @@ func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePriv
 	switch {
 	case req.GetExistingMFAResponse() == nil:
 		// Allows users with no devices to bypass second factor re-auth.
-		devices, err := s.Identity.GetMFADevices(ctx, username, false /* withSecrets */)
+		devices, err := s.Services.GetMFADevices(ctx, username, false /* withSecrets */)
 		switch {
 		case err != nil:
 			return nil, trace.Wrap(err)
@@ -547,7 +519,7 @@ func (s *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := s.Identity.CreateUserToken(ctx, newToken)
+	token, err := s.CreateUserToken(ctx, newToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -557,9 +529,7 @@ func (s *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 			Type: events.PrivilegeTokenCreateEvent,
 			Code: events.PrivilegeTokenCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: username,
-		},
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),

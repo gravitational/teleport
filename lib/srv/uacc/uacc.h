@@ -26,14 +26,6 @@ limitations under the License.
 #include <stdlib.h>
 #include <limits.h>
 
-// Sometimes the _UTMP_PATH and _WTMP_PATH macros from glibc are bad, this seems to depend on distro.
-// I asked around on IRC, no one really knows why. I suspect it's another
-// archaic remnant of old Unix days and that a cleanup is long overdue.
-//
-// In the meantime, we just try to resolve from these paths instead.
-#define UACC_UTMP_PATH "/var/run/utmp"
-#define UACC_WTMP_PATH "/var/run/wtmp"
-
 int UACC_UTMP_MISSING_PERMISSIONS = 1;
 int UACC_UTMP_WRITE_ERROR = 2;
 int UACC_UTMP_READ_ERROR = 3;
@@ -59,21 +51,6 @@ char* UACC_PATH_ERR;
 // being standardized a choice was to make the NUL terminator optional for strings occupying fixed-size buffers in certain interfaces.
 // This decision is one of the origins of `strncpy` which has the special property that it will not write a NUL terminator if the
 // source string excluding the NUL terminator is of equal or greater length in comparison to the limit parameter.
-
-// get_absolute_path_with_fallback attempts to resolve the `supplied_path` path. If `supplied` is null it will
-// resolve the `fallback_path` path. The resolved path is stored in `buffer` and will at most be
-// `PATH_MAX` long including the null terminator.
-static char* get_absolute_path_with_fallback(char* buffer, const char* supplied_path, const char* fallback_path) {
-    const char* path;
-
-    if (supplied_path != NULL) {
-        path = supplied_path;
-    } else {
-        path = fallback_path;
-    }
-
-    return realpath(path, buffer);
-}
 
 static int check_abs_path_err(const char* buffer) {
     // check for errors
@@ -108,10 +85,19 @@ static int max_len_tty_name() {
 
 // Low level C function to add a new USER_PROCESS entry to the database.
 // This function does not perform any argument validation.
-static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, const char *username, const char *hostname, const int32_t remote_addr_v6[4], const char *tty_name, const char *id, int32_t tv_sec, int32_t tv_usec) {
+static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, const char *username,
+  const char *hostname, const int32_t remote_addr_v6[4], const char *tty_name, const char *id,
+  int32_t tv_sec, int32_t tv_usec) {
+
+    if (utmp_path == NULL || wtmp_path == NULL) {
+      // Return open failed error if any of the provided paths is NULL.
+      return UACC_UTMP_FAILED_OPEN;
+    }
+
     UACC_PATH_ERR = NULL;
     char resolved_utmp_buffer[PATH_MAX];
-    const char* file = get_absolute_path_with_fallback(&resolved_utmp_buffer[0], utmp_path, UACC_UTMP_PATH);
+    const char* file = realpath(utmp_path, &resolved_utmp_buffer[0]);
+
     int status = check_abs_path_err(file);
     if (status != 0) {
         return status;
@@ -119,17 +105,19 @@ static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, con
     if (utmpname(file) < 0) {
         return UACC_UTMP_FAILED_TO_SELECT_FILE;
     }
-    struct utmp entry;
-    entry.ut_type = USER_PROCESS;
+    struct utmp entry = {
+      .ut_type = USER_PROCESS,
+      .ut_pid = getpid(),
+      .ut_session = getsid(0),
+      .ut_tv.tv_sec = tv_sec,
+      .ut_tv.tv_usec = tv_usec
+    };
     strncpy((char*) &entry.ut_line, tty_name, UT_LINESIZE);
     strncpy((char*) &entry.ut_id, id, sizeof(entry.ut_id));
-    entry.ut_pid = getpid();
     strncpy((char*) &entry.ut_host, hostname, sizeof(entry.ut_host));
     strncpy((char*) &entry.ut_user, username, sizeof(entry.ut_user));
-    entry.ut_session = getsid(0);
-    entry.ut_tv.tv_sec = tv_sec;
-    entry.ut_tv.tv_usec = tv_usec;
     memcpy(&entry.ut_addr_v6, &remote_addr_v6, sizeof(int32_t) * 4);
+
     errno = 0;
     setutent();
     if (errno > 0) {
@@ -142,7 +130,7 @@ static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, con
     }
     endutent();
     char resolved_wtmp_buffer[PATH_MAX];
-    const char* wtmp_file = get_absolute_path_with_fallback(&resolved_wtmp_buffer[0], wtmp_path, UACC_WTMP_PATH);
+    const char* wtmp_file = realpath(wtmp_path, &resolved_wtmp_buffer[0]);
     status = check_abs_path_err(wtmp_file);
     if (status != 0) {
         return status;
@@ -154,9 +142,14 @@ static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, con
 // Low level C function to mark a database entry as DEAD_PROCESS.
 // This function does not perform string argument validation.
 static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_path, const char *tty_name, int32_t tv_sec, int32_t tv_usec) {
+    if (utmp_path == NULL || wtmp_path == NULL) {
+      // Return open failed error if any of the provided paths is NULL.
+      return UACC_UTMP_FAILED_OPEN;
+    }
+
     UACC_PATH_ERR = NULL;
     char resolved_utmp_buffer[PATH_MAX];
-    const char* file = get_absolute_path_with_fallback(&resolved_utmp_buffer[0], utmp_path, UACC_UTMP_PATH);
+    const char* file = realpath(utmp_path, &resolved_utmp_buffer[0]);
     int status = check_abs_path_err(file);
     if (status != 0) {
         return status;
@@ -197,7 +190,7 @@ static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_pat
     }
     endutent();
     char resolved_wtmp_buffer[PATH_MAX];
-    const char* wtmp_file = get_absolute_path_with_fallback(&resolved_wtmp_buffer[0], wtmp_path, UACC_WTMP_PATH);
+    const char* wtmp_file = realpath(wtmp_path, &resolved_wtmp_buffer[0]);
     status = check_abs_path_err(wtmp_file);
     if (status != 0) {
         return status;
@@ -209,9 +202,14 @@ static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_pat
 // Low level C function to check the database for an entry for a given user.
 // This function does not perform string argument validation.
 static int uacc_has_entry_with_user(const char *utmp_path, const char *user) {
+    if (utmp_path == NULL) {
+        // Return open failed error if any of the provided paths is NULL.
+        return UACC_UTMP_FAILED_OPEN;
+    }
+
     UACC_PATH_ERR = NULL;
     char resolved_utmp_buffer[PATH_MAX];
-    const char* file = get_absolute_path_with_fallback(&resolved_utmp_buffer[0], utmp_path, UACC_UTMP_PATH);
+    const char* file = realpath(utmp_path, &resolved_utmp_buffer[0]);
     int status = check_abs_path_err(file);
     if (status != 0) {
         return status;

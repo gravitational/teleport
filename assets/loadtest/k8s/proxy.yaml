@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: proxy
-  namespace: loadtest
+  namespace: ${NAMESPACE}
   labels:
     teleport-role: proxy
 spec:
@@ -12,6 +12,9 @@ spec:
       teleport-role: proxy
   template:
     metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3434"
       labels:
         teleport-role: proxy
         prometheus.io/scrape: "true"
@@ -25,15 +28,6 @@ spec:
           secret:
             secretName: teleport-tls
       containers:
-        - name: telegraf
-          image: telegraf:1.20.3
-          envFrom:
-            - secretRef:
-                name: influxdb-creds
-          volumeMounts:
-            - name: config
-              mountPath: /etc/telegraf/telegraf.conf
-              subPath: telegraf.conf
         - name: teleport
           image: ${TELEPORT_IMAGE}
           args: ["-d", "--insecure", "--diag-addr=0.0.0.0:3434"]
@@ -74,11 +68,11 @@ apiVersion: v1
 kind: Service
 metadata:
   name: proxy
-  namespace: loadtest
+  namespace: ${NAMESPACE}
   labels:
     teleport-role: proxy
 spec:
-  type: LoadBalancer  
+  type: LoadBalancer
   loadBalancerIP: ${PROXY_IP}
   ports:
   - name: https
@@ -101,5 +95,8 @@ spec:
     port: 3036
     targetPort: 3036
     protocol: TCP
+  - name: diag
+    port: 3434
+    targetPort: 3434
   selector:
     teleport-role: proxy

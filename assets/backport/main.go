@@ -20,7 +20,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -100,7 +99,7 @@ func getGithubToken() (string, error) {
 		return "", trace.Wrap(err)
 	}
 	ghConfigPath := filepath.Join(dirname, githubConfigPath)
-	yamlFile, err := ioutil.ReadFile(ghConfigPath)
+	yamlFile, err := os.ReadFile(ghConfigPath)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -41,9 +42,20 @@ func ValidateUser(u types.User) error {
 	return nil
 }
 
+// ValidateUserRoles checks that all the roles in the user exist
+func ValidateUserRoles(ctx context.Context, u types.User, roleGetter RoleGetter) error {
+	for _, role := range u.GetRoles() {
+		if _, err := roleGetter.GetRole(ctx, role); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
 // UsersEquals checks if the users are equal
 func UsersEquals(u types.User, other types.User) bool {
 	return cmp.Equal(u, other,
+		ignoreProtoXXXFields(),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 		cmpopts.SortSlices(func(a, b *types.MFADevice) bool {
 			return a.Metadata.Name < b.Metadata.Name

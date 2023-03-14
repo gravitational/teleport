@@ -20,13 +20,15 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 // getMFADevicesWithTokenHandle retrieves the list of registered MFA devices for the user defined in token.
@@ -77,6 +79,10 @@ type addMFADeviceRequest struct {
 	SecondFactorToken string `json:"secondFactorToken"`
 	// WebauthnRegisterResponse is a WebAuthn registration challenge response.
 	WebauthnRegisterResponse *webauthn.CredentialCreationResponse `json:"webauthnRegisterResponse"`
+	// DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
+	// It mimics the proto.DeviceUsage enum.
+	// Defaults to MFA.
+	DeviceUsage string `json:"deviceUsage"`
 }
 
 // addMFADeviceHandle adds a new mfa device for the user defined in the token.
@@ -86,9 +92,15 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 		return nil, trace.Wrap(err)
 	}
 
+	deviceUsage, err := getDeviceUsage(req.DeviceUsage)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	protoReq := &proto.AddMFADeviceSyncRequest{
 		TokenID:       req.PrivilegeTokenID,
 		NewDeviceName: req.DeviceName,
+		DeviceUsage:   deviceUsage,
 	}
 
 	switch {
@@ -170,14 +182,9 @@ func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, 
 		return nil, trace.BadParameter("MFA device type %q unsupported", req.DeviceType)
 	}
 
-	var deviceUsage proto.DeviceUsage
-	switch strings.ToLower(req.DeviceUsage) {
-	case "", "mfa":
-		deviceUsage = proto.DeviceUsage_DEVICE_USAGE_MFA
-	case "passwordless":
-		deviceUsage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
-	default:
-		return nil, trace.BadParameter("device usage %q unsupported", req.DeviceUsage)
+	deviceUsage, err := getDeviceUsage(req.DeviceUsage)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	chal, err := h.cfg.ProxyClient.CreateRegisterChallenge(r.Context(), &proto.CreateRegisterChallengeRequest{
@@ -190,4 +197,176 @@ func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, 
 	}
 
 	return client.MakeRegisterChallenge(chal), nil
+}
+
+func getDeviceUsage(reqUsage string) (proto.DeviceUsage, error) {
+	var deviceUsage proto.DeviceUsage
+	switch strings.ToLower(reqUsage) {
+	case "", "mfa":
+		deviceUsage = proto.DeviceUsage_DEVICE_USAGE_MFA
+	case "passwordless":
+		deviceUsage = proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS
+	default:
+		return proto.DeviceUsage_DEVICE_USAGE_UNSPECIFIED, trace.BadParameter("device usage %q unsupported", reqUsage)
+	}
+
+	return deviceUsage, nil
+}
+
+type isMFARequiredDatabase struct {
+	// ServiceName is the database service name.
+	ServiceName string `json:"service_name"`
+	// Protocol is the type of the database protocol
+	// eg: "postgres", "mysql", "mongodb", etc.
+	Protocol string `json:"protocol"`
+	// Username is an optional database username.
+	Username string `json:"username,omitempty"`
+	// DatabaseName is an optional database name.
+	DatabaseName string `json:"database_name,omitempty"`
+}
+
+type isMFARequiredKube struct {
+	// ClusterName is the name of the kube cluster.
+	ClusterName string `json:"cluster_name"`
+}
+
+type isMFARequiredNode struct {
+	// NodeName can be node's hostname or UUID.
+	NodeName string `json:"node_name"`
+	// Login is the OS login name.
+	Login string `json:"login"`
+}
+
+type isMFARequiredWindowsDesktop struct {
+	// DesktopName is the Windows Desktop server name.
+	DesktopName string `json:"desktop_name"`
+	// Login is the Windows desktop user login.
+	Login string `json:"login"`
+}
+
+type isMFARequiredRequest struct {
+	// Database contains fields required to check if target database
+	// requires MFA check.
+	Database *isMFARequiredDatabase `json:"database,omitempty"`
+	// Node contains fields required to check if target node
+	// requires MFA check.
+	Node *isMFARequiredNode `json:"node,omitempty"`
+	// WindowsDesktop contains fields required to check if target
+	// windows desktop requires MFA check.
+	WindowsDesktop *isMFARequiredWindowsDesktop `json:"windows_desktop,omitempty"`
+	// Kube is the name of the kube cluster to check if target cluster
+	// requires MFA check.
+	Kube *isMFARequiredKube `json:"kube,omitempty"`
+}
+
+func (r *isMFARequiredRequest) checkAndGetProtoRequest() (*proto.IsMFARequiredRequest, error) {
+	numRequests := 0
+	var protoReq *proto.IsMFARequiredRequest
+
+	if r.Database != nil {
+		numRequests++
+		if r.Database.ServiceName == "" {
+			return nil, trace.BadParameter("missing service_name for checking database target")
+		}
+		if r.Database.Protocol == "" {
+			return nil, trace.BadParameter("missing protocol for checking database target")
+		}
+
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_Database{
+				Database: &proto.RouteToDatabase{
+					ServiceName: r.Database.ServiceName,
+					Protocol:    r.Database.Protocol,
+					Database:    r.Database.DatabaseName,
+					Username:    r.Database.Username,
+				}},
+		}
+	}
+
+	if r.Kube != nil {
+		numRequests++
+		if r.Kube.ClusterName == "" {
+			return nil, trace.BadParameter("missing cluster_name for checking kubernetes cluster target")
+		}
+
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_KubernetesCluster{
+				KubernetesCluster: r.Kube.ClusterName,
+			},
+		}
+	}
+
+	if r.WindowsDesktop != nil {
+		numRequests++
+		if r.WindowsDesktop.DesktopName == "" {
+			return nil, trace.BadParameter("missing desktop_name for checking windows desktop target")
+		}
+		if r.WindowsDesktop.Login == "" {
+			return nil, trace.BadParameter("missing login for checking windows desktop target")
+		}
+
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_WindowsDesktop{
+				WindowsDesktop: &proto.RouteToWindowsDesktop{
+					WindowsDesktop: r.WindowsDesktop.DesktopName,
+					Login:          r.WindowsDesktop.Login,
+				}},
+		}
+	}
+
+	if r.Node != nil {
+		numRequests++
+		if r.Node.Login == "" {
+			return nil, trace.BadParameter("missing login for checking node target")
+		}
+		if r.Node.NodeName == "" {
+			return nil, trace.BadParameter("missing node_name for checking node target")
+		}
+
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_Node{
+				Node: &proto.NodeLogin{
+					Login: r.Node.Login,
+					Node:  r.Node.NodeName,
+				}},
+		}
+	}
+
+	if numRequests > 1 {
+		return nil, trace.BadParameter("only one target is allowed for MFA check")
+	}
+
+	if protoReq == nil {
+		return nil, trace.BadParameter("missing target for MFA check")
+	}
+
+	return protoReq, nil
+}
+
+type isMfaRequiredResponse struct {
+	Required bool `json:"required"`
+}
+
+func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	var httpReq *isMFARequiredRequest
+	if err := httplib.ReadJSON(r, &httpReq); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	protoReq, err := httpReq.checkAndGetProtoRequest()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := clt.IsMFARequired(r.Context(), protoReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return isMfaRequiredResponse{Required: res.GetRequired()}, nil
 }

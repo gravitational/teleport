@@ -17,9 +17,8 @@ limitations under the License.
 package protocol
 
 import (
+	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
-
-	"github.com/siddontang/go-mysql/mysql"
 )
 
 // StatementPreparePacket represents the COM_STMT_PREPARE command.

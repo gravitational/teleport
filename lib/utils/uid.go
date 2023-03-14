@@ -17,9 +17,9 @@ limitations under the License.
 package utils
 
 import (
-	"github.com/gravitational/teleport/lib/fixtures"
-
 	"github.com/google/uuid"
+
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 // UID provides an interface for generating unique identifiers.

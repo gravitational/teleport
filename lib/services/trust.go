@@ -25,10 +25,10 @@ import (
 // AuthorityGetter defines interface for fetching cert authority resources.
 type AuthorityGetter interface {
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 }
 
 // Trust is responsible for managing certificate authorities
@@ -68,4 +68,7 @@ type Trust interface {
 	// DeactivateCertAuthority moves a CertAuthority from the normal list to
 	// the deactivated list.
 	DeactivateCertAuthority(id types.CertAuthID) error
+
+	// UpdateUserCARoleMap updates the role map of the userCA of the specified existing cluster.
+	UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error
 }

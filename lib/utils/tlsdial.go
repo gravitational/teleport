@@ -6,10 +6,9 @@ package utils
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"strings"
-
-	"crypto/tls"
 
 	"github.com/gravitational/trace"
 )
@@ -47,7 +46,7 @@ func TLSDial(ctx context.Context, dial DialWithContextFunc, network, addr string
 	conn := tls.Client(plainConn, tlsConfig)
 	errC := make(chan error, 1)
 	go func() {
-		err := conn.Handshake()
+		err := conn.HandshakeContext(ctx)
 		errC <- err
 	}()
 
@@ -59,7 +58,7 @@ func TLSDial(ctx context.Context, dial DialWithContextFunc, network, addr string
 		}
 	case <-ctx.Done():
 		plainConn.Close()
-		return nil, trace.BadParameter("tls handshake has been cancelled due to timeout")
+		return nil, trace.BadParameter("tls handshake has been canceled due to timeout")
 	}
 
 	if tlsConfig.InsecureSkipVerify {

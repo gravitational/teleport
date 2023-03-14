@@ -23,14 +23,14 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // AccessRequest is a request for temporarily granted roles
 type AccessRequest interface {
-	Resource
+	ResourceWithLabels
 	// GetUser gets the name of the requesting user
 	GetUser() string
 	// GetRoles gets the roles being requested by the user
@@ -46,11 +46,11 @@ type AccessRequest interface {
 	GetCreationTime() time.Time
 	// SetCreationTime sets the creation time of the request.
 	SetCreationTime(time.Time)
-	// GetAccessExpiry gets the upper limit for which this request
-	// may be considered active.
+	// GetAccessExpiry gets the expiration time for the elevated certificate
+	// that will be issued if the Access Request is approved.
 	GetAccessExpiry() time.Time
-	// SetAccessExpiry sets the upper limit for which this request
-	// may be considered active.
+	// SetAccessExpiry sets the expiration time for the elevated certificate
+	// that will be issued if the Access Request is approved.
 	SetAccessExpiry(time.Time)
 	// GetRequestReason gets the reason for the request's creation.
 	GetRequestReason() string
@@ -90,17 +90,37 @@ type AccessRequest interface {
 	GetSuggestedReviewers() []string
 	// SetSuggestedReviewers sets the suggested reviewer list.
 	SetSuggestedReviewers([]string)
+	// GetRequestedResourceIDs gets the resource IDs to which access is being requested.
+	GetRequestedResourceIDs() []ResourceID
+	// SetRequestedResourceIDs sets the resource IDs to which access is being requested.
+	SetRequestedResourceIDs([]ResourceID)
+	// GetLoginHint gets the requested login hint.
+	GetLoginHint() string
+	// SetLoginHint sets the requested login hint.
+	SetLoginHint(string)
+	// GetDryRun returns true if this request should not be created and is only
+	// a dry run to validate request capabilities.
+	GetDryRun() bool
+	// SetDryRun sets the dry run flag on the request.
+	SetDryRun(bool)
 }
 
-// NewAccessRequest assembled an AccessRequest resource.
+// NewAccessRequest assembles an AccessRequest resource.
 func NewAccessRequest(name string, user string, roles ...string) (AccessRequest, error) {
+	return NewAccessRequestWithResources(name, user, roles, []ResourceID{})
+}
+
+// NewAccessRequestWithResources assembles an AccessRequest resource with
+// requested resources.
+func NewAccessRequestWithResources(name string, user string, roles []string, resourceIDs []ResourceID) (AccessRequest, error) {
 	req := AccessRequestV3{
 		Metadata: Metadata{
 			Name: name,
 		},
 		Spec: AccessRequestSpecV3{
-			User:  user,
-			Roles: roles,
+			User:                 user,
+			Roles:                utils.CopyStrings(roles),
+			RequestedResourceIDs: append([]ResourceID{}, resourceIDs...),
 		},
 	}
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -288,8 +308,15 @@ func (r *AccessRequestV3) CheckAndSetDefaults() error {
 	if r.GetUser() == "" {
 		return trace.BadParameter("access request user name not set")
 	}
-	if len(r.GetRoles()) < 1 {
-		return trace.BadParameter("access request does not specify any roles")
+
+	if r.Spec.Roles == nil {
+		r.Spec.Roles = []string{}
+	}
+	if r.Spec.RequestedResourceIDs == nil {
+		r.Spec.RequestedResourceIDs = []ResourceID{}
+	}
+	if len(r.GetRoles()) == 0 && len(r.GetRequestedResourceIDs()) == 0 {
+		return trace.BadParameter("access request does not specify any roles or resources")
 	}
 
 	// dedupe and sort roles to simplify comparing role lists
@@ -352,6 +379,69 @@ func (r *AccessRequestV3) GetResourceID() int64 {
 // SetResourceID sets ResourceID
 func (r *AccessRequestV3) SetResourceID(id int64) {
 	r.Metadata.SetID(id)
+}
+
+// GetRequestedResourceIDs gets the resource IDs to which access is being requested.
+func (r *AccessRequestV3) GetRequestedResourceIDs() []ResourceID {
+	return append([]ResourceID{}, r.Spec.RequestedResourceIDs...)
+}
+
+// SetRequestedResourceIDs sets the resource IDs to which access is being requested.
+func (r *AccessRequestV3) SetRequestedResourceIDs(ids []ResourceID) {
+	r.Spec.RequestedResourceIDs = append([]ResourceID{}, ids...)
+}
+
+// GetLoginHint gets the requested login hint.
+func (r *AccessRequestV3) GetLoginHint() string {
+	return r.Spec.LoginHint
+}
+
+// SetLoginHint sets the requested login hint.
+func (r *AccessRequestV3) SetLoginHint(login string) {
+	r.Spec.LoginHint = login
+}
+
+// GetDryRun returns true if this request should not be created and is only
+// a dry run to validate request capabilities.
+func (r *AccessRequestV3) GetDryRun() bool {
+	return r.Spec.DryRun
+}
+
+// SetDryRun sets the dry run flag on the request.
+func (r *AccessRequestV3) SetDryRun(dryRun bool) {
+	r.Spec.DryRun = dryRun
+}
+
+// GetStaticLabels returns the access request static labels.
+func (r *AccessRequestV3) GetStaticLabels() map[string]string {
+	return r.Metadata.Labels
+}
+
+// SetStaticLabels sets the access request static labels.
+func (r *AccessRequestV3) SetStaticLabels(sl map[string]string) {
+	r.Metadata.Labels = sl
+}
+
+// GetAllLabels returns the access request static labels.
+func (r *AccessRequestV3) GetAllLabels() map[string]string {
+	return r.Metadata.Labels
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (r *AccessRequestV3) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
+	return MatchSearch(fieldVals, values, nil)
+}
+
+// Origin returns the origin value of the resource.
+func (r *AccessRequestV3) Origin() string {
+	return r.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (r *AccessRequestV3) SetOrigin(origin string) {
+	r.Metadata.SetOrigin(origin)
 }
 
 // String returns a text representation of this AccessRequest
@@ -554,3 +644,32 @@ func (f *AccessRequestFilter) Match(req AccessRequest) bool {
 	}
 	return true
 }
+
+// AccessRequests is a list of AccessRequest resources.
+type AccessRequests []AccessRequest
+
+// ToMap returns these access requests as a map keyed by access request name.
+func (a AccessRequests) ToMap() map[string]AccessRequest {
+	m := make(map[string]AccessRequest)
+	for _, accessRequest := range a {
+		m[accessRequest.GetName()] = accessRequest
+	}
+	return m
+}
+
+// AsResources returns these access requests as resources with labels.
+func (a AccessRequests) AsResources() (resources ResourcesWithLabels) {
+	for _, accessRequest := range a {
+		resources = append(resources, accessRequest)
+	}
+	return resources
+}
+
+// Len returns the slice length.
+func (a AccessRequests) Len() int { return len(a) }
+
+// Less compares access requests by name.
+func (a AccessRequests) Less(i, j int) bool { return a[i].GetName() < a[j].GetName() }
+
+// Swap swaps two access requests.
+func (a AccessRequests) Swap(i, j int) { a[i], a[j] = a[j], a[i] }

@@ -28,14 +28,19 @@ const (
 	// Namespace is default namespace
 	Namespace = "default"
 
-	// DefaultDialTimeout is a default TCP dial timeout we set for our
-	// connection attempts
-	DefaultDialTimeout = 30 * time.Second
+	// DefaultIOTimeout is a default network IO timeout.
+	DefaultIOTimeout = 30 * time.Second
+
+	// DefaultIdleTimeout is a default idle connection timeout.
+	DefaultIdleTimeout = 360 * time.Second
 
 	// KeepAliveCountMax is the number of keep-alive messages that can be sent
 	// without receiving a response from the client before the client is
 	// disconnected. The max count mirrors ClientAliveCountMax of sshd.
 	KeepAliveCountMax = 3
+
+	// MinCertDuration specifies minimum duration of validity of issued certificate
+	MinCertDuration = time.Minute
 
 	// MaxCertDuration limits maximum duration of validity of issued certificate
 	MaxCertDuration = 30 * time.Hour
@@ -48,6 +53,30 @@ const (
 	// deviation added to this time to avoid lots of simultaneous
 	// heartbeats coming to auth server
 	ServerAnnounceTTL = 600 * time.Second
+
+	// SessionTrackerTTL defines the default base ttl of a session tracker.
+	SessionTrackerTTL = 30 * time.Minute
+
+	// BreakerInterval is the period in time the circuit breaker will
+	// tally metrics for
+	BreakerInterval = time.Minute
+
+	// TrippedPeriod is the default period of time the circuit breaker will
+	// remain in breaker.StateTripped before transitioning to breaker.StateRecovering. No
+	// outbound requests are allowed for the duration of this period.
+	TrippedPeriod = 60 * time.Second
+
+	// RecoveryLimit is the default number of consecutive successful requests needed to transition
+	// from breaker.StateRecovering to breaker.StateStandby
+	RecoveryLimit = 3
+
+	// BreakerRatio is the default ratio of failed requests to successful requests that will
+	// result in the circuit breaker transitioning to breaker.StateTripped
+	BreakerRatio = 0.9
+
+	// BreakerRatioMinExecutions is the minimum number of requests before the ratio tripper
+	// will consider examining the request pass rate
+	BreakerRatioMinExecutions = 10
 )
 
 var (
@@ -102,6 +131,9 @@ const (
 	// connections from SSH nodes who wish to use "reverse tunnell" (when they
 	// run behind an environment/firewall which only allows outgoing connections)
 	SSHProxyTunnelListenPort = 3024
+
+	// SSHProxyListenPort is the default Teleport SSH proxy listen port.
+	SSHProxyListenPort = 3023
 
 	// ProxyWebListenPort is the default Teleport Proxy WebPort address.
 	ProxyWebListenPort = 3080

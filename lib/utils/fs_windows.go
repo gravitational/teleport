@@ -19,28 +19,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import (
-	"os"
+// On Windows we use auxiliary .lock.tmp files to acquire locks, so we can still read/write target
+// files themselves.
+//
+// .lock.tmp files are deliberately not cleaned up. Their presence doesn't matter to the actual
+// locking. Repeatedly removing them on unlock when acquiring dozens of locks in a short timespan
+// was causing flock.Flock.TryRLock to return either "access denied" or "The process cannot access
+// the file because it is being used by another process".
+const lockPostfix = ".lock.tmp"
 
-	"github.com/gravitational/trace"
-)
-
-// FSWriteLock not supported on Windows.
-func FSWriteLock(f *os.File) error {
-	return trace.BadParameter("file locking not supported on Windows")
-}
-
-// FSTryWriteLock not supported on Windows.
-func FSTryWriteLock(f *os.File) error {
-	return trace.BadParameter("file locking not supported on Windows")
-}
-
-// FSReadLock not supported on Windows.
-func FSReadLock(f *os.File) error {
-	return trace.BadParameter("file locking not supported on Windows")
-}
-
-// FSUnlock not supported on Windows.
-func FSUnlock(f *os.File) error {
-	return trace.BadParameter("file locking not supported on Windows")
+func getPlatformLockFilePath(path string) string {
+	return path + lockPostfix
 }

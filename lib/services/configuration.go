@@ -43,6 +43,13 @@ type ClusterConfiguration interface {
 	// DeleteStaticTokens deletes static tokens resource
 	DeleteStaticTokens() error
 
+	// GetUIConfig gets the proxy service UI config from the backend
+	GetUIConfig(context.Context) (types.UIConfig, error)
+	// SetUIConfig sets the proxy service UI config from the backend
+	SetUIConfig(context.Context, types.UIConfig) error
+	// DeleteUIConfig deletes the proxy service UI config from the backend
+	DeleteUIConfig(ctx context.Context) error
+
 	// GetAuthPreference gets types.AuthPreference from the backend.
 	GetAuthPreference(context.Context) (types.AuthPreference, error)
 	// SetAuthPreference sets types.AuthPreference from the backend.
@@ -70,4 +77,15 @@ type ClusterConfiguration interface {
 	SetClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) error
 	// DeleteClusterNetworkingConfig deletes ClusterNetworkingConfig from the backend.
 	DeleteClusterNetworkingConfig(ctx context.Context) error
+
+	// GetInstallers gets all installer scripts from the backend
+	GetInstallers(context.Context) ([]types.Installer, error)
+	// GetInstaller gets the installer script from the backend
+	GetInstaller(ctx context.Context, name string) (types.Installer, error)
+	// SetInstaller sets the installer script in the backend
+	SetInstaller(context.Context, types.Installer) error
+	// DeleteInstaller removes the installer script from the backend
+	DeleteInstaller(ctx context.Context, name string) error
+	// DeleteAllInstallers removes all installer script resources from the backend
+	DeleteAllInstallers(context.Context) error
 }

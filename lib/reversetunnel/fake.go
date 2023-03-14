@@ -19,9 +19,11 @@ package reversetunnel
 import (
 	"net"
 	"sync"
+	"sync/atomic"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/trace"
 )
 
 // FakeServer is a fake reversetunnel.Server implementation used in tests.
@@ -57,6 +59,8 @@ type FakeRemoteSite struct {
 	OfflineTunnels map[string]struct{}
 	// connCh receives the connection when dialing this site.
 	connCh chan net.Conn
+	// connCounter count how many connection requests the remote received.
+	connCounter int64
 	// closedMtx is a mutex that protects closed.
 	closedMtx sync.Mutex
 	// closed is set to true after the site is being closed.
@@ -89,6 +93,8 @@ func (s *FakeRemoteSite) ProxyConn() <-chan net.Conn {
 
 // Dial returns the connection to the remote site.
 func (s *FakeRemoteSite) Dial(params DialParams) (net.Conn, error) {
+	atomic.AddInt64(&s.connCounter, 1)
+
 	if _, ok := s.OfflineTunnels[params.ServerID]; ok {
 		return nil, trace.ConnectionProblem(nil, "server %v tunnel is offline",
 			params.ServerID)
@@ -106,9 +112,14 @@ func (s *FakeRemoteSite) Dial(params DialParams) (net.Conn, error) {
 	return writerConn, nil
 }
 
-func (s *FakeRemoteSite) Close() {
+func (s *FakeRemoteSite) Close() error {
 	s.closedMtx.Lock()
 	defer s.closedMtx.Unlock()
 	close(s.connCh)
 	s.closed = true
+	return nil
+}
+
+func (s *FakeRemoteSite) DialCount() int64 {
+	return atomic.LoadInt64(&s.connCounter)
 }

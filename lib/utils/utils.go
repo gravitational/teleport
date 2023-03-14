@@ -18,9 +18,11 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"io/fs"
+	"math/rand"
 	"net"
 	"net/url"
 	"os"
@@ -32,14 +34,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/validation"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
-
-	"github.com/google/uuid"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // WriteContextCloser provides close method with context
@@ -310,6 +313,16 @@ func SplitHostPort(hostname string) (string, string, error) {
 	return host, port, nil
 }
 
+// IsValidHostname checks if a string represents a valid hostname.
+func IsValidHostname(hostname string) bool {
+	for _, label := range strings.Split(hostname, ".") {
+		if len(validation.IsDNS1035Label(label)) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // ReadPath reads file contents
 func ReadPath(path string) ([]byte, error) {
 	if path == "" {
@@ -321,10 +334,18 @@ func ReadPath(path string) ([]byte, error) {
 	}
 	abs, err := filepath.EvalSymlinks(s)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return nil, err
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
-	bytes, err := ioutil.ReadFile(abs)
+	bytes, err := os.ReadFile(abs)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return nil, err
+		}
 		return nil, trace.ConvertSystemError(err)
 	}
 	return bytes, nil
@@ -377,16 +398,21 @@ func OpaqueAccessDenied(err error) error {
 	return trace.Wrap(err)
 }
 
-// PortList is a list of TCP port
-type PortList []string
+// PortList is a list of TCP ports.
+type PortList struct {
+	ports []string
+	sync.Mutex
+}
 
 // Pop returns a value from the list, it panics if the value is not there
 func (p *PortList) Pop() string {
-	if len(*p) == 0 {
+	p.Lock()
+	defer p.Unlock()
+	if len(p.ports) == 0 {
 		panic("list is empty")
 	}
-	val := (*p)[len(*p)-1]
-	*p = (*p)[:len(*p)-1]
+	val := p.ports[len(p.ports)-1]
+	p.ports = p.ports[:len(p.ports)-1]
 	return val
 }
 
@@ -415,7 +441,7 @@ const PortStartingNumber = 20000
 
 // GetFreeTCPPorts returns n ports starting from port 20000.
 func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
-	list := make(PortList, 0, n)
+	list := make([]string, 0, n)
 	start := PortStartingNumber
 	if len(offset) != 0 {
 		start = offset[0]
@@ -423,22 +449,40 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 	for i := start; i < start+n; i++ {
 		list = append(list, strconv.Itoa(i))
 	}
-	return list, nil
+	return PortList{ports: list}, nil
+}
+
+// HostUUIDExistsLocally checks if dataDir/host_uuid file exists in local storage.
+func HostUUIDExistsLocally(dataDir string) bool {
+	_, err := ReadHostUUID(dataDir)
+	return err == nil
 }
 
 // ReadHostUUID reads host UUID from the file in the data dir
 func ReadHostUUID(dataDir string) (string, error) {
 	out, err := ReadPath(filepath.Join(dataDir, HostUUIDFile))
 	if err != nil {
-		return "", trace.Wrap(err)
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return "", err
+		}
+		return "", trace.ConvertSystemError(err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	id := strings.TrimSpace(string(out))
+	if id == "" {
+		return "", trace.NotFound("host uuid is empty")
+	}
+	return id, nil
 }
 
 // WriteHostUUID writes host UUID into a file
 func WriteHostUUID(dataDir string, id string) error {
-	err := ioutil.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
+	err := os.WriteFile(filepath.Join(dataDir, HostUUIDFile), []byte(id), os.ModeExclusive|0400)
 	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return err
+		}
 		return trace.ConvertSystemError(err)
 	}
 	return nil
@@ -454,7 +498,18 @@ func ReadOrMakeHostUUID(dataDir string) (string, error) {
 	if !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
-	id = uuid.New().String()
+	// Checking error instead of the usual uuid.New() in case uuid generation
+	// fails due to not enough randomness. It's been known to happen happen when
+	// Teleport starts very early in the node initialization cycle and /dev/urandom
+	// isn't ready yet.
+	rawID, err := uuid.NewRandom()
+	if err != nil {
+		return "", trace.BadParameter("" +
+			"Teleport failed to generate host UUID. " +
+			"This may happen if randomness source is not fully initialized when the node is starting up. " +
+			"Please try restarting Teleport again.")
+	}
+	id = rawID.String()
 	if err = WriteHostUUID(dataDir, id); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -520,6 +575,18 @@ func RemoveFromSlice(slice []string, values ...string) []string {
 	return output
 }
 
+// ChooseRandomString returns a random string from the given slice.
+func ChooseRandomString(slice []string) string {
+	switch len(slice) {
+	case 0:
+		return ""
+	case 1:
+		return slice[0]
+	default:
+		return slice[rand.Intn(len(slice))]
+	}
+}
+
 // CheckCertificateFormatFlag checks if the certificate format is valid.
 func CheckCertificateFormatFlag(s string) (string, error) {
 	switch s {
@@ -561,7 +628,7 @@ func StoreErrorOf(f func() error, err *error) {
 // when limit bytes are read.
 func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
 	limitedReader := &io.LimitedReader{R: r, N: limit}
-	data, err := ioutil.ReadAll(limitedReader)
+	data, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return data, err
 	}
@@ -569,6 +636,32 @@ func ReadAtMost(r io.Reader, limit int64) ([]byte, error) {
 		return data, ErrLimitReached
 	}
 	return data, nil
+}
+
+// HasPrefixAny determines if any of the string values have the given prefix.
+func HasPrefixAny(prefix string, values []string) bool {
+	for _, val := range values {
+		if strings.HasPrefix(val, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ByteCount converts a size in bytes to a human-readable string.
+func ByteCount(b int64) string {
+	const unit = 1000
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB",
+		float64(b)/float64(div), "kMGTPE"[exp])
 }
 
 // ErrLimitReached means that the read limit is reached.

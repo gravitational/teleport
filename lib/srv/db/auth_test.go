@@ -18,15 +18,23 @@ package db
 
 import (
 	"context"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"testing"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // TestAuthTokens verifies that proper IAM auth tokens are used when connecting
@@ -47,7 +55,10 @@ func TestAuthTokens(t *testing.T) {
 		withCloudSQLMySQL("mysql-cloudsql-correct-token", "root", cloudSQLPassword),
 		withCloudSQLMySQL("mysql-cloudsql-incorrect-token", "root", "qwe123"),
 		withAzureMySQL("mysql-azure-correct-token", "root", azureAccessToken),
-		withAzureMySQL("mysql-azure-incorrect-token", "root", "qwe123"))
+		withAzureMySQL("mysql-azure-incorrect-token", "root", "qwe123"),
+		withAzureRedis("redis-azure-correct-token", azureRedisToken),
+		withAzureRedis("redis-azure-incorrect-token", "qwe123"),
+	)
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
@@ -67,7 +78,8 @@ func TestAuthTokens(t *testing.T) {
 			desc:     "incorrect Postgres RDS IAM auth token",
 			service:  "postgres-rds-incorrect-token",
 			protocol: defaults.ProtocolPostgres,
-			err:      "rds-db:connect", // Make sure we print example RDS IAM policy.
+			// Make sure we print example RDS IAM policy.
+			err: "arn:aws:rds-db:us-east-1:{account_id}:dbuser:{resource_id}",
 		},
 		{
 			desc:     "correct Postgres Redshift IAM auth token",
@@ -100,7 +112,8 @@ func TestAuthTokens(t *testing.T) {
 			desc:     "incorrect MySQL RDS IAM auth token",
 			service:  "mysql-rds-incorrect-token",
 			protocol: defaults.ProtocolMySQL,
-			err:      "rds-db:connect", // Make sure we print example RDS IAM policy.
+			// Make sure we print example RDS IAM policy.
+			err: "arn:aws:rds-db:us-east-1:{account_id}:dbuser:{resource_id}",
 		},
 		{
 			desc:     "correct MySQL Cloud SQL IAM auth token",
@@ -112,6 +125,17 @@ func TestAuthTokens(t *testing.T) {
 			service:  "mysql-cloudsql-incorrect-token",
 			protocol: defaults.ProtocolMySQL,
 			err:      "Access denied for user",
+		},
+		{
+			desc:     "correct Azure Redis auth token",
+			service:  "redis-azure-correct-token",
+			protocol: defaults.ProtocolRedis,
+		},
+		{
+			desc:     "incorrect Azure Redis auth token",
+			service:  "redis-azure-incorrect-token",
+			protocol: defaults.ProtocolRedis,
+			err:      "WRONGPASS invalid username-password pair",
 		},
 	}
 
@@ -129,6 +153,15 @@ func TestAuthTokens(t *testing.T) {
 				}
 			case defaults.ProtocolMySQL:
 				conn, err := testCtx.mysqlClient("alice", test.service, "root")
+				if test.err != "" {
+					require.Error(t, err)
+					require.Contains(t, err.Error(), test.err)
+				} else {
+					require.NoError(t, err)
+					require.NoError(t, conn.Close())
+				}
+			case defaults.ProtocolRedis:
+				conn, err := testCtx.redisClient(ctx, "alice", test.service, "default")
 				if test.err != "" {
 					require.Error(t, err)
 					require.Contains(t, err.Error(), test.err)
@@ -176,6 +209,8 @@ const (
 	cloudSQLPassword = "cloudsql-password"
 	// azureAccessToken is a mock Azure access token.
 	azureAccessToken = "azure-access-token"
+	// azureRedisToken is a mock Azure Redis token.
+	azureRedisToken = "azure-redis-token"
 )
 
 // GetRDSAuthToken generates RDS/Aurora auth token.
@@ -206,4 +241,98 @@ func (a *testAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *common.S
 func (a *testAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	a.Infof("Generating Azure access token for %v.", sessionCtx)
 	return azureAccessToken, nil
+}
+
+// GetAzureCacheForRedisToken retrieves auth token for Azure Cache for Redis.
+func (a *testAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
+	a.Infof("Generating Azure Redis token for %v.", sessionCtx)
+	return azureRedisToken, nil
+}
+
+func TestDBCertSigning(t *testing.T) {
+	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Clock:       clockwork.NewFakeClockAt(time.Now()),
+		ClusterName: "local.me",
+		Dir:         t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
+
+	ctx := context.Background()
+
+	privateKey, err := testauthority.New().GeneratePrivateKey()
+	require.NoError(t, err)
+
+	csr, err := tlsca.GenerateCertificateRequestPEM(pkix.Name{
+		CommonName: "localhost",
+	}, privateKey)
+	require.NoError(t, err)
+
+	// Set rotation to init phase. New CA will be generated.
+	// DB service should still use old key to sign certificates.
+	// tctl should use new key to sign certificates.
+	err = authServer.AuthServer.RotateCertAuthority(ctx, auth.RotateRequest{
+		Type:        types.DatabaseCA,
+		TargetPhase: types.RotationPhaseInit,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	dbCAs, err := authServer.AuthServer.GetCertAuthorities(ctx, types.DatabaseCA, false)
+	require.NoError(t, err)
+	require.Len(t, dbCAs, 1)
+	require.NotNil(t, dbCAs[0].GetActiveKeys().TLS)
+	require.NotNil(t, dbCAs[0].GetAdditionalTrustedKeys().TLS)
+
+	tests := []struct {
+		name      string
+		requester proto.DatabaseCertRequest_Requester
+		getCertFn func(dbCAs []types.CertAuthority) []byte
+	}{
+		{
+			name:      "sign from DB service",
+			requester: proto.DatabaseCertRequest_UNSPECIFIED, // default behavior
+			getCertFn: func(dbCAs []types.CertAuthority) []byte {
+				return dbCAs[0].GetActiveKeys().TLS[0].Cert
+			},
+		},
+		{
+			name:      "sign from tctl",
+			requester: proto.DatabaseCertRequest_TCTL,
+			getCertFn: func(dbCAs []types.CertAuthority) []byte {
+				return dbCAs[0].GetAdditionalTrustedKeys().TLS[0].Cert
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			certResp, err := authServer.AuthServer.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
+				CSR:           csr,
+				ServerName:    "localhost",
+				TTL:           proto.Duration(time.Hour),
+				RequesterName: tt.requester,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, certResp.Cert)
+			require.Len(t, certResp.CACerts, 2)
+
+			dbCert, err := tlsca.ParseCertificatePEM(certResp.Cert)
+			require.NoError(t, err)
+
+			certPool := x509.NewCertPool()
+			ok := certPool.AppendCertsFromPEM(tt.getCertFn(dbCAs))
+			require.True(t, ok)
+
+			opts := x509.VerifyOptions{
+				Roots: certPool,
+			}
+
+			// Verify if the generated certificate can be verified with the correct CA.
+			_, err = dbCert.Verify(opts)
+			require.NoError(t, err)
+		})
+	}
 }

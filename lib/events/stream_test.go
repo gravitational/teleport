@@ -16,12 +16,16 @@ package events
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/lib/session"
-
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/session"
 )
 
 // TestStreamerCompleteEmpty makes sure that streamer Complete function
@@ -34,7 +38,7 @@ func TestStreamerCompleteEmpty(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	events := GenerateTestSession(SessionParams{PrintEvents: 1})
@@ -58,4 +62,162 @@ func TestStreamerCompleteEmpty(t *testing.T) {
 		t.Fatal("Timeout waiting for emitter to complete")
 	case <-doneC:
 	}
+}
+
+// TestNewSliceErrors guarantees that if an error on the `newSlice` process
+// happens, the streamer will be canceled and the error will be returned in
+// future `EmitAuditEvent` calls.
+func TestNewSliceErrors(t *testing.T) {
+	ctx := context.Background()
+	expectedErr := errors.New("test upload error")
+	streamer, err := NewProtoStreamer(ProtoStreamerConfig{
+		Uploader: &mockUploader{reserveUploadPartError: expectedErr},
+	})
+	require.NoError(t, err)
+
+	events := GenerateTestSession(SessionParams{PrintEvents: 1})
+	sid := session.ID(events[0].(SessionMetadataGetter).GetSessionID())
+
+	_, err = streamer.CreateAuditStream(ctx, sid)
+	require.Error(t, err)
+	require.ErrorIs(t, err, expectedErr)
+}
+
+// TestNewStreamErrors when creating a new stream, it will also initialize
+// the current sliceWriter. If there is any error on this, it should be
+// returned.
+func TestNewStreamErrors(t *testing.T) {
+	ctx := context.Background()
+	expectedErr := errors.New("test upload error")
+
+	t.Run("CreateAuditStream", func(t *testing.T) {
+		for _, tt := range []struct {
+			desc        string
+			uploader    *mockUploader
+			expectedErr error
+		}{
+			{
+				desc:     "CreateUploadError",
+				uploader: &mockUploader{createUploadError: expectedErr},
+			},
+			{
+				desc:     "ReserveUploadPartError",
+				uploader: &mockUploader{reserveUploadPartError: expectedErr},
+			},
+		} {
+			t.Run(tt.desc, func(t *testing.T) {
+				streamer, err := NewProtoStreamer(ProtoStreamerConfig{
+					Uploader: tt.uploader,
+				})
+				require.NoError(t, err)
+
+				events := GenerateTestSession(SessionParams{PrintEvents: 1})
+				sid := session.ID(events[0].(SessionMetadataGetter).GetSessionID())
+
+				_, err = streamer.CreateAuditStream(ctx, sid)
+				require.Error(t, err)
+				require.ErrorIs(t, err, expectedErr)
+			})
+		}
+	})
+
+	t.Run("ResumeAuditStream", func(t *testing.T) {
+		for _, tt := range []struct {
+			desc        string
+			uploader    *mockUploader
+			expectedErr error
+		}{
+			{
+				desc:     "ListPartsError",
+				uploader: &mockUploader{listPartsError: expectedErr},
+			},
+			{
+				desc:     "ReserveUploadPartError",
+				uploader: &mockUploader{reserveUploadPartError: expectedErr},
+			},
+		} {
+			t.Run(tt.desc, func(t *testing.T) {
+				streamer, err := NewProtoStreamer(ProtoStreamerConfig{
+					Uploader: tt.uploader,
+				})
+				require.NoError(t, err)
+
+				events := GenerateTestSession(SessionParams{PrintEvents: 1})
+				sid := session.ID(events[0].(SessionMetadataGetter).GetSessionID())
+
+				_, err = streamer.ResumeAuditStream(ctx, sid, uuid.New().String())
+				require.Error(t, err)
+				require.ErrorIs(t, err, expectedErr)
+			})
+		}
+	})
+}
+
+// TestProtoStreamLargeEvent tests ProtoStream behavior in the case of receiving
+// a large event. If an event is trimmable (implements messageSizeTrimmer) than
+// it should be trimmed otherwise an error should be thrown.
+func TestProtoStreamLargeEvent(t *testing.T) {
+	tests := []struct {
+		name         string
+		event        events.AuditEvent
+		errAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name:         "large trimmable event is trimmed",
+			event:        makeQueryEvent("1", strings.Repeat("A", MaxProtoMessageSizeBytes)),
+			errAssertion: require.NoError,
+		},
+		{
+			name:         "large untrimmable event returns error",
+			event:        makeAccessRequestEvent("1", strings.Repeat("A", MaxProtoMessageSizeBytes)),
+			errAssertion: require.Error,
+		},
+	}
+
+	ctx := context.Background()
+
+	streamer, err := NewProtoStreamer(ProtoStreamerConfig{
+		Uploader: NewMemoryUploader(nil),
+	})
+	require.NoError(t, err)
+
+	stream, err := streamer.CreateAuditStream(ctx, session.ID("1"))
+	require.NoError(t, err)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.errAssertion(t, stream.EmitAuditEvent(ctx, test.event))
+		})
+	}
+	require.NoError(t, stream.Complete(ctx))
+}
+
+type mockUploader struct {
+	MultipartUploader
+	createUploadError      error
+	reserveUploadPartError error
+	listPartsError         error
+}
+
+func (m *mockUploader) CreateUpload(ctx context.Context, sessionID session.ID) (*StreamUpload, error) {
+	if m.createUploadError != nil {
+		return nil, m.createUploadError
+	}
+
+	return &StreamUpload{
+		ID:        uuid.New().String(),
+		SessionID: sessionID,
+	}, nil
+}
+
+func (m *mockUploader) ReserveUploadPart(_ context.Context, _ StreamUpload, _ int64) error {
+	return m.reserveUploadPartError
+}
+
+func (m *mockUploader) ListParts(_ context.Context, _ StreamUpload) ([]StreamPart, error) {
+	if m.listPartsError != nil {
+		return nil, m.listPartsError
+	}
+
+	return []StreamPart{}, nil
 }

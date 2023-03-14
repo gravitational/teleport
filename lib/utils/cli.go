@@ -19,10 +19,10 @@ package utils
 import (
 	"bytes"
 	"crypto/x509"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"math"
 	"os"
@@ -32,14 +32,13 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-
-	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 )
 
 type LoggingPurpose int
@@ -50,22 +49,24 @@ const (
 )
 
 // InitLogger configures the global logger for a given purpose / verbosity level
-func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
-	log.StandardLogger().ReplaceHooks(make(log.LevelHooks))
-	log.SetLevel(level)
+func InitLogger(purpose LoggingPurpose, level logrus.Level, verbose ...bool) {
+	logrus.StandardLogger().ReplaceHooks(make(logrus.LevelHooks))
+	logrus.SetLevel(level)
 	switch purpose {
 	case LoggingForCLI:
 		// If debug logging was asked for on the CLI, then write logs to stderr.
 		// Otherwise, discard all logs.
-		if level == log.DebugLevel {
-			log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
-			log.SetOutput(os.Stderr)
+		if level == logrus.DebugLevel {
+			debugFormatter := NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
+			debugFormatter.timestampEnabled = true
+			logrus.SetFormatter(debugFormatter)
+			logrus.SetOutput(os.Stderr)
 		} else {
-			log.SetOutput(ioutil.Discard)
+			logrus.SetOutput(io.Discard)
 		}
 	case LoggingForDaemon:
-		log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
-		log.SetOutput(os.Stderr)
+		logrus.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
+		logrus.SetOutput(os.Stderr)
 	}
 }
 
@@ -74,49 +75,49 @@ func InitLoggerForTests() {
 	// Parse flags to check testing.Verbose().
 	flag.Parse()
 
-	logger := log.StandardLogger()
-	logger.ReplaceHooks(make(log.LevelHooks))
-	log.SetFormatter(NewTestTextFormatter())
-	logger.SetLevel(log.DebugLevel)
+	logger := logrus.StandardLogger()
+	logger.ReplaceHooks(make(logrus.LevelHooks))
+	logrus.SetFormatter(NewTestJSONFormatter())
+	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	if testing.Verbose() {
 		return
 	}
-	logger.SetLevel(log.WarnLevel)
-	logger.SetOutput(ioutil.Discard)
+	logger.SetLevel(logrus.WarnLevel)
+	logger.SetOutput(io.Discard)
 }
 
 // NewLoggerForTests creates a new logger for test environment
-func NewLoggerForTests() *log.Logger {
-	logger := log.New()
-	logger.ReplaceHooks(make(log.LevelHooks))
-	logger.SetFormatter(NewTestTextFormatter())
-	logger.SetLevel(log.DebugLevel)
+func NewLoggerForTests() *logrus.Logger {
+	logger := logrus.New()
+	logger.ReplaceHooks(make(logrus.LevelHooks))
+	logger.SetFormatter(NewTestJSONFormatter())
+	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	return logger
 }
 
 // WrapLogger wraps an existing logger entry and returns
 // an value satisfying the Logger interface
-func WrapLogger(logger *log.Entry) Logger {
+func WrapLogger(logger *logrus.Entry) Logger {
 	return &logWrapper{Entry: logger}
 }
 
 // NewLogger creates a new empty logger
-func NewLogger() *log.Logger {
-	logger := log.New()
+func NewLogger() *logrus.Logger {
+	logger := logrus.New()
 	logger.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 	return logger
 }
 
 // Logger describes a logger value
 type Logger interface {
-	log.FieldLogger
+	logrus.FieldLogger
 	// GetLevel specifies the level at which this logger
 	// value is logging
-	GetLevel() log.Level
+	GetLevel() logrus.Level
 	// SetLevel sets the logger's level to the specified value
-	SetLevel(level log.Level)
+	SetLevel(level logrus.Level)
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
@@ -137,7 +138,7 @@ func GetIterations() int {
 	if err != nil {
 		panic(err)
 	}
-	log.Debugf("Starting tests with %v iterations.", iter)
+	logrus.Debugf("Starting tests with %v iterations.", iter)
 	return iter
 }
 
@@ -148,7 +149,7 @@ func UserMessageFromError(err error) string {
 	if err == nil {
 		return ""
 	}
-	if log.GetLevel() == log.DebugLevel {
+	if logrus.GetLevel() == logrus.DebugLevel {
 		return trace.DebugReport(err)
 	}
 	var buf bytes.Buffer
@@ -198,9 +199,9 @@ func formatErrorWriter(err error, w io.Writer) {
 	// it, if it does, print it, otherwise escape and print the original error.
 	if traceErr, ok := err.(*trace.TraceErr); ok {
 		for _, message := range traceErr.Messages {
-			fmt.Fprintln(w, AllowNewlines(message))
+			fmt.Fprintln(w, AllowWhitespace(message))
 		}
-		fmt.Fprintln(w, AllowNewlines(trace.Unwrap(traceErr).Error()))
+		fmt.Fprintln(w, AllowWhitespace(trace.Unwrap(traceErr).Error()))
 		return
 	}
 	strErr := err.Error()
@@ -208,19 +209,12 @@ func formatErrorWriter(err error, w io.Writer) {
 	if strErr == "" {
 		fmt.Fprintln(w, "please check Teleport's log for more details")
 	} else {
-		fmt.Fprintln(w, AllowNewlines(err.Error()))
+		fmt.Fprintln(w, AllowWhitespace(err.Error()))
 	}
 }
 
 func formatCertError(err error) string {
-	switch innerError := trace.Unwrap(err).(type) {
-	case x509.HostnameError:
-		return fmt.Sprintf("Cannot establish https connection to %s:\n%s\n%s\n",
-			innerError.Host,
-			innerError.Error(),
-			"try a different hostname for --proxy or specify --insecure flag if you know what you're doing.")
-	case x509.UnknownAuthorityError:
-		return `WARNING:
+	const unknownAuthority = `WARNING:
 
   The proxy you are connecting to has presented a certificate signed by a
   unknown authority. This is most likely due to either being presented
@@ -238,16 +232,33 @@ func formatCertError(err error) string {
   If you think something malicious may be occurring, contact your Teleport
   system administrator to resolve this issue.
 `
-	case x509.CertificateInvalidError:
+	if errors.As(err, &x509.UnknownAuthorityError{}) {
+		return unknownAuthority
+	}
+
+	var hostnameErr x509.HostnameError
+	if errors.As(err, &hostnameErr) {
+		return fmt.Sprintf("Cannot establish https connection to %s:\n%s\n%s\n",
+			hostnameErr.Host,
+			hostnameErr.Error(),
+			"try a different hostname for --proxy or specify --insecure flag if you know what you're doing.")
+	}
+
+	var certInvalidErr x509.CertificateInvalidError
+	if errors.As(err, &certInvalidErr) {
 		return fmt.Sprintf(`WARNING:
 
   The certificate presented by the proxy is invalid: %v.
 
-  Contact your Teleport system administrator to resolve this issue.`, innerError)
-	default:
-		return ""
+  Contact your Teleport system administrator to resolve this issue.`, certInvalidErr)
 	}
 
+	// Check for less explicit errors. These are often emitted on Darwin
+	if strings.Contains(err.Error(), "certificate is not trusted") {
+		return unknownAuthority
+	}
+
+	return ""
 }
 
 const (
@@ -270,7 +281,7 @@ func Color(color int, v interface{}) string {
 
 // Consolef prints the same message to a 'ui console' (if defined) and also to
 // the logger with INFO priority
-func Consolef(w io.Writer, log log.FieldLogger, component, msg string, params ...interface{}) {
+func Consolef(w io.Writer, log logrus.FieldLogger, component, msg string, params ...interface{}) {
 	msg = fmt.Sprintf(msg, params...)
 	log.Info(msg)
 	if w != nil {
@@ -288,12 +299,62 @@ func Consolef(w io.Writer, log log.FieldLogger, component, msg string, params ..
 func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	app = kingpin.New(appName, appHelp)
 
+	// make all flags repeatable, this makes the CLI easier to use.
+	app.AllRepeatable(true)
+
 	// hide "--help" flag
 	app.HelpFlag.Hidden()
 	app.HelpFlag.NoEnvar()
 
 	// set our own help template
-	return app.UsageTemplate(defaultUsageTemplate)
+	return app.UsageTemplate(createUsageTemplate())
+}
+
+// createUsageTemplate creates an usage template for kingpin applications.
+func createUsageTemplate(opts ...func(*usageTemplateOptions)) string {
+	opt := &usageTemplateOptions{
+		commandPrintfWidth: defaultCommandPrintfWidth,
+	}
+
+	for _, optFunc := range opts {
+		optFunc(opt)
+	}
+	return fmt.Sprintf(defaultUsageTemplate, opt.commandPrintfWidth)
+}
+
+// UpdateAppUsageTemplate updates usage template for kingpin applications by
+// pre-parsing the arguments then applying any changes to the usage template if
+// necessary.
+func UpdateAppUsageTemplate(app *kingpin.Application, args []string) {
+	// If ParseContext fails, kingpin will not show usage so there is no need
+	// to update anything here. See app.Parse for more details.
+	context, err := app.ParseContext(args)
+	if err != nil {
+		return
+	}
+
+	app.UsageTemplate(createUsageTemplate(
+		withCommandPrintfWidth(app, context),
+	))
+}
+
+// withCommandPrintfWidth returns an usage template option that
+// updates command printf width if longer than default.
+func withCommandPrintfWidth(app *kingpin.Application, context *kingpin.ParseContext) func(*usageTemplateOptions) {
+	return func(opt *usageTemplateOptions) {
+		var commands []*kingpin.CmdModel
+		if context.SelectedCommand != nil {
+			commands = context.SelectedCommand.Model().FlattenedCommands()
+		} else {
+			commands = app.Model().FlattenedCommands()
+		}
+
+		for _, command := range commands {
+			if !command.Hidden && len(command.FullCommand) > opt.commandPrintfWidth {
+				opt.commandPrintfWidth = len(command.FullCommand)
+			}
+		}
+	}
 }
 
 // SplitIdentifiers splits list of identifiers by commas/spaces/newlines.  Helpful when
@@ -307,7 +368,7 @@ func SplitIdentifiers(s string) []string {
 // EscapeControl escapes all ANSI escape sequences from string and returns a
 // string that is safe to print on the CLI. This is to ensure that malicious
 // servers can not hide output. For more details, see:
-//   * https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
+//   - https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
 func EscapeControl(s string) string {
 	if needsQuoting(s) {
 		return fmt.Sprintf("%q", s)
@@ -315,19 +376,47 @@ func EscapeControl(s string) string {
 	return s
 }
 
-// AllowNewlines escapes all ANSI escape sequences except newlines from string and returns a
-// string that is safe to print on the CLI. This is to ensure that malicious
-// servers can not hide output. For more details, see:
-//   * https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
-func AllowNewlines(s string) string {
-	if !strings.Contains(s, "\n") {
-		return EscapeControl(s)
+// isAllowedWhitespace is a helper function for cli output escaping that returns
+// true if a given rune is a whitespace character and allowed to be unescaped.
+func isAllowedWhitespace(r rune) bool {
+	switch r {
+	case '\n', '\t', '\v':
+		// newlines, tabs, vertical tabs are allowed whitespace.
+		return true
 	}
-	parts := strings.Split(s, "\n")
-	for i, part := range parts {
-		parts[i] = EscapeControl(part)
+	return false
+}
+
+// AllowWhitespace escapes all ANSI escape sequences except some whitespace
+// characters (\n \t \v) from string and returns a string that is safe to
+// print on the CLI. This is to ensure that malicious servers can not hide
+// output. For more details, see:
+//   - https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
+func AllowWhitespace(s string) string {
+	// loop over string searching for part to escape followed by allowed char.
+	// example: `\tabc\ndef\t\n`
+	// 1. part: ""    sep: "\t"
+	// 2. part: "abc" sep: "\n"
+	// 3. part: "def" sep: "\t"
+	// 4. part: ""    sep: "\n"
+	var sb strings.Builder
+	// note that increment also happens at bottom of loop because we can
+	// safely jump to place where allowedWhitespace was found.
+	for i := 0; i < len(s); i++ {
+		sepIdx := strings.IndexFunc(s[i:], isAllowedWhitespace)
+		if sepIdx == -1 {
+			// infalliable call, ignore error.
+			_, _ = sb.WriteString(EscapeControl(s[i:]))
+			// no separators remain.
+			break
+		}
+		part := EscapeControl(s[i : i+sepIdx])
+		_, _ = sb.WriteString(part)
+		sep := s[i+sepIdx]
+		_ = sb.WriteByte(sep)
+		i += sepIdx
 	}
-	return strings.Join(parts, "\n")
+	return sb.String()
 }
 
 // NewStdlogger creates a new stdlib logger that uses the specified leveled logger
@@ -381,8 +470,19 @@ func needsQuoting(text string) bool {
 	return false
 }
 
-// Usage template with compactly formatted commands.
-var defaultUsageTemplate = `{{define "FormatCommand"}}\
+// usageTemplateOptions defines options to format the usage template.
+type usageTemplateOptions struct {
+	// commandPrintfWidth is the width of the command name with padding, for
+	//   {{.FullCommand | printf "%%-%ds"}}
+	commandPrintfWidth int
+}
+
+// defaultCommandPrintfWidth is the default command printf width.
+const defaultCommandPrintfWidth = 12
+
+// defaultUsageTemplate is a fmt format that defines the usage template with
+// compactly formatted commands. Should be only used in createUsageTemplate.
+const defaultUsageTemplate = `{{define "FormatCommand"}}\
 {{if .FlagSummary}} {{.FlagSummary}}{{end}}\
 {{range .Args}} {{if not .Required}}[{{end}}<{{.Name}}>{{if .Value|IsCumulative}}...{{end}}{{if not .Required}}]{{end}}{{end}}\
 {{end}}\
@@ -390,7 +490,7 @@ var defaultUsageTemplate = `{{define "FormatCommand"}}\
 {{define "FormatCommands"}}\
 {{range .FlattenedCommands}}\
 {{if not .Hidden}}\
-  {{.FullCommand | printf "%-12s" }}{{if .Default}} (Default){{end}} {{ .Help }}
+  {{.FullCommand | printf "%%-%ds"}}{{if .Default}} (Default){{end}} {{ .Help }}
 {{end}}\
 {{end}}\
 {{end}}\
@@ -438,3 +538,40 @@ Aliases:
 {{end}}\
 {{end}}
 `
+
+// IsPredicateError determines if the error is from failing to parse predicate expression
+// by checking if the error as a string contains predicate keywords.
+func IsPredicateError(err error) bool {
+	return strings.Contains(err.Error(), "predicate expression")
+}
+
+type PredicateError struct {
+	Err error
+}
+
+func (p PredicateError) Error() string {
+	return fmt.Sprintf("%s\nCheck syntax at https://goteleport.com/docs/setup/reference/predicate-language/#resource-filtering", p.Err.Error())
+}
+
+// FormatAlert formats and colors the alert message if possible.
+func FormatAlert(alert types.ClusterAlert) string {
+	// TODO(timothyb89): Due to complications with globally enabling +
+	// properly resetting Windows terminal ANSI processing, for now we just
+	// disable color output. Otherwise, raw ANSI escapes will be visible to
+	// users.
+	var buf bytes.Buffer
+	switch runtime.GOOS {
+	case constants.WindowsOS:
+		fmt.Fprint(&buf, alert.Spec.Message)
+	default:
+		switch alert.Spec.Severity {
+		case types.AlertSeverity_HIGH:
+			fmt.Fprint(&buf, Color(Red, alert.Spec.Message))
+		case types.AlertSeverity_MEDIUM:
+			fmt.Fprint(&buf, Color(Yellow, alert.Spec.Message))
+		default:
+			fmt.Fprint(&buf, alert.Spec.Message)
+		}
+	}
+	return buf.String()
+}

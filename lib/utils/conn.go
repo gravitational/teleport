@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"sync/atomic"
@@ -65,7 +64,7 @@ func (c *CloserConn) Close() error {
 	return trace.NewAggregate(errors...)
 }
 
-// Context returns a context that is cancelled once the connection is closed.
+// Context returns a context that is canceled once the connection is closed.
 func (c *CloserConn) Context() context.Context {
 	return c.ctx
 }
@@ -100,7 +99,7 @@ func RoundtripWithConn(conn net.Conn) (string, error) {
 		return "", err
 	}
 	defer re.Body.Close()
-	out, err := ioutil.ReadAll(re.Body)
+	out, err := io.ReadAll(re.Body)
 	if err != nil {
 		return "", err
 	}
@@ -168,15 +167,19 @@ func (r *TrackingReader) Count() uint64 {
 func (r *TrackingReader) Read(b []byte) (int, error) {
 	n, err := r.r.Read(b)
 	atomic.AddUint64(&r.count, uint64(n))
-	return n, trace.Wrap(err)
+
+	// This has to use the original error type or else utilities using the connection
+	// (like io.Copy, which is used by the oxy forwarder) may incorrectly categorize
+	// the error produced by this and terminate the connection unnecessarily.
+	return n, err
 }
 
 // TrackingWriter is an io.Writer that counts the total number of bytes
 // written.
 // It's thread-safe if the underlying io.Writer is thread-safe.
 type TrackingWriter struct {
+	count uint64 // intentionally placed first to ensure 64-bit alignment
 	w     io.Writer
-	count uint64
 }
 
 // NewTrackingWriter creates a TrackingWriter around w.

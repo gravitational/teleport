@@ -80,7 +80,7 @@ func AcquireLock(ctx context.Context, backend Backend, lockName string, ttl time
 				continue
 
 			case <-ctx.Done():
-				// Context has been cancelled externally, time to go
+				// Context has been canceled externally, time to go
 				return Lock{}, trace.Wrap(ctx.Err())
 			}
 		}
@@ -148,7 +148,7 @@ func RunWhileLocked(ctx context.Context, backend Backend, lockName string, ttl t
 		refreshAfter := ttl / 2
 		for {
 			select {
-			case <-time.After(refreshAfter):
+			case <-backend.Clock().After(refreshAfter):
 				if err := lock.resetTTL(ctx, backend); err != nil {
 					cancelFunction()
 					log.Errorf("%v", err)

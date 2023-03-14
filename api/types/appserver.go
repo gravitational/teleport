@@ -21,10 +21,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gravitational/teleport/api"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api"
 )
 
 // AppServer represents a single proxied web app.
@@ -51,6 +51,8 @@ type AppServer interface {
 	GetApp() Application
 	// SetApp sets the app this app server proxies.
 	SetApp(Application) error
+	// ProxiedService provides common methods for a proxied service.
+	ProxiedService
 }
 
 // NewAppServerV3 creates a new app server instance.
@@ -74,51 +76,6 @@ func NewAppServerV3FromApp(app *AppV3, hostname, hostID string) (*AppServerV3, e
 		HostID:   hostID,
 		App:      app,
 	})
-}
-
-// NewLegacyAppServer creates legacy app server object. Used in tests.
-//
-// DELETE IN 9.0.
-func NewLegacyAppServer(app *AppV3, hostname, hostID string) (Server, error) {
-	return NewServer(hostID, KindAppServer,
-		ServerSpecV2{
-			Hostname: hostname,
-			Apps: []*App{
-				{
-					Name:         app.GetName(),
-					URI:          app.GetURI(),
-					PublicAddr:   app.GetPublicAddr(),
-					StaticLabels: app.GetStaticLabels(),
-				},
-			},
-		})
-}
-
-// NewAppServersV3FromServer creates a list of app servers from Server resource.
-//
-// DELETE IN 9.0.
-func NewAppServersV3FromServer(server Server) (result []AppServer, err error) {
-	for _, legacyApp := range server.GetApps() {
-		app, err := NewAppV3FromLegacyApp(legacyApp)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		appServer, err := NewAppServerV3(Metadata{
-			Name:    app.GetName(),
-			Expires: server.GetMetadata().Expires,
-		}, AppServerSpecV3{
-			Version:  server.GetTeleportVersion(),
-			Hostname: server.GetHostname(),
-			HostID:   server.GetName(),
-			Rotation: server.GetRotation(),
-			App:      app,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		result = append(result, appServer)
-	}
-	return result, nil
 }
 
 // GetVersion returns the database server resource version.
@@ -264,6 +221,16 @@ func (s *AppServerV3) SetOrigin(origin string) {
 	s.Metadata.SetOrigin(origin)
 }
 
+// GetProxyID returns a list of proxy ids this server is connected to.
+func (s *AppServerV3) GetProxyIDs() []string {
+	return s.Spec.ProxyIDs
+}
+
+// SetProxyID sets the proxy ids this server is connected to.
+func (s *AppServerV3) SetProxyIDs(proxyIDs []string) {
+	s.Spec.ProxyIDs = proxyIDs
+}
+
 // GetAllLabels returns all resource's labels. Considering:
 // * Static labels from `Metadata.Labels` and `Spec.App`.
 // * Dynamic labels from `Spec.App.Spec`.
@@ -283,6 +250,16 @@ func (s *AppServerV3) GetAllLabels() map[string]string {
 	}
 
 	return CombineLabels(staticLabels, dynamicLabels)
+}
+
+// GetStaticLabels returns the app server static labels.
+func (s *AppServerV3) GetStaticLabels() map[string]string {
+	return s.Metadata.Labels
+}
+
+// SetStaticLabels sets the app server static labels.
+func (s *AppServerV3) SetStaticLabels(sl map[string]string) {
+	s.Metadata.Labels = sl
 }
 
 // Copy returns a copy of this app server object.

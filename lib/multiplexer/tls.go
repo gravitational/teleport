@@ -21,16 +21,16 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
-	"sync/atomic"
 	"time"
-
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TLSListenerConfig specifies listener configuration
@@ -92,7 +92,6 @@ type TLSListener struct {
 	httpListener  *Listener
 	cancel        context.CancelFunc
 	context       context.Context
-	isClosed      int32
 }
 
 // HTTP2 returns HTTP2 listener
@@ -107,8 +106,6 @@ func (l *TLSListener) HTTP() net.Listener {
 
 // Serve accepts and forwards tls.Conn connections
 func (l *TLSListener) Serve() error {
-	backoffTimer := time.NewTicker(5 * time.Second)
-	defer backoffTimer.Stop()
 	for {
 		conn, err := l.cfg.Listener.Accept()
 		if err == nil {
@@ -121,13 +118,14 @@ func (l *TLSListener) Serve() error {
 			go l.detectAndForward(tlsConn)
 			continue
 		}
-		if atomic.LoadInt32(&l.isClosed) == 1 {
-			return trace.ConnectionProblem(nil, "listener is closed")
+		if utils.IsUseOfClosedNetworkError(err) {
+			<-l.context.Done()
+			return trace.Wrap(err, "listener is closed")
 		}
 		select {
-		case <-backoffTimer.C:
 		case <-l.context.Done():
-			return trace.ConnectionProblem(nil, "listener is closed")
+			return trace.Wrap(net.ErrClosed, "listener is closed")
+		case <-time.After(5 * time.Second):
 		}
 	}
 }
@@ -164,23 +162,12 @@ func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 
 	switch conn.ConnectionState().NegotiatedProtocol {
 	case http2.NextProtoTLS:
-		select {
-		case l.http2Listener.connC <- conn:
-		case <-l.context.Done():
-			conn.Close()
-			return
-		}
+		l.http2Listener.HandleConnection(l.context, conn)
 	case teleport.HTTPNextProtoTLS, "":
-		select {
-		case l.httpListener.connC <- conn:
-		case <-l.context.Done():
-			conn.Close()
-			return
-		}
+		l.httpListener.HandleConnection(l.context, conn)
 	default:
 		conn.Close()
 		l.log.WithError(err).Errorf("unsupported protocol: %v", conn.ConnectionState().NegotiatedProtocol)
-		return
 	}
 }
 
@@ -188,7 +175,6 @@ func (l *TLSListener) detectAndForward(conn *tls.Conn) {
 // Any blocked Accept operations will be unblocked and return errors.
 func (l *TLSListener) Close() error {
 	defer l.cancel()
-	atomic.StoreInt32(&l.isClosed, 1)
 	return l.cfg.Listener.Close()
 }
 

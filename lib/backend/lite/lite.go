@@ -21,6 +21,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -29,14 +30,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/backend"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	sqlite3 "github.com/mattn/go-sqlite3"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 const (
@@ -45,8 +46,6 @@ const (
 	// AlternativeName is another name of this backend.
 	AlternativeName = "dir"
 
-	// SyncOff disables file system sync after writing.
-	SyncOff = "OFF"
 	// SyncFull fsyncs the database file on disk after every write.
 	SyncFull = "FULL"
 
@@ -58,7 +57,10 @@ const (
 const (
 	// defaultDirMode is the mode of the newly created directories that are part
 	// of the Path
-	defaultDirMode os.FileMode = 0770
+	defaultDirMode os.FileMode = 0700
+
+	// dbMode is the mode set on sqlite database files
+	dbMode os.FileMode = 0600
 
 	// defaultDBFile is the file name of the sqlite db in the directory
 	// specified by Path
@@ -66,7 +68,7 @@ const (
 	slowTransactionThreshold = time.Second
 
 	// defaultSync is the default value for Sync
-	defaultSync = SyncOff
+	defaultSync = SyncFull
 
 	// defaultBusyTimeout is the default value for BusyTimeout, in ms
 	defaultBusyTimeout = 10000
@@ -199,15 +201,32 @@ func NewWithConfig(ctx context.Context, cfg Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 	connectionURI := cfg.ConnectionURI()
+	path := filepath.Join(cfg.Path, defaultDBFile)
 	// Ensure that the path to the root directory exists.
-	err := os.MkdirAll(cfg.Path, defaultDirMode)
+	err := os.MkdirAll(cfg.Path, os.ModeDir|defaultDirMode)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
+
+	setPermissions := false
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		setPermissions = true
+	}
+
 	db, err := sql.Open("sqlite3", cfg.ConnectionURI())
 	if err != nil {
 		return nil, trace.Wrap(err, "error opening URI: %v", connectionURI)
 	}
+
+	if setPermissions {
+		// Ensure the database has restrictive access permissions.
+		db.PingContext(ctx)
+		err = os.Chmod(path, dbMode)
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+	}
+
 	// serialize access to sqlite, as we're using immediate transactions anyway,
 	// and in-memory go locks are faster than sqlite locks
 	db.SetMaxOpenConns(1)
@@ -350,13 +369,21 @@ func (l *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 				return trace.Wrap(err)
 			}
 		}
-		stmt, err := tx.PrepareContext(ctx, "INSERT INTO kv(key, modified, expires, value) values(?, ?, ?, ?)")
+
+		rows, err := tx.QueryContext(ctx, "SELECT key, value, expires, modified FROM kv WHERE key = ? AND expires <= ? LIMIT 1", string(i.Key), created)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer stmt.Close()
+		defer rows.Close()
 
-		if _, err := stmt.ExecContext(ctx, string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
+		if rows.Next() {
+			err = l.deleteInTransaction(ctx, i.Key, tx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		if _, err := tx.ExecContext(ctx, "INSERT INTO kv(key, modified, expires, value) values(?, ?, ?, ?)", string(i.Key), id(created), expires(i.Expires), i.Value); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil

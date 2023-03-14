@@ -24,13 +24,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // Config is a file uploader configuration
@@ -51,7 +51,7 @@ func (s *Config) CheckAndSetDefaults() error {
 	if s.Directory == "" {
 		return trace.BadParameter("missing parameter Directory")
 	}
-	if utils.IsDir(s.Directory) == false {
+	if !utils.IsDir(s.Directory) {
 		return trace.BadParameter("path %q does not exist or is not a directory", s.Directory)
 	}
 	if s.OnBeforeComplete == nil {
@@ -62,6 +62,10 @@ func (s *Config) CheckAndSetDefaults() error {
 
 // NewHandler returns new file sessions handler
 func NewHandler(cfg Config) (*Handler, error) {
+	if err := os.MkdirAll(cfg.Directory, teleport.SharedDirMode); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

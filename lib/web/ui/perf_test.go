@@ -19,24 +19,21 @@ package ui
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 const clusterName = "bench.example.com"
@@ -79,12 +76,8 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 				bk, err = memory.New(memory.Config{})
 				require.NoError(b, err)
 			} else {
-				dir, err := ioutil.TempDir("", "teleport")
-				require.NoError(b, err)
-				defer os.RemoveAll(dir)
-
-				bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
-					Path: dir,
+				bk, err = memory.New(memory.Config{
+					Context: ctx,
 				})
 				require.NoError(b, err)
 			}
@@ -188,8 +181,8 @@ type mockAccessPoint struct {
 	presence *local.PresenceService
 }
 
-func (m *mockAccessPoint) GetNodes(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
-	return m.presence.GetNodes(ctx, namespace, opts...)
+func (m *mockAccessPoint) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
+	return m.presence.GetNodes(ctx, namespace)
 }
 
 func (m *mockAccessPoint) GetProxies() ([]types.Server, error) {

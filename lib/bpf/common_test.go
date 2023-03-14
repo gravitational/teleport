@@ -17,44 +17,61 @@ limitations under the License.
 package bpf
 
 import (
+	"io"
 	"os"
+	osexec "os/exec"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
 
-	"gopkg.in/check.v1"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+// reexecInCGroupCmd is a cmd argument used to re-exec the test binary.
+const reexecInCGroupCmd = "reexecCgroup"
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+
+	// Check if the re-exec was requested.
+	if len(os.Args) >= 3 && os.Args[1] == reexecInCGroupCmd {
+		// Get the command to run passed as the 3rd argument.
+		cmd := os.Args[2]
+
+		if err := waitAndRun(cmd); err != nil {
+			// Something went wrong, exit with error.
+			os.Exit(1)
+		}
+
+		// The rexec was handled and nothing bad happened.
+		os.Exit(0)
+	}
+
 	os.Exit(m.Run())
 }
-
-type CommonSuite struct{}
-
-var _ = check.Suite(&CommonSuite{})
 
 // TestCheckAndSetDefaults makes sure defaults are set when the user does not
 // provide values for the page sizes and hard coded values (like zero or a
 // specific page size) are respected when given.
-func (s *CommonSuite) TestCheckAndSetDefaults(c *check.C) {
+func TestCheckAndSetDefaults(t *testing.T) {
 	var perfBufferPageCount = defaults.PerfBufferPageCount
 	var openPerfBufferPageCount = defaults.OpenPerfBufferPageCount
 	var zeroPageCount = 0
 
 	var tests = []struct {
-		inConfig  *Config
-		outConfig *Config
+		inConfig  *servicecfg.BPFConfig
+		outConfig *servicecfg.BPFConfig
 	}{
 		// Empty values get defaults.
 		{
-			inConfig: &Config{
+			inConfig: &servicecfg.BPFConfig{
 				CommandBufferSize: nil,
 				DiskBufferSize:    nil,
 				NetworkBufferSize: nil,
 			},
-			outConfig: &Config{
+			outConfig: &servicecfg.BPFConfig{
 				CommandBufferSize: &perfBufferPageCount,
 				DiskBufferSize:    &openPerfBufferPageCount,
 				NetworkBufferSize: &perfBufferPageCount,
@@ -62,12 +79,12 @@ func (s *CommonSuite) TestCheckAndSetDefaults(c *check.C) {
 		},
 		// Values are not wiped out with defaults.
 		{
-			inConfig: &Config{
+			inConfig: &servicecfg.BPFConfig{
 				CommandBufferSize: &zeroPageCount,
 				DiskBufferSize:    &zeroPageCount,
 				NetworkBufferSize: &perfBufferPageCount,
 			},
-			outConfig: &Config{
+			outConfig: &servicecfg.BPFConfig{
 				CommandBufferSize: &zeroPageCount,
 				DiskBufferSize:    &zeroPageCount,
 				NetworkBufferSize: &perfBufferPageCount,
@@ -77,9 +94,23 @@ func (s *CommonSuite) TestCheckAndSetDefaults(c *check.C) {
 
 	for _, tt := range tests {
 		err := tt.inConfig.CheckAndSetDefaults()
-		c.Assert(err, check.IsNil)
-		c.Assert(*tt.inConfig.CommandBufferSize, check.Equals, *tt.outConfig.CommandBufferSize)
-		c.Assert(*tt.inConfig.DiskBufferSize, check.Equals, *tt.outConfig.DiskBufferSize)
-		c.Assert(*tt.inConfig.NetworkBufferSize, check.Equals, *tt.outConfig.NetworkBufferSize)
+		require.NoError(t, err)
+		require.Equal(t, *tt.outConfig.CommandBufferSize, *tt.inConfig.CommandBufferSize)
+		require.Equal(t, *tt.outConfig.DiskBufferSize, *tt.inConfig.DiskBufferSize)
+		require.Equal(t, *tt.outConfig.NetworkBufferSize, *tt.inConfig.NetworkBufferSize)
 	}
+}
+
+// waitAndRun opens FD 3 and waits for at least one byte. After it runs the
+// passed command and waits until returns.
+func waitAndRun(cmd string) error {
+	waitFD := os.NewFile(3, "/proc/self/fd/3")
+	defer waitFD.Close()
+
+	buff := make([]byte, 1)
+	if _, err := waitFD.Read(buff); err != nil && err != io.EOF {
+		return err
+	}
+
+	return osexec.Command(cmd).Run()
 }

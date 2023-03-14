@@ -19,8 +19,11 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // SessionTrackerService is a realtime session service that has information about
@@ -29,11 +32,14 @@ type SessionTrackerService interface {
 	// GetActiveSessionTrackers returns a list of active session trackers.
 	GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error)
 
+	// GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+	GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error)
+
 	// GetSessionTracker returns the current state of a session tracker for an active session.
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 
 	// CreateSessionTracker creates a tracker resource for an active session.
-	CreateSessionTracker(ctx context.Context, req *proto.CreateSessionTrackerRequest) (types.SessionTracker, error)
+	CreateSessionTracker(ctx context.Context, st types.SessionTracker) (types.SessionTracker, error)
 
 	// UpdateSessionTracker updates a tracker resource for an active session.
 	UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error
@@ -43,4 +49,36 @@ type SessionTrackerService interface {
 
 	// UpdatePresence updates the presence status of a user in a session.
 	UpdatePresence(ctx context.Context, sessionID, user string) error
+}
+
+// UnmarshalSessionTracker unmarshals the Session resource from JSON.
+func UnmarshalSessionTracker(bytes []byte) (types.SessionTracker, error) {
+	if len(bytes) == 0 {
+		return nil, trace.BadParameter("missing resource data")
+	}
+
+	var session types.SessionTrackerV1
+	if err := utils.FastUnmarshal(bytes, &session); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+
+	if err := session.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &session, nil
+}
+
+// MarshalSessionTracker marshals the Session resource to JSON.
+func MarshalSessionTracker(session types.SessionTracker) ([]byte, error) {
+	if err := session.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch session := session.(type) {
+	case *types.SessionTrackerV1:
+		return utils.FastMarshal(session)
+	default:
+		return nil, trace.BadParameter("unrecognized session version %T", session)
+	}
 }

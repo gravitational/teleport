@@ -4,7 +4,9 @@
 # to prove to letsencrypt that they own the domain.
 
 set -e
-set -x
+if [[ "${DEBUG:-false}" == "true" ]]; then
+    set -x
+fi
 
 # Source variables from user-data
 . /etc/teleport.d/conf
@@ -27,4 +29,4 @@ echo "No certs/keys found in ${TELEPORT_S3_BUCKET}. Going to request certificate
 /usr/local/bin/certbot certonly -n --agree-tos --email ${TELEPORT_DOMAIN_ADMIN_EMAIL} --dns-route53 -d "${TELEPORT_DOMAIN_NAME}" -d "*.${TELEPORT_DOMAIN_NAME}"
 echo "Got wildcard certificate for ${TELEPORT_DOMAIN_NAME}. Syncing to S3."
 
-aws s3 sync /etc/letsencrypt/ s3://${TELEPORT_S3_BUCKET} --sse=AES256
+aws s3 sync --exact-timestamps /etc/letsencrypt/ s3://${TELEPORT_S3_BUCKET} --sse=AES256

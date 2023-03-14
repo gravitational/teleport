@@ -69,23 +69,25 @@ func OutputBuf(b int) Option {
 
 // item is the internal "work item" used by the queue.  it holds a value, and a nonce indicating the
 // order in which the value was received.
-type item struct {
-	value interface{}
+type item[I any] struct {
+	value I
 	nonce uint64
 }
 
 // Queue is a data processing helper which uses a worker pool to apply a closure to a series of
 // values concurrently, preserving the correct ordering of results.  It is essentially the concurrent
 // equivalent of this:
-//    for msg := range inputChannel {
-//        outputChannel <- workFunction(msg)
-//    }
+//
+//	for msg := range inputChannel {
+//	    outputChannel <- workFunction(msg)
+//	}
+//
 // In order to prevent indefinite memory growth within the queue due to slow consumption and/or
 // workers, the queue will exert backpressure over its input channel once a configurable capacity
 // is reached.
-type Queue struct {
-	input     chan interface{}
-	output    chan interface{}
+type Queue[I any, O any] struct {
+	input     chan I
+	output    chan O
 	closeOnce sync.Once
 	done      chan struct{}
 }
@@ -96,24 +98,24 @@ type Queue struct {
 // detecting backpressure due to queue capacity.  This is not a perfect test, but
 // the rate of false positives will be extremely low for a queue with a decent
 // capacity and non-trivial work function.
-func (q *Queue) Push() chan<- interface{} {
+func (q *Queue[I, O]) Push() chan<- I {
 	return q.input
 }
 
 // Pop accesses the queue's output channel.  The type of the received value
 // will match the output of the work function.
-func (q *Queue) Pop() <-chan interface{} {
+func (q *Queue[I, O]) Pop() <-chan O {
 	return q.output
 }
 
 // Done signals closure of the queue.
-func (q *Queue) Done() <-chan struct{} {
+func (q *Queue[I, O]) Done() <-chan struct{} {
 	return q.done
 }
 
 // Close permanently terminates all background operations.  If the queue is not drained before
 // closure, items may be lost.
-func (q *Queue) Close() error {
+func (q *Queue[I, O]) Close() error {
 	q.closeOnce.Do(func() {
 		close(q.done)
 	})
@@ -121,7 +123,7 @@ func (q *Queue) Close() error {
 }
 
 // New builds a new queue instance around the supplied work function.
-func New(workfn func(interface{}) interface{}, opts ...Option) *Queue {
+func New[I any, O any](workfn func(I) O, opts ...Option) *Queue[I, O] {
 	const defaultWorkers = 4
 	const defaultCapacity = 64
 
@@ -143,9 +145,9 @@ func New(workfn func(interface{}) interface{}, opts ...Option) *Queue {
 		cfg.capacity = cfg.workers
 	}
 
-	q := &Queue{
-		input:  make(chan interface{}, cfg.inputBuf),
-		output: make(chan interface{}, cfg.outputBuf),
+	q := &Queue[I, O]{
+		input:  make(chan I, cfg.inputBuf),
+		output: make(chan O, cfg.outputBuf),
 		done:   make(chan struct{}),
 	}
 
@@ -155,11 +157,11 @@ func New(workfn func(interface{}) interface{}, opts ...Option) *Queue {
 }
 
 // run spawns background tasks and then blocks on collection/reordering routine.
-func (q *Queue) run(workfn func(interface{}) interface{}, cfg config) {
+func (q *Queue[I, O]) run(workfn func(I) O, cfg config) {
 	// internal worker input/output channels. due to the semaphore channel below,
 	// sends on these channels never block, as they are each allocated with sufficient
 	// capacity to hold all in-flight items.
-	workerIn, workerOut := make(chan item, cfg.capacity), make(chan item, cfg.capacity)
+	workerIn, workerOut := make(chan item[I], cfg.capacity), make(chan item[O], cfg.capacity)
 
 	// semaphore channel used to limit the number of "in flight" items.  a message is added prior to accepting
 	// every input and removed upon emission of every output.  this allows us to exert backpressure and prevent
@@ -171,17 +173,20 @@ func (q *Queue) run(workfn func(interface{}) interface{}, cfg config) {
 	for i := 0; i < cfg.workers; i++ {
 		go func() {
 			for {
-				var itm item
+				var itm item[I]
 				select {
 				case itm = <-workerIn:
 				case <-q.done:
 					return
 				}
 
-				itm.value = workfn(itm.value)
+				out := item[O]{
+					value: workfn(itm.value),
+					nonce: itm.nonce,
+				}
 
 				select {
-				case workerOut <- itm:
+				case workerOut <- out:
 				default:
 					panic("cq worker output channel already full (semaphore violation)")
 				}
@@ -196,7 +201,7 @@ func (q *Queue) run(workfn func(interface{}) interface{}, cfg config) {
 
 // distribute takes inbound work items, applies a nonce, and then distributes
 // them to the workers.
-func (q *Queue) distribute(workerIn chan<- item, sem chan struct{}) {
+func (q *Queue[I, O]) distribute(workerIn chan<- item[I], sem chan struct{}) {
 	var nonce uint64
 	for {
 		// we are about to accept an input, add an item to the in-flight semaphore channel
@@ -206,7 +211,7 @@ func (q *Queue) distribute(workerIn chan<- item, sem chan struct{}) {
 			return
 		}
 
-		var value interface{}
+		var value I
 		select {
 		case value = <-q.input:
 		case <-q.done:
@@ -214,7 +219,7 @@ func (q *Queue) distribute(workerIn chan<- item, sem chan struct{}) {
 		}
 
 		select {
-		case workerIn <- item{value: value, nonce: nonce}:
+		case workerIn <- item[I]{value: value, nonce: nonce}:
 		default:
 			panic("cq worker input channel already full (semaphore violation)")
 		}
@@ -225,10 +230,10 @@ func (q *Queue) distribute(workerIn chan<- item, sem chan struct{}) {
 
 // collect takes the potentially disordered worker output and unifies it into
 // an ordered output.
-func (q *Queue) collect(workerOut <-chan item, sem chan struct{}) {
+func (q *Queue[I, O]) collect(workerOut <-chan item[O], sem chan struct{}) {
 	// items that cannot be emitted yet (due to arriving out of order),
 	// stored in mapping of nonce => value.
-	queue := make(map[uint64]interface{})
+	queue := make(map[uint64]O)
 
 	// the nonce of the item we need to emit next.  incremented upon
 	// successful emission.
@@ -237,7 +242,7 @@ func (q *Queue) collect(workerOut <-chan item, sem chan struct{}) {
 	// output value to be emitted (if any).  note that nil is a valid
 	// output value, so we cannot inspect this value directly to
 	// determine our state.
-	var out interface{}
+	var out O
 
 	// emit indicates whether or not we should be attempting to emit
 	// the output value.

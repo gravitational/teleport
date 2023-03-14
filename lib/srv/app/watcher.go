@@ -20,12 +20,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 )
 
 // startReconciler starts reconciler that registers/unregisters proxied
@@ -170,7 +171,7 @@ func (s *Server) onUpdate(ctx context.Context, resource types.ResourceWithLabels
 }
 
 func (s *Server) onDelete(ctx context.Context, resource types.ResourceWithLabels) error {
-	return s.unregisterApp(ctx, resource.GetName())
+	return s.unregisterAndRemoveApp(ctx, resource.GetName())
 }
 
 func (s *Server) matcher(resource types.ResourceWithLabels) bool {

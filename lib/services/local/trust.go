@@ -16,14 +16,12 @@ package local
 
 import (
 	"context"
-	"fmt"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/trace"
 )
 
 // CA is local implementation of Trust service that
@@ -104,42 +102,42 @@ func (s *CA) UpsertCertAuthority(ca types.CertAuthority) error {
 	return nil
 }
 
-const compareAndSwapFixExample = "tctl get %s/%s/%s --with-secrets > ca.yaml && tctl create -f ca.yaml && rm ca.yaml"
-
 // CompareAndSwapCertAuthority updates the cert authority value
-// if the existing value matches existing parameter, returns nil if succeeds,
+// if the existing value matches expected parameter, returns nil if succeeds,
 // trace.CompareFailed otherwise.
-func (s *CA) CompareAndSwapCertAuthority(new, existing types.CertAuthority) error {
+func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) error {
 	if err := services.ValidateCertAuthority(new); err != nil {
 		return trace.Wrap(err)
 	}
+
+	key := backend.Key(authoritiesPrefix, string(new.GetType()), new.GetName())
+
+	actualItem, err := s.Get(context.TODO(), key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	actual, err := services.UnmarshalCertAuthority(actualItem.Value)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !services.CertAuthoritiesEquivalent(actual, expected) {
+		return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
+	}
+
 	newValue, err := services.MarshalCertAuthority(new)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	newItem := backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(new.GetType()), new.GetName()),
+		Key:     key,
 		Value:   newValue,
 		Expires: new.Expiry(),
 	}
 
-	existingValue, err := services.MarshalCertAuthority(existing)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	existingItem := backend.Item{
-		Key:     backend.Key(authoritiesPrefix, string(existing.GetType()), existing.GetName()),
-		Value:   existingValue,
-		Expires: existing.Expiry(),
-	}
-
-	_, err = s.CompareAndSwap(context.TODO(), existingItem, newItem)
+	_, err = s.CompareAndSwap(context.TODO(), *actualItem, newItem)
 	if err != nil {
 		if trace.IsCompareFailed(err) {
-			if len(existing.GetMetadata().Labels) >= 2 {
-				exampleCmd := fmt.Sprintf(compareAndSwapFixExample, existing.GetKind(), existing.GetSubKind(), existing.GetName())
-				log.Warnf("comparison failed on certificate authority with multiple labels; if this occurs consistently, try re-saving the resource: %s", exampleCmd)
-			}
 			return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
 		}
 		return trace.Wrap(err)
@@ -234,7 +232,7 @@ func (s *CA) DeactivateCertAuthority(id types.CertAuthID) error {
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (s *CA) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (s *CA) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
 	if err := id.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -242,8 +240,7 @@ func (s *CA) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSign
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := services.UnmarshalCertAuthority(
-		item.Value, services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+	ca, err := services.UnmarshalCertAuthority(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -263,7 +260,7 @@ func setSigningKeys(ca types.CertAuthority, loadSigningKeys bool) {
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
-func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool) ([]types.CertAuthority, error) {
 	if err := caType.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -278,10 +275,7 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 	// Marshal values into a []types.CertAuthority slice.
 	cas := make([]types.CertAuthority, len(result.Items))
 	for i, item := range result.Items {
-		ca, err := services.UnmarshalCertAuthority(
-			item.Value, services.AddOptions(opts,
-				services.WithResourceID(item.ID),
-				services.WithExpires(item.Expires))...)
+		ca, err := services.UnmarshalCertAuthority(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -293,6 +287,43 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 	}
 
 	return cas, nil
+}
+
+// UpdateUserCARoleMap updates the role map of the userCA of the specified existing cluster.
+func (s *CA) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
+	key := backend.Key(authoritiesPrefix, string(types.UserCA), name)
+	if !activated {
+		key = backend.Key(authoritiesPrefix, deactivatedPrefix, string(types.UserCA), name)
+	}
+
+	actualItem, err := s.Get(ctx, key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	actual, err := services.UnmarshalCertAuthority(actualItem.Value)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	actual.SetRoleMap(roleMap)
+
+	newValue, err := services.MarshalCertAuthority(actual)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newItem := backend.Item{
+		Key:     key,
+		Value:   newValue,
+		Expires: actual.Expiry(),
+	}
+	_, err = s.CompareAndSwap(ctx, *actualItem, newItem)
+	if err != nil {
+		if trace.IsCompareFailed(err) {
+			return trace.CompareFailed("cluster %v settings have been updated, try again", name)
+		}
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 const (

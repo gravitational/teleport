@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,8 +32,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	remotecommandconsts "k8s.io/apimachinery/pkg/util/remotecommand"
+	"k8s.io/apiserver/pkg/util/wsstream"
 	"k8s.io/client-go/tools/remotecommand"
 	utilexec "k8s.io/client-go/util/exec"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 // remoteCommandRequest is a request to execute a remote command
@@ -53,13 +56,13 @@ type remoteCommandRequest struct {
 	pingPeriod         time.Duration
 }
 
-func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds *kubeCreds) apievents.KubernetesPodMetadata {
+func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds kubeCreds) apievents.KubernetesPodMetadata {
 	meta := apievents.KubernetesPodMetadata{
 		KubernetesPodName:       req.podName,
 		KubernetesPodNamespace:  req.podNamespace,
 		KubernetesContainerName: req.containerName,
 	}
-	if creds == nil || creds.kubeClient == nil {
+	if creds == nil || creds.getKubeClient() == nil {
 		return meta
 	}
 
@@ -67,7 +70,7 @@ func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds *kubeCre
 	//
 	// This can fail if a user has set tight RBAC rules for teleport. Failure
 	// here shouldn't prevent a session from starting.
-	pod, err := creds.kubeClient.CoreV1().Pods(req.podNamespace).Get(ctx, req.podName, metav1.GetOptions{})
+	pod, err := creds.getKubeClient().CoreV1().Pods(req.podNamespace).Get(ctx, req.podName, metav1.GetOptions{})
 	if err != nil {
 		log.WithError(err).Debugf("Failed fetching pod from kubernetes API; skipping additional metadata on the audit event")
 		return meta
@@ -92,6 +95,26 @@ func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds *kubeCre
 }
 
 func createRemoteCommandProxy(req remoteCommandRequest) (*remoteCommandProxy, error) {
+	var (
+		proxy *remoteCommandProxy
+		err   error
+	)
+	if wsstream.IsWebSocketRequest(req.httpRequest) {
+		proxy, err = createWebSocketStreams(req)
+	} else {
+		proxy, err = createSPDYStreams(req)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if proxy.resizeStream != nil {
+		proxy.resizeQueue = newTermQueue(req.context, req.onResize)
+		go proxy.resizeQueue.handleResizeEvents(proxy.resizeStream)
+	}
+	return proxy, nil
+}
+
+func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 	protocol, err := httpstream.Handshake(req.httpRequest, req.httpResponseWriter, []string{StreamProtocolV4Name})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -99,13 +122,15 @@ func createRemoteCommandProxy(req remoteCommandRequest) (*remoteCommandProxy, er
 
 	streamCh := make(chan streamAndReply)
 
+	ctx, cancel := context.WithCancel(req.context)
+	defer cancel()
 	upgrader := spdystream.NewResponseUpgraderWithPings(req.pingPeriod)
 	conn := upgrader.UpgradeResponse(req.httpResponseWriter, req.httpRequest, func(stream httpstream.Stream, replySent <-chan struct{}) error {
 		select {
 		case streamCh <- streamAndReply{Stream: stream, replySent: replySent}:
 			return nil
-		case <-req.context.Done():
-			return trace.BadParameter("request has been cancelled")
+		case <-ctx.Done():
+			return trace.BadParameter("request has been canceled")
 		}
 	})
 	// from this point on, we can no longer call methods on response
@@ -127,7 +152,8 @@ func createRemoteCommandProxy(req remoteCommandRequest) (*remoteCommandProxy, er
 		log.Infof("Negotiated protocol %v.", protocol)
 		handler = &v4ProtocolHandler{}
 	default:
-		return nil, trace.BadParameter("protocol %v is not supported. upgrade the client", protocol)
+		err = trace.BadParameter("protocol %v is not supported. upgrade the client", protocol)
+		return nil, trace.NewAggregate(err, conn.Close())
 	}
 
 	// count the streams client asked for, starting with 1
@@ -148,18 +174,13 @@ func createRemoteCommandProxy(req remoteCommandRequest) (*remoteCommandProxy, er
 	expired := time.NewTimer(DefaultStreamCreationTimeout)
 	defer expired.Stop()
 
-	proxy, err := handler.waitForStreams(req.context, streamCh, expectedStreams, expired.C)
+	proxy, err := handler.waitForStreams(ctx, streamCh, expectedStreams, expired.C)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(err, conn.Close())
 	}
 
 	proxy.conn = conn
 	proxy.tty = req.tty
-
-	if proxy.resizeStream != nil {
-		proxy.resizeQueue = newTermQueue(req.context, req.onResize)
-		go proxy.resizeQueue.handleResizeEvents(proxy.resizeStream)
-	}
 	return proxy, nil
 }
 
@@ -179,6 +200,10 @@ type remoteCommandProxy struct {
 func (s *remoteCommandProxy) Close() error {
 	if s.conn != nil {
 		return s.conn.Close()
+	}
+	// if resize queue is available release its goroutines to prevent stream leaks.
+	if s.resizeQueue != nil {
+		s.resizeQueue.Close()
 	}
 	return nil
 }
@@ -203,6 +228,10 @@ func (s *remoteCommandProxy) sendStatus(err error) error {
 			Status: metav1.StatusSuccess,
 		}})
 	}
+	if statusErr, ok := err.(*apierrors.StatusError); ok {
+		return s.writeStatus(statusErr)
+	}
+
 	if exitErr, ok := err.(utilexec.ExitError); ok && exitErr.Exited() {
 		rc := exitErr.ExitStatus()
 		return s.writeStatus(&apierrors.StatusError{ErrStatus: metav1.Status{
@@ -219,6 +248,22 @@ func (s *remoteCommandProxy) sendStatus(err error) error {
 			Message: fmt.Sprintf("command terminated with non-zero exit code: %v", exitErr),
 		}})
 	}
+	// kubernetes client-go errorDecoderV4 parses the metav1.Status and returns the `fmt.Errorf(status.Message)` for every case except
+	// errors with reason =  NonZeroExitCodeReason for which it returns an exec.CodeExitError.
+	// This means when forwarding an exec request to a remote cluster using the `Forwarder.remoteExec` function we only have access
+	// to the status.Message. This happens because the error is sent after the connection was upgraded to a bidirectional stream.
+	// This hack is here to recreate the forbidden message and return it back to the user terminal
+	if strings.Contains(err.Error(), "is forbidden:") {
+		return s.writeStatus(&apierrors.StatusError{
+			ErrStatus: metav1.Status{
+				Status:  metav1.StatusFailure,
+				Code:    http.StatusForbidden,
+				Reason:  metav1.StatusReasonForbidden,
+				Message: err.Error(),
+			},
+		})
+	}
+
 	err = trace.BadParameter("error executing command in container: %v", err)
 	return s.writeStatus(apierrors.NewInternalError(err))
 }
@@ -261,7 +306,7 @@ func (t *termQueue) Next() *remotecommand.TerminalSize {
 	}
 }
 
-func (t *termQueue) Done() {
+func (t *termQueue) Close() {
 	t.cancel()
 }
 
@@ -336,7 +381,7 @@ WaitForStreams:
 		case <-expired:
 			return nil, trace.BadParameter("timed out waiting for client to create streams")
 		case <-connContext.Done():
-			return nil, trace.BadParameter("onnectoin has dropped, exiting")
+			return nil, trace.BadParameter("connection has dropped, exiting")
 		}
 	}
 
@@ -365,6 +410,16 @@ func v4WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) err
 			return err
 		}
 		_, err = stream.Write(bs)
+		return err
+	}
+}
+
+func v1WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) error {
+	return func(status *apierrors.StatusError) error {
+		if status.Status().Status == metav1.StatusSuccess {
+			return nil // send error messages
+		}
+		_, err := stream.Write([]byte(status.Error()))
 		return err
 	}
 }

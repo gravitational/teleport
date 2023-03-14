@@ -20,10 +20,10 @@ package proto
 import (
 	"time"
 
+	"github.com/gravitational/trace"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-
-	"github.com/gravitational/trace"
 )
 
 // Duration is a wrapper around duration
@@ -90,3 +90,27 @@ func (req *ListResourcesRequest) CheckAndSetDefaults() error {
 func (req *ListResourcesRequest) RequiresFakePagination() bool {
 	return req.SortBy.Field != "" || req.NeedTotalCount || req.ResourceType == types.KindKubernetesCluster
 }
+
+// UpstreamInventoryMessage is a sealed interface representing the possible
+// upstream messages of the inventory control stream after the initial hello.
+type UpstreamInventoryMessage interface {
+	sealedUpstreamInventoryMessage()
+}
+
+func (h UpstreamInventoryHello) sealedUpstreamInventoryMessage() {}
+
+func (h InventoryHeartbeat) sealedUpstreamInventoryMessage() {}
+
+func (p UpstreamInventoryPong) sealedUpstreamInventoryMessage() {}
+
+func (a UpstreamInventoryAgentMetadata) sealedUpstreamInventoryMessage() {}
+
+// DownstreamInventoryMessage is a sealed interface representing the possible
+// downstream messages of the inventory controls stream after initial hello.
+type DownstreamInventoryMessage interface {
+	sealedDownstreamInventoryMessage()
+}
+
+func (h DownstreamInventoryHello) sealedDownstreamInventoryMessage() {}
+
+func (p DownstreamInventoryPing) sealedDownstreamInventoryMessage() {}

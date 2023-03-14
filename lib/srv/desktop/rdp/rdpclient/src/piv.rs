@@ -18,14 +18,15 @@ use iso7816::command::instruction::Instruction;
 use iso7816::command::Command;
 use iso7816::response::Status;
 use iso7816_tlv::ber::{Tag, Tlv, Value};
-use openssl::pkey::Private;
-use openssl::rsa::{Padding, Rsa};
 use rdp::model::error::*;
+use rsa::pkcs1::DecodeRsaPrivateKey;
+use rsa::{BigUint, PublicKeyParts, RsaPrivateKey};
 use std::convert::TryFrom;
+use std::fmt::Write as _;
 use std::io::{Cursor, Read};
 use uuid::Uuid;
 
-// AID (Application ID) of PIV application, per
+// AID (Application ID) of PIV application, per:
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
 const PIV_AID: Aid = Aid::new_truncatable(
     &[
@@ -36,24 +37,24 @@ const PIV_AID: Aid = Aid::new_truncatable(
 
 // Card implements a PIV-compatible smartcard, per:
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Card<const S: usize> {
     // Card-holder user ID (CHUID). In federal agencies, this value would be unique per employee
     // and encodes some agency information. In our case it's static.
     chuid: Vec<u8>,
     piv_auth_cert: Vec<u8>,
-    piv_auth_key: Rsa<Private>,
+    piv_auth_key: RsaPrivateKey,
     pin: String,
-    // Pending command and response to receive/send over multiple messages when they don't fit into
-    // one.
+    // Pending command and response to receive/send over multiple messages when
+    // they don't fit into one.
     pending_command: Option<Command<S>>,
     pending_response: Option<Cursor<Vec<u8>>>,
 }
 
 impl<const S: usize> Card<S> {
     pub fn new(uuid: Uuid, cert_der: &[u8], key_der: &[u8], pin: String) -> RdpResult<Self> {
-        let piv_auth_key = Rsa::private_key_from_der(key_der).map_err(|e| {
-            invalid_data_error(&format!("failed to parse private key from DER: {:?}", e))
+        let piv_auth_key = RsaPrivateKey::from_pkcs1_der(key_der).map_err(|e| {
+            invalid_data_error(&format!("failed to parse private key from DER: {e:?}"))
         })?;
 
         Ok(Self {
@@ -138,12 +139,12 @@ impl<const S: usize> Card<S> {
     }
 
     fn handle_verify(&mut self, cmd: Command<S>) -> RdpResult<Response> {
-        return if cmd.data() == self.pin.as_bytes() {
+        if cmd.data() == self.pin.as_bytes() {
             Ok(Response::new(Status::Success))
         } else {
             warn!("PIN mismatch, want {}, got {:?}", self.pin, cmd.data());
             Ok(Response::new(Status::VerificationFailed))
-        };
+        }
     }
 
     fn handle_get_data(&mut self, cmd: Command<S>) -> RdpResult<Response> {
@@ -153,7 +154,7 @@ impl<const S: usize> Card<S> {
             return Ok(Response::new(Status::NotFound));
         }
         let request_tlv = Tlv::from_bytes(cmd.data())
-            .map_err(|e| invalid_data_error(&format!("TLV invalid: {:?}", e)))?;
+            .map_err(|e| invalid_data_error(&format!("TLV invalid: {e:?}")))?;
         if *request_tlv.tag() != tlv_tag(0x5C)? {
             return Ok(Response::new(Status::NotFound));
         }
@@ -199,6 +200,28 @@ impl<const S: usize> Card<S> {
         }
     }
 
+    /// Sign the challenge.
+    ///
+    /// Note: for signatures, typically you'd use a signer that hashes the input data, adds padding
+    /// according to some scheme (like PKCS1v15 or PSS) and then "decrypts" this data with the key.
+    /// The decrypted blob is the signature.
+    ///
+    /// In our case, the RDP server does the hashing and padding, and only gives us a finished blob
+    /// to decrypt. Most crypto libraries don't directly expose RSA decryption without padding, as
+    /// it's easy to build insecure crypto systems. Thankfully for us, this decryption is just a single
+    /// modpow operation which is suppored by RustCrypto.
+    fn sign_auth_challenge(&self, challenge: &[u8]) -> Vec<u8> {
+        let c = BigUint::from_bytes_be(challenge);
+        let plain_text = c
+            .modpow(self.piv_auth_key.d(), self.piv_auth_key.n())
+            .to_bytes_be();
+
+        let mut result = vec![0u8; self.piv_auth_key.size()];
+        let start = result.len() - plain_text.len();
+        result[start..].copy_from_slice(&plain_text);
+        result
+    }
+
     fn handle_general_authenticate(&mut self, cmd: Command<S>) -> RdpResult<Response> {
         // See section 3.2.4 and example in Appending A.3 from
         // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
@@ -223,11 +246,10 @@ impl<const S: usize> Card<S> {
         }
 
         let request_tlv = Tlv::from_bytes(cmd.data())
-            .map_err(|e| invalid_data_error(&format!("TLV invalid: {:?}", e)))?;
+            .map_err(|e| invalid_data_error(&format!("TLV invalid: {e:?}")))?;
         if *request_tlv.tag() != tlv_tag(TLV_TAG_DYNAMIC_AUTHENTICATION_TEMPLATE)? {
             return Err(invalid_data_error(&format!(
-                "general authenticate command TLV invalid: {:?}",
-                request_tlv
+                "general authenticate command TLV invalid: {request_tlv:?}"
             )));
         }
 
@@ -235,8 +257,7 @@ impl<const S: usize> Card<S> {
         let request_tlvs = match request_tlv.value() {
             Value::Primitive(_) => {
                 return Err(invalid_data_error(&format!(
-                    "general authenticate command TLV invalid: {:?}",
-                    request_tlv
+                    "general authenticate command TLV invalid: {request_tlv:?}"
                 )));
             }
             Value::Constructed(tlvs) => tlvs,
@@ -250,37 +271,19 @@ impl<const S: usize> Card<S> {
                 Value::Primitive(chal) => Some(chal),
                 Value::Constructed(_) => {
                     return Err(invalid_data_error(&format!(
-                        "general authenticate command TLV invalid: {:?}",
-                        request_tlv
+                        "general authenticate command TLV invalid: {request_tlv:?}"
                     )));
                 }
             };
         }
         let challenge = challenge.ok_or_else(|| {
             invalid_data_error(&format!(
-                "general authenticate command TLV invalid: {:?}, missing challenge data",
-                request_tlv
+                "general authenticate command TLV invalid: {request_tlv:?}, missing challenge data"
             ))
         })?;
 
-        // Sign the challenge.
-        let mut signed_challenge = Vec::new();
-        signed_challenge.resize(self.piv_auth_key.size() as usize, 0);
-        // This signature uses very low-level RSA primitives.
-        //
-        // For signatures, typically, you'd use openssl::sign::Signer with plaintext input data to
-        // sign. Internally, the signer hashes the input, adds padding according to some scheme
-        // (like PKCS1v15 or PSS) and then "decrypts" this data with the key. The decrypted blob is
-        // the signature.
-        //
-        // In our case, the RDP server does all of the above hashing and signing and only gives us
-        // a finished blob to decrypt. This is why we call private_decrypt below, and not the usual
-        // signer.
-        //
         // TODO(zmb3): support non-RSA keys, if needed.
-        self.piv_auth_key
-            .private_decrypt(challenge, &mut signed_challenge, Padding::NONE)
-            .map_err(|e| invalid_data_error(&format!("failed to sign challenge: {:?}", e)))?;
+        let signed_challenge = self.sign_auth_challenge(challenge);
 
         // Return signed challenge.
         let resp = tlv(
@@ -399,22 +402,22 @@ const TLV_TAG_RESPONSE: u8 = 0x82;
 
 fn tlv(tag: u8, value: Value) -> RdpResult<Tlv> {
     Tlv::new(tlv_tag(tag)?, value)
-        .map_err(|e| invalid_data_error(&format!("TLV with tag {:#X} invalid: {:?}", tag, e)))
+        .map_err(|e| invalid_data_error(&format!("TLV with tag {tag:#X} invalid: {e:?}")))
 }
 
 fn tlv_tag(val: u8) -> RdpResult<Tag> {
-    Tag::try_from(val)
-        .map_err(|e| invalid_data_error(&format!("TLV tag {:#X} invalid: {:?}", val, e)))
+    Tag::try_from(val).map_err(|e| invalid_data_error(&format!("TLV tag {val:#X} invalid: {e:?}")))
 }
 
 fn hex_data<const S: usize>(cmd: &Command<S>) -> String {
-    to_hex(&cmd.data().to_vec())
+    to_hex(cmd.data())
 }
 
 fn to_hex(bytes: &[u8]) -> String {
     let mut s = String::new();
     for b in bytes {
-        s.push_str(&format!("{:02X}", b));
+        // https://rust-lang.github.io/rust-clippy/master/index.html#format_push_string
+        let _ = write!(s, "{b:02X}");
     }
     s
 }

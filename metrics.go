@@ -49,6 +49,9 @@ const (
 	// MetricFailedLoginAttempts counts failed login attempts
 	MetricFailedLoginAttempts = "failed_login_attempts_total"
 
+	// MetricConnectToNodeAttempts counts ssh attempts
+	MetricConnectToNodeAttempts = "connect_to_node_attempts_total"
+
 	// MetricFailedConnectToNodeAttempts counts failed ssh attempts
 	MetricFailedConnectToNodeAttempts = "failed_connect_to_node_attempts_total"
 
@@ -78,6 +81,15 @@ const (
 
 	// MetricMissingSSHTunnels returns the number of missing SSH tunnels for this proxy.
 	MetricMissingSSHTunnels = "proxy_missing_ssh_tunnels"
+
+	// MetricMigrations tracks for each migration if it is active or not.
+	MetricMigrations = "migrations"
+
+	// TagMigration is a metric tag for a migration
+	TagMigration = "migration"
+
+	// MetricIncompleteSessionUploads returns the number of incomplete session uploads
+	MetricIncompleteSessionUploads = "incomplete_session_uploads_total"
 
 	// TagCluster is a metric tag for a cluster
 	TagCluster = "cluster"
@@ -227,4 +239,38 @@ const (
 
 	// TagType is a prometheus label for type of resource or tunnel connected
 	TagType = "type"
+
+	// TagServer is a prometheus label to indicate what server the metric is tied to
+	TagServer = "server"
+
+	// TagClient is a prometheus label to indicate what client the metric is tied to
+	TagClient = "client"
+)
+
+const (
+	// MetricUsageEventsSubmitted is a count of usage events that have been generated.
+	MetricUsageEventsSubmitted = "usage_events_submitted_total"
+
+	// MetricUsageBatches is a count of batches enqueued for submission.
+	MetricUsageBatches = "usage_batches_total"
+
+	// MetricUsageEventsRequeued is a count of events that were requeued after a
+	// submission failed.
+	MetricUsageEventsRequeued = "usage_events_requeued_total"
+
+	// MetricUsageBatchSubmissionDuration is a histogram of durations it took to
+	// submit a batch.
+	MetricUsageBatchSubmissionDuration = "usage_batch_submission_duration_seconds"
+
+	// MetricUsageBatchesSubmitted is a count of event batches successfully
+	// submitted.
+	MetricUsageBatchesSubmitted = "usage_batch_submitted_total"
+
+	// MetricUsageBatchesFailed is a count of event batches that failed to
+	// submit.
+	MetricUsageBatchesFailed = "usage_batch_failed_total"
+
+	// MetricUsageEventsDropped is a count of events dropped due to the
+	// submission buffer reaching a length limit.
+	MetricUsageEventsDropped = "usage_events_dropped_total"
 )

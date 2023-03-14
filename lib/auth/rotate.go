@@ -19,21 +19,21 @@ package auth
 import (
 	"context"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509/pkix"
 	"time"
-
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // RotateRequest is a request to start rotation of the certificate authority.
@@ -63,14 +63,20 @@ type RotateRequest struct {
 // Types returns cert authority types requested to be rotated.
 func (r *RotateRequest) Types() []types.CertAuthType {
 	switch r.Type {
-	case "":
-		return []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner}
+	case types.CertAuthTypeAll:
+		return types.CertAuthTypes[:]
 	case types.HostCA:
 		return []types.CertAuthType{types.HostCA}
+	case types.DatabaseCA:
+		return []types.CertAuthType{types.DatabaseCA}
 	case types.UserCA:
 		return []types.CertAuthType{types.UserCA}
+	case types.OpenSSHCA:
+		return []types.CertAuthType{types.OpenSSHCA}
 	case types.JWTSigner:
 		return []types.CertAuthType{types.JWTSigner}
+	case types.SAMLIDPCA:
+		return []types.CertAuthType{types.SAMLIDPCA}
 	}
 	return nil
 }
@@ -78,7 +84,7 @@ func (r *RotateRequest) Types() []types.CertAuthType {
 // CheckAndSetDefaults checks and sets default values.
 func (r *RotateRequest) CheckAndSetDefaults(clock clockwork.Clock) error {
 	if r.TargetPhase == "" {
-		// if phase if not set, imply that the first meaningful phase
+		// if phase is not set, imply that the first meaningful phase
 		// is set as a target phase
 		r.TargetPhase = types.RotationPhaseInit
 	}
@@ -86,10 +92,10 @@ func (r *RotateRequest) CheckAndSetDefaults(clock clockwork.Clock) error {
 	if r.Mode == "" {
 		r.Mode = types.RotationModeManual
 	}
-	switch r.Type {
-	case "", types.HostCA, types.UserCA, types.JWTSigner:
-	default:
-		return trace.BadParameter("unsupported certificate authority type: %q", r.Type)
+	// types.CertAuthTypeAll is valid too but will be deprecated in a future release.
+	// See: https://github.com/gravitational/teleport/issues/17493
+	if err := r.Type.Check(); err != nil && r.Type != types.CertAuthTypeAll {
+		return trace.Wrap(err)
 	}
 	if r.GracePeriod == nil {
 		period := defaults.RotationGracePeriod
@@ -109,7 +115,7 @@ func (r *RotateRequest) CheckAndSetDefaults(clock clockwork.Clock) error {
 	return nil
 }
 
-// rotationReq is an internal rotation requrest
+// rotationReq is an internal rotation request
 type rotationReq struct {
 	// clock implements test or real wall clock
 	clock clockwork.Clock
@@ -126,8 +132,6 @@ type rotationReq struct {
 	// privateKey is passed by tests to supply private key for cert authorities
 	// instead of generating them on each iteration
 	privateKey []byte
-	// caSigningAlg is an SSH signing algorithm to use with the new CA.
-	caSigningAlg *string
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
@@ -136,8 +140,8 @@ type rotationReq struct {
 //
 // Here are the supported rotation states:
 //
-//  * Standby - the cluster is in standby mode and ready to take action.
-//  * In-progress - cluster CA rotation is in progress.
+//   - Standby - the cluster is in standby mode and ready to take action.
+//   - In-progress - cluster CA rotation is in progress.
 //
 // In-progress state is split into multiple phases and the cluster
 // can traverse between phases using supported transitions.
@@ -184,7 +188,7 @@ type rotationReq struct {
 // reload again, but the "new" CA is discarded and is no longer trusted,
 // cluster goes back to the original state.
 //
-// Rotation modes
+// # Rotation modes
 //
 // There are two rotation modes supported - manual or automatic.
 //
@@ -201,7 +205,6 @@ type rotationReq struct {
 //
 // It is possible to switch from automatic to manual by setting the phase
 // to the rollback phase.
-//
 func (a *Server) RotateCertAuthority(ctx context.Context, req RotateRequest) error {
 	if err := req.CheckAndSetDefaults(a.clock); err != nil {
 		return trace.Wrap(err)
@@ -212,24 +215,27 @@ func (a *Server) RotateCertAuthority(ctx context.Context, req RotateRequest) err
 	}
 
 	caTypes := req.Types()
+	allCerts, err := a.getAllCertificatesForRotation(ctx, clusterName.GetClusterName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	caTypes = findDuplicatedCertificates(caTypes, allCerts)
+
 	for _, caType := range caTypes {
-		existing, err := a.Trust.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       caType,
-			DomainName: clusterName.GetClusterName(),
-		}, true)
-		if err != nil {
-			return trace.Wrap(err)
+		existing, found := allCerts[caType]
+		if !found {
+			return trace.BadParameter("CAs list doesn't contain %q certificate", caType)
 		}
 
-		rotated, err := a.processRotationRequest(rotationReq{
-			ca:           existing,
-			clock:        a.clock,
-			targetPhase:  req.TargetPhase,
-			schedule:     *req.Schedule,
-			gracePeriod:  *req.GracePeriod,
-			mode:         req.Mode,
-			privateKey:   a.privateKey,
-			caSigningAlg: a.caSigningAlg,
+		rotated, err := a.processRotationRequest(ctx, rotationReq{
+			ca:          existing,
+			clock:       a.clock,
+			targetPhase: req.TargetPhase,
+			schedule:    *req.Schedule,
+			gracePeriod: *req.GracePeriod,
+			mode:        req.Mode,
+			privateKey:  a.privateKey,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -266,7 +272,7 @@ func (a *Server) RotateExternalCertAuthority(ctx context.Context, ca types.CertA
 		return trace.BadParameter("can not rotate local certificate authority")
 	}
 
-	existing, err := a.Trust.GetCertAuthority(ctx, types.CertAuthID{
+	existing, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       ca.GetType(),
 		DomainName: ca.GetClusterName(),
 	}, false)
@@ -285,7 +291,7 @@ func (a *Server) RotateExternalCertAuthority(ctx context.Context, ca types.CertA
 	// a rotation state of "" gets stored as "standby" after
 	// CheckAndSetDefaults, so if `ca` came in with a zeroed rotation we must do
 	// this before checking if `updated` is the same as `existing` or the check
-	// will fail for no reason (CheckAndSetDefaults is idempotent so it's fine
+	// will fail for no reason (CheckAndSetDefaults is idempotent, so it's fine
 	// to call it both here and in CompareAndSwapCertAuthority)
 	updated.SetRotation(ca.GetRotation())
 	if err := updated.CheckAndSetDefaults(); err != nil {
@@ -315,15 +321,15 @@ func (a *Server) autoRotateCertAuthorities(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.JWTSigner} {
-		ca, err := a.Trust.GetCertAuthority(ctx, types.CertAuthID{
+	for _, caType := range types.CertAuthTypes {
+		ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       caType,
 			DomainName: clusterName.GetClusterName(),
 		}, true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := a.autoRotate(ca); err != nil {
+		if err := a.autoRotate(ctx, ca); err != nil {
 			return trace.Wrap(err)
 		}
 		// make sure there are local AdditionalKeys during init phase of rotation
@@ -336,7 +342,7 @@ func (a *Server) autoRotateCertAuthorities(ctx context.Context) error {
 	return nil
 }
 
-func (a *Server) autoRotate(ca types.CertAuthority) error {
+func (a *Server) autoRotate(ctx context.Context, ca types.CertAuthority) error {
 	rotation := ca.GetRotation()
 	// rotation mode is not automatic, nothing to do
 	if rotation.Mode != types.RotationModeAuto {
@@ -389,7 +395,7 @@ func (a *Server) autoRotate(ca types.CertAuthority) error {
 		return trace.BadParameter("phase is not supported: %q", rotation.Phase)
 	}
 	logger.Infof("Setting rotation phase to %q", req.targetPhase)
-	rotated, err := a.processRotationRequest(*req)
+	rotated, err := a.processRotationRequest(ctx, *req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -400,9 +406,103 @@ func (a *Server) autoRotate(ca types.CertAuthority) error {
 	return nil
 }
 
+type CertAuthorityMap = map[types.CertAuthType]types.CertAuthority
+
+// getAllCertificatesForRotation returns all certificates authorities including
+// private keys from the backend, bypassing the cache.
+func (a *Server) getAllCertificatesForRotation(ctx context.Context, clusterName string) (CertAuthorityMap, error) {
+	certs := make(CertAuthorityMap)
+
+	for _, caType := range types.CertAuthTypes {
+		ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
+			Type:       caType,
+			DomainName: clusterName,
+		}, true)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		certs[caType] = ca
+	}
+
+	return certs, nil
+}
+
+// findDuplicatedCertificates checks if any CA provided as caTypes has a duplicate in allCerts. List of all duplicates
+// is returned as a result. If no duplicates are found, then caTypes is returned in unmodified form.
+func findDuplicatedCertificates(caTypes []types.CertAuthType, allCerts CertAuthorityMap) []types.CertAuthType {
+	if len(caTypes) == len(allCerts) {
+		// requested rotation of all certs, no point of looking for duplicates.
+		return caTypes
+	}
+
+	// create a set to prevent duplicates.
+	rotateMap := make(map[types.CertAuthType]struct{})
+	certsThumbs := make(map[[32]byte][]types.CertAuthType)
+
+	for certType, allCert := range allCerts {
+		for _, cert := range allCert.GetActiveKeys().TLS {
+			s := sha256.Sum256(cert.Key)
+			certsThumbs[s] = append(certsThumbs[s], certType)
+		}
+		for _, cert := range allCert.GetAdditionalTrustedKeys().TLS {
+			s := sha256.Sum256(cert.Key)
+			certsThumbs[s] = append(certsThumbs[s], certType)
+		}
+		for _, cert := range allCert.GetActiveKeys().SSH {
+			s := sha256.Sum256(cert.PrivateKey)
+			certsThumbs[s] = append(certsThumbs[s], certType)
+		}
+		for _, cert := range allCert.GetAdditionalTrustedKeys().SSH {
+			s := sha256.Sum256(cert.PrivateKey)
+			certsThumbs[s] = append(certsThumbs[s], certType)
+		}
+	}
+
+	for _, certsThumb := range certsThumbs {
+		if len(certsThumb) == 1 {
+			// key is unique.
+			continue
+		}
+
+		// key has duplicates, check if the rotation request contains that CA type.
+		for _, caType := range caTypes {
+			for _, certType := range certsThumb {
+				if caType == certType {
+					// copy original CA type and all duplicates as we need to rotate all of them.
+					for _, ct := range certsThumb {
+						rotateMap[ct] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+
+	if len(rotateMap) == 0 {
+		// no duplicates found.
+		return caTypes
+	}
+
+	// Copy unique keys from the request as those won't be in rotateMap at that point.
+	for _, caType := range caTypes {
+		rotateMap[caType] = struct{}{}
+	}
+
+	// copy all set elements to an array.
+	toRotate := make([]types.CertAuthType, 0, len(rotateMap))
+
+	for key := range rotateMap {
+		toRotate = append(toRotate, key)
+	}
+
+	log.Warnf("Found duplicated CAs. Rotating %v", toRotate)
+
+	return toRotate
+}
+
 // processRotationRequest processes rotation request based on the target and
 // current phase and state.
-func (a *Server) processRotationRequest(req rotationReq) (types.CertAuthority, error) {
+func (a *Server) processRotationRequest(ctx context.Context, req rotationReq) (types.CertAuthority, error) {
 	rotation := req.ca.GetRotation()
 	ca := req.ca.Clone()
 
@@ -415,7 +515,7 @@ func (a *Server) processRotationRequest(req rotationReq) (types.CertAuthority, e
 		default:
 			return nil, trace.BadParameter("can not initiate rotation while another is in progress")
 		}
-		if err := a.startNewRotation(req, ca); err != nil {
+		if err := a.startNewRotation(ctx, req, ca); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return ca, nil
@@ -480,7 +580,7 @@ func (a *Server) processRotationRequest(req rotationReq) (types.CertAuthority, e
 // startNewRotation starts new rotation. In this phase requests will continue
 // to be signed by the old CAKeySet, but a new CAKeySet will be added. This new
 // CA can be used to verify requests.
-func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error {
+func (a *Server) startNewRotation(ctx context.Context, req rotationReq, ca types.CertAuthority) error {
 	clock := req.clock
 	gracePeriod := req.gracePeriod
 
@@ -555,14 +655,18 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 			// invalidating the current Admin identity.
 			newKeys = additionalKeys.Clone()
 		}
-		if !a.keyStore.HasLocalAdditionalKeys(ca) {
-			// This auth server has no local AdditionalTrustedKeys in this CA.
+		hasUsableAdditionalKeys, err := a.keyStore.HasUsableAdditionalKeys(ctx, ca)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !hasUsableAdditionalKeys {
+			// This auth server has no usable AdditionalTrustedKeys in this CA.
 			// This is one of 2 cases:
 			// 1. There are no AdditionalTrustedKeys at all.
 			// 2. There are AdditionalTrustedKeys which were added by a
-			//    different auth server.
+			//    different HSM-enabled auth server.
 			// In either case, we need to add newly generated local keys.
-			newLocalKeys, err := newKeySet(a.keyStore, ca.GetID())
+			newLocalKeys, err := newKeySet(ctx, a.keyStore, ca.GetID())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -597,22 +701,16 @@ func (a *Server) startNewRotation(req rotationReq, ca types.CertAuthority) error
 	}
 
 	ca.SetRotation(rotation)
-	// The certificate signing algorithm is only set when signing algorithm is
-	// explicitly set in the config file. If the config file doesn't set a value,
-	// preserve the signing algorithm of the existing CA.
-	if req.caSigningAlg != nil {
-		sshutils.SetSigningAlgName(ca, *req.caSigningAlg)
-	}
 
 	return nil
 }
 
 // updateClients swaps old and new CA key sets.
 //
-// * Old CAs continue to be trusted, but are no longer used for signing.
-// * New CAs are used for signing.
-// * Remote components will reload with new certificates used for client
-//   connections.
+//   - Old CAs continue to be trusted, but are no longer used for signing.
+//   - New CAs are used for signing.
+//   - Remote components will reload with new certificates used for client
+//     connections.
 func updateClients(ca types.CertAuthority, mode string) error {
 	oldActive, oldTrusted := ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()
 	if err := ca.SetActiveKeys(oldTrusted); err != nil {

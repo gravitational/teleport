@@ -17,14 +17,27 @@ limitations under the License.
 package utils
 
 import (
+	"context"
+	"crypto/rand"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
-	"runtime"
+	"time"
+
+	"github.com/gofrs/flock"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/trace"
 )
+
+// ErrUnsuccessfulLockTry designates an error when we temporarily couldn't acquire lock
+// (most probably it was already locked by someone else), another try might succeed.
+var ErrUnsuccessfulLockTry = errors.New("could not acquire lock on the file at this time")
+
+// OpenFileWithFlagsFunc defines a function used to open files providing options.
+type OpenFileWithFlagsFunc func(name string, flag int, perm os.FileMode) (*os.File, error)
 
 // EnsureLocalPath makes sure the path exists, or, if omitted results in the subpath in
 // default gravity config directory, e.g.
@@ -35,9 +48,9 @@ import (
 // It also makes sure that base dir exists
 func EnsureLocalPath(customPath string, defaultLocalDir, defaultLocalPath string) (string, error) {
 	if customPath == "" {
-		homeDir := getHomeDir()
-		if homeDir == "" {
-			return "", trace.BadParameter("no path provided and environment variable %v is not not set", teleport.EnvHome)
+		homeDir, err := os.UserHomeDir()
+		if err != nil || homeDir == "" {
+			return "", trace.BadParameter("could not get user home dir: %v", err)
 		}
 		customPath = filepath.Join(homeDir, defaultLocalDir, defaultLocalPath)
 	}
@@ -62,17 +75,6 @@ func MkdirAll(targetDirectory string, mode os.FileMode) error {
 		return trace.ConvertSystemError(err)
 	}
 	return nil
-}
-
-// RemoveDirCloser removes directory and all it's contents
-// when Close is called
-type RemoveDirCloser struct {
-	Path string
-}
-
-// Close removes directory and all it's contents
-func (r *RemoveDirCloser) Close() error {
-	return trace.ConvertSystemError(os.RemoveAll(r.Path))
 }
 
 // IsDir is a helper function to quickly check if a given path is a valid directory
@@ -155,15 +157,100 @@ func StatDir(path string) (os.FileInfo, error) {
 	return fi, nil
 }
 
-// getHomeDir returns the home directory based off the OS.
-func getHomeDir() string {
-	switch runtime.GOOS {
-	case constants.LinuxOS:
-		return os.Getenv(teleport.EnvHome)
-	case constants.DarwinOS:
-		return os.Getenv(teleport.EnvHome)
-	case constants.WindowsOS:
-		return os.Getenv(teleport.EnvUserProfile)
+// FSTryWriteLock tries to grab write lock, returns ErrUnsuccessfulLockTry
+// if lock is already acquired by someone else
+func FSTryWriteLock(filePath string) (unlock func() error, err error) {
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
+	locked, err := fileLock.TryLock()
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
 	}
-	return ""
+	if !locked {
+		return nil, trace.Retry(ErrUnsuccessfulLockTry, "")
+	}
+
+	return fileLock.Unlock, nil
+}
+
+// FSTryWriteLockTimeout tries to grab write lock, it's doing it until locks is acquired, or timeout is expired,
+// or context is expired.
+func FSTryWriteLockTimeout(ctx context.Context, filePath string, timeout time.Duration) (unlock func() error, err error) {
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
+	timedCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	if _, err := fileLock.TryLockContext(timedCtx, 10*time.Millisecond); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
+	return fileLock.Unlock, nil
+}
+
+// FSTryReadLock tries to grab write lock, returns ErrUnsuccessfulLockTry
+// if lock is already acquired by someone else
+func FSTryReadLock(filePath string) (unlock func() error, err error) {
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
+	locked, err := fileLock.TryRLock()
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	if !locked {
+		return nil, trace.Retry(ErrUnsuccessfulLockTry, "")
+	}
+
+	return fileLock.Unlock, nil
+}
+
+// FSTryReadLockTimeout tries to grab read lock, it's doing it until locks is acquired, or timeout is expired,
+// or context is expired.
+func FSTryReadLockTimeout(ctx context.Context, filePath string, timeout time.Duration) (unlock func() error, err error) {
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
+	timedCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	if _, err := fileLock.TryRLockContext(timedCtx, 10*time.Millisecond); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
+	return fileLock.Unlock, nil
+}
+
+// RemoveSecure attempts to securely delete the file by first overwriting the file with random data three times
+// followed by calling os.Remove(filePath).
+func RemoveSecure(filePath string) error {
+	for i := 0; i < 3; i++ {
+		if err := overwriteFile(filePath); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return trace.ConvertSystemError(os.Remove(filePath))
+}
+
+func overwriteFile(filePath string) (err error) {
+	f, err := os.OpenFile(filePath, os.O_WRONLY, 0)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	defer func() {
+		if closeErr := f.Close(); closeErr != nil {
+			if err == nil {
+				err = trace.ConvertSystemError(closeErr)
+			} else {
+				log.WithError(closeErr).Warningf("Failed to close %v.", f.Name())
+			}
+		}
+	}()
+
+	fi, err := f.Stat()
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	// Rounding up to 4k to hide the original file size. 4k was chosen because it's a common block size.
+	const block = 4096
+	size := fi.Size() / block * block
+	if fi.Size()%block != 0 {
+		size += block
+	}
+
+	_, err = io.CopyN(f, rand.Reader, size)
+	return trace.Wrap(err)
 }

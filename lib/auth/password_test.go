@@ -20,44 +20,51 @@ import (
 	"context"
 	"encoding/base32"
 	"fmt"
-	"math"
 	"math/rand"
-	"sync"
 	"testing"
 	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/pquerna/otp/totp"
 )
 
 type passwordSuite struct {
 	bk          backend.Backend
 	a           *Server
-	mockEmitter *events.MockEmitter
+	mockEmitter *eventstest.MockEmitter
 }
 
 func setupPasswordSuite(t *testing.T) *passwordSuite {
 	s := passwordSuite{}
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClockAt(time.Now())
+
 	var err error
-	s.bk, err = lite.New(context.TODO(), backend.Params{"path": t.TempDir()})
+
+	s.bk, err = memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
 	require.NoError(t, err)
+
 	// set cluster name
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "me.localhost",
@@ -68,6 +75,11 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 		Backend:                s.bk,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
+		KeyStoreConfig: keystore.Config{
+			Software: keystore.SoftwareConfig{
+				RSAKeyPairSource: authority.New().GenerateKeyPair,
+			},
+		},
 	}
 	s.a, err = NewServer(authConfig)
 	require.NoError(t, err)
@@ -83,82 +95,14 @@ func setupPasswordSuite(t *testing.T) *passwordSuite {
 	err = s.a.SetStaticTokens(staticTokens)
 	require.NoError(t, err)
 
-	s.mockEmitter = &events.MockEmitter{}
+	s.mockEmitter = &eventstest.MockEmitter{}
 	s.a.emitter = s.mockEmitter
 	return &s
 }
 
-func TestTiming(t *testing.T) {
-	s := setupPasswordSuite(t)
-	username := "foo"
-	password := "barbaz"
-
-	err := s.a.UpsertPassword(username, []byte(password))
-	require.NoError(t, err)
-
-	type res struct {
-		exists  bool
-		elapsed time.Duration
-		err     error
-	}
-
-	// Run multiple password checks in parallel, for both existing and
-	// non-existing user. This should ensure that there's always contention and
-	// that both checking paths are subject to it together.
-	//
-	// This should result in timing results being more similar to each other
-	// and reduce test flakiness.
-	wg := sync.WaitGroup{}
-	resCh := make(chan res)
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			start := time.Now()
-			err := s.a.checkPasswordWOToken(username, []byte(password))
-			resCh <- res{
-				exists:  true,
-				elapsed: time.Since(start),
-				err:     err,
-			}
-		}()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			start := time.Now()
-			err := s.a.checkPasswordWOToken("blah", []byte(password))
-			resCh <- res{
-				exists:  false,
-				elapsed: time.Since(start),
-				err:     err,
-			}
-		}()
-	}
-	go func() {
-		wg.Wait()
-		close(resCh)
-	}()
-
-	var elapsedExists, elapsedNotExists time.Duration
-	for r := range resCh {
-		if r.exists {
-			require.NoError(t, r.err)
-			elapsedExists += r.elapsed
-		} else {
-			require.Error(t, r.err)
-			elapsedNotExists += r.elapsed
-		}
-	}
-
-	// Get the relative percentage difference in runtimes of password check
-	// with real and non-existent users. It should be <10%.
-	diffFraction := math.Abs(1.0 - (float64(elapsedExists) / float64(elapsedNotExists)))
-	require.True(t, diffFraction < 0.1,
-		"elapsed difference (%v%%) greater than 10%%", 100*diffFraction)
-}
-
 func TestUserNotFound(t *testing.T) {
 	t.Parallel()
+
 	s := setupPasswordSuite(t)
 	username := "unknown-user"
 	password := "barbaz"
@@ -171,6 +115,8 @@ func TestUserNotFound(t *testing.T) {
 
 func TestChangePassword(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
+
 	s := setupPasswordSuite(t)
 	req, err := s.prepareForPasswordChange("user1", []byte("abc123"), constants.SecondFactorOff)
 	require.NoError(t, err)
@@ -179,7 +125,7 @@ func TestChangePassword(t *testing.T) {
 	s.a.SetClock(fakeClock)
 	req.NewPassword = []byte("abce456")
 
-	err = s.a.ChangePassword(req)
+	err = s.a.ChangePassword(ctx, req)
 	require.NoError(t, err)
 	require.Equal(t, events.UserPasswordChangeEvent, s.mockEmitter.LastEvent().GetType())
 	require.Equal(t, "user1", s.mockEmitter.LastEvent().(*apievents.UserPasswordChange).User)
@@ -189,12 +135,13 @@ func TestChangePassword(t *testing.T) {
 	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
 	req.OldPassword = req.NewPassword
 	req.NewPassword = []byte("abc5555")
-	err = s.a.ChangePassword(req)
+	err = s.a.ChangePassword(ctx, req)
 	require.NoError(t, err)
 }
 
 func TestChangePasswordWithOTP(t *testing.T) {
 	t.Parallel()
+
 	s := setupPasswordSuite(t)
 	req, err := s.prepareForPasswordChange("user2", []byte("abc123"), constants.SecondFactorOTP)
 	require.NoError(t, err)
@@ -215,7 +162,7 @@ func TestChangePasswordWithOTP(t *testing.T) {
 	// change password
 	req.NewPassword = []byte("abce456")
 	req.SecondFactorToken = validToken
-	err = s.a.ChangePassword(req)
+	err = s.a.ChangePassword(ctx, req)
 	require.NoError(t, err)
 
 	s.shouldLockAfterFailedAttempts(t, req)
@@ -227,12 +174,13 @@ func TestChangePasswordWithOTP(t *testing.T) {
 	req.OldPassword = req.NewPassword
 	req.NewPassword = []byte("abc5555")
 	req.SecondFactorToken = validToken
-	err = s.a.ChangePassword(req)
+	err = s.a.ChangePassword(ctx, req)
 	require.NoError(t, err)
 }
 
 func TestServer_ChangePassword(t *testing.T) {
 	t.Parallel()
+
 	srv := newTestTLSServer(t)
 
 	mfa := configureForMFA(t, srv)
@@ -278,7 +226,7 @@ func TestServer_ChangePassword(t *testing.T) {
 			require.NoError(t, err, "solving challenge with device")
 
 			// Change password.
-			req := services.ChangePasswordReq{
+			req := &proto.ChangePasswordRequest{
 				User:        username,
 				OldPassword: oldPass,
 				NewPassword: newPass,
@@ -287,9 +235,9 @@ func TestServer_ChangePassword(t *testing.T) {
 			case mfaResp.GetTOTP() != nil:
 				req.SecondFactorToken = mfaResp.GetTOTP().Code
 			case mfaResp.GetWebauthn() != nil:
-				req.WebauthnResponse = wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn())
+				req.Webauthn = mfaResp.GetWebauthn()
 			}
-			require.NoError(t, authServer.ChangePassword(req), "changing password")
+			require.NoError(t, authServer.ChangePassword(ctx, req), "changing password")
 
 			// Did the password change take effect?
 			require.NoError(t, authServer.checkPasswordWOToken(username, newPass), "password change didn't take effect")
@@ -301,6 +249,7 @@ func TestServer_ChangePassword(t *testing.T) {
 
 func TestChangeUserAuthentication(t *testing.T) {
 	t.Parallel()
+
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
 
@@ -383,7 +332,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID)
+				_, webauthnRegRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID, proto.DeviceUsage_DEVICE_USAGE_MFA)
 				require.NoError(t, err)
 
 				return &proto.ChangeUserAuthenticationRequest{
@@ -402,7 +351,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 			},
 		},
 		{
-			name: "with second factor webauthn",
+			name: "with passwordless",
 			setAuthPreference: func() {
 				authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
@@ -416,20 +365,18 @@ func TestChangeUserAuthentication(t *testing.T) {
 				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID)
+				_, webauthnRes, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID, proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS)
 				require.NoError(t, err)
 
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:                resetTokenID,
-					NewPassword:            []byte("password3"),
 					NewMFARegisterResponse: webauthnRes,
 				}
 			},
-			// Invalid totp fields when auth settings set to only webauthn.
+			// Missing webauthn for passwordless.
 			getInvalidReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:                resetTokenID,
-					NewPassword:            []byte("password3"),
 					NewMFARegisterResponse: &proto.MFARegisterResponse{Response: &proto.MFARegisterResponse_TOTP{}},
 				}
 			},
@@ -449,13 +396,14 @@ func TestChangeUserAuthentication(t *testing.T) {
 				require.NoError(t, err)
 			},
 			getReq: func(resetTokenID string) *proto.ChangeUserAuthenticationRequest {
-				_, mfaResp, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID)
+				_, mfaResp, err := getMockedWebauthnAndRegisterRes(srv.Auth(), resetTokenID, proto.DeviceUsage_DEVICE_USAGE_MFA)
 				require.NoError(t, err)
 
 				return &proto.ChangeUserAuthenticationRequest{
 					TokenID:                resetTokenID,
 					NewPassword:            []byte("password4"),
 					NewMFARegisterResponse: mfaResp,
+					NewDeviceName:          "new-device",
 				}
 			},
 			// Empty register response, when auth settings requires second factors.
@@ -492,19 +440,19 @@ func TestChangeUserAuthentication(t *testing.T) {
 	for _, c := range tests {
 		t.Run(c.name, func(t *testing.T) {
 			username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
-			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 			require.NoError(t, err)
 
 			c.setAuthPreference()
 
-			token, err := srv.Auth().CreateResetPasswordToken(context.TODO(), CreateUserTokenRequest{
+			token, err := srv.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
 				Name: username,
 			})
 			require.NoError(t, err)
 
 			if c.getInvalidReq != nil {
 				invalidReq := c.getInvalidReq(token.GetName())
-				_, err = srv.Auth().changeUserAuthentication(ctx, invalidReq)
+				_, err := srv.Auth().changeUserAuthentication(ctx, invalidReq)
 				require.True(t, trace.IsBadParameter(err))
 			}
 
@@ -513,14 +461,37 @@ func TestChangeUserAuthentication(t *testing.T) {
 			require.NoError(t, err)
 
 			// Test password is updated.
-			err = srv.Auth().checkPasswordWOToken(username, validReq.NewPassword)
-			require.NoError(t, err)
+			if len(validReq.NewPassword) != 0 {
+				err := srv.Auth().checkPasswordWOToken(username, validReq.NewPassword)
+				require.NoError(t, err)
+			}
+
+			// Test device was registered.
+			if validReq.NewMFARegisterResponse != nil {
+				devs, err := srv.Auth().Services.GetMFADevices(ctx, username, false /* without secrets*/)
+				require.NoError(t, err)
+				require.Len(t, devs, 1)
+
+				// Test device name setting.
+				dev := devs[0]
+				var wantName string
+				switch {
+				case validReq.NewDeviceName != "":
+					wantName = validReq.NewDeviceName
+				case dev.GetTotp() != nil:
+					wantName = "otp"
+				case dev.GetWebauthn() != nil:
+					wantName = "webauthn"
+				}
+				require.Equal(t, wantName, dev.GetName(), "device name mismatch")
+			}
 		})
 	}
 }
 
 func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	t.Parallel()
+
 	s := setupPasswordSuite(t)
 	ctx := context.Background()
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -530,7 +501,7 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	username := "joe@example.com"
-	_, _, err = CreateUserAndRole(s.a, username, []string{username})
+	_, _, err = CreateUserAndRole(s.a, username, []string{username}, nil)
 	require.NoError(t, err)
 
 	token, err := s.a.CreateResetPasswordToken(ctx, CreateUserTokenRequest{
@@ -613,23 +584,24 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	require.Error(t, err)
 }
 
-func (s *passwordSuite) shouldLockAfterFailedAttempts(t *testing.T, req services.ChangePasswordReq) {
+func (s *passwordSuite) shouldLockAfterFailedAttempts(t *testing.T, req *proto.ChangePasswordRequest) {
+	ctx := context.Background()
 	loginAttempts, _ := s.a.GetUserLoginAttempts(req.User)
 	require.Empty(t, loginAttempts)
 	for i := 0; i < defaults.MaxLoginAttempts; i++ {
-		err := s.a.ChangePassword(req)
+		err := s.a.ChangePassword(ctx, req)
 		require.Error(t, err)
 		loginAttempts, _ = s.a.GetUserLoginAttempts(req.User)
 		require.Len(t, loginAttempts, i+1)
 	}
 
-	err := s.a.ChangePassword(req)
+	err := s.a.ChangePassword(ctx, req)
 	require.True(t, trace.IsAccessDenied(err))
 }
 
-func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secondFactorType constants.SecondFactorType) (services.ChangePasswordReq, error) {
+func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secondFactorType constants.SecondFactorType) (*proto.ChangePasswordRequest, error) {
 	ctx := context.Background()
-	req := services.ChangePasswordReq{
+	req := &proto.ChangePasswordRequest{
 		User:        user,
 		OldPassword: pass,
 	}
@@ -657,7 +629,7 @@ func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secon
 		return req, err
 	}
 
-	_, _, err = CreateUserAndRole(s.a, user, []string{user})
+	_, _, err = CreateUserAndRole(s.a, user, []string{user}, nil)
 	if err != nil {
 		return req, err
 	}

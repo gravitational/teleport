@@ -19,25 +19,30 @@ package local
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"sort"
 	"sync"
 	"time"
 
-	"github.com/gokyle/hotp"
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // GlobalSessionDataMaxEntries represents the maximum number of in-flight
@@ -390,7 +395,7 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	}
 	// each user has multiple related entries in the backend,
 	// so use DeleteRange to make sure we get them all
-	startKey := backend.Key(webPrefix, usersPrefix, user)
+	startKey := backend.ExactKey(webPrefix, usersPrefix, user)
 	err = s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	return trace.Wrap(err)
 }
@@ -431,53 +436,6 @@ func (s *IdentityService) GetPasswordHash(user string) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	return item.Value, nil
-}
-
-// UpsertHOTP upserts HOTP state for user
-// Deprecated: HOTP use is deprecated, use UpsertMFADevice instead.
-func (s *IdentityService) UpsertHOTP(user string, otp *hotp.HOTP) error {
-	if user == "" {
-		return trace.BadParameter("missing user name")
-	}
-	bytes, err := hotp.Marshal(otp)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	item := backend.Item{
-		Key:   backend.Key(webPrefix, usersPrefix, user, hotpPrefix),
-		Value: bytes,
-	}
-
-	_, err = s.Put(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// GetHOTP gets HOTP token state for a user
-// Deprecated: HOTP use is deprecated, use GetMFADevices instead.
-func (s *IdentityService) GetHOTP(user string) (*hotp.HOTP, error) {
-	if user == "" {
-		return nil, trace.BadParameter("missing user name")
-	}
-
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, hotpPrefix))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("user %q is not found", user)
-		}
-		return nil, trace.Wrap(err)
-	}
-
-	otp, err := hotp.Unmarshal(item.Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return otp, nil
 }
 
 // UpsertUsedTOTPToken upserts a TOTP token to the backend so it can't be used again
@@ -943,16 +901,11 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 			return nil, trace.Wrap(err)
 		}
 		if !withSecrets {
-			switch mfad := d.Device.(type) {
-			case *types.MFADevice_Totp:
-				mfad.Totp.Key = ""
-			case *types.MFADevice_U2F:
-				// OK, no sensitive secrets.
-			case *types.MFADevice_Webauthn:
-				// OK, no sensitive secrets.
-			default:
-				return nil, trace.BadParameter("unsupported MFADevice type %T", d.Device)
+			devWithoutSensitiveData, err := d.WithoutSensitiveData()
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
+			d = *devWithoutSensitiveData
 		}
 		devices = append(devices, &d)
 	}
@@ -1036,66 +989,44 @@ func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets boo
 }
 
 // CreateOIDCAuthRequest creates new auth request
-func (s *IdentityService) CreateOIDCAuthRequest(req services.OIDCAuthRequest, ttl time.Duration) error {
+func (s *IdentityService) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, ttl time.Duration) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := json.Marshal(req)
-	if err != nil {
+	buf := new(bytes.Buffer)
+	if err := (&jsonpb.Marshaler{}).Marshal(buf, &req); err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:     backend.Key(webPrefix, connectorsPrefix, oidcPrefix, requestsPrefix, req.StateToken),
-		Value:   value,
+		Value:   buf.Bytes(),
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
-	_, err = s.Create(context.TODO(), item)
-	if err != nil {
+	if _, err := s.Create(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
 // GetOIDCAuthRequest returns OIDC auth request
-func (s *IdentityService) GetOIDCAuthRequest(stateToken string) (*services.OIDCAuthRequest, error) {
+func (s *IdentityService) GetOIDCAuthRequest(ctx context.Context, stateToken string) (*types.OIDCAuthRequest, error) {
 	if stateToken == "" {
 		return nil, trace.BadParameter("missing parameter stateToken")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, connectorsPrefix, oidcPrefix, requestsPrefix, stateToken))
+	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, oidcPrefix, requestsPrefix, stateToken))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req services.OIDCAuthRequest
-	if err := json.Unmarshal(item.Value, &req); err != nil {
+	req := new(types.OIDCAuthRequest)
+	if err := jsonpb.Unmarshal(bytes.NewReader(item.Value), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &req, nil
-}
-
-// CreateSAMLConnector creates SAML Connector
-func (s *IdentityService) CreateSAMLConnector(connector types.SAMLConnector) error {
-	if err := services.ValidateSAMLConnector(connector); err != nil {
-		return trace.Wrap(err)
-	}
-	value, err := services.MarshalSAMLConnector(connector)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
-	}
-	_, err = s.Create(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return req, nil
 }
 
 // UpsertSAMLConnector upserts SAML Connector
 func (s *IdentityService) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) error {
-	if err := services.ValidateSAMLConnector(connector); err != nil {
+	if err := services.ValidateSAMLConnector(connector, nil); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalSAMLConnector(connector)
@@ -1179,61 +1110,95 @@ func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets boo
 }
 
 // CreateSAMLAuthRequest creates new auth request
-func (s *IdentityService) CreateSAMLAuthRequest(req services.SAMLAuthRequest, ttl time.Duration) error {
+func (s *IdentityService) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, ttl time.Duration) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := json.Marshal(req)
-	if err != nil {
+	buf := new(bytes.Buffer)
+	if err := (&jsonpb.Marshaler{}).Marshal(buf, &req); err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:     backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsPrefix, req.ID),
-		Value:   value,
+		Value:   buf.Bytes(),
 		Expires: backend.Expiry(s.Clock(), ttl),
 	}
-	_, err = s.Create(context.TODO(), item)
-	if err != nil {
+	if _, err := s.Create(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
 // GetSAMLAuthRequest returns SAML auth request if found
-func (s *IdentityService) GetSAMLAuthRequest(id string) (*services.SAMLAuthRequest, error) {
+func (s *IdentityService) GetSAMLAuthRequest(ctx context.Context, id string) (*types.SAMLAuthRequest, error) {
 	if id == "" {
 		return nil, trace.BadParameter("missing parameter id")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsPrefix, id))
+	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, samlPrefix, requestsPrefix, id))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req services.SAMLAuthRequest
-	if err := json.Unmarshal(item.Value, &req); err != nil {
+	req := new(types.SAMLAuthRequest)
+	if err := jsonpb.Unmarshal(bytes.NewReader(item.Value), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &req, nil
+	return req, nil
 }
 
-// CreateGithubConnector creates a new Github connector
-func (s *IdentityService) CreateGithubConnector(connector types.GithubConnector) error {
-	if err := connector.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
+// CreateSSODiagnosticInfo creates new SAML diagnostic info record.
+func (s *IdentityService) CreateSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string, entry types.SSODiagnosticInfo) error {
+	if authRequestID == "" {
+		return trace.BadParameter("missing parameter authRequestID")
 	}
-	value, err := services.MarshalGithubConnector(connector)
+
+	switch authKind {
+	case types.KindSAML, types.KindGithub, types.KindOIDC:
+		// nothing to do
+	default:
+		return trace.BadParameter("unsupported authKind %q", authKind)
+	}
+
+	jsonValue, err := json.Marshal(entry)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, connector.GetName()),
-		Value:   value,
-		Expires: connector.Expiry(),
+		Key:     backend.Key(webPrefix, connectorsPrefix, authKind, requestsTracePrefix, authRequestID),
+		Value:   jsonValue,
+		Expires: backend.Expiry(s.Clock(), time.Minute*15),
 	}
-	_, err = s.Create(context.TODO(), item)
+	_, err = s.Create(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// GetSSODiagnosticInfo returns SSO diagnostic info records.
+func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind string, authRequestID string) (*types.SSODiagnosticInfo, error) {
+	if authRequestID == "" {
+		return nil, trace.BadParameter("missing parameter authRequestID")
+	}
+
+	switch authKind {
+	case types.KindSAML, types.KindGithub, types.KindOIDC:
+		// nothing to do
+	default:
+		return nil, trace.BadParameter("unsupported authKind %q", authKind)
+	}
+
+	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, authKind, requestsTracePrefix, authRequestID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var req types.SSODiagnosticInfo
+	if err := json.Unmarshal(item.Value, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &req, nil
 }
 
 // UpsertGithubConnector creates or updates a Github connector
@@ -1310,42 +1275,39 @@ func (s *IdentityService) DeleteGithubConnector(ctx context.Context, name string
 }
 
 // CreateGithubAuthRequest creates a new auth request for Github OAuth2 flow
-func (s *IdentityService) CreateGithubAuthRequest(req services.GithubAuthRequest) error {
-	err := req.Check()
-	if err != nil {
+func (s *IdentityService) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) error {
+	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := json.Marshal(req)
-	if err != nil {
+	buf := new(bytes.Buffer)
+	if err := (&jsonpb.Marshaler{}).Marshal(buf, &req); err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
 		Key:     backend.Key(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, req.StateToken),
-		Value:   value,
+		Value:   buf.Bytes(),
 		Expires: req.Expiry(),
 	}
-	_, err = s.Create(context.TODO(), item)
-	if err != nil {
+	if _, err := s.Create(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
 // GetGithubAuthRequest retrieves Github auth request by the token
-func (s *IdentityService) GetGithubAuthRequest(stateToken string) (*services.GithubAuthRequest, error) {
+func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error) {
 	if stateToken == "" {
 		return nil, trace.BadParameter("missing parameter stateToken")
 	}
-	item, err := s.Get(context.TODO(), backend.Key(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, stateToken))
+	item, err := s.Get(ctx, backend.Key(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, stateToken))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var req services.GithubAuthRequest
-	err = json.Unmarshal(item.Value, &req)
-	if err != nil {
+	req := new(types.GithubAuthRequest)
+	if err := jsonpb.Unmarshal(bytes.NewReader(item.Value), req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &req, nil
+	return req, nil
 }
 
 // GetRecoveryCodes returns user's recovery codes.
@@ -1473,18 +1435,98 @@ func (s recoveryAttemptsChronologically) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
+// UpsertKeyAttestationData upserts a verified public key attestation response.
+func (s *IdentityService) UpsertKeyAttestationData(ctx context.Context, attestationData *keys.AttestationData, ttl time.Duration) error {
+	value, err := json.Marshal(attestationData)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// validate public key.
+	if _, err := x509.ParsePKIXPublicKey(attestationData.PublicKeyDER); err != nil {
+		return trace.Wrap(err)
+	}
+
+	key := keyAttestationDataFingerprint(attestationData.PublicKeyDER)
+	item := backend.Item{
+		Key:     backend.Key(attestationsPrefix, key),
+		Value:   value,
+		Expires: s.Clock().Now().UTC().Add(ttl),
+	}
+	_, err = s.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetKeyAttestationData gets a verified public key attestation response.
+func (s *IdentityService) GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error) {
+	if publicKey == nil {
+		return nil, trace.BadParameter("missing parameter publicKey")
+	}
+
+	pubDER, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	key := keyAttestationDataFingerprint(pubDER)
+	item, err := s.Get(ctx, backend.Key(attestationsPrefix, key))
+
+	// Fallback to old fingerprint (std base64 encoded ssh public key) for backwards compatibility.
+	// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
+	if trace.IsNotFound(err) {
+		key, err = KeyAttestationDataFingerprintV11(publicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		item, err = s.Get(ctx, backend.Key(attestationsPrefix, key))
+	}
+
+	if trace.IsNotFound(err) {
+		return nil, trace.NotFound("hardware key attestation not found")
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var resp keys.AttestationData
+	if err := json.Unmarshal(item.Value, &resp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &resp, nil
+}
+
+func keyAttestationDataFingerprint(pubDER []byte) string {
+	sha256sum := sha256.Sum256(pubDER)
+	encodedSHA := base64.RawURLEncoding.EncodeToString(sha256sum[:])
+	return encodedSHA
+}
+
+// KeyAttestationDataFingerprintV11 creates a "KeyAttestationData" fingerprint
+// compatible with older patches of Teleport v11.
+// Exposed for testing, do not use this function directly.
+// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
+func KeyAttestationDataFingerprintV11(pub crypto.PublicKey) (string, error) {
+	sshPub, err := ssh.NewPublicKey(pub)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return ssh.FingerprintSHA256(sshPub), nil
+}
+
 const (
 	webPrefix                 = "web"
 	usersPrefix               = "users"
 	sessionsPrefix            = "sessions"
 	attemptsPrefix            = "attempts"
 	pwdPrefix                 = "pwd"
-	hotpPrefix                = "hotp"
 	connectorsPrefix          = "connectors"
 	oidcPrefix                = "oidc"
 	samlPrefix                = "saml"
 	githubPrefix              = "github"
 	requestsPrefix            = "requests"
+	requestsTracePrefix       = "requestsTrace"
 	usedTOTPPrefix            = "used_totp"
 	usedTOTPTTL               = 30 * time.Second
 	mfaDevicePrefix           = "mfa"
@@ -1494,4 +1536,5 @@ const (
 	webauthnSessionData       = "webauthnsessiondata"
 	recoveryCodesPrefix       = "recoverycodes"
 	recoveryAttemptsPrefix    = "recoveryattempts"
+	attestationsPrefix        = "key_attestations"
 )

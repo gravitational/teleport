@@ -17,10 +17,10 @@ limitations under the License.
 package sshutils
 
 import (
-	"github.com/gravitational/teleport/api/types"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // GetCheckers returns public keys that can be used to check cert authorities
@@ -70,44 +70,4 @@ func ValidateSigners(ca types.CertAuthority) error {
 		}
 	}
 	return nil
-}
-
-// GetSigningAlgName returns the CA's signing algorithm type
-func GetSigningAlgName(ca types.CertAuthority) string {
-	switch ca.GetSigningAlg() {
-	// UNKNOWN algorithm can come from a cluster that existed before SigningAlg
-	// field was added. Default to RSA-SHA1 to match the implicit algorithm
-	// used in those clusters.
-	case types.CertAuthoritySpecV2_RSA_SHA1, types.CertAuthoritySpecV2_UNKNOWN:
-		return ssh.SigAlgoRSA
-	case types.CertAuthoritySpecV2_RSA_SHA2_256:
-		return ssh.SigAlgoRSASHA2256
-	case types.CertAuthoritySpecV2_RSA_SHA2_512:
-		return ssh.SigAlgoRSASHA2512
-	default:
-		return ""
-	}
-}
-
-// SetSigningAlgName sets the signing algorithm type for the given CA
-func SetSigningAlgName(ca types.CertAuthority, alg string) {
-	ca.SetSigningAlg(ParseSigningAlg(alg))
-}
-
-// ParseSigningAlg converts the name of the SSH signature algorithm to the
-// corresponding proto enum value.
-//
-// alg should be one of ssh.SigAlgo* constants. If it's not one of those
-// constants, types.CertAuthoritySpecV2_UNKNOWN is returned.
-func ParseSigningAlg(alg string) types.CertAuthoritySpecV2_SigningAlgType {
-	switch alg {
-	case ssh.SigAlgoRSA:
-		return types.CertAuthoritySpecV2_RSA_SHA1
-	case ssh.SigAlgoRSASHA2256:
-		return types.CertAuthoritySpecV2_RSA_SHA2_256
-	case ssh.SigAlgoRSASHA2512:
-		return types.CertAuthoritySpecV2_RSA_SHA2_512
-	default:
-		return types.CertAuthoritySpecV2_UNKNOWN
-	}
 }

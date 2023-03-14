@@ -28,7 +28,6 @@ import (
 // Usage example:
 // tc := utils.ObeyIdleTimeout(conn, time.Second * 30, "ssh connection")
 // io.Copy(tc, xxx)
-//
 type TimeoutConn struct {
 	net.Conn
 	TimeoutDuration time.Duration
@@ -49,6 +48,11 @@ func ObeyIdleTimeout(conn net.Conn, timeout time.Duration, ownerName string) net
 		TimeoutDuration: timeout,
 		OwnerName:       ownerName,
 	}
+}
+
+// NetConn returns the underlying net.Conn.
+func (tc *TimeoutConn) NetConn() net.Conn {
+	return tc.Conn
 }
 
 func (tc *TimeoutConn) Read(p []byte) (n int, err error) {

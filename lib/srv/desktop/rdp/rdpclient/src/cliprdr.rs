@@ -12,137 +12,92 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::errors::try_error;
 use crate::errors::invalid_data_error;
-use crate::vchan::ChannelPDUFlags;
+use crate::{util, Message, Messages, MAX_ALLOWED_VCHAN_MSG_SIZE};
 use crate::{vchan, Payload};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_traits::FromPrimitive;
 use rdp::core::{mcs, tpkt};
 use rdp::model::error::*;
-use rdp::try_let;
-use std::collections::HashMap;
-use std::io::{Cursor, Read, Write};
+use std::collections::{HashMap, VecDeque};
+use std::io::{Read, Write};
 
 pub const CHANNEL_NAME: &str = "cliprdr";
-
-struct PendingData {
-    data: Vec<u8>,
-    total_length: u32,
-    clipboard_header: Option<ClipboardPDUHeader>,
-}
-
-impl PendingData {
-    fn reset(&mut self, length: u32) {
-        self.data.clear();
-        self.total_length = length;
-        self.clipboard_header = None;
-    }
-}
 
 /// Client implements a client for the clipboard virtual channel
 /// (CLIPRDR) extension, as defined in:
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/fb9b7e0b-6db4-41c2-b83c-f889c1ee7688
 pub struct Client {
     clipboard: HashMap<u32, Vec<u8>>,
-    pending: PendingData,
-    on_remote_copy: Box<dyn Fn(Vec<u8>)>,
+    on_remote_copy: Box<dyn Fn(Vec<u8>) -> RdpResult<()>>,
+    vchan: vchan::Client,
+    incoming_paste_formats: VecDeque<ClipboardFormat>,
 }
 
 impl Default for Client {
     fn default() -> Self {
-        Self::new(Box::new(|_| {}))
+        Self::new(Box::new(|_| Ok(())))
     }
 }
 
 impl Client {
-    pub fn new(on_remote_copy: Box<dyn Fn(Vec<u8>)>) -> Self {
+    pub fn new(on_remote_copy: Box<dyn Fn(Vec<u8>) -> RdpResult<()>>) -> Self {
         Client {
             clipboard: HashMap::new(),
-            pending: PendingData {
-                data: Vec::new(),
-                total_length: 0,
-                clipboard_header: None,
-            },
             on_remote_copy,
+            vchan: vchan::Client::new(MAX_ALLOWED_VCHAN_MSG_SIZE),
+            incoming_paste_formats: VecDeque::new(),
         }
     }
-
-    pub fn read<S: Read + Write>(
+    /// Reads raw RDP messages sent on the cliprdr virtual channel and replies as necessary.
+    pub fn read_and_reply<S: Read + Write>(
         &mut self,
         payload: tpkt::Payload,
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
-        let mut payload = try_let!(tpkt::Payload::Raw, payload)?;
-        let pdu_header = vchan::ChannelPDUHeader::decode(&mut payload)?;
+        if let Some(mut payload) = self.vchan.read(payload)? {
+            let header = ClipboardPDUHeader::decode(&mut payload)?;
 
-        // TODO(zmb3): this logic is the same for all virtual channels, and should
-        // be moved to vchan.rs and reused for the rdpdr client as well
-        if pdu_header
-            .flags
-            .contains(ChannelPDUFlags::CHANNEL_FLAG_FIRST)
-        {
-            self.pending.reset(pdu_header.length);
-            self.pending.clipboard_header = Some(ClipboardPDUHeader::decode(&mut payload)?);
-        }
+            debug!("received {:?}", header.msg_type);
 
-        payload.read_to_end(&mut self.pending.data)?;
-
-        if pdu_header
-            .flags
-            .contains(ChannelPDUFlags::CHANNEL_FLAG_LAST)
-            && self.pending.clipboard_header.is_some()
-        {
-            let full_msg = self.pending.data.split_off(0);
-            let mut payload = Cursor::new(full_msg);
-            let header = self.pending.clipboard_header.take().unwrap();
-            return self.handle_message(header, &mut payload, mcs);
-        }
-
-        Ok(())
-    }
-
-    fn handle_message<S: Read + Write>(
-        &mut self,
-        header: ClipboardPDUHeader,
-        payload: &mut Payload,
-        mcs: &mut mcs::Client<S>,
-    ) -> RdpResult<()> {
-        debug!("received {:?}", header.msg_type);
-
-        let responses = match header.msg_type {
-            ClipboardPDUType::CB_CLIP_CAPS => self.handle_server_caps(payload)?,
-            ClipboardPDUType::CB_MONITOR_READY => self.handle_monitor_ready(payload)?,
-            ClipboardPDUType::CB_FORMAT_LIST => {
-                self.handle_format_list(payload, header.data_len)?
-            }
-            ClipboardPDUType::CB_FORMAT_LIST_RESPONSE => {
-                self.handle_format_list_response(header.msg_flags)?
-            }
-            ClipboardPDUType::CB_FORMAT_DATA_REQUEST => self.handle_format_data_request(payload)?,
-            ClipboardPDUType::CB_FORMAT_DATA_RESPONSE => {
-                if header
-                    .msg_flags
-                    .contains(ClipboardHeaderFlags::CB_RESPONSE_OK)
-                {
-                    self.handle_format_data_response(payload, header.data_len)?
-                } else {
-                    warn!("RDP server failed to process format data request");
+            let responses = match header.msg_type {
+                ClipboardPDUType::CB_CLIP_CAPS => self.handle_server_caps(&mut payload)?,
+                ClipboardPDUType::CB_MONITOR_READY => self.handle_monitor_ready(&mut payload)?,
+                ClipboardPDUType::CB_FORMAT_LIST => {
+                    self.handle_format_list(&mut payload, header.data_len)?
+                }
+                ClipboardPDUType::CB_FORMAT_LIST_RESPONSE => {
+                    self.handle_format_list_response(header.msg_flags)?
+                }
+                ClipboardPDUType::CB_FORMAT_DATA_REQUEST => {
+                    self.handle_format_data_request(&mut payload)?
+                }
+                ClipboardPDUType::CB_FORMAT_DATA_RESPONSE => {
+                    if header
+                        .msg_flags
+                        .contains(ClipboardHeaderFlags::CB_RESPONSE_OK)
+                    {
+                        self.handle_format_data_response(&mut payload, header.data_len)?
+                    } else {
+                        warn!("RDP server failed to process format data request");
+                        vec![]
+                    }
+                }
+                _ => {
+                    warn!(
+                        "CLIPRDR message {:?} not implemented, ignoring",
+                        header.msg_type
+                    );
                     vec![]
                 }
-            }
-            _ => {
-                warn!(
-                    "CLIPRDR message {:?} not implemented, ignoring",
-                    header.msg_type
-                );
-                vec![]
-            }
-        };
+            };
 
-        let chan = &CHANNEL_NAME.to_string();
-        for resp in responses {
-            mcs.write(chan, resp)?;
+            let chan = &CHANNEL_NAME.to_string();
+            for resp in responses {
+                mcs.write(chan, resp)?;
+            }
         }
 
         Ok(())
@@ -151,38 +106,36 @@ impl Client {
     /// update_clipboard is invoked from Go.
     /// It updates the local clipboard cache and returns the encoded message
     /// that should be sent to the RDP server.
-    pub fn update_clipboard(&mut self, data: Vec<u8>) -> RdpResult<Vec<Vec<u8>>> {
-        const CR: u8 = 13;
-        const LF: u8 = 10;
-
-        // convert LF to CRLF, as required by CF_OEMTEXT
-        let len_orig = data.len();
-        let mut converted = Vec::with_capacity(len_orig);
-        for i in 0..len_orig {
-            match data[i] {
-                LF => {
+    pub fn update_clipboard(&mut self, data: String) -> RdpResult<Messages> {
+        // convert LF to CRLF, as required by CF_TEXT and CF_UNICODETEXT
+        let mut converted = String::with_capacity(data.len());
+        let mut prev_was_cr = false;
+        for c in data.chars() {
+            match c {
+                '\n' if !prev_was_cr => {
                     // convert LF to CRLF, so long as the previous character
                     // wasn't CR (in which case there's no conversion necessary)
-                    if i == 0 || (data[i - 1] != CR) {
-                        converted.push(CR);
-                    }
-                    converted.push(LF);
+                    converted.push('\r');
+                    converted.push('\n');
                 }
-                _ => converted.push(data[i]),
+                c => {
+                    converted.push(c);
+                    if c == '\r' {
+                        prev_was_cr = true;
+                        continue;
+                    }
+                }
             }
-        }
-        // Windows requires a null terminator, so add one if necessary
-        if !converted.is_empty() && converted[converted.len() - 1] != 0x00 {
-            converted.push(0x00);
+
+            prev_was_cr = false;
         }
 
-        self.clipboard
-            .insert(ClipboardFormat::CF_OEMTEXT as u32, converted);
-
-        encode_message(
+        let (data, format) = encode_clipboard(converted);
+        self.clipboard.insert(format as u32, data);
+        self.add_headers_and_chunkify(
             ClipboardPDUType::CB_FORMAT_LIST,
             FormatListPDU {
-                format_names: vec![LongFormatName::id(ClipboardFormat::CF_OEMTEXT as u32)],
+                format_names: vec![LongFormatName::id(format as u32)],
             }
             .encode()?,
         )
@@ -190,7 +143,7 @@ impl Client {
 
     /// Handles the server capabilities message, which is the first message sent from the server
     /// to the client during the initialization sequence. Described in section 1.3.2.1.
-    fn handle_server_caps(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_server_caps(&self, payload: &mut Payload) -> RdpResult<Messages> {
         let caps = ClipboardCapabilitiesPDU::decode(payload)?;
         if let Some(general) = caps.general {
             // our capabilities are minimal, so we log the server
@@ -207,13 +160,13 @@ impl Client {
     /// Handles the monitor ready PDU, which is sent from the server to the client during
     /// the initialization phase. Upon receiving this message, the client should respond
     /// with its capabilities, an optional temporary directory PDU, and a format list PDU.
-    fn handle_monitor_ready(&self, _payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_monitor_ready(&self, _payload: &mut Payload) -> RdpResult<Messages> {
         // There's nothing additional to decode here, the monitor ready PDU is just a header.
         // In response, we need to:
         // 1. Send our clipboard capabilities
         // 2. Mimic a "copy" operation by sending a format list PDU
         // This completes the initialization process.
-        let mut result = encode_message(
+        let mut result = self.add_headers_and_chunkify(
             ClipboardPDUType::CB_CLIP_CAPS,
             ClipboardCapabilitiesPDU {
                 general: Some(GeneralClipboardCapabilitySet {
@@ -223,54 +176,58 @@ impl Client {
             }
             .encode()?,
         )?;
-        result.extend(encode_message(
-            ClipboardPDUType::CB_FORMAT_LIST,
-            FormatListPDU::<LongFormatName> {
-                format_names: vec![LongFormatName::id(0)],
-            }
-            .encode()?,
-        )?);
+        result.extend(
+            self.add_headers_and_chunkify(
+                ClipboardPDUType::CB_FORMAT_LIST,
+                FormatListPDU::<LongFormatName> {
+                    format_names: vec![LongFormatName::id(0)],
+                }
+                .encode()?,
+            )?,
+        );
 
         Ok(result)
     }
 
     /// Handles the format list PDU, which is a notification from the server
     /// that some data was copied and can be requested at a later date.
-    fn handle_format_list(&self, payload: &mut Payload, length: u32) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_format_list(&mut self, payload: &mut Payload, length: u32) -> RdpResult<Messages> {
         let list = FormatListPDU::<LongFormatName>::decode(payload, length)?;
-        debug!(
-            "{:?} data was copied on the RDP server",
-            list.format_names
-                .iter()
-                .map(|n| n.format_id)
-                .collect::<Vec<u32>>()
-        );
+        let formats = list
+            .format_names
+            .iter()
+            .map(|n| n.format_id)
+            .collect::<Vec<u32>>();
 
-        // if we want to support a variety of formats, we should clear
-        // and re-initialize some local state (Clipboard Format ID Map)
-        //
-        // we're only supporting standard (text) formats right now, so
-        // we don't need to maintain a local/remote mapping
-        //
-        // see section 3.1.1.1 for details
+        debug!("{:?} data was copied on the RDP server", formats);
+        let mut result =
+            self.add_headers_and_chunkify(ClipboardPDUType::CB_FORMAT_LIST_RESPONSE, vec![])?;
 
-        let mut result = encode_message(ClipboardPDUType::CB_FORMAT_LIST_RESPONSE, vec![])?;
+        let request_format;
+        if formats.contains(&(ClipboardFormat::CF_UNICODETEXT as u32)) {
+            request_format = ClipboardFormat::CF_UNICODETEXT;
+        } else if formats.contains(&(ClipboardFormat::CF_TEXT as u32)) {
+            request_format = ClipboardFormat::CF_TEXT;
+        } else if formats.contains(&(ClipboardFormat::CF_OEMTEXT as u32)) {
+            request_format = ClipboardFormat::CF_OEMTEXT;
+        } else {
+            info!(
+                "{:?} data was copied on the remote desktop, but no supported formats were found",
+                formats
+            );
 
-        for name in list.format_names {
-            match FromPrimitive::from_u32(name.format_id) {
-                // TODO(zmb3): support CF_TEXT, CF_UNICODETEXT, ...
-                Some(ClipboardFormat::CF_OEMTEXT) => {
-                    // request the data by imitating a paste event
-                    result.extend(encode_message(
-                        ClipboardPDUType::CB_FORMAT_DATA_REQUEST,
-                        FormatDataRequestPDU::for_id(name.format_id).encode()?,
-                    )?);
-                }
-                _ => {
-                    info!("{:?} data was copied on the remote desktop, but this format is unsupported", name.format_id);
-                }
-            }
+            return Ok(result);
         }
+
+        // Record the format of the data we're requesting so we can correcly decode the response later.
+        // Response events are globally ordered so we use a FIFO queue for format tracking.
+        self.incoming_paste_formats.push_back(request_format);
+
+        // request the data by imitating a paste event.
+        result.extend(self.add_headers_and_chunkify(
+            ClipboardPDUType::CB_FORMAT_DATA_REQUEST,
+            FormatDataRequestPDU::for_id(request_format as u32).encode()?,
+        )?);
 
         Ok(result)
     }
@@ -278,7 +235,7 @@ impl Client {
     /// Handle the format list response, which is the server acknowledging that
     /// it recieved a notification that the client has updated clipboard data
     /// that may be requested in the future.
-    fn handle_format_list_response(&self, flags: ClipboardHeaderFlags) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_format_list_response(&self, flags: ClipboardHeaderFlags) -> RdpResult<Messages> {
         if !flags.contains(ClipboardHeaderFlags::CB_RESPONSE_OK) {
             warn!("RDP server did not process our copy operation");
         }
@@ -287,7 +244,7 @@ impl Client {
 
     /// Handles a request from the RDP server for clipboard data.
     /// This message is received when a user executes a paste in the remote desktop.
-    fn handle_format_data_request(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_format_data_request(&self, payload: &mut Payload) -> RdpResult<Messages> {
         let req = FormatDataRequestPDU::decode(payload)?;
         let data = match self.clipboard.get(&req.format_id) {
             Some(d) => d.clone(),
@@ -303,7 +260,7 @@ impl Client {
             }
         };
 
-        encode_message(
+        self.add_headers_and_chunkify(
             ClipboardPDUType::CB_FORMAT_DATA_RESPONSE,
             FormatDataResponsePDU { data }.encode()?,
         )
@@ -315,23 +272,65 @@ impl Client {
         &mut self,
         payload: &mut Payload,
         length: u32,
-    ) -> RdpResult<Vec<Vec<u8>>> {
-        let mut resp = FormatDataResponsePDU::decode(payload, length)?;
+    ) -> RdpResult<Messages> {
+        let resp = FormatDataResponsePDU::decode(payload, length)?;
         let data_len = resp.data.len();
+        let format = self.incoming_paste_formats.pop_front().ok_or_else(|| {
+            try_error("no expected format found, possibly received too many format data responses")
+        })?;
+
         debug!(
-            "recieved {} bytes of copied data from Windows Desktop",
-            data_len,
+            "received {} bytes of copied data from Windows Desktop with format {:?}",
+            data_len, format,
         );
 
-        // trim the null-terminator, if it exists
-        // (but don't worry about CRLF conversion, most non-Windows systems can handle CRLF well enough)
-        if let Some(0x00) = resp.data.last() {
-            resp.data.truncate(resp.data.len() - 1);
-        }
-
-        (self.on_remote_copy)(resp.data);
-
+        let decoded = decode_clipboard(resp.data, format)?;
+        (self.on_remote_copy)(decoded)?;
         Ok(vec![])
+    }
+
+    /// add_headers_and_chunkify takes an encoded PDU ready to be sent over a virtual channel (payload),
+    /// adds on the Clipboard PDU Header based the passed msg_type, adds the appropriate (virtual) Channel PDU Header,
+    /// and splits the entire payload into chunks if the payload exceeds the maximum size.
+    fn add_headers_and_chunkify(
+        &self,
+        msg_type: ClipboardPDUType,
+        payload: Message,
+    ) -> RdpResult<Messages> {
+        let msg_flags = match msg_type {
+            // the spec requires 0 for these messages
+            ClipboardPDUType::CB_CLIP_CAPS => ClipboardHeaderFlags::from_bits_truncate(0),
+            ClipboardPDUType::CB_TEMP_DIRECTORY => ClipboardHeaderFlags::from_bits_truncate(0),
+            ClipboardPDUType::CB_LOCK_CLIPDATA => ClipboardHeaderFlags::from_bits_truncate(0),
+            ClipboardPDUType::CB_UNLOCK_CLIPDATA => ClipboardHeaderFlags::from_bits_truncate(0),
+            ClipboardPDUType::CB_FORMAT_DATA_REQUEST => ClipboardHeaderFlags::from_bits_truncate(0),
+
+            // assume success for now
+            ClipboardPDUType::CB_FORMAT_DATA_RESPONSE => ClipboardHeaderFlags::CB_RESPONSE_OK,
+            ClipboardPDUType::CB_FORMAT_LIST_RESPONSE => ClipboardHeaderFlags::CB_RESPONSE_OK,
+
+            // we don't advertise support for file transfers, so the server should never send this,
+            // but if it does, ensure the response indicates a failure
+            ClipboardPDUType::CB_FILECONTENTS_RESPONSE => ClipboardHeaderFlags::CB_RESPONSE_FAIL,
+
+            _ => ClipboardHeaderFlags::from_bits_truncate(0),
+        };
+
+        let channel_flags = match msg_type {
+            ClipboardPDUType::CB_FORMAT_LIST
+            | ClipboardPDUType::CB_CLIP_CAPS
+            | ClipboardPDUType::CB_FORMAT_DATA_REQUEST
+            | ClipboardPDUType::CB_FORMAT_DATA_RESPONSE => {
+                Some(vchan::ChannelPDUFlags::CHANNEL_FLAG_SHOW_PROTOCOL)
+            }
+            _ => None,
+        };
+
+        let mut inner =
+            ClipboardPDUHeader::new(msg_type, msg_flags, payload.len() as u32).encode()?;
+        inner.extend(payload);
+
+        self.vchan.add_header_and_chunkify(channel_flags, inner)
     }
 }
 
@@ -368,25 +367,26 @@ impl ClipboardPDUHeader {
         }
     }
 
-    fn decode(payload: &mut Payload) -> RdpResult<Self> {
-        let typ = payload.read_u16::<LittleEndian>()?;
-        Ok(Self {
-            msg_type: ClipboardPDUType::from_u16(typ)
-                .ok_or_else(|| invalid_data_error(&format!("invalid message type {:#04x}", typ)))?,
-            msg_flags: ClipboardHeaderFlags::from_bits(payload.read_u16::<LittleEndian>()?)
-                .ok_or_else(|| invalid_data_error("invalid flags in clipboard header"))?,
-            data_len: payload.read_u32::<LittleEndian>()?,
-        })
-    }
-
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.write_u16::<LittleEndian>(self.msg_type as u16)?;
         w.write_u16::<LittleEndian>(self.msg_flags.bits())?;
         w.write_u32::<LittleEndian>(self.data_len)?;
         Ok(w)
     }
+
+    fn decode(payload: &mut Payload) -> RdpResult<Self> {
+        let typ = payload.read_u16::<LittleEndian>()?;
+        Ok(Self {
+            msg_type: ClipboardPDUType::from_u16(typ)
+                .ok_or_else(|| invalid_data_error(&format!("invalid message type {typ:#04x}")))?,
+            msg_flags: ClipboardHeaderFlags::from_bits(payload.read_u16::<LittleEndian>()?)
+                .ok_or_else(|| invalid_data_error("invalid flags in clipboard header"))?,
+            data_len: payload.read_u32::<LittleEndian>()?,
+        })
+    }
 }
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
 enum ClipboardPDUType {
@@ -418,7 +418,7 @@ struct ClipboardCapabilitiesPDU {
 const CB_CAPS_VERSION_2: u32 = 0x0002;
 
 impl ClipboardCapabilitiesPDU {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         // there's either 0 or 1 capability sets included here
         w.write_u16::<LittleEndian>(self.general.is_some() as u16)?;
@@ -453,8 +453,7 @@ impl GeneralClipboardCapabilitySet {
         let set_type = payload.read_u16::<LittleEndian>()?;
         if set_type != ClipboardCapabilitySetType::General as u16 {
             return Err(invalid_data_error(&format!(
-                "expected general capability set (1), got {}",
-                set_type
+                "expected general capability set (1), got {set_type}"
             )));
         }
 
@@ -522,12 +521,12 @@ struct FormatListPDU<T: FormatName> {
 }
 
 trait FormatName: Sized {
-    fn encode(&self) -> RdpResult<Vec<u8>>;
+    fn encode(&self) -> RdpResult<Message>;
     fn decode(payload: &mut Payload) -> RdpResult<Self>;
 }
 
 impl<T: FormatName> FormatListPDU<T> {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = Vec::new();
         for name in &self.format_names {
             w.extend(name.encode()?);
@@ -545,6 +544,55 @@ impl<T: FormatName> FormatListPDU<T> {
         }
 
         Ok(Self { format_names })
+    }
+}
+
+// encode_clipboard encodes data suitably for clipboard storage.
+// This means determining the appropriate format and making sure the data has a nul terminator.
+//
+// This data must be valid UTF-8.
+fn encode_clipboard(mut data: String) -> (Vec<u8>, ClipboardFormat) {
+    if data.is_ascii() {
+        if matches!(data.chars().last(), Some(x) if x != '\0') {
+            data.push('\0');
+        }
+
+        (data.into_bytes(), ClipboardFormat::CF_TEXT)
+    } else {
+        let encoded = util::to_unicode(&data, true);
+        (encoded, ClipboardFormat::CF_UNICODETEXT)
+    }
+}
+
+// decode_clipboard decodes data from a given clipboard format into UTF-8.
+fn decode_clipboard(mut data: Vec<u8>, format: ClipboardFormat) -> RdpResult<Vec<u8>> {
+    match format {
+        ClipboardFormat::CF_TEXT | ClipboardFormat::CF_OEMTEXT => {
+            if data.last().copied() == Some(b'\0') {
+                data.pop();
+            }
+            Ok(data)
+        }
+        ClipboardFormat::CF_UNICODETEXT => {
+            let mut data = data.as_slice();
+            let len = data.len();
+            if len >= 2 {
+                let clip = len - 2;
+                if data[clip..] == [0, 0] {
+                    data = &data[..clip];
+                }
+            }
+
+            let units: Vec<u16> = data
+                .chunks_exact(2)
+                .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
+                .collect();
+
+            Ok(String::from_utf16_lossy(&units).into_bytes())
+        }
+        _ => Err(try_error(
+            "attempted to decode unsupported clipboard format",
+        )),
     }
 }
 
@@ -567,7 +615,7 @@ impl ShortFormatName {
     fn from_str(id: u32, name: &str) -> RdpResult<Self> {
         if name.len() > 32 {
             return Err(invalid_data_error(
-                format!("{} is too long for short format name", name).as_str(),
+                format!("{name} is too long for short format name").as_str(),
             ));
         }
         let mut dest = [0u8; 32];
@@ -580,7 +628,7 @@ impl ShortFormatName {
 }
 
 impl FormatName for ShortFormatName {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = Vec::new();
         w.write_u32::<LittleEndian>(self.format_id)?;
         w.write_all(&self.format_name)?;
@@ -617,7 +665,7 @@ impl LongFormatName {
 }
 
 impl FormatName for LongFormatName {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = Vec::new();
         w.write_u32::<LittleEndian>(self.format_id)?;
         match &self.format_name {
@@ -625,10 +673,7 @@ impl FormatName for LongFormatName {
             // must be encoded as a single Unicode null character (two zero bytes)
             None => w.write_u16::<LittleEndian>(0)?,
             Some(name) => {
-                for c in str::encode_utf16(name) {
-                    w.write_u16::<LittleEndian>(c)?;
-                }
-                w.write_u16::<LittleEndian>(0)?; // terminating null
+                w.append(&mut util::to_unicode(name, true));
             }
         };
 
@@ -721,7 +766,7 @@ impl FormatDataRequestPDU {
         Self { format_id }
     }
 
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         let mut w = Vec::with_capacity(4);
         w.write_u32::<LittleEndian>(self.format_id)?;
         Ok(w)
@@ -743,7 +788,7 @@ struct FormatDataResponsePDU {
 }
 
 impl FormatDataResponsePDU {
-    fn encode(&self) -> RdpResult<Vec<u8>> {
+    fn encode(&self) -> RdpResult<Message> {
         Ok(self.data.clone())
     }
 
@@ -755,69 +800,6 @@ impl FormatDataResponsePDU {
     }
 }
 
-/// encode_message encodes a message by wrapping it in the appropriate
-/// channel header. If the payload exceeds the maximum size, the message
-/// is split into multiple messages.
-fn encode_message(msg_type: ClipboardPDUType, payload: Vec<u8>) -> RdpResult<Vec<Vec<u8>>> {
-    let msg_flags = match msg_type {
-        // the spec requires 0 for these messages
-        ClipboardPDUType::CB_CLIP_CAPS => ClipboardHeaderFlags::from_bits_truncate(0),
-        ClipboardPDUType::CB_TEMP_DIRECTORY => ClipboardHeaderFlags::from_bits_truncate(0),
-        ClipboardPDUType::CB_LOCK_CLIPDATA => ClipboardHeaderFlags::from_bits_truncate(0),
-        ClipboardPDUType::CB_UNLOCK_CLIPDATA => ClipboardHeaderFlags::from_bits_truncate(0),
-        ClipboardPDUType::CB_FORMAT_DATA_REQUEST => ClipboardHeaderFlags::from_bits_truncate(0),
-
-        // assume success for now
-        ClipboardPDUType::CB_FORMAT_DATA_RESPONSE => ClipboardHeaderFlags::CB_RESPONSE_OK,
-        ClipboardPDUType::CB_FORMAT_LIST_RESPONSE => ClipboardHeaderFlags::CB_RESPONSE_OK,
-
-        // we don't advertise support for file transfers, so the server should never send this,
-        // but if it does, ensure the response indicates a failure
-        ClipboardPDUType::CB_FILECONTENTS_RESPONSE => ClipboardHeaderFlags::CB_RESPONSE_FAIL,
-
-        _ => ClipboardHeaderFlags::from_bits_truncate(0),
-    };
-    let mut inner = ClipboardPDUHeader::new(msg_type, msg_flags, payload.len() as u32).encode()?;
-    inner.extend(payload);
-    let total_len = inner.len() as u32;
-
-    let mut result = Vec::new();
-    let mut first = true;
-    while !inner.is_empty() {
-        let i = std::cmp::min(inner.len(), vchan::CHANNEL_CHUNK_LEGNTH);
-        let leftover = inner.split_off(i);
-
-        let mut channel_flags = match msg_type {
-            ClipboardPDUType::CB_FORMAT_LIST
-            | ClipboardPDUType::CB_CLIP_CAPS
-            | ClipboardPDUType::CB_FORMAT_DATA_REQUEST
-            | ClipboardPDUType::CB_FORMAT_DATA_RESPONSE => {
-                vchan::ChannelPDUFlags::CHANNEL_FLAG_SHOW_PROTOCOL
-            }
-            _ => vchan::ChannelPDUFlags::from_bits_truncate(0),
-        };
-
-        if first {
-            channel_flags.set(vchan::ChannelPDUFlags::CHANNEL_FLAG_FIRST, true);
-            first = false;
-        }
-        if leftover.is_empty() {
-            channel_flags.set(vchan::ChannelPDUFlags::CHANNEL_FLAG_LAST, true);
-        }
-
-        // the Channel PDU Header always specifies the *total length* of the PDU,
-        // even if it has to be split into multpile chunks:
-        // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/a542bf19-1c86-4c80-ab3e-61449653abf6
-        let mut outer = vchan::ChannelPDUHeader::new(total_len, channel_flags).encode()?;
-        outer.extend(inner);
-        result.push(outer);
-
-        inner = leftover;
-    }
-
-    Ok(result)
-}
-
 #[cfg(test)]
 mod tests {
     use crate::vchan::ChannelPDUFlags;
@@ -827,16 +809,25 @@ mod tests {
     use std::sync::mpsc::channel;
 
     #[test]
+    fn decode_clipboard_overflow() {
+        // a single byte is invalid for CF_UNICODETEXT
+        let result = decode_clipboard(vec![54u8], ClipboardFormat::CF_UNICODETEXT).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
     fn encode_format_list_short() {
-        let msg = encode_message(
-            ClipboardPDUType::CB_FORMAT_LIST,
-            FormatListPDU {
-                format_names: vec![ShortFormatName::id(ClipboardFormat::CF_TEXT as u32)],
-            }
-            .encode()
-            .unwrap(),
-        )
-        .unwrap();
+        let client = Client::default();
+        let msg = client
+            .add_headers_and_chunkify(
+                ClipboardPDUType::CB_FORMAT_LIST,
+                FormatListPDU {
+                    format_names: vec![ShortFormatName::id(ClipboardFormat::CF_TEXT as u32)],
+                }
+                .encode()
+                .unwrap(),
+            )
+            .unwrap();
 
         assert_eq!(
             msg[0],
@@ -864,8 +855,11 @@ mod tests {
             format_names: vec![LongFormatName::id(0)],
         };
 
-        let encoded =
-            encode_message(ClipboardPDUType::CB_FORMAT_LIST, empty.encode().unwrap()).unwrap();
+        let client = Client::default();
+
+        let encoded = client
+            .add_headers_and_chunkify(ClipboardPDUType::CB_FORMAT_LIST, empty.encode().unwrap())
+            .unwrap();
 
         assert_eq!(
             encoded[0],
@@ -1024,7 +1018,10 @@ mod tests {
         }
         let pdu = FormatDataResponsePDU { data };
         let encoded = pdu.encode().unwrap();
-        let messages = encode_message(ClipboardPDUType::CB_FORMAT_DATA_RESPONSE, encoded).unwrap();
+        let client = Client::default();
+        let messages = client
+            .add_headers_and_chunkify(ClipboardPDUType::CB_FORMAT_DATA_RESPONSE, encoded)
+            .unwrap();
         assert_eq!(2, messages.len());
 
         let header0 =
@@ -1044,16 +1041,13 @@ mod tests {
     #[test]
     fn responds_to_format_data_request_hasdata() {
         // a null-terminated utf-16 string, represented as a Vec<u8>
-        let test_data: Vec<u8> = "test\0"
-            .encode_utf16()
-            .flat_map(|v| v.to_le_bytes())
-            .collect();
+        let test_data = util::to_unicode("test", true);
 
         let mut c: Client = Default::default();
         c.clipboard
-            .insert(ClipboardFormat::CF_OEMTEXT as u32, test_data.clone());
+            .insert(ClipboardFormat::CF_UNICODETEXT as u32, test_data.clone());
 
-        let req = FormatDataRequestPDU::for_id(ClipboardFormat::CF_OEMTEXT as u32);
+        let req = FormatDataRequestPDU::for_id(ClipboardFormat::CF_UNICODETEXT as u32);
         let responses = c
             .handle_format_data_request(&mut Cursor::new(req.encode().unwrap()))
             .unwrap();
@@ -1076,7 +1070,17 @@ mod tests {
 
         let mut c = Client::new(Box::new(move |vec| {
             send.send(vec).unwrap();
+            Ok(())
         }));
+
+        let data_format_list = FormatListPDU {
+            format_names: vec![LongFormatName {
+                format_id: ClipboardFormat::CF_TEXT as u32,
+                format_name: None,
+            }],
+        }
+        .encode()
+        .unwrap();
 
         let data_resp = FormatDataResponsePDU {
             data: String::from("abc\0").into_bytes(),
@@ -1084,9 +1088,12 @@ mod tests {
         .encode()
         .unwrap();
 
-        let len = data_resp.len();
+        let mut len = data_format_list.len() as u32;
+        c.handle_format_list(&mut Cursor::new(data_format_list), len)
+            .unwrap();
 
-        c.handle_format_data_response(&mut Cursor::new(data_resp), len as u32)
+        len = data_resp.len() as u32;
+        c.handle_format_data_response(&mut Cursor::new(data_resp), len)
             .unwrap();
 
         // ensure that the null terminator was trimmed
@@ -1097,9 +1104,7 @@ mod tests {
     #[test]
     fn update_clipboard_returns_format_list_pdu() {
         let mut c: Client = Default::default();
-        let messages = c
-            .update_clipboard(String::from("abc").into_bytes())
-            .unwrap();
+        let messages = c.update_clipboard("abc".to_owned()).unwrap();
         let bytes = messages[0].clone();
 
         // verify that it returns a properly encoded format list PDU
@@ -1107,11 +1112,11 @@ mod tests {
         let _pdu_header = vchan::ChannelPDUHeader::decode(&mut payload).unwrap();
         let header = ClipboardPDUHeader::decode(&mut payload).unwrap();
         let format_list =
-            FormatListPDU::<LongFormatName>::decode(&mut payload, header.data_len as u32).unwrap();
+            FormatListPDU::<LongFormatName>::decode(&mut payload, header.data_len).unwrap();
         assert_eq!(ClipboardPDUType::CB_FORMAT_LIST, header.msg_type);
         assert_eq!(1, format_list.format_names.len());
         assert_eq!(
-            ClipboardFormat::CF_OEMTEXT as u32,
+            ClipboardFormat::CF_TEXT as u32,
             format_list.format_names[0].format_id
         );
 
@@ -1119,30 +1124,36 @@ mod tests {
         // (with a null-terminating character)
         assert_eq!(
             String::from("abc\0").into_bytes(),
-            *c.clipboard
-                .get(&(ClipboardFormat::CF_OEMTEXT as u32))
-                .unwrap()
+            *c.clipboard.get(&(ClipboardFormat::CF_TEXT as u32)).unwrap()
         );
     }
 
     #[test]
     fn update_clipboard_conversion() {
-        for (input, expected) in &[
-            ("abc\0", "abc\0"),       // already null-terminated, no conversion necessary
-            ("\n123", "\r\n123\0"),   // starts with LF
-            ("def\r\n", "def\r\n\0"), // already CRLF, no conversion necessary
-            ("gh\r\nij\nk", "gh\r\nij\r\nk\0"), // mixture of both
+        struct Item(&'static str, &'static [u8], ClipboardFormat);
+        for Item(input, expected, format) in [
+            Item("abc\0", b"abc\0", ClipboardFormat::CF_TEXT), // already null-terminated, no conversion necessary
+            Item("\n123", b"\r\n123\0", ClipboardFormat::CF_TEXT), // starts with LF
+            Item("def\r\n", b"def\r\n\0", ClipboardFormat::CF_TEXT), // already CRLF, no conversion necessary
+            Item("gh\r\nij\nk", b"gh\r\nij\r\nk\0", ClipboardFormat::CF_TEXT), // mixture of both
+            Item(
+                "🤑\n",
+                &[62, 216, 17, 221, b'\r', 0, b'\n', 0, 0, 0],
+                ClipboardFormat::CF_UNICODETEXT,
+            ), // detection and utf8 -> utf16 conversion & CRLF conversion
+            Item(
+                "🤑\r\n",
+                &[62, 216, 17, 221, b'\r', 0, b'\n', 0, 0, 0],
+                ClipboardFormat::CF_UNICODETEXT,
+            ), // detection and utf8 -> utf16 conversion & no CRLF conversion
         ] {
             let mut c: Client = Default::default();
-            c.update_clipboard(String::from(*input).into_bytes())
-                .unwrap();
+            c.update_clipboard(input.to_owned()).unwrap();
+
             assert_eq!(
-                String::from(*expected).into_bytes(),
-                *c.clipboard
-                    .get(&(ClipboardFormat::CF_OEMTEXT as u32))
-                    .unwrap(),
-                "testing {}",
-                input
+                expected,
+                *c.clipboard.get(&(format as u32)).unwrap(),
+                "testing {input}",
             );
         }
     }

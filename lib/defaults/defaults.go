@@ -22,16 +22,18 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/exp/slices"
+	"gopkg.in/square/go-jose.v2"
+
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"gopkg.in/square/go-jose.v2"
-
-	"golang.org/x/crypto/ssh"
 )
 
 // Default port numbers used by all teleport tools
@@ -79,11 +81,12 @@ const (
 	// implemented.
 	WindowsDesktopListenPort = 3028
 
+	// ProxyPeeringListenPort is the default port proxies will listen on when
+	// proxy peering is enabled.
+	ProxyPeeringListenPort = 3021
+
 	// RDPListenPort is the standard port for RDP servers.
 	RDPListenPort = 3389
-
-	// Default DB to use for persisting state. Another options is "etcd"
-	BackendType = "bolt"
 
 	// BackendDir is a default backend subdirectory
 	BackendDir = "backend"
@@ -91,24 +94,11 @@ const (
 	// BackendPath is a default backend path parameter
 	BackendPath = "path"
 
-	// Name of events bolt database file stored in DataDir
-	EventsBoltFile = "events.db"
-
 	// By default SSH server (and SSH proxy) will bind to this IP
 	BindIP = "0.0.0.0"
 
 	// By default all users use /bin/bash
 	DefaultShell = "/bin/bash"
-
-	// CacheTTL is a default cache TTL for persistent node cache
-	CacheTTL = 20 * time.Hour
-
-	// RecentCacheTTL is a default cache TTL for recently accessed items
-	RecentCacheTTL = 2 * time.Second
-
-	// InviteTokenTTL sets the lifespan of tokens used for adding nodes and users
-	// to a cluster
-	InviteTokenTTL = 15 * time.Minute
 
 	// HTTPMaxIdleConns is the max idle connections across all hosts.
 	HTTPMaxIdleConns = 2000
@@ -122,8 +112,8 @@ const (
 	// HTTPIdleTimeout is a default timeout for idle HTTP connections
 	HTTPIdleTimeout = 30 * time.Second
 
-	// DefaultThrottleTimeout is a timemout used to throttle failed auth servers
-	DefaultThrottleTimeout = 10 * time.Second
+	// HTTPRequestTimeout is a default timeout for HTTP requests
+	HTTPRequestTimeout = 30 * time.Second
 
 	// WebHeadersTimeout is a timeout that is set for web requests
 	// before browsers raise "Timeout waiting web headers" error in
@@ -195,21 +185,11 @@ const (
 	// value is used.
 	ProvisioningTokenTTL = 30 * time.Minute
 
-	// HOTPFirstTokensRange is amount of lookahead tokens we remember
-	// for sync purposes
-	HOTPFirstTokensRange = 4
-
-	// HOTPTokenDigits is the number of digits in each token
-	HOTPTokenDigits = 6
-
 	// MinPasswordLength is minimum password length
 	MinPasswordLength = 6
 
 	// MaxPasswordLength is maximum password length (for sanity)
 	MaxPasswordLength = 128
-
-	// IterationLimit is a default limit if it's not set
-	IterationLimit = 100
 
 	// MaxIterationLimit is max iteration limit
 	MaxIterationLimit = 1000
@@ -223,9 +203,6 @@ const (
 	// ActiveSessionTTL is a TTL when session is marked as inactive
 	ActiveSessionTTL = 30 * time.Second
 
-	// ActivePartyTTL is a TTL when party is marked as inactive
-	ActivePartyTTL = 30 * time.Second
-
 	// OIDCAuthRequestTTL is TTL of internally stored auth request created by client
 	OIDCAuthRequestTTL = 10 * 60 * time.Second
 
@@ -235,12 +212,8 @@ const (
 	// GithubAuthRequestTTL is TTL of internally stored Github auth request
 	GithubAuthRequestTTL = 10 * 60 * time.Second
 
-	// OAuth2TTL is the default TTL for objects created during OAuth 2.0 flow
-	// such as web sessions, certificates or dynamically created users
-	OAuth2TTL = 60 * 60 * time.Second // 1 hour
-
 	// LogRotationPeriod defines how frequently to rotate the audit log file
-	LogRotationPeriod = (time.Hour * 24)
+	LogRotationPeriod = time.Hour * 24
 
 	// UploaderScanPeriod is a default uploader scan period
 	UploaderScanPeriod = 5 * time.Second
@@ -263,16 +236,6 @@ const (
 	// AttemptTTL is TTL for login attempt
 	AttemptTTL = time.Minute * 30
 
-	// AuditLogSessions is the default expected amount of concurrent sessions
-	// supported by Audit logger, this number limits the possible
-	// amount of simultaneously processes concurrent sessions by the
-	// Audit log server, and 16K is OK for now
-	AuditLogSessions = 16384
-
-	// AccessPointCachedValues is the default maximum amount of cached values
-	// in access point
-	AccessPointCachedValues = 16384
-
 	// AuditLogTimeFormat is the format for the timestamp on audit log files.
 	AuditLogTimeFormat = "2006-01-02.15:04:05"
 
@@ -286,9 +249,6 @@ const (
 	// ClientCacheSize is the size of the RPC clients expiring cache
 	ClientCacheSize = 1024
 
-	// CSRSignTimeout is a default timeout for CSR request to be processed by K8s
-	CSRSignTimeout = 30 * time.Second
-
 	// Localhost is the address of localhost. Used for the default binding
 	// address for port forwarding.
 	Localhost = "127.0.0.1"
@@ -301,18 +261,6 @@ const (
 	// before timeout.
 	CallbackTimeout = 180 * time.Second
 
-	// ConcurrentUploadsPerStream limits the amount of concurrent uploads
-	// per stream
-	ConcurrentUploadsPerStream = 1
-
-	// UploadGracePeriod is a period after which non-completed
-	// upload is considered abandoned and will be completed by the reconciler
-	UploadGracePeriod = 24 * time.Hour
-
-	// InactivityFlushPeriod is a period of inactivity
-	// that triggers upload of the data - flush.
-	InactivityFlushPeriod = 5 * time.Minute
-
 	// NodeJoinTokenTTL is when a token for nodes expires.
 	NodeJoinTokenTTL = 4 * time.Hour
 
@@ -323,55 +271,24 @@ const (
 	// DefaultRedisUsername is a default username used by Redis when
 	// no name is provided at connection time.
 	DefaultRedisUsername = "default"
+
+	// ProxyPingInterval is the interval ping messages are going to be sent.
+	// This is only applicable for TLS routing protocols that support ping
+	// wrapping.
+	ProxyPingInterval = 30 * time.Second
 )
 
-var (
-	// ResyncInterval is how often tunnels are resynced.
-	ResyncInterval = 5 * time.Second
-
-	// AuthServersRefreshPeriod is a period for clients to refresh their
-	// their stored list of auth servers
-	AuthServersRefreshPeriod = 30 * time.Second
-
+const (
 	// TerminalResizePeriod is how long tsh waits before updating the size of the
 	// terminal window.
 	TerminalResizePeriod = 2 * time.Second
 
-	// SessionRefreshPeriod is how often session data is updated on the backend.
-	// The web client polls this information about session to update the UI.
-	//
-	// TODO(klizhentas): All polling periods should go away once backend supports
-	// events.
-	SessionRefreshPeriod = 2 * time.Second
-
 	// SessionIdlePeriod is the period of inactivity after which the
 	// session will be considered idle
-	SessionIdlePeriod = SessionRefreshPeriod * 10
-
-	// NetworkBackoffDuration is a standard backoff on network requests
-	// usually is slow, e.g. once in 30 seconds
-	NetworkBackoffDuration = time.Second * 30
-
-	// AuditBackoffTimeout is a time out before audit logger will
-	// start losing events
-	AuditBackoffTimeout = 5 * time.Second
-
-	// NetworkRetryDuration is a standard retry on network requests
-	// to retry quickly, e.g. once in one second
-	NetworkRetryDuration = time.Second
-
-	// FastAttempts is the initial amount of fast retry attempts
-	// before switching to slow mode
-	FastAttempts = 10
-
-	// ReportingPeriod is a period for reports in logs
-	ReportingPeriod = 5 * time.Minute
+	SessionIdlePeriod = 20 * time.Second
 
 	// HighResPollingPeriod is a default high resolution polling period
 	HighResPollingPeriod = 10 * time.Second
-
-	// HeartbeatCheckPeriod is a period between heartbeat status checks
-	HeartbeatCheckPeriod = 5 * time.Second
 
 	// LowResPollingPeriod is a default low resolution polling period
 	LowResPollingPeriod = 600 * time.Second
@@ -380,21 +297,20 @@ var (
 	// period used in services
 	HighResReportingPeriod = 10 * time.Second
 
-	// DiskAlertThreshold is the disk space alerting threshold.
-	DiskAlertThreshold = 90
+	// SessionControlTimeout is the maximum amount of time a controlled session
+	// may persist after contact with the auth server is lost (sessctl semaphore
+	// leases are refreshed at a rate of ~1/2 this duration).
+	SessionControlTimeout = time.Minute * 2
 
-	// DiskAlertInterval is disk space check interval.
-	DiskAlertInterval = 5 * time.Minute
+	// PrometheusScrapeInterval is the default time interval for prometheus scrapes. Used for metric update periods.
+	PrometheusScrapeInterval = 15 * time.Second
 
-	// TopRequestsCapacity sets up default top requests capacity
-	TopRequestsCapacity = 128
+	// MaxWatcherBackoff is the maximum retry time a watcher should use in
+	// the event of connection issues
+	MaxWatcherBackoff = 90 * time.Second
+)
 
-	// CachePollPeriod is a period for cache internal events polling,
-	// used in cases when cache is being used to subscribe for events
-	// and this parameter controls how often cache checks for new events
-	// to arrive
-	CachePollPeriod = 500 * time.Millisecond
-
+const (
 	// AuthQueueSize is auth service queue size
 	AuthQueueSize = 8192
 
@@ -416,42 +332,16 @@ var (
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
 
-	// CASignatureAlgorithm is the default signing algorithm to use when
-	// creating new SSH CAs.
-	CASignatureAlgorithm = ssh.SigAlgoRSASHA2512
+	// DiscoveryQueueSize is discovery service queue size.
+	DiscoveryQueueSize = 128
+)
 
-	// SessionControlTimeout is the maximum amount of time a controlled session
-	// may persist after contact with the auth server is lost (sessctl semaphore
-	// leases are refreshed at a rate of ~1/2 this duration).
-	SessionControlTimeout = time.Minute * 2
+var (
+	// ResyncInterval is how often tunnels are resynced.
+	ResyncInterval = 5 * time.Second
 
-	// SPDYPingPeriod is the period for sending out SPDY ping frames on inbound
-	// and outbound connections. SPDY is used for interactive Kubernetes
-	// connections. These pings are needed to avoid timeouts on load balancers
-	// that don't respect TCP keep-alives.
-	SPDYPingPeriod = 30 * time.Second
-
-	// AsyncBufferSize is a default buffer size for async emitters
-	AsyncBufferSize = 1024
-
-	// ConnectionErrorMeasurementPeriod is the maximum age of a connection error
-	// to be considered when deciding to restart the process. The process will
-	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
-	// errors in the preceding `ConnectionErrorMeasurementPeriod`
-	ConnectionErrorMeasurementPeriod = 2 * time.Minute
-
-	// MaxConnectionErrorsBeforeRestart is the number or allowable network errors
-	// in the previous `ConnectionErrorMeasurementPeriod`. The process will
-	// restart if there has been more than `MaxConnectionErrorsBeforeRestart`
-	// errors in the preceding `ConnectionErrorMeasurementPeriod`
-	MaxConnectionErrorsBeforeRestart = 5
-
-	// MaxWatcherBackoff is the maximum retry time a watcher should use in
-	// the event of connection issues
-	MaxWatcherBackoff = time.Minute
-
-	// PrometheusScrapeInterval is the default time interval for prometheus scrapes. Used for metric update periods.
-	PrometheusScrapeInterval = 15 * time.Second
+	// HeartbeatCheckPeriod is a period between heartbeat status checks
+	HeartbeatCheckPeriod = 5 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
@@ -488,9 +378,6 @@ const (
 )
 
 const (
-	// MinCertDuration specifies minimum duration of validity of issued certificate
-	MinCertDuration = time.Minute
-
 	// RotationGracePeriod is a default rotation period for graceful
 	// certificate rotations, by default to set to maximum allowed user
 	// cert duration
@@ -519,6 +406,8 @@ const (
 	RoleDatabase = "db"
 	// RoleWindowsDesktop is a Windows desktop service.
 	RoleWindowsDesktop = "windowsdesktop"
+	// RoleDiscovery is a discovery service
+	RoleDiscovery = "discovery"
 )
 
 const (
@@ -538,6 +427,14 @@ const (
 	ProtocolCockroachDB = "cockroachdb"
 	// ProtocolSQLServer is the Microsoft SQL Server database protocol.
 	ProtocolSQLServer = "sqlserver"
+	// ProtocolSnowflake is the Snowflake REST database protocol.
+	ProtocolSnowflake = "snowflake"
+	// ProtocolCassandra is the Cassandra database protocol.
+	ProtocolCassandra = "cassandra"
+	// ProtocolElasticsearch is the Elasticsearch database protocol.
+	ProtocolElasticsearch = "elasticsearch"
+	// ProtocolDynamoDB is the DynamoDB database protocol.
+	ProtocolDynamoDB = "dynamodb"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -547,7 +444,41 @@ var DatabaseProtocols = []string{
 	ProtocolMongoDB,
 	ProtocolCockroachDB,
 	ProtocolRedis,
+	ProtocolSnowflake,
 	ProtocolSQLServer,
+	ProtocolCassandra,
+	ProtocolElasticsearch,
+	ProtocolDynamoDB,
+}
+
+// ReadableDatabaseProtocol returns a more human readable string of the
+// provided database protocol.
+func ReadableDatabaseProtocol(p string) string {
+	switch p {
+	case ProtocolPostgres:
+		return "PostgreSQL"
+	case ProtocolMySQL:
+		return "MySQL"
+	case ProtocolMongoDB:
+		return "MongoDB"
+	case ProtocolCockroachDB:
+		return "CockroachDB"
+	case ProtocolRedis:
+		return "Redis"
+	case ProtocolSnowflake:
+		return "Snowflake"
+	case ProtocolElasticsearch:
+		return "Elasticsearch"
+	case ProtocolSQLServer:
+		return "Microsoft SQL Server"
+	case ProtocolCassandra:
+		return "Cassandra"
+	case ProtocolDynamoDB:
+		return "DynamoDB"
+	default:
+		// Unknown protocol. Return original string.
+		return p
+	}
 }
 
 const (
@@ -562,26 +493,9 @@ const (
 
 	// CgroupPath is where the cgroupv2 hierarchy will be mounted.
 	CgroupPath = "/cgroup2"
-
-	// ArgsCacheSize is the number of args events to store before dropping args
-	// events.
-	ArgsCacheSize = 1024
 )
 
-var (
-	// ConfigFilePath is default path to teleport config file
-	ConfigFilePath = "/etc/teleport.yaml"
-
-	// DataDir is where all mutable data is stored (user keys, recorded sessions,
-	// registered SSH servers, etc):
-	DataDir = "/var/lib/teleport"
-
-	// StartRoles is default roles teleport assumes when started via 'start' command
-	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp, RoleDatabase}
-
-	// ETCDPrefix is default key in ETCD clustered configurations
-	ETCDPrefix = "/teleport"
-
+const (
 	// ConfigEnvar is a name of teleport's configuration environment variable
 	ConfigEnvar = "TELEPORT_CONFIG"
 
@@ -599,10 +513,22 @@ var (
 	Krb5FilePath = "/etc/krb5.conf"
 )
 
+var (
+	// ConfigFilePath is default path to teleport config file
+	ConfigFilePath = "/etc/teleport.yaml"
+
+	// DataDir is where all mutable data is stored (user keys, recorded sessions,
+	// registered SSH servers, etc):
+	DataDir = "/var/lib/teleport"
+
+	// StartRoles is default roles teleport assumes when started via 'start' command
+	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp, RoleDatabase}
+)
+
 const (
-	// ServiceName is the default PAM policy to use if one is not passed in
+	// PAMServiceName is the default PAM policy to use if one is not passed in
 	// configuration.
-	ServiceName = "sshd"
+	PAMServiceName = "sshd"
 )
 
 const (
@@ -634,6 +560,11 @@ const (
 	SelfSignedPubPath = "webproxy_pub.pem"
 	// path to a self-signed TLS cert file for HTTPS connection for the web proxy
 	SelfSignedCertPath = "webproxy_cert.pem"
+)
+
+const (
+	// SnowflakeURL is the Snowflake URL used for address validation.
+	SnowflakeURL = "snowflakecomputing.com"
 )
 
 // ConfigureLimiter assigns the default parameters to a connection throttler (AKA limiter)
@@ -684,6 +615,10 @@ func MetricsServiceListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, MetricsListenPort)
 }
 
+func ProxyPeeringListenAddr() *utils.NetAddr {
+	return makeAddr(BindIP, ProxyPeeringListenPort)
+}
+
 func makeAddr(host string, port int16) *utils.NetAddr {
 	addrSpec := fmt.Sprintf("tcp://%s:%d", host, port)
 	retval, err := utils.ParseAddr(addrSpec)
@@ -715,6 +650,12 @@ const (
 
 	// WebsocketWebauthnChallenge is sending a webauthn challenge.
 	WebsocketWebauthnChallenge = "n"
+
+	// WebsocketSessionMetadata is sending the data for a ssh session.
+	WebsocketSessionMetadata = "s"
+
+	// WebsocketError is sending an error message.
+	WebsocketError = "e"
 )
 
 // The following are cryptographic primitives Teleport does not support in
@@ -734,10 +675,6 @@ const (
 	// application access tokens.
 	ApplicationTokenAlgorithm = jose.RS256
 )
-
-// WindowsOpenSSHNamedPipe is the address of the named pipe that the
-// OpenSSH agent is on.
-const WindowsOpenSSHNamedPipe = `\\.\pipe\openssh-ssh-agent`
 
 var (
 	// FIPSCipherSuites is a list of supported FIPS compliant TLS cipher suites.
@@ -782,24 +719,15 @@ var (
 	}
 )
 
-// CheckPasswordLimiter creates a rate limit that can be used to slow down
-// requests that come to the check password endpoint.
-func CheckPasswordLimiter() *limiter.Limiter {
-	limiter, err := limiter.NewLimiter(limiter.Config{
-		MaxConnections:   LimiterMaxConnections,
-		MaxNumberOfUsers: LimiterMaxConcurrentUsers,
-		Rates: []limiter.Rate{
-			limiter.Rate{
-				Period:  1 * time.Second,
-				Average: 10,
-				Burst:   10,
-			},
-		},
-	})
+// Transport returns a new http.Client with sensible defaults.
+func HTTPClient() (*http.Client, error) {
+	transport, err := Transport()
 	if err != nil {
-		panic(fmt.Sprintf("Failed to create limiter: %v.", err))
+		return nil, trace.Wrap(err)
 	}
-	return limiter
+	return &http.Client{
+		Transport: transport,
+	}, nil
 }
 
 // Transport returns a new http.RoundTripper with sensible defaults.
@@ -819,7 +747,7 @@ func Transport() (*http.Transport, error) {
 
 	// Set IdleConnTimeout on the transport. This defines the maximum amount of
 	// time before idle connections are closed. Leaving this unset will lead to
-	// connections open forever and will cause memory leaks in a long running
+	// connections open forever and will cause memory leaks in a long-running
 	// process.
 	tr.IdleConnTimeout = HTTPIdleTimeout
 
@@ -831,4 +759,106 @@ const (
 	TeleportConfigVersionV1 string = "v1"
 	// TeleportConfigVersionV2 is the teleport proxy configuration v2 version.
 	TeleportConfigVersionV2 string = "v2"
+	// TeleportConfigVersionV3 is the teleport proxy configuration v3 version.
+	TeleportConfigVersionV3 string = "v3"
 )
+
+// TeleportConfigVersions is an exported slice of the allowed versions in the config file,
+// for convenience (looping through, etc)
+var TeleportConfigVersions = []string{
+	TeleportConfigVersionV1,
+	TeleportConfigVersionV2,
+	TeleportConfigVersionV3,
+}
+
+func ValidateConfigVersion(version string) error {
+	hasVersion := slices.Contains(TeleportConfigVersions, version)
+	if !hasVersion {
+		return trace.BadParameter("version must be one of %s", strings.Join(TeleportConfigVersions, ", "))
+	}
+
+	return nil
+}
+
+// Default values for tsh and tctl commands.
+const (
+	// Use more human readable format than RFC3339
+	TshTctlSessionListTimeFormat = "2006-01-02"
+	TshTctlSessionListLimit      = "50"
+	TshTctlSessionDayLimit       = 365
+)
+
+// DefaultFormats is the default set of formats to use for commands that have the --format flag.
+var DefaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
+
+// FormatFlagDescription creates the description for the --format flag.
+func FormatFlagDescription(formats ...string) string {
+	return fmt.Sprintf("Format output (%s)", strings.Join(formats, ", "))
+}
+
+func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC, recordingsSince string) (from time.Time, to time.Time, err error) {
+	if (fromUTC != "" || toUTC != "") && recordingsSince != "" {
+		return time.Time{}, time.Time{},
+			trace.BadParameter("use of 'since' is mutually exclusive with 'from-utc' and 'to-utc' flags")
+	}
+	from = clock.Now().Add(time.Hour * -24)
+	to = clock.Now()
+	if fromUTC != "" {
+		from, err = time.Parse(TshTctlSessionListTimeFormat, fromUTC)
+		if err != nil {
+			return time.Time{}, time.Time{},
+				trace.BadParameter("failed to parse session recording listing start time: expected format %s, got %s.", TshTctlSessionListTimeFormat, fromUTC)
+		}
+	}
+	if toUTC != "" {
+		to, err = time.Parse(TshTctlSessionListTimeFormat, toUTC)
+		if err != nil {
+			return time.Time{}, time.Time{},
+				trace.BadParameter("failed to parse session recording listing end time: expected format %s, got %s.", TshTctlSessionListTimeFormat, toUTC)
+		}
+	}
+	if recordingsSince != "" {
+		since, err := time.ParseDuration(recordingsSince)
+		if err != nil {
+			return time.Time{}, time.Time{},
+				trace.BadParameter("invalid duration provided to 'since': %s: expected format: '5h30m40s'", recordingsSince)
+		}
+		from = to.Add(-since)
+	}
+
+	if to.After(clock.Now()) {
+		return time.Time{}, time.Time{},
+			trace.BadParameter("invalid '--to-utc': '--to-utc' cannot be in the future")
+	}
+	if from.After(clock.Now()) {
+		return time.Time{}, time.Time{},
+			trace.BadParameter("invalid '--from-utc': '--from-utc' cannot be in the future")
+	}
+	if from.After(to) {
+		return time.Time{}, time.Time{},
+			trace.BadParameter("invalid '--from-utc' time: 'from' must be before '--to-utc'")
+	}
+	return from, to, nil
+}
+
+const (
+	// AWSInstallerDocument is the name of the default AWS document
+	// that will be called when executing the SSM command.
+	AWSInstallerDocument = "TeleportDiscoveryInstaller"
+
+	// AWSAgentlessInstallerDocument is the name of the default AWS document
+	// that will be called when executing the SSM command .
+	AWSAgentlessInstallerDocument = "TeleportAgentlessDiscoveryInstaller"
+
+	// IAMInviteTokenName is the name of the default Teleport IAM
+	// token to use when templating the script to be executed.
+	IAMInviteTokenName = "aws-discovery-iam-token"
+
+	// SSHDConfigPath is the path to the sshd config file to modify
+	// when using the agentless installer
+	SSHDConfigPath = "/etc/ssh/sshd_config"
+)
+
+// AzureInviteTokenName is the name of the default token to use
+// when templating the script to be executed.
+const AzureInviteTokenName = "azure-discovery-token"

@@ -23,7 +23,15 @@ import (
 	"net"
 	"time"
 
+	"github.com/go-mysql-org/go-mysql/client"
+	"github.com/go-mysql-org/go-mysql/mysql"
+	"github.com/go-mysql-org/go-mysql/packet"
+	"github.com/go-mysql-org/go-mysql/server"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
@@ -31,20 +39,10 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/mysql/protocol"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/siddontang/go-mysql/client"
-	"github.com/siddontang/go-mysql/packet"
-	"github.com/siddontang/go-mysql/server"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
-func init() {
-	common.RegisterEngine(newEngine, defaults.ProtocolMySQL)
-}
-
-func newEngine(ec common.EngineConfig) common.Engine {
+// NewEngine create new MySQL engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 	}
@@ -71,7 +69,7 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) er
 
 // SendError sends an error to connected client in the MySQL understandable format.
 func (e *Engine) SendError(err error) {
-	if writeErr := e.proxyConn.WriteError(err); writeErr != nil {
+	if writeErr := e.proxyConn.WriteError(trace.Unwrap(err)); writeErr != nil {
 		e.Log.WithError(writeErr).Debugf("Failed to send error %q to MySQL client.", err)
 	}
 }
@@ -102,6 +100,14 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			e.Log.WithError(err).Error("Failed to close connection to MySQL server.")
 		}
 	}()
+
+	// Internally, updateServerVersion() updates databases only when database version
+	// is not set, or it has changed since previous call.
+	if err := e.updateServerVersion(sessionCtx, serverConn); err != nil {
+		// Log but do not fail connection if the version update fails.
+		e.Log.WithError(err).Warnf("Failed to update the MySQL server version.")
+	}
+
 	// Send back OK packet to indicate auth/connect success. At this point
 	// the original client should consider the connection phase completed.
 	err = e.proxyConn.WriteOK(nil)
@@ -126,24 +132,35 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	return nil
 }
 
+// updateServerVersion updates the server runtime version if the version reported by the database is different from
+// the version in status configuration.
+func (e *Engine) updateServerVersion(sessionCtx *common.Session, serverConn *client.Conn) error {
+	serverVersion := serverConn.GetServerVersion()
+	statusVersion := sessionCtx.Database.GetMySQLServerVersion()
+	// Update only when needed
+	if serverVersion != "" && serverVersion != statusVersion {
+		sessionCtx.Database.SetMySQLServerVersion(serverVersion)
+	}
+
+	return nil
+}
+
 // checkAccess does authorization check for MySQL connection about to be established.
 func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
-	ap, err := e.Auth.GetAuthPreference(ctx)
+	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := services.AccessMFAParams{
-		Verified:       sessionCtx.Identity.MFAVerified != "",
-		AlwaysRequired: ap.GetRequireSessionMFA(),
-	}
+
+	state := sessionCtx.GetAccessState(authPref)
 	dbRoleMatchers := role.DatabaseRoleMatchers(
-		defaults.ProtocolMySQL,
+		sessionCtx.Database,
 		sessionCtx.DatabaseUser,
 		sessionCtx.DatabaseName,
 	)
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
-		mfaParams,
+		state,
 		dbRoleMatchers...,
 	)
 	if err != nil {
@@ -167,13 +184,13 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 	var dialer client.Dialer
 	var password string
 	switch {
-	case sessionCtx.Database.IsRDS():
+	case sessionCtx.Database.IsRDS(), sessionCtx.Database.IsRDSProxy():
 		password, err = e.Auth.GetRDSAuthToken(sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case sessionCtx.Database.IsCloudSQL():
-		// For Cloud SQL MySQL there is no IAM auth so we use one-time passwords
+		// For Cloud SQL MySQL there is no IAM auth, so we use one-time passwords
 		// by resetting the database user password for each connection. Thus,
 		// acquire a lock to make sure all connection attempts to the same
 		// database and user are serialized.
@@ -216,16 +233,14 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 				return nil, trace.Wrap(err)
 			}
 			connectOpt = func(*client.Conn) {}
-			dialer = e.newGCPTLSDialer(tlsConfig)
+			dialer = newGCPTLSDialer(tlsConfig)
 		}
 	case sessionCtx.Database.IsAzure():
 		password, err = e.Auth.GetAzureAccessToken(ctx, sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// Azure requires database login to be <user>@<server-name> e.g.
-		// alice@mysql-server-name.
-		user = fmt.Sprintf("%v@%v", user, sessionCtx.Database.GetAzure().Name)
+		user = services.MakeAzureDatabaseLoginUsername(sessionCtx.Database, user)
 	}
 
 	// Use default net dialer unless it is already initialized.
@@ -240,11 +255,26 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		password,
 		sessionCtx.DatabaseName,
 		dialer,
-		connectOpt)
+		connectOpt,
+		// client-set capabilities only.
+		// TODO(smallinsky) Forward "real" capabilities from mysql client to mysql server.
+		withClientCapabilities(
+			mysql.CLIENT_MULTI_RESULTS,
+			mysql.CLIENT_MULTI_STATEMENTS,
+		),
+	)
 	if err != nil {
 		return nil, common.ConvertConnectError(err, sessionCtx)
 	}
 	return conn, nil
+}
+
+func withClientCapabilities(caps ...uint32) func(conn *client.Conn) {
+	return func(conn *client.Conn) {
+		for _, cap := range caps {
+			conn.SetCapability(cap)
+		}
+	}
 }
 
 // receiveFromClient relays protocol messages received from MySQL client
@@ -287,11 +317,26 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 		case *protocol.Quit:
 			return
 
+		case *protocol.InitDB:
+			e.Audit.EmitEvent(e.Context, makeInitDBEvent(sessionCtx, pkt))
+		case *protocol.CreateDB:
+			e.Audit.EmitEvent(e.Context, makeCreateDBEvent(sessionCtx, pkt))
+		case *protocol.DropDB:
+			e.Audit.EmitEvent(e.Context, makeDropDBEvent(sessionCtx, pkt))
+		case *protocol.ShutDown:
+			e.Audit.EmitEvent(e.Context, makeShutDownEvent(sessionCtx, pkt))
+		case *protocol.ProcessKill:
+			e.Audit.EmitEvent(e.Context, makeProcessKillEvent(sessionCtx, pkt))
+		case *protocol.Debug:
+			e.Audit.EmitEvent(e.Context, makeDebugEvent(sessionCtx, pkt))
+		case *protocol.Refresh:
+			e.Audit.EmitEvent(e.Context, makeRefreshEvent(sessionCtx, pkt))
+
 		case *protocol.StatementPreparePacket:
 			e.Audit.EmitEvent(e.Context, makeStatementPrepareEvent(sessionCtx, pkt))
 		case *protocol.StatementExecutePacket:
 			// TODO(greedy52) Number of parameters is required to parse
-			// paremeters out of the packet. Parameter definitions are required
+			// parameters out of the packet. Parameter definitions are required
 			// to properly format the parameters for including in the audit
 			// log. Both number of parameters and parameter definitions can be
 			// obtained from the response of COM_STMT_PREPARE.
@@ -366,7 +411,7 @@ func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *common.Session) services
 		},
 		// If multiple connections are being established simultaneously to the
 		// same database as the same user, retry for a few seconds.
-		Retry: utils.LinearConfig{
+		Retry: retryutils.LinearConfig{
 			Step:  time.Second,
 			Max:   time.Second,
 			Clock: e.Clock,
@@ -376,10 +421,10 @@ func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *common.Session) services
 
 // newGCPTLSDialer returns a TLS dialer configured to connect to the Cloud Proxy
 // port rather than the default MySQL port.
-func (e *Engine) newGCPTLSDialer(tlsConfig *tls.Config) client.Dialer {
+func newGCPTLSDialer(tlsConfig *tls.Config) client.Dialer {
 	return func(ctx context.Context, network, address string) (net.Conn, error) {
 		// Workaround issue generating ephemeral certificates for secure connections
-		// by creating a TLS connection to the Cloud Proxy port overridding the
+		// by creating a TLS connection to the Cloud Proxy port overriding the
 		// MySQL client's connection. MySQL on the default port does not trust
 		// the ephemeral certificate's CA but Cloud Proxy does.
 		host, port, err := net.SplitHostPort(address)
@@ -389,6 +434,21 @@ func (e *Engine) newGCPTLSDialer(tlsConfig *tls.Config) client.Dialer {
 		tlsDialer := tls.Dialer{Config: tlsConfig}
 		return tlsDialer.DialContext(ctx, network, address)
 	}
+}
+
+// FetchMySQLVersion connects to MySQL database and tries to read the handshake packet and return the version.
+// In case of error the message returned by the database is propagated in returned error.
+func FetchMySQLVersion(ctx context.Context, database types.Database) (string, error) {
+	var dialer client.Dialer
+
+	if database.IsCloudSQL() {
+		dialer = newGCPTLSDialer(&tls.Config{})
+	} else {
+		var nd net.Dialer
+		dialer = nd.DialContext
+	}
+
+	return protocol.FetchMySQLVersionInternal(ctx, dialer, database.GetURI())
 }
 
 const (

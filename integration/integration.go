@@ -17,3 +17,10 @@ limitations under the License.
 // integration package tests Teleport on a high level creating clusters
 // of servers in memory, connecting them together and connecting to them
 package integration
+
+import "github.com/gravitational/teleport/integration/helpers"
+
+const (
+	Host     = helpers.Host
+	Loopback = helpers.Loopback
+)

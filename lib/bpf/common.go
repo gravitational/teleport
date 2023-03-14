@@ -16,22 +16,17 @@ limitations under the License.
 
 package bpf
 
-// #cgo LDFLAGS: -ldl
-// #include <dlfcn.h>
-// #include <stdlib.h>
 import "C"
 
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/constants"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
-
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
-	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/teleport/api/constants"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // BPF implements an interface to open and close a recording session.
@@ -64,6 +59,9 @@ type SessionContext struct {
 	// ServerID is the UUID of the server this session is executing on.
 	ServerID string
 
+	// ServerHostname is the hostname of the server this session is executing on.
+	ServerHostname string
+
 	// Login is the Unix login for this session.
 	Login string
 
@@ -82,45 +80,6 @@ type SessionContext struct {
 	Events map[string]bool
 }
 
-// Config holds configuration for the BPF service.
-type Config struct {
-	// Enabled is if this service will try and install BPF programs on this system.
-	Enabled bool
-
-	// CommandBufferSize is the size of the perf buffer for command events.
-	CommandBufferSize *int
-
-	// DiskBufferSize is the size of the perf buffer for disk events.
-	DiskBufferSize *int
-
-	// NetworkBufferSize is the size of the perf buffer for network events.
-	NetworkBufferSize *int
-
-	// CgroupPath is where the cgroupv2 hierarchy is mounted.
-	CgroupPath string
-}
-
-// CheckAndSetDefaults checks BPF configuration.
-func (c *Config) CheckAndSetDefaults() error {
-	var perfBufferPageCount = defaults.PerfBufferPageCount
-	var openPerfBufferPageCount = defaults.OpenPerfBufferPageCount
-
-	if c.CommandBufferSize == nil {
-		c.CommandBufferSize = &perfBufferPageCount
-	}
-	if c.DiskBufferSize == nil {
-		c.DiskBufferSize = &openPerfBufferPageCount
-	}
-	if c.NetworkBufferSize == nil {
-		c.NetworkBufferSize = &perfBufferPageCount
-	}
-	if c.CgroupPath == "" {
-		c.CgroupPath = defaults.CgroupPath
-	}
-
-	return nil
-}
-
 // NOP is used on either non-Linux systems or when BPF support is not enabled.
 type NOP struct {
 }
@@ -131,12 +90,12 @@ func (s *NOP) Close() error {
 }
 
 // OpenSession opens a NOP session. Note this function does nothing.
-func (s *NOP) OpenSession(ctx *SessionContext) (uint64, error) {
+func (s *NOP) OpenSession(_ *SessionContext) (uint64, error) {
 	return 0, nil
 }
 
 // CloseSession closes a NOP session. Note this function does nothing.
-func (s *NOP) CloseSession(ctx *SessionContext) error {
+func (s *NOP) CloseSession(_ *SessionContext) error {
 	return nil
 }
 

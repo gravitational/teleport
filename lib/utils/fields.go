@@ -20,9 +20,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 )
 
 // Fields represents a generic string-keyed map.
@@ -139,14 +139,14 @@ func ToFieldsCondition(expr *types.WhereExpr) (FieldsCondition, error) {
 		left, right := expr.Contains.L, expr.Contains.R
 		switch {
 		case left.Field != "" && right.Field != "":
-			return func(f Fields) bool { return utils.SliceContainsStr(f.GetStrings(left.Field), f.GetString(right.Field)) }, nil
+			return func(f Fields) bool { return slices.Contains(f.GetStrings(left.Field), f.GetString(right.Field)) }, nil
 		case left.Literal != nil && right.Field != "":
 			if ss, ok := left.Literal.([]string); ok {
-				return func(f Fields) bool { return utils.SliceContainsStr(ss, f.GetString(right.Field)) }, nil
+				return func(f Fields) bool { return slices.Contains(ss, f.GetString(right.Field)) }, nil
 			}
 		case left.Field != "" && right.Literal != nil:
 			if s, ok := right.Literal.(string); ok {
-				return func(f Fields) bool { return utils.SliceContainsStr(f.GetStrings(left.Field), s) }, nil
+				return func(f Fields) bool { return slices.Contains(f.GetStrings(left.Field), s) }, nil
 			}
 		}
 	}

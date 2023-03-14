@@ -1,6 +1,6 @@
 ---
 authors: Alan Parra (alan.parra@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 52 - Passwordless
@@ -23,6 +23,9 @@ documents for client-side aspects of the design:
 
 * [Passwordless for FIDO2 clients][passwordless fido2]
 * [Passwordless for macOS CLI][passwordless macos] (aka Touch ID)
+* [Passwordless for Windows CLI][passwordless windows]
+
+Passwordless is available as a preview in Teleport 10.
 
 ## Why
 
@@ -124,51 +127,43 @@ necessary until we can be sure that passwords are ripe for full removal.
 A passwordless login flow is exemplified below:
 
 ```
-                                     Passwordless login
+                                    Passwordless login
 
-                                   ┌─┐
-                                   ║"│
-                                   └┬┘
-                                   ┌┼┐
-     ┌─────────────┐                │                                        ┌────────┐
-     │authenticator│               ┌┴┐                                       │Teleport│
-     └──────┬──────┘              user                                       └───┬────┘
-            │                      │       1. CreateAuthenticateChallenge()      │
-            │                      │ ────────────────────────────────────────────>
-            │                      │                                             │
-            │                      │                1.1. challenge               │
-            │                      │ <────────────────────────────────────────────
-            │                      │                                             │
-            │ 2. list credentials  │                                             │
-            │<──────────────────────                                             │
-            │                      │                                             │
-            │                      │                                             │
-            │──────────────────────>                                             │
-            │                      │                                             │
-            │2.1. choose credential│                                             │
-            │<──────────────────────                                             │
-            │                      │                                             │
-            │                      │                                             │
-            │──────────────────────>                                             │
-            │                      │                                             │
-            │ 2.2. sign challenge  │                                             │
-            │<──────────────────────                                             │
-            │                      │                                             │
-            │2.3. signed challenge │                                             │
-            │──────────────────────>                                             │
-            │                      │                                             │
-            │                      │ 3. Authenticate(userHandle, signedChallenge)│
-            │                      │ ────────────────────────────────────────────>
-            │                      │                                             │
-            │                      │   3.1. signed certificates or web session   │
-            │                      │ <────────────────────────────────────────────
-     ┌──────┴──────┐              user                                       ┌───┴────┐
-     │authenticator│               ┌─┐                                       │Teleport│
-     └─────────────┘               ║"│                                       └────────┘
-                                   └┬┘
-                                   ┌┼┐
-                                    │
-                                   ┌┴┐
+                                  ┌─┐
+                                  ║"│
+                                  └┬┘
+                                  ┌┼┐
+     ┌─────────────┐               │                                        ┌────────┐
+     │authenticator│              ┌┴┐                                       │Teleport│
+     └──────┬──────┘             user                                       └───┬────┘
+            │                     │       1. CreateAuthenticateChallenge()      │
+            │                     │ ────────────────────────────────────────────>
+            │                     │                                             │
+            │                     │                1.1. challenge               │
+            │                     │ <────────────────────────────────────────────
+            │                     │                                             │
+            │  2. sign challenge  │                                             │
+            │<─────────────────────                                             │
+            │                     │                                             │
+            │2.1. signed challenge│                                             │
+            │─────────────────────>                                             │
+            │                     │                                             │
+            │                     │────┐                                        │
+            │                     │    │ 2.2. choose credential                 │
+            │                     │<───┘                                        │
+            │                     │                                             │
+            │                     │ 3. Authenticate(userHandle, signedChallenge)│
+            │                     │ ────────────────────────────────────────────>
+            │                     │                                             │
+            │                     │   3.1. signed certificates or web session   │
+            │                     │ <────────────────────────────────────────────
+     ┌──────┴──────┐             user                                       ┌───┴────┐
+     │authenticator│              ┌─┐                                       │Teleport│
+     └─────────────┘              ║"│                                       └────────┘
+                                  └┬┘
+                                  ┌┼┐
+                                   │
+                                  ┌┴┐
 ```
 
 Authentication looks similar to our well-known challenge/response protocols,
@@ -179,14 +174,16 @@ https://github.com/gravitational/teleport/blob/f423f7fedc088b97cb666c13dcdcf54bd
 
 Because the user is unknown when the challenge is generated (1), the server has
 no knowledge of registered devices, nor it can safely supply any user
-information (as the user is untrusted at this point). In practice, this means
-that the choice to attempt a passwordless login depends on the user (once the
-first login is done we can use local storage to record whether they are
-passwordless-capable).
+information (as the user is untrusted at this point). In practice, this commonly
+means that the choice to attempt a passwordless login comes from the user (see
+the [cluster settings](#cluster-settings) section for our take on this).
 
 In regards to authenticator interactions (2), it is important to note that the
 user may have multiple credentials attached to an
 [RPID](https://www.w3.org/TR/webauthn-2/#rp-id) (Relying Party ID) / Teleport.
+Authenticators are capable of returning multiple assertions, one for each
+applicable credential, thus allowing the user to pick the desired credential for
+login.
 
 Finally, in the last step of the authentication (3) we require the WebAuthn
 [user handle](
@@ -214,8 +211,8 @@ it shouldn't pose a maintenance burden.
 package webauthn;
 
 message User {
-  // ID is the Teleport user ID.
-  string id = 1;
+  // Teleport user ID.
+  string teleport_user = 1;
 }
 ```
 
@@ -235,10 +232,10 @@ package types;
 message WebauthnDevice {
   // (existing fields omitted)
 
-  // Authenticator data returned during registration.
-  // Stored for audit and migration purposes.
-  // May be absent in legacy entries (Teleport 9.x or earlier).
-  bytes authenticator_data = 6;
+  // Raw attestation object, as returned by the authentication during
+  // registration.
+  // Absent for legacy entries.
+  bytes attestation_object = 6;
 
   // True if the device is the result of a requested resident key
   // (ie, it is passwordless-capable).
@@ -255,16 +252,17 @@ https://www.w3.org/TR/webauthn-2/#enumdef-userverificationrequirement) is set to
 
 WebAuthn challenge storage is currently [scoped per-user](
 https://github.com/gravitational/teleport/blob/master/rfd/0040-webauthn-support.md#webauthn-challenge-storage).
-For passwordless we require a global challenge storage, since challenges may be
-issued to an anonymous user. For simplicity, the global challenge storage will
-replace the current per-user storage.
+For passwordless we require a global challenge storage, since challenges are
+issued to anonymous users. Per-user challenge storage is kept for MFA
+(multi-factor authentication) and registration, since they aren't subject to the
+same limitations as the global storage (see the [security](#security) section
+for details).
 
 The new key space for challenges is `/webauthn/sessionData/{scope}/{id}`, where
-`{scope}` is either `login` or `registration` and `{id}` is the base64 raw URL
-encoding of the challenge. As in the current implementation, challenges are
-deleted as soon as they are "spent" by a user.
+`{scope}` is limited to `login` and `{id}` is the base64 raw URL encoding of the
+challenge. Challenges are deleted as soon as they are "spent" by a user.
 
-The  [SessionData](
+The [SessionData](
 https://github.com/gravitational/teleport/blob/f423f7fedc088b97cb666c13dcdcf54bd289b1bf/api/types/webauthn/webauthn.proto#L45)
 proto is modified as below:
 
@@ -309,10 +307,10 @@ type MFAChallengeRequest struct {
 ```proto
 package proto; // api/client/proto
 
-message CreateAuthenticateChallengeRequest {
-  message ContextUser {}
-  message Passwordless {}
+message ContextUser {}
+message Passwordless {}
 
+message CreateAuthenticateChallengeRequest {
   oneof Request {
     // (existing fields omitted)
 
@@ -403,6 +401,10 @@ message AddMFADeviceRequestInit {
 
 #### Device restrictions
 
+UPDATE 2022-06: Device restrictions are not present in the passwordless preview,
+as various Touch ID implementations aren't capable of more than
+self-attestation.
+
 Passwordless device restrictions can be attained through [attestation](
 https://github.com/gravitational/teleport/blob/master/rfd/0040-webauthn-support.md#attestation).
 
@@ -436,6 +438,104 @@ attestation lists, in order to avoid configurations that are impossible to
 satisfy. The presence of an admin-defined attestation list is also interpreted
 as a decision, by the admin, to take control over such configurations.
 
+### Cluster settings
+
+As explained in the [authentication](#authentication) section, the decision to
+perform a passwordless login is commonly made by the end user. This is because
+Teleport has no information about the user prior to login. In order to provide a
+more seamless passwordless experience, admins may switch the default login
+method of a cluster to passwordless.
+
+Fallback methods are provided for users who may lack passwordless credentials:
+namely `tsh --auth` for CLI and UI options for the Web UI (not discussed in this
+design).
+
+Any cluster capable of WebAuthn is, by default, capable of passwordless.
+Teleport also offers a toggle to disable passwordless, in case admins so desire.
+
+teleport.yaml:
+
+```yaml
+auth_service:
+  authentication:
+    type: local
+    second_factor: on
+    webauthn:
+      rp_id: "example.com"
+
+    # Explicitly enable/disable passwordless.
+    # Defaults to "true".
+    passwordless: true
+
+    # Sets passwordless as the default connector.
+    connector_name: passwordless
+```
+
+`cluster_auth_preference` / [AuthPreferenceSpecV2](
+https://github.com/gravitational/teleport/blob/d3de6c489dd93da8ddc0baca2b37042a2d98b65c/api/types/types.proto#L992):
+
+```yaml
+version: v2
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: local
+  second_factor: on
+  webauthn:
+    rp_id: example.com
+  allow_passwordless: true
+  connector_name: passwordless
+```
+
+#### Virtual connectors
+
+The design extends the [`local` users connector](
+https://goteleport.com/docs/architecture/users/#multiple-identity-sources) by
+adding the `passwordless` connector, a variant that uses passwordless logins.
+
+Users may manually change their login method, as long as the cluster supports
+it, by running `tsh login --auth=local` or `tsh login --auth=passwordless`.
+`tsh` and Web UI should check the connector name from `/ping` endpoints and
+react accordingly.
+
+`passwordless` is now a system-reserved connector name, taking precedence over
+equally named connectors. A similar solution using virtual connectors could be
+used to "decorate" existing OIDC/SAML connectors for passwordless, but this is
+left for a future design.
+
+<!--
+References:
+- Resource.Name validation:
+  https://github.com/gravitational/teleport/blob/d3de6c489dd93da8ddc0baca2b37042a2d98b65c/api/types/resource.go#L305
+- OIDC forbids "local":
+  https://github.com/gravitational/teleport/blob/d3de6c489dd93da8ddc0baca2b37042a2d98b65c/api/types/oidc.go#L359
+- SAML forbids "local":
+  https://github.com/gravitational/teleport/blob/d3de6c489dd93da8ddc0baca2b37042a2d98b65c/api/types/saml.go#L346
+-->
+
+#### /ping endpoints
+
+The Web API `/ping` and `/ping/{connector}` responses are modified as follows:
+
+```diff
+type PingResponse struct {
+	Auth AuthenticationSettings
+	// (...)
+}
+
+type AuthenticationSettings struct {
+	// (...)
++	AllowPasswordless bool
++	Local             LocalSettings
+}
+
++type LocalSettings struct {
++	// Name is the internal name of the connector.
++	Name string `json:"name"`
++}
+```
+
 ### Security
 
 The overall security of passwordless authentication bases itself on WebAuthn and
@@ -451,11 +551,7 @@ mitigations:
 
 1. A simple, in-memory, IP based rate limiter for sensitive endpoints
    (mitigation for rudimentary DDoS attacks)
-2. A circular in-memory buffer to storage challenges
-   (mitigation for storage bloat attacks)
-
-<!-- As noted by Alexey, this may require digging into the Teleport caching
-system to make it work in HA mode). -->
+2. A storage hard limit on in-flight global challenges
 
 (Note that "entropy attacks" are
 [not really](https://www.2uo.de/myths-about-urandom/#what-about-entropy-running-low)
@@ -487,6 +583,7 @@ implementation uniform and without hidden behaviors.
 
 [passwordless fido2]: https://github.com/gravitational/teleport/blob/master/rfd/0053-passwordless-fido2.md
 [passwordless macos]: https://github.com/gravitational/teleport/blob/master/rfd/0054-passwordless-macos.md
+[passwordless windows]: https://github.com/gravitational/teleport/blob/master/rfd/0088-passwordless-windows.md
 
 <!-- Plant UML diagrams -->
 <!--
@@ -503,12 +600,9 @@ participant "Teleport" as server
 user -> server: 1. CreateAuthenticateChallenge()
 server -> user: 1.1. challenge
 
-user -> authenticator: 2. list credentials
-authenticator -> user
-user -> authenticator: 2.1. choose credential
-authenticator -> user
-user -> authenticator: 2.2. sign challenge
-authenticator -> user: 2.3. signed challenge
+user -> authenticator: 2. sign challenge
+authenticator -> user: 2.1. signed challenge
+user -> user: 2.2. choose credential
 
 user -> server: 3. Authenticate(userHandle, signedChallenge)
 server -> user: 3.1. signed certificates or web session

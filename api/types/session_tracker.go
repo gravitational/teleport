@@ -20,14 +20,19 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/defaults"
 )
 
 const (
-	SSHSessionKind        SessionKind            = "ssh"
-	KubernetesSessionKind SessionKind            = "k8s"
-	SessionObserverMode   SessionParticipantMode = "observer"
-	SessionModeratorMode  SessionParticipantMode = "moderator"
-	SessionPeerMode       SessionParticipantMode = "peer"
+	SSHSessionKind            SessionKind            = "ssh"
+	KubernetesSessionKind     SessionKind            = "k8s"
+	DatabaseSessionKind       SessionKind            = "db"
+	AppSessionKind            SessionKind            = "app"
+	WindowsDesktopSessionKind SessionKind            = "desktop"
+	SessionObserverMode       SessionParticipantMode = "observer"
+	SessionModeratorMode      SessionParticipantMode = "moderator"
+	SessionPeerMode           SessionParticipantMode = "peer"
 )
 
 // SessionKind is a type of session.
@@ -52,6 +57,9 @@ type SessionTracker interface {
 	// SetState sets the state of the session.
 	SetState(SessionState) error
 
+	// SetCreated sets the time at which the session was created.
+	SetCreated(time.Time)
+
 	// GetCreated returns the time at which the session was created.
 	GetCreated() time.Time
 
@@ -70,8 +78,8 @@ type SessionTracker interface {
 	// GetAddress returns the address of the session target.
 	GetAddress() string
 
-	// GetClustername returns the name of the cluster.
-	GetClustername() string
+	// GetClusterName returns the name of the Teleport cluster.
+	GetClusterName() string
 
 	// GetLogin returns the target machine username used for this session.
 	GetLogin() string
@@ -91,6 +99,15 @@ type SessionTracker interface {
 	// GetKubeCluster returns the name of the kubernetes cluster the session is running in.
 	GetKubeCluster() string
 
+	// GetDesktopName returns the name of the Windows desktop the session is running in.
+	GetDesktopName() string
+
+	// GetAppName returns the name of the app being accessed.
+	GetAppName() string
+
+	// GetDatabaseName returns the name of the database being accessed.
+	GetDatabaseName() string
+
 	// GetHostUser fetches the user marked as the "host" of the session.
 	// Things like RBAC policies are determined from this user.
 	GetHostUser() string
@@ -98,91 +115,53 @@ type SessionTracker interface {
 	// GetHostPolicySets returns a list of policy sets held by the host user at the time of session creation.
 	// This a subset of a role that contains some versioning and naming information in addition to the require policies
 	GetHostPolicySets() []*SessionTrackerPolicySet
+
+	// GetLastActive returns the time at which the session was last active (i.e used by any participant).
+	GetLastActive() time.Time
 }
 
 func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
-	meta := Metadata{
-		Name: spec.SessionID,
-	}
-
 	session := &SessionTrackerV1{
 		ResourceHeader: ResourceHeader{
-			Kind:     KindSessionTracker,
-			Version:  V1,
-			Metadata: meta,
+			Metadata: Metadata{
+				Name: spec.SessionID,
+			},
 		},
 		Spec: spec,
 	}
 
-	if err := session.Metadata.CheckAndSetDefaults(); err != nil {
+	if err := session.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return session, nil
 }
 
-// GetVersion returns resource version.
-func (s *SessionTrackerV1) GetVersion() string {
-	return s.Version
-}
-
-// GetName returns the name of the resource.
-func (s *SessionTrackerV1) GetName() string {
-	return s.Metadata.Name
-}
-
-// SetName sets the name of the resource.
-func (s *SessionTrackerV1) SetName(e string) {
-	s.Metadata.Name = e
-}
-
-// SetExpiry sets expiry time for the object.
-func (s *SessionTrackerV1) SetExpiry(expires time.Time) {
-	s.Metadata.SetExpiry(expires)
-}
-
-// Expiry returns object expiry setting.
-func (s *SessionTrackerV1) Expiry() time.Time {
-	return s.Metadata.Expiry()
-}
-
-// GetMetadata returns object metadata.
-func (s *SessionTrackerV1) GetMetadata() Metadata {
-	return s.Metadata
-}
-
-// GetResourceID returns resource ID.
-func (s *SessionTrackerV1) GetResourceID() int64 {
-	return s.Metadata.ID
-}
-
-// SetResourceID sets resource ID.
-func (s *SessionTrackerV1) SetResourceID(id int64) {
-	s.Metadata.ID = id
-}
-
-// GetKind returns resource kind.
-func (s *SessionTrackerV1) GetKind() string {
-	return s.Kind
-}
-
-// GetSubKind returns resource subkind.
-func (s *SessionTrackerV1) GetSubKind() string {
-	return s.SubKind
-}
-
-// SetSubKind sets resource subkind.
-func (s *SessionTrackerV1) SetSubKind(sk string) {
-	s.SubKind = sk
+// setStaticFields sets static resource header and metadata fields.
+func (s *SessionTrackerV1) setStaticFields() {
+	s.Kind = KindSessionTracker
+	s.Version = V1
 }
 
 // CheckAndSetDefaults sets defaults for the session resource.
 func (s *SessionTrackerV1) CheckAndSetDefaults() error {
-	s.Kind = KindSessionTracker
-	s.Version = V1
+	s.setStaticFields()
 
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if s.GetCreated().IsZero() {
+		s.SetCreated(time.Now())
+	}
+
+	if s.Expiry().IsZero() {
+		// By default, resource expiration should match session expiration.
+		expiry := s.GetExpires()
+		if expiry.IsZero() {
+			expiry = s.GetCreated().Add(defaults.SessionTrackerTTL)
+		}
+		s.SetExpiry(expiry)
 	}
 
 	return nil
@@ -219,6 +198,11 @@ func (s *SessionTrackerV1) GetCreated() time.Time {
 	return s.Spec.Created
 }
 
+// SetCreated returns the time at which the session was created.
+func (s *SessionTrackerV1) SetCreated(created time.Time) {
+	s.Spec.Created = created
+}
+
 // GetExpires return the time at which the session expires.
 func (s *SessionTrackerV1) GetExpires() time.Time {
 	return s.Spec.Expires
@@ -245,7 +229,7 @@ func (s *SessionTrackerV1) GetAddress() string {
 }
 
 // GetClustername returns the name of the cluster the session is running in.
-func (s *SessionTrackerV1) GetClustername() string {
+func (s *SessionTrackerV1) GetClusterName() string {
 	return s.Spec.ClusterName
 }
 
@@ -283,6 +267,27 @@ func (s *SessionTrackerV1) GetKubeCluster() string {
 	return s.Spec.KubernetesCluster
 }
 
+// GetDesktopName returns the name of the Windows desktop the session is running in.
+//
+// This is only valid for Windows desktop sessions.
+func (s *SessionTrackerV1) GetDesktopName() string {
+	return s.Spec.DesktopName
+}
+
+// GetAppName returns the name of the app being accessed in the session.
+//
+// This is only valid for app sessions.
+func (s *SessionTrackerV1) GetAppName() string {
+	return s.Spec.AppName
+}
+
+// GetDatabaseName returns the name of the database being accessed in the session.
+//
+// This is only valid for database sessions.
+func (s *SessionTrackerV1) GetDatabaseName() string {
+	return s.Spec.DatabaseName
+}
+
 // GetHostUser fetches the user marked as the "host" of the session.
 // Things like RBAC policies are determined from this user.
 func (s *SessionTrackerV1) GetHostUser() string {
@@ -305,4 +310,31 @@ func (s *SessionTrackerV1) UpdatePresence(user string) error {
 // This a subset of a role that contains some versioning and naming information in addition to the require policies
 func (s *SessionTrackerV1) GetHostPolicySets() []*SessionTrackerPolicySet {
 	return s.Spec.HostPolicies
+}
+
+// GetLastActive returns the time at which the session was last active (i.e used by any participant).
+func (s *SessionTrackerV1) GetLastActive() time.Time {
+	var last time.Time
+
+	for _, participant := range s.Spec.Participants {
+		if participant.LastActive.After(last) {
+			last = participant.LastActive
+		}
+	}
+
+	return last
+}
+
+// Match checks if a given session tracker matches this filter.
+func (f *SessionTrackerFilter) Match(s SessionTracker) bool {
+	if f.Kind != "" && string(s.GetSessionKind()) != f.Kind {
+		return false
+	}
+	if f.State != nil && s.GetState() != f.State.State {
+		return false
+	}
+	if f.DesktopName != "" && s.GetDesktopName() != f.DesktopName {
+		return false
+	}
+	return true
 }

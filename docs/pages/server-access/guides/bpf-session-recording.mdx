@@ -5,41 +5,79 @@ h1: Enhanced Session Recording with BPF
 videoBanner: 8uO5H-iYw5A
 ---
 
-Teleport's default [SSH and Kubernetes session recording](../../architecture/nodes.mdx#session-recording)
+This guide explains Enhanced Session Recording for SSH with BPF and how to set
+it up in your Teleport cluster.
+
+Teleport's default [SSH and Kubernetes session recording](../../architecture/nodes.mdx#ssh-session-recording)
 feature captures what is echoed to a terminal.
 
-This has inherent advantages, for example, because no input is captured, Teleport
+This has inherent advantages. For example, because no input is captured, Teleport
 session recordings typically do not contain passwords that were entered into a terminal.
 
-The disadvantage is that session recordings can be bypassed using several techniques:
+The disadvantage is that there are several techniques for rendering session
+recordings less useful:
 
 - **Obfuscation**. For example, even though the command
   `echo Y3VybCBodHRwOi8vd3d3LmV4YW1wbGUuY29tCg== | base64 --decode | sh` does not contain
   `curl http://www.example.com`, when decoded, that is what is run.
-- **Shell scripts**. For example, if a user uploads and executes a script, the commands run within the script are not captured, simply the output.
+- **Shell scripts**. For example, if a user uploads and executes a script, the commands run within the script are not captured, only the output.
 - **Terminal controls**. Terminals support a wide variety of controls including the ability for users to disable terminal echo. This is frequently used when requesting credentials. Disabling terminal echo allows commands to be run without being captured.
 
 Furthermore, due to their unstructured nature, session recordings are difficult to
-ingest and perform monitoring/alerting on.
+ingest and perform monitoring and alerting on.
 
-Teleport Enhanced Session Recording mitigates all three concerns by providing advanced security, greater logging capabilities, and better correlates a user with their activities.
+Teleport Enhanced Session Recording mitigates all three concerns by providing advanced security and greater logging capabilities, and better correlates a user with their activities.
+
+<Admonition type="warning" title="Security Warning">
+
+Teleport Enhanced Session Recording does not provide a secure environment on
+its own and is not a substitute for a Linux Security Module (SELinux, AppArmor,
+etc.). It must be paired with reasonable system hardening practices to enforce
+a trusted host environment, including proper access control on core system
+binaries and libraries and well-designed user management.
+
+Note that privileged users (either as root or via `sudo`) can interfere with
+session recording activities (such as unloading/disabling the necessary
+libraries, altering how Teleport is run, tampering with kernel functionality,
+creating tunnels, or just performing actions outside of the restricted
+session). Also, a local user with both monitored and unmonitored console
+sessions or ptrace privileges may not be fully captured in recordings.
+
+Commands executed via daemons (systemd, crond, atd, etc.) could be outside of
+the recorded session scope. Proper network-based restrictions for ingress
+traffic must also be implemented to prevent possible unauthorized data transfer.
+
+Additionally, certain forensic information such as full binary paths
+(accounting for any potential symbolic links), any modifications via shared
+library preloading, and environment variables may not be captured in session recordings.
+
+</Admonition>
 
 ## Prerequisites
 
-- Teleport 7.0+ (Open Source, Enterprise, or Cloud) with at least one Teleport node. 
-- The node must run Linux kernel 5.8 (or above).
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-<Admonition type="tip">
-  Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../../architecture/authentication.mdx#audit-log) for more details.
-</Admonition>
+- At least one host that you will use to run the Teleport Node Service. The host
+  must run Linux kernel 5.8 (or above).
 
-You can check your kernel version using the `uname` command. The output should look
-something like the following.
+  You can check your kernel version using the `uname` command. The output should look
+  something like the following.
 
-```code
-$ uname -r
-# 5.8.17
-```
+  ```code
+  $ uname -r
+  # 5.8.17
+  ```
+
+  See below for more details on the required versions for your Linux kernel and
+  distribution.
+
+<Notice type="tip">
+
+  Our Standard Session Recording works with older Linux kernels. View
+  [Teleport Nodes](../../architecture/nodes.mdx#ssh-session-recording) for more
+  details.
+
+</Notice>
 
 ### Linux distributions and supported kernels
 
@@ -55,20 +93,55 @@ $ uname -r
 </tbody>
 </table>
 
-## Step 1/3. Install and configure Teleport node
+(!docs/pages/includes/tctl.mdx!)
 
-Follow our [installation instructions](../../installation.mdx) to install the Teleport Auth Service, Proxy Service, and Nodes. To get started with Teleport Cloud, sign up for a [free trial](https://goteleport.com/signup/). 
+## Step 1/2. Configure a Teleport Node
 
-Set up the Teleport node with this `etc/teleport.yaml`. See our [configuration file setup](../../setup/reference/config.mdx) for more instructions.
+### Install Teleport on your Node
+
+On the host where you will run your Teleport Node, follow the instructions for
+your environment to install Teleport.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Generate a token
+
+Use the `tctl` tool to generate an invite token that your Node will use to join
+the cluster. In the following example, a new token is created with a TTL of five
+minutes:
+
+```code
+# Generate a short-lived invitation token for a new node:
+$ tctl nodes add --ttl=5m --roles=node
+# The invite token: (=presets.tokens.first=)
+
+# You can also list all generated non-expired tokens:
+$ tctl tokens ls
+# Token                            Type            Expiry Time
+# ------------------------         -----------     ---------------
+# (=presets.tokens.first=)         Node            25 Sep 18 00:21 UTC
+
+# ... or revoke an invitation token before it's used:
+$ tctl tokens rm (=presets.tokens.first=)
+```
+
+### Create a configuration file
+
+Set up your Teleport Node with the following content in `/etc/teleport.yaml`.
 
 ```yaml
 # Example config to be saved as etc/teleport.yaml
+version: v3
 teleport:
   nodename: graviton-node
-  auth_token: exampletoken
-  auth_servers:
-  # Replace with IP of Teleport Auth server.
-  - 127.0.0.1:3025
+  # The token you created earlier
+  auth_token: (=presets.tokens.first=)
+
+  # Replace with the address of the Teleport Auth Service
+  auth_server: 127.0.0.1:3025
+  # Or specify the Proxy Service address.
+  proxy_server: 127.0.0.1:3080
+
   data_dir: /var/lib/teleport
 proxy_service:
   enabled: false
@@ -94,9 +167,22 @@ ssh_service:
     cgroup_path: /cgroup2
 ```
 
-## Step 2/3. Test by logging into node via Teleport
+### Start Teleport on your Node
 
-**Session with Enhanced Session Recording will be marked as 'true' in the logs.**
+```code
+$ teleport start
+```
+
+## Step 2/2. Inspect the audit log
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+
+Enhanced session recording events will be shown in Teleport's audit log, which
+you can inspect by visiting Teleport's Web UI.
+
+Events emitted via Enhanced Session Recording will include the
+`"enhanced_recording": true` field in events similar to the following:
 
 ```json
 {
@@ -117,9 +203,20 @@ ssh_service:
 }
 ```
 
-## Step 3/3. Inspect logs
+If your Teleport cluster uses a file-based event log, you can examine your audit
+log on the Teleport Auth Service host.
 
-The resulting enhanced session recording will be shown in [Teleport's Audit Log](../../architecture/authentication.mdx#audit-log).
+<Details title="Is my cluster using a file-based event log?" opened={false}>
+
+Teleport's session recordings backend is configured via the
+`teleport.storage.audit_sessions_uri` field. If a provided URI includes a scheme
+that belongs to a cloud-based service (e.g., `s3://` or `dynamodb://`), you will
+not be able to inspect session recordings in the filesystem of your Auth Service
+host.
+
+</Details>
+
+Examine the contents of `/var/lib/teleport/log` as shown below:
 
 ```code
 $ teleport-auth ~:  tree /var/lib/teleport/log
@@ -143,39 +240,41 @@ $ teleport-auth ~:  tree /var/lib/teleport/log
 ```
 
 To quickly check the status of the audit log, you can simply tail the logs with
-`tail -f /var/lib/teleport/log/events.log`, the resulting capture from Teleport will
+`tail -f /var/lib/teleport/log/events.log`. The resulting capture from Teleport will
 be a JSON log for each command and network request.
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Cloud">
 
-<Tabs>
-  <TabItem label="json">
-    ```json
-    {"argv":["google.com"],"cgroup_id":4294968064,"code":"T4000I","ei":5,"event":"session.command","login":"root","namespace":"default","path":"/bin/ping","pid":2653,"ppid":2660,"program":"ping","return_code":0,"server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644","sid":"44c6cea8-362f-11ea-83aa-125400432324","time":"2020-01-13T18:05:53.919Z","uid":"734930bb-00e6-4ee6-8798-37f1e9473fac","user":"benarent"}
-    ```
-  </TabItem>
+Enhanced session recording events will be shown in Teleport's audit log, which
+you can inspect by visiting Teleport's Web UI.
 
-  <TabItem label="json formatted">
-    ```json
-    {
-      "argv":[
-        "google.com"
-        ],
-      "cgroup_id":4294968064,
-      "code":"T4000I",
-      "ei":5,
-      "event":"session.command",
-      "login":"root",
-      "namespace":"default",
-      "path":"/bin/ping",
-      "pid":2653,
-      "ppid":2660,
-      "program":"ping",
-      "return_code":0,
-      "server_id":"96f2bed2-ebd1-494a-945c-2fd57de41644",
-      "sid":"44c6cea8-362f-11ea-83aa-125400432324",
-      "time":"2020-01-13T18:05:53.919Z",
-      "uid":"734930bb-00e6-4ee6-8798-37f1e9473fac",
-      "user":"benarent"
-    }
-    ```
-  </TabItem>
+Sessions with Enhanced Session Recording will include the
+`"enhanced_recording": true` field in events similar to the following:
+
+```json
+{
+  "code": "T2004I",
+  "ei": 23,
+  "enhanced_recording": true,
+  "event": "session.end",
+  "interactive": true,
+  "namespace": "default",
+  "participants": [
+    "benarent"
+  ],
+  "server_id": "585fc225-5cf9-4e9f-8ff6-1b0fd6885b09",
+  "sid": "ca82b98d-1d30-11ea-8244-cafde5327a6c",
+  "time": "2019-12-12T22:44:46.218Z",
+  "uid": "83e67464-a93a-4c7c-8ce6-5a3d8802c3b2",
+  "user": "benarent"
+}
+```
+</TabItem>
 </Tabs>
+
+## Next steps
+
+- Read more about
+  [session recording](../../architecture/nodes.mdx#ssh-session-recording).
+- See all configuration options for Enhanced Session Recording in our
+  [Configuration Reference](../../reference/config.mdx).

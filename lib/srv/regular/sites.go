@@ -17,14 +17,14 @@ limitations under the License.
 package regular
 
 import (
+	"context"
 	"encoding/json"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv"
-
-	"github.com/gravitational/trace"
 )
 
 // proxySubsys is an SSH subsystem for easy proxyneling through proxy server
@@ -50,9 +50,9 @@ func (t *proxySitesSubsys) Wait() error {
 
 // Start serves a request for "proxysites" custom SSH subsystem. It builds an array of
 // service.Site structures, and writes it serialized as JSON back to the SSH client
-func (t *proxySitesSubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
-	log.Debugf("proxysites.start(%v)", ctx)
-	remoteSites, err := t.srv.tunnelWithRoles(ctx).GetSites()
+func (t *proxySitesSubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
+	log.Debugf("proxysites.start(%v)", serverContext)
+	remoteSites, err := t.srv.tunnelWithAccessChecker(serverContext).GetSites()
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -21,12 +21,16 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate"
 )
+
+var MinSupportedModeratedSessionsVersion = semver.New(utils.VersionBeforeAlpha("9.0.0"))
 
 // SessionAccessEvaluator takes a set of policies
 // and uses rules to evaluate them to determine when a session may start
@@ -40,14 +44,16 @@ type SessionAccessEvaluator struct {
 	kind        types.SessionKind
 	policySets  []*types.SessionTrackerPolicySet
 	isModerated bool
+	owner       string
 }
 
 // NewSessionAccessEvaluator creates a new session access evaluator for a given session kind
 // and a set of roles attached to the host user.
-func NewSessionAccessEvaluator(policySets []*types.SessionTrackerPolicySet, kind types.SessionKind) SessionAccessEvaluator {
+func NewSessionAccessEvaluator(policySets []*types.SessionTrackerPolicySet, kind types.SessionKind, owner string) SessionAccessEvaluator {
 	e := SessionAccessEvaluator{
 		kind:       kind,
 		policySets: policySets,
+		owner:      owner,
 	}
 
 	for _, policySet := range policySets {
@@ -70,7 +76,7 @@ func getAllowPolicies(participant SessionAccessContext) []*types.SessionJoinPoli
 	return policies
 }
 
-func containsKind(s []string, e types.SessionKind) bool {
+func ContainsSessionKind(s []string, e types.SessionKind) bool {
 	for _, a := range s {
 		if types.SessionKind(a) == e {
 			return true
@@ -92,7 +98,15 @@ type SessionAccessContext struct {
 func (ctx *SessionAccessContext) GetIdentifier(fields []string) (interface{}, error) {
 	if fields[0] == "user" {
 		if len(fields) == 2 || len(fields) == 3 {
-			switch fields[1] {
+			checkedFieldIdx := 1
+			// Unify the format. Moderated session originally skipped the spec field (user.roles was used instead of
+			// user.spec.roles) which was not aligned with how our roles filtering works.
+			// Here we try support both cases. We don't want to modify the original fields slice,
+			// as that would change the reported error message (see return below).
+			if len(fields) == 3 && fields[1] == "spec" {
+				checkedFieldIdx = 2
+			}
+			switch fields[checkedFieldIdx] {
 			case "name":
 				return ctx.Username, nil
 			case "roles":
@@ -146,13 +160,12 @@ func (e *SessionAccessEvaluator) matchesJoin(allow *types.SessionJoinPolicy) boo
 		return false
 	}
 
-	for _, policySet := range e.policySets {
-		for _, allowRole := range allow.Roles {
-			expr := utils.GlobToRegexp(policySet.Name)
-			// GlobToRegexp makes sure this is always a valid regexp.
-			matched, _ := regexp.MatchString(expr, allowRole)
+	for _, allowRole := range allow.Roles {
+		// GlobToRegexp makes sure this is always a valid regexp.
+		expr := regexp.MustCompile(utils.GlobToRegexp(allowRole))
 
-			if matched {
+		for _, policySet := range e.policySets {
+			if expr.MatchString(policySet.Name) {
 				return true
 			}
 		}
@@ -162,24 +175,36 @@ func (e *SessionAccessEvaluator) matchesJoin(allow *types.SessionJoinPolicy) boo
 }
 
 func (e *SessionAccessEvaluator) matchesKind(allow []string) bool {
-	if containsKind(allow, e.kind) || containsKind(allow, "*") {
+	if ContainsSessionKind(allow, e.kind) || ContainsSessionKind(allow, "*") {
 		return true
 	}
 
 	return false
 }
 
+// RoleSupportsModeratedSessions checks if the role version is higher or equal to
+// V5 - V5 is the version where ModeratedSession support was introduced.
+func RoleSupportsModeratedSessions(roles []types.Role) bool {
+	for _, role := range roles {
+		switch role.GetVersion() {
+		case types.V5, types.V6:
+			return true
+		}
+	}
+	return false
+}
+
 // CanJoin returns the modes a user has access to join a session with.
 // If the list is empty, the user doesn't have access to join the session at all.
-func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) ([]types.SessionParticipantMode, error) {
-	supported, err := e.supportsSessionAccessControls()
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.SessionParticipantMode {
+	// If we don't support session access controls, return the default mode set that was supported prior to Moderated Sessions.
+	if !RoleSupportsModeratedSessions(user.Roles) {
+		return preAccessControlsModes(e.kind)
 	}
 
-	// If we don't support session access controls, return the default mode set that was supported prior to Moderated Sessions.
-	if !supported {
-		return preAccessControlsModes(e.kind), nil
+	// Session owners can always join their own sessions.
+	if user.Username == e.owner {
+		return []types.SessionParticipantMode{types.SessionPeerMode, types.SessionModeratorMode, types.SessionObserverMode}
 	}
 
 	var modes []types.SessionParticipantMode
@@ -198,7 +223,7 @@ func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) ([]types.Ses
 		}
 	}
 
-	return modes, nil
+	return modes
 }
 
 func SliceContainsMode(s []types.SessionParticipantMode, e types.SessionParticipantMode) bool {
@@ -210,22 +235,12 @@ func SliceContainsMode(s []types.SessionParticipantMode, e types.SessionParticip
 	return false
 }
 
-// PolicyOptions is a set of settings for the session determined by the matched require policy.
+// PolicyOptions is a set of settings for the session determined by the matched required policy.
 type PolicyOptions struct {
-	TerminateOnLeave bool
+	OnLeaveAction types.OnSessionLeaveAction
 }
 
-func (e *SessionAccessEvaluator) hasPolicies() bool {
-	for _, policySet := range e.policySets {
-		if len(policySet.RequireSessionJoin) > 0 {
-			return true
-		}
-	}
-
-	return false
-}
-
-// Generate a pretty-printed string of precise requirements for session start suitable for user display.
+// PrettyRequirementsList generates a pretty-printed string of precise requirements for session start suitable for user display.
 func (e *SessionAccessEvaluator) PrettyRequirementsList() string {
 	s := new(strings.Builder)
 	s.WriteString("require all:")
@@ -260,17 +275,7 @@ func (e *SessionAccessEvaluator) extractApplicablePolicies(set *types.SessionTra
 
 // FulfilledFor checks if a given session may run with a list of participants.
 func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContext) (bool, PolicyOptions, error) {
-	supported, err := e.supportsSessionAccessControls()
-	if err != nil {
-		return false, PolicyOptions{}, trace.Wrap(err)
-	}
-
-	// If advanced access controls are supported or no require policies are defined, we allow by default.
-	if !e.hasPolicies() || !supported {
-		return true, PolicyOptions{TerminateOnLeave: true}, nil
-	}
-
-	options := PolicyOptions{TerminateOnLeave: true}
+	var options PolicyOptions
 
 	// Check every policy set to check if it's fulfilled.
 	// We need every policy set to match to allow the session.
@@ -279,6 +284,17 @@ policySetLoop:
 		policies := e.extractApplicablePolicies(policySet)
 		if len(policies) == 0 {
 			continue
+		}
+
+		if options.OnLeaveAction != types.OnSessionLeaveTerminate {
+			terminateOnLeave := types.OnSessionLeavePause
+			for _, p := range policies {
+				if p.OnLeave != string(types.OnSessionLeavePause) {
+					terminateOnLeave = types.OnSessionLeaveTerminate
+					break
+				}
+			}
+			options = PolicyOptions{OnLeaveAction: terminateOnLeave}
 		}
 
 		// Check every require policy to see if it's fulfilled.
@@ -304,10 +320,10 @@ policySetLoop:
 					// Evaluate the filter in the require policy against the participant and allow policy.
 					matchesPredicate, err := e.matchesPredicate(&participant, requirePolicy, allowPolicy)
 					if err != nil {
-						return false, PolicyOptions{}, trace.Wrap(err)
+						return false, options, trace.Wrap(err)
 					}
 
-					// If the the filter matches the participant and the allow policy matches the session
+					// If the filter matches the participant and the allow policy matches the session
 					// we conclude that the participant matches against the require policy.
 					if matchesPredicate && e.matchesJoin(allowPolicy) {
 						left--
@@ -317,13 +333,6 @@ policySetLoop:
 
 				// If we've matched enough participants against the require policy, we can allow the session.
 				if left <= 0 {
-					switch requirePolicy.OnLeave {
-					case types.OnSessionLeaveTerminate:
-					case types.OnSessionLeavePause:
-						options.TerminateOnLeave = false
-					default:
-					}
-
 					// We matched at least one require policy within the set. Continue ahead.
 					continue policySetLoop
 				}
@@ -337,28 +346,6 @@ policySetLoop:
 
 	// All policy sets matched, we can allow the session.
 	return true, options, nil
-}
-
-// supportsSessionAccessControls checks if moderated sessions-style access controls can be applied to the session.
-// If a set only has v4 or earlier roles, we don't want to apply the access checks to SSH sessions.
-//
-// This only applies to SSH sessions since they previously had no access control for joining sessions.
-// We don't need this fallback behaviour for multiparty kubernetes since it's a new feature.
-func (e *SessionAccessEvaluator) supportsSessionAccessControls() (bool, error) {
-	if e.kind == types.SSHSessionKind {
-		for _, policySet := range e.policySets {
-			switch policySet.Version {
-			case types.V1, types.V2, types.V3, types.V4:
-				return false, nil
-			case types.V5:
-				return true, nil
-			default:
-				return false, trace.BadParameter("unsupported role version: %v", policySet.Version)
-			}
-		}
-	}
-
-	return true, nil
 }
 
 func preAccessControlsModes(kind types.SessionKind) []types.SessionParticipantMode {

@@ -26,26 +26,27 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/dustin/go-humanize"
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TopCommand implements `tctl top` group of commands.
 type TopCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	// CLI clauses (subcommands)
 	top           *kingpin.CmdClause
@@ -54,7 +55,7 @@ type TopCommand struct {
 }
 
 // Initialize allows TopCommand to plug itself into the CLI parser.
-func (c *TopCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *TopCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 	c.top = app.Command("top", "Report diagnostic information")
 	c.diagURL = c.top.Arg("diag-addr", "Diagnostic HTTP URL").Default("http://127.0.0.1:3000").String()
@@ -62,14 +63,14 @@ func (c *TopCommand) Initialize(app *kingpin.Application, config *service.Config
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *TopCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *TopCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.top.FullCommand():
 		diagClient, err := roundtrip.NewClient(*c.diagURL, "")
 		if err != nil {
 			return true, trace.Wrap(err)
 		}
-		err = c.Top(diagClient)
+		err = c.Top(ctx, diagClient)
 		if trace.IsConnectionProblem(err) {
 			return true, trace.ConnectionProblem(err,
 				"[CLIENT] Could not connect to metrics service at %v. Is teleport running with --diag-addr=%v?", *c.diagURL, *c.diagURL)
@@ -81,14 +82,11 @@ func (c *TopCommand) TryRun(cmd string, client auth.ClientI) (match bool, err er
 }
 
 // Top is called to execute "status" CLI command.
-func (c *TopCommand) Top(client *roundtrip.Client) error {
+func (c *TopCommand) Top(ctx context.Context, client *roundtrip.Client) error {
 	if err := ui.Init(); err != nil {
 		return trace.Wrap(err)
 	}
 	defer ui.Close()
-
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
 
 	uiEvents := ui.PollEvents()
 	ticker := time.NewTicker(*c.refreshPeriod)
@@ -150,7 +148,7 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 		t.ColumnWidths = []int{10, 10, 10, 50000}
 		t.RowSeparator = false
 		t.Rows = [][]string{
-			[]string{"Count", "Req/Sec", "Range", "Key"},
+			{"Count", "Req/Sec", "Range", "Key"},
 		}
 		for _, req := range b.SortedTopRequests() {
 			t.Rows = append(t.Rows,
@@ -171,7 +169,7 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 		t.ColumnWidths = []int{10, 10, 10, 50000}
 		t.RowSeparator = false
 		t.Rows = [][]string{
-			[]string{"Count", "Req/Sec", "Avg Size", "Resource"},
+			{"Count", "Req/Sec", "Avg Size", "Resource"},
 		}
 		for _, event := range w.SortedTopEvents() {
 			t.Rows = append(t.Rows,
@@ -190,7 +188,7 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 		lc.Title = title
 		lc.TitleStyle = ui.NewStyle(ui.ColorCyan)
 		lc.Data = make([][]float64, 1)
-		//only get the most recent events to fill the graph
+		// only get the most recent events to fill the graph
 		lc.Data[0] = buf.Data((termWidth / 2) - 10)
 		lc.AxesColor = ui.ColorWhite
 		lc.LineColors[0] = ui.ColorGreen
@@ -205,11 +203,12 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 	t1.ColumnWidths = []int{30, 50000}
 	t1.RowSeparator = false
 	t1.Rows = [][]string{
-		[]string{"Interactive Sessions", humanize.FormatFloat("", re.Cluster.InteractiveSessions)},
-		[]string{"Cert Gen Active Requests", humanize.FormatFloat("", re.Cluster.GenerateRequests)},
-		[]string{"Cert Gen Requests/sec", humanize.FormatFloat("", re.Cluster.GenerateRequestsCount.GetFreq())},
-		[]string{"Cert Gen Throttled Requests/sec", humanize.FormatFloat("", re.Cluster.GenerateRequestsThrottledCount.GetFreq())},
-		[]string{"Auth Watcher Queue Size", humanize.FormatFloat("", re.Cache.QueueSize)},
+		{"Interactive Sessions", humanize.FormatFloat("", re.Cluster.InteractiveSessions)},
+		{"Cert Gen Active Requests", humanize.FormatFloat("", re.Cluster.GenerateRequests)},
+		{"Cert Gen Requests/sec", humanize.FormatFloat("", re.Cluster.GenerateRequestsCount.GetFreq())},
+		{"Cert Gen Throttled Requests/sec", humanize.FormatFloat("", re.Cluster.GenerateRequestsThrottledCount.GetFreq())},
+		{"Auth Watcher Queue Size", humanize.FormatFloat("", re.Cache.QueueSize)},
+		{"Active Migrations", strings.Join(re.Cluster.ActiveMigrations, ", ")},
 	}
 	for _, rc := range re.Cluster.RemoteClusters {
 		t1.Rows = append(t1.Rows, []string{
@@ -223,11 +222,11 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 	t2.ColumnWidths = []int{30, 50000}
 	t2.RowSeparator = false
 	t2.Rows = [][]string{
-		[]string{"Start Time", re.Process.StartTime.Format(constants.HumanDateFormatSeconds)},
-		[]string{"Resident Memory Bytes", humanize.Bytes(uint64(re.Process.ResidentMemoryBytes))},
-		[]string{"Open File Descriptors", humanize.FormatFloat("", re.Process.OpenFDs)},
-		[]string{"CPU Seconds Total", humanize.FormatFloat("", re.Process.CPUSecondsTotal)},
-		[]string{"Max File Descriptors", humanize.FormatFloat("", re.Process.MaxFDs)},
+		{"Start Time", re.Process.StartTime.Format(constants.HumanDateFormatSeconds)},
+		{"Resident Memory Bytes", humanize.Bytes(uint64(re.Process.ResidentMemoryBytes))},
+		{"Open File Descriptors", humanize.FormatFloat("", re.Process.OpenFDs)},
+		{"CPU Seconds Total", humanize.FormatFloat("", re.Process.CPUSecondsTotal)},
+		{"Max File Descriptors", humanize.FormatFloat("", re.Process.MaxFDs)},
 	}
 
 	t3 := widgets.NewTable()
@@ -236,12 +235,12 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 	t3.ColumnWidths = []int{30, 50000}
 	t3.RowSeparator = false
 	t3.Rows = [][]string{
-		[]string{"Allocated Memory", humanize.Bytes(uint64(re.Go.AllocBytes))},
-		[]string{"Goroutines", humanize.FormatFloat("", re.Go.Goroutines)},
-		[]string{"Threads", humanize.FormatFloat("", re.Go.Threads)},
-		[]string{"Heap Objects", humanize.FormatFloat("", re.Go.HeapObjects)},
-		[]string{"Heap Allocated Memory", humanize.Bytes(uint64(re.Go.HeapAllocBytes))},
-		[]string{"Info", re.Go.Info},
+		{"Allocated Memory", humanize.Bytes(uint64(re.Go.AllocBytes))},
+		{"Goroutines", humanize.FormatFloat("", re.Go.Goroutines)},
+		{"Threads", humanize.FormatFloat("", re.Go.Threads)},
+		{"Heap Objects", humanize.FormatFloat("", re.Go.HeapObjects)},
+		{"Heap Allocated Memory", humanize.Bytes(uint64(re.Go.HeapAllocBytes))},
+		{"Info", re.Go.Info},
 	}
 
 	percentileTable := func(title string, hist Histogram) *widgets.Table {
@@ -251,7 +250,7 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 
 		if hist.Count == 0 {
 			t.Rows = [][]string{
-				[]string{"No data"},
+				{"No data"},
 			}
 			return t
 		}
@@ -259,7 +258,7 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 		t.ColumnWidths = []int{30, 50000}
 		t.RowSeparator = false
 		t.Rows = [][]string{
-			[]string{"Percentile", "Latency"},
+			{"Percentile", "Latency"},
 		}
 		for _, p := range hist.AsPercentiles() {
 			t.Rows = append(t.Rows, []string{
@@ -292,7 +291,7 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 					ui.NewRow(0.3, t3),
 				),
 				ui.NewCol(0.5,
-					ui.NewRow(0.3, percentileTable("Generate Server Certificates Histogram", re.Cluster.GenerateRequestsHistogram)),
+					ui.NewRow(0.3, percentileTable("Generate Server Certificates Percentiles", re.Cluster.GenerateRequestsHistogram)),
 				),
 			),
 			ui.NewRow(0.025,
@@ -364,15 +363,15 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 }
 
 func (c *TopCommand) fetchAndGenerateReport(ctx context.Context, client *roundtrip.Client, prev *Report) (*Report, error) {
-	metrics, err := c.getPrometheusMetrics(client)
+	metrics, err := c.getPrometheusMetrics(ctx, client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return generateReport(metrics, prev, *c.refreshPeriod)
 }
 
-func (c *TopCommand) getPrometheusMetrics(client *roundtrip.Client) (map[string]*dto.MetricFamily, error) {
-	re, err := client.Get(context.TODO(), client.Endpoint("metrics"), url.Values{})
+func (c *TopCommand) getPrometheusMetrics(ctx context.Context, client *roundtrip.Client) (map[string]*dto.MetricFamily, error) {
+	re, err := client.Get(ctx, client.Endpoint("metrics"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(trace.ConvertSystemError(err))
 	}
@@ -478,7 +477,7 @@ type GoStats struct {
 	HeapAllocBytes float64
 	// Number of bytes allocated and still in use.
 	AllocBytes float64
-	//HeapObjects is a number of allocated objects.
+	// HeapObjects is a number of allocated objects.
 	HeapObjects float64
 }
 
@@ -537,6 +536,8 @@ type ClusterStats struct {
 	GenerateRequestsThrottledCount Counter
 	// GenerateRequestsHistogram is a histogram of generate requests latencies
 	GenerateRequestsHistogram Histogram
+	// ActiveMigrations is a set of active migrations
+	ActiveMigrations []string
 }
 
 // RemoteCluster is a remote cluster (or local cluster)
@@ -737,6 +738,7 @@ func generateReport(metrics map[string]*dto.MetricFamily, prev *Report, period t
 		GenerateRequestsCount:          Counter{Count: getCounterValue(metrics[teleport.MetricGenerateRequests])},
 		GenerateRequestsThrottledCount: Counter{Count: getCounterValue(metrics[teleport.MetricGenerateRequestsThrottled])},
 		GenerateRequestsHistogram:      getHistogram(metrics[teleport.MetricGenerateRequestsHistogram], atIndex(0)),
+		ActiveMigrations:               getActiveMigrations(metrics[prometheus.BuildFQName(teleport.MetricNamespace, "", teleport.MetricMigrations)]),
 	}
 
 	if prev != nil {
@@ -878,6 +880,25 @@ func getRemoteClusters(metric *dto.MetricFamily) []RemoteCluster {
 			}
 		}
 		out[i] = rc
+	}
+	return out
+}
+
+func getActiveMigrations(metric *dto.MetricFamily) []string {
+	if metric == nil || metric.GetType() != dto.MetricType_GAUGE || len(metric.Metric) == 0 {
+		return nil
+	}
+	var out []string
+	for _, counter := range metric.Metric {
+		if counter.Gauge.GetValue() == 0 {
+			continue
+		}
+		for _, label := range counter.Label {
+			if label.GetName() == teleport.TagMigration {
+				out = append(out, label.GetValue())
+				break
+			}
+		}
 	}
 	return out
 }

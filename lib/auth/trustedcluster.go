@@ -24,32 +24,35 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
 )
 
 // UpsertTrustedCluster creates or toggles a Trusted Cluster relationship.
-func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (types.TrustedCluster, error) {
-	var exists bool
-
+func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.TrustedCluster) (newTrustedCluster types.TrustedCluster, returnErr error) {
 	// It is recommended to omit trusted cluster name because the trusted cluster name
 	// is updated to the roots cluster name during the handshake with the root cluster.
 	var existingCluster types.TrustedCluster
 	if trustedCluster.GetName() != "" {
 		var err error
-		if existingCluster, err = a.Presence.GetTrustedCluster(ctx, trustedCluster.GetName()); err == nil {
-			exists = true
+		existingCluster, err = a.GetTrustedCluster(ctx, trustedCluster.GetName())
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -57,15 +60,42 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 
 	// If the trusted cluster already exists in the backend, make sure it's a
 	// valid state change client is trying to make.
-	if exists {
+	if existingCluster != nil {
 		if err := existingCluster.CanChangeStateTo(trustedCluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
+	logger := log.WithField("trusted_cluster", trustedCluster.GetName())
+
 	// change state
+	if err := a.checkLocalRoles(ctx, trustedCluster.GetRoleMap()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Update role map
+	if existingCluster != nil && !cmp.Equal(existingCluster.GetRoleMap(), trustedCluster.GetRoleMap()) {
+		if err := a.UpdateUserCARoleMap(ctx, existingCluster.GetName(), trustedCluster.GetRoleMap(),
+			existingCluster.GetEnabled()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Reset previous UserCA role map if this func fails later on
+		defer func() {
+			if returnErr != nil {
+				if err := a.UpdateUserCARoleMap(ctx, trustedCluster.GetName(), existingCluster.GetRoleMap(),
+					trustedCluster.GetEnabled()); err != nil {
+					returnErr = trace.NewAggregate(err, returnErr)
+				}
+			}
+		}()
+	}
+	// Create or update state
 	switch {
-	case exists == true && enable == true:
+	case existingCluster != nil && enable == true:
+		if existingCluster.GetEnabled() {
+			break
+		}
 		log.Debugf("Enabling existing Trusted Cluster relationship.")
 
 		if err := a.activateCertAuthority(trustedCluster); err != nil {
@@ -78,7 +108,10 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		if err := a.createReverseTunnel(trustedCluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case exists == true && enable == false:
+	case existingCluster != nil && enable == false:
+		if !existingCluster.GetEnabled() {
+			break
+		}
 		log.Debugf("Disabling existing Trusted Cluster relationship.")
 
 		if err := a.deactivateCertAuthority(trustedCluster); err != nil {
@@ -91,12 +124,8 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		if err := a.DeleteReverseTunnel(trustedCluster.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case exists == false && enable == true:
-		log.Debugf("Creating enabled Trusted Cluster relationship.")
-
-		if err := a.checkLocalRoles(ctx, trustedCluster.GetRoleMap()); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	case existingCluster == nil && enable == true:
+		logger.Info("Creating enabled Trusted Cluster relationship.")
 
 		remoteCAs, err := a.establishTrust(ctx, trustedCluster)
 		if err != nil {
@@ -115,12 +144,8 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			return nil, trace.Wrap(err)
 		}
 
-	case exists == false && enable == false:
-		log.Debugf("Creating disabled Trusted Cluster relationship.")
-
-		if err := a.checkLocalRoles(ctx, trustedCluster.GetRoleMap()); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	case existingCluster == nil && enable == false:
+		logger.Info("Creating disabled Trusted Cluster relationship.")
 
 		remoteCAs, err := a.establishTrust(ctx, trustedCluster)
 		if err != nil {
@@ -139,7 +164,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		}
 	}
 
-	tc, err := a.Presence.UpsertTrustedCluster(ctx, trustedCluster)
+	tc, err := a.Services.UpsertTrustedCluster(ctx, trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -149,12 +174,12 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			Type: events.TrustedClusterCreateEvent,
 			Code: events.TrustedClusterCreateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: trustedCluster.GetName(),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit trusted cluster create event.")
+		logger.WithError(err).Warn("Failed to emit trusted cluster create event.")
 	}
 
 	return tc, nil
@@ -193,15 +218,12 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 		return trace.BadParameter("trusted cluster %q is the name of this root cluster and cannot be removed.", name)
 	}
 
-	if err := a.DeleteCertAuthority(types.CertAuthID{Type: types.HostCA, DomainName: name}); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-	}
-
-	if err := a.DeleteCertAuthority(types.CertAuthID{Type: types.UserCA, DomainName: name}); err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+	// Remove all CAs
+	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.OpenSSHCA} {
+		if err := a.DeleteCertAuthority(types.CertAuthID{Type: caType, DomainName: name}); err != nil {
+			if !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
@@ -211,7 +233,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 		}
 	}
 
-	if err := a.Presence.DeleteTrustedCluster(ctx, name); err != nil {
+	if err := a.Services.DeleteTrustedCluster(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -220,7 +242,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 			Type: events.TrustedClusterDeleteEvent,
 			Code: events.TrustedClusterDeleteCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
@@ -252,12 +274,13 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 
 	// create a request to validate a trusted cluster (token and local certificate authorities)
 	validateRequest := ValidateTrustedClusterRequest{
-		Token: trustedCluster.GetToken(),
-		CAs:   localCertAuthorities,
+		Token:           trustedCluster.GetToken(),
+		CAs:             localCertAuthorities,
+		TeleportVersion: teleport.Version,
 	}
 
 	// log the local certificate authorities that we are sending
-	log.Debugf("Sending validate request; token=%s, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
+	log.Infof("Sending validate request; token=%s, CAs=%v", backend.MaskKeyName(validateRequest.Token), validateRequest.CAs)
 
 	// send the request to the remote auth server via the proxy
 	validateResponse, err := a.sendValidateRequestToProxy(trustedCluster.GetProxyAddress(), &validateRequest)
@@ -270,7 +293,7 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 	}
 
 	// log the remote certificate authorities we are adding
-	log.Debugf("Received validate response; CAs=%v", validateResponse.CAs)
+	log.Infof("Received validate response; CAs=%v", validateResponse.CAs)
 
 	for _, ca := range validateResponse.CAs {
 		for _, keyPair := range ca.GetActiveKeys().TLS {
@@ -326,7 +349,7 @@ func (a *Server) addCertAuthorities(trustedCluster types.TrustedCluster, remoteC
 func (a *Server) DeleteRemoteCluster(clusterName string) error {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
-	_, err := a.Presence.GetRemoteCluster(clusterName)
+	_, err := a.GetRemoteCluster(clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -354,41 +377,32 @@ func (a *Server) DeleteRemoteCluster(clusterName string) error {
 			return trace.Wrap(err)
 		}
 	}
-	return a.Presence.DeleteRemoteCluster(clusterName)
+	return a.Services.DeleteRemoteCluster(clusterName)
 }
 
 // GetRemoteCluster returns remote cluster by name
 func (a *Server) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
-	remoteCluster, err := a.Presence.GetRemoteCluster(clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.updateRemoteClusterStatus(remoteCluster); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return remoteCluster, nil
+	remoteCluster, err := a.Services.GetRemoteCluster(clusterName)
+	return remoteCluster, trace.Wrap(err)
 }
 
-func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) error {
-	ctx := context.TODO()
-	netConfig, err := a.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+// updateRemoteClusterStatus determines current connection status of remoteCluster and writes it to the backend
+// if there are changes. Returns true if backend was updated or false if update wasn't necessary.
+func (a *Server) updateRemoteClusterStatus(ctx context.Context, netConfig types.ClusterNetworkingConfig, remoteCluster types.RemoteCluster) (updated bool, err error) {
 	keepAliveCountMax := netConfig.GetKeepAliveCountMax()
 	keepAliveInterval := netConfig.GetKeepAliveInterval()
 
 	// fetch tunnel connections for the cluster to update runtime status
 	connections, err := a.GetTunnelConnections(remoteCluster.GetName())
 	if err != nil {
-		return trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
 	lastConn, err := services.LatestTunnelConnection(connections)
 	if err != nil {
 		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
+			return false, trace.Wrap(err)
 		}
 		// No tunnel connections are known, mark the cluster offline (if it
 		// wasn't already).
@@ -401,11 +415,12 @@ func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) er
 				// case we should prioritize presenting our view in an internally-consistent
 				// manner rather than competing with another task.
 				if !trace.IsCompareFailed(err) {
-					return trace.Wrap(err)
+					return false, trace.Wrap(err)
 				}
 			}
+			return true, nil
 		}
-		return nil
+		return false, nil
 	}
 
 	offlineThreshold := time.Duration(keepAliveCountMax) * keepAliveInterval
@@ -428,28 +443,21 @@ func (a *Server) updateRemoteClusterStatus(remoteCluster types.RemoteCluster) er
 			// case we should prioritize presenting our view in an internally-consistent
 			// manner rather than competing with another task.
 			if !trace.IsCompareFailed(err) {
-				return trace.Wrap(err)
+				return false, trace.Wrap(err)
 			}
 		}
+		return true, nil
 	}
 
-	return nil
+	return false, nil
 }
 
 // GetRemoteClusters returns remote clusters with updated statuses
 func (a *Server) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
-	remoteClusters, err := a.Presence.GetRemoteClusters(opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for i := range remoteClusters {
-		if err := a.updateRemoteClusterStatus(remoteClusters[i]); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	return remoteClusters, nil
+	remoteClusters, err := a.Services.GetRemoteClusters(opts...)
+	return remoteClusters, trace.Wrap(err)
 }
 
 func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (resp *ValidateTrustedClusterResponse, err error) {
@@ -509,6 +517,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 		meta.Labels = utils.CopyStringsMap(tokenLabels)
 		remoteCluster.SetMetadata(meta)
 	}
+	remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 
 	err = a.CreateRemoteCluster(remoteCluster)
 	if err != nil {
@@ -523,24 +532,76 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 	}
 
 	// export local cluster certificate authority and return it to the cluster
-	validateResponse := ValidateTrustedClusterResponse{
-		CAs: []types.CertAuthority{},
-	}
-	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA} {
-		certAuthority, err := a.GetCertAuthority(
-			ctx,
-			types.CertAuthID{Type: caType, DomainName: domainName},
-			false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		validateResponse.CAs = append(validateResponse.CAs, certAuthority)
+	validateResponse := ValidateTrustedClusterResponse{}
+
+	validateResponse.CAs, err = getLeafClusterCAs(ctx, a, domainName, validateRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// log the local certificate authorities we are sending
 	log.Debugf("Sending validate response: CAs=%v", validateResponse.CAs)
 
 	return &validateResponse, nil
+}
+
+// getLeafClusterCAs returns a slice with Cert Authorities that should be returned in response to ValidateTrustedClusterRequest.
+func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string, validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthority, error) {
+	certTypes, err := getCATypesForLeaf(validateRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	caCerts := make([]types.CertAuthority, 0, len(certTypes))
+
+	for _, caType := range certTypes {
+		certAuthority, err := srv.GetCertAuthority(
+			ctx,
+			types.CertAuthID{Type: caType, DomainName: domainName},
+			false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		caCerts = append(caCerts, certAuthority)
+	}
+
+	return caCerts, nil
+}
+
+// getCATypesForLeaf returns the list of CA certificates that should be sync in response to ValidateTrustedClusterRequest.
+func getCATypesForLeaf(validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthType, error) {
+	var (
+		err                 error
+		databaseCASupported bool
+		openSSHCASupported  bool
+	)
+
+	if validateRequest.TeleportVersion != "" {
+		// (*ValidateTrustedClusterRequest).TeleportVersion was added in Teleport 10.0. If the request comes from an older
+		// cluster this field will be empty.
+		databaseCASupported, err = utils.MinVerWithoutPreRelease(validateRequest.TeleportVersion, constants.DatabaseCAMinVersion)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse Teleport version: %q", validateRequest.TeleportVersion)
+		}
+		openSSHCASupported, err = utils.MinVerWithoutPreRelease(validateRequest.TeleportVersion, constants.OpenSSHCAMinVersion)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse Teleport version: %q", validateRequest.TeleportVersion)
+		}
+	}
+
+	certTypes := []types.CertAuthType{types.HostCA, types.UserCA}
+	if databaseCASupported {
+		// Database CA was introduced in Teleport 10.0. Do not send it to older clusters
+		// as they don't understand it.
+		certTypes = append(certTypes, types.DatabaseCA)
+	}
+	if openSSHCASupported {
+		// OpenSSH CA was introduced in Teleport 12.0. Do not send it to older clusters
+		// as they don't understand it.
+		certTypes = append(certTypes, types.OpenSSHCA)
+	}
+
+	return certTypes, nil
 }
 
 func (a *Server) validateTrustedClusterToken(ctx context.Context, tokenName string) (map[string]string, error) {
@@ -571,18 +632,19 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 
 		// Get the default transport, this allows picking up proxy from the
 		// environment.
-		tr, ok := http.DefaultTransport.(*http.Transport)
+		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
 		if !ok {
-			return nil, trace.BadParameter("unable to get default transport")
+			return nil, trace.BadParameter("invalid transport type %T", http.DefaultTransport)
 		}
-
+		// Clone the transport to not modify the global instance.
+		tr := defaultTransport.Clone()
 		// Disable certificate checking while in debug mode.
 		tlsConfig := utils.TLSConfig(a.cipherSuites)
 		tlsConfig.InsecureSkipVerify = true
 		tr.TLSClientConfig = tlsConfig
 
 		insecureWebClient := &http.Client{
-			Transport: tr,
+			Transport: tracehttp.NewTransport(tr),
 		}
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))
 	}
@@ -617,8 +679,9 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 }
 
 type ValidateTrustedClusterRequest struct {
-	Token string                `json:"token"`
-	CAs   []types.CertAuthority `json:"certificate_authorities"`
+	Token           string                `json:"token"`
+	CAs             []types.CertAuthority `json:"certificate_authorities"`
+	TeleportVersion string                `json:"teleport_version"`
 }
 
 func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestRaw, error) {
@@ -634,14 +697,16 @@ func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestR
 	}
 
 	return &ValidateTrustedClusterRequestRaw{
-		Token: v.Token,
-		CAs:   cas,
+		Token:           v.Token,
+		CAs:             cas,
+		TeleportVersion: v.TeleportVersion,
 	}, nil
 }
 
 type ValidateTrustedClusterRequestRaw struct {
-	Token string   `json:"token"`
-	CAs   [][]byte `json:"certificate_authorities"`
+	Token           string   `json:"token"`
+	CAs             [][]byte `json:"certificate_authorities"`
+	TeleportVersion string   `json:"teleport_version"`
 }
 
 func (v *ValidateTrustedClusterRequestRaw) ToNative() (*ValidateTrustedClusterRequest, error) {
@@ -657,8 +722,9 @@ func (v *ValidateTrustedClusterRequestRaw) ToNative() (*ValidateTrustedClusterRe
 	}
 
 	return &ValidateTrustedClusterRequest{
-		Token: v.Token,
-		CAs:   cas,
+		Token:           v.Token,
+		CAs:             cas,
+		TeleportVersion: v.TeleportVersion,
 	}, nil
 }
 

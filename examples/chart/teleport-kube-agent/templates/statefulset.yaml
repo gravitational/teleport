@@ -2,17 +2,7 @@
 # Warning to maintainers, any changes to this file that are not specific to the StatefulSet need to also be duplicated
 # in the deployment.yaml file.
 #
-{{- if .Values.storage.enabled }}
-{{- if .Values.teleportVersionOverride }}
-  {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride }}
-{{- else }}
-  {{- $_ := set . "teleportVersion" .Chart.Version }}
-{{- end }}
-{{- if .Values.replicaCount }}
-  {{- $_ := set . "replicaCount" .Values.replicaCount }}
-{{- else }}
-  {{- $_ := set . "replicaCount" .Values.highAvailability.replicaCount }}
-{{- end }}
+{{- $replicaCount := (coalesce .Values.replicaCount .Values.highAvailability.replicaCount "1") }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -20,9 +10,12 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
+  {{- if .Values.extraLabels.deployment }}
+    {{- toYaml .Values.extraLabels.deployment | nindent 4 }}
+  {{- end }}
 spec:
   serviceName: {{ .Release.Name }}
-  replicas: {{ .replicaCount }}
+  replicas: {{ $replicaCount }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}
@@ -36,10 +29,19 @@ spec:
 {{- end }}
       labels:
         app: {{ .Release.Name }}
+{{- if .Values.extraLabels.pod }}
+  {{- toYaml .Values.extraLabels.pod | nindent 8 }}
+{{- end }}
     spec:
+      {{- if .Values.dnsConfig }}
+      dnsConfig: {{- toYaml .Values.dnsConfig | nindent 8 }}
+      {{- end }}
+      {{- if .Values.dnsPolicy }}
+      dnsPolicy: {{ .Values.dnsPolicy | quote }}
+      {{- end }}
       securityContext:
         fsGroup: 9807
-      {{- if or .Values.affinity (gt (int .replicaCount) 1) }}
+      {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
       affinity:
         {{- if .Values.affinity }}
           {{- if .Values.highAvailability.requireAntiAffinity }}
@@ -57,7 +59,7 @@ spec:
                 values:
                 - {{ .Release.Name }}
             topologyKey: "kubernetes.io/hostname"
-        {{- else if gt (int .replicaCount) 1 }}
+        {{- else if gt (int $replicaCount) 1 }}
           preferredDuringSchedulingIgnoredDuringExecution:
           - weight: 50
             podAffinityTerm:
@@ -75,20 +77,18 @@ spec:
       tolerations:
         {{- toYaml .Values.tolerations | nindent 6 }}
       {{- end }}
+{{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+  {{- toYaml .Values.imagePullSecrets | nindent 6 }}
+{{- end }}
 {{- if .Values.initContainers }}
       initContainers: {{- toYaml .Values.initContainers | nindent 6 }}
   {{- if .Values.resources }}
-        resources:
-    {{- toYaml .Values.resources | nindent 10 }}
+        resources: {{- toYaml .Values.resources | nindent 10 }}
   {{- end }}
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - all
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 9807
+  {{- if .Values.initSecurityContext }}
+        securityContext: {{- toYaml .Values.initSecurityContext | nindent 10 }}
+  {{- end }}
         volumeMounts:
         - mountPath: /etc/teleport
           name: "config"
@@ -98,11 +98,19 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
+          {{- if .Values.tls.existingCASecretName }}
+        - mountPath: /etc/teleport-tls-ca
+          name: "teleport-tls-ca"
+          readOnly: true
+          {{- end }}
   {{- if .Values.extraVolumeMounts }}
     {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
   {{- end }}
 {{- end }}
-      serviceAccountName: {{ .Values.serviceAccountName | default .Release.Name }}
+{{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+{{- end }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" . }}
       {{- if .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
@@ -110,10 +118,27 @@ spec:
       containers:
       - name: "teleport"
         image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
-        {{- if .Values.extraEnv }}
-        env:
-          {{- toYaml .Values.extraEnv | nindent 10 }}
+        {{- if .Values.imagePullPolicy }}
+        imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
+        env:
+          - name: TELEPORT_REPLICA_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: KUBE_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: RELEASE_NAME
+            value: {{ .Release.Name }}
+          {{- if .Values.tls.existingCASecretName }}
+          - name: SSL_CERT_FILE
+            value: /etc/teleport-tls-ca/ca.pem
+          {{- end }}
+          {{- if .Values.extraEnv }}
+            {{- toYaml .Values.extraEnv | nindent 10 }}
+          {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}
@@ -122,25 +147,21 @@ spec:
         {{- if .Values.extraArgs }}
           {{- toYaml .Values.extraArgs | nindent 8 }}
         {{- end }}
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - all
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 9807
+        {{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}
         ports:
         - name: diag
           containerPort: 3000
           protocol: TCP
         livenessProbe:
           httpGet:
-            path: /readyz
+            path: /healthz
             port: diag
           initialDelaySeconds: 5 # wait 5s for agent to start
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 6 # consider agent unhealthy after 30s (6 * 5s)
+          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
         readinessProbe:
           httpGet:
             path: /readyz
@@ -148,6 +169,7 @@ spec:
           initialDelaySeconds: 5 # wait 5s for agent to register
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
+          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
 {{- if .Values.resources }}
         resources:
   {{- toYaml .Values.resources | nindent 10 }}
@@ -159,8 +181,18 @@ spec:
         - mountPath: /etc/teleport-secrets
           name: "auth-token"
           readOnly: true
+{{- if .Values.storage.enabled }}
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
+{{- else }}
+        - mountPath: /var/lib/teleport
+          name: "data"
+{{- end }}
+{{- if .Values.tls.existingCASecretName }}
+        - mountPath: /etc/teleport-tls-ca
+          name: "teleport-tls-ca"
+          readOnly: true
+{{- end }}
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
@@ -171,9 +203,19 @@ spec:
       - name: "auth-token"
         secret:
           secretName: {{ .Values.secretName }}
+{{- if not .Values.storage.enabled }}
+      - name: "data"
+        emptyDir: {}
+{{- end}}
+{{- if .Values.tls.existingCASecretName }}
+      - name: "teleport-tls-ca"
+        secret:
+          secretName: {{ .Values.tls.existingCASecretName }}
+{{- end }}
 {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
 {{- end }}
+{{- if and .Values.storage.enabled }}
   volumeClaimTemplates:
   - metadata:
       name: "{{ .Release.Name }}-teleport-data"

@@ -18,30 +18,34 @@ package local_test
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
 	"testing"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services/local"
 )
 
 func newIdentityService(t *testing.T, clock clockwork.Clock) *local.IdentityService {
 	t.Helper()
-	backend, err := lite.NewWithConfig(context.Background(), lite.Config{
-		Path:             t.TempDir(),
-		PollStreamPeriod: 200 * time.Millisecond,
-		Clock:            clock,
+	backend, err := memory.New(memory.Config{
+		Context: context.Background(),
+		Clock:   clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
 	return local.NewIdentityService(backend)
@@ -122,6 +126,52 @@ func TestRecoveryCodesCRUD(t *testing.T) {
 		require.NoError(t, err)
 		_, err = identity.GetRecoveryCodes(ctx, username, true /* withSecrets */)
 		require.True(t, trace.IsNotFound(err))
+	})
+
+	t.Run("deleting user with common prefix", func(t *testing.T) {
+		username1 := "test"
+		username2 := "test1"
+
+		// Create a user.
+		userResource1 := &types.UserV2{}
+		userResource1.SetName(username1)
+		err := identity.CreateUser(userResource1)
+		require.NoError(t, err)
+
+		// Create another user whose username which is prefixed with
+		// the previous username.
+		userResource2 := &types.UserV2{}
+		userResource2.SetName(username2)
+		err = identity.CreateUser(userResource2)
+		require.NoError(t, err)
+
+		// Test codes exist for the first user.
+		rc1, err := types.NewRecoveryCodes(mockedCodes, clock.Now(), username1)
+		require.NoError(t, err)
+		err = identity.UpsertRecoveryCodes(ctx, username1, rc1)
+		require.NoError(t, err)
+		codes, err := identity.GetRecoveryCodes(ctx, username1, true /* withSecrets */)
+		require.NoError(t, err)
+		require.ElementsMatch(t, mockedCodes, codes.GetCodes())
+
+		// Test codes exist for the second user.
+		rc2, err := types.NewRecoveryCodes(mockedCodes, clock.Now(), username2)
+		require.NoError(t, err)
+		err = identity.UpsertRecoveryCodes(ctx, username2, rc2)
+		require.NoError(t, err)
+		codes, err = identity.GetRecoveryCodes(ctx, username2, true /* withSecrets */)
+		require.NoError(t, err)
+		require.ElementsMatch(t, mockedCodes, codes.GetCodes())
+
+		// Test deletion of recovery code along with the first user.
+		err = identity.DeleteUser(ctx, username1)
+		require.NoError(t, err)
+		_, err = identity.GetRecoveryCodes(ctx, username1, true /* withSecrets */)
+		require.True(t, trace.IsNotFound(err))
+
+		// Test recovery code and user of the second user still exist.
+		_, err = identity.GetRecoveryCodes(ctx, username2, true /* withSecrets */)
+		require.NoError(t, err)
 	})
 
 	t.Run("deleting user ending with 'z'", func(t *testing.T) {
@@ -761,4 +811,130 @@ func TestIdentityService_UpsertGlobalWebauthnSessionData_maxLimit(t *testing.T) 
 	fakeClock.Advance(period)
 	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeLogin, id3, sd))
 	require.NoError(t, identity.UpsertGlobalWebauthnSessionData(ctx, scopeOther, id3, sd))
+}
+
+func TestIdentityService_SSODiagnosticInfoCrud(t *testing.T) {
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	nilInfo, err := identity.GetSSODiagnosticInfo(ctx, types.KindSAML, "BAD_ID")
+	require.Nil(t, nilInfo)
+	require.Error(t, err)
+
+	info := types.SSODiagnosticInfo{
+		TestFlow: true,
+		Error:    "foo bar baz",
+		Success:  false,
+		CreateUserParams: &types.CreateUserParams{
+			ConnectorName: "bar",
+			Username:      "baz",
+		},
+		SAMLAttributesToRoles: []types.AttributeMapping{
+			{
+				Name:  "foo",
+				Value: "bar",
+				Roles: []string{"baz"},
+			},
+		},
+		SAMLAttributesToRolesWarnings: nil,
+		SAMLAttributeStatements:       nil,
+		SAMLAssertionInfo:             nil,
+		SAMLTraitsFromAssertions:      nil,
+		SAMLConnectorTraitMapping:     nil,
+	}
+
+	err = identity.CreateSSODiagnosticInfo(ctx, types.KindSAML, "MY_ID", info)
+	require.NoError(t, err)
+
+	infoGet, err := identity.GetSSODiagnosticInfo(ctx, types.KindSAML, "MY_ID")
+	require.NoError(t, err)
+	require.Equal(t, &info, infoGet)
+}
+
+func TestIdentityService_UpsertKeyAttestationData(t *testing.T) {
+	t.Parallel()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	for _, tc := range []struct {
+		name             string
+		pubKeyPEM        string
+		expectPubKeyHash string
+	}{
+		{
+			name: "public key",
+			pubKeyPEM: `-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDCep78YgY5I8RrvhE5zra4k1hx
+JZoZL1NsgqBz/f49OZsck24rcxurnC0lKAJmSGtKZrv54E/XZuPtatUkrXtIFKC6
+shHLLAc/LAVtDX2/E/aLgM0srYtt1/kku9H1C9+Ou7RzOIdblRkNMYcbUOhKBNld
+AnYsqjU9/7IaQSp8DwIDAQAB
+-----END PUBLIC KEY-----`,
+		}, {
+			name: "public key with // in plain sha hash",
+			pubKeyPEM: `-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCwh1y2u/z8Rm4jD51oawtI00NO
+yHPtEsk3AcetyxYXM5jXAZuQBJwFoxQa3tlJoumigfVEsdYhETu1zwJLZhjgmYOp
+eKMx+eKGKvDF73w1Kfap+JrGA2d1+XtPfNZkmcjYThe+GY0yfinnIwcjd+lmqCqb
+Tirv9LjajEBxUnuV+wIDAQAB
+-----END PUBLIC KEY-----`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p, _ := pem.Decode([]byte(tc.pubKeyPEM))
+			require.NotNil(t, p)
+			pubDer := p.Bytes
+
+			attestationData := &keys.AttestationData{
+				PublicKeyDER:     pubDer,
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
+			}
+
+			err := identity.UpsertKeyAttestationData(ctx, attestationData, time.Hour)
+			require.NoError(t, err, "UpsertKeyAttestationData failed")
+
+			pub, err := x509.ParsePKIXPublicKey(pubDer)
+			require.NoError(t, err, "ParsePKIXPublicKey failed")
+
+			retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, pub)
+			require.NoError(t, err, "GetKeyAttestationData failed")
+			require.Equal(t, attestationData, retrievedAttestationData, "GetKeyAttestationData mismatch")
+		})
+	}
+}
+
+// DELETE IN 13.0, old fingerprints not in use by then (Joerger).
+func TestIdentityService_GetKeyAttestationDataV11Fingerprint(t *testing.T) {
+	t.Parallel()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+	ctx := context.Background()
+
+	key, err := native.GenerateRSAPrivateKey()
+	require.NoError(t, err)
+
+	pubDER, err := x509.MarshalPKIXPublicKey(key.Public())
+	require.NoError(t, err)
+
+	attestationData := &keys.AttestationData{
+		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
+		PublicKeyDER:     pubDER,
+	}
+
+	// manually insert attestation data with old style fingerprint.
+	value, err := json.Marshal(attestationData)
+	require.NoError(t, err)
+
+	backendKey, err := local.KeyAttestationDataFingerprintV11(key.Public())
+	require.NoError(t, err)
+
+	item := backend.Item{
+		Key:   backend.Key("key_attestations", backendKey),
+		Value: value,
+	}
+	_, err = identity.Put(ctx, item)
+	require.NoError(t, err)
+
+	// Should be able to retrieve attestation data despite old fingerprint.
+	retrievedAttestationData, err := identity.GetKeyAttestationData(ctx, key.Public())
+	require.NoError(t, err)
+	require.Equal(t, attestationData, retrievedAttestationData)
 }

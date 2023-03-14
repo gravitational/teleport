@@ -17,39 +17,75 @@ limitations under the License.
 package db
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 )
+
+// startCARenewer renewer which is going to renew cloud-based database CA.
+func (s *Server) startCARenewer(ctx context.Context) {
+	schedule := s.cfg.Clock.NewTicker(caRenewInterval)
+	defer schedule.Stop()
+
+	for {
+		select {
+		case <-schedule.Chan():
+			for _, database := range s.getProxiedDatabases() {
+				if err := s.initCACert(ctx, database); err != nil {
+					s.log.WithError(err).Errorf("Failed to renew database %q CA.", database.GetName())
+				}
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
 
 // initCACert initializes the provided server's CA certificate in case of a
 // cloud hosted database instance.
 func (s *Server) initCACert(ctx context.Context, database types.Database) error {
-	// CA certificate may be set explicitly via configuration.
-	if len(database.GetCA()) != 0 {
+	// To identify if the CA cert was set automatically, compare the result of
+	// `GetCA` (which can return user-provided CA) with `GetStatusCA`, which
+	// only returns the CA set by the Teleport. If both contents differ, we will
+	// not download CAs for the database. Both sides will be empty at the first
+	// pass, downloading and populating the `StatusCA`.
+	if database.GetCA() != database.GetStatusCA() {
 		return nil
 	}
 	// Can only download it for cloud-hosted instances.
 	switch database.GetType() {
 	case types.DatabaseTypeRDS,
 		types.DatabaseTypeRedshift,
+		types.DatabaseTypeRedshiftServerless,
+		types.DatabaseTypeElastiCache,
+		types.DatabaseTypeMemoryDB,
+		types.DatabaseTypeAWSKeyspaces,
+		types.DatabaseTypeDynamoDB,
 		types.DatabaseTypeCloudSQL,
 		types.DatabaseTypeAzure:
+
 	default:
 		return nil
 	}
 	// It's not set so download it or see if it's already downloaded.
-	bytes, err := s.getCACert(ctx, database)
+	// When initializing the CAs do not update the certificates, instead use the
+	// cached ones.
+	bytes, err := s.getCACerts(ctx, database)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -62,107 +98,264 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 	return nil
 }
 
-// getCACert returns automatically downloaded root certificate for the provided
-// cloud database instance.
-//
-// The cert can already be cached in the filesystem, otherwise we will attempt
-// to download it.
-func (s *Server) getCACert(ctx context.Context, database types.Database) ([]byte, error) {
+// getCACerts updates and returns automatically downloaded root certificate for
+// the provided cloud database instance.
+func (s *Server) getCACerts(ctx context.Context, database types.Database) ([]byte, error) {
 	// Auto-downloaded certs reside in the data directory.
-	filePath, err := s.getCACertPath(database)
+	filePaths, err := s.getCACertPaths(database)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Check if we already have it.
-	_, err = utils.StatFile(filePath)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
+
+	var all [][]byte
+	for _, filePath := range filePaths {
+		caBytes, err := s.getCACert(ctx, database, filePath)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		all = append(all, caBytes)
 	}
-	// It's already downloaded.
-	if err == nil {
-		s.log.Debugf("Loaded CA certificate %v.", filePath)
-		return ioutil.ReadFile(filePath)
-	}
-	// Otherwise download it.
-	s.log.Debugf("Downloading CA certificate for %v.", database)
-	bytes, err := s.cfg.CADownloader.Download(ctx, database)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Save to the filesystem.
-	err = ioutil.WriteFile(filePath, bytes, teleport.FileMaskOwnerOnly)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	s.log.Debugf("Saved CA certificate %v.", filePath)
-	return bytes, nil
+
+	// Add new lines between files in case one doesn't end with a new line.
+	// It's ok if there are multiple new lines between certs.
+	return bytes.Join(all, []byte("\n")), nil
 }
 
-// getCACertPath returns the path where automatically downloaded root certificate
-// for the provided database is stored in the filesystem.
-func (s *Server) getCACertPath(database types.Database) (string, error) {
-	// All RDS and Redshift instances share the same root CA which can be
-	// downloaded from a well-known URL (sometimes region-specific). Each
-	// Cloud SQL instance has its own CA.
-	switch database.GetType() {
-	case types.DatabaseTypeRDS:
-		return filepath.Join(s.cfg.DataDir, filepath.Base(rdsCAURLForDatabase(database))), nil
-	case types.DatabaseTypeRedshift:
-		return filepath.Join(s.cfg.DataDir, filepath.Base(redshiftCAURLForDatabase(database))), nil
-	case types.DatabaseTypeCloudSQL:
-		return filepath.Join(s.cfg.DataDir, fmt.Sprintf("%v-root.pem", database.GetName())), nil
-	case types.DatabaseTypeAzure:
-		return filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURL)), nil
+// getCACert returns the downloaded certificate for provided database and file
+// path.
+//
+// The cert is going to be updated and persisted into the filesystem.
+func (s *Server) getCACert(ctx context.Context, database types.Database, filePath string) ([]byte, error) {
+	// Try to update the certificate.
+	err := s.updateCACert(ctx, database, filePath)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return "", trace.BadParameter("%v doesn't support automatic CA download", database)
+	// The update flow is going to create/update the cached CA, so we can read
+	// the contents from it.
+	s.log.Debugf("Loaded CA certificate %v.", filePath)
+	return os.ReadFile(filePath)
+}
+
+// getCACertPaths returns the paths where automatically downloaded root certificate
+// for the provided database is stored in the filesystem.
+func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
+	switch database.GetType() {
+	// All RDS instances share the same root CA (per AWS region) which can be
+	// downloaded from a well-known URL.
+	case types.DatabaseTypeRDS:
+		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(rdsCAURLForDatabase(database)))}, nil
+
+	// All Redshift instances share the same root CA which can be downloaded
+	// from a well-known URL.
+	//
+	// https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-ssl-support.html
+	case types.DatabaseTypeRedshift,
+		types.DatabaseTypeRedshiftServerless:
+		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(redshiftCAURLForDatabase(database)))}, nil
+
+	// ElastiCache databases are signed with Amazon root CA. In most cases,
+	// x509.SystemCertPool should be sufficient to verify ElastiCache servers.
+	// However, x509.SystemCertPool does not support windows for go versions
+	// older than 1.18. In addition, system cert path can be overridden by
+	// environment variables on many OSes. Therefore, Amazon root CA is
+	// downloaded here to be safe.
+	//
+	// AWS MemoryDB uses same CA as ElastiCache.
+	case types.DatabaseTypeElastiCache,
+		types.DatabaseTypeMemoryDB,
+		types.DatabaseTypeDynamoDB:
+		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(amazonRootCA1URL))}, nil
+
+	// Each Cloud SQL instance has its own CA.
+	case types.DatabaseTypeCloudSQL:
+		return []string{filepath.Join(s.cfg.DataDir, fmt.Sprintf("%v-root.pem", database.GetName()))}, nil
+
+	case types.DatabaseTypeAzure:
+		return []string{
+			filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURLBaltimore)),
+			filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURLDigiCert)),
+		}, nil
+
+	case types.DatabaseTypeAWSKeyspaces:
+		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(amazonKeyspacesCAURL))}, nil
+	}
+
+	return nil, trace.BadParameter("%v doesn't support automatic CA download", database)
+}
+
+// saveCACert saves the downloaded certificate to the filesystem.
+func (s *Server) saveCACert(filePath string, content []byte, version []byte) error {
+	// Save CA contents.
+	err := os.WriteFile(filePath, content, teleport.FileMaskOwnerOnly)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Save the CA version.
+	err = os.WriteFile(filePath+versionFileSuffix, version, teleport.FileMaskOwnerOnly)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.log.Debugf("Saved CA certificate %v.", filePath)
+	return nil
+}
+
+// updateCACert updates the database CA contents if it has changed.
+func (s *Server) updateCACert(ctx context.Context, database types.Database, filePath string) error {
+	var contents []byte
+
+	// Get the current CA version.
+	version, err := s.cfg.CADownloader.GetVersion(ctx, database, filepath.Base(filePath))
+	// If getting the CA version is not supported, download it.
+	if trace.IsNotImplemented(err) {
+		contents, version, err = s.cfg.CADownloader.Download(ctx, database, filepath.Base(filePath))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else if err != nil {
+		return trace.Wrap(err)
+	}
+
+	equal, err := isCAVersionEqual(filePath, version)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	if equal {
+		s.log.Debugf("Database %q CA is up-to-date.", database.GetName())
+		return nil
+	}
+
+	// Check if the CA contents were already downloaded. If not, download them.
+	if contents == nil {
+		contents, version, err = s.cfg.CADownloader.Download(ctx, database, filepath.Base(filePath))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	err = s.saveCACert(filePath, contents, version)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.log.Infof("Database %q CA updated.", database.GetName())
+	return nil
+}
+
+// isCAVersionEqual compares the in disk version with the provided one.
+func isCAVersionEqual(filePath string, version []byte) (bool, error) {
+	currentVersion, err := os.ReadFile(filePath + versionFileSuffix)
+	if err != nil {
+		return false, trace.ConvertSystemError(err)
+	}
+
+	return bytes.Equal(currentVersion, version), nil
 }
 
 // CADownloader defines interface for cloud databases CA cert downloaders.
 type CADownloader interface {
 	// Download downloads CA certificate for the provided database instance.
-	Download(context.Context, types.Database) ([]byte, error)
+	Download(context.Context, types.Database, string) ([]byte, []byte, error)
+	// GetVersion returns the CA version for the provided database.
+	GetVersion(context.Context, types.Database, string) ([]byte, error)
 }
 
 type realDownloader struct {
-	dataDir string
+	// httpClient is the HTTP client used to download CA certificates.
+	httpClient *http.Client
+	// sqladminClient is the Cloud SQL Admin API service used to download CA
+	// certificates.
+	sqlAdminClient gcp.SQLAdminClient
 }
 
 // NewRealDownloader returns real cloud database CA downloader.
-func NewRealDownloader(dataDir string) CADownloader {
-	return &realDownloader{dataDir: dataDir}
+func NewRealDownloader() CADownloader {
+	return &realDownloader{
+		httpClient: http.DefaultClient,
+	}
 }
 
 // Download downloads CA certificate for the provided cloud database instance.
-func (d *realDownloader) Download(ctx context.Context, database types.Database) ([]byte, error) {
+func (d *realDownloader) Download(ctx context.Context, database types.Database, hint string) ([]byte, []byte, error) {
 	switch database.GetType() {
 	case types.DatabaseTypeRDS:
 		return d.downloadFromURL(rdsCAURLForDatabase(database))
-	case types.DatabaseTypeRedshift:
+	case types.DatabaseTypeRedshift,
+		types.DatabaseTypeRedshiftServerless:
 		return d.downloadFromURL(redshiftCAURLForDatabase(database))
+	case types.DatabaseTypeElastiCache,
+		types.DatabaseTypeMemoryDB,
+		types.DatabaseTypeDynamoDB:
+		return d.downloadFromURL(amazonRootCA1URL)
 	case types.DatabaseTypeCloudSQL:
 		return d.downloadForCloudSQL(ctx, database)
 	case types.DatabaseTypeAzure:
-		return d.downloadFromURL(azureCAURL)
+		if strings.HasSuffix(azureCAURLBaltimore, hint) {
+			return d.downloadFromURL(azureCAURLBaltimore)
+		} else if strings.HasSuffix(azureCAURLDigiCert, hint) {
+			return d.downloadFromURL(azureCAURLDigiCert)
+		}
+		return nil, nil, trace.BadParameter("unknown Azure CA %q", hint)
+	case types.DatabaseTypeAWSKeyspaces:
+		return d.downloadFromURL(amazonKeyspacesCAURL)
 	}
-	return nil, trace.BadParameter("%v doesn't support automatic CA download", database)
+	return nil, nil, trace.BadParameter("%v doesn't support automatic CA download", database)
+}
+
+// GetVersion returns the CA version for the provided database.
+func (d *realDownloader) GetVersion(ctx context.Context, database types.Database, hint string) ([]byte, error) {
+	switch database.GetType() {
+	case types.DatabaseTypeRDS:
+		return d.getVersionFromURL(database, rdsCAURLForDatabase(database))
+	case types.DatabaseTypeRedshift,
+		types.DatabaseTypeRedshiftServerless:
+		return d.getVersionFromURL(database, redshiftCAURLForDatabase(database))
+	case types.DatabaseTypeElastiCache,
+		types.DatabaseTypeMemoryDB:
+		return d.getVersionFromURL(database, amazonRootCA1URL)
+	case types.DatabaseTypeAzure:
+		if strings.HasSuffix(azureCAURLBaltimore, hint) {
+			return d.getVersionFromURL(database, azureCAURLBaltimore)
+		} else if strings.HasSuffix(azureCAURLDigiCert, hint) {
+			return d.getVersionFromURL(database, azureCAURLDigiCert)
+		}
+		return nil, trace.BadParameter("unknown Azure CA %q", hint)
+	case types.DatabaseTypeAWSKeyspaces:
+		return d.getVersionFromURL(database, amazonKeyspacesCAURL)
+	}
+
+	return nil, trace.NotImplemented("%v doesn't support fetching CA version", database)
 }
 
 // downloadFromURL downloads root certificate from the provided URL.
-func (d *realDownloader) downloadFromURL(downloadURL string) ([]byte, error) {
-	resp, err := http.Get(downloadURL)
+func (d *realDownloader) downloadFromURL(downloadURL string) ([]byte, []byte, error) {
+	resp, err := d.httpClient.Get(downloadURL)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, trace.BadParameter("status code %v when fetching from %q",
+		return nil, nil, trace.BadParameter("status code %v when fetching from %q",
 			resp.StatusCode, downloadURL)
 	}
-	bytes, err := ioutil.ReadAll(resp.Body)
+	bytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	return bytes, nil
+
+	// If there is a http response and it does have the "etag" header present,
+	// use it as the CA version.
+	if resp.Header.Get("ETag") != "" {
+		return bytes, []byte(resp.Header.Get("ETag")), nil
+	}
+
+	// Otherwise, hash the contents and return it as the version.
+	hash := sha256.Sum256(bytes)
+	return bytes, hash[:], nil
 }
 
 // downloadForCloudSQL downloads root certificate for the provided Cloud SQL
@@ -170,22 +363,50 @@ func (d *realDownloader) downloadFromURL(downloadURL string) ([]byte, error) {
 //
 // This database service GCP IAM role should have "cloudsql.instances.get"
 // permission in order for this to work.
-func (d *realDownloader) downloadForCloudSQL(ctx context.Context, database types.Database) ([]byte, error) {
-	sqladminService, err := sqladmin.NewService(ctx)
+func (d *realDownloader) downloadForCloudSQL(ctx context.Context, database types.Database) ([]byte, []byte, error) {
+	cl, err := d.getSQLAdminClient(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	instance, err := cl.GetDatabaseInstance(ctx, database)
+	if err != nil {
+		return nil, nil, trace.BadParameter(cloudSQLDownloadError, database.GetName(),
+			err, database.GetGCP().InstanceID)
+	}
+
+	if instance.ServerCaCert != nil {
+		return []byte(instance.ServerCaCert.Cert), []byte(instance.ServerCaCert.Sha1Fingerprint), nil
+	}
+
+	return nil, nil, trace.NotFound("Cloud SQL instance %v does not contain server CA certificate info: %v",
+		database, instance)
+}
+
+// getVersionFromURL fetches the CA version from the URL without downloading it.
+// If the CA download is required it returns trace.NotImplementedError.
+func (d *realDownloader) getVersionFromURL(database types.Database, url string) ([]byte, error) {
+	resp, err := d.httpClient.Head(url)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	instance, err := sqladmin.NewInstancesService(sqladminService).Get(
-		database.GetGCP().ProjectID, database.GetGCP().InstanceID).Context(ctx).Do()
-	if err != nil {
-		return nil, trace.BadParameter(cloudSQLDownloadError, database.GetName(),
-			err, database.GetGCP().InstanceID)
+	defer resp.Body.Close()
+
+	if resp.Header.Get("ETag") != "" {
+		return []byte(resp.Header.Get("ETag")), nil
 	}
-	if instance.ServerCaCert != nil {
-		return []byte(instance.ServerCaCert.Cert), nil
+
+	return nil, trace.NotImplemented("%v doesn't support fetching CA version", database)
+}
+
+// getSQLAdminClient returns the client provided on the struct initialization,
+// otherwise init a new one.
+func (d *realDownloader) getSQLAdminClient(ctx context.Context) (gcp.SQLAdminClient, error) {
+	if d.sqlAdminClient != nil {
+		return d.sqlAdminClient, nil
 	}
-	return nil, trace.NotFound("Cloud SQL instance %v does not contain server CA certificate info: %v",
-		database, instance)
+
+	return gcp.NewSQLAdminClient(ctx)
 }
 
 // rdsCAURLForDatabase returns root certificate download URL based on the region
@@ -194,38 +415,79 @@ func (d *realDownloader) downloadForCloudSQL(ctx context.Context, database types
 // https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
 func rdsCAURLForDatabase(database types.Database) string {
 	region := database.GetAWS().Region
-	if u, ok := rdsGovCloudCAURLs[region]; ok {
-		return u
-	}
 
-	return fmt.Sprintf(rdsDefaultCAURLTemplate, region, region)
+	switch {
+	case awsutils.IsCNRegion(region):
+		return fmt.Sprintf(rdsCNRegionCAURLTemplate, region, region)
+
+	case awsutils.IsUSGovRegion(region):
+		return fmt.Sprintf(rdsUSGovRegionCAURLTemplate, region, region)
+
+	default:
+		return fmt.Sprintf(rdsDefaultCAURLTemplate, region, region)
+	}
 }
 
 // redshiftCAURLForDatabase returns root certificate download URL based on the region
 // of the provided RDS server instance.
 func redshiftCAURLForDatabase(database types.Database) string {
-	if u, ok := redshiftCAURLs[database.GetAWS().Region]; ok {
-		return u
+	if awsutils.IsCNRegion(database.GetAWS().Region) {
+		return redshiftCNRegionCAURL
 	}
 	return redshiftDefaultCAURL
 }
 
 const (
+	// caRenewInterval is the interval that the cloud-hosted database CAs need
+	// to be renewed.
+	caRenewInterval = 24 * time.Hour
+	// versionFileSuffix is the suffix for the file that contains the
+	// resource version of the CA certificate.
+	versionFileSuffix = ".version"
 	// rdsDefaultCAURLTemplate is the string format template that creates URLs
 	// for region based RDS CA bundles.
 	//
 	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
 	rdsDefaultCAURLTemplate = "https://truststore.pki.rds.amazonaws.com/%s/%s-bundle.pem"
+	// rdsUSGovRegionCAURLTemplate is the string format template that creates URLs
+	// for region based RDS CA bundles for AWS US GovCloud regions
+	//
+	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
+	rdsUSGovRegionCAURLTemplate = "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/%s/%s-bundle.pem"
+	// rdsCNRegionCAURLTemplate is the string format template that creates URLs
+	// for region based RDS CA bundles for AWS China regions.
+	//
+	// https://docs.amazonaws.cn/en_us/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
+	rdsCNRegionCAURLTemplate = "https://rds-truststore.s3.cn-north-1.amazonaws.com.cn/%s/%s-bundle.pem"
 	// redshiftDefaultCAURL is the Redshift CA bundle download URL.
 	//
 	// https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-ssl-support.html
 	redshiftDefaultCAURL = "https://s3.amazonaws.com/redshift-downloads/amazon-trust-ca-bundle.crt"
-	// azureCAURL is the URL of the CA certificate for validating certificates
+	// redshiftDefaultCAURL is the Redshift CA bundle download URL for AWS
+	// China regions.
+	//
+	// https://docs.amazonaws.cn/redshift/latest/mgmt/connecting-ssl-support.html
+	redshiftCNRegionCAURL = "https://s3.cn-north-1.amazonaws.com.cn/redshift-downloads-cn/amazon-trust-ca-bundle.crt"
+	// amazonRootCA1URL is the root CA for many Amazon websites and services.
+	//
+	// https://www.amazontrust.com/repository/
+	amazonRootCA1URL = "https://www.amazontrust.com/repository/AmazonRootCA1.pem"
+
+	// azureCAURLBaltimore is the URL of the CA certificate for validating certificates
 	// presented by Azure hosted databases. See:
 	//
 	// https://docs.microsoft.com/en-us/azure/postgresql/concepts-ssl-connection-security
 	// https://docs.microsoft.com/en-us/azure/mysql/howto-configure-ssl
-	azureCAURL = "https://www.digicert.com/CACerts/BaltimoreCyberTrustRoot.crt.pem"
+	azureCAURLBaltimore = "https://www.digicert.com/CACerts/BaltimoreCyberTrustRoot.crt.pem"
+	// azureCAURLDigiCert is the URL of the new CA certificate for validating
+	// certificates presented by Azure hosted databases.
+	azureCAURLDigiCert = "https://cacerts.digicert.com/DigiCertGlobalRootG2.crt.pem"
+
+	// amazonKeyspacesCAURL is the URL of the CA certificate for validating certificates
+	// presented by AWS Keyspace. See:
+	// https://docs.aws.amazon.com/keyspaces/latest/devguide/using_go_driver.html
+	amazonKeyspacesCAURL = "https://certs.secureserver.net/repository/sf-class2-root.crt"
+
 	// cloudSQLDownloadError is the error message that gets returned when
 	// we failed to download root certificate for Cloud SQL instance.
 	cloudSQLDownloadError = `Could not download Cloud SQL CA certificate for database %v due to the following error:
@@ -240,18 +502,3 @@ To correct the error you can try the following:
   * Download root certificate for your Cloud SQL instance %q manually and set
     it in the database configuration using "ca_cert_file" configuration field.`
 )
-
-// rdsGovCloudCAURLs maps AWS regions to URLs of their RDS root certificates.
-//
-// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
-var rdsGovCloudCAURLs = map[string]string{
-	"us-gov-east-1": "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-east-1/us-gov-east-1-bundle.pem",
-	"us-gov-west-1": "https://truststore.pki.us-gov-west-1.rds.amazonaws.com/us-gov-west-1/us-gov-west-1-bundle.pem",
-}
-
-// redshiftCAURLs maps opt-in AWS regions to URLs of their Redshift root certificates.
-//
-// https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-ssl-support.html
-var redshiftCAURLs = map[string]string{
-	"cn-north-1": "https://s3.cn-north-1.amazonaws.com.cn/redshift-downloads-cn/amazon-trust-ca-bundle.crt",
-}

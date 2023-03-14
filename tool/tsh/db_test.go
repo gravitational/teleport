@@ -17,33 +17,39 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/pem"
-	"errors"
-	"io/ioutil"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
-// TestDatabaseLogin verifies "tsh db login" command.
+// TestDatabaseLogin tests "tsh db login" command and verifies "tsh db
+// env/config" after login.
 func TestDatabaseLogin(t *testing.T) {
 	tmpHomePath := t.TempDir()
 
@@ -53,16 +59,45 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access"})
 
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
-	makeTestDatabaseServer(t, authProcess, proxyProcess, service.Database{
-		Name:     "postgres",
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
-	}, service.Database{
-		Name:     "mongo",
-		Protocol: defaults.ProtocolMongoDB,
-		URI:      "localhost:27017",
-	})
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice),
+		withAuthConfig(func(cfg *servicecfg.AuthConfig) {
+			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}))
+	makeTestDatabaseServer(t, authProcess, proxyProcess,
+		servicecfg.Database{
+			Name:     "postgres",
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5432",
+		}, servicecfg.Database{
+			Name:     "mysql",
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "localhost:3306",
+		}, servicecfg.Database{
+			Name:     "cassandra",
+			Protocol: defaults.ProtocolCassandra,
+			URI:      "localhost:9042",
+		}, servicecfg.Database{
+			Name:     "snowflake",
+			Protocol: defaults.ProtocolSnowflake,
+			URI:      "localhost.snowflakecomputing.com",
+		}, servicecfg.Database{
+			Name:     "mongo",
+			Protocol: defaults.ProtocolMongoDB,
+			URI:      "localhost:27017",
+		}, servicecfg.Database{
+			Name:     "mssql",
+			Protocol: defaults.ProtocolSQLServer,
+			URI:      "localhost:1433",
+		}, servicecfg.Database{
+			Name:     "dynamodb",
+			Protocol: defaults.ProtocolDynamoDB,
+			URI:      "", // uri can be blank for DynamoDB, it will be derived from the region and requests.
+			AWS: servicecfg.DatabaseAWS{
+				AccountID:  "12345",
+				ExternalID: "123123123",
+				Region:     "us-west-1",
+			},
+		})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -71,7 +106,7 @@ func TestDatabaseLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Log into Teleport cluster.
-	err = Run([]string{
+	err = Run(context.Background(), []string{
 		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
 	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
 		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
@@ -79,33 +114,254 @@ func TestDatabaseLogin(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	// Fetch the active profile.
-	profile, err := client.StatusFor(tmpHomePath, proxyAddr.Host(), alice.GetName())
+	testCases := []struct {
+		databaseName          string
+		expectCertsLen        int
+		expectKeysLen         int
+		expectErrForConfigCmd bool
+		expectErrForEnvCmd    bool
+	}{
+		{
+			databaseName:   "postgres",
+			expectCertsLen: 1,
+		},
+		{
+			databaseName:       "mongo",
+			expectCertsLen:     1,
+			expectKeysLen:      1,
+			expectErrForEnvCmd: true, // "tsh db env" not supported for Mongo.
+		},
+		{
+			databaseName:          "mssql",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for MSSQL.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for MSSQL.
+		},
+		{
+			databaseName:          "mysql",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for MySQL with TLS routing.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for MySQL with TLS routing.
+		},
+		{
+			databaseName:          "cassandra",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for Cassandra.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for Cassandra.
+		},
+		{
+			databaseName:          "snowflake",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for Snowflake.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for Snowflake.
+		},
+		{
+			databaseName:          "dynamodb",
+			expectCertsLen:        1,
+			expectErrForConfigCmd: true, // "tsh db config" not supported for DynamoDB.
+			expectErrForEnvCmd:    true, // "tsh db env" not supported for DynamoDB.
+		},
+	}
+
+	// Note: keystore currently races when multiple tsh clients work in the
+	// same profile dir (e.g. StatusCurrent might fail reading if someone else
+	// is writing a key at the same time). Thus running all `tsh db login` in
+	// sequence first before running other test cases in parallel.
+	for _, test := range testCases {
+		t.Run(fmt.Sprintf("%v/%v", "tsh db login", test.databaseName), func(t *testing.T) {
+			err := Run(context.Background(), []string{
+				"db", "login", "--db-user", "admin", test.databaseName,
+			}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
+
+			// Fetch the active profile.
+			clientStore := client.NewFSClientStore(tmpHomePath)
+			profile, err := clientStore.ReadProfileStatus(proxyAddr.Host())
+			require.NoError(t, err)
+			require.Equal(t, alice.GetName(), profile.Username)
+
+			// Verify certificates.
+			certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", test.databaseName))
+			require.NoError(t, err)
+			require.Equal(t, test.expectCertsLen, len(certs)) // don't use require.Len, because it spams PEM bytes on fail.
+			require.Equal(t, test.expectKeysLen, len(keys))   // don't use require.Len, because it spams PEM bytes on fail.
+		})
+	}
+
+	for _, test := range testCases {
+		test := test
+
+		t.Run(fmt.Sprintf("%v/%v", "tsh db config", test.databaseName), func(t *testing.T) {
+			t.Parallel()
+
+			err := Run(context.Background(), []string{
+				"db", "config", test.databaseName,
+			}, setHomePath(tmpHomePath))
+
+			if test.expectErrForConfigCmd {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+
+		t.Run(fmt.Sprintf("%v/%v", "tsh db env", test.databaseName), func(t *testing.T) {
+			t.Parallel()
+
+			err := Run(context.Background(), []string{
+				"db", "env", test.databaseName,
+			}, setHomePath(tmpHomePath))
+
+			if test.expectErrForEnvCmd {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestLocalProxyRequirement(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice),
+		withAuthConfig(func(cfg *servicecfg.AuthConfig) {
+			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}))
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	// Log into test Postgres database.
-	err = Run([]string{
-		"db", "login", "--debug", "postgres",
-	}, setHomePath(tmpHomePath))
+	// Log into Teleport cluster.
+	err = Run(context.Background(), []string{
+		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+		return nil
+	}))
 	require.NoError(t, err)
 
-	// Verify Postgres identity file contains certificate.
-	certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", "postgres"))
+	defaultAuthPref, err := authServer.GetAuthPreference(ctx)
 	require.NoError(t, err)
-	require.Len(t, certs, 1)
-	require.Len(t, keys, 0)
+	tests := map[string]struct {
+		clusterAuthPref types.AuthPreference
+		route           *tlsca.RouteToDatabase
+		wantLocalProxy  bool
+		wantTunnel      bool
+	}{
+		"tunnel not required": {
+			clusterAuthPref: defaultAuthPref,
+			wantLocalProxy:  true,
+			wantTunnel:      false,
+		},
+		"tunnel required for MFA DB session": {
+			clusterAuthPref: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "127.0.0.1",
+					},
+					RequireMFAType: types.RequireMFAType_SESSION,
+				},
+			},
+			wantLocalProxy: true,
+			wantTunnel:     true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			require.NoError(t, authServer.SetAuthPreference(ctx, tt.clusterAuthPref))
+			t.Cleanup(func() {
+				require.NoError(t, authServer.SetAuthPreference(ctx, defaultAuthPref))
+			})
+			cf := &CLIConf{
+				Context:         ctx,
+				TracingProvider: tracing.NoopProvider(),
+				HomePath:        tmpHomePath,
+			}
+			tc, err := makeClient(cf, false)
+			require.NoError(t, err)
+			route := &tlsca.RouteToDatabase{
+				ServiceName: "foo-db",
+				Protocol:    "postgres",
+				Username:    "alice",
+				Database:    "postgres",
+			}
+			requires := getDBLocalProxyRequirement(tc, route, withConnectRequirements(ctx, tc, route))
+			require.Equal(t, tt.wantLocalProxy, requires.localProxy)
+			require.Equal(t, tt.wantTunnel, requires.tunnel)
+			if requires.tunnel {
+				require.Len(t, requires.tunnelReasons, 1)
+				require.Contains(t, requires.tunnelReasons[0], "MFA is required")
+			}
+		})
+	}
+}
 
-	// Log into test Mongo database.
-	err = Run([]string{
-		"db", "login", "--debug", "--db-user", "admin", "mongo",
-	}, setHomePath(tmpHomePath))
-	require.NoError(t, err)
+func TestListDatabase(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
 
-	// Verify Mongo identity file contains both certificate and key.
-	certs, keys, err = decodePEM(profile.DatabaseCertPathForCluster("", "mongo"))
+	s := newTestSuite(t,
+		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []servicecfg.Database{{
+				Name:     "root-postgres",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			}}
+		}),
+		withLeafCluster(),
+		withLeafConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Databases.Enabled = true
+			cfg.Databases.Databases = []servicecfg.Database{{
+				Name:     "leaf-postgres",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			}}
+		}),
+	)
+
+	mustLoginSetEnv(t, s)
+
+	captureStdout := new(bytes.Buffer)
+	err := Run(context.Background(), []string{
+		"db",
+		"ls",
+		"--insecure",
+		"--debug",
+	}, func(cf *CLIConf) error {
+		cf.overrideStdout = io.MultiWriter(os.Stdout, captureStdout)
+		return nil
+	})
 	require.NoError(t, err)
-	require.Len(t, certs, 1)
-	require.Len(t, keys, 1)
+	require.Contains(t, captureStdout.String(), "root-postgres")
+
+	captureStdout.Reset()
+	err = Run(context.Background(), []string{
+		"db",
+		"ls",
+		"--cluster",
+		"leaf1",
+		"--insecure",
+		"--debug",
+	}, func(cf *CLIConf) error {
+		cf.overrideStdout = io.MultiWriter(os.Stdout, captureStdout)
+		return nil
+	})
+	require.NoError(t, err)
+	require.Contains(t, captureStdout.String(), "leaf-postgres")
 }
 
 func TestFormatDatabaseListCommand(t *testing.T) {
@@ -232,7 +488,7 @@ func TestDBInfoHasChanged(t *testing.T) {
 			require.NoError(t, err)
 
 			certPath := filepath.Join(t.TempDir(), "mongo_db_cert.pem")
-			require.NoError(t, ioutil.WriteFile(certPath, certBytes, 0600))
+			require.NoError(t, os.WriteFile(certPath, certBytes, 0o600))
 
 			cliConf := &CLIConf{DatabaseUser: tc.databaseUserName, DatabaseName: tc.databaseName}
 			got, err := dbInfoHasChanged(cliConf, certPath)
@@ -242,51 +498,39 @@ func TestDBInfoHasChanged(t *testing.T) {
 	}
 }
 
-func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *service.TeleportProcess, dbs ...service.Database) (db *service.TeleportProcess) {
+func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *service.TeleportProcess, dbs ...servicecfg.Database) (db *service.TeleportProcess) {
 	// Proxy uses self-signed certificates in tests.
 	lib.SetInsecureDevMode(true)
 
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	proxyAddr, err := proxy.ProxyWebAddr()
 	require.NoError(t, err)
 
-	cfg.AuthServers = []utils.NetAddr{*proxyAddr}
-	cfg.Token = proxy.Config.Token
+	cfg.SetAuthServerAddress(*proxyAddr)
+
+	token, err := proxy.Config.Token()
+	require.NoError(t, err)
+
+	cfg.SetToken(token)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
 	cfg.Databases.Enabled = true
 	cfg.Databases.Databases = dbs
 	cfg.Log = utils.NewLoggerForTests()
 
-	db, err = service.NewTeleport(cfg)
-	require.NoError(t, err)
-	require.NoError(t, db.Start())
-
-	t.Cleanup(func() {
-		db.Close()
-	})
-
-	// Wait for database agent to start.
-	eventCh := make(chan service.Event, 1)
-	db.WaitForEvent(db.ExitContext(), service.DatabasesReady, eventCh)
-	select {
-	case <-eventCh:
-	case <-time.After(10 * time.Second):
-		t.Fatal("database server didn't start after 10s")
-	}
+	db = runTeleport(t, cfg)
 
 	// Wait for all databases to register to avoid races.
-	for _, database := range dbs {
-		waitForDatabase(t, auth, database)
-	}
-
+	waitForDatabases(t, auth, dbs)
 	return db
 }
 
-func waitForDatabase(t *testing.T, auth *service.TeleportProcess, db service.Database) {
+func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {
@@ -294,19 +538,29 @@ func waitForDatabase(t *testing.T, auth *service.TeleportProcess, db service.Dat
 		case <-time.After(500 * time.Millisecond):
 			all, err := auth.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
 			require.NoError(t, err)
-			for _, a := range all {
-				if a.GetName() == db.Name {
-					return
+
+			// Count how many input "dbs" are registered.
+			var registered int
+			for _, db := range dbs {
+				for _, a := range all {
+					if a.GetName() == db.Name {
+						registered++
+						break
+					}
 				}
 			}
+
+			if registered == len(dbs) {
+				return
+			}
 		case <-ctx.Done():
-			t.Fatal("database not registered after 10s")
+			t.Fatal("databases not registered after 10s")
 		}
 	}
 }
 
 // decodePEM sorts out specified PEM file into certificates and private keys.
-func decodePEM(pemPath string) (certs []pem.Block, keys []pem.Block, err error) {
+func decodePEM(pemPath string) (certs []pem.Block, privs []pem.Block, err error) {
 	bytes, err := os.ReadFile(pemPath)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -320,261 +574,75 @@ func decodePEM(pemPath string) (certs []pem.Block, keys []pem.Block, err error) 
 		switch block.Type {
 		case "CERTIFICATE":
 			certs = append(certs, *block)
-		case "RSA PRIVATE KEY":
-			keys = append(keys, *block)
+		case keys.PKCS1PrivateKeyType:
+			privs = append(privs, *block)
+		case keys.PKCS8PrivateKeyType:
+			privs = append(privs, *block)
 		}
 	}
-	return certs, keys, nil
+	return certs, privs, nil
 }
 
-// fakeExec implements execer interface for mocking purposes.
-type fakeExec struct {
-	// execOutput maps binary name and output that should be returned on RunCommand().
-	// Map is also being used to check if a binary exist. Command line args are not supported.
-	execOutput map[string][]byte
-}
-
-func (f fakeExec) RunCommand(cmd string, _ ...string) ([]byte, error) {
-	out, found := f.execOutput[cmd]
-	if !found {
-		return nil, errors.New("binary not found")
-	}
-
-	return out, nil
-}
-
-func (f fakeExec) LookPath(path string) (string, error) {
-	if _, found := f.execOutput[path]; found {
-		return "", nil
-	}
-	return "", trace.NotFound("not found")
-}
-
-func TestCliCommandBuilderGetConnectCommand(t *testing.T) {
-	conf := &CLIConf{
-		HomePath: t.TempDir(),
-		Proxy:    "proxy",
-		UserHost: "localhost",
-		SiteName: "db.example.com",
-	}
-
-	tc, err := makeClient(conf, true)
-	require.NoError(t, err)
-
-	profile := &client.ProfileStatus{
-		Name:     "example.com",
-		Username: "bob",
-		Dir:      "/tmp",
-	}
-
+func TestFormatDatabaseConnectArgs(t *testing.T) {
 	tests := []struct {
-		name         string
-		dbProtocol   string
-		databaseName string
-		execer       *fakeExec
-		cmd          []string
-		wantErr      bool
+		name      string
+		cluster   string
+		route     tlsca.RouteToDatabase
+		wantFlags []string
 	}{
 		{
-			name:         "postgres",
-			dbProtocol:   defaults.ProtocolPostgres,
-			databaseName: "mydb",
-			cmd: []string{"psql",
-				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
-					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
-					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full"},
-			wantErr: false,
+			name:      "match user and db name, cluster set",
+			cluster:   "foo",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, ServiceName: "svc"},
+			wantFlags: []string{"--cluster=foo", "--db-user=<user>", "--db-name=<name>", "svc"},
 		},
 		{
-			name:         "cockroach",
-			dbProtocol:   defaults.ProtocolCockroachDB,
-			databaseName: "mydb",
-			execer: &fakeExec{
-				execOutput: map[string][]byte{
-					"cockroach": []byte(""),
-				},
-			},
-			cmd: []string{"cockroach", "sql", "--url",
-				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
-					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
-					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full"},
-			wantErr: false,
+			name:      "match user and db name",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, ServiceName: "svc"},
+			wantFlags: []string{"--db-user=<user>", "--db-name=<name>", "svc"},
 		},
 		{
-			name:         "cockroach psql fallback",
-			dbProtocol:   defaults.ProtocolCockroachDB,
-			databaseName: "mydb",
-			execer:       &fakeExec{},
-			cmd: []string{"psql",
-				"postgres://myUser@localhost:12345/mydb?sslrootcert=/tmp/keys/example.com/cas/root.pem&" +
-					"sslcert=/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem&" +
-					"sslkey=/tmp/keys/example.com/bob&sslmode=verify-full"},
-			wantErr: false,
+			name:      "match user and db name, username given",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, Username: "bob", ServiceName: "svc"},
+			wantFlags: []string{"--db-name=<name>", "svc"},
 		},
 		{
-			name:         "mariadb",
-			dbProtocol:   defaults.ProtocolMySQL,
-			databaseName: "mydb",
-			execer: &fakeExec{
-				execOutput: map[string][]byte{
-					"mariadb": []byte(""),
-				},
-			},
-			cmd: []string{"mariadb",
-				"--user", "myUser",
-				"--database", "mydb",
-				"--port", "12345",
-				"--host", "localhost",
-				"--protocol", "TCP",
-				"--ssl-key", "/tmp/keys/example.com/bob",
-				"--ssl-ca", "/tmp/keys/example.com/cas/root.pem",
-				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
-				"--ssl-verify-server-cert"},
-			wantErr: false,
+			name:      "match user and db name, db name given",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, Database: "sales", ServiceName: "svc"},
+			wantFlags: []string{"--db-user=<user>", "svc"},
 		},
 		{
-			name:         "mysql by mariadb",
-			dbProtocol:   defaults.ProtocolMySQL,
-			databaseName: "mydb",
-			execer: &fakeExec{
-				execOutput: map[string][]byte{
-					"mysql": []byte("mysql  Ver 15.1 Distrib 10.3.32-MariaDB, for debian-linux-gnu (x86_64) using readline 5.2"),
-				},
-			},
-			cmd: []string{"mysql",
-				"--user", "myUser",
-				"--database", "mydb",
-				"--port", "12345",
-				"--host", "localhost",
-				"--protocol", "TCP",
-				"--ssl-key", "/tmp/keys/example.com/bob",
-				"--ssl-ca", "/tmp/keys/example.com/cas/root.pem",
-				"--ssl-cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
-				"--ssl-verify-server-cert"},
-			wantErr: false,
+			name:      "match user and db name, both given",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMongoDB, Database: "sales", Username: "bob", ServiceName: "svc"},
+			wantFlags: []string{"svc"},
 		},
 		{
-			name:         "mysql by oracle",
-			dbProtocol:   defaults.ProtocolMySQL,
-			databaseName: "mydb",
-			execer: &fakeExec{
-				execOutput: map[string][]byte{
-					"mysql": []byte("Ver 8.0.27-0ubuntu0.20.04.1 for Linux on x86_64 ((Ubuntu))"),
-				},
-			},
-			cmd: []string{"mysql",
-				"--defaults-group-suffix=_db.example.com-mysql",
-				"--user", "myUser",
-				"--database", "mydb",
-				"--port", "12345",
-				"--host", "localhost",
-				"--protocol", "TCP"},
-			wantErr: false,
+			name:      "match user name",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMySQL, ServiceName: "svc"},
+			wantFlags: []string{"--db-user=<user>", "svc"},
 		},
 		{
-			name:         "no mysql nor mariadb",
-			dbProtocol:   defaults.ProtocolMySQL,
-			databaseName: "mydb",
-			execer: &fakeExec{
-				execOutput: map[string][]byte{},
-			},
-			cmd:     []string{},
-			wantErr: true,
+			name:      "match user name, given",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMySQL, Username: "bob", ServiceName: "svc"},
+			wantFlags: []string{"svc"},
 		},
 		{
-			name:         "mongodb (legacy)",
-			dbProtocol:   defaults.ProtocolMongoDB,
-			databaseName: "mydb",
-			execer: &fakeExec{
-				execOutput: map[string][]byte{},
-			},
-			cmd: []string{"mongo",
-				"--host", "localhost",
-				"--port", "12345",
-				"--ssl",
-				"--sslPEMKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
-				"mydb"},
-			wantErr: false,
-		},
-		{
-			name:         "mongosh",
-			dbProtocol:   defaults.ProtocolMongoDB,
-			databaseName: "mydb",
-			execer: &fakeExec{
-				execOutput: map[string][]byte{
-					"mongosh": []byte("1.1.6"),
-				},
-			},
-			cmd: []string{"mongosh",
-				"--host", "localhost",
-				"--port", "12345",
-				"--tls",
-				"--tlsCertificateKeyFile", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
-				"mydb"},
-		},
-		{
-			name:         "sqlserver",
-			dbProtocol:   defaults.ProtocolSQLServer,
-			databaseName: "mydb",
-			cmd: []string{mssqlBin,
-				"-S", "localhost,12345",
-				"-U", "myUser",
-				"-P", fixtures.UUID,
-				"-d", "mydb",
-			},
-			wantErr: false,
-		},
-		{
-			name:       "redis-cli",
-			dbProtocol: defaults.ProtocolRedis,
-			cmd: []string{"redis-cli",
-				"--tls",
-				"-h", "localhost",
-				"-p", "12345",
-				"--key", "/tmp/keys/example.com/bob",
-				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem"},
-			wantErr: false,
-		},
-		{
-			name:         "redis-cli with db",
-			dbProtocol:   defaults.ProtocolRedis,
-			databaseName: "2",
-			cmd: []string{"redis-cli",
-				"--tls",
-				"-h", "localhost",
-				"-p", "12345",
-				"--key", "/tmp/keys/example.com/bob",
-				"--cert", "/tmp/keys/example.com/bob-db/db.example.com/mysql-x509.pem",
-				"-n", "2"},
-			wantErr: false,
+			name:      "match user name, dynamodb",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolDynamoDB, ServiceName: "svc"},
+			wantFlags: []string{"--db-user=<user>", "svc"},
 		},
 	}
-
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			database := &tlsca.RouteToDatabase{
-				Protocol:    tt.dbProtocol,
-				Database:    tt.databaseName,
-				Username:    "myUser",
-				ServiceName: "mysql",
-			}
-
-			c := newCmdBuilder(tc, profile, database, "root", WithLocalProxy("localhost", 12345, ""))
-			c.uid = utils.NewFakeUID()
-			c.exe = tt.execer
-			got, err := c.getConnectCommand()
-			if tt.wantErr {
-				if err == nil {
-					t.Errorf("getConnectCommand() should return an error, but it didn't")
-				}
-				return
-			}
-
-			require.NoError(t, err)
-			require.Equal(t, tt.cmd, got.Args)
+			out := formatDatabaseConnectArgs(tt.cluster, tt.route)
+			require.Equal(t, tt.wantFlags, out)
 		})
 	}
 }

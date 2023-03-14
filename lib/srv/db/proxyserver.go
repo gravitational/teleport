@@ -29,29 +29,33 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // ProxyServer runs inside Teleport proxy and is responsible to accepting
@@ -75,7 +79,7 @@ type ProxyServerConfig struct {
 	// AccessPoint is the caching client connected to the auth server.
 	AccessPoint auth.ReadDatabaseAccessPoint
 	// Authorizer is responsible for authorizing user identities.
-	Authorizer auth.Authorizer
+	Authorizer authz.Authorizer
 	// Tunnel is the reverse tunnel server.
 	Tunnel reversetunnel.Server
 	// TLSConfig is the proxy server TLS configuration.
@@ -90,6 +94,8 @@ type ProxyServerConfig struct {
 	ServerID string
 	// LockWatcher is a lock watcher.
 	LockWatcher *services.LockWatcher
+	// IngressReporter reports new and active connections.
+	IngressReporter *ingress.Reporter
 }
 
 // ShuffleFunc defines a function that shuffles a list of database servers.
@@ -176,10 +182,16 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	clustername, err := config.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	server := &ProxyServer{
 		cfg: config,
 		middleware: &auth.Middleware{
-			AccessPoint:   config.AccessPoint,
+			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
 		closeCtx: ctx,
@@ -187,7 +199,7 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 	}
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
-		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log)
+		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log, types.UserCA)
 	return server, nil
 }
 
@@ -300,10 +312,15 @@ func (s *ProxyServer) ServeTLS(listener net.Listener) error {
 }
 
 func (s *ProxyServer) handleConnection(conn net.Conn) error {
+	if s.cfg.IngressReporter != nil {
+		s.cfg.IngressReporter.ConnectionAccepted(ingress.DatabaseTLS, conn)
+		defer s.cfg.IngressReporter.ConnectionClosed(ingress.DatabaseTLS, conn)
+	}
+
 	s.log.Debugf("Accepted TLS database connection from %v.", conn.RemoteAddr())
-	tlsConn, ok := conn.(*tls.Conn)
+	tlsConn, ok := conn.(utils.TLSConn)
 	if !ok {
-		return trace.BadParameter("expected *tls.Conn, got %T", conn)
+		return trace.BadParameter("expected utils.TLSConn, got %T", conn)
 	}
 	clientIP, err := utils.ClientIPFromConn(conn)
 	if err != nil {
@@ -321,11 +338,24 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if s.cfg.IngressReporter != nil {
+		s.cfg.IngressReporter.ConnectionAuthenticated(ingress.DatabaseTLS, conn)
+		defer s.cfg.IngressReporter.AuthenticatedConnectionClosed(ingress.DatabaseTLS, conn)
+	}
+
 	switch proxyCtx.Identity.RouteToDatabase.Protocol {
+	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
+		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
+	case defaults.ProtocolMySQL:
+		version := getMySQLVersionFromServer(proxyCtx.Servers)
+		// Set the version in the context to match a behavior in other handlers.
+		ctx := context.WithValue(s.closeCtx, dbutils.ContextMySQLServerVersion, version)
+		return s.MySQLProxyNoTLS().HandleConnection(ctx, tlsConn)
 	case defaults.ProtocolSQLServer:
 		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
 	}
-	serviceConn, err := s.Connect(s.closeCtx, proxyCtx)
+	serviceConn, err := s.Connect(s.closeCtx, proxyCtx, conn.RemoteAddr(), conn.LocalAddr())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -337,10 +367,30 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	return nil
 }
 
+// getMySQLVersionFromServer returns the MySQL version returned by an instance on last connection or
+// the MySQL.ServerVersion set in configuration if the first one is not available.
+// Function picks a random server each time if more than one are available.
+func getMySQLVersionFromServer(servers []types.DatabaseServer) string {
+	count := len(servers)
+	db := servers[rand.Intn(count)].GetDatabase()
+	return db.GetMySQLServerVersion()
+}
+
 // PostgresProxy returns a new instance of the Postgres protocol aware proxy.
 func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 	return &postgres.Proxy{
-		TLSConfig:  s.cfg.TLSConfig,
+		TLSConfig:       s.cfg.TLSConfig,
+		Middleware:      s.middleware,
+		Service:         s,
+		Limiter:         s.cfg.Limiter,
+		Log:             s.log,
+		IngressReporter: s.cfg.IngressReporter,
+	}
+}
+
+// PostgresProxyNoTLS returns a new instance of the non-TLS Postgres proxy.
+func (s *ProxyServer) PostgresProxyNoTLS() *postgres.Proxy {
+	return &postgres.Proxy{
 		Middleware: s.middleware,
 		Service:    s,
 		Limiter:    s.cfg.Limiter,
@@ -351,7 +401,18 @@ func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 // MySQLProxy returns a new instance of the MySQL protocol aware proxy.
 func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 	return &mysql.Proxy{
-		TLSConfig:  s.cfg.TLSConfig,
+		TLSConfig:       s.cfg.TLSConfig,
+		Middleware:      s.middleware,
+		Service:         s,
+		Limiter:         s.cfg.Limiter,
+		Log:             s.log,
+		IngressReporter: s.cfg.IngressReporter,
+	}
+}
+
+// MySQLProxyNoTLS returns a new instance of the non-TLS MySQL proxy.
+func (s *ProxyServer) MySQLProxyNoTLS() *mysql.Proxy {
+	return &mysql.Proxy{
 		Middleware: s.middleware,
 		Service:    s,
 		Limiter:    s.cfg.Limiter,
@@ -361,13 +422,7 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 
 // SQLServerProxy returns a new instance of the SQL Server protocol aware proxy.
 func (s *ProxyServer) SQLServerProxy() *sqlserver.Proxy {
-	// SQL Server clients don't support client certificates, connections
-	// come over TLS routing tunnel.
-	tlsConf := s.cfg.TLSConfig.Clone()
-	tlsConf.ClientAuth = tls.NoClientCert
-	tlsConf.GetConfigForClient = nil
 	return &sqlserver.Proxy{
-		TLSConfig:  tlsConf,
 		Middleware: s.middleware,
 		Service:    s,
 		Log:        s.log,
@@ -382,7 +437,7 @@ func (s *ProxyServer) SQLServerProxy() *sqlserver.Proxy {
 // decoded from the client certificate by auth.Middleware.
 //
 // Implements common.Service.
-func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext) (net.Conn, error) {
+func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
 	// There may be multiple database servers proxying the same database. If
 	// we get a connection problem error trying to dial one of them, likely
 	// the database server is down so try the next one.
@@ -392,11 +447,14 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnel.DialParams{
-			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@db-proxy"},
-			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
-			ServerID: fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
-			ConnType: types.DatabaseTunnel,
+			From:                  clientSrcAddr,
+			To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
+			OriginalClientDstAddr: clientDstAddr,
+			ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
+			ConnType:              types.DatabaseTunnel,
+			ProxyIDs:              server.GetProxyIDs(),
 		})
 		if err != nil {
 			// If an agent is down, we'll retry on the next one (if available).
@@ -507,11 +565,6 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	certExpires := cfg.identity.Expires
-	var disconnectCertExpired time.Time
-	if !certExpires.IsZero() && cfg.checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
-		disconnectCertExpired = certExpires
-	}
 	idleTimeout := cfg.checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
 	ctx, cancel := context.WithCancel(ctx)
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
@@ -528,7 +581,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 	err = srv.StartMonitor(srv.MonitorConfig{
 		LockWatcher:           cfg.lockWatcher,
 		LockTargets:           cfg.lockTargets,
-		DisconnectExpiredCert: disconnectCertExpired,
+		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(cfg.checker, authPref, &cfg.identity),
 		ClientIdleTimeout:     idleTimeout,
 		Conn:                  cfg.conn,
 		Tracker:               tc,
@@ -547,7 +600,7 @@ func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
 }
 
 // Authorize authorizes the provided client TLS connection.
-func (s *ProxyServer) Authorize(ctx context.Context, tlsConn *tls.Conn, params common.ConnectParams) (*common.ProxyContext, error) {
+func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, params common.ConnectParams) (*common.ProxyContext, error) {
 	ctx, err := s.middleware.WrapContextWithUser(ctx, tlsConn)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -557,6 +610,12 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn *tls.Conn, params c
 		return nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
+
+	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
+	if err := auth.CheckIPPinning(ctx, identity, authContext.Checker.PinSourceIP()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if params.User != "" {
 		identity.RouteToDatabase.Username = params.User
 	}
@@ -564,7 +623,7 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn *tls.Conn, params c
 		identity.RouteToDatabase.Database = params.Database
 	}
 	if params.ClientIP != "" {
-		identity.ClientIP = params.ClientIP
+		identity.LoginIP = params.ClientIP
 	}
 	cluster, servers, err := s.getDatabaseServers(ctx, identity)
 	if err != nil {
@@ -613,7 +672,7 @@ func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Ide
 // getConfigForServer returns TLS config used for establishing connection
 // to a remote database server over reverse tunnel.
 func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Identity, server types.DatabaseServer) (*tls.Config, error) {
-	privateKeyBytes, _, err := native.GenerateKeyPair("")
+	privateKey, err := native.GeneratePrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -621,18 +680,29 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, privateKeyBytes)
+	csr, err := tlsca.GenerateCertificateRequestPEM(subject, privateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// DatabaseCA was introduced in Teleport 10. Older versions require database certificate signed
+	// with UserCA where Teleport 10+ uses DatabaseCA.
+	ver10orAbove, err := utils.MinVerWithoutPreRelease(server.GetTeleportVersion(), constants.DatabaseCAMinVersion)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse Teleport version: %q", server.GetTeleportVersion())
+	}
+
 	response, err := s.cfg.AuthClient.SignDatabaseCSR(ctx, &proto.DatabaseCSRRequest{
 		CSR:         csr,
 		ClusterName: identity.RouteToCluster,
+		// TODO: Remove in Teleport 11.
+		SignWithDatabaseCA: ver10orAbove,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, err := tls.X509KeyPair(response.Cert, privateKeyBytes)
+
+	cert, err := privateKey.TLSCertificate(response.Cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -650,7 +720,7 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 	}, nil
 }
 
-func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log logrus.FieldLogger) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log logrus.FieldLogger, caTypes ...types.CertAuthType) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string
 		var err error
@@ -660,7 +730,7 @@ func getConfigForClient(conf *tls.Config, ap auth.ReadDatabaseAccessPoint, log l
 				log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 			}
 		}
-		pool, err := auth.ClientCertPool(ap, clusterName)
+		pool, _, err := auth.ClientCertPool(ap, clusterName, caTypes...)
 		if err != nil {
 			log.WithError(err).Error("Failed to retrieve client CA pool.")
 			return nil, nil // Fall back to the default config.

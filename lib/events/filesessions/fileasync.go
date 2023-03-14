@@ -21,32 +21,32 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 )
 
 // UploaderConfig sets up configuration for uploader service
 type UploaderConfig struct {
 	// ScanDir is data directory with the uploads
 	ScanDir string
+	// CorruptedDir is the directory to store corrupted uploads in.
+	CorruptedDir string
 	// Clock is the clock replacement
 	Clock clockwork.Clock
-	// Context is an optional context
-	Context context.Context
 	// ScanPeriod is a uploader dir scan period
 	ScanPeriod time.Duration
 	// ConcurrentUploads sets up how many parallel uploads to schedule
@@ -58,8 +58,6 @@ type UploaderConfig struct {
 	EventsC chan events.UploadEvent
 	// Component is used for logging purposes
 	Component string
-	// AuditLog is used for storing logs
-	AuditLog events.IAuditLog
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -70,17 +68,14 @@ func (cfg *UploaderConfig) CheckAndSetDefaults() error {
 	if cfg.ScanDir == "" {
 		return trace.BadParameter("missing parameter ScanDir")
 	}
-	if cfg.AuditLog == nil {
-		return trace.BadParameter("missing parameter AuditLog")
+	if cfg.CorruptedDir == "" {
+		return trace.BadParameter("missing parameter CorruptedDir")
 	}
 	if cfg.ConcurrentUploads <= 0 {
 		cfg.ConcurrentUploads = defaults.UploaderConcurrentUploads
 	}
 	if cfg.ScanPeriod <= 0 {
 		cfg.ScanPeriod = defaults.UploaderScanPeriod
-	}
-	if cfg.Context == nil {
-		cfg.Context = context.Background()
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -96,35 +91,24 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	handler, err := NewHandler(Config{
-		Directory: cfg.ScanDir,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	if err := os.MkdirAll(cfg.ScanDir, teleport.SharedDirMode); err != nil {
+		return nil, trace.ConvertSystemError(err)
 	}
-	// completer scans for uploads that have been initiated, but not completed
-	// by the client (aborted or crashed) and completes them
-	uploadCompleter, err := events.NewUploadCompleter(events.UploadCompleterConfig{
-		Uploader:  handler,
-		AuditLog:  cfg.AuditLog,
-		Unstarted: true,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if err := os.MkdirAll(cfg.CorruptedDir, teleport.SharedDirMode); err != nil {
+		return nil, trace.ConvertSystemError(err)
 	}
-	ctx, cancel := context.WithCancel(cfg.Context)
+
 	uploader := &Uploader{
-		uploadCompleter: uploadCompleter,
-		cfg:             cfg,
+		cfg: cfg,
 		log: log.WithFields(log.Fields{
 			trace.Component: cfg.Component,
 		}),
-		cancel:    cancel,
-		ctx:       ctx,
-		auditLog:  cfg.AuditLog,
+		closeC:    make(chan struct{}),
 		semaphore: make(chan struct{}, cfg.ConcurrentUploads),
 		eventsCh:  make(chan events.UploadEvent, cfg.ConcurrentUploads),
 	}
+
 	return uploader, nil
 }
 
@@ -136,22 +120,19 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 // It keeps checkpoints of the upload state and resumes
 // the upload that have been aborted.
 //
-// The uploader completes the sessions that have been
-// abandoned longer than the grace period.
-//
 // It marks corrupted session files to skip their processing.
-//
 type Uploader struct {
 	semaphore chan struct{}
 
-	cfg             UploaderConfig
-	log             *log.Entry
-	uploadCompleter *events.UploadCompleter
+	cfg UploaderConfig
+	log *log.Entry
 
-	cancel   context.CancelFunc
-	ctx      context.Context
 	eventsCh chan events.UploadEvent
-	auditLog events.IAuditLog
+	closeC   chan struct{}
+}
+
+func (u *Uploader) Close() {
+	close(u.closeC)
 }
 
 func (u *Uploader) writeSessionError(sessionID session.ID, err error) error {
@@ -159,7 +140,7 @@ func (u *Uploader) writeSessionError(sessionID session.ID, err error) error {
 		return trace.BadParameter("missing session ID")
 	}
 	path := u.sessionErrorFilePath(sessionID)
-	return trace.ConvertSystemError(ioutil.WriteFile(path, []byte(err.Error()), 0600))
+	return trace.ConvertSystemError(os.WriteFile(path, []byte(err.Error()), 0600))
 }
 
 func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
@@ -178,8 +159,8 @@ func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
 }
 
 // Serve runs the uploader until stopped
-func (u *Uploader) Serve() error {
-	backoff, err := utils.NewLinear(utils.LinearConfig{
+func (u *Uploader) Serve(ctx context.Context) error {
+	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step:  u.cfg.ScanPeriod,
 		Max:   u.cfg.ScanPeriod * 100,
 		Clock: u.cfg.Clock,
@@ -189,11 +170,13 @@ func (u *Uploader) Serve() error {
 	}
 	for {
 		select {
-		case <-u.ctx.Done():
+		case <-u.closeC:
 			return nil
+		case <-ctx.Done():
+			return nil
+		case event := <-u.eventsCh:
 			// Successful and failed upload events are used to speed up and
 			// slow down the scans and uploads.
-		case event := <-u.eventsCh:
 			switch {
 			case event.Error == nil:
 				backoff.ResetToDelay()
@@ -220,13 +203,7 @@ func (u *Uploader) Serve() error {
 		// Tick at scan period but slow down (and speeds up) on errors.
 		case <-backoff.After():
 			var failed bool
-			if err := u.uploadCompleter.CheckUploads(u.ctx); err != nil {
-				if trace.Unwrap(err) != errContext {
-					failed = true
-					u.log.WithError(err).Warningf("Completer scan failed.")
-				}
-			}
-			if _, err := u.Scan(); err != nil {
+			if _, err := u.Scan(ctx); err != nil {
 				if trace.Unwrap(err) != errContext {
 					failed = true
 					u.log.WithError(err).Warningf("Uploader scan failed.")
@@ -249,11 +226,14 @@ type ScanStats struct {
 	Scanned int
 	// Started is how many uploads have been started
 	Started int
+	// Corrupted is how many corrupted uploads have been
+	// moved out of the scan dir.
+	Corrupted int
 }
 
 // Scan scans the streaming directory and uploads recordings
-func (u *Uploader) Scan() (*ScanStats, error) {
-	files, err := ioutil.ReadDir(u.cfg.ScanDir)
+func (u *Uploader) Scan(ctx context.Context) (*ScanStats, error) {
+	files, err := os.ReadDir(u.cfg.ScanDir)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -268,8 +248,8 @@ func (u *Uploader) Scan() (*ScanStats, error) {
 			continue
 		}
 		stats.Scanned++
-		if err := u.startUpload(fi.Name()); err != nil {
-			if trace.IsCompareFailed(err) {
+		if err := u.startUpload(ctx, fi.Name()); err != nil {
+			if errors.Is(err, utils.ErrUnsuccessfulLockTry) {
 				u.log.Debugf("Scan is skipping recording %v that is locked by another process.", fi.Name())
 				continue
 			}
@@ -279,6 +259,7 @@ func (u *Uploader) Scan() (*ScanStats, error) {
 			}
 			if isSessionError(err) {
 				u.log.WithError(err).Warningf("Skipped session recording %v.", fi.Name())
+				stats.Corrupted++
 				continue
 			}
 			return nil, trace.Wrap(err)
@@ -286,7 +267,8 @@ func (u *Uploader) Scan() (*ScanStats, error) {
 		stats.Started++
 	}
 	if stats.Scanned > 0 {
-		u.log.Debugf("Scanned %v uploads, started %v in %v.", stats.Scanned, stats.Started, u.cfg.ScanDir)
+		u.log.Debugf("Scanned %v uploads, started %v, found %v corrupted in %v.",
+			stats.Scanned, stats.Started, stats.Corrupted, u.cfg.ScanDir)
 	}
 	return &stats, nil
 }
@@ -301,22 +283,17 @@ func (u *Uploader) sessionErrorFilePath(sid session.ID) string {
 	return filepath.Join(u.cfg.ScanDir, sid.String()+errorExt)
 }
 
-// Close closes all operations
-func (u *Uploader) Close() error {
-	u.cancel()
-	return u.uploadCompleter.Close()
-}
-
 type upload struct {
 	sessionID      session.ID
 	reader         *events.ProtoReader
 	file           *os.File
+	fileUnlockFn   func() error
 	checkpointFile *os.File
 }
 
 // readStatus reads stream status
 func (u *upload) readStatus() (*apievents.StreamStatus, error) {
-	data, err := ioutil.ReadAll(u.checkpointFile)
+	data, err := io.ReadAll(u.checkpointFile)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -356,7 +333,7 @@ func (u *upload) writeStatus(status apievents.StreamStatus) error {
 func (u *upload) Close() error {
 	return trace.NewAggregate(
 		u.reader.Close(),
-		utils.FSUnlock(u.file),
+		u.fileUnlockFn(),
 		u.file.Close(),
 		utils.NilCloser(u.checkpointFile).Close(),
 	)
@@ -375,7 +352,7 @@ func (u *upload) removeFiles() error {
 	return trace.NewAggregate(errs...)
 }
 
-func (u *Uploader) startUpload(fileName string) error {
+func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 	sessionID, err := sessionIDFromPath(fileName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -388,10 +365,24 @@ func (u *Uploader) startUpload(fileName string) error {
 		return trace.Wrap(err)
 	}
 	if isSessionError {
+		errorFilePath := u.sessionErrorFilePath(sessionID)
+		// move the corrupted recording and the error marker to a separate directory
+		// to prevent the uploader from spinning on the same corrupted upload
+		var moveErrs []error
+		if err := os.Rename(sessionFilePath, filepath.Join(u.cfg.CorruptedDir, filepath.Base(sessionFilePath))); err != nil {
+			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", sessionFilePath, u.cfg.CorruptedDir))
+		}
+		if err := os.Rename(errorFilePath, filepath.Join(u.cfg.CorruptedDir, filepath.Base(errorFilePath))); err != nil {
+			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", errorFilePath, u.cfg.CorruptedDir))
+		}
+		if len(moveErrs) > 0 {
+			u.log.Errorf("Failed to move corrupted recording: %v", trace.NewAggregate(moveErrs...))
+		}
+
 		return sessionError{
 			err: trace.BadParameter(
-				"session recording %v is either corrupted or is using unsupported format, remove the file %v to correct the problem, remove the %v file to retry the upload",
-				sessionID, sessionFilePath, u.sessionErrorFilePath(sessionID)),
+				"session recording %v; check the %v directory for artifacts",
+				sessionID, u.cfg.CorruptedDir),
 		}
 	}
 
@@ -400,17 +391,19 @@ func (u *Uploader) startUpload(fileName string) error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	if err := utils.FSTryWriteLock(sessionFile); err != nil {
+	unlock, err := utils.FSTryWriteLock(sessionFilePath)
+	if err != nil {
 		if e := sessionFile.Close(); e != nil {
 			u.log.WithError(e).Warningf("Failed to close %v.", fileName)
 		}
-		return trace.Wrap(err)
+		return trace.WrapWithMessage(err, "could not acquire file lock for %q", sessionFilePath)
 	}
 
 	upload := &upload{
-		sessionID: sessionID,
-		reader:    events.NewProtoReader(sessionFile),
-		file:      sessionFile,
+		sessionID:    sessionID,
+		reader:       events.NewProtoReader(sessionFile),
+		file:         sessionFile,
+		fileUnlockFn: unlock,
 	}
 	upload.checkpointFile, err = os.OpenFile(u.checkpointFilePath(sessionID), os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
@@ -421,7 +414,7 @@ func (u *Uploader) startUpload(fileName string) error {
 	}
 
 	start := time.Now()
-	if err := u.takeSemaphore(); err != nil {
+	if err := u.takeSemaphore(ctx); err != nil {
 		if err := upload.Close(); err != nil {
 			u.log.WithError(err).Warningf("Failed to close upload.")
 		}
@@ -431,7 +424,7 @@ func (u *Uploader) startUpload(fileName string) error {
 		u.log.Debugf("Semaphore acquired in %v for upload %v.", time.Since(start), fileName)
 	}
 	go func() {
-		if err := u.upload(upload); err != nil {
+		if err := u.upload(ctx, upload); err != nil {
 			u.log.WithError(err).Warningf("Upload failed.")
 			u.emitEvent(events.UploadEvent{
 				SessionID: string(upload.sessionID),
@@ -449,8 +442,8 @@ func (u *Uploader) startUpload(fileName string) error {
 	return nil
 }
 
-func (u *Uploader) upload(up *upload) error {
-	defer u.releaseSemaphore()
+func (u *Uploader) upload(ctx context.Context, up *upload) error {
+	defer u.releaseSemaphore(ctx)
 	defer func() {
 		if err := up.Close(); err != nil {
 			u.log.WithError(err).Warningf("Failed to close upload.")
@@ -463,21 +456,21 @@ func (u *Uploader) upload(up *upload) error {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		stream, err = u.cfg.Streamer.CreateAuditStream(u.ctx, up.sessionID)
+		stream, err = u.cfg.Streamer.CreateAuditStream(ctx, up.sessionID)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		stream, err = u.cfg.Streamer.ResumeAuditStream(u.ctx, up.sessionID, status.UploadID)
+		stream, err = u.cfg.Streamer.ResumeAuditStream(ctx, up.sessionID, status.UploadID)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
 			u.log.WithError(err).Warningf(
-				"Upload for sesion %v, upload ID %v is not found starting a new upload from scratch.",
+				"Upload for session %v, upload ID %v is not found starting a new upload from scratch.",
 				up.sessionID, status.UploadID)
 			status = nil
-			stream, err = u.cfg.Streamer.CreateAuditStream(u.ctx, up.sessionID)
+			stream, err = u.cfg.Streamer.CreateAuditStream(ctx, up.sessionID)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -485,7 +478,7 @@ func (u *Uploader) upload(up *upload) error {
 	}
 
 	defer func() {
-		if err := stream.Close(u.ctx); err != nil {
+		if err := stream.Close(ctx); err != nil {
 			if trace.Unwrap(err) != io.EOF {
 				u.log.WithError(err).Debugf("Failed to close stream.")
 			}
@@ -496,16 +489,19 @@ func (u *Uploader) upload(up *upload) error {
 	// if it was successful get the first status update
 	// sent by the server after create.
 	select {
+	case <-u.closeC:
+		return trace.Errorf("operation has been canceled, uploader is closed")
 	case <-stream.Status():
-	case <-time.After(defaults.NetworkRetryDuration):
+	case <-time.After(events.NetworkRetryDuration):
 		return trace.ConnectionProblem(nil, "timeout waiting for stream status update")
-	case <-u.ctx.Done():
-		return trace.ConnectionProblem(u.ctx.Err(), "operation has been cancelled")
+	case <-ctx.Done():
+		return trace.ConnectionProblem(ctx.Err(), "operation has been canceled")
+
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go u.monitorStreamStatus(u.ctx, up, stream, cancel)
+	go u.monitorStreamStatus(ctx, up, stream, cancel)
 
 	for {
 		event, err := up.reader.Read(ctx)
@@ -519,12 +515,12 @@ func (u *Uploader) upload(up *upload) error {
 		if status != nil && event.GetIndex() <= status.LastEventIndex {
 			continue
 		}
-		if err := stream.EmitAuditEvent(u.ctx, event); err != nil {
+		if err := stream.EmitAuditEvent(ctx, event); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	if err := stream.Complete(u.ctx); err != nil {
+	if err := stream.Complete(ctx); err != nil {
 		u.log.WithError(err).Error("Failed to complete upload.")
 		return trace.Wrap(err)
 	}
@@ -533,7 +529,7 @@ func (u *Uploader) upload(up *upload) error {
 	// before the files are closed to avoid async writes
 	// the timeout is a defensive measure to avoid blocking
 	// indefinitely in case of unforeseen error (e.g. write taking too long)
-	wctx, wcancel := context.WithTimeout(ctx, apidefaults.DefaultDialTimeout)
+	wctx, wcancel := context.WithTimeout(ctx, apidefaults.DefaultIOTimeout)
 	defer wcancel()
 
 	<-wctx.Done()
@@ -571,20 +567,20 @@ func (u *Uploader) monitorStreamStatus(ctx context.Context, up *upload, stream a
 
 var errContext = fmt.Errorf("context has closed")
 
-func (u *Uploader) takeSemaphore() error {
+func (u *Uploader) takeSemaphore(ctx context.Context) error {
 	select {
 	case u.semaphore <- struct{}{}:
 		return nil
-	case <-u.ctx.Done():
+	case <-ctx.Done():
 		return errContext
 	}
 }
 
-func (u *Uploader) releaseSemaphore() error {
+func (u *Uploader) releaseSemaphore(ctx context.Context) error {
 	select {
 	case <-u.semaphore:
 		return nil
-	case <-u.ctx.Done():
+	case <-ctx.Done():
 		return errContext
 	}
 }

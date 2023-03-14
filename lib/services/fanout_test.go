@@ -22,16 +22,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // TestFanoutWatcherClose tests fanout watcher close
 // removes it from the buffer
 func TestFanoutWatcherClose(t *testing.T) {
+	ctx := context.Background()
 	eventsCh := make(chan FanoutEvent, 1)
 	f := NewFanout(eventsCh)
-	w, err := f.NewWatcher(context.TODO(),
+	w, err := f.NewWatcher(ctx,
 		types.Watch{Name: "test", Kinds: []types.WatchKind{{Name: "test"}}})
 	require.NoError(t, err)
 	require.Equal(t, f.Len(), 1)

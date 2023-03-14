@@ -8,28 +8,14 @@ This guide explains how to use Teleport and Visual Studio Code's remote SSH exte
 
 ## Prerequisites
 
-- [tsh client tool](https://goteleport.com/teleport/download) >= (=teleport.version=).
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - OpenSSH client.
 - Visual Studio Code with the [Remote - SSH extension](https://code.visualstudio.com/docs/remote/ssh#_system-requirements)
 for the Remote - SSH extension.
-- The Teleport Auth Service and Proxy Service, deployed on your own infrastructure or managed via Teleport Cloud.
-- One or more Teleport Nodes with Server Access enabled. If you have not yet done this, read the [Server Access Getting Started Guide](../getting-started.mdx) to learn how.
-
-<Details 
-scopeOnly={true}
-scope={["oss", "enterprise"]}
-opened={false}
-title="Haven't deployed the Auth and Proxy Services?" >
-Follow one of our [getting started](../getting-started.mdx) guides to learn how to deploy the Teleport Auth Service and Proxy Service in your environment.
-</Details>
-
-<Details 
-scopeOnly={true}
-scope={["cloud"]}
-opened={false}
-title="Not yet a Teleport customer?" >
-Sign up for a [free trial](/signup/) of Teleport Cloud to get started.
-</Details>
+- One or more Teleport Nodes with Server Access enabled. If you have not yet
+  done this, read the
+  [Server Access Getting Started Guide](../getting-started.mdx) to learn how.
 
 <Admonition type="note">
 Linux and MacOS clients should rely on their operating system-provided OpenSSH
@@ -100,51 +86,52 @@ When you see this error, re-run `tsh login` to refresh your local certificate.
 
 ## Step 2/3. Configure Visual Studio Code
 
-<Admonition
-  type="warning"
-  title="Warning"
->
-  Due to [a VS Code bug](https://github.com/microsoft/vscode-remote-release/issues/5562),
-  you can not use Remote - SSH UI to add SSH hosts. It will improperly rewrite the quoting in
-  `tsh config`'s generated configuration.
-  If your SSH configuration becomes corrupted, re-run `tsh config`.
-</Admonition>
+Install the [Remote - SSH extension][remote-ssh] in your local VS Code instance. 
+A new "Window Indicator" (icon with two arrows) should appear in the bottom left of your VS Code window.
 
-Install the [Remote - SSH extension][remote-ssh] in your local VS Code
-instance. A new "Remote Explorer" sidebar entry should appear.
-
-Select it, ensure "SSH Targets" is selected in the drop-down menu, and select the "Configure"
-gear icon:
-
-<Figure align="left" bordered caption="VS Code sidebar">
-  ![VS Code sidebar with the Remote Explorer pane open and Configure highlighted](../../../img/vscode/remote-configure.png)
+<Figure align="left" bordered caption="Window Indicator">
+![Window Indicator in bottom left corner of VS Code](../../../img/vscode/window-indicator.png)
 </Figure>
 
-VS code will prompt you for your SSH config file.
+Prior to connecting with a host set the `Remote.SSH: Use Local Server` setting to false in
+the extension setting.
 
-Select the one we generated during Step 1 and open it in the editor.
+<Figure align="left" bordered caption="VSCode Setting">
+![Remote SSH Extension VS Code Settings](../../../img/vscode/settings.png)
+</Figure>
 
-<Admonition type="warning">
-Do not use VS Code's SSH config helper. If prompted for an SSH command,
-close the dialog and select the "Configure" icon instead.
-</Admonition>
+To connect, click on the icon with two arrows and select "Connect to Host...".
+Select "+ Add New SSH Host..."
 
 For each host you wish to remotely develop on, add an entry like the following:
 
 ```txt
-Host node000.foo.example.com
-    User alice
+alice@node000.foo.example.com
 ```
 
-When finished, save the file. If the added host doesn't automatically appear in
-the list, select the Refresh button.
+<Figure align="left" bordered caption="Adding new Node">
+![Input box to add new Node](../../../img/vscode/add-host.png)
+</Figure>
+
+When prompted to choose which SSH Configuration file to update select the one we generated during Step 1.
+
+This will write a new node into your SSH Configuration file. You can edit and manage all your nodes in this file.
 
 ## Step 3/3. Start a Remote Development session
 
-Start a Remote Development session by right-clicking on any host added above and selecting either "Connect to..." option:
+Start a Remote Development session by either:
+
+1. Clicking "Connect" on the notification that opens after adding a new host.
+
+<Figure align="left" bordered caption="Host added notification">
+![Notification of "Host added" that has connect button](../../../img/vscode/host-added-notification.png)
+</Figure>
+
+2. Clicking on the Window Indicator again and selecting either "Connect to...". 
+You should see the host you just added and any others in your Configuration file in the drop down.
 
 <Figure align="left" bordered caption="Connect to a Node">
-![Connecting to a Teleport host in VS Code](../../../img/vscode/connect.png)
+![Connecting to a Teleport host in VS Code](../../../img/vscode/select-host-to-connect.png)
 </Figure>
 
 On first connect, you'll be prompted to configure the remote OS. Select the
@@ -155,7 +142,7 @@ completes, you should be left with a working editor:
 ![VS Code connected to a Teleport Node](../../../img/vscode/connected-editor.png)
 </Figure>
 
-The status indicator in the bottom left highlights the currently connected remote host.
+The Window Indicator in the bottom left highlights the currently connected remote host.
 
 ## Next Steps
 
@@ -169,11 +156,8 @@ connect to the host in VS Code.
 
 ### Using OpenSSH clients
 
-This guide makes use of `tsh config`, added in Teleport 7.0; refer to the
-[dedicated guide](./openssh.mdx#automatic-setup) for additional information.
-
-[Manually configure an OpenSSH client](./openssh.mdx#manual-setup)
-to use the VS Code's remote SSH extension with older Teleport clients.
+This guide makes use of `tsh config`; refer to the
+[dedicated guide](./openssh.mdx) for additional information.
 
 ## Further reading
 - [VS Code Remote Development](https://code.visualstudio.com/docs/remote/remote-overview)

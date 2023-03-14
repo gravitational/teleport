@@ -20,8 +20,8 @@ import (
 	"bytes"
 	"io"
 
-	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/gravitational/trace"
+	mssql "github.com/microsoft/go-mssqldb"
 )
 
 // PreLoginPacket represents a Pre-Login packet which is sent by the client
@@ -39,12 +39,12 @@ func ReadPreLoginPacket(r io.Reader) (*PreLoginPacket, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if pkt.Type != PacketTypePreLogin {
+	if pkt.Type() != PacketTypePreLogin {
 		return nil, trace.BadParameter("expected Pre-Login packet, got: %#v", pkt)
 	}
 
 	return &PreLoginPacket{
-		packet: *pkt,
+		packet: pkt,
 	}, nil
 }
 

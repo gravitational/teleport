@@ -16,20 +16,36 @@ package firestore
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net"
 	"os"
+	"reflect"
+	"strings"
+	"sync"
 	"testing"
 	"time"
+	"unsafe"
+
+	"cloud.google.com/go/firestore"
+	"cloud.google.com/go/firestore/apiv1/admin/adminpb"
+	"cloud.google.com/go/firestore/apiv1/firestorepb"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/api/option"
+	"google.golang.org/genproto/googleapis/rpc/code"
+	"google.golang.org/genproto/googleapis/rpc/status"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
-	adminpb "google.golang.org/genproto/googleapis/firestore/admin/v1"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestMain(m *testing.M) {
@@ -41,7 +57,6 @@ func TestMain(m *testing.M) {
 // to verify backwards compatibility. Gogoproto is incompatible with ApiV2 protoc-gen-go code.
 //
 // Track the issue here: https://github.com/gogo/protobuf/issues/678
-//
 func TestMarshal(t *testing.T) {
 	meta := adminpb.IndexOperationMetadata{}
 	data, err := proto.Marshal(&meta)
@@ -76,7 +91,7 @@ func ensureEmulatorRunning(t *testing.T, cfg map[string]interface{}) {
 	if err != nil {
 		t.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
 	}
-	con.Close()
+	require.NoError(t, con.Close())
 }
 
 func TestFirestoreDB(t *testing.T) {
@@ -118,7 +133,7 @@ func newBackend(t *testing.T, cfg map[string]interface{}) *Backend {
 
 	uut, err := New(context.Background(), cfg, Options{Clock: clock})
 	require.NoError(t, err)
-	t.Cleanup(func() { uut.Close() })
+	t.Cleanup(func() { require.NoError(t, uut.Close()) })
 
 	return uut
 }
@@ -168,4 +183,152 @@ func TestReadLegacyRecord(t *testing.T) {
 	require.Equal(t, item.Value, got.Value)
 	require.Equal(t, item.ID, got.ID)
 	require.Equal(t, item.Expires, got.Expires)
+}
+
+type mockFirestoreServer struct {
+	// Embed for forward compatibility.
+	// Tests will keep working if more methods are added
+	// in the future.
+	firestorepb.FirestoreServer
+
+	mu   sync.RWMutex
+	reqs []proto.Message
+
+	// If set, Commit returns this error.
+	commitErr error
+}
+
+func (s *mockFirestoreServer) BatchWrite(ctx context.Context, req *firestorepb.BatchWriteRequest) (*firestorepb.BatchWriteResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
+
+	s.mu.Lock()
+	s.reqs = append(s.reqs, req)
+	s.mu.Unlock()
+
+	if s.commitErr != nil {
+		return nil, s.commitErr
+	}
+
+	resp := &firestorepb.BatchWriteResponse{}
+	for range req.Writes {
+		resp.Status = append(resp.Status, &status.Status{
+			Code: int32(code.Code_OK),
+		})
+
+		resp.WriteResults = append(resp.WriteResults, &firestorepb.WriteResult{
+			UpdateTime: timestamppb.Now(),
+		})
+	}
+
+	return resp, nil
+}
+
+func TestDeleteDocuments(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		assertion   require.ErrorAssertionFunc
+		responseErr error
+		commitErr   error
+		documents   int
+	}{
+		{
+			name:      "failed to commit",
+			assertion: require.Error,
+			commitErr: errors.New("failed to commit documents"),
+			documents: 1,
+		},
+		{
+			name:      "commit success",
+			assertion: require.NoError,
+			documents: 1796,
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			docs := make([]*firestore.DocumentSnapshot, 0, tt.documents)
+			for i := 0; i < tt.documents; i++ {
+				docs = append(docs, &firestore.DocumentSnapshot{
+					Ref: &firestore.DocumentRef{
+						Path: fmt.Sprintf("projects/test-project/databases/test-db/documents/test/%d", i+1),
+					},
+					CreateTime: time.Now(),
+					UpdateTime: time.Now(),
+				})
+
+				// We really shouldn't need this, but the Firestore SDK made some unfortunate design
+				// decisions that make it impossible to set the field of a DocumentRef used for the seemingly
+				// useless deduplication in the BulkWriter API.
+				rs := reflect.ValueOf(docs[i].Ref).Elem()
+				rf := rs.FieldByName("shortPath")
+				rf = reflect.NewAt(rf.Type(), unsafe.Pointer(rf.UnsafeAddr())).Elem()
+				rf.SetString(docs[i].Ref.Path)
+			}
+
+			mockFirestore := &mockFirestoreServer{
+				commitErr: tt.commitErr,
+			}
+			srv := grpc.NewServer()
+			firestorepb.RegisterFirestoreServer(srv, mockFirestore)
+
+			lis, err := net.Listen("tcp", "localhost:0")
+			require.NoError(t, err)
+
+			errCh := make(chan error, 1)
+			go func() { errCh <- srv.Serve(lis) }()
+			t.Cleanup(func() {
+				srv.Stop()
+				require.NoError(t, <-errCh)
+			})
+
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+
+			conn, err := grpc.Dial(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+			require.NoError(t, err)
+
+			client, err := firestore.NewClient(ctx, "test-project", option.WithGRPCConn(conn))
+			require.NoError(t, err)
+
+			b := &Backend{
+				svc:           client,
+				Entry:         utils.NewLoggerForTests().WithFields(logrus.Fields{trace.Component: BackendName}),
+				clock:         clockwork.NewFakeClock(),
+				clientContext: ctx,
+				clientCancel:  cancel,
+				backendConfig: backendConfig{
+					Config: Config{
+						CollectionName: "test-collection",
+					},
+				},
+			}
+
+			tt.assertion(t, b.deleteDocuments(docs))
+
+			if tt.documents == 0 {
+				return
+			}
+
+			var committed int
+			mockFirestore.mu.RLock()
+			for _, req := range mockFirestore.reqs {
+				switch r := req.(type) {
+				case *firestorepb.BatchWriteRequest:
+					committed += len(r.Writes)
+				}
+			}
+			mockFirestore.mu.RUnlock()
+
+			require.Equal(t, tt.documents, committed)
+
+		})
+	}
+
 }

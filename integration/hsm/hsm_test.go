@@ -16,7 +16,6 @@ package integration
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -25,57 +24,75 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/etcdbk"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ports contains tcp ports allocated for all integration tests.
-var ports utils.PortList
+func TestMain(m *testing.M) {
+	// Enable HSM feature.
+	// This is safe to do here, as all tests in this package require HSM to be
+	// enabled.
+	modules.SetModules(&modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			HSM: true,
+		},
+	})
 
-func init() {
-	// Allocate tcp ports for all HSM integration tests. Don't overlap with
-	// ports used by integration_test.go.
-	var err error
-	ports, err = utils.GetFreeTCPPorts(100, utils.PortStartingNumber+5000)
-	if err != nil {
-		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
-	}
+	os.Exit(m.Run())
 }
 
 type teleportService struct {
 	name           string
 	log            utils.Logger
-	config         *service.Config
+	config         *servicecfg.Config
 	process        *service.TeleportProcess
 	serviceChannel chan *service.TeleportProcess
 	errorChannel   chan error
 }
 
-func newTeleportService(config *service.Config, name string) *teleportService {
-	return &teleportService{
+func newTeleportService(t *testing.T, config *servicecfg.Config, name string) *teleportService {
+	s := &teleportService{
 		config:         config,
 		name:           name,
 		log:            config.Log,
 		serviceChannel: make(chan *service.TeleportProcess, 1),
 		errorChannel:   make(chan error, 1),
 	}
+	t.Cleanup(func() {
+		require.NoError(t, s.Close(), "error while closing %s during test cleanup", name)
+	})
+	return s
+}
+
+func (t *teleportService) Close() error {
+	if t.process == nil {
+		return nil
+	}
+	if err := t.process.Close(); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(t.process.Wait())
 }
 
 func (t *teleportService) start(ctx context.Context) {
 	go func() {
-		t.errorChannel <- service.Run(ctx, *t.config, func(cfg *service.Config) (service.Process, error) {
+		t.errorChannel <- service.Run(ctx, *t.config, func(cfg *servicecfg.Config) (service.Process, error) {
 			t.log.Debugf("(Re)starting %s", t.name)
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
@@ -103,21 +120,14 @@ func (t *teleportService) waitForStart(ctx context.Context) error {
 
 func (t *teleportService) waitForReady(ctx context.Context) error {
 	t.log.Debugf("Waiting for %s to be ready", t.name)
-	eventChannel := make(chan service.Event)
-	t.process.WaitForEvent(ctx, service.TeleportReadyEvent, eventChannel)
-	select {
-	case <-eventChannel:
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err(), "timed out waiting for %s to be ready", t.name)
+	if _, err := t.process.WaitForEvent(ctx, service.TeleportReadyEvent); err != nil {
+		return trace.Wrap(err, "timed out waiting for %s to be ready", t.name)
 	}
 	// also wait for AuthIdentityEvent so that we can read the admin credentials
 	// and create a test client
 	if t.process.GetAuthServer() != nil {
-		t.process.WaitForEvent(ctx, service.AuthIdentityEvent, eventChannel)
-		select {
-		case <-eventChannel:
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err(), "timed out waiting for %s auth identity event", t.name)
+		if _, err := t.process.WaitForEvent(ctx, service.AuthIdentityEvent); err != nil {
+			return trace.Wrap(err, "timed out waiting for %s auth identity event", t.name)
 		}
 		t.log.Debugf("%s is ready", t.name)
 	}
@@ -148,6 +158,7 @@ func (t *teleportService) waitForShutdown(ctx context.Context) error {
 	t.log.Debugf("Waiting for %s to shut down", t.name)
 	select {
 	case err := <-t.errorChannel:
+		t.process = nil
 		return trace.Wrap(err)
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err(), "timed out waiting for %s to shut down", t.name)
@@ -171,7 +182,11 @@ func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error 
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if t.process.GetAuthServer().GetKeyStore().HasLocalAdditionalKeys(ca) {
+		hasUsableKeys, err := t.process.GetAuthServer().GetKeyStore().HasUsableAdditionalKeys(ctx, ca)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if hasUsableKeys {
 			break
 		}
 	}
@@ -181,15 +196,18 @@ func (t *teleportService) waitForLocalAdditionalKeys(ctx context.Context) error 
 
 func (t *teleportService) waitForPhaseChange(ctx context.Context) error {
 	t.log.Debugf("Waiting for %s to change phase", t.name)
-	eventC := make(chan service.Event, 1)
-	t.process.WaitForEvent(ctx, service.TeleportPhaseChangeEvent, eventC)
-	select {
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err(), "timed out waiting for %s to change phase", t.name)
-	case <-eventC:
+	if _, err := t.process.WaitForEvent(ctx, service.TeleportPhaseChangeEvent); err != nil {
+		return trace.Wrap(err, "timed out waiting for %s to change phase", t.name)
 	}
 	t.log.Debugf("%s changed phase", t.name)
 	return nil
+}
+
+func (t *teleportService) AuthAddr(testingT *testing.T) utils.NetAddr {
+	addr, err := t.process.AuthAddr()
+	require.NoError(testingT, err)
+
+	return *addr
 }
 
 type TeleportServices []*teleportService
@@ -219,19 +237,18 @@ func (s TeleportServices) waitForPhaseChange(ctx context.Context) error {
 	return s.forEach(func(t *teleportService) error { return t.waitForPhaseChange(ctx) })
 }
 
-func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig backend.Config, log utils.Logger) *service.Config {
+func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig *backend.Config, log utils.Logger) *servicecfg.Config {
 	hostName, err := os.Hostname()
 	require.NoError(t, err)
 
-	config := service.MakeDefaultConfig()
+	config := servicecfg.MakeDefaultConfig()
 	config.PollingPeriod = 1 * time.Second
 	config.SSH.Enabled = false
 	config.Proxy.Enabled = false
-	config.CachePolicy.Enabled = true
 	config.ClientTimeout = time.Second
 	config.ShutdownTimeout = time.Minute
 	config.DataDir = t.TempDir()
-	config.Auth.SSHAddr.Addr = net.JoinHostPort(hostName, ports.Pop())
+	config.Auth.ListenAddr.Addr = net.JoinHostPort(hostName, "0")
 	config.Auth.PublicAddrs = []utils.NetAddr{
 		{
 			AddrNetwork: "tcp",
@@ -242,10 +259,7 @@ func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig backend.C
 		ClusterName: "testcluster",
 	})
 	require.NoError(t, err)
-	config.AuthServers = append(config.AuthServers, config.Auth.SSHAddr)
-	config.Auth.StorageConfig = storageConfig
-	fakeClock := clockwork.NewFakeClock()
-	config.Clock = fakeClock
+	config.SetAuthServerAddress(config.Auth.ListenAddr)
 	config.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
 			{
@@ -255,92 +269,115 @@ func newHSMAuthConfig(ctx context.Context, t *testing.T, storageConfig backend.C
 		},
 	})
 	require.NoError(t, err)
-	go func() {
-		for {
-			select {
-			case <-time.After(10 * time.Millisecond):
-				fakeClock.Advance(100 * time.Millisecond)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
 	config.Log = log
+	if storageConfig != nil {
+		config.Auth.StorageConfig = *storageConfig
+	}
+	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+
+	if gcpKeyring := os.Getenv("TEST_GCP_KMS_KEYRING"); gcpKeyring != "" {
+		config.Auth.KeyStore.GCPKMS.KeyRing = gcpKeyring
+		config.Auth.KeyStore.GCPKMS.ProtectionLevel = "HSM"
+	} else {
+		config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
+	}
+
 	return config
 }
 
-func newProxyConfig(ctx context.Context, t *testing.T, authAddr utils.NetAddr, log utils.Logger) *service.Config {
+func newProxyConfig(ctx context.Context, t *testing.T, authAddr utils.NetAddr, log utils.Logger) *servicecfg.Config {
 	hostName, err := os.Hostname()
 	require.NoError(t, err)
 
-	config := service.MakeDefaultConfig()
+	config := servicecfg.MakeDefaultConfig()
 	config.PollingPeriod = 1 * time.Second
-	config.Token = "foo"
-	config.SSH.Enabled = true
-	config.SSH.Addr.Addr = net.JoinHostPort(hostName, ports.Pop())
+	config.SetToken("foo")
+	config.SSH.Enabled = false
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = true
 	config.Proxy.DisableWebInterface = true
 	config.Proxy.DisableWebService = true
 	config.Proxy.DisableReverseTunnel = true
-	config.Proxy.SSHAddr.Addr = net.JoinHostPort(hostName, ports.Pop())
-	config.Proxy.WebAddr.Addr = net.JoinHostPort(hostName, ports.Pop())
+	config.Proxy.SSHAddr.Addr = net.JoinHostPort(hostName, "0")
+	config.Proxy.WebAddr.Addr = net.JoinHostPort(hostName, "0")
 	config.CachePolicy.Enabled = true
-	config.PollingPeriod = 500 * time.Millisecond
-	config.ClientTimeout = time.Second
+	config.PollingPeriod = 1 * time.Second
 	config.ShutdownTimeout = time.Minute
 	config.DataDir = t.TempDir()
-	require.NoError(t, err)
-	config.AuthServers = append(config.AuthServers, authAddr)
-	fakeClock := clockwork.NewFakeClock()
-	config.Clock = fakeClock
-	go func() {
-		for {
-			select {
-			case <-time.After(10 * time.Millisecond):
-				fakeClock.Advance(100 * time.Millisecond)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
+	config.SetAuthServerAddress(authAddr)
+	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	config.Log = log
 	return config
 }
 
+func etcdBackendConfig(t *testing.T) *backend.Config {
+	prefix := uuid.NewString()
+	cfg := &backend.Config{
+		Type: "etcd",
+		Params: backend.Params{
+			"peers":         []string{etcdTestEndpoint()},
+			"prefix":        prefix,
+			"tls_key_file":  "../../examples/etcd/certs/client-key.pem",
+			"tls_cert_file": "../../examples/etcd/certs/client-cert.pem",
+			"tls_ca_file":   "../../examples/etcd/certs/ca-cert.pem",
+		},
+	}
+	t.Cleanup(func() {
+		bk, err := etcdbk.New(context.Background(), cfg.Params)
+		require.NoError(t, err)
+		require.NoError(t, bk.DeleteRange(context.Background(), []byte(prefix),
+			backend.RangeEnd([]byte(prefix))),
+			"failed to clean up etcd backend")
+	})
+	return cfg
+}
+
+// etcdTestEndpoint returns etcd host used in tests.
+func etcdTestEndpoint() string {
+	host := os.Getenv("TELEPORT_ETCD_TEST_ENDPOINT")
+	if host != "" {
+		return host
+	}
+	return "https://127.0.0.1:2379"
+}
+
+func liteBackendConfig(t *testing.T) *backend.Config {
+	return &backend.Config{
+		Type: lite.GetName(),
+		Params: backend.Params{
+			"path": t.TempDir(),
+		},
+	}
+}
+
+func requireHSMAvailable(t *testing.T) {
+	if os.Getenv("SOFTHSM2_PATH") == "" && os.Getenv("TEST_GCP_KMS_KEYRING") == "" {
+		t.Skip("Skipping test because neither SOFTHSM2_PATH or TEST_GCP_KMS_KEYRING are set")
+	}
+}
+
+func requireETCDAvailable(t *testing.T) {
+	if os.Getenv("TELEPORT_ETCD_TEST") == "" {
+		t.Skip("Skipping test because TELEPORT_ETCD_TEST is not set")
+	}
+}
+
 // Tests a single CA rotation with a single HSM auth server
 func TestHSMRotation(t *testing.T) {
-	if os.Getenv("SOFTHSM2_PATH") == "" {
-		t.Skip("Skipping test as SOFTHSM2_PATH is not set")
-	}
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			HSM: true,
-		},
-	})
+	requireHSMAvailable(t)
 
 	// pick a conservative timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	t.Cleanup(cancel)
 	log := utils.NewLoggerForTests()
-	storageConfig := backend.Config{
-		Type: lite.GetName(),
-		Params: backend.Params{
-			"path":               t.TempDir(),
-			"poll_stream_period": 50 * time.Millisecond,
-		},
-	}
-	var err error
 
 	log.Debug("TestHSMRotation: starting auth server")
-	authConfig := newHSMAuthConfig(ctx, t, storageConfig, log)
-	auth1 := newTeleportService(authConfig, "auth1")
+	authConfig := newHSMAuthConfig(ctx, t, liteBackendConfig(t), log)
+	auth1 := newTeleportService(t, authConfig, "auth1")
 	t.Cleanup(func() {
-		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(nil))
-		require.NoError(t, auth1.process.Close())
+		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
 	})
 	teleportServices := TeleportServices{auth1}
 
@@ -349,15 +386,12 @@ func TestHSMRotation(t *testing.T) {
 
 	// start a proxy to make sure it can get creds at each stage of rotation
 	log.Debug("TestHSMRotation: starting proxy")
-	proxy := newTeleportService(newProxyConfig(ctx, t, authConfig.Auth.SSHAddr, log), "proxy")
+	proxy := newTeleportService(t, newProxyConfig(ctx, t, auth1.AuthAddr(t), log), "proxy")
 	require.NoError(t, proxy.waitForStart(ctx))
-	t.Cleanup(func() {
-		require.NoError(t, proxy.process.Close())
-	})
 	teleportServices = append(teleportServices, proxy)
 
 	log.Debug("TestHSMRotation: sending rotation request init")
-	err = auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
+	err := auth1.process.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
 		Type:        types.HostCA,
 		TargetPhase: types.RotationPhaseInit,
 		Mode:        types.RotationModeManual,
@@ -395,59 +429,39 @@ func TestHSMRotation(t *testing.T) {
 
 // Tests multiple CA rotations and rollbacks with 2 HSM auth servers in an HA configuration
 func TestHSMDualAuthRotation(t *testing.T) {
-	if os.Getenv("TELEPORT_ETCD_TEST") == "" || os.Getenv("SOFTHSM2_PATH") == "" {
-		t.Skip("Skipping test as either etcd or SoftHSM2 is not enabled")
-	}
+	// TODO(nklaassen): fix this test and re-enable it.
+	// https://github.com/gravitational/teleport/issues/20217
+	t.Skip("TestHSMDualAuthRotation is temporarily disabled due to flakiness")
 
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			HSM: true,
-		},
-	})
+	requireHSMAvailable(t)
+	requireETCDAvailable(t)
 
-	// pick a conservative timeout
+	// pick a global timeout for the test
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	t.Cleanup(cancel)
 	log := utils.NewLoggerForTests()
-	backendPrefix := uuid.NewString()
-	storageConfig := backend.Config{
-		Type: "etcd",
-		Params: backend.Params{
-			"peers":         []string{"https://127.0.0.1:2379"},
-			"prefix":        backendPrefix,
-			"tls_key_file":  "../../examples/etcd/certs/client-key.pem",
-			"tls_cert_file": "../../examples/etcd/certs/client-cert.pem",
-			"tls_ca_file":   "../../examples/etcd/certs/ca-cert.pem",
-		},
-	}
-	var err error
+	storageConfig := etcdBackendConfig(t)
 
 	// start a cluster with 1 auth server and a proxy
 	log.Debug("TestHSMDualAuthRotation: Starting auth server 1")
 	auth1Config := newHSMAuthConfig(ctx, t, storageConfig, log)
-	auth1 := newTeleportService(auth1Config, "auth1")
+	auth1 := newTeleportService(t, auth1Config, "auth1")
 	t.Cleanup(func() {
-		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(nil))
-		require.NoError(t, auth1.process.Close())
+		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
+			"failed to delete hsm keys during test cleanup")
 	})
 	authServices := TeleportServices{auth1}
 	teleportServices := append(TeleportServices{}, authServices...)
-	require.NoError(t, authServices.waitForStart(ctx))
-
-	t.Cleanup(func() {
-		// clean up the etcd backend
-		bk := auth1.process.GetBackend()
-		err := bk.DeleteRange(context.Background(), []byte(backendPrefix),
-			backend.RangeEnd([]byte(backendPrefix)))
-		require.NoError(t, err)
-	})
+	require.NoError(t, authServices.waitForStart(ctx), "auth service failed initial startup")
 
 	log.Debug("TestHSMDualAuthRotation: Starting load balancer")
 	hostName, err := os.Hostname()
 	require.NoError(t, err)
-	authAddr := utils.MustParseAddr(net.JoinHostPort(hostName, ports.Pop()))
-	lb, err := utils.NewLoadBalancer(ctx, *authAddr, auth1Config.Auth.SSHAddr)
+	lb, err := utils.NewLoadBalancer(
+		ctx,
+		*utils.MustParseAddr(net.JoinHostPort(hostName, "0")),
+		auth1.AuthAddr(t),
+	)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
 	go lb.Serve()
@@ -455,22 +469,18 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 	// start a proxy to make sure it can get creds at each stage of rotation
 	log.Debug("TestHSMDualAuthRotation: Starting proxy")
-	proxyConfig := newProxyConfig(ctx, t, *authAddr, log)
-	proxy := newTeleportService(proxyConfig, "proxy")
-	require.NoError(t, proxy.waitForStart(ctx))
-	t.Cleanup(func() {
-		require.NoError(t, proxy.process.Close())
-	})
+	proxyConfig := newProxyConfig(ctx, t, utils.FromAddr(lb.Addr()), log)
+	proxy := newTeleportService(t, proxyConfig, "proxy")
+	require.NoError(t, proxy.waitForStart(ctx), "proxy failed initial startup")
 	teleportServices = append(teleportServices, proxy)
 
 	// add a new auth server
 	log.Debug("TestHSMDualAuthRotation: Starting auth server 2")
 	auth2Config := newHSMAuthConfig(ctx, t, storageConfig, log)
-	auth2 := newTeleportService(auth2Config, "auth2")
+	auth2 := newTeleportService(t, auth2Config, "auth2")
 	require.NoError(t, auth2.waitForStart(ctx))
 	t.Cleanup(func() {
-		require.NoError(t, auth2.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(nil))
-		require.NoError(t, auth2.process.Close())
+		require.NoError(t, auth2.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
 	})
 	authServices = append(authServices, auth2)
 	teleportServices = append(teleportServices, auth2)
@@ -483,19 +493,20 @@ func TestHSMDualAuthRotation(t *testing.T) {
 		require.NoError(t, err)
 		tlsConfig, err := identity.TLSConfig(nil)
 		require.NoError(t, err)
-		authAddrs := []utils.NetAddr{auth2Config.Auth.SSHAddr}
+		authAddrs := []utils.NetAddr{auth2.AuthAddr(t)}
 		clt, err := auth.NewClient(client.Config{
 			Addrs: utils.NetAddrsToStrings(authAddrs),
 			Credentials: []client.Credentials{
 				client.LoadTLS(tlsConfig),
 			},
+			CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		})
 		require.NoError(t, err)
 		return clt
 	}
 	testClient := func(clt *auth.Client) error {
 		_, err = clt.GetClusterName()
-		return err
+		return trace.Wrap(err)
 	}
 	clt := getAdminClient()
 	require.NoError(t, testClient(clt))
@@ -551,7 +562,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	}
 
 	// Safe to send traffic to new auth server now that a full rotation has been completed.
-	lb.AddBackend(auth2Config.Auth.SSHAddr)
+	lb.AddBackend(auth2.AuthAddr(t))
 
 	// load balanced client shoud work with either backend
 	getAdminClient = func() *auth.Client {
@@ -567,6 +578,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 			Credentials: []client.Credentials{
 				client.LoadTLS(tlsConfig),
 			},
+			CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		})
 		require.NoError(t, err)
 		return clt
@@ -708,64 +720,35 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 // Tests a dual-auth server migration from raw keys to HSM keys
 func TestHSMMigrate(t *testing.T) {
-	if os.Getenv("TELEPORT_ETCD_TEST") == "" || os.Getenv("SOFTHSM2_PATH") == "" {
-		t.Skip("Skipping test as either etcd or SoftHSM2 is not enabled")
-	}
+	requireHSMAvailable(t)
+	requireETCDAvailable(t)
 
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			HSM: true,
-		},
-	})
-
-	// pick a conservative timeout
+	// pick a global timeout for the test
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	t.Cleanup(cancel)
 	log := utils.NewLoggerForTests()
-	backendPrefix := uuid.NewString()
-	storageConfig := backend.Config{
-		Type: "etcd",
-		Params: backend.Params{
-			"peers":         []string{"https://127.0.0.1:2379"},
-			"prefix":        backendPrefix,
-			"tls_key_file":  "../../examples/etcd/certs/client-key.pem",
-			"tls_cert_file": "../../examples/etcd/certs/client-cert.pem",
-			"tls_ca_file":   "../../examples/etcd/certs/ca-cert.pem",
-		},
-	}
-	var err error
+	storageConfig := etcdBackendConfig(t)
 
 	// start a dual auth non-hsm cluster
 	log.Debug("TestHSMMigrate: Starting auth server 1")
 	auth1Config := newHSMAuthConfig(ctx, t, storageConfig, log)
 	auth1Config.Auth.KeyStore = keystore.Config{}
-	auth1 := newTeleportService(auth1Config, "auth1")
-	t.Cleanup(func() {
-		require.NoError(t, auth1.process.Close())
-	})
+	auth1 := newTeleportService(t, auth1Config, "auth1")
 	auth2Config := newHSMAuthConfig(ctx, t, storageConfig, log)
 	auth2Config.Auth.KeyStore = keystore.Config{}
-	auth2 := newTeleportService(auth2Config, "auth2")
-	t.Cleanup(func() {
-		require.NoError(t, auth2.process.Close())
-	})
+	auth2 := newTeleportService(t, auth2Config, "auth2")
 	require.NoError(t, auth1.waitForStart(ctx))
 	require.NoError(t, auth2.waitForStart(ctx))
-
-	t.Cleanup(func() {
-		// clean up the etcd backend
-		bk := auth1.process.GetBackend()
-		err := bk.DeleteRange(context.Background(), []byte(backendPrefix),
-			backend.RangeEnd([]byte(backendPrefix)))
-		require.NoError(t, err)
-	})
 
 	log.Debug("TestHSMMigrate: Starting load balancer")
 	hostName, err := os.Hostname()
 	require.NoError(t, err)
-	authAddr := utils.MustParseAddr(net.JoinHostPort(hostName, ports.Pop()))
-	lb, err := utils.NewLoadBalancer(ctx, *authAddr, auth1Config.Auth.SSHAddr, auth2Config.Auth.SSHAddr)
+	lb, err := utils.NewLoadBalancer(
+		ctx,
+		*utils.MustParseAddr(net.JoinHostPort(hostName, "0")),
+		auth1.AuthAddr(t),
+		auth2.AuthAddr(t),
+	)
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
 	go lb.Serve()
@@ -773,12 +756,9 @@ func TestHSMMigrate(t *testing.T) {
 
 	// start a proxy to make sure it can get creds at each stage of migration
 	log.Debug("TestHSMMigrate: Starting proxy")
-	proxyConfig := newProxyConfig(ctx, t, *authAddr, log)
-	proxy := newTeleportService(proxyConfig, "proxy")
+	proxyConfig := newProxyConfig(ctx, t, utils.FromAddr(lb.Addr()), log)
+	proxy := newTeleportService(t, proxyConfig, "proxy")
 	require.NoError(t, proxy.waitForStart(ctx))
-	t.Cleanup(func() {
-		require.NoError(t, proxy.process.Close())
-	})
 
 	// make sure the admin identity used by tctl works
 	getAdminClient := func() *auth.Client {
@@ -788,12 +768,13 @@ func TestHSMMigrate(t *testing.T) {
 		require.NoError(t, err)
 		tlsConfig, err := identity.TLSConfig(nil)
 		require.NoError(t, err)
-		authAddrs := []utils.NetAddr{auth2Config.Auth.SSHAddr}
+		authAddrs := []utils.NetAddr{auth2.AuthAddr(t)}
 		clt, err := auth.NewClient(client.Config{
 			Addrs: utils.NetAddrsToStrings(authAddrs),
 			Credentials: []client.Credentials{
 				client.LoadTLS(tlsConfig),
 			},
+			CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		})
 		require.NoError(t, err)
 		return clt
@@ -807,11 +788,11 @@ func TestHSMMigrate(t *testing.T) {
 	require.NoError(t, testClient(clt))
 
 	// Phase 1: migrate auth1 to HSM
-	lb.RemoveBackend(auth1Config.Auth.SSHAddr)
+	lb.RemoveBackend(auth1.AuthAddr(t))
 	auth1.process.Close()
 	require.NoError(t, auth1.waitForShutdown(ctx))
 	auth1Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
-	auth1 = newTeleportService(auth1Config, "auth1")
+	auth1 = newTeleportService(t, auth1Config, "auth1")
 	require.NoError(t, auth1.waitForStart(ctx))
 
 	clt = getAdminClient()
@@ -871,14 +852,14 @@ func TestHSMMigrate(t *testing.T) {
 	}
 
 	// Safe to send traffic to new auth1 again
-	lb.AddBackend(auth1Config.Auth.SSHAddr)
+	lb.AddBackend(auth1.AuthAddr(t))
 
 	// Phase 2: migrate auth2 to HSM
-	lb.RemoveBackend(auth2Config.Auth.SSHAddr)
+	lb.RemoveBackend(auth2.AuthAddr(t))
 	auth2.process.Close()
 	require.NoError(t, auth2.waitForShutdown(ctx))
 	auth2Config.Auth.KeyStore = keystore.SetupSoftHSMTest(t)
-	auth2 = newTeleportService(auth2Config, "auth2")
+	auth2 = newTeleportService(t, auth2Config, "auth2")
 	require.NoError(t, auth2.waitForStart(ctx))
 
 	authServices = TeleportServices{auth1, auth2}
@@ -899,6 +880,6 @@ func TestHSMMigrate(t *testing.T) {
 	}
 
 	// Safe to send traffic to new auth2 again
-	lb.AddBackend(auth2Config.Auth.SSHAddr)
+	lb.AddBackend(auth2.AuthAddr(t))
 	require.NoError(t, testClient(clt))
 }

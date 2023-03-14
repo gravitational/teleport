@@ -61,6 +61,34 @@ variable "route53_domain" {
   type = string
 }
 
+// Whether to set wildcard Route53
+// for use in Application Access
+variable "add_wildcard_route53_record" {
+  type    = bool
+  default = false
+}
+
+// whether to enable the mongodb listener
+// adds security group setting, maps load balancer to port, and adds to teleport config
+variable "enable_mongodb_listener" {
+  type    = bool
+  default = false
+}
+
+// whether to enable the mysql listener
+// adds security group setting, maps load balancer to port, and adds to teleport config
+variable "enable_mysql_listener" {
+  type    = bool
+  default = false
+}
+
+// whether to enable the postgres listener
+// adds security group setting, maps load balancer to port, and adds to teleport config
+variable "enable_postgres_listener" {
+  type    = bool
+  default = false
+}
+
 // Email for letsencrypt domain registration
 variable "email" {
   type = string
@@ -74,6 +102,7 @@ variable "s3_bucket_name" {
 // AWS KMS alias used for encryption/decryption
 // default is alias used in SSM
 variable "kms_alias_name" {
+  type    = string
   default = "alias/aws/ssm"
 }
 
@@ -143,8 +172,75 @@ variable "grafana_pass" {
 // Whether to use Amazon-issued certificates via ACM or not
 // This must be set to true for any use of ACM whatsoever, regardless of whether Terraform generates/approves the cert
 variable "use_acm" {
-  type = string
-  default = "false"
+  type    = bool
+  default = false
+}
+
+// CIDR blocks allowed to connect to the bastion SSH port
+variable "allowed_bastion_ssh_ingress_cidr_blocks" {
+  type    = list(any)
+  default = ["0.0.0.0/0"]
+}
+
+
+// CIDR blocks allowed for egress from bastion
+variable "allowed_bastion_ssh_egress_cidr_blocks" {
+  type    = list(any)
+  default = ["0.0.0.0/0"]
+}
+
+// CIDR blocks allowed for ingress for Teleport Proxy ports
+variable "allowed_proxy_ingress_cidr_blocks" {
+  type    = list(any)
+  default = ["0.0.0.0/0"]
+}
+
+// CIDR blocks allowed for egress from Teleport Proxies
+variable "allowed_proxy_egress_cidr_blocks" {
+  type    = list(any)
+  default = ["0.0.0.0/0"]
+}
+
+// CIDR blocks allowed for egress from Teleport Auth servers
+variable "allowed_auth_egress_cidr_blocks" {
+  type    = list(any)
+  default = ["0.0.0.0/0"]
+}
+
+// CIDR blocks allowed for ingress for Teleport Monitor ports
+variable "allowed_monitor_ingress_cidr_blocks" {
+  type    = list(any)
+  default = ["0.0.0.0/0"]
+}
+
+// CIDR blocks allowed for egress from Teleport Monitor
+variable "allowed_monitor_egress_cidr_blocks" {
+  type    = list(any)
+  default = ["0.0.0.0/0"]
+}
+
+// CIDR blocks allowed for egress from Teleport Node
+variable "allowed_node_egress_cidr_blocks" {
+  type    = list(any)
+  default = ["0.0.0.0/0"]
+}
+
+// Internet gateway destination CIDR Block
+variable "internet_gateway_dest_cidr_block" {
+  type    = string
+  default = "0.0.0.0/0"
+}
+
+// Route allowed for Auth Servers Destination CIDR Block
+variable "auth_aws_route_dest_cidr_block" {
+  type    = string
+  default = "0.0.0.0/0"
+}
+
+// Route allowed for Node Servers Destination CIDR Block
+variable "node_aws_route_dest_cidr_block" {
+  type    = string
+  default = "0.0.0.0/0"
 }
 
 // Optional domain name to use for Teleport proxy NLB alias
@@ -155,6 +251,6 @@ variable "use_acm" {
 // it can be used by applications which connect to it directly (like kubectl) rather
 // than discovering the NLB's address through the Teleport API (like tsh does)
 variable "route53_domain_acm_nlb_alias" {
-  type = string
+  type    = string
   default = ""
 }

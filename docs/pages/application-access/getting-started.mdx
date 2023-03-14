@@ -12,16 +12,30 @@ Let's connect to Grafana using Teleport Application Access in three steps:
 - Install the Teleport Application Service on a node and configure it to proxy Grafana.
 - Access Grafana through Teleport.
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Application Access Grafana Self-Hosted](../../img/application-access/grafana_selfhosted.png)
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access CockroachDB Cloud](../../img/application-access/grafana_cloud.png)
+</ScopedBlock>
+
 ## Prerequisites
 
-- The Teleport Auth Service and Proxy Service, deployed on your own infrastructure or via Teleport Cloud.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
+
 - A Docker installation, which we will use to launch Grafana in a container. Alternatively, if you have another web application you'd like to protect with Application Access, you can use that instead.
 - A host where you will run the Teleport Application Service.
 
+<Admonition type="tip" title="Not yet a Teleport user?">
+If you have not yet deployed the Auth Service and Proxy Service, you should follow one of our [getting started guides](../try-out-teleport/introduction.mdx) or try our Teleport Application Access [interactive learning track](https://play.instruqt.com/teleport/invite/rgvuva4gzkon). 
+</Admonition>
+
 We will assume your Teleport cluster is accessible at `teleport.example.com` and `*.teleport.example.com`. You can substitute the address of your Teleport Proxy Service. (For Teleport Cloud customers, this will be similar to `mytenant.teleport.sh`.)
 
-<Admonition type="tip" title="Not yet a Teleport user?">
-If you have not yet deployed the Auth Service and Proxy Service, you should follow one of our [getting started guides](../getting-started.mdx).
+<Admonition type="note" title="Application Access and DNS">
+(!docs/pages/includes/dns-app-access.mdx!)
 </Admonition>
 
 ## Step 1/3. Start Grafana
@@ -41,11 +55,11 @@ $ docker run -d -p 3000:3000 grafana/grafana
 
 On your Application Service host, download the latest version of Teleport for
 your platform from our
-[downloads page](https://goteleport.com/teleport/download).
+[downloads page](https://goteleport.com/download).
 
 ### Generate a token
 
-A join token is required to authorize a Teleport Application Service agent to
+A join token is required to authorize a Teleport Application Service instance to
 join the cluster. Generate a short-lived join token and save it, for example,
 in `/tmp/token` on your Teleport Application Service host:
 
@@ -58,8 +72,10 @@ $ tctl tokens add \
 
 ### Start Teleport
 
-On the host where you will run the Teleport Application Service, download the latest version of Teleport for your platform from our
-[downloads page](https://goteleport.com/teleport/download).
+
+Install Teleport on the host where you will run the Teleport Application Service. See our [Installation](../installation.mdx) page for options besides Linux servers.
+
+(!docs/pages/includes/install-linux.mdx!)
 
 Now start Teleport and point it to the application endpoint:
 
@@ -71,7 +87,7 @@ $ sudo teleport app start \
   --auth-server=https://teleport.example.com:3080
 ```
 
-Change `https://teleport.example.com:3080` to the address and port of your Teleport Proxy Server. If you are a Teleport Cloud cluster, use your tenant's subdomain, e.g., `mytenant.teleport.sh`. 
+Change `https://teleport.example.com:3080` to the address and port of your Teleport Proxy Server. If you are a Teleport Cloud customer, use port 443 of your tenant's subdomain, e.g., `mytenant.teleport.sh:443`.
 
 Make sure to update `--app-name` and `--app-uri` accordingly if you're using your own web application.
 
@@ -108,7 +124,7 @@ Alternatively, log in to the Teleport Web Interface at `https://teleport.example
 Dive deeper into the topics relevant to your Application Access use-case:
 
 - Learn in more detail about [connecting applications](./guides/connecting-apps.mdx) with Application Access.
-- Learn about integrating with [JWT tokens](./guides/jwt.mdx) for auth.
+- Learn about integrating with [JWT tokens](./jwt/introduction.mdx) for auth.
 - Learn how to use Application Access with [RESTful APIs](./guides/api-access.mdx).
 - See full configuration and CLI [reference](./reference.mdx).
 - Read about how Let's Encrypt uses the [ACME protocol](https://letsencrypt.org/how-it-works/).

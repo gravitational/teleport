@@ -22,14 +22,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 )
 
 func newClusterPeers(clusterName string) *clusterPeers {
@@ -87,6 +87,14 @@ func (p *clusterPeers) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error)
 	return peer.CachingAccessPoint()
 }
 
+func (p *clusterPeers) NodeWatcher() (*services.NodeWatcher, error) {
+	peer, err := p.pickPeer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return peer.NodeWatcher()
+}
+
 func (p *clusterPeers) GetClient() (auth.ClientI, error) {
 	peer, err := p.pickPeer()
 	if err != nil {
@@ -119,7 +127,7 @@ func (p *clusterPeers) GetLastConnected() time.Time {
 	return peer.GetLastConnected()
 }
 
-func (p *clusterPeers) DialAuthServer() (net.Conn, error) {
+func (p *clusterPeers) DialAuthServer(DialParams) (net.Conn, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial to auth server, this proxy has not been discovered yet, try again later")
 }
 
@@ -136,6 +144,9 @@ func (p *clusterPeers) DialTCP(params DialParams) (conn net.Conn, err error) {
 
 // IsClosed always returns false because clusterPeers is never closed.
 func (p *clusterPeers) IsClosed() bool { return false }
+
+// Close always returns nil because a clusterPeers isn't closed.
+func (p *clusterPeers) Close() error { return nil }
 
 // newClusterPeer returns new cluster peer
 func newClusterPeer(srv *server, connInfo types.TunnelConnection, offlineThreshold time.Duration) (*clusterPeer, error) {
@@ -185,6 +196,10 @@ func (s *clusterPeer) setConnInfo(ci types.TunnelConnection) {
 }
 
 func (s *clusterPeer) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later", s)
+}
+
+func (s *clusterPeer) NodeWatcher() (*services.NodeWatcher, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to fetch access point, this proxy %v has not been discovered yet, try again later", s)
 }
 

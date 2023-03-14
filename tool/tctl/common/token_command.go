@@ -20,10 +20,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -31,17 +37,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/kingpin"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TokenCommand implements `tctl token` group of commands
-type TokenCommand struct {
-	config *service.Config
+// TokensCommand implements `tctl tokens` group of commands
+type TokensCommand struct {
+	config *servicecfg.Config
 
 	// format is the output format, e.g. text or json
 	format string
@@ -81,28 +84,34 @@ type TokenCommand struct {
 
 	// tokenList is used to view all tokens that Teleport knows about.
 	tokenList *kingpin.CmdClause
+
+	// stdout allows to switch the standard output source. Used in tests.
+	stdout io.Writer
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
-func (c *TokenCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *TokensCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 
 	tokens := app.Command("tokens", "List or revoke invitation tokens")
 
+	formats := []string{teleport.Text, teleport.JSON, teleport.YAML}
+
 	// tctl tokens add ..."
 	c.tokenAdd = tokens.Command("add", "Create a invitation token")
-	c.tokenAdd.Flag("type", "Type of token to add").Required().StringVar(&c.tokenType)
-	c.tokenAdd.Flag("value", "Value of token to add").StringVar(&c.value)
+	c.tokenAdd.Flag("type", "Type(s) of token to add, e.g. --type=node,app,db").Required().StringVar(&c.tokenType)
+	c.tokenAdd.Flag("value", "Override the default random generated token with a specified value").StringVar(&c.value)
 	c.tokenAdd.Flag("labels", "Set token labels, e.g. env=prod,region=us-west").StringVar(&c.labels)
-	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour",
-		int(defaults.SignupTokenTTL/time.Hour))).
-		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).
+	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v minutes",
+		int(defaults.ProvisioningTokenTTL/time.Minute))).
+		Default(fmt.Sprintf("%v", defaults.ProvisioningTokenTTL)).
 		DurationVar(&c.ttl)
 	c.tokenAdd.Flag("app-name", "Name of the application to add").Default("example-app").StringVar(&c.appName)
 	c.tokenAdd.Flag("app-uri", "URI of the application to add").Default("http://localhost:8080").StringVar(&c.appURI)
 	c.tokenAdd.Flag("db-name", "Name of the database to add").StringVar(&c.dbName)
 	c.tokenAdd.Flag("db-protocol", fmt.Sprintf("Database protocol to use. Supported are: %v", defaults.DatabaseProtocols)).StringVar(&c.dbProtocol)
 	c.tokenAdd.Flag("db-uri", "Address the database is reachable at").StringVar(&c.dbURI)
+	c.tokenAdd.Flag("format", "Output format, 'text', 'json', or 'yaml'").EnumVar(&c.format, formats...)
 
 	// "tctl tokens rm ..."
 	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token").Alias("del")
@@ -110,18 +119,22 @@ func (c *TokenCommand) Initialize(app *kingpin.Application, config *service.Conf
 
 	// "tctl tokens ls"
 	c.tokenList = tokens.Command("ls", "List node and user invitation tokens")
-	c.tokenList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
+	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
+
+	if c.stdout == nil {
+		c.stdout = os.Stdout
+	}
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
-func (c *TokenCommand) TryRun(cmd string, client auth.ClientI) (match bool, err error) {
+func (c *TokensCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case c.tokenAdd.FullCommand():
-		err = c.Add(client)
+		err = c.Add(ctx, client)
 	case c.tokenDel.FullCommand():
-		err = c.Del(client)
+		err = c.Del(ctx, client)
 	case c.tokenList.FullCommand():
-		err = c.List(client)
+		err = c.List(ctx, client)
 	default:
 		return false, nil
 	}
@@ -129,35 +142,80 @@ func (c *TokenCommand) TryRun(cmd string, client auth.ClientI) (match bool, err 
 }
 
 // Add is called to execute "tokens add ..." command.
-func (c *TokenCommand) Add(client auth.ClientI) error {
+func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 	// Parse string to see if it's a type of role that Teleport supports.
 	roles, err := types.ParseTeleportRoles(c.tokenType)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	var labels map[string]string
-	if c.labels != "" {
-		labels, err = libclient.ParseLabelSpec(c.labels)
+	token := c.value
+	if c.value == "" {
+		token, err = utils.CryptoRandomHex(auth.TokenLenBytes)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "generating token value")
 		}
 	}
 
-	// Generate token.
-	token, err := client.GenerateToken(context.TODO(), auth.GenerateTokenRequest{
-		Roles:  roles,
-		TTL:    c.ttl,
-		Token:  c.value,
-		Labels: labels,
-	})
+	expires := time.Now().UTC().Add(c.ttl)
+	pt, err := types.NewProvisionToken(token, roles, expires)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	if c.labels != "" {
+		labels, err := libclient.ParseLabelSpec(c.labels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		meta := pt.GetMetadata()
+		meta.Labels = labels
+		pt.SetMetadata(meta)
+	}
+
+	if err := client.CreateToken(ctx, pt); err != nil {
+		if trace.IsAlreadyExists(err) {
+			return trace.AlreadyExists(
+				"failed to create token (%q already exists), please use another name",
+				pt.GetName(),
+			)
+		}
+		return trace.Wrap(err, "creating token")
+	}
+
+	// Print token information formatted with JSON, YAML, or just print the raw token.
+	switch c.format {
+	case teleport.JSON, teleport.YAML:
+		expires := time.Now().Add(c.ttl)
+		tokenInfo := map[string]interface{}{
+			"token":   token,
+			"roles":   roles,
+			"expires": expires,
+		}
+
+		var (
+			data []byte
+			err  error
+		)
+		if c.format == teleport.JSON {
+			data, err = json.MarshalIndent(tokenInfo, "", " ")
+		} else {
+			data, err = yaml.Marshal(tokenInfo)
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprint(c.stdout, string(data))
+
+		return nil
+	case teleport.Text:
+		fmt.Fprintln(c.stdout, token)
+		return nil
+	}
+
 	// Calculate the CA pins for this cluster. The CA pins are used by the
 	// client to verify the identity of the Auth Server.
-	localCAResponse, err := client.GetClusterCACert()
+	localCAResponse, err := client.GetClusterCACert(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -177,6 +235,20 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 
 	// Print signup message.
 	switch {
+	case roles.Include(types.RoleKube):
+		proxies, err := client.GetProxies()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(proxies) == 0 {
+			return trace.NotFound("cluster has no proxies")
+		}
+		return kubeMessageTemplate.Execute(c.stdout,
+			map[string]interface{}{
+				"auth_server": proxies[0].GetPublicAddr(),
+				"token":       token,
+				"minutes":     c.ttl.Minutes(),
+			})
 	case roles.Include(types.RoleApp):
 		proxies, err := client.GetProxies()
 		if err != nil {
@@ -187,7 +259,7 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 		}
 		appPublicAddr := fmt.Sprintf("%v.%v", c.appName, proxies[0].GetPublicAddr())
 
-		return appMessageTemplate.Execute(os.Stdout,
+		return appMessageTemplate.Execute(c.stdout,
 			map[string]interface{}{
 				"token":           token,
 				"minutes":         c.ttl.Minutes(),
@@ -205,7 +277,7 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 		if len(proxies) == 0 {
 			return trace.NotFound("cluster has no proxies")
 		}
-		return dbMessageTemplate.Execute(os.Stdout,
+		return dbMessageTemplate.Execute(c.stdout,
 			map[string]interface{}{
 				"token":       token,
 				"minutes":     c.ttl.Minutes(),
@@ -216,15 +288,21 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 				"db_uri":      c.dbURI,
 			})
 	case roles.Include(types.RoleTrustedCluster):
-		fmt.Printf(trustedClusterMessage,
+		fmt.Fprintf(c.stdout, trustedClusterMessage,
 			token,
 			int(c.ttl.Minutes()))
+	case roles.Include(types.RoleWindowsDesktop):
+		return desktopMessageTemplate.Execute(c.stdout,
+			map[string]interface{}{
+				"token":   token,
+				"minutes": c.ttl.Minutes(),
+			})
 	default:
 		authServer := authServers[0].GetAddr()
 
-		pingResponse, err := client.Ping(context.TODO())
+		pingResponse, err := client.Ping(ctx)
 		if err != nil {
-			log.Debugf("unnable to ping auth client: %s.", err.Error())
+			log.Debugf("unable to ping auth client: %s.", err.Error())
 		}
 
 		if err == nil && pingResponse.GetServerFeatures().Cloud {
@@ -238,7 +316,7 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 			}
 		}
 
-		return nodeMessageTemplate.Execute(os.Stdout, map[string]interface{}{
+		return nodeMessageTemplate.Execute(c.stdout, map[string]interface{}{
 			"token":       token,
 			"roles":       strings.ToLower(roles.String()),
 			"minutes":     int(c.ttl.Minutes()),
@@ -251,40 +329,55 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 }
 
 // Del is called to execute "tokens del ..." command.
-func (c *TokenCommand) Del(client auth.ClientI) error {
-	ctx := context.TODO()
+func (c *TokensCommand) Del(ctx context.Context, client auth.ClientI) error {
 	if c.value == "" {
 		return trace.Errorf("Need an argument: token")
 	}
 	if err := client.DeleteToken(ctx, c.value); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Token %s has been deleted\n", c.value)
+	fmt.Fprintf(c.stdout, "Token %s has been deleted\n", c.value)
 	return nil
 }
 
 // List is called to execute "tokens ls" command.
-func (c *TokenCommand) List(client auth.ClientI) error {
-	ctx := context.TODO()
+func (c *TokensCommand) List(ctx context.Context, client auth.ClientI) error {
 	tokens, err := client.GetTokens(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if len(tokens) == 0 {
-		fmt.Println("No active tokens found.")
+		fmt.Fprintln(c.stdout, "No active tokens found.")
 		return nil
 	}
 
 	// Sort by expire time.
 	sort.Slice(tokens, func(i, j int) bool { return tokens[i].Expiry().Unix() < tokens[j].Expiry().Unix() })
 
-	if c.format == teleport.Text {
+	switch c.format {
+	case teleport.JSON:
+		data, err := json.MarshalIndent(tokens, "", "  ")
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal tokens")
+		}
+		fmt.Fprint(c.stdout, string(data))
+	case teleport.YAML:
+		data, err := yaml.Marshal(tokens)
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal tokens")
+		}
+		fmt.Fprint(c.stdout, string(data))
+	case teleport.Text:
+		for _, token := range tokens {
+			fmt.Fprintln(c.stdout, token.GetName())
+		}
+	default:
 		tokensView := func() string {
 			table := asciitable.MakeTable([]string{"Token", "Type", "Labels", "Expiry Time (UTC)"})
 			now := time.Now()
 			for _, t := range tokens {
 				expiry := "never"
-				if t.Expiry().Unix() > 0 {
+				if !t.Expiry().IsZero() {
 					exptime := t.Expiry().Format(time.RFC822)
 					expdur := t.Expiry().Sub(now).Round(time.Second)
 					expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
@@ -293,13 +386,7 @@ func (c *TokenCommand) List(client auth.ClientI) error {
 			}
 			return table.AsBuffer().String()
 		}
-		fmt.Print(tokensView())
-	} else {
-		data, err := json.MarshalIndent(tokens, "", "  ")
-		if err != nil {
-			return trace.Wrap(err, "failed to marshal tokens")
-		}
-		fmt.Print(string(data))
+		fmt.Fprint(c.stdout, tokensView())
 	}
 	return nil
 }

@@ -25,13 +25,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 func TestClient_DialTimeout(t *testing.T) {
@@ -63,6 +64,7 @@ func TestClient_DialTimeout(t *testing.T) {
 				Credentials: []apiclient.Credentials{
 					apiclient.LoadTLS(&tls.Config{}),
 				},
+				CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 			}
 			clt, err := NewClient(cfg)
 			require.NoError(t, err)
@@ -74,7 +76,8 @@ func TestClient_DialTimeout(t *testing.T) {
 			errChan := make(chan error, 1)
 			go func() {
 				// try to create a session - this will timeout after the DialTimeout threshold is exceeded
-				errChan <- clt.CreateSession(session.Session{Namespace: "test"})
+				_, err := clt.CreateSessionTracker(context.Background(), &types.SessionTrackerV1{})
+				errChan <- err
 			}()
 
 			select {
@@ -118,6 +121,7 @@ func TestClient_RequestTimeout(t *testing.T) {
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(srv.TLS),
 		},
+		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 	}
 	clt, err := NewClient(cfg)
 	require.NoError(t, err)
@@ -141,7 +145,7 @@ func TestClient_RequestTimeout(t *testing.T) {
 
 func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) types.CertAuthority {
 	ta := testauthority.New()
-	priv, pub, err := ta.GenerateKeyPair("")
+	priv, pub, err := ta.GenerateKeyPair()
 	require.NoError(t, err)
 
 	// CA for cluster1 with 1 key pair.
@@ -162,8 +166,6 @@ func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) type
 				Key:  key,
 			}},
 		},
-		Roles:      nil,
-		SigningAlg: types.CertAuthoritySpecV2_RSA_SHA2_256,
 	})
 	require.NoError(t, err)
 	return ca

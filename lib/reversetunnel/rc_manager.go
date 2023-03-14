@@ -27,8 +27,10 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -78,6 +80,11 @@ type RemoteClusterTunnelManagerConfig struct {
 	FIPS bool
 	// Log is the logger
 	Log logrus.FieldLogger
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
+	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
+	PROXYSigner multiplexer.PROXYHeaderSigner
 }
 
 func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
@@ -168,7 +175,7 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 	// Fetch desired reverse tunnels and convert them to a set of
 	// remoteClusterKeys.
-	wantTunnels, err := w.cfg.AuthClient.GetReverseTunnels()
+	wantTunnels, err := w.cfg.AccessPoint.GetReverseTunnels(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -188,6 +195,7 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 			continue
 		}
 		pool.Stop()
+		trustedClustersStats.DeleteLabelValues(pool.Cluster)
 		delete(w.pools, k)
 	}
 
@@ -198,6 +206,7 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 			continue
 		}
 
+		trustedClustersStats.WithLabelValues(k.cluster).Set(0)
 		pool, err := w.newAgentPool(ctx, w.cfg, k.cluster, k.addr)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
@@ -220,12 +229,15 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 		KubeDialAddr:        cfg.KubeDialAddr,
 		ReverseTunnelServer: cfg.ReverseTunnelServer,
 		FIPS:                cfg.FIPS,
+		LocalAuthAddresses:  cfg.LocalAuthAddresses,
 		// RemoteClusterManager only runs on proxies.
 		Component: teleport.ComponentProxy,
 
 		// Configs for remote cluster.
-		Cluster:  cluster,
-		Resolver: StaticResolver(addr),
+		Cluster:         cluster,
+		Resolver:        StaticResolver(addr, apitypes.ProxyListenerMode_Separate),
+		IsRemoteCluster: true,
+		PROXYSigner:     cfg.PROXYSigner,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed creating reverse tunnel pool for remote cluster %q at address %q: %v", cluster, addr, err)

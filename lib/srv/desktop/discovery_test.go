@@ -19,8 +19,10 @@ import (
 	"testing"
 
 	"github.com/go-ldap/ldap/v3"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/windows"
 )
 
 // TestDiscoveryLDAPFilter verifies that WindowsService produces a valid
@@ -63,21 +65,40 @@ func TestDiscoveryLDAPFilter(t *testing.T) {
 func TestAppliesLDAPLabels(t *testing.T) {
 	l := make(map[string]string)
 	entry := ldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
-		attrDNSHostName: {"foo.example.com"},
-		attrName:        {"foo"},
-		attrOS:          {"Windows Server"},
-		attrOSVersion:   {"6.1"},
+		windows.AttrDNSHostName:       {"foo.example.com"},
+		windows.AttrName:              {"foo"},
+		windows.AttrOS:                {"Windows Server"},
+		windows.AttrOSVersion:         {"6.1"},
+		windows.AttrDistinguishedName: {"CN=foo,OU=IT,DC=goteleport,DC=com"},
+		windows.AttrCommonName:        {"foo"},
+		"bar":                         {"baz"},
+		"quux":                        {""},
 	})
-	applyLabelsFromLDAP(entry, l)
 
+	s := &WindowsService{
+		cfg: WindowsServiceConfig{
+			DiscoveryLDAPAttributeLabels: []string{"bar"},
+		},
+	}
+	s.applyLabelsFromLDAP(entry, l)
+
+	// check default labels
 	require.Equal(t, l[types.OriginLabel], types.OriginDynamic)
 	require.Equal(t, l[types.TeleportNamespace+"/dns_host_name"], "foo.example.com")
 	require.Equal(t, l[types.TeleportNamespace+"/computer_name"], "foo")
 	require.Equal(t, l[types.TeleportNamespace+"/os"], "Windows Server")
 	require.Equal(t, l[types.TeleportNamespace+"/os_version"], "6.1")
+
+	// check OU label
+	require.Equal(t, l[types.TeleportNamespace+"/ou"], "OU=IT,DC=goteleport,DC=com")
+
+	// check custom labels
+	require.Equal(t, l["ldap/bar"], "baz")
+	require.Empty(t, l["ldap/quux"])
 }
 
 func TestLabelsDomainControllers(t *testing.T) {
+	s := &WindowsService{}
 	for _, test := range []struct {
 		desc   string
 		entry  *ldap.Entry
@@ -86,28 +107,28 @@ func TestLabelsDomainControllers(t *testing.T) {
 		{
 			desc: "DC",
 			entry: ldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
-				attrPrimaryGroupID: {writableDomainControllerGroupID},
+				windows.AttrPrimaryGroupID: {windows.WritableDomainControllerGroupID},
 			}),
 			assert: require.True,
 		},
 		{
 			desc: "RODC",
 			entry: ldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
-				attrPrimaryGroupID: {readOnlyDomainControllerGroupID},
+				windows.AttrPrimaryGroupID: {windows.ReadOnlyDomainControllerGroupID},
 			}),
 			assert: require.True,
 		},
 		{
 			desc: "computer",
 			entry: ldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
-				attrPrimaryGroupID: {"515"},
+				windows.AttrPrimaryGroupID: {"515"},
 			}),
 			assert: require.False,
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			l := make(map[string]string)
-			applyLabelsFromLDAP(test.entry, l)
+			s.applyLabelsFromLDAP(test.entry, l)
 
 			b, _ := strconv.ParseBool(l[types.TeleportNamespace+"/is_domain_controller"])
 			test.assert(t, b)

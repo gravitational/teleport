@@ -18,6 +18,7 @@ package srv
 
 import (
 	"context"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -30,13 +31,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *events.MockEmitter, MonitorConfig) {
+func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *eventstest.ChannelEmitter, MonitorConfig) {
 	conn := &mockTrackingConn{make(chan struct{})}
-	emitter := &events.MockEmitter{}
+	emitter := eventstest.NewChannelEmitter(1)
 	cfg := MonitorConfig{
 		Context:     ctx,
 		Conn:        conn,
@@ -57,6 +59,7 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer
 
 func TestMonitorLockInForce(t *testing.T) {
 	t.Parallel()
+
 	ctx := context.Background()
 	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
@@ -79,7 +82,7 @@ func TestMonitorLockInForce(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for connection close.")
 	}
-	require.Equal(t, services.LockInForceAccessDenied(lock).Error(), emitter.LastEvent().(*apievents.ClientDisconnect).Reason)
+	require.Equal(t, services.LockInForceAccessDenied(lock).Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)
 
 	// Monitor should also detect preexistent locks.
 	conn, emitter, cfg = newTestMonitor(ctx, t, asrv)
@@ -88,11 +91,12 @@ func TestMonitorLockInForce(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for connection close.")
 	}
-	require.Equal(t, services.LockInForceAccessDenied(lock).Error(), emitter.LastEvent().(*apievents.ClientDisconnect).Reason)
+	require.Equal(t, services.LockInForceAccessDenied(lock).Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)
 }
 
 func TestMonitorStaleLocks(t *testing.T) {
 	t.Parallel()
+
 	ctx := context.Background()
 	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Dir:   t.TempDir(),
@@ -139,7 +143,7 @@ func TestMonitorStaleLocks(t *testing.T) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for connection close.")
 	}
-	require.Equal(t, services.StrictLockingModeAccessDenied.Error(), emitter.LastEvent().(*apievents.ClientDisconnect).Reason)
+	require.Equal(t, services.StrictLockingModeAccessDenied.Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)
 }
 
 type mockTrackingConn struct {
@@ -166,6 +170,7 @@ func (t *mockActivityTracker) UpdateClientActivity() {}
 // is already before time.Now
 func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	t.Parallel()
+
 	clock := clockwork.NewRealClock()
 
 	certExpirationTime := clock.Now().Add(-1 * time.Second)
@@ -186,5 +191,104 @@ func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	case <-conn.closedC:
 	case <-time.After(5 * time.Second):
 		t.Fatal("Client is still connected.")
+	}
+}
+
+func TestTrackingReadConnEOF(t *testing.T) {
+	server, client := net.Pipe()
+	defer client.Close()
+
+	// Close the server to force client reads to instantly return EOF.
+	require.NoError(t, server.Close())
+
+	// Wrap the client in a TrackingReadConn.
+	ctx, cancel := context.WithCancel(context.Background())
+	tc, err := NewTrackingReadConn(TrackingReadConnConfig{
+		Conn:    client,
+		Clock:   clockwork.NewFakeClock(),
+		Context: ctx,
+		Cancel:  cancel,
+	})
+	require.NoError(t, err)
+
+	// Make sure it returns an EOF and not a wrapped exception.
+	buf := make([]byte, 64)
+	_, err = tc.Read(buf)
+	require.Equal(t, io.EOF, err)
+}
+
+type mockChecker struct {
+	services.AccessChecker
+}
+
+func (m *mockChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
+	return disconnect
+}
+
+type mockAuthPreference struct {
+	types.AuthPreference
+}
+
+var disconnectExpiredCert bool
+
+func (m *mockAuthPreference) GetDisconnectExpiredCert() bool {
+	return disconnectExpiredCert
+}
+
+func TestGetDisconnectExpiredCertFromIdentity(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	now := clock.Now()
+	inAnHour := clock.Now().Add(time.Hour)
+	var unset time.Time
+	checker := &mockChecker{}
+	authPref := &mockAuthPreference{}
+
+	for _, test := range []struct {
+		name                    string
+		expires                 time.Time
+		previousIdentityExpires time.Time
+		mfaVerified             bool
+		disconnectExpiredCert   bool
+		expected                time.Time
+	}{
+		{
+			name:                    "mfa overrides expires when set",
+			expires:                 now,
+			previousIdentityExpires: inAnHour,
+			mfaVerified:             true,
+			disconnectExpiredCert:   true,
+			expected:                inAnHour,
+		},
+		{
+			name:                    "expires returned when mfa unset",
+			expires:                 now,
+			previousIdentityExpires: unset,
+			mfaVerified:             false,
+			disconnectExpiredCert:   true,
+			expected:                now,
+		},
+		{
+			name:                    "unset when disconnectExpiredCert is false",
+			expires:                 now,
+			previousIdentityExpires: inAnHour,
+			mfaVerified:             true,
+			disconnectExpiredCert:   false,
+			expected:                unset,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var mfaVerified string
+			if test.mfaVerified {
+				mfaVerified = "1234"
+			}
+			identity := tlsca.Identity{
+				Expires:                 test.expires,
+				PreviousIdentityExpires: test.previousIdentityExpires,
+				MFAVerified:             mfaVerified,
+			}
+			disconnectExpiredCert = test.disconnectExpiredCert
+			got := GetDisconnectExpiredCertFromIdentity(checker, authPref, &identity)
+			require.Equal(t, test.expected, got)
+		})
 	}
 }

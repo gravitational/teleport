@@ -18,21 +18,41 @@ package reversetunnel
 
 import (
 	"context"
+	"crypto/tls"
+	"errors"
 	"io"
 	"net"
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/reversetunnel/track"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/reversetunnel/track"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/proxy"
+)
+
+const (
+	// defaultAgentConnectionCount is the default connection count used when in
+	// proxy peering mode.
+	defaultAgentConnectionCount = 1
+	// maxBackoff sets the maximum backoff for creating new agents.
+	maxBackoff = time.Second * 8
+	// remotePingCacheTTL sets the time between calls to webclient.Find.
+	remotePingCacheTTL = time.Second * 5
 )
 
 // ServerHandler implements an interface which can handle a connection
@@ -43,23 +63,31 @@ type ServerHandler interface {
 	HandleConnection(conn net.Conn)
 }
 
-// AgentPool manages the pool of outbound reverse tunnel agents.
-// The agent pool watches the reverse tunnel entries created by the admin and
-// connects/disconnects to added/deleted tunnels.
-type AgentPool struct {
-	log          *log.Entry
-	cfg          AgentPoolConfig
-	proxyTracker *track.Tracker
+type newAgentFunc func(context.Context, *track.Tracker, track.Lease) (Agent, error)
 
-	// ctx controls the lifespan of the agent pool, and is used to control
-	// all of the sub-processes it spawns.
+// AgentPool manages a pool of reverse tunnel agents.
+type AgentPool struct {
+	AgentPoolConfig
+	active  *agentStore
+	tracker *track.Tracker
+
+	// runtimeConfig contains dynamic configuration values.
+	runtimeConfig *agentPoolRuntimeConfig
+
+	// events receives agent state change events.
+	events chan Agent
+
+	// newAgentFunc is used during testing to mock new agents.
+	newAgentFunc newAgentFunc
+
+	// wg waits for the pool and all agents to complete.
+	wg     sync.WaitGroup
 	ctx    context.Context
 	cancel context.CancelFunc
-	// spawnLimiter limits agent spawn rate
-	spawnLimiter utils.Retry
 
-	mu     sync.Mutex
-	agents []*Agent
+	// backoff limits the rate at which new agents are created.
+	backoff retryutils.Retry
+	log     logrus.FieldLogger
 }
 
 // AgentPoolConfig holds configuration parameters for the agent pool
@@ -95,9 +123,22 @@ type AgentPoolConfig struct {
 	Cluster string
 	// FIPS indicates if Teleport was started in FIPS mode.
 	FIPS bool
+	// ProxiedServiceUpdater updates a proxied service with the proxies it is connected to.
+	ConnectedProxyGetter *ConnectedProxyGetter
+	// IsRemoteCluster indicates the agent pool is connecting to a remote cluster.
+	// This means the tunnel strategy should be ignored and tls routing is determined
+	// by the remote cluster.
+	IsRemoteCluster bool
+	// DisableCreateHostUser disables host user creation on a node.
+	DisableCreateHostUser bool
+	// LocalAuthAddresses is a list of auth servers to use when dialing back to
+	// the local cluster.
+	LocalAuthAddresses []string
+	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
+	PROXYSigner multiplexer.PROXYHeaderSigner
 }
 
-// CheckAndSetDefaults checks and sets defaults
+// CheckAndSetDefaults checks and sets defaults.
 func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 	if cfg.Client == nil {
 		return trace.BadParameter("missing 'Client' parameter")
@@ -111,231 +152,584 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 	if len(cfg.HostUUID) == 0 {
 		return trace.BadParameter("missing 'HostUUID' parameter")
 	}
+	if cfg.Cluster == "" {
+		return trace.BadParameter("missing 'Cluster' parameter")
+	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
-	if cfg.Cluster == "" {
-		return trace.BadParameter("missing 'Cluster' parameter")
+	if cfg.ConnectedProxyGetter == nil {
+		cfg.ConnectedProxyGetter = NewConnectedProxyGetter()
 	}
 	return nil
 }
 
-// NewAgentPool returns new instance of the agent pool
-func NewAgentPool(ctx context.Context, cfg AgentPoolConfig) (*AgentPool, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
+// Agent represents a reverse tunnel agent.
+type Agent interface {
+	// Start starts the agent in the background.
+	Start(context.Context) error
+	// Stop closes the agent and releases resources.
+	Stop() error
+	// GetState returns the current state of the agent.
+	GetState() AgentState
+	// GetProxyID returns the proxy id of the proxy the agent is connected to.
+	GetProxyID() (string, bool)
+}
+
+// NewAgentPool returns new instance of the agent pool.
+func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step:      time.Second,
-		Max:       time.Second * 8,
-		Jitter:    utils.NewJitter(),
+		Max:       maxBackoff,
+		Jitter:    retryutils.NewJitter(),
 		AutoReset: 4,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	tr, err := track.New(ctx, track.Config{ClusterName: cfg.Cluster})
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
 	pool := &AgentPool{
-		proxyTracker: tr,
-		cfg:          cfg,
-		ctx:          ctx,
-		cancel:       cancel,
-		spawnLimiter: retry,
-		log: log.WithFields(log.Fields{
+		AgentPoolConfig: config,
+		active:          newAgentStore(),
+		events:          make(chan Agent),
+		wg:              sync.WaitGroup{},
+		backoff:         retry,
+		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentReverseTunnelAgent,
-			trace.ComponentFields: log.Fields{
-				"cluster": cfg.Cluster,
+			trace.ComponentFields: logrus.Fields{
+				"targetCluster": config.Cluster,
+				"localCluster":  config.LocalCluster,
 			},
 		}),
+		runtimeConfig: newAgentPoolRuntimeConfig(),
 	}
-	pool.proxyTracker.Start()
+
+	pool.runtimeConfig.isRemoteCluster = pool.IsRemoteCluster
+	pool.newAgentFunc = pool.newAgent
+
+	pool.ctx, pool.cancel = context.WithCancel(ctx)
+	pool.tracker, err = track.New(pool.ctx, track.Config{ClusterName: pool.Cluster})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pool.tracker.Start()
+
 	return pool, nil
 }
 
-// Start starts the agent pool
-func (m *AgentPool) Start() error {
-	m.log.Debugf("Starting agent pool %s.%s...", m.cfg.HostUUID, m.cfg.Cluster)
-	go m.pollAndSyncAgents()
-	go m.processSeekEvents()
+// GetConnectedProxyGetter returns the ConnectedProxyGetter for this agent pool.
+func (p *AgentPool) GetConnectedProxyGetter() *ConnectedProxyGetter {
+	return p.ConnectedProxyGetter
+}
+
+func (p *AgentPool) updateConnectedProxies() {
+	if p.IsRemoteCluster {
+		trustedClustersStats.WithLabelValues(p.Cluster).Set(float64(p.active.len()))
+	}
+
+	if !p.runtimeConfig.reportConnectedProxies() {
+		p.ConnectedProxyGetter.setProxyIDs(nil)
+		return
+	}
+
+	proxies := p.active.proxyIDs()
+	p.log.Debugf("Updating connected proxies: %v", proxies)
+	p.AgentPoolConfig.ConnectedProxyGetter.setProxyIDs(proxies)
+}
+
+// Count is the number connected agents.
+func (p *AgentPool) Count() int {
+	return p.active.len()
+}
+
+// Start starts the agent pool in the background.
+func (p *AgentPool) Start() error {
+	p.log.Debugf("Starting agent pool %s.%s...", p.HostUUID, p.Cluster)
+	p.tracker.Start()
+
+	p.wg.Add(1)
+	go func() {
+		err := p.run()
+		p.log.WithError(err).Warn("Agent pool exited.")
+
+		p.cancel()
+		p.wg.Done()
+	}()
 	return nil
 }
 
-// Stop stops the agent pool
-func (m *AgentPool) Stop() {
-	if m == nil {
-		return
-	}
-	m.cancel()
-}
-
-// Wait returns when agent pool is closed
-func (m *AgentPool) Wait() {
-	if m == nil {
-		return
-	}
-	<-m.ctx.Done()
-}
-
-// processSeekEvents receives acquisition messages from the ProxyTracker
-// (i.e. "I've found a proxy that you may not know about") and routes the
-// new proxy address to the AgentPool, which will manage the connection
-// to that address.
-func (m *AgentPool) processSeekEvents() {
-	limiter := m.spawnLimiter.Clone()
+// run connects agents until the agent pool context is done.
+func (p *AgentPool) run() error {
 	for {
-		select {
-		case <-m.ctx.Done():
-			m.log.Debugf("Halting seek event processing (pool closing)")
-			return
-
-		// The proxy tracker has given us permission to act on a given
-		// tunnel address
-		case lease := <-m.proxyTracker.Acquire():
-			m.withLock(func() {
-				// Note that ownership of the lease is transferred to agent
-				// pool for the lifetime of the connection
-				if err := m.addAgent(lease); err != nil {
-					// ensure that lease has been released; OK to call multiple times.
-					lease.Release()
-					m.log.WithError(err).Errorf("Failed to add agent.")
-				}
-			})
+		if p.ctx.Err() != nil {
+			return trace.Wrap(p.ctx.Err())
 		}
-		select {
-		case <-m.ctx.Done():
-			m.log.Debugf("Halting seek event processing (pool closing)")
-			return
-		case <-limiter.After():
-			limiter.Inc()
-		}
-	}
-}
 
-func (m *AgentPool) withLock(f func()) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	f()
-}
-
-type matchAgentFn func(a *Agent) bool
-
-func (m *AgentPool) closeAgents() {
-	m.agents = filterAndClose(m.agents, func(*Agent) bool { return true })
-}
-
-func filterAndClose(agents []*Agent, matchAgent matchAgentFn) []*Agent {
-	var filtered []*Agent
-	for i := range agents {
-		agent := agents[i]
-		if matchAgent(agent) {
-			agent.log.Debugf("Pool is closing agent.")
-			if err := agent.Close(); err != nil {
-				agent.log.WithError(err).Warnf("Failed to close agent")
-			}
+		agent, err := p.connectAgent(p.ctx, p.tracker.Acquire(), p.events)
+		if err != nil {
+			p.log.WithError(err).Debugf("Failed to connect agent.")
 		} else {
-			filtered = append(filtered, agent)
+			p.wg.Add(1)
+			p.active.add(agent)
+			p.updateConnectedProxies()
 		}
-	}
 
-	if len(filtered) <= 0 {
-		return nil
-	}
-
-	return filtered
-}
-
-func (m *AgentPool) pollAndSyncAgents() {
-	ticker := time.NewTicker(defaults.ResyncInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-m.ctx.Done():
-			m.withLock(m.closeAgents)
-			m.log.Debugf("Closing.")
-			return
-		case <-ticker.C:
-			m.withLock(m.removeDisconnected)
+		err = p.waitForBackoff(p.ctx, p.events)
+		if err != nil {
+			p.log.WithError(err).Debugf("Failed to wait for backoff.")
 		}
 	}
 }
 
-// getReverseTunnelDetails gets the cached ReverseTunnelDetails obtained during the oldest cached agent.connect call.
-// This function should be called under a lock.
-func (m *AgentPool) getReverseTunnelDetails() *reverseTunnelDetails {
-	if len(m.agents) <= 0 {
-		return nil
+// connectAgent connects a new agent and processes any agent events blocking until a
+// new agent is connected or an error occurs.
+func (p *AgentPool) connectAgent(ctx context.Context, leases <-chan track.Lease, events <-chan Agent) (Agent, error) {
+	lease, err := p.waitForLease(ctx, leases, events)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return m.agents[0].reverseTunnelDetails
+
+	// Ensure the lease is released on error.
+	defer func() {
+		if err != nil {
+			lease.Release()
+		}
+	}()
+
+	err = p.processEvents(ctx, events)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	agent, err := p.newAgentFunc(ctx, p.tracker, lease)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = agent.Start(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return agent, nil
 }
 
-// addAgent adds a new agent to the pool. Note that ownership of the lease
-// transfers into the AgentPool, and will be released when the AgentPool
-// is done with it.
-func (m *AgentPool) addAgent(lease track.Lease) error {
-	addr, err := m.cfg.Resolver()
+func (p *AgentPool) updateRuntimeConfig(ctx context.Context) error {
+	netConfig, err := p.AccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	agent, err := NewAgent(AgentConfig{
-		Addr:                 *addr,
-		ClusterName:          m.cfg.Cluster,
-		Username:             m.cfg.HostUUID,
-		Signer:               m.cfg.HostSigner,
-		Client:               m.cfg.Client,
-		AccessPoint:          m.cfg.AccessPoint,
-		Context:              m.ctx,
-		KubeDialAddr:         m.cfg.KubeDialAddr,
-		Server:               m.cfg.Server,
-		ReverseTunnelServer:  m.cfg.ReverseTunnelServer,
-		LocalClusterName:     m.cfg.LocalCluster,
-		Component:            m.cfg.Component,
-		Tracker:              m.proxyTracker,
-		Lease:                lease,
-		FIPS:                 m.cfg.FIPS,
-		reverseTunnelDetails: m.getReverseTunnelDetails(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	m.log.Debugf("Adding %v.", agent)
-	// start the agent in a goroutine. no need to handle Start() errors: Start() will be
-	// retrying itself until the agent is closed
-	go agent.Start()
-	m.agents = append(m.agents, agent)
+	p.runtimeConfig.update(netConfig)
+	p.log.Debugf("Runtime config: tunnel_strategy: %v connection_count: %v", p.runtimeConfig.tunnelStrategyType, p.runtimeConfig.connectionCount)
+
 	return nil
 }
 
-// Count returns a count of the number of proxies an outbound tunnel is
-// connected to. Used in tests to determine if a proxy has been found and/or
-// removed.
-func (m *AgentPool) Count() int {
-	var out int
-	m.withLock(func() {
-		for _, agent := range m.agents {
-			if agent.getState() == agentStateConnected {
-				out++
+// processEvents handles all events in the queue. Unblocking when a new agent
+// is required.
+func (p *AgentPool) processEvents(ctx context.Context, events <-chan Agent) error {
+	// Processes any queued events without blocking.
+	for {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case agent := <-events:
+			p.handleEvent(ctx, agent)
+			continue
+		default:
+		}
+		break
+	}
+
+	err := p.updateRuntimeConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	p.disconnectAgents()
+	if p.isAgentRequired() {
+		return nil
+	}
+
+	// Continue to process new events until an agent is required.
+	for {
+		p.log.Debugf("Processing events...")
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case agent := <-events:
+			p.handleEvent(ctx, agent)
+
+			err := p.updateRuntimeConfig(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			p.disconnectAgents()
+			if p.isAgentRequired() {
+				return nil
 			}
 		}
-	})
-
-	return out
+	}
 }
 
-// removeDisconnected removes disconnected agents from the list of agents.
-// This function should be called under a lock.
-func (m *AgentPool) removeDisconnected() {
-	// Filter and close all disconnected agents.
-	m.agents = filterAndClose(m.agents, func(agent *Agent) bool {
-		return agent.getState() == agentStateDisconnected
+// isAgentRequired returns true if a new agent is required.
+func (p *AgentPool) isAgentRequired() bool {
+	if !p.runtimeConfig.restrictConnectionCount() {
+		return true
+	}
+
+	return p.active.len() < p.runtimeConfig.connectionCount
+}
+
+// disconnectAgents handles disconnecting agents that are no longer required.
+func (p *AgentPool) disconnectAgents() {
+	if !p.runtimeConfig.restrictConnectionCount() {
+		return
+	}
+
+	for {
+		agent, ok := p.active.poplen(p.runtimeConfig.connectionCount)
+		if !ok {
+			p.updateConnectedProxies()
+			return
+		}
+
+		p.log.Debugf("Disconnecting agent %s.", agent)
+		go func() {
+			agent.Stop()
+			p.wg.Done()
+		}()
+	}
+}
+
+// waitForLease processes events while waiting to acquire a lease.
+func (p *AgentPool) waitForLease(ctx context.Context, leases <-chan track.Lease, events <-chan Agent) (track.Lease, error) {
+	for {
+		select {
+		case <-ctx.Done():
+			return track.Lease{}, trace.Wrap(ctx.Err())
+		case lease := <-leases:
+			return lease, nil
+		case agent := <-events:
+			p.handleEvent(ctx, agent)
+		}
+	}
+}
+
+// waitForBackoff processes events while waiting for the backoff.
+func (p *AgentPool) waitForBackoff(ctx context.Context, events <-chan Agent) error {
+	backoffC := p.backoff.After()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case <-backoffC:
+			p.backoff.Inc()
+			return nil
+		case agent := <-events:
+			p.handleEvent(ctx, agent)
+		}
+	}
+}
+
+// handleEvent processes a single event.
+func (p *AgentPool) handleEvent(ctx context.Context, agent Agent) {
+	state := agent.GetState()
+	switch state {
+	case AgentConnecting:
+		return
+	case AgentConnected:
+	case AgentClosed:
+		if ok := p.active.remove(agent); ok {
+			p.wg.Done()
+		}
+	}
+	p.updateConnectedProxies()
+	p.log.Debugf("Active agent count: %d", p.active.len())
+}
+
+// stateCallback adds events to the queue for each agent state change.
+func (p *AgentPool) getStateCallback(agent Agent) AgentStateCallback {
+	return func(_ AgentState) {
+		select {
+		case <-p.ctx.Done():
+			// Handle events directly when the pool is closing.
+			p.handleEvent(p.ctx, agent)
+		case p.events <- agent:
+		}
+	}
+}
+
+// newAgent creates a new agent instance.
+func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease track.Lease) (Agent, error) {
+	addr, _, err := p.Resolver(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = p.runtimeConfig.updateRemote(ctx, addr)
+	if err != nil {
+		p.log.WithError(err).Debugf("Failed to update remote config.")
+	}
+
+	options := []proxy.DialerOptionFunc{proxy.WithInsecureSkipTLSVerify(lib.IsInsecureDevMode())}
+	if p.runtimeConfig.useALPNRouting() {
+		tlsConfig := &tls.Config{
+			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+		}
+
+		if p.runtimeConfig.useReverseTunnelV2() {
+			tlsConfig.NextProtos = []string{
+				string(alpncommon.ProtocolReverseTunnelV2),
+				string(alpncommon.ProtocolReverseTunnel),
+			}
+		}
+
+		options = append(options, proxy.WithALPNDialer(tlsConfig))
+	}
+
+	dialer := &agentDialer{
+		client:      p.Client,
+		fips:        p.FIPS,
+		authMethods: []ssh.AuthMethod{ssh.PublicKeys(p.HostSigner)},
+		options:     options,
+		username:    p.HostUUID,
+		log:         p.log,
+	}
+
+	agent, err := newAgent(agentConfig{
+		addr:               *addr,
+		keepAlive:          p.runtimeConfig.keepAliveInterval,
+		sshDialer:          dialer,
+		transporter:        p,
+		versionGetter:      p,
+		tracker:            tracker,
+		lease:              lease,
+		clock:              p.Clock,
+		log:                p.log,
+		localAuthAddresses: p.LocalAuthAddresses,
+		proxySigner:        p.PROXYSigner,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	agent.stateCallback = p.getStateCallback(agent)
+	return agent, nil
+}
+
+// Wait blocks until the pool context is stopped.
+func (p *AgentPool) Wait() {
+	if p == nil {
+		return
+	}
+
+	<-p.ctx.Done()
+	p.wg.Wait()
+}
+
+// Stop stops the pool and waits for all resources to be released.
+func (p *AgentPool) Stop() {
+	if p == nil {
+		return
+	}
+	p.cancel()
+	p.wg.Wait()
+}
+
+// getVersion gets the connected auth server version.
+func (p *AgentPool) getVersion(ctx context.Context) (string, error) {
+	pong, err := p.Client.Ping(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return pong.ServerVersion, nil
+}
+
+// transport creates a new transport instance.
+func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests <-chan *ssh.Request, conn sshutils.Conn) *transport {
+	return &transport{
+		closeContext:        ctx,
+		component:           p.Component,
+		localClusterName:    p.LocalCluster,
+		kubeDialAddr:        p.KubeDialAddr,
+		authClient:          p.Client,
+		reverseTunnelServer: p.ReverseTunnelServer,
+		server:              p.Server,
+		emitter:             p.Client,
+		sconn:               conn,
+		channel:             channel,
+		requestCh:           requests,
+		log:                 p.log,
+		authServers:         p.LocalAuthAddresses,
+		proxySigner:         p.PROXYSigner,
+	}
+}
+
+// agentPoolRuntimeConfig contains configurations dynamically set and updated
+// during runtime.
+type agentPoolRuntimeConfig struct {
+	proxyListenerMode types.ProxyListenerMode
+	// tunnelStrategyType is the tunnel strategy configured for the cluster.
+	tunnelStrategyType types.TunnelStrategyType
+	// connectionCount determines how many proxy servers the agent pool will
+	// connect to. This settings is ignored for the AgentMesh tunnel strategy.
+	connectionCount int
+	// keepAliveInterval is the interval agents will send heartbeats at.
+	keepAliveInterval time.Duration
+	// isRemoteCluster forces the agent pool to connect to all proxies
+	// regardless of the configured tunnel strategy.
+	isRemoteCluster bool
+
+	// remoteTLSRoutingEnabled caches a remote clusters tls routing setting. This helps prevent
+	// proxy endpoint stagnation where an even numbers of proxies are hidden behind a round robin
+	// load balancer. For instance in a situation where there are two proxies [A, B] due to
+	// the agent pools sequential webclient.Find and ssh dial, the Find call will always reach
+	// Proxy A and the ssh dial call will always be forwarded to Proxy B.
+	remoteTLSRoutingEnabled bool
+	// lastRemotePing is the time of the last ping attempt.
+	lastRemotePing *time.Time
+
+	mu             sync.RWMutex
+	updateRemoteMu sync.Mutex
+	clock          clockwork.Clock
+}
+
+func newAgentPoolRuntimeConfig() *agentPoolRuntimeConfig {
+	return &agentPoolRuntimeConfig{
+		tunnelStrategyType: types.AgentMesh,
+		connectionCount:    defaultAgentConnectionCount,
+		proxyListenerMode:  types.ProxyListenerMode_Separate,
+		keepAliveInterval:  defaults.KeepAliveInterval(),
+		clock:              clockwork.NewRealClock(),
+	}
+}
+
+// reportConnectedProxies returns true if the connected proxies should be reported.
+func (c *agentPoolRuntimeConfig) reportConnectedProxies() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.isRemoteCluster {
+		return false
+	}
+	return c.tunnelStrategyType == types.ProxyPeering
+}
+
+// reportConnectedProxies returns true if the number of agents should be restricted.
+func (c *agentPoolRuntimeConfig) restrictConnectionCount() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.isRemoteCluster {
+		return false
+	}
+	return c.tunnelStrategyType == types.ProxyPeering
+}
+
+// useReverseTunnelV2 returns true if reverse tunnel should be used.
+func (c *agentPoolRuntimeConfig) useReverseTunnelV2() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.isRemoteCluster {
+		return false
+	}
+	return c.tunnelStrategyType == types.ProxyPeering
+}
+
+// useALPNRouting returns true agents should connect using alpn routing.
+func (c *agentPoolRuntimeConfig) useALPNRouting() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.isRemoteCluster {
+		return c.remoteTLSRoutingEnabled
+	}
+
+	return c.proxyListenerMode == types.ProxyListenerMode_Multiplex
+}
+
+func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.NetAddr) error {
+	c.updateRemoteMu.Lock()
+	defer c.updateRemoteMu.Unlock()
+
+	c.mu.RLock()
+	if !c.isRemoteCluster {
+		c.mu.RUnlock()
+		return nil
+	}
+
+	if c.lastRemotePing != nil && c.clock.Since(*c.lastRemotePing) < remotePingCacheTTL {
+		c.mu.RUnlock()
+		return nil
+	}
+
+	c.mu.RUnlock()
+
+	ctx, cancel := context.WithTimeout(ctx, defaults.DefaultIOTimeout)
+	defer cancel()
+
+	tlsRoutingEnabled := false
+
+	ping, err := webclient.Find(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: addr.Addr,
+		Insecure:  lib.IsInsecureDevMode(),
+	})
+	if err != nil {
+		// If TLS Routing is disabled the address is the proxy reverse tunnel
+		// address the ping call will always fail with tls.RecordHeaderError.
+		if ok := errors.As(err, &tls.RecordHeaderError{}); !ok {
+			return trace.Wrap(err)
+		}
+	}
+
+	if ping != nil {
+		// Only use the ping results if they weren't from a minimal handler.
+		// The minimal API handler only exists when the proxy and reverse tunnel are
+		// listening on separate ports, so it will never do TLS routing.
+		isMinimalHandler := addr.Addr == ping.Proxy.SSH.TunnelListenAddr &&
+			ping.Proxy.SSH.TunnelListenAddr != ping.Proxy.SSH.WebListenAddr
+		if !isMinimalHandler {
+			tlsRoutingEnabled = ping.Proxy.TLSRoutingEnabled
+		}
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now := c.clock.Now()
+	c.lastRemotePing = &now
+
+	c.remoteTLSRoutingEnabled = tlsRoutingEnabled
+	return nil
+}
+
+func (c *agentPoolRuntimeConfig) update(netConfig types.ClusterNetworkingConfig) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.keepAliveInterval = netConfig.GetKeepAliveInterval()
+	c.proxyListenerMode = netConfig.GetProxyListenerMode()
+
+	// Fallback to agent mesh strategy if there is an error.
+	strategyType, err := netConfig.GetTunnelStrategyType()
+	if err != nil {
+		c.tunnelStrategyType = types.AgentMesh
+		return
+	}
+
+	c.tunnelStrategyType = strategyType
+	if c.tunnelStrategyType == types.ProxyPeering {
+		strategy := netConfig.GetProxyPeeringTunnelStrategy()
+		c.connectionCount = int(strategy.AgentConnectionCount)
+	}
+	if c.connectionCount <= 0 {
+		c.connectionCount = defaultAgentConnectionCount
+	}
 }
 
 // Make sure ServerHandlerToListener implements both interfaces.

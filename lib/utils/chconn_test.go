@@ -19,22 +19,24 @@ package utils
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"io/ioutil"
+	"io"
 	"net"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/sshutils"
-
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 // TestChConn validates that reads from the channel connection can be
 // canceled by setting a read deadline.
 func TestChConn(t *testing.T) {
+	t.Parallel()
+
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { listener.Close() })
@@ -60,7 +62,7 @@ func TestChConn(t *testing.T) {
 		go func() {
 			// Nothing is sent on the channel so this will block until the
 			// read is canceled by the deadline set below.
-			_, err := ioutil.ReadAll(chConn)
+			_, err := io.ReadAll(chConn)
 			doneCh <- err
 		}()
 		// Set the read deadline in the past and make sure that the read
