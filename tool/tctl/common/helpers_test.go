@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -117,6 +118,12 @@ func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts
 	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
 }
 
+func runLockCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
+	command := &LockCommand{}
+	args = append([]string{"lock"}, args...)
+	return runCommand(t, fc, command, args, opts...)
+}
+
 func runTokensCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &TokensCommand{
@@ -178,6 +185,7 @@ func mustWriteIdentityFile(t *testing.T, fc *config.FileConfig, username string)
 type testServerOptions struct {
 	fileConfig      *config.FileConfig
 	fileDescriptors []servicecfg.FileDescriptor
+	fakeClock       clockwork.FakeClock
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -191,6 +199,12 @@ func withFileConfig(fc *config.FileConfig) testServerOptionFunc {
 func withFileDescriptors(fds []servicecfg.FileDescriptor) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.fileDescriptors = fds
+	}
+}
+
+func withFakeClock(fakeClock clockwork.FakeClock) testServerOptionFunc {
+	return func(options *testServerOptions) {
+		options.fakeClock = fakeClock
 	}
 }
 
@@ -212,7 +226,11 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	if options.fakeClock != nil {
+		cfg.Clock = options.fakeClock
+	}
 	auth, err = service.NewTeleport(cfg)
+
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
 

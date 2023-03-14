@@ -1293,7 +1293,7 @@ func (lockExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) 
 }
 
 func (lockExecutor) upsert(ctx context.Context, cache *Cache, resource types.Lock) error {
-	return cache.Access.UpsertLock(ctx, resource)
+	return cache.accessCache.UpsertLock(ctx, resource)
 }
 
 func (lockExecutor) deleteAll(ctx context.Context, cache *Cache) error {
