@@ -76,13 +76,13 @@ export const createAppConfigSchema = (platform: Platform) => {
       .describe(getShortcutDesc('go to the next tab')),
     'keymap.openConnections': shortcutSchema
       .default(defaultKeymap['openConnections'])
-      .describe(getShortcutDesc('open the connection panel')),
+      .describe(getShortcutDesc('open the connection list')),
     'keymap.openClusters': shortcutSchema
       .default(defaultKeymap['openClusters'])
-      .describe(getShortcutDesc('open the clusters panel')),
+      .describe(getShortcutDesc('open the cluster selector')),
     'keymap.openProfiles': shortcutSchema
       .default(defaultKeymap['openProfiles'])
-      .describe(getShortcutDesc('open the profiles panel')),
+      .describe(getShortcutDesc('open the profile selector')),
     'keymap.openCommandBar': shortcutSchema
       .default(defaultKeymap['openCommandBar'])
       .describe(getShortcutDesc('open the command bar')),
