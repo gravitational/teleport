@@ -44,14 +44,16 @@ const auth = {
       )
     );
   },
-  checkMfaRequired(params) {
+  checkMfaRequired(
+    params: IsMfaRequiredRequest
+  ): Promise<{ required: boolean }> {
     return api.post(cfg.getMfaRequiredUrl(), params);
   },
 
   async getAssertionResponseIfRequired(params: IsMfaRequiredRequest) {
     const isMfaRequired = await auth.checkMfaRequired(params);
     if (isMfaRequired.required === true) {
-      return await auth.getWebauthnResponse();
+      return auth.getWebauthnResponse();
     }
     return;
   },
