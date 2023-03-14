@@ -43,6 +43,7 @@ async function initializeApp(): Promise<void> {
   let devRelaunchScheduled = false;
   const settings = getRuntimeSettings();
   const logger = initMainLogger(settings);
+  logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
   const {
     appStateFileStorage,
     configFileStorage,
