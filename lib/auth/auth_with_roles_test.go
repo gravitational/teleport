@@ -4258,7 +4258,7 @@ func TestHeadlessAuthentication(t *testing.T) {
 
 	_, err = client2.GetHeadlessAuthentication(failedGetCtx, headlessID)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "context deadline exceeded", "expected context deadline error but got: %v", err)
+	require.ErrorContains(t, err, "context deadline exceeded", "expected context deadline error but got: %v", err)
 
 	// user1 should successfully get headless authentication with up to date login details
 	retrievedHeadlessAuthn, err := client1.GetHeadlessAuthentication(ctx, headlessID)

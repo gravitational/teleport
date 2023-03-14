@@ -69,9 +69,12 @@ type AuthenticateUserRequest struct {
 }
 
 // ForwardedClientMetadata can be used by the proxy web API to forward information about
-// the client to the auth service for logging purposes.
+// the client to the auth service.
 type ForwardedClientMetadata struct {
-	UserAgent  string `json:"user_agent,omitempty"`
+	UserAgent string `json:"user_agent,omitempty"`
+	// RemoteAddr is the IP address of the end user. This IP address is derived
+	// either from a direct client connection, or from a PROXY protocol header
+	// if the connection is forwarded through a load balancer.
 	RemoteAddr string `json:"remote_addr,omitempty"`
 }
 
