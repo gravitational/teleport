@@ -49,14 +49,6 @@ const auth = {
   ): Promise<{ required: boolean }> {
     return api.post(cfg.getMfaRequiredUrl(), params);
   },
-
-  async getAssertionResponseIfRequired(params: IsMfaRequiredRequest) {
-    const isMfaRequired = await auth.checkMfaRequired(params);
-    if (isMfaRequired.required === true) {
-      return auth.getWebauthnResponse();
-    }
-  },
-
   createMfaRegistrationChallenge(
     tokenId: string,
     deviceType: DeviceType,
