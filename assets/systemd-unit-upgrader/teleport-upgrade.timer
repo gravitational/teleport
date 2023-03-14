@@ -1,0 +1,16 @@
+[Unit]
+Description=Teleport upgrade timer unit
+
+[Timer]
+# on active sec fires relative to the time that the timer itself became active
+OnActiveSec=9m
+
+# on unit active sec fires relative to the last time the associated unit was active
+# (i.e. this is the "repeating" portion of the timer)
+OnUnitActiveSec=28m
+
+# randomized delay sec adds an added delay to all firings
+RandomizedDelaySec=4m
+
+[Install]
+WantedBy=teleport.service 

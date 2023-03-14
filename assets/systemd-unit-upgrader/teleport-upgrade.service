@@ -1,0 +1,5 @@
+[Unit]
+Description=sdt unit launched by timer
+
+[Service]
+ExecStart=/usr/local/bin/teleport-upgrade
