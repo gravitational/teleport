@@ -285,7 +285,6 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
-		// TODO(capnspacehook): remove when forwarding SSH agent to agentless node works
 		agentGetter = nil
 	}
 
