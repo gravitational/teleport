@@ -196,6 +196,8 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async getRequestableRoles(params: GetRequestableRolesParams) {
     const cluster = this.state.clusters.get(params.rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. This check should be done earlier in the
+    // UI rather than be repeated in each ClustersService method.
     if (!cluster.connected) {
       return;
     }
@@ -205,6 +207,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   getAssumedRequests(rootClusterUri: uri.RootClusterUri) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster?.connected) {
       return {};
     }
@@ -218,6 +221,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async getAccessRequests(rootClusterUri: uri.RootClusterUri) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -230,6 +234,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     requestId: string
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -242,6 +247,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     dropIds: string[]
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -255,6 +261,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     requestId: string
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -267,6 +274,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     params: ReviewAccessRequestParams
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -281,6 +289,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async createAccessRequest(params: CreateAccessRequestParams) {
     const cluster = this.state.clusters.get(params.rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
