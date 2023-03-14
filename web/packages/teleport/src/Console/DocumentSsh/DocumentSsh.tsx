@@ -30,7 +30,6 @@ import { colors } from 'teleport/Console/colors';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import useWebAuthn from 'teleport/lib/useWebAuthn';
-import auth from 'teleport/services/auth';
 
 import Document from '../Document';
 
@@ -86,9 +85,11 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
                   serverId: doc.serverId,
                   login: doc.login,
                   filename: location,
-                  webauthn: webauthn.mfaRequired
-                    ? await auth.getWebauthnResponse()
-                    : undefined,
+                  webauthn:
+                    await getHttpFileTransferHandlers().getWebauthnResponse(
+                      webauthn.mfaRequired,
+                      abortController
+                    ),
                 }),
                 abortController
               );
@@ -101,9 +102,11 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
                   serverId: doc.serverId,
                   login: doc.login,
                   filename: file.name,
-                  webauthn: webauthn.mfaRequired
-                    ? await auth.getWebauthnResponse()
-                    : undefined,
+                  webauthn:
+                    await getHttpFileTransferHandlers().getWebauthnResponse(
+                      webauthn.mfaRequired,
+                      abortController
+                    ),
                 }),
                 file,
                 abortController
