@@ -250,12 +250,15 @@ export type CreateGatewayParams = {
 
 export type GetResourcesParams = {
   clusterUri: uri.ClusterUri;
+  // sort is a required field because it has direct implications on performance of ListResources.
+  sort: SortType | null;
+  // limit cannot be omitted and must be greater than zero, otherwise ListResources is going to
+  // return an error.
+  limit: number;
   // search is used for regular search.
   search?: string;
   searchAsRoles?: string;
-  sort?: SortType;
   startKey?: string;
-  limit?: number;
   // query is used for advanced search.
   query?: string;
 };

@@ -24,6 +24,8 @@ export class ResourcesService {
     return this.tshClient.getServers(params);
   }
 
+  // TODO(ravicious): Refactor it to use logic similar to that in the Web UI.
+  // https://github.com/gravitational/teleport/blob/2a2b08dbfdaf71706a5af3812d3a7ec843d099b4/lib/web/apiserver.go#L2471
   async getServerByHostname(
     clusterUri: uri.ClusterUri,
     hostname: string
@@ -33,6 +35,7 @@ export class ResourcesService {
       clusterUri,
       query,
       limit: 2,
+      sort: null,
     });
 
     if (servers.length > 1) {
