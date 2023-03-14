@@ -11,7 +11,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/fixtures"
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -38,8 +37,7 @@ func (s *APISuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	authPlugin, err := NewPlugin(Config{
-		License:    ValidLicense{},
-		GetBackend: func() backend.Backend { return authServer.Backend },
+		License: ValidLicense{},
 	})
 	c.Assert(err, check.IsNil)
 

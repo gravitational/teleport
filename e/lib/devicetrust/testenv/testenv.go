@@ -21,7 +21,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -135,7 +134,7 @@ func New(opts ...Opt) (*E, error) {
 	}
 	e.closers = append(e.closers, mem.Close)
 
-	dtStorage, err := storage.New(func() backend.Backend { return mem })
+	dtStorage, err := storage.New(mem)
 	if err != nil {
 		return nil, err
 	}

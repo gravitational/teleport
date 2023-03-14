@@ -23,13 +23,13 @@ type GetBackendFunc func() backend.Backend
 
 // S implements login rule storage, backed by a [backend.Backend].
 type S struct {
-	backend GetBackendFunc
+	backend backend.Backend
 }
 
 // New returns a login rule storage implementation.
-func New(getBackend GetBackendFunc) *S {
+func New(backend backend.Backend) *S {
 	return &S{
-		backend: getBackend,
+		backend: backend,
 	}
 }
 
@@ -41,7 +41,7 @@ func (s *S) CreateLoginRule(ctx context.Context, rule *loginrulepb.LoginRule) (*
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.backend().Create(ctx, *item)
+	_, err = s.backend.Create(ctx, *item)
 	if trace.IsAlreadyExists(err) {
 		return nil, trace.AlreadyExists("login rule %q already exists", rule.Metadata.Name)
 	}
@@ -55,13 +55,13 @@ func (s *S) UpsertLoginRule(ctx context.Context, rule *loginrulepb.LoginRule) (*
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.backend().Put(ctx, *item)
+	_, err = s.backend.Put(ctx, *item)
 	return rule, trace.Wrap(err)
 }
 
 // GetLoginRule returns a login rule from the backend by name.
 func (s *S) GetLoginRule(ctx context.Context, name string) (*loginrulepb.LoginRule, error) {
-	item, err := s.backend().Get(ctx, loginRuleKey(name))
+	item, err := s.backend.Get(ctx, loginRuleKey(name))
 	switch {
 	case trace.IsNotFound(err):
 		return nil, trace.NotFound("login rule %q is not found", name)
@@ -112,7 +112,7 @@ func (s *S) ListLoginRules(ctx context.Context, requestedPageSize int, pageToken
 		pageSize++
 	}
 
-	res, err := s.backend().GetRange(ctx, startKey, loginRuleRangeEnd, pageSize)
+	res, err := s.backend.GetRange(ctx, startKey, loginRuleRangeEnd, pageSize)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -149,7 +149,7 @@ func (s *S) ListLoginRules(ctx context.Context, requestedPageSize int, pageToken
 // DeleteLoginRule deletes the named login rule from the backend, returns
 // NotFound error if item does not exist.
 func (s *S) DeleteLoginRule(ctx context.Context, name string) error {
-	err := s.backend().Delete(ctx, loginRuleKey(name))
+	err := s.backend.Delete(ctx, loginRuleKey(name))
 	if trace.IsNotFound(err) {
 		return trace.NotFound("login rule %q is not found", name)
 	}

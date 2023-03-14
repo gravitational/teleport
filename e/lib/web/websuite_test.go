@@ -20,7 +20,6 @@ import (
 	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -74,9 +73,6 @@ func newWebSuite(t *testing.T) *webSuite {
 	require.NoError(t, err)
 	authPlugin, err := eauth.NewPlugin(eauth.Config{
 		License: eauth.ValidLicense{},
-		GetBackend: func() backend.Backend {
-			return s.testAuthServer.AuthServer.Backend
-		},
 	})
 	require.NoError(t, err)
 	err = pluginRegistry.Add(authPlugin)

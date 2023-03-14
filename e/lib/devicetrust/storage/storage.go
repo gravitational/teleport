@@ -42,29 +42,26 @@ const (
 	enrollmentDataID = "1"
 )
 
-// GetBackendFunc is a function that returns a backend.Backend implementation.
-type GetBackendFunc func() backend.Backend
-
 // S implements the Device Trust storage, backed by a backend.Backend.
 type S struct {
 	logger  *log.Entry
-	backend GetBackendFunc
+	backend backend.Backend
 }
 
 // New returns a new Device Trust storage instance.
-func New(getBackend GetBackendFunc) (*S, error) {
-	if getBackend == nil {
-		return nil, trace.BadParameter("getBackend required")
+func New(backend backend.Backend) (*S, error) {
+	if backend == nil {
+		return nil, trace.BadParameter("backend required")
 	}
 
 	return &S{
 		logger:  log.WithField(trace.Component, "devicetrust.storage"),
-		backend: getBackend,
+		backend: backend,
 	}, nil
 }
 
 func (s *S) nowUTC() time.Time {
-	return s.backend().Clock().Now().UTC()
+	return s.backend.Clock().Now().UTC()
 }
 
 // BulkCreateDevices creates devices in bulk.
@@ -188,7 +185,7 @@ func (s *S) createDevice(ctx context.Context, dev *devicepb.Device, createAsReso
 	}
 
 	// Write device.
-	if _, err := s.backend().Create(ctx, backend.Item{
+	if _, err := s.backend.Create(ctx, backend.Item{
 		Key:   deviceKey(deviceID),
 		Value: storedJSON,
 	}); err != nil {
@@ -278,7 +275,7 @@ func (s *S) updateAssetTagIndex(ctx context.Context, assetTag string, ref *devic
 	const maxAttempts = 3 // arbitrary
 	for i := 0; i < maxAttempts; i++ {
 		var retry bool
-		current, getErr := s.backend().Get(ctx, assetTagKey)
+		current, getErr := s.backend.Get(ctx, assetTagKey)
 		switch {
 		case trace.IsNotFound(getErr): // New asset tag
 			retry, lastErr = s.createDeviceRef(ctx, assetTagKey, ref)
@@ -317,7 +314,7 @@ func (s *S) createDeviceRef(ctx context.Context, key []byte, ref *deviceRef) (re
 		return false, trace.Wrap(err, "marshal device reference")
 	}
 
-	if _, err := s.backend().Create(ctx, backend.Item{
+	if _, err := s.backend.Create(ctx, backend.Item{
 		Key:   key,
 		Value: val,
 	}); err != nil {
@@ -340,7 +337,7 @@ func (s *S) appendDeviceRef(ctx context.Context, current *backend.Item, ref *dev
 		if existing.OSType == ref.OSType {
 			// Does the device _really_ exist?
 			// Let's not have a hanging mapping inutilize an asset tag.
-			if _, getErr := s.backend().Get(ctx, deviceKey(existing.DeviceID)); getErr == nil {
+			if _, getErr := s.backend.Get(ctx, deviceKey(existing.DeviceID)); getErr == nil {
 				return false, trace.AlreadyExists("asset tag already registered")
 			}
 
@@ -360,7 +357,7 @@ func (s *S) appendDeviceRef(ctx context.Context, current *backend.Item, ref *dev
 		return false, trace.Wrap(err, "marshal device references")
 	}
 
-	if _, err := s.backend().CompareAndSwap(ctx, *current, backend.Item{
+	if _, err := s.backend.CompareAndSwap(ctx, *current, backend.Item{
 		Key:   current.Key,
 		Value: val,
 	}); err != nil {
@@ -385,7 +382,7 @@ func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
 	// If this succeeds the invocation is considered a success: the device key is
 	// the source of truth for a device existing, the system can handle "hanging"
 	// asset tags.
-	if err := s.backend().Delete(ctx, deviceKey(deviceID)); err != nil {
+	if err := s.backend.Delete(ctx, deviceKey(deviceID)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -402,7 +399,7 @@ func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
 	}
 
 	// Remove enroll token, if present.
-	if err := s.backend().Delete(ctx, deviceTokenKey(deviceID)); err != nil && !trace.IsNotFound(err) {
+	if err := s.backend.Delete(ctx, deviceTokenKey(deviceID)); err != nil && !trace.IsNotFound(err) {
 		s.logger.
 			WithError(err).
 			WithFields(log.Fields{
@@ -416,7 +413,7 @@ func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
 	// Remove collected data.
 	cdStart := collectedDataKeyStart(deviceID)
 	cdEnd := backend.RangeEnd(cdStart)
-	if err := s.backend().DeleteRange(ctx, cdStart, cdEnd); err != nil {
+	if err := s.backend.DeleteRange(ctx, cdStart, cdEnd); err != nil {
 		s.logger.
 			WithError(err).
 			WithFields(log.Fields{
@@ -431,7 +428,7 @@ func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
 }
 
 func (s *S) removeFromAssetTagIndex(ctx context.Context, deviceID, assetTag string) error {
-	item, err := s.backend().Get(ctx, devicesByAssetTagKey(assetTag))
+	item, err := s.backend.Get(ctx, devicesByAssetTagKey(assetTag))
 	if err != nil {
 		return trace.Wrap(err, "reading asset tag mapping")
 	}
@@ -470,7 +467,7 @@ func (s *S) removeFromAssetTagIndex(ctx context.Context, deviceID, assetTag stri
 		return trace.Wrap(err, "marshal asset tag mapping")
 	}
 
-	if _, err := s.backend().CompareAndSwap(ctx, *item, backend.Item{
+	if _, err := s.backend.CompareAndSwap(ctx, *item, backend.Item{
 		Key:   item.Key,
 		Value: val,
 	}); err != nil {
@@ -519,7 +516,7 @@ func (s *S) getDeviceByID(ctx context.Context, deviceID string) (*devicepb.Devic
 		return nil, nil, nil, trace.BadParameter("device ID required")
 	}
 
-	item, err := s.backend().Get(ctx, deviceKey(deviceID))
+	item, err := s.backend.Get(ctx, deviceKey(deviceID))
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -537,7 +534,7 @@ func (s *S) getDeviceCollectedData(ctx context.Context, deviceID string) ([]*dev
 	start := collectedDataKeyStart(deviceID)
 	end := backend.RangeEnd(start)
 	limit := MaxCollectedDataPerDevice * 2 // Give the search some leeway.
-	res, err := s.backend().GetRange(ctx, start, end, limit)
+	res, err := s.backend.GetRange(ctx, start, end, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -591,7 +588,7 @@ func (s *S) GetDevicesByAssetTag(ctx context.Context, assetTag string) ([]*devic
 		return nil, trace.BadParameter("asset tag required")
 	}
 
-	item, err := s.backend().Get(ctx, devicesByAssetTagKey(assetTag))
+	item, err := s.backend.Get(ctx, devicesByAssetTagKey(assetTag))
 	switch {
 	case trace.IsNotFound(err):
 		return nil, nil
@@ -693,7 +690,7 @@ func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string, vie
 		pageSize++
 	}
 
-	res, err := s.backend().GetRange(ctx, startKey, endKey, pageSize)
+	res, err := s.backend.GetRange(ctx, startKey, endKey, pageSize)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -820,7 +817,7 @@ func (s *S) EnrollDevice(
 	}
 
 	// Update device.
-	if _, err := s.backend().CompareAndSwap(ctx, *item, backend.Item{
+	if _, err := s.backend.CompareAndSwap(ctx, *item, backend.Item{
 		Key:   item.Key,
 		Value: val,
 	}); err != nil {
@@ -872,7 +869,7 @@ func (s *S) recordCollectedData(ctx context.Context, deviceID string, cd *device
 		cdID = uuid.NewString()
 	}
 
-	if _, err := s.backend().Put(ctx, backend.Item{
+	if _, err := s.backend.Put(ctx, backend.Item{
 		Key:   collectedDataKey(deviceID, cdID),
 		Value: val,
 	}); err != nil {
@@ -938,7 +935,7 @@ func (s *S) recordResourceCollectedData(ctx context.Context, deviceID string, st
 			return nil, trace.Wrap(err, "marshal collected data (index=%v, cd=%v)", i, cd)
 		}
 
-		if _, err := s.backend().Put(ctx, backend.Item{
+		if _, err := s.backend.Put(ctx, backend.Item{
 			Key:   collectedDataKey(deviceID, cdID),
 			Value: val,
 		}); err != nil {
@@ -960,7 +957,7 @@ func (s *S) clearCollectedDataIfNeeded(ctx context.Context, deviceID string) err
 	start := collectedDataKeyStart(deviceID)
 	end := backend.RangeEnd(start)
 	limit := MaxCollectedDataPerDevice * 2 // Give the search some leeway.
-	res, err := s.backend().GetRange(ctx, start, end, limit)
+	res, err := s.backend.GetRange(ctx, start, end, limit)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -992,7 +989,7 @@ func (s *S) clearCollectedDataIfNeeded(ctx context.Context, deviceID string) err
 
 	// From older to newer, delete data until we hit the size limit.
 	for len(cd) > MaxCollectedDataPerDevice {
-		if err := s.backend().Delete(ctx, cd[0].Key); err != nil {
+		if err := s.backend.Delete(ctx, cd[0].Key); err != nil {
 			return trace.Wrap(err)
 		}
 		cd = cd[1:]
@@ -1016,7 +1013,7 @@ func (s *S) CreateDeviceEnrollToken(ctx context.Context, deviceID string) (*devi
 	}
 
 	// Device must exist, the easiest way to check is to read the key.
-	if _, err := s.backend().Get(ctx, deviceKey(deviceID)); err != nil {
+	if _, err := s.backend.Get(ctx, deviceKey(deviceID)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1042,7 +1039,7 @@ func (s *S) CreateDeviceEnrollToken(ctx context.Context, deviceID string) (*devi
 		return nil, trace.Wrap(err, "marshal enrollment token")
 	}
 
-	if _, err := s.backend().Put(ctx, backend.Item{
+	if _, err := s.backend.Put(ctx, backend.Item{
 		Key:     deviceTokenKey(deviceID),
 		Value:   val,
 		Expires: s.nowUTC().Add(DeviceEnrollTokenExpireDuration),
@@ -1069,12 +1066,12 @@ func (s *S) SpendDeviceEnrollToken(ctx context.Context, deviceID, token string) 
 	}
 
 	// Device must exist, the easiest way to check is to read the key.
-	if _, err := s.backend().Get(ctx, deviceKey(deviceID)); err != nil {
+	if _, err := s.backend.Get(ctx, deviceKey(deviceID)); err != nil {
 		return trace.Wrap(err)
 	}
 
 	key := deviceTokenKey(deviceID)
-	item, err := s.backend().Get(ctx, key)
+	item, err := s.backend.Get(ctx, key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1086,7 +1083,7 @@ func (s *S) SpendDeviceEnrollToken(ctx context.Context, deviceID, token string) 
 	if err := bcrypt.CompareHashAndPassword(stored.HashedToken, []byte(token)); err != nil {
 		return trace.BadParameter("invalid token")
 	}
-	if err := s.backend().Delete(ctx, key); err != nil {
+	if err := s.backend.Delete(ctx, key); err != nil {
 		return trace.Wrap(err, "failed to spend enrollment token")
 	}
 

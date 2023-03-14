@@ -37,7 +37,7 @@ func newTestPack(t *testing.T) *testPack {
 
 	sanitized := backend.NewSanitizer(mem)
 
-	s := storage.New(func() backend.Backend { return sanitized })
+	s := storage.New(sanitized)
 
 	return &testPack{
 		clock: clock,

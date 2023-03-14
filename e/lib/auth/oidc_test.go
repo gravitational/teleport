@@ -417,7 +417,7 @@ func TestSSODiagnostic(t *testing.T) {
 
 func installLoginRule(ctx context.Context, t *testing.T, a *auth.Server, b backend.Backend, traitsMap map[string][]string) {
 	// Install login rules plugin.
-	ruleStorage := storage.New(func() backend.Backend { return b })
+	ruleStorage := storage.New(b)
 	evaluator := loginrule.NewEvaluator(ruleStorage)
 	a.SetLoginRuleEvaluator(evaluator)
 

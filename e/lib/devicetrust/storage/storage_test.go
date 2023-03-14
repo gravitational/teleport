@@ -27,7 +27,6 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
@@ -1955,7 +1954,7 @@ func newEnv() (*storageEnv, error) {
 		return nil, err
 	}
 
-	s, err := storage.New(func() backend.Backend { return mem })
+	s, err := storage.New(mem)
 	if err != nil {
 		mem.Close()
 		return nil, err

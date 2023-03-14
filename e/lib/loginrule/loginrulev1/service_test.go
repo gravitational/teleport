@@ -13,7 +13,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -37,7 +36,7 @@ func newTestPack(t *testing.T) *testPack {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, mem.Close()) })
 
-	s := storage.New(func() backend.Backend { return mem })
+	s := storage.New(mem)
 
 	return &testPack{
 		clock: clock,

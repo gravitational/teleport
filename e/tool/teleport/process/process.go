@@ -11,7 +11,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/pro"
 	"github.com/gravitational/teleport/e/lib/web"
 	emodules "github.com/gravitational/teleport/e/tool/modules"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -47,18 +46,8 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Capture process in a variable so plugins can access its backend after it
-	// is initialized.
-	var enterpriseProcess interface{ GetBackend() backend.Backend }
-
 	authPlugin, err := auth.NewPlugin(auth.Config{
 		License: licenseFile,
-		GetBackend: func() backend.Backend {
-			if enterpriseProcess == nil {
-				panic("Failed to acquire backend, Teleport process is nil")
-			}
-			return enterpriseProcess.GetBackend()
-		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -107,8 +96,6 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		enterpriseProcess = cloudProcess
-
 		return cloudProcess, nil
 	}
 
@@ -121,8 +108,6 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	enterpriseProcess = proProcess
 
 	return proProcess, nil
 }

@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -49,11 +48,6 @@ var ErrLicenseExpired = trace.AccessDenied("Teleport Enterprise license expired"
 
 // Config is a configuration of the web plugin
 type Config struct {
-	// GetBackend fetches the backend for the running Teleport process.
-	// A func is used, instead of a plain field, so the Plugin may be created
-	// before the actual Teleport process.
-	GetBackend func() backend.Backend
-
 	// License holds the license under which the Teleport instance is running.
 	License License
 }
@@ -133,7 +127,7 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	})
 
 	// Register Device Trust.
-	deviceStorage, err := dtstorage.New(p.GetBackend)
+	deviceStorage, err := dtstorage.New(authServer.GetBackend())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -212,7 +206,7 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 }
 
 func (p *Plugin) registerLoginRuleService(server *auth.GRPCServer) error {
-	storage := lrstorage.New(p.GetBackend)
+	storage := lrstorage.New(server.GetBackend())
 
 	evaluator := loginrule.NewEvaluator(storage)
 	server.AuthServer.SetLoginRuleEvaluator(evaluator)
@@ -240,7 +234,7 @@ func (p *Plugin) registerPluginsService(server *auth.GRPCServer) error {
 		return trace.Wrap(err)
 	}
 
-	backendService := local.NewPluginsService(p.GetBackend)
+	backendService := local.NewPluginsService(server.GetBackend)
 	service, err := pluginsv1.NewService(pluginsv1.ServiceConfig{
 		Authorizer:     p.authorizer,
 		BackendService: backendService,
