@@ -143,7 +143,7 @@ func TestListPlugins(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { mem.Close() })
 
-	service := NewPluginsService(func() backend.Backend { return mem })
+	service := NewPluginsService(mem)
 
 	var insertedPlugins []types.Plugin
 	for i := 0; i < numPlugins; i++ {
