@@ -48,7 +48,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
   }
 
   useEffect(() => {
-    if (refTerminal && refTerminal.current) {
+    if (refTerminal?.current) {
       // when switching tabs or closing tabs, focus on visible terminal
       refTerminal.current.terminal.term.focus();
     }
@@ -79,9 +79,6 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
           backgroundColor={colors.primary.light}
           transferHandlers={{
             getDownloader: async (location, abortController) => {
-              const wanResponse = await auth.getAssertionResponseIfRequired({
-                node: { node_name: doc.serverId, login: doc.login },
-              });
               return getHttpFileTransferHandlers().download(
                 cfg.getScpUrl({
                   location,
@@ -89,15 +86,14 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
                   serverId: doc.serverId,
                   login: doc.login,
                   filename: location,
-                  webauthn: wanResponse,
+                  webauthn: webauthn.mfaRequired
+                    ? await auth.getWebauthnResponse()
+                    : undefined,
                 }),
                 abortController
               );
             },
             getUploader: async (location, file, abortController) => {
-              const wanResponse = await auth.getAssertionResponseIfRequired({
-                node: { node_name: doc.clusterId, login: doc.login },
-              });
               return getHttpFileTransferHandlers().upload(
                 cfg.getScpUrl({
                   location,
@@ -105,7 +101,9 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
                   serverId: doc.serverId,
                   login: doc.login,
                   filename: file.name,
-                  webauthn: wanResponse,
+                  webauthn: webauthn.mfaRequired
+                    ? await auth.getWebauthnResponse()
+                    : undefined,
                 }),
                 file,
                 abortController

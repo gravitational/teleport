@@ -516,20 +516,9 @@ const cfg = {
     });
   },
 
-  getScpUrl({
-    webauthn,
-    login,
-    location,
-    filename,
-    clusterId,
-    serverId,
-  }: UrlScpParams) {
+  getScpUrl({ webauthn, ...params }: UrlScpParams) {
     let path = generatePath(cfg.api.scp, {
-      login,
-      location,
-      filename,
-      clusterId,
-      serverId,
+      ...params,
     });
     if (!webauthn) {
       return path;
@@ -537,12 +526,9 @@ const cfg = {
     // non-required MFA will mean this param is undefined and generatePath doesn't like undefined
     // or optional params. So we append it ourselves here. Its ok to be undefined when sent to the server
     // as the existence of this param is what will issue certs
-    return (
-      path +
-      `&webauthn=${JSON.stringify({
-        webauthnAssertionResponse: webauthn,
-      })}`
-    );
+    return `${path}&webauthn=${JSON.stringify({
+      webauthnAssertionResponse: webauthn,
+    })}`;
   },
 
   getRenewTokenUrl() {
