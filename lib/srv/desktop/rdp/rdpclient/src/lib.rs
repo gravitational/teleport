@@ -629,8 +629,6 @@ async fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Clien
         go_ref,
     };
 
-    read_rdp_output_inner(&mut client).await;
-
     Ok(client)
 }
 
