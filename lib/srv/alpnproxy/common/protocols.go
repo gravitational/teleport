@@ -178,9 +178,9 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolDynamoDB,
 	}
 
-	return slices.ContainsFunc(dbTLSProtocols, func(dbTLSProtocol Protocol) bool {
+	return slices.IndexFunc(dbTLSProtocols, func(dbTLSProtocol Protocol) bool {
 		return protocol == dbTLSProtocol || protocol == ProtocolWithPing(dbTLSProtocol)
-	})
+	}) >= 0
 }
 
 // DatabaseProtocols is the list of the database protocols supported.
