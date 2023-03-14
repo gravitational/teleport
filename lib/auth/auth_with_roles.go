@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -280,10 +281,9 @@ func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 // OktaClient allows ServerWithRoles to implement ClientI.
 // It should not be called through ServerWithRoles,
 // as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) OktaClient() oktapb.OktaServiceClient {
-	return oktapb.NewOktaServiceClient(
-		utils.NewGRPCDummyClientConnection("OktaClient() should not be called on ServerWithRoles"),
-	)
+func (a *ServerWithRoles) OktaClient() *okta.Client {
+	return okta.NewClient(oktapb.NewOktaServiceClient(
+		utils.NewGRPCDummyClientConnection("OktaClient() should not be called on ServerWithRoles")))
 }
 
 // PluginsClient allows ServerWithRoles to implement ClientI.
@@ -627,16 +627,29 @@ func (a *ServerWithRoles) CompareAndSwapCertAuthority(new, existing types.CertAu
 	return a.authServer.CompareAndSwapCertAuthority(new, existing)
 }
 
-func (a *ServerWithRoles) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
-	if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbList, types.VerbReadNoSecrets); err != nil {
+func (a *ServerWithRoles) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
+	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:   a.authServer.Cache,
+		Backend: a.authServer.Services,
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if loadKeys {
-		if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+
+	resp, err := trust.GetCertAuthorities(ctx, &trustpb.GetCertAuthoritiesRequest{Type: string(caType), IncludeKey: loadKeys})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetCertAuthorities(ctx, caType, loadKeys, opts...)
+
+	cas := make([]types.CertAuthority, 0, len(resp.CertAuthoritiesV2))
+	for _, ca := range resp.CertAuthoritiesV2 {
+		cas = append(cas, ca)
+	}
+
+	return cas, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
@@ -4712,6 +4725,20 @@ func (a *ServerWithRoles) UpsertLock(ctx context.Context, lock types.Lock) error
 	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if lock.CreatedBy() == "" {
+		hasAdmin := a.hasBuiltinRole(types.RoleAdmin)
+		createdBy := string(types.RoleAdmin)
+		if !hasAdmin {
+			createdBy = a.context.User.GetName()
+		}
+		lock.SetCreatedBy(createdBy)
+	}
+
+	if lock.CreatedAt().IsZero() {
+		lock.SetCreatedAt(a.authServer.clock.Now().UTC())
+	}
+
 	return a.authServer.UpsertLock(ctx, lock)
 }
 

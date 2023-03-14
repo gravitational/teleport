@@ -1549,6 +1549,7 @@ func (process *TeleportProcess) initAuthService() error {
 		TraceClient:             traceClt,
 		FIPS:                    cfg.FIPS,
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
+		Clock:                   cfg.Clock,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1587,6 +1588,14 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	authServer.SetLockWatcher(lockWatcher)
+
+	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(process.ExitContext(), local.HeadlessAuthenticationWatcherConfig{
+		Backend: b,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authServer.SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher)
 
 	process.setLocalAuth(authServer)
 
@@ -3989,18 +3998,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				HandlerWithConnInfo: alpnproxy.ExtractMySQLEngineVersion(dbProxyServer.MySQLProxy().HandleConnection),
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
-				MatchFunc: alpnproxy.MatchByProtocolWithPing(alpncommon.ProtocolMySQL),
+				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMySQL),
 				Handler:   dbProxyServer.MySQLProxy().HandleConnection,
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
-				MatchFunc: alpnproxy.MatchByProtocolWithPing(alpncommon.ProtocolPostgres),
+				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolPostgres),
 				Handler:   dbProxyServer.PostgresProxy().HandleConnection,
 			})
 			alpnRouter.Add(alpnproxy.HandlerDecs{
 				// For the following protocols ALPN Proxy will handle the
 				// connection internally (terminate wrapped TLS traffic) and
 				// route extracted connection to ALPN Proxy DB TLS Handler.
-				MatchFunc: alpnproxy.MatchByProtocolWithPing(
+				MatchFunc: alpnproxy.MatchByProtocol(
 					alpncommon.ProtocolMongoDB,
 					alpncommon.ProtocolRedisDB,
 					alpncommon.ProtocolSnowflake,

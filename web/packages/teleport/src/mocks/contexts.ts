@@ -50,6 +50,7 @@ export const fullAcl: Acl = {
   directorySharingEnabled: true,
   license: fullAccess,
   download: fullAccess,
+  plugins: fullAccess,
 };
 
 export const userContext = makeUserContext({

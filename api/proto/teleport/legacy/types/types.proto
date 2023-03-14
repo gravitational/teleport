@@ -4203,6 +4203,14 @@ message LockSpecV2 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "expires,omitempty"
   ];
+  // CreatedAt is the date time that the lock was created.
+  google.protobuf.Timestamp CreatedAt = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "created_at,omitempty"
+  ];
+  // CreatedBy is the username of the author of the lock.
+  string CreatedBy = 5 [(gogoproto.jsontag) = "created_by,omitempty"];
 }
 
 // LockTarget lists the attributes of interactions to be disabled.

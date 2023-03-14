@@ -360,7 +360,7 @@ func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, 
 	return nil, trace.NotFound("not found")
 }
 
-func (c *mockClient) GetCertAuthorities(context.Context, types.CertAuthType, bool, ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (c *mockClient) GetCertAuthorities(context.Context, types.CertAuthType, bool) ([]types.CertAuthority, error) {
 	return c.cas, nil
 }
 

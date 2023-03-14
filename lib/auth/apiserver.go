@@ -31,7 +31,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -64,6 +63,9 @@ func (a *APIConfig) CheckAndSetDefaults() error {
 	}
 	if a.KeepAliveCount == 0 {
 		a.KeepAliveCount = apidefaults.KeepAliveCountMax
+	}
+	if a.Authorizer == nil {
+		return trace.BadParameter("authorizer is missing")
 	}
 	return nil
 }
@@ -184,27 +186,11 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 type HandlerWithAuthFunc func(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error)
 
 func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
-	const accessDeniedMsg = "auth API: access denied "
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		// HTTPS server expects auth context to be set by the auth middleware
 		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
-			switch {
-			// propagate connection problem error so we can differentiate
-			// between connection failed and access denied
-			case trace.IsConnectionProblem(err):
-				return nil, trace.ConnectionProblem(err, "[07] failed to connect to the database")
-			case trace.IsAccessDenied(err):
-				// don't print stack trace, just log the warning
-				log.Warn(err)
-			case keys.IsPrivateKeyPolicyError(err):
-				// private key policy errors should be returned to the client
-				// unaltered so that they know to reauthenticate with a valid key.
-				return nil, trace.Unwrap(err)
-			default:
-				log.Warn(trace.DebugReport(err))
-			}
-			return nil, trace.AccessDenied(accessDeniedMsg + "[00]")
+			return nil, authz.ConvertAuthorizerError(r.Context(), log, err)
 		}
 		auth := &ServerWithRoles{
 			authServer: s.AuthServer,
@@ -675,6 +661,9 @@ func (s *APIServer) rotateExternalCertAuthority(auth ClientI, w http.ResponseWri
 	return message("ok"), nil
 }
 
+// getCertAuthorities returns all cert authorities that match the provided type.
+// Deprecated: Use teleport.v1.trust.TrustService/GetCertAuthorities instead.
+// DELETE IN 14.0.0
 func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
 	if err != nil {
@@ -695,7 +684,8 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 	return items, nil
 }
 
-// Deprecated: Use teleport.v1.trust.TrustService.GetCertAuthority instead.
+// getCertAuthority returns a single matching cert authority.
+// Deprecated: Use teleport.v1.trust.TrustService/GetCertAuthority instead.
 // DELETE IN 14.0.0
 func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
