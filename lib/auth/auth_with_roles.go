@@ -4712,6 +4712,20 @@ func (a *ServerWithRoles) UpsertLock(ctx context.Context, lock types.Lock) error
 	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if lock.CreatedBy() == "" {
+		hasAdmin := a.hasBuiltinRole(types.RoleAdmin)
+		createdBy := string(types.RoleAdmin)
+		if !hasAdmin {
+			createdBy = a.context.User.GetName()
+		}
+		lock.SetCreatedBy(createdBy)
+	}
+
+	if lock.CreatedAt().IsZero() {
+		lock.SetCreatedAt(a.authServer.clock.Now().UTC())
+	}
+
 	return a.authServer.UpsertLock(ctx, lock)
 }
 
