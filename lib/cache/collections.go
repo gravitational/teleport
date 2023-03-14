@@ -344,6 +344,16 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter UserGroups")
 			}
 			collections[resourceKind] = &genericCollection[types.UserGroup, userGroupsExecutor]{cache: c, watch: watch}
+		case types.KindOktaImportRule:
+			if c.OktaImportRules == nil {
+				return nil, trace.BadParameter("missing parameter OktaImportRules")
+			}
+			collections[resourceKind] = &genericCollection[types.OktaImportRule, oktaImportRulesExecutor]{cache: c, watch: watch}
+		case types.KindOktaAssignment:
+			if c.OktaAssignments == nil {
+				return nil, trace.BadParameter("missing parameter OktaAssignments")
+			}
+			collections[resourceKind] = &genericCollection[types.OktaAssignment, oktaAssignmentsExecutor]{cache: c, watch: watch}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -1475,3 +1485,93 @@ func (userGroupsExecutor) delete(ctx context.Context, cache *Cache, resource typ
 func (userGroupsExecutor) isSingleton() bool { return false }
 
 var _ executor[types.UserGroup] = userGroupsExecutor{}
+
+type oktaImportRulesExecutor struct{}
+
+func (oktaImportRulesExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.OktaImportRule, error) {
+	var (
+		startKey  string
+		resources []types.OktaImportRule
+	)
+	for {
+		var importRules []types.OktaImportRule
+		var err error
+		importRules, startKey, err = cache.OktaImportRules.ListOktaImportRules(ctx, 0, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, importRules...)
+
+		if startKey == "" {
+			break
+		}
+	}
+
+	return resources, nil
+}
+
+func (oktaImportRulesExecutor) upsert(ctx context.Context, cache *Cache, resource types.OktaImportRule) error {
+	_, err := cache.oktaImportRulesCache.CreateOktaImportRule(ctx, resource)
+	if trace.IsAlreadyExists(err) {
+		_, err = cache.oktaImportRulesCache.UpdateOktaImportRule(ctx, resource)
+	}
+	return trace.Wrap(err)
+}
+
+func (oktaImportRulesExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.oktaImportRulesCache.DeleteAllOktaImportRules(ctx)
+}
+
+func (oktaImportRulesExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.oktaImportRulesCache.DeleteOktaImportRule(ctx, resource.GetName())
+}
+
+func (oktaImportRulesExecutor) isSingleton() bool { return false }
+
+var _ executor[types.OktaImportRule] = oktaImportRulesExecutor{}
+
+type oktaAssignmentsExecutor struct{}
+
+func (oktaAssignmentsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.OktaAssignment, error) {
+	var (
+		startKey  string
+		resources []types.OktaAssignment
+	)
+	for {
+		var assignments []types.OktaAssignment
+		var err error
+		assignments, startKey, err = cache.OktaAssignments.ListOktaAssignments(ctx, 0, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, assignments...)
+
+		if startKey == "" {
+			break
+		}
+	}
+
+	return resources, nil
+}
+
+func (oktaAssignmentsExecutor) upsert(ctx context.Context, cache *Cache, resource types.OktaAssignment) error {
+	_, err := cache.oktaAssignmentsCache.CreateOktaAssignment(ctx, resource)
+	if trace.IsAlreadyExists(err) {
+		_, err = cache.oktaAssignmentsCache.UpdateOktaAssignment(ctx, resource)
+	}
+	return trace.Wrap(err)
+}
+
+func (oktaAssignmentsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.oktaAssignmentsCache.DeleteAllOktaAssignments(ctx)
+}
+
+func (oktaAssignmentsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.oktaAssignmentsCache.DeleteOktaAssignment(ctx, resource.GetName())
+}
+
+func (oktaAssignmentsExecutor) isSingleton() bool { return false }
+
+var _ executor[types.OktaAssignment] = oktaAssignmentsExecutor{}
