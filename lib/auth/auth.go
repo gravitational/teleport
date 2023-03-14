@@ -4703,38 +4703,32 @@ func (a *Server) GetLicense(ctx context.Context) (string, error) {
 	return fmt.Sprintf("%s%s", a.license.CertPEM, a.license.KeyPEM), nil
 }
 
-// GetOrWaitForHeadlessAuthentication returns a headless authentication from the backend by name.
-// If it does not yet exist, an empty item will be inserted and this function will wait until
-// the item is updated with the request details from the headless login request.
-func (a *Server) GetOrWaitForHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
-	if headlessAuthn, err := a.Services.GetHeadlessAuthentication(ctx, name); err == nil {
-		return headlessAuthn, nil
-	} else if !trace.IsNotFound(err) {
+// GetHeadlessAuthentication returns a headless authentication from the backend by name.
+// If it does not yet exist, a stub will be created to signal the login process to upsert
+// login details. This method will wait for the updated headless authentication and return it.
+func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+	// Try to create a stub if it doesn't already exist, then wait for full login details.
+	if _, err := a.Services.CreateHeadlessAuthenticationStub(ctx, name); err != nil && !trace.IsAlreadyExists(err) {
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := a.Services.CreateHeadlessAuthenticationStub(ctx, name); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// wait for the headless authentication to be updated with valid login details
+	// by the login process. If the headless authentication is already updated,
+	// Wait will return it immediately.
+	waitCtx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
+	defer cancel()
 
-	// wait for the headless authentication to be updated with valid login details.
-	headlessAuthn, err := a.headlessAuthenticationWatcher.Wait(ctx, name, func(ha *types.HeadlessAuthentication) (bool, error) {
+	headlessAuthn, err := a.headlessAuthenticationWatcher.Wait(waitCtx, name, func(ha *types.HeadlessAuthentication) (bool, error) {
 		return services.ValidateHeadlessAuthentication(ha) == nil, nil
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return headlessAuthn, nil
+	return headlessAuthn, trace.Wrap(err)
 }
 
 // CompareAndSwapHeadlessAuthentication performs a compare
 // and swap replacement on a headless authentication resource.
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
 	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return headlessAuthn, nil
+	return headlessAuthn, trace.Wrap(err)
 }
 
 // authKeepAliver is a keep aliver using auth server directly

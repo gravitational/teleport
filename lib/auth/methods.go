@@ -330,6 +330,11 @@ func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 }
 
 func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserRequest) (mfa *types.MFADevice, err error) {
+	// this authentication requires two client callbacks to create a headless authentication
+	// stub and approve/deny the headless authentication, so we use a standard callback timeout.
+	ctx, cancel := context.WithTimeout(ctx, defaults.CallbackTimeout)
+	defer cancel()
+
 	// Delete the headless authentication upon failure.
 	defer func() {
 		if err != nil {

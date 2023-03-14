@@ -4251,10 +4251,10 @@ func TestHeadlessAuthentication(t *testing.T) {
 	_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, stub, headlessAuthn)
 	require.NoError(t, err)
 
-	// user2 should fail to get headless authentication, and wait for ctx to timeout as if not found
+	// user2 should fail to get headless authentication, and return the ctx error
 	// to prevent leaking other user's headless authentication attempts.
-	failedGetCtx, cancel := context.WithTimeout(ctx, time.Millisecond*100)
-	defer cancel()
+	failedGetCtx, cancel := context.WithCancel(ctx)
+	cancel()
 
 	_, err = client2.GetHeadlessAuthentication(failedGetCtx, headlessID)
 	require.Error(t, err)

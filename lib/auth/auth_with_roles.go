@@ -5722,7 +5722,10 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 
 // GetHeadlessAuthentication retrieves a headless authentication by id.
 func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error) {
-	headlessAuthn, err := a.authServer.GetOrWaitForHeadlessAuthentication(ctx, id)
+	waitCtx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
+	defer cancel()
+
+	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(waitCtx, id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5733,8 +5736,8 @@ func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, id stri
 			// If the headless authentication can not be accessed by the user, we will return a not
 			// found error. This method would usually time out above if the headless authentication
 			// does not exist, so we mimick this behavior here.
-			<-ctx.Done()
-			return nil, trace.Wrap(ctx.Err())
+			<-waitCtx.Done()
+			return nil, trace.Wrap(waitCtx.Err())
 		}
 	}
 
