@@ -42,6 +42,7 @@ if (app.requestSingleInstanceLock()) {
 function initializeApp(): void {
   const settings = getRuntimeSettings();
   const logger = initMainLogger(settings);
+  logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
   const fileStorage = createFileStorage({
     filePath: path.join(settings.userDataDir, 'app_state.json'),
   });
