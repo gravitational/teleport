@@ -159,8 +159,8 @@ installation directory to the `Path` user environment variable.
 </Tabs>
 
 ## Configuration
-Teleport Connect can be configured by editing `app_config.json` file.
-To open it, click More Options icon `⋮` -> Open Config File.
+Teleport Connect can be configured by editing the `app_config.json` file.
+To open it, click the More Options icon `⋮` -> Open Config File.
 The file will open in your default editor.
 
 <Admonition
@@ -170,23 +170,22 @@ The file will open in your default editor.
   Any changes to the config file will take effect at the next launch.
 </Admonition>
 
-Below is the list of the config properties that can be configured.
+Below is the list of the supported config properties.
 
 
 | Property                      | Default                                                                                                                                                             | Description                                                            |
 |-------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
 | `usageReporting.enabled`      | `false`                                                                                                                                                             | Enables collecting anonymous usage data (see [Telemetry](#telemetry)). |
-| `keymap.tab1` - `keymap.tab9` | `Command+1` - `Command+9` on macOS <br/> `Ctrl+1` - `Ctrl+9` on Windows<br/>`Alt+1` - `Alt+9` on Linux                                                              | Shortcut to open tab 1 - 9.                                            |
+| `keymap.tab1` - `keymap.tab9` | `Command+1` - `Command+9` on macOS <br/> `Ctrl+1` - `Ctrl+9` on Windows<br/>`Alt+1` - `Alt+9` on Linux                                                              | Shortcut to open tab 1–9.                                            |
 | `keymap.closeTab`             | `Command+W` on macOS<br/>`Ctrl+W` on Windows/Linux                                                                                                                  | Shortcut to close a tab.                                               |
 | `keymap.newTab`               | `Command+T` on macOS<br/>`Ctrl+T` on Windows/Linux                                                                                                                  | Shortcut to open a new tab.                                            |
 | `keymap.previousTab`          | `Shift+Command+Tab` on macOS<br/>`Ctrl+Shift+Tab` on Windows/Linux                                                                                                  | Shortcut to go to the previous tab.                                    |
 | `keymap.nextTab`              | `Command+Tab` on macOS<br/>`Ctrl+Tab` on Windows/Linux                                                                                                              | Shortcut to go to the next tab.                                        |
-| `keymap.openConnections`      | `Command+P` on macOS<br/>`Ctrl+P` on Windows/Linux                                                                                                                  | Shortcut to open the connections panel.                                |
-| `keymap.openClusters`         | `Command+E` on macOS<br/>`Ctrl+E` on Windows/Linux                                                                                                                  | Shortcut to open the clusters panel.                                   |
-| `keymap.openClusters`         | `Command+E` on macOS<br/>`Ctrl+E` on Windows/Linux                                                                                                                  | Shortcut to open the clusters panel.                                   |
-| `keymap.openProfiles`         | `Command+I` on macOS<br/>`Ctrl+I` on Windows/Linux                                                                                                                  | Shortcut to open the profiles panel.                                   |
+| `keymap.openConnections`      | `Command+P` on macOS<br/>`Ctrl+P` on Windows/Linux                                                                                                                  | Shortcut to open the connection list.                                |
+| `keymap.openClusters`         | `Command+E` on macOS<br/>`Ctrl+E` on Windows/Linux                                                                                                                  | Shortcut to open the cluster selector.                                   |
+| `keymap.openProfiles`         | `Command+I` on macOS<br/>`Ctrl+I` on Windows/Linux                                                                                                                  | Shortcut to open the profile selector.                                   |
 | `keymap.openCommandBar`       | `Command+K` on macOS<br/>`Ctrl+K` on Windows/Linux                                                                                                                  | Shortcut to open the command bar.                                      |
-| `terminal.fontFamily`         | `Menlo, Monaco, 'Courier New', monospace` on macOS<br/>`'Consolas', 'Courier New', monospace` on Windows<br/>`'Droid Sans Mono', 'Courier New', monospace` on Linux | Font family for the terminal.                                          |
+| `terminal.fontFamily`         | `Menlo, Monaco, 'Courier New', monospace` on macOS<br/>`Consolas, 'Courier New', monospace` on Windows<br/>`'Droid Sans Mono', 'Courier New', monospace` on Linux | Font family for the terminal.                                          |
 | `terminal.fontSize`           | 15                                                                                                                                                                  | Font size for the terminal.                                            |
 
 <Admonition
@@ -200,17 +199,13 @@ Below is the list of the config properties that can be configured.
 
 ### Configuring keyboard shortcuts
 A valid shortcut contains at least one modifier and a single key code, for example `Shift+Tab`.
-Function keys (`F21`-`F24`) do not require a modifier.
-Modifiers and a key code must be combined by `+` character.
+Function keys such as `F1` do not require a modifier.
+Modifiers and a key code must be combined by the `+` character.
 
-<Tabs>
-  <TabItem label="macOS">
-    Available platform modifiers: `Control`, `Option`, `Shift`, `Command`.
-  </TabItem>
-  <TabItem label="Windows/Linux">
-    Available platform modifiers: `Ctrl`, `Alt`, `Shift`.
-  </TabItem>
-</Tabs>
+Available modifiers:
+
+* `Control`, `Option`, `Shift`, `Command` on macOS.
+* `Ctrl`, `Alt`, `Shift` on Windows and Linux.
 
 Available key codes:
 - `0` to `9`
@@ -226,7 +221,7 @@ Available key codes:
 
 ### Disabling telemetry
 
-If you initially agreed to share telemetry data, but now want to opt out, you need to update the `app_config.json` file (see [Configuration](#configuration)):
+If you initially agreed to share telemetry data, but now want to opt out, you need to set `usageReporting.enabled` in the config to `false` (see [Configuration](#configuration)):
 ```json
 "usageReporting.enabled": false
 ```
