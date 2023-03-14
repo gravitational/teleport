@@ -15,6 +15,9 @@ export class UserLoginEvent extends jspb.Message {
     getConnectorType(): string;
     setConnectorType(value: string): UserLoginEvent;
 
+    getDeviceId(): string;
+    setDeviceId(value: string): UserLoginEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserLoginEvent.AsObject;
@@ -30,6 +33,7 @@ export namespace UserLoginEvent {
     export type AsObject = {
         userName: string,
         connectorType: string,
+        deviceId: string,
     }
 }
 
@@ -1457,6 +1461,46 @@ export class SubmitEventResponse extends jspb.Message {
 }
 
 export namespace SubmitEventResponse {
+    export type AsObject = {
+    }
+}
+
+export class SubmitEventsRequest extends jspb.Message { 
+    clearEventsList(): void;
+    getEventsList(): Array<SubmitEventRequest>;
+    setEventsList(value: Array<SubmitEventRequest>): SubmitEventsRequest;
+    addEvents(value?: SubmitEventRequest, index?: number): SubmitEventRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SubmitEventsRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: SubmitEventsRequest): SubmitEventsRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SubmitEventsRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SubmitEventsRequest;
+    static deserializeBinaryFromReader(message: SubmitEventsRequest, reader: jspb.BinaryReader): SubmitEventsRequest;
+}
+
+export namespace SubmitEventsRequest {
+    export type AsObject = {
+        eventsList: Array<SubmitEventRequest.AsObject>,
+    }
+}
+
+export class SubmitEventsResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SubmitEventsResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: SubmitEventsResponse): SubmitEventsResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SubmitEventsResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SubmitEventsResponse;
+    static deserializeBinaryFromReader(message: SubmitEventsResponse, reader: jspb.BinaryReader): SubmitEventsResponse;
+}
+
+export namespace SubmitEventsResponse {
     export type AsObject = {
     }
 }

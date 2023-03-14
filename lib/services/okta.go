@@ -21,9 +21,14 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// Compile time checks for the Okta client.
+var _ OktaImportRules = (*okta.Client)(nil)
+var _ OktaAssignments = (*okta.Client)(nil)
 
 // OktaImportRules defines an interface for managing OktaImportRules.
 type OktaImportRules interface {
@@ -32,9 +37,9 @@ type OktaImportRules interface {
 	// GetOktaImportRule returns the specified Okta import rule resources.
 	GetOktaImportRule(ctx context.Context, name string) (types.OktaImportRule, error)
 	// CreateOktaImportRule creates a new Okta import rule resource.
-	CreateOktaImportRule(context.Context, types.OktaImportRule) error
+	CreateOktaImportRule(context.Context, types.OktaImportRule) (types.OktaImportRule, error)
 	// UpdateOktaImportRule updates an existing Okta import rule resource.
-	UpdateOktaImportRule(context.Context, types.OktaImportRule) error
+	UpdateOktaImportRule(context.Context, types.OktaImportRule) (types.OktaImportRule, error)
 	// DeleteOktaImportRule removes the specified Okta import rule resource.
 	DeleteOktaImportRule(ctx context.Context, name string) error
 	// DeleteAllOktaImportRules removes all Okta import rules.
@@ -45,13 +50,13 @@ type OktaImportRules interface {
 type OktaAssignments interface {
 	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
 	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
-	// GetOktaAssignmentreturns the specified Okta assignment resources.
+	// GetOktaAssignmen treturns the specified Okta assignment resources.
 	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
-	// CreateOktaAssignmentcreates a new Okta assignment resource.
-	CreateOktaAssignment(context.Context, types.OktaAssignment) error
-	// UpdateOktaAssignmentupdates an existing Okta assignment resource.
-	UpdateOktaAssignment(context.Context, types.OktaAssignment) error
-	// DeleteOktaAssignmentremoves the specified Okta assignment resource.
+	// CreateOktaAssignment creates a new Okta assignment resource.
+	CreateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
+	// UpdateOktaAssignment updates an existing Okta assignment resource.
+	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
+	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 	// DeleteAllOktaAssignments removes all Okta assignments.
 	DeleteAllOktaAssignments(context.Context) error

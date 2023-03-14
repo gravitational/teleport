@@ -132,6 +132,8 @@ func (a *agentChannel) Close() error {
 func (c *ConnectionContext) StartAgentChannel() (teleagent.Agent, error) {
 	// refuse to start an agent if forwardAgent has not yet been set.
 	if !c.GetForwardAgent() {
+		// TODO(capnspacehook): update SSH agent in forwarding SSH server
+		// when connecting to agentless nodes
 		return nil, trace.AccessDenied("agent forwarding required in proxy recording mode")
 	}
 	// open a agent channel to client
