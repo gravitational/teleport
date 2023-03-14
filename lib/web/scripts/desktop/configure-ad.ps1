@@ -27,8 +27,6 @@ catch [Microsoft.ActiveDirectory.Management.ADIdentityNotFoundException]
 }
 
 # Create the CDP/Teleport container.
-# If the command fails with "New-ADObject : An attempt was made to add an object to the directory with a name that is already in use",
-# it means the object already exists and you can move on to the next step.
 try {
   Get-ADObject -Identity "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,$DOMAIN_DN"
 }
