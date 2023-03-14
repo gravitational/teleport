@@ -193,11 +193,11 @@ const getDefaultKeymap = (platform: Platform) => {
 function getDefaultTerminalFont(platform: Platform) {
   switch (platform) {
     case 'win32':
-      return "'Consolas', 'Courier New', monospace";
+      return 'Consolas, monospace';
     case 'linux':
-      return "'Droid Sans Mono', 'Courier New', monospace";
+      return "'Droid Sans Mono', monospace";
     case 'darwin':
-      return "Menlo, Monaco, 'Courier New', monospace";
+      return 'Menlo, Monaco, monospace';
   }
 }
 
