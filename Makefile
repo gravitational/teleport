@@ -429,6 +429,31 @@ build-archive:
 release-unix: clean full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
+# Set MacOS/Darwin cert vars for signing/notarizing
+# TSH_SKELETON is a directory name relative to build.assets/macos/
+ENVIRONMENT_NAME ?= promote
+
+DEVELOPER_ID_APPLICATION_promote = 0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
+DEVELOPER_ID_INSTALLER_promote = 82B625AD327C241B378A54B4B254BB08CE71B5DF
+TEAMID_promote = QH8AA5B8UP
+TSH_BUNDLEID_promote = $(TEAMID).com.gravitational.teleport.tsh
+TSH_SKELETON_promote = tsh
+
+DEVELOPER_ID_APPLICATION_build = A5604F285B0957134EA099AC515BD9E0787228AC
+DEVELOPER_ID_INSTALLER_build = C1A831A974DF69563432C87A4979F7982DD91FBE
+TEAMID_build = K497G57PDJ
+TSH_BUNDLEID_build = $(TEAMID).com.goteleport.tshdev
+TSH_SKELETON_build = tshdev
+
+DEVELOPER_ID_APPLICATION = $(DEVELOPER_ID_APPLICATION_$(ENVIRONMENT_NAME))
+DEVELOPER_ID_INSTALLER = $(DEVELOPER_ID_INSTALLER_$(ENVIRONMENT_NAME))
+TEAMID = $(TEAMID_$(ENVIRONMENT_NAME))
+TSH_BUNDLEID = $(TSH_BUNDLEID_$(ENVIRONMENT_NAME))
+TSH_SKELETON = $(TSH_SKELETON_$(ENVIRONMENT_NAME))
+
+# Export vars as they are used by the build.assets/build-package.sh script
+export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER TEAMID TSH_BUNDLEID TSH_SKELETON
+
 .PHONY: release-darwin-unsigned
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
 release-darwin-unsigned: clean full build-archive
