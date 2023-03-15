@@ -717,7 +717,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 	ctx := context.Background()
 
-	timeout := time.Millisecond * 500
+	timeout := time.Millisecond * 200
 
 	updateHeadlessAuthnInGoroutine := func(ctx context.Context, update func(*types.HeadlessAuthentication)) chan error {
 		errC := make(chan error)
@@ -776,10 +776,8 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			},
 			checkErr: require.Error,
 		}, {
-			name: "NOK timeout",
-			update: func(ha *types.HeadlessAuthentication) {
-				time.Sleep(timeout)
-			},
+			name:     "NOK timeout",
+			update:   func(ha *types.HeadlessAuthentication) {},
 			checkErr: require.Error,
 		},
 	} {
