@@ -24,7 +24,6 @@ import {
   FileTransferContextProvider,
 } from 'shared/components/FileTransfer';
 
-import cfg from 'teleport/config';
 import * as stores from 'teleport/Console/stores';
 import { colors } from 'teleport/Console/colors';
 
@@ -36,11 +35,13 @@ import Document from '../Document';
 import Terminal from './Terminal';
 import useSshSession from './useSshSession';
 import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
+import useMfaFileTransfer from './useMfaFileTransfer';
 
 export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
   const { tty, status, closeDocument } = useSshSession(doc);
   const webauthn = useWebAuthn(tty);
+  const { getUrlWithMfa, attempt } = useMfaFileTransfer(webauthn.mfaRequired);
 
   function handleCloseFileTransfer() {
     refTerminal.current.terminal.term.focus();
@@ -74,40 +75,43 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
           beforeClose={() =>
             window.confirm('Are you sure you want to cancel file transfers?')
           }
+          errorText={attempt.status === 'failed' ? attempt.statusText : null}
           afterClose={handleCloseFileTransfer}
           backgroundColor={colors.primary.light}
           transferHandlers={{
             getDownloader: async (location, abortController) => {
+              const url = await getUrlWithMfa({
+                location,
+                clusterId: doc.clusterId,
+                serverId: doc.serverId,
+                login: doc.login,
+                filename: location,
+              });
+              if (!url) {
+                // if we return nothing here, the file transfer will not be added to the
+                // file transfer list. If we add it to the list, the file will continue to
+                // start the download and return another here. This prevents a second network
+                // request that we know will fail.
+                return;
+              }
               return getHttpFileTransferHandlers().download(
-                cfg.getScpUrl({
-                  location,
-                  clusterId: doc.clusterId,
-                  serverId: doc.serverId,
-                  login: doc.login,
-                  filename: location,
-                  webauthn:
-                    await getHttpFileTransferHandlers().getWebauthnResponse(
-                      webauthn.mfaRequired,
-                      abortController
-                    ),
-                }),
+                url,
                 abortController
               );
             },
             getUploader: async (location, file, abortController) => {
+              const url = await getUrlWithMfa({
+                location,
+                clusterId: doc.clusterId,
+                serverId: doc.serverId,
+                login: doc.login,
+                filename: file.name,
+              });
+              if (!url) {
+                return;
+              }
               return getHttpFileTransferHandlers().upload(
-                cfg.getScpUrl({
-                  location,
-                  clusterId: doc.clusterId,
-                  serverId: doc.serverId,
-                  login: doc.login,
-                  filename: file.name,
-                  webauthn:
-                    await getHttpFileTransferHandlers().getWebauthnResponse(
-                      webauthn.mfaRequired,
-                      abortController
-                    ),
-                }),
+                url,
                 file,
                 abortController
               );
