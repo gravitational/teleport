@@ -456,7 +456,7 @@ func (remoteClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecre
 }
 
 func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource types.RemoteCluster) error {
-	err := cache.presenceCache.DeleteRemoteCluster(resource.GetName())
+	err := cache.presenceCache.DeleteRemoteCluster(ctx, resource.GetName())
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			cache.Logger.WithError(err).Warnf("Failed to delete remote cluster %v.", resource.GetName())
@@ -471,7 +471,7 @@ func (remoteClusterExecutor) deleteAll(ctx context.Context, cache *Cache) error 
 }
 
 func (remoteClusterExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteRemoteCluster(resource.GetName())
+	return cache.presenceCache.DeleteRemoteCluster(ctx, resource.GetName())
 }
 
 func (remoteClusterExecutor) isSingleton() bool { return false }
@@ -605,7 +605,7 @@ type certAuthorityExecutor struct {
 
 // delete implements executor[types.CertAuthority]
 func (certAuthorityExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	err := cache.trustCache.DeleteCertAuthority(types.CertAuthID{
+	err := cache.trustCache.DeleteCertAuthority(ctx, types.CertAuthID{
 		Type:       types.CertAuthType(resource.GetSubKind()),
 		DomainName: resource.GetName(),
 	})

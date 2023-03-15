@@ -167,7 +167,7 @@ type Presence interface {
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
 	// DeleteRemoteCluster deletes remote cluster by name
-	DeleteRemoteCluster(clusterName string) error
+	DeleteRemoteCluster(ctx context.Context, clusterName string) error
 
 	// DeleteAllRemoteClusters deletes all remote clusters
 	DeleteAllRemoteClusters() error

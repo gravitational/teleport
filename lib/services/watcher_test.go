@@ -790,7 +790,7 @@ func TestCertAuthorityWatcher(t *testing.T) {
 		waitForEvent(t, sub, types.HostCA, "test", types.OpPut)
 
 		// Delete a CA and ensure we receive the event.
-		require.NoError(t, caService.DeleteCertAuthority(ca.GetID()))
+		require.NoError(t, caService.DeleteCertAuthority(ctx, ca.GetID()))
 		waitForEvent(t, sub, types.HostCA, "test", types.OpDelete)
 
 		// Create a CA with a type that the watcher is NOT receiving and ensure
