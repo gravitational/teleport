@@ -716,6 +716,10 @@
             {
               "title": "ElasticSearch",
               "slug": "/application-access/jwt/elasticsearch/"
+            },
+            {
+              "title": "Grafana",
+              "slug": "/application-access/jwt/grafana/"
             }
           ]
         },
