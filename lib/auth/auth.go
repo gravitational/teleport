@@ -3675,13 +3675,11 @@ func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 	// (*types.KeepAlive).CheckAndSetDefaults technically allows an empty name
 	// with a nonzero lease, even though in practice the backend KeepAlive call
 	// would fail and err wouldn't be nil, so we wouldn't reach this point
-	//
-	// The check for a zero Expires is because a "heartbeat", philosophically,
-	// is something that should result in death if it stops.
-	if h.Name != "" && !h.Expires.IsZero() {
+	if h.Name != "" {
 		a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
-			Name: h.Name,
-			Kind: usagereporter.ResourceKindFromKeepAliveType(h.Type),
+			Name:   h.Name,
+			Kind:   usagereporter.ResourceKindFromKeepAliveType(h.Type),
+			Static: h.Expires.IsZero(),
 		})
 	}
 
@@ -3696,12 +3694,11 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 		return nil, trace.Wrap(err)
 	}
 
-	if !server.Expiry().IsZero() {
-		a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
-			Name: server.GetName(),
-			Kind: usagereporter.ResourceKindNode,
-		})
-	}
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   usagereporter.ResourceKindNode,
+		Static: server.Expiry().IsZero(),
+	})
 
 	return lease, nil
 }
@@ -3714,12 +3711,11 @@ func (a *Server) UpsertKubernetesServer(ctx context.Context, server types.KubeSe
 		return nil, trace.Wrap(err)
 	}
 
-	if !server.Expiry().IsZero() {
-		a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
-			Name: server.GetName(),
-			Kind: usagereporter.ResourceKindKubeServer,
-		})
-	}
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   usagereporter.ResourceKindKubeServer,
+		Static: server.Expiry().IsZero(),
+	})
 
 	return k, nil
 }
@@ -3732,12 +3728,11 @@ func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppSe
 		return nil, trace.Wrap(err)
 	}
 
-	if !server.Expiry().IsZero() {
-		a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
-			Name: server.GetName(),
-			Kind: usagereporter.ResourceKindAppServer,
-		})
-	}
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   usagereporter.ResourceKindAppServer,
+		Static: server.Expiry().IsZero(),
+	})
 
 	return lease, nil
 }
@@ -3750,12 +3745,11 @@ func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.Database
 		return nil, trace.Wrap(err)
 	}
 
-	if !server.Expiry().IsZero() {
-		a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
-			Name: server.GetName(),
-			Kind: usagereporter.ResourceKindDBServer,
-		})
-	}
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   usagereporter.ResourceKindDBServer,
+		Static: server.Expiry().IsZero(),
+	})
 
 	return lease, nil
 }
@@ -3767,12 +3761,11 @@ func (a *Server) CreateWindowsDesktop(ctx context.Context, desktop types.Windows
 		return trace.Wrap(err)
 	}
 
-	if !desktop.Expiry().IsZero() {
-		a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
-			Name: desktop.GetName(),
-			Kind: usagereporter.ResourceKindWindowsDesktop,
-		})
-	}
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetName(),
+		Kind:   usagereporter.ResourceKindWindowsDesktop,
+		Static: desktop.Expiry().IsZero(),
+	})
 
 	return nil
 }
@@ -3784,12 +3777,11 @@ func (a *Server) UpdateWindowsDesktop(ctx context.Context, desktop types.Windows
 		return trace.Wrap(err)
 	}
 
-	if !desktop.Expiry().IsZero() {
-		a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
-			Name: desktop.GetName(),
-			Kind: usagereporter.ResourceKindWindowsDesktop,
-		})
-	}
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetName(),
+		Kind:   usagereporter.ResourceKindWindowsDesktop,
+		Static: desktop.Expiry().IsZero(),
+	})
 
 	return nil
 }
@@ -3801,12 +3793,11 @@ func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.Windows
 		return trace.Wrap(err)
 	}
 
-	if !desktop.Expiry().IsZero() {
-		a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
-			Name: desktop.GetName(),
-			Kind: usagereporter.ResourceKindWindowsDesktop,
-		})
-	}
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetName(),
+		Kind:   usagereporter.ResourceKindWindowsDesktop,
+		Static: desktop.Expiry().IsZero(),
+	})
 
 	return nil
 }
