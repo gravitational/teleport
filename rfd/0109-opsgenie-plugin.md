@@ -125,8 +125,7 @@ In this section we will take a look at how the plugin will interact with the Ops
 The plugin will use the API key provided in the teleport.yaml config file when interacting with the Opsgenie API. This API key will be included in the headers of the requests made.
 
 ```
-Header Key: Authorization
-Header Value: genieKey $apiKey
+Authorization: GenieKey $apiKey
 ```
 
 ### Creating alerts
