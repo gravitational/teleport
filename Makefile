@@ -437,12 +437,14 @@ ENVIRONMENT_NAME ?= promote
 DEVELOPER_KEY_NAME_promote = Developer ID Application: Ada Lin
 INSTALLER_KEY_NAME_promote = Developer ID Installer: Ada Lin
 TEAMID_promote = QH8AA5B8UP
+TELEPORT_BUNDLEID_promote = com.gravitational.teleport
 TSH_BUNDLEID_promote = $(TEAMID).com.gravitational.teleport.tsh
 TSH_SKELETON_promote = tsh
 
 DEVELOPER_KEY_NAME_build = Developer ID Application: Ada Lin
 INSTALLER_KEY_NAME_build = Developer ID Installer: Ada Lin
 TEAMID_build = K497G57PDJ
+TELEPORT_BUNDLEID_build = com.goteleport.dev
 TSH_BUNDLEID_build = $(TEAMID).com.goteleport.tshdev
 TSH_SKELETON_build = tshdev
 
@@ -451,6 +453,7 @@ get_key_id = $(word 2,$(shell security find-identity -s codesigning | grep --fix
 DEVELOPER_ID_APPLICATION = $(call get_key_id,$(DEVELOPER_KEY_NAME_$(ENVIRONMENT_NAME)))
 DEVELOPER_ID_INSTALLER = $(call get_key_id,$(INSTALLER_KEY_NAME_$(ENVIRONMENT_NAME)))
 TEAMID = $(TEAMID_$(ENVIRONMENT_NAME))
+TELEPORT_BUNDLEID = $(TELEPORT_BUNDLEID_$(ENVIRONMENT_NAME))
 TSH_BUNDLEID = $(TSH_BUNDLEID_$(ENVIRONMENT_NAME))
 TSH_SKELETON = $(TSH_SKELETON_$(ENVIRONMENT_NAME))
 
@@ -465,7 +468,10 @@ release-darwin: release-darwin-unsigned
 	if [ -n "$$APPLE_USERNAME" -a -n "$$APPLE_PASSWORD" ]; then \
 		cd ./build.assets/tooling/ && \
 		go run ./cmd/notarize-apple-binaries/*.go \
-			--log-level=debug $(ABSOLUTE_BINARY_PATHS); \
+			--developer-id=$(DEVELOPER_ID_APPLICATION) \
+			--bundle-id=$(TELEPORT_BUNDLEID) \
+			--log-level=debug \
+			$(ABSOLUTE_BINARY_PATHS); \
 	fi
 	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
