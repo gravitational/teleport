@@ -88,7 +88,7 @@ teleport start --config /etc/teleport.yaml
 
 
 ### Opsgenie plugin
-Once an access request has been created, the Opsgenie plugin will create an alert in the service specified in the request annotation using the Opsgenie Alert API [Create](https://docs.opsgenie.com/docs/alert-api#create-alert) endpoint. 
+Once an access request has been created, the Opsgenie plugin will create an alert in the service specified in the request annotation opsgenie_notify_services using the Opsgenie Alert API [Create](https://docs.opsgenie.com/docs/alert-api#create-alert) endpoint.
 
 The appropriate on-call responder can then click the provided link to the access request and approve or deny it.
 
@@ -161,6 +161,10 @@ To check if the requesting user of a request is currently on-call the ‘Who is 
 Similar to the existing Pagerduty plugin for auto-approval to work, the user creating an Access Request must have a Teleport username that is also the email address associated with an Opsgenie account.
 
 Access requests will be mapped to Opsgenie alerts by including the Access request ID in the tags field of the note. 
+
+### IaC
+
+The Helm charts will be updated to support the new plugin-service.
 
 ## Security considerations
 
