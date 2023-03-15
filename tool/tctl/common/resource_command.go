@@ -865,7 +865,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		}
 		fmt.Printf("trusted cluster %q has been deleted\n", rc.ref.Name)
 	case types.KindRemoteCluster:
-		if err = client.DeleteRemoteCluster(rc.ref.Name); err != nil {
+		if err = client.DeleteRemoteCluster(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("remote cluster %q has been deleted\n", rc.ref.Name)
@@ -989,7 +989,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 				types.KindCertAuthority, types.KindCertAuthority, types.HostCA,
 			)
 		}
-		err := client.DeleteCertAuthority(types.CertAuthID{
+		err := client.DeleteCertAuthority(ctx, types.CertAuthID{
 			Type:       types.CertAuthType(rc.ref.SubKind),
 			DomainName: rc.ref.Name,
 		})

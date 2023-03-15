@@ -2870,7 +2870,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.Equal(t, clusterAux, remoteClusters[0].GetName())
 
 	// after removing the remote cluster and trusted cluster, the connection will start failing
-	require.NoError(t, main.Process.GetAuthServer().DeleteRemoteCluster(clusterAux))
+	require.NoError(t, main.Process.GetAuthServer().DeleteRemoteCluster(ctx, clusterAux))
 	require.NoError(t, aux.Process.GetAuthServer().DeleteTrustedCluster(ctx, trustedCluster.GetName()))
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)

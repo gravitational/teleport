@@ -703,12 +703,15 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 	return rawMessage(services.MarshalCertAuthority(ca, services.WithVersion(version), services.PreserveResourceID()))
 }
 
+// deleteCertAuthority removes the matching cert authority.
+// Deprecated: Use teleport.v1.trust.TrustService/DeleteCertAuthority instead.
+// DELETE IN 14.0.0
 func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	id := types.CertAuthID{
 		DomainName: p.ByName("domain"),
 		Type:       types.CertAuthType(p.ByName("type")),
 	}
-	if err := auth.DeleteCertAuthority(id); err != nil {
+	if err := auth.DeleteCertAuthority(r.Context(), id); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("cert '%v' deleted", id)), nil
@@ -1183,7 +1186,7 @@ func (s *APIServer) getRemoteCluster(auth ClientI, w http.ResponseWriter, r *htt
 
 // deleteRemoteCluster deletes remote cluster by name
 func (s *APIServer) deleteRemoteCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteRemoteCluster(p.ByName("cluster"))
+	err := auth.DeleteRemoteCluster(r.Context(), p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
