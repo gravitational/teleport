@@ -676,3 +676,11 @@ Expression | Result
 ---------- | ------
 `union(set("a"), set("b"))` | `("a", "b")`
 `union(set("a", "b"), set("b", "c"))` | `("a", "b", "c")`
+
+## Maintaining Login Rule objects
+
+Users must have right to read and maintain `login_rule` objects within 
+their role. The default `editor` role will automatically have this configured. Here
+is an example role with those rights.
+
+(!docs/pages/includes/access-controls/loginrule-manager-role.mdx!)

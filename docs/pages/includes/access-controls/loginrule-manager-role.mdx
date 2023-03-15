@@ -1,0 +1,11 @@
+```yaml
+kind: role
+metadata:
+  name: loginrule-manager
+spec:
+  allow:
+    rules:
+      - resources: [login_rule]
+        verbs: [list, create, read, update, delete]
+version: v6
+```
