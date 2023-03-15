@@ -19,6 +19,7 @@ on:
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - '.github/workflows/unit-test-code-bypass.yaml'
   merge_group:
     paths-ignore:
       - '**.go'
@@ -26,6 +27,7 @@ on:
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - '.github/workflows/unit-test-code-bypass.yaml'
 
 jobs:
   test:
