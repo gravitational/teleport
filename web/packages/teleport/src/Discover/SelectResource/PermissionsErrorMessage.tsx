@@ -17,7 +17,7 @@
 import React from 'react';
 import { Text, Box } from 'design';
 
-import { ResourceKind } from './types';
+import { ResourceKind } from '../Shared';
 
 export function PermissionsErrorMessage({
   resourceKind,

@@ -17,7 +17,7 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { DatabaseEngine, DatabaseLocation } from '../resources';
+import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 
 import { CreateDatabaseView } from './CreateDatabase';
 

@@ -16,13 +16,10 @@
 
 import { DbProtocol } from 'shared/services/databases';
 
+import { ResourceKind } from '../Shared/ResourceKind';
+
 import { icons } from './icons';
-import {
-  ResourceSpec,
-  DatabaseLocation,
-  DatabaseEngine,
-  ResourceKind,
-} from './types';
+import { ResourceSpec, DatabaseLocation, DatabaseEngine } from './types';
 
 const baseDatabaseKeywords = 'db database databases';
 const awsKeywords = baseDatabaseKeywords + 'aws amazon web services';

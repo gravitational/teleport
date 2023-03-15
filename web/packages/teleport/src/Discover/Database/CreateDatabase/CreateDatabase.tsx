@@ -46,7 +46,7 @@ import {
   DatabaseLocation,
   getDatabaseProtocol,
   getDefaultDatabasePort,
-} from '../resources';
+} from '../../SelectResource';
 
 import { useCreateDatabase, State } from './useCreateDatabase';
 

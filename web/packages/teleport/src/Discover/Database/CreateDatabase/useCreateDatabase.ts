@@ -22,7 +22,6 @@ import { useDiscover } from 'teleport/Discover/useDiscover';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { compareByString } from 'teleport/lib/util';
 
-import { Database } from '../resources';
 import { matchLabels, makeLabelMaps } from '../util';
 
 import type { AgentStepProps } from '../../types';
@@ -229,15 +228,15 @@ export function useCreateDatabase(props: AgentStepProps) {
   }
 
   const access = ctx.storeUser.getDatabaseAccess();
-  const dbState = props.resourceState as Database;
+  const resource = props.resourceSpec;
   return {
     attempt,
     clearAttempt,
     registerDatabase,
     canCreateDatabase: access.create,
     pollTimeout,
-    dbEngine: dbState.engine,
-    dbLocation: dbState.location,
+    dbEngine: resource.dbMeta.engine,
+    dbLocation: resource.dbMeta.location,
     isDbCreateErr,
   };
 }
