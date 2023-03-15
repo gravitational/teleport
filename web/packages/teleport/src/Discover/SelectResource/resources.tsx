@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
+import { ResourceKind } from '../Shared/ResourceKind';
+
 import { DATABASES, DATABASES_UNGUIDED } from './databases';
-import { ResourceKind, ResourceSpec, DatabaseLocation } from './types';
+import { ResourceSpec, DatabaseLocation } from './types';
 import { icons } from './icons';
 
 const baseServerKeywords = 'server node';
-const SERVERS: ResourceSpec[] = [
+export const SERVERS: ResourceSpec[] = [
   {
     name: 'Ubuntu 14.04+',
     kind: ResourceKind.Server,
@@ -52,7 +54,7 @@ const SERVERS: ResourceSpec[] = [
   },
 ];
 
-const APPLICATIONS: ResourceSpec[] = [
+export const APPLICATIONS: ResourceSpec[] = [
   {
     name: 'Application',
     kind: ResourceKind.Application,
@@ -63,7 +65,7 @@ const APPLICATIONS: ResourceSpec[] = [
   },
 ];
 
-const WINDOWS_DESKTOPS: ResourceSpec[] = [
+export const WINDOWS_DESKTOPS: ResourceSpec[] = [
   {
     name: 'Active Directory',
     kind: ResourceKind.Desktop,
@@ -79,7 +81,7 @@ const WINDOWS_DESKTOPS: ResourceSpec[] = [
   // },
 ];
 
-const KUBERNETES: ResourceSpec[] = [
+export const KUBERNETES: ResourceSpec[] = [
   {
     name: 'Kubernetes',
     kind: ResourceKind.Kubernetes,
