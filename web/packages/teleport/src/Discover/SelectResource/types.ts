@@ -14,13 +14,7 @@
  * limitations under the License.
  */
 
-export enum ResourceKind {
-  Application,
-  Database,
-  Desktop,
-  Kubernetes,
-  Server,
-}
+import { ResourceKind } from '../Shared/ResourceKind';
 
 export enum DatabaseLocation {
   AWS,
