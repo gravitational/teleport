@@ -21,7 +21,7 @@ package elasticsearch
 import (
 	"encoding/json"
 
-	"github.com/ghodss/yaml"
+	"sigs.k8s.io/yaml"
 
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )

@@ -45,13 +45,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
 	yamlv2 "gopkg.in/yaml.v2"
+	"sigs.k8s.io/yaml"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"

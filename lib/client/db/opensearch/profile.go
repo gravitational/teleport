@@ -24,8 +24,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	"sigs.k8s.io/yaml"
 )
 
 // ProfileName is the name of the opensearch-cli that will be created for Teleport usage
@@ -105,14 +105,14 @@ func WriteConfig(baseDir string, cfg Config) (string, error) {
 
 	// create config directory if it doesn't exist
 	configDir := path.Join(baseDir, "opensearch-cli")
-	err = os.MkdirAll(configDir, 0700)
+	err = os.MkdirAll(configDir, 0o700)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
 	// write config to file
 	fn := path.Join(configDir, fmt.Sprintf("%x.yml", hash))
-	err = os.WriteFile(fn, bytes, 0600)
+	err = os.WriteFile(fn, bytes, 0o600)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

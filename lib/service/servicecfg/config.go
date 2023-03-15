@@ -29,12 +29,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"sigs.k8s.io/yaml"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"

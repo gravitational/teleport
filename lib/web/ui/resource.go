@@ -21,8 +21,8 @@ package ui
 import (
 	"fmt"
 
-	yaml "github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	"sigs.k8s.io/yaml"
 
 	"github.com/gravitational/teleport/api/types"
 )

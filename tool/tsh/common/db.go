@@ -32,11 +32,11 @@ import (
 	"sync"
 	"text/template"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
+	"sigs.k8s.io/yaml"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
