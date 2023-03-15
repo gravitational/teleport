@@ -52,11 +52,12 @@ $SAM_ACCOUNT_SID=(Get-ADUser -Identity $SAM_ACCOUNT_NAME).SID.Value
 # Step 2/7. Prevent the service account from performing interactive logins
 $BLOCK_GPO_NAME="Block teleport-svc Interactive Login"
 try {
-  Get-GPO -Name $BLOCK_GPO_NAME
+  $BLOCK_GPO = Get-GPO -Name $BLOCK_GPO_NAME
 }
-catch [Microsoft.ActiveDirectory.Management.ADIdentityNotFoundException]
+catch [System.ArgumentException]
 {
-  New-GPO -Name $BLOCK_GPO_NAME | New-GPLink -Target $DOMAIN_DN
+  $BLOCK_GPO = New-GPO -Name $BLOCK_GPO_NAME
+  $BLOCK_GPO | New-GPLink -Target $DOMAIN_DN
 }
 
 $DENY_SECURITY_TEMPLATE=@'
@@ -70,7 +71,7 @@ SeDenyInteractiveLogonRight=*{0}
 '@ -f $SAM_ACCOUNT_SID
 
 
-$BLOCK_POLICY_GUID=((Get-GPO -Name $BLOCK_GPO_NAME).Id.Guid).ToUpper()
+$BLOCK_POLICY_GUID=$BLOCK_GPO.Id.Guid.ToUpper()
 $BLOCK_GPO_PATH="$env:SystemRoot\SYSVOL\sysvol\$DOMAIN_NAME\Policies\{$BLOCK_POLICY_GUID}\Machine\Microsoft\Windows NT\SecEdit"
 New-Item -Force -Type Directory -Path $BLOCK_GPO_PATH
 New-Item -Force -Path $BLOCK_GPO_PATH -Name "GptTmpl.inf" -ItemType "file" -Value $DENY_SECURITY_TEMPLATE
@@ -79,11 +80,12 @@ New-Item -Force -Path $BLOCK_GPO_PATH -Name "GptTmpl.inf" -ItemType "file" -Valu
 # Step 3/7. Configure a GPO to allow Teleport connections
 $ACCESS_GPO_NAME="Teleport Access Policy"
 try {
-  Get-GPO -Name $ACCESS_GPO_NAME
+  $ACCESS_GPO = Get-GPO -Name $ACCESS_GPO_NAME
 }
-catch [Microsoft.ActiveDirectory.Management.ADIdentityNotFoundException]
+catch [System.ArgumentException]
 {
-  New-GPO -Name $ACCESS_GPO_NAME | New-GPLink -Target $DOMAIN_DN
+  $ACCESS_GPO = New-GPO -Name $ACCESS_GPO_NAME
+  $ACCESS_GPO | New-GPLink -Target $DOMAIN_DN
 }
 
 
@@ -122,7 +124,7 @@ $COMMENT_XML=@'
 '@
 
 
-$ACCESS_POLICY_GUID=((Get-GPO -Name $ACCESS_GPO_NAME).Id.Guid).ToUpper()
+$ACCESS_POLICY_GUID=$ACCESS_GPO.Id.Guid.ToUpper()
 $ACCESS_GPO_PATH="$env:SystemRoot\SYSVOL\sysvol\$DOMAIN_NAME\Policies\{$ACCESS_POLICY_GUID}\Machine\Microsoft\Windows NT\SecEdit"
 
 New-Item -Force -Type Directory -Path $ACCESS_GPO_PATH
