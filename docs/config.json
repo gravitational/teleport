@@ -393,6 +393,10 @@
             {
               "title": "Run Teleport as a Daemon",
               "slug": "/management/admin/daemon/"
+            },
+            {
+              "title": "Uninstall Teleport",
+              "slug": "/management/admin/uninstall-teleport/"
             }
           ]
         },
@@ -1030,7 +1034,7 @@
 	    {
 	    	"title": "teleport-plugin-jira",
 	    	"slug": "/reference/helm-reference/teleport-plugin-jira/"
-            }, 
+            },
             {
               "title": "teleport-plugin-event-handler",
               "slug": "/reference/helm-reference/teleport-plugin-event-handler/"
