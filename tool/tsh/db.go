@@ -603,7 +603,6 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 		database:         db,
 		listener:         listener,
 		localProxyTunnel: requires.tunnel,
-		rootClusterName:  rootClusterName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -651,7 +650,6 @@ type localProxyConfig struct {
 	// it's always true for Snowflake database. Value is copied here to not modify
 	// cli arguments directly.
 	localProxyTunnel bool
-	rootClusterName  string
 }
 
 // prepareLocalProxyOptions created localProxyOpts needed to create local proxy from localProxyConfig.
@@ -675,24 +673,19 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
 		certs = nil
 	}
 
-	opts := &localProxyOpts{
-		proxyAddr:               arg.teleportClient.WebProxyAddr,
-		listener:                arg.listener,
-		protocols:               []common.Protocol{common.Protocol(arg.routeToDatabase.Protocol)},
-		insecure:                arg.cliConf.InsecureSkipVerify,
-		certs:                   certs,
-		alpnConnUpgradeRequired: alpnproxy.IsALPNConnUpgradeRequired(arg.teleportClient.WebProxyAddr, arg.cliConf.InsecureSkipVerify),
+	alpnProtocol, err := common.ToALPNProtocol(arg.routeToDatabase.Protocol)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// If ALPN connection upgrade is required, explicitly use the profile CAs
-	// since the tunneled TLS routing connection serves the Host cert.
-	if opts.alpnConnUpgradeRequired {
-		profileCAs, err := utils.NewCertPoolFromPath(arg.profile.CACertPathForCluster(arg.rootClusterName))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		opts.rootCAs = profileCAs
+	opts := &localProxyOpts{
+		proxyAddr: arg.teleportClient.WebProxyAddr,
+		listener:  arg.listener,
+		protocols: []common.Protocol{alpnProtocol},
+		insecure:  arg.cliConf.InsecureSkipVerify,
+		certs:     certs,
 	}
+	opts.configOpts = append(opts.configOpts, alpnproxy.WithALPNConnUpgradeTest(arg.cliConf.Context, arg.teleportClient.RootClusterCACertPool))
 
 	if arg.localProxyTunnel {
 		dbRoute := *arg.routeToDatabase

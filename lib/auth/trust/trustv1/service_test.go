@@ -155,7 +155,7 @@ func TestRBAC(t *testing.T) {
 			expectChecks: []check{{types.KindCertAuthority, types.VerbReadNoSecrets}},
 		},
 		{
-			desc: "get",
+			desc: "get no secrets",
 			f: func(t *testing.T, service *Service) {
 				_, err := service.GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{
 					Type:   string(ca.GetType()),
@@ -198,6 +198,112 @@ func TestRBAC(t *testing.T) {
 				{types.KindCertAuthority, types.VerbRead}, // initial rbac check prior to getting CA
 				{types.KindCertAuthority, types.VerbRead},
 			},
+		},
+		{
+			desc: "get authorities no access",
+			f: func(t *testing.T, service *Service) {
+				_, err := service.GetCertAuthorities(ctx, &trustpb.GetCertAuthoritiesRequest{
+					Type: string(ca.GetType()),
+				})
+
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
+			},
+			authorizer: fakeAuthorizer{
+				checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindCertAuthority, types.VerbList}: false,
+					},
+				},
+			},
+			expectChecks: []check{
+				{types.KindCertAuthority, types.VerbList},
+				{types.KindCertAuthority, types.VerbReadNoSecrets},
+			},
+		},
+		{
+			desc: "get authorities no secrets",
+			f: func(t *testing.T, service *Service) {
+				_, err := service.GetCertAuthorities(ctx, &trustpb.GetCertAuthoritiesRequest{
+					Type: string(ca.GetType()),
+				})
+
+				require.NoError(t, err)
+			},
+			authorizer: fakeAuthorizer{
+				checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindCertAuthority, types.VerbList}:          true,
+						{types.KindCertAuthority, types.VerbReadNoSecrets}: true,
+					},
+				},
+			},
+			expectChecks: []check{
+				{types.KindCertAuthority, types.VerbList},
+				{types.KindCertAuthority, types.VerbReadNoSecrets},
+			},
+		},
+		{
+			desc: "get authorities with secrets",
+			f: func(t *testing.T, service *Service) {
+				_, err := service.GetCertAuthorities(ctx, &trustpb.GetCertAuthoritiesRequest{
+					Type:       string(ca.GetType()),
+					IncludeKey: true,
+				})
+
+				require.NoError(t, err)
+			},
+			authorizer: fakeAuthorizer{
+				checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindCertAuthority, types.VerbList}:          true,
+						{types.KindCertAuthority, types.VerbReadNoSecrets}: true,
+						{types.KindCertAuthority, types.VerbRead}:          true,
+					},
+				},
+			},
+			expectChecks: []check{
+				{types.KindCertAuthority, types.VerbList},
+				{types.KindCertAuthority, types.VerbReadNoSecrets},
+				{types.KindCertAuthority, types.VerbRead},
+			},
+		},
+		{
+			desc: "delete no access",
+			f: func(t *testing.T, service *Service) {
+				_, err := service.DeleteCertAuthority(ctx, &trustpb.DeleteCertAuthorityRequest{
+					Type:   string(ca.GetType()),
+					Domain: ca.GetClusterName(),
+				})
+
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
+			},
+			authorizer: fakeAuthorizer{
+				checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindCertAuthority, types.VerbDelete}: false,
+					},
+				},
+			},
+			expectChecks: []check{{types.KindCertAuthority, types.VerbDelete}},
+		},
+		{
+			desc: "delete",
+			f: func(t *testing.T, service *Service) {
+				_, err := service.DeleteCertAuthority(ctx, &trustpb.DeleteCertAuthorityRequest{
+					Type:   string(ca.GetType()),
+					Domain: ca.GetClusterName(),
+				})
+
+				require.NoError(t, err)
+			},
+			authorizer: fakeAuthorizer{
+				checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindCertAuthority, types.VerbDelete}: true,
+					},
+				},
+			},
+			expectChecks: []check{{types.KindCertAuthority, types.VerbDelete}},
 		},
 	}
 
@@ -306,6 +412,168 @@ func TestGetCertAuthority(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ca, err := service.GetCertAuthority(ctx, test.request)
 			test.assertion(t, ca, err)
+		})
+	}
+}
+
+func TestGetCertAuthorities(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newTestPack(t)
+
+	authorizer := &fakeAuthorizer{
+		checker: &fakeChecker{
+			allow: map[check]bool{
+				{types.KindCertAuthority, types.VerbReadNoSecrets}: true,
+				{types.KindCertAuthority, types.VerbRead}:          true,
+				{types.KindCertAuthority, types.VerbList}:          true,
+			},
+		},
+	}
+
+	trust := local.NewCAService(p.mem)
+	cfg := &ServiceConfig{
+		Cache:      trust,
+		Backend:    trust,
+		Authorizer: authorizer,
+	}
+
+	service, err := NewService(cfg)
+	require.NoError(t, err)
+
+	// bootstrap CAs
+	ca1 := newCertAuthority(t, types.HostCA, "test")
+	require.NoError(t, trust.CreateCertAuthority(ca1))
+
+	ca2 := newCertAuthority(t, types.HostCA, "test2")
+	require.NoError(t, trust.CreateCertAuthority(ca2))
+
+	expectedCAs := []*types.CertAuthorityV2{ca1.(*types.CertAuthorityV2), ca2.(*types.CertAuthorityV2)}
+
+	tests := []struct {
+		name      string
+		request   *trustpb.GetCertAuthoritiesRequest
+		assertion func(t *testing.T, resp *trustpb.GetCertAuthoritiesResponse, err error)
+	}{
+		{
+			name: "ca type does not exist",
+			request: &trustpb.GetCertAuthoritiesRequest{
+				Type: string(types.SAMLIDPCA),
+			},
+			assertion: func(t *testing.T, resp *trustpb.GetCertAuthoritiesResponse, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				require.Empty(t, resp.CertAuthoritiesV2)
+			},
+		},
+		{
+			name: "ca found without secrets",
+			request: &trustpb.GetCertAuthoritiesRequest{
+				Type: string(types.HostCA),
+			},
+			assertion: func(t *testing.T, resp *trustpb.GetCertAuthoritiesResponse, err error) {
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(expectedCAs, resp.CertAuthoritiesV2,
+					cmpopts.IgnoreFields(types.SSHKeyPair{}, "PrivateKey"),
+					cmpopts.IgnoreFields(types.TLSKeyPair{}, "Key"),
+					cmpopts.IgnoreFields(types.JWTKeyPair{}, "PrivateKey"),
+				))
+
+				for _, ca := range resp.CertAuthoritiesV2 {
+					keys := ca.GetActiveKeys()
+					require.Nil(t, keys.TLS[0].Key)
+					require.Nil(t, keys.SSH[0].PrivateKey)
+					require.Nil(t, keys.JWT[0].PrivateKey)
+				}
+			},
+		},
+		{
+			name: "ca found with secrets",
+			request: &trustpb.GetCertAuthoritiesRequest{
+				Type:       string(types.HostCA),
+				IncludeKey: true,
+			},
+			assertion: func(t *testing.T, resp *trustpb.GetCertAuthoritiesResponse, err error) {
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(expectedCAs, resp.CertAuthoritiesV2))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			resp, err := service.GetCertAuthorities(ctx, test.request)
+			test.assertion(t, resp, err)
+		})
+	}
+}
+
+func TestDeleteCertAuthority(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newTestPack(t)
+
+	authorizer := &fakeAuthorizer{
+		checker: &fakeChecker{
+			allow: map[check]bool{
+				{types.KindCertAuthority, types.VerbReadNoSecrets}: true,
+				{types.KindCertAuthority, types.VerbDelete}:        true,
+			},
+		},
+	}
+
+	trust := local.NewCAService(p.mem)
+	cfg := &ServiceConfig{
+		Cache:      trust,
+		Backend:    trust,
+		Authorizer: authorizer,
+	}
+
+	service, err := NewService(cfg)
+	require.NoError(t, err)
+
+	// bootstrap a CA
+	ca := newCertAuthority(t, types.HostCA, "test")
+	require.NoError(t, trust.CreateCertAuthority(ca))
+
+	tests := []struct {
+		name      string
+		request   *trustpb.DeleteCertAuthorityRequest
+		assertion func(t *testing.T, err error)
+	}{
+		{
+			name: "ca not found",
+			request: &trustpb.DeleteCertAuthorityRequest{
+				Type:   string(types.SAMLIDPCA),
+				Domain: "unknown",
+			},
+			assertion: func(t *testing.T, err error) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			name: "ca deleted",
+			request: &trustpb.DeleteCertAuthorityRequest{
+				Type:   string(types.HostCA),
+				Domain: "test",
+			},
+			assertion: func(t *testing.T, err error) {
+				require.NoError(t, err)
+
+				ca, err := service.GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{Domain: "test", Type: string(types.HostCA)})
+				require.True(t, trace.IsNotFound(err), "got unexpected error retrieving a deleted ca: %v", err)
+				require.Nil(t, ca)
+
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := service.DeleteCertAuthority(ctx, test.request)
+			test.assertion(t, err)
 		})
 	}
 }

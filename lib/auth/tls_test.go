@@ -1774,7 +1774,7 @@ func TestGetCertAuthority(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// user gets a not found message if a CA doesn't exist
-	require.NoError(t, tt.server.Auth().DeleteCertAuthority(hostCAID))
+	require.NoError(t, tt.server.Auth().DeleteCertAuthority(ctx, hostCAID))
 	_, err = userClt.GetCertAuthority(ctx, hostCAID, false)
 	require.True(t, trace.IsNotFound(err))
 
@@ -2428,12 +2428,14 @@ func TestClusterConfigContext(t *testing.T) {
 	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	// try and generate a host cert, this should fail because we are recording
-	// at the nodes not at the proxy
+	// try and generate a host cert, this should succeed because although
+	// we are recording at the nodes not at the proxy, the proxy may
+	// need to generate host certs if a client wants to connect to an
+	// agentless node
 	_, err = proxy.GenerateHostCert(ctx, pub,
 		"a", "b", nil,
 		"localhost", types.RoleProxy, 0)
-	require.True(t, trace.IsAccessDenied(err))
+	require.NoError(t, err)
 
 	// update cluster config to record at the proxy
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -2443,8 +2445,7 @@ func TestClusterConfigContext(t *testing.T) {
 	err = tt.server.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
-	// try and generate a host cert, now the proxy should be able to generate a
-	// host cert because it's in recording mode.
+	// try and generate a host cert
 	_, err = proxy.GenerateHostCert(ctx, pub,
 		"a", "b", nil,
 		"localhost", types.RoleProxy, 0)

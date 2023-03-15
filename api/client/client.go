@@ -42,6 +42,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -761,6 +762,16 @@ func (c *Client) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		return nil, trail.FromGRPC(err)
 	}
 	return certs, nil
+}
+
+// GenerateOpenSSHCert signs a SSH certificate that can be used
+// to connect to Agentless nodes.
+func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
+	cert, err := c.grpc.GenerateOpenSSHCert(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return cert, nil
 }
 
 // UnstableAssertSystemRole is not a stable part of the public API.  Used by older
@@ -3278,8 +3289,8 @@ func (c *Client) DeleteLoginRule(ctx context.Context, name string) error {
 // Clients connecting older Teleport versions still get an okta client when
 // calling this method, but all RPCs will return "not implemented" errors (as per
 // the default gRPC behavior).
-func (c *Client) OktaClient() oktapb.OktaServiceClient {
-	return oktapb.NewOktaServiceClient(c.conn)
+func (c *Client) OktaClient() *okta.Client {
+	return okta.NewClient(oktapb.NewOktaServiceClient(c.conn))
 }
 
 // GetCertAuthority retrieves a CA by type and domain.
@@ -3291,6 +3302,34 @@ func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, load
 	})
 
 	return ca, trail.FromGRPC(err)
+}
+
+// GetCertAuthorities retrieves CAs by type.
+func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
+	resp, err := c.TrustClient().GetCertAuthorities(ctx, &trustpb.GetCertAuthoritiesRequest{
+		Type:       string(caType),
+		IncludeKey: loadKeys,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	cas := make([]types.CertAuthority, 0, len(resp.CertAuthoritiesV2))
+	for _, ca := range resp.CertAuthoritiesV2 {
+		cas = append(cas, ca)
+	}
+
+	return cas, nil
+}
+
+// DeleteCertAuthority removes a CA matching the type and domain.
+func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
+	_, err := c.TrustClient().DeleteCertAuthority(ctx, &trustpb.DeleteCertAuthorityRequest{
+		Type:   string(id.Type),
+		Domain: id.DomainName,
+	})
+
+	return trail.FromGRPC(err)
 }
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.

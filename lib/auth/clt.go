@@ -34,12 +34,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
@@ -345,29 +345,40 @@ func (c *Client) CompareAndSwapCertAuthority(new, existing types.CertAuthority) 
 }
 
 // GetCertAuthorities returns a list of certificate authorities
-func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
 	if err := caType.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out, err := c.Get(ctx, c.Endpoint("authorities", string(caType)), url.Values{
-		"load_keys": []string{fmt.Sprintf("%t", loadKeys)},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, err
-	}
-	re := make([]types.CertAuthority, len(items))
-	for i, raw := range items {
-		ca, err := services.UnmarshalCertAuthority(raw)
+
+	cas, err := c.APIClient.GetCertAuthorities(ctx, caType, loadKeys)
+	switch {
+	case err == nil:
+		return cas, nil
+	case trace.IsNotImplemented(err):
+		resp, err := c.Get(ctx, c.Endpoint("authorities", string(caType)), url.Values{
+			"load_keys": []string{fmt.Sprintf("%t", loadKeys)},
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		re[i] = ca
+		var items []json.RawMessage
+		if err := json.Unmarshal(resp.Bytes(), &items); err != nil {
+			return nil, err
+		}
+		cas := make([]types.CertAuthority, 0, len(items))
+		for _, raw := range items {
+			ca, err := services.UnmarshalCertAuthority(raw)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			cas = append(cas, ca)
+		}
+
+		return cas, nil
+	default:
+		return nil, trace.Wrap(err)
 	}
-	return re, nil
 }
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
@@ -396,12 +407,21 @@ func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, load
 }
 
 // DeleteCertAuthority deletes cert authority by ID
-func (c *Client) DeleteCertAuthority(id types.CertAuthID) error {
+func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
 	if err := id.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("authorities", string(id.Type), id.DomainName))
-	return trace.Wrap(err)
+
+	err := c.APIClient.DeleteCertAuthority(ctx, id)
+	switch {
+	case err == nil:
+		return nil
+	case trace.IsNotImplemented(err):
+		_, err := c.Delete(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName))
+		return trace.Wrap(err)
+	default:
+		return trace.Wrap(err)
+	}
 }
 
 // ActivateCertAuthority not implemented: can only be called locally.
@@ -638,11 +658,12 @@ func (c *Client) GetRemoteCluster(clusterName string) (types.RemoteCluster, erro
 }
 
 // DeleteRemoteCluster deletes remote cluster by name
-func (c *Client) DeleteRemoteCluster(clusterName string) error {
+func (c *Client) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing parameter cluster name")
 	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("remoteclusters", clusterName))
+
+	_, err := c.Delete(ctx, c.Endpoint("remoteclusters", clusterName))
 	return trace.Wrap(err)
 }
 
@@ -1645,6 +1666,9 @@ type ClientI interface {
 	// GenerateHostCerts generates new host certificates (signed
 	// by the host certificate authority) for a node
 	GenerateHostCerts(context.Context, *proto.HostCertsRequest) (*proto.Certs, error)
+	// GenerateOpenSSHCert signs a SSH certificate with OpenSSH CA that
+	// can be used to connect to Agentless nodes.
+	GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error)
 	// AuthenticateWebUser authenticates web user, creates and  returns web session
 	// in case if authentication is successful
 	AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error)
@@ -1729,5 +1753,5 @@ type ClientI interface {
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
 	// still get an Okta client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
-	OktaClient() oktapb.OktaServiceClient
+	OktaClient() *okta.Client
 }

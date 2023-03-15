@@ -28,7 +28,7 @@ type AuthorityGetter interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 }
 
 // Trust is responsible for managing certificate authorities
@@ -56,7 +56,7 @@ type Trust interface {
 	CompareAndSwapCertAuthority(new, existing types.CertAuthority) error
 
 	// DeleteCertAuthority deletes particular certificate authority
-	DeleteCertAuthority(id types.CertAuthID) error
+	DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error
 
 	// DeleteAllCertAuthorities deletes cert authorities of a certain type
 	DeleteAllCertAuthorities(caType types.CertAuthType) error

@@ -1280,6 +1280,58 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 	}
 }
 
+func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
+	if req.Username == "" {
+		return nil, trace.BadParameter("username is empty")
+	}
+	if len(req.PublicKey) == 0 {
+		return nil, trace.BadParameter("public key is empty")
+	}
+	if req.TTL == 0 {
+		return nil, trace.BadParameter("TTL is not set")
+	}
+	if req.TTL < 0 {
+		return nil, trace.BadParameter("TTL must be positive")
+	}
+	if req.Cluster == "" {
+		return nil, trace.BadParameter("cluster is empty")
+	}
+
+	user, err := a.GetUser(req.Username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessInfo := services.AccessInfoFromUser(user)
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := a.generateOpenSSHCert(certRequest{
+		user:          user,
+		publicKey:     req.PublicKey,
+		compatibility: constants.CertificateFormatStandard,
+		checker:       checker,
+		ttl:           time.Duration(req.TTL),
+		traits: map[string][]string{
+			constants.TraitLogins: {req.Username},
+		},
+		routeToCluster:  req.Cluster,
+		disallowReissue: true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.OpenSSHCert{
+		Cert: certs.SSH,
+	}, nil
+}
+
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
 func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, pinnedIP string) ([]byte, []byte, error) {
 	user, err := a.GetUser(username, false)
@@ -1563,7 +1615,7 @@ func (a *Server) AugmentContextUserCertificates(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCA, sshSigner, _, err := a.getUserSigningCAs(ctx, domainName)
+	tlsCA, sshSigner, _, err := a.getSigningCAs(ctx, domainName, types.UserCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1727,8 +1779,17 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 	}
 }
 
-// generateUserCert generates user certificates
+// generateUserCert generates certificates signed with User CA
 func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
+	return generateCert(a, req, types.UserCA)
+}
+
+// generateOpenSSHCert generates certificates signed with OpenSSH CA
+func (a *Server) generateOpenSSHCert(req certRequest) (*proto.Certs, error) {
+	return generateCert(a, req, types.OpenSSHCA)
+}
+
+func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto.Certs, error) {
 	ctx := context.TODO()
 	err := req.check()
 	if err != nil {
@@ -1832,11 +1893,6 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
-	tlsCA, sshSigner, userCA, err := a.getUserSigningCAs(ctx, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Add the special join-only principal used for joining sessions.
 	// All users have access to this and join RBAC rules are checked after the connection is established.
 	allowedLogins = append(allowedLogins, teleport.SSHSessionJoinPrincipal)
@@ -1855,6 +1911,18 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 
 		pinnedIP = req.loginIP
+	}
+
+	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       caType,
+		DomainName: clusterName,
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	params := services.UserCertParams{
@@ -1887,7 +1955,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		DeviceAssetTag:          req.deviceExtensions.AssetTag,
 		DeviceCredentialID:      req.deviceExtensions.CredentialID,
 	}
-	sshCert, err := a.GenerateUserCert(params)
+	signedSSHCert, err := a.GenerateUserCert(params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1935,7 +2003,6 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// generate TLS certificate
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
 		Impersonator:      req.impersonator,
@@ -1985,23 +2052,38 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			CredentialID: req.deviceExtensions.CredentialID,
 		},
 	}
-	subject, err := identity.Subject()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certRequest := tlsca.CertificateRequest{
-		Clock:     a.clock,
-		PublicKey: cryptoPubKey,
-		Subject:   subject,
-		NotAfter:  a.clock.Now().UTC().Add(sessionTTL),
-	}
-	tlsCert, err := tlsCA.GenerateCertificate(certRequest)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	var signedTLSCert []byte
+	notAfter := a.clock.Now().UTC().Add(sessionTTL)
+	// generate TLS certificate if the signing CA isn't OpenSSH CA, as
+	// OpenSSH CA doesn't have any TLS keypairs
+	if caType != types.OpenSSHCA {
+		tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		subject, err := identity.Subject()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certRequest := tlsca.CertificateRequest{
+			Clock:     a.clock,
+			PublicKey: cryptoPubKey,
+			Subject:   subject,
+			NotAfter:  notAfter,
+		}
+		signedTLSCert, err = tlsCA.GenerateCertificate(certRequest)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	eventIdentity := identity.GetEventIdentity()
-	eventIdentity.Expires = certRequest.NotAfter
+	eventIdentity.Expires = notAfter
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
 		Metadata: apievents.Metadata{
 			Type: events.CertificateCreateEvent,
@@ -2015,12 +2097,12 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 
 	// create certs struct to return to user
 	certs := &proto.Certs{
-		SSH: sshCert,
-		TLS: tlsCert,
+		SSH: signedSSHCert,
+		TLS: signedTLSCert,
 	}
 
-	// always include user CA TLS and SSH certs
-	cas := []types.CertAuthority{userCA}
+	// always include specified CA
+	cas := []types.CertAuthority{ca}
 
 	// also include host CA certs if requested
 	if req.includeHostCA {
@@ -2085,19 +2167,18 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	return trace.Wrap(a.checkLockInForce(lockingMode, lockTargets))
 }
 
-// getUserSigningCAs returns the necessary resources to issue/sign new user
-// certificates.
-func (a *Server) getUserSigningCAs(ctx context.Context, domainName string) (*tlsca.CertAuthority, ssh.Signer, types.CertAuthority, error) {
+// getSigningCAs returns the necessary resources to issue/sign new certificates.
+func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType types.CertAuthType) (*tlsca.CertAuthority, ssh.Signer, types.CertAuthority, error) {
 	const loadKeys = true
-	userCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
+	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       caType,
 		DomainName: domainName,
 	}, loadKeys)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, userCA)
+	tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -2106,12 +2187,12 @@ func (a *Server) getUserSigningCAs(ctx context.Context, domainName string) (*tls
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	sshSigner, err := a.keyStore.GetSSHSigner(ctx, userCA)
+	sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	return tlsCA, sshSigner, userCA, nil
+	return tlsCA, sshSigner, ca, nil
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication

@@ -146,19 +146,19 @@ func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) erro
 }
 
 // DeleteCertAuthority deletes particular certificate authority
-func (s *CA) DeleteCertAuthority(id types.CertAuthID) error {
+func (s *CA) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
 	if err := id.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 	// when removing a types.CertAuthority also remove any deactivated
 	// types.CertAuthority as well if they exist.
-	err := s.Delete(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
+	err := s.Delete(ctx, backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 	}
-	err = s.Delete(context.TODO(), backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
+	err = s.Delete(ctx, backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -206,7 +206,7 @@ func (s *CA) DeactivateCertAuthority(id types.CertAuthID) error {
 		return trace.Wrap(err)
 	}
 
-	err = s.DeleteCertAuthority(id)
+	err = s.DeleteCertAuthority(context.TODO(), id)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -260,7 +260,7 @@ func setSigningKeys(ca types.CertAuthority, loadSigningKeys bool) {
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
-func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool) ([]types.CertAuthority, error) {
 	if err := caType.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -275,10 +275,7 @@ func (s *CA) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, 
 	// Marshal values into a []types.CertAuthority slice.
 	cas := make([]types.CertAuthority, len(result.Items))
 	for i, item := range result.Items {
-		ca, err := services.UnmarshalCertAuthority(
-			item.Value, services.AddOptions(opts,
-				services.WithResourceID(item.ID),
-				services.WithExpires(item.Expires))...)
+		ca, err := services.UnmarshalCertAuthority(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

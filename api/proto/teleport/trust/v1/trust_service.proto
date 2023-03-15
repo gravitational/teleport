@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.trust.v1;
 
+import "google/protobuf/empty.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1";
@@ -24,6 +25,10 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 service TrustService {
   // GetCertAuthority returns a cert authority by type and domain.
   rpc GetCertAuthority(GetCertAuthorityRequest) returns (types.CertAuthorityV2);
+  // GetCertAuthorities returns all cert authorities with the specified type.
+  rpc GetCertAuthorities(GetCertAuthoritiesRequest) returns (GetCertAuthoritiesResponse);
+  // DeleteCertAuthority deletes the matching cert authority.
+  rpc DeleteCertAuthority(DeleteCertAuthorityRequest) returns (google.protobuf.Empty);
 }
 
 // Request for GetCertAuthority
@@ -34,4 +39,26 @@ message GetCertAuthorityRequest {
   string domain = 2;
   // Whether the private key should be included in the response.
   bool include_key = 3;
+}
+
+// Request for GetCertAuthorities
+message GetCertAuthoritiesRequest {
+  // Type of certificate authority.
+  string type = 1;
+  // Whether the private key should be included in the response.
+  bool include_key = 2;
+}
+
+// Response for GetCertAuthorities
+message GetCertAuthoritiesResponse {
+  // The matching certificate authorities.
+  repeated types.CertAuthorityV2 cert_authorities_v2 = 1;
+}
+
+// Request for DeleteCertAuthority
+message DeleteCertAuthorityRequest {
+  // Type of certificate authority.
+  string type = 1;
+  // The domain for the certificate authority.
+  string domain = 2;
 }

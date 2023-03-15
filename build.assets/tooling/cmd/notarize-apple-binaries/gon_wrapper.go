@@ -31,25 +31,24 @@ import (
 	"github.com/gravitational/teleport/build.assets/tooling/lib/logging"
 )
 
-const (
-	DeveloperIdentity string = "0FFD3E3413AB4C599C53FBB1D8CA690915E33D83"
-	BundleID          string = "com.gravitational.teleport"
-)
-
 type GonWrapper struct {
 	ctx           context.Context
 	logger        hclog.Logger
 	AppleUsername string
 	ApplePassword string
+	DeveloperID   string
+	BundleID      string
 	BinaryPaths   []string
 }
 
-func NewGonWrapper(appleUsername, applePassword string, BinaryPaths []string) *GonWrapper {
+func NewGonWrapper(appleUsername, applePassword, developerID, bundleID string, BinaryPaths []string) *GonWrapper {
 	return &GonWrapper{
 		ctx:           context.Background(),
 		logger:        logging.NewHCLogLogrusAdapter(logrus.StandardLogger()),
 		AppleUsername: appleUsername,
 		ApplePassword: applePassword,
+		DeveloperID:   developerID,
+		BundleID:      bundleID,
 		BinaryPaths:   BinaryPaths,
 	}
 }
@@ -79,7 +78,7 @@ func (gw *GonWrapper) SignBinaries() error {
 	gw.logger.Info("Signing binaries %v...", gw.BinaryPaths)
 	err := sign.Sign(gw.ctx, &sign.Options{
 		Files:    gw.BinaryPaths,
-		Identity: DeveloperIdentity,
+		Identity: gw.DeveloperID,
 		Logger:   gw.logger,
 	})
 
@@ -119,7 +118,7 @@ func (gw *GonWrapper) NotarizeBinaries(zipPath string) error {
 	gw.logger.Info("Uploading %q to Apple for notarization ticket issuance. This may take awhile...", zipPath)
 	notarizationInfo, err := notarize.Notarize(gw.ctx, &notarize.Options{
 		File:     zipPath,
-		BundleId: BundleID,
+		BundleId: gw.BundleID,
 		Username: gw.AppleUsername,
 		Password: gw.ApplePassword,
 		Logger:   gw.logger,
