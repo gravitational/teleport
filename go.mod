@@ -377,5 +377,5 @@ replace (
 	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.0
 	// Use our internal crypto fork, to work around the issue with OpenSSH <= 7.6 mentioned here: https://github.com/golang/go/issues/53391
-	golang.org/x/crypto => github.com/gravitational/crypto v0.0.0-20221221152432-903e65687e59
+	golang.org/x/crypto => github.com/gravitational/crypto v0.6.0-1
 )
