@@ -433,26 +433,26 @@ release-unix: clean full build-archive
 # TSH_SKELETON is a directory name relative to build.assets/macos/
 ENVIRONMENT_NAME ?= promote
 
-DEVELOPER_ID_APPLICATION_promote = 0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
-DEVELOPER_ID_INSTALLER_promote = 82B625AD327C241B378A54B4B254BB08CE71B5DF
+# TODO(camh): Verify key names for production keys
+DEVELOPER_KEY_NAME_promote = Developer ID Application: Ada Lin
+INSTALLER_KEY_NAME_promote = Developer ID Installer: Ada Lin
 TEAMID_promote = QH8AA5B8UP
 TSH_BUNDLEID_promote = $(TEAMID).com.gravitational.teleport.tsh
 TSH_SKELETON_promote = tsh
 
-DEVELOPER_ID_APPLICATION_build = A5604F285B0957134EA099AC515BD9E0787228AC
-DEVELOPER_ID_INSTALLER_build = C1A831A974DF69563432C87A4979F7982DD91FBE
+DEVELOPER_KEY_NAME_build = Developer ID Application: Ada Lin
+INSTALLER_KEY_NAME_build = Developer ID Installer: Ada Lin
 TEAMID_build = K497G57PDJ
 TSH_BUNDLEID_build = $(TEAMID).com.goteleport.tshdev
 TSH_SKELETON_build = tshdev
 
-DEVELOPER_ID_APPLICATION = $(DEVELOPER_ID_APPLICATION_$(ENVIRONMENT_NAME))
-DEVELOPER_ID_INSTALLER = $(DEVELOPER_ID_INSTALLER_$(ENVIRONMENT_NAME))
+# Extract application/installer key ID from keychain. This looks at all keychains in the search path.
+get_key_id = $(word 2,$(shell security find-identity -s codesigning | grep --fixed-strings --max-count=1 '$(1)'))
+DEVELOPER_ID_APPLICATION = $(call get_key_id,$(DEVELOPER_KEY_NAME_$(ENVIRONMENT_NAME)))
+DEVELOPER_ID_INSTALLER = $(call get_key_id,$(INSTALLER_KEY_NAME_$(ENVIRONMENT_NAME)))
 TEAMID = $(TEAMID_$(ENVIRONMENT_NAME))
 TSH_BUNDLEID = $(TSH_BUNDLEID_$(ENVIRONMENT_NAME))
 TSH_SKELETON = $(TSH_SKELETON_$(ENVIRONMENT_NAME))
-
-# Export vars as they are used by the build.assets/build-package.sh script
-export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER TEAMID TSH_BUNDLEID TSH_SKELETON
 
 .PHONY: release-darwin-unsigned
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
@@ -1116,6 +1116,7 @@ endif
 # build .pkg
 .PHONY: pkg
 pkg:
+	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER TEAMID TSH_BUNDLEID TSH_SKELETON)
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
@@ -1127,6 +1128,7 @@ pkg:
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
 pkg-tsh:
+	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER TEAMID TSH_BUNDLEID TSH_SKELETON)
 	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) $(TARBALL_PATH_SECTION)
 	mkdir -p $(BUILDDIR)/
 	mv tsh*.pkg* $(BUILDDIR)/
