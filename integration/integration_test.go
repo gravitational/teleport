@@ -7230,7 +7230,7 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	// create Teleport instance
 	teleInst := suite.newTeleport(t, nil, true)
 	t.Cleanup(func() {
-		teleInst.StopAll()
+		require.NoError(t, teleInst.StopAll())
 	})
 
 	tc, err := teleInst.NewClient(helpers.ClientConfig{
@@ -7306,15 +7306,14 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	var nodeCreated bool
-	for !nodeCreated {
+	for nodeCreated := false; !nodeCreated; {
 		select {
 		case e := <-w.Events():
 			if e.Type == types.OpPut {
 				nodeCreated = true
 			}
 		case <-w.Done():
-			require.Fail(t, "did not recieve node create event")
+			t.Fatal("Did not receive node create event")
 		}
 	}
 	require.NoError(t, w.Close())
@@ -7323,7 +7322,7 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		proxyClient.Close()
+		require.NoError(t, proxyClient.Close())
 	})
 
 	nodeClient, err := tc.ConnectToNode(ctx, proxyClient, client.NodeDetails{
@@ -7367,9 +7366,15 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 	go func() {
 		nConn, err := lis.Accept()
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = nConn.Close()
+		})
 
 		conn, _, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
 		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = conn.Close()
+		})
 
 		req := <-reqs
 		require.NoError(t, req.Reply(true, nil))
