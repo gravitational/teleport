@@ -119,7 +119,7 @@ This solution won't change anything from the security point of view.
 The [MS-RDPEGFX] extension introduces a new way of drawing data by creating surfaces and using commands that utilize these surfaces to draw frames rather than just rendering bitmap data on the screen. This extension efficiently encode and transmit graphic display data from the server to the client. It alsow allows caching data locally to improve performance, can use different, newer, and more performant codecs to encode data e.g:
 - RemoteFX
 - ClearCodec
-- MPEG-4 AVC/H.264
+- H.264/AVC444
 
 In essence, this protocol works in this way:
 - create surfaces
@@ -127,6 +127,12 @@ In essence, this protocol works in this way:
 - decode graphic data for surface and render it on the graphics output buffer
 
 There is already one implementation of the extension in the Rust language: [ironrdp-gui-client](https://github.com/Devolutions/IronRDP/tree/master/ironrdp-gui-client), but it is using native gui for rendering by utilising opengl. 
+
+##### Requirements
+This extension requires at least RDP 8, but for the best results it needs:
+
+- RDP 10
+- hadware support for encoding H.264/AVC444
 
 
 ##### UX changes
