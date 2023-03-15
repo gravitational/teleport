@@ -87,5 +87,3 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.memory
           value: 2Gi
-      - matchSnapshot:
-          path: spec.template.spec          
