@@ -1,5 +1,16 @@
 # Changelog
 
+## 11.3.8
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed unresponsive Teleport Connect terminal issue on Windows Server 2019. [#22995](https://github.com/gravitational/teleport/pull/22995)
+* Fixed issue with Access Management wizard failing connection tests when per-session MFA is enabled. [#22944](https://github.com/gravitational/teleport/pull/22944), [#22921](https://github.com/gravitational/teleport/pull/22921)
+* Fixed panic in Kubernetes service when using moderated session. [#22929](https://github.com/gravitational/teleport/pull/22929)
+* Fixed issue with `tsh db config` returning incorrect PostgreSQL port in TLS routing mode. [#22890](https://github.com/gravitational/teleport/pull/22890)
+* Updated Go to `v1.20.2`. [#23065](https://github.com/gravitational/teleport/pull/23065)
+* Improved idle connections handling to prevent connection leaks. [#22912](https://github.com/gravitational/teleport/pull/22912), [#22894](https://github.com/gravitational/teleport/pull/22894)
+
 ## 11.3.7
 
 This release of Teleport contains multiple improvements and bug fixes.
