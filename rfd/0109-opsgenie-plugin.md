@@ -92,7 +92,7 @@ Once an access request has been created, the Opsgenie plugin will create an aler
 
 The appropriate on-call responder can then click the provided link to the access request and approve or deny it.
 
-For auto approval of certain access requests the access request will be auto approved if the requesting user is on-call in one of the services provided in access request annotations.
+For auto approval of certain access requests the access request will be auto approved if the requesting user is on-call in one of the schedules provided in access request annotations.
 
 Once an access request has been approved or denied the plugin will add a note to the alert and close the relevant alert tied to that access request.
 
@@ -107,7 +107,8 @@ spec:
     request:
       roles: [someOtherRole]
       annotations:
-        opsgenie_services: ["service1", "service2"] # These are the Opsgenie services alerts will be created under
+        opsgenie_notify_services: ["service1", "service2"] # These are the Opsgenie services alerts will be created under
+        opsgenie_oncall_schedules: ["service1", "service2"] # These are the Opsgenie schedules checked during auto approval
 ```
 
 ## Implementation details
