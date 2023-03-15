@@ -35,13 +35,15 @@ import Document from '../Document';
 import Terminal from './Terminal';
 import useSshSession from './useSshSession';
 import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
-import useMfaFileTransfer from './useMfaFileTransfer';
+import useGetScpUrl from './useGetScpUrl';
 
 export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
   const { tty, status, closeDocument } = useSshSession(doc);
   const webauthn = useWebAuthn(tty);
-  const { getUrlWithMfa, attempt } = useMfaFileTransfer(webauthn.mfaRequired);
+  const { getScpUrl, attempt: getMfaResponseAttempt } = useGetScpUrl(
+    webauthn.addMfaToScpUrls
+  );
 
   function handleCloseFileTransfer() {
     refTerminal.current.terminal.term.focus();
@@ -75,12 +77,16 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
           beforeClose={() =>
             window.confirm('Are you sure you want to cancel file transfers?')
           }
-          errorText={attempt.status === 'failed' ? attempt.statusText : null}
+          errorText={
+            getMfaResponseAttempt.status === 'failed'
+              ? getMfaResponseAttempt.statusText
+              : null
+          }
           afterClose={handleCloseFileTransfer}
           backgroundColor={colors.primary.light}
           transferHandlers={{
             getDownloader: async (location, abortController) => {
-              const url = await getUrlWithMfa({
+              const url = await getScpUrl({
                 location,
                 clusterId: doc.clusterId,
                 serverId: doc.serverId,
@@ -100,7 +106,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
               );
             },
             getUploader: async (location, file, abortController) => {
-              const url = await getUrlWithMfa({
+              const url = await getScpUrl({
                 location,
                 clusterId: doc.clusterId,
                 serverId: doc.serverId,

@@ -21,7 +21,6 @@ import {
 } from 'shared/components/FileTransfer';
 
 import { getAuthHeaders, getNoCacheHeaders } from 'teleport/services/api';
-import auth from 'teleport/services/auth/auth';
 
 export function getHttpFileTransferHandlers() {
   return {
@@ -74,20 +73,6 @@ export function getHttpFileTransferHandlers() {
       xhr.responseType = 'blob';
       xhr.send();
       return eventEmitter;
-    },
-    async getWebauthnResponse(
-      mfaRequired: boolean,
-      abortController: AbortController
-    ) {
-      try {
-        if (!mfaRequired) {
-          return;
-        }
-        return await auth.getWebauthnResponse();
-      } catch (err) {
-        abortController.abort(err);
-        return;
-      }
     },
   };
 }

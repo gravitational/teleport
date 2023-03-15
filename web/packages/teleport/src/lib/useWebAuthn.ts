@@ -25,7 +25,7 @@ import {
 
 export default function useWebAuthn(emitterSender: EventEmitterWebAuthnSender) {
   const [state, setState] = useState({
-    mfaRequired: false,
+    addMfaToScpUrls: false,
     requested: false,
     errorText: '',
     publicKey: null as PublicKeyCredentialRequestOptions,
@@ -71,7 +71,7 @@ export default function useWebAuthn(emitterSender: EventEmitterWebAuthnSender) {
     setState({
       ...state,
       requested: true,
-      mfaRequired: true,
+      addMfaToScpUrls: true,
       publicKey,
     });
   };
@@ -91,6 +91,6 @@ export default function useWebAuthn(emitterSender: EventEmitterWebAuthnSender) {
     requested: state.requested,
     authenticate,
     setState,
-    mfaRequired: state.mfaRequired,
+    addMfaToScpUrls: state.addMfaToScpUrls,
   };
 }
