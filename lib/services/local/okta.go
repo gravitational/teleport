@@ -83,13 +83,13 @@ func (o *OktaService) GetOktaImportRule(ctx context.Context, name string) (types
 }
 
 // CreateOktaImportRule creates a new Okta import rule resource.
-func (o *OktaService) CreateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) error {
-	return o.importRuleSvc.CreateResource(ctx, importRule)
+func (o *OktaService) CreateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) (types.OktaImportRule, error) {
+	return importRule, o.importRuleSvc.CreateResource(ctx, importRule)
 }
 
 // UpdateOktaImportRule updates an existing Okta import rule resource.
-func (o *OktaService) UpdateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) error {
-	return o.importRuleSvc.UpdateResource(ctx, importRule)
+func (o *OktaService) UpdateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) (types.OktaImportRule, error) {
+	return importRule, o.importRuleSvc.UpdateResource(ctx, importRule)
 }
 
 // DeleteOktaImportRule removes the specified Okta import rule resource.
@@ -113,13 +113,13 @@ func (o *OktaService) GetOktaAssignment(ctx context.Context, name string) (types
 }
 
 // CreateOktaAssignmentcreates a new Okta assignment resource.
-func (o *OktaService) CreateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) error {
-	return o.assignmentSvc.CreateResource(ctx, assignment)
+func (o *OktaService) CreateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	return assignment, o.assignmentSvc.CreateResource(ctx, assignment)
 }
 
 // UpdateOktaAssignmentupdates an existing Okta assignment resource.
-func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) error {
-	return o.assignmentSvc.UpdateResource(ctx, assignment)
+func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	return assignment, o.assignmentSvc.UpdateResource(ctx, assignment)
 }
 
 // DeleteOktaAssignmentremoves the specified Okta assignment resource.
