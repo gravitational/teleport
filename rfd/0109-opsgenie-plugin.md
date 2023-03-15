@@ -115,7 +115,7 @@ spec:
 ### Plugin service
 The 'plugin_service' when enabled will watch for 'plugin' resources matching the labels specified in teleport.yaml.
 When a plugin resource matching these labels is created the appropriate plugin will be started.
-In the case of the Opsgenie plugin, this will fail in the event the API key file field is not filled in teleport.yaml
+In the case of the Opsgenie plugin, the plugin startup will fail in the event the API key file field was not provided in the plugin_service configuration.
 
 ### Opsgenie plugin
 In this section we will take a look at how the plugin will interact with the Opsgenie API.
