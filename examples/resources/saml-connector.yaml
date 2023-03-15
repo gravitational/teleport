@@ -28,3 +28,4 @@ spec:
     - access
   # Provides a path to the IdP metadata.
   entity_descriptor_url: https://example.okta.com/app/your-app-id/sso/saml/metadata
+  
