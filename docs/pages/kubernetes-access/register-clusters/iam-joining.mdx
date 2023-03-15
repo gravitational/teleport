@@ -277,6 +277,12 @@ $ tsh kube login iam-cluster
 $ kubectl get pods
 ```
 
+If the agent pod is healthy and ready but you cannot see your Kubernetes cluster,
+it is likely related to RBAC permissions associated with your roles.
+On the other hand, if you can see your Kubernetes cluster but unable to see any pods,
+it's likely that your Teleport role does not allow access to pods in the Kubernetes cluster.
+For both cases, please refer to the section below.
+
 <Details title="Not seeing Kubernetes clusters?">
 
 (!docs/pages/includes/kubernetes-access/rbac.mdx!)
