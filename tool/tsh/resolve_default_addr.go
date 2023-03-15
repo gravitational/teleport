@@ -30,8 +30,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/client/proxy"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 type raceResult struct {
@@ -121,7 +121,7 @@ func pickDefaultAddr(ctx context.Context, insecure bool, host string, ports []in
 					InsecureSkipVerify: insecure,
 				},
 				Proxy: func(req *http.Request) (*url.URL, error) {
-					return proxy.GetProxyURL(req.URL.String()), nil
+					return utils.GetProxyURL(req.URL.String()), nil
 				},
 			},
 		),

@@ -146,19 +146,19 @@ func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) erro
 }
 
 // DeleteCertAuthority deletes particular certificate authority
-func (s *CA) DeleteCertAuthority(id types.CertAuthID) error {
+func (s *CA) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
 	if err := id.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 	// when removing a types.CertAuthority also remove any deactivated
 	// types.CertAuthority as well if they exist.
-	err := s.Delete(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
+	err := s.Delete(ctx, backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 	}
-	err = s.Delete(context.TODO(), backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
+	err = s.Delete(ctx, backend.Key(authoritiesPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -206,7 +206,7 @@ func (s *CA) DeactivateCertAuthority(id types.CertAuthID) error {
 		return trace.Wrap(err)
 	}
 
-	err = s.DeleteCertAuthority(id)
+	err = s.DeleteCertAuthority(context.TODO(), id)
 	if err != nil {
 		return trace.Wrap(err)
 	}

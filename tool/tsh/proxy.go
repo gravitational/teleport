@@ -36,11 +36,11 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
@@ -232,7 +232,7 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 	// if sp.tlsRouting is true, remoteProxyAddr is the ALPN listener port.
 	// if it is false, then remoteProxyAddr is the SSH proxy port.
 	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
-	httpsProxy := proxy.GetProxyURL(remoteProxyAddr)
+	httpsProxy := apiutils.GetProxyURL(remoteProxyAddr)
 
 	pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
 	if err != nil {
