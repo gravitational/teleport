@@ -3780,17 +3780,11 @@ func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 		return trace.Wrap(err)
 	}
 
-	// The check for nonempty h.Name is because
-	// (*types.KeepAlive).CheckAndSetDefaults technically allows an empty name
-	// with a nonzero lease, even though in practice the backend KeepAlive call
-	// would fail and err wouldn't be nil, so we wouldn't reach this point
-	if h.Name != "" {
-		a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
-			Name:   h.Name,
-			Kind:   usagereporter.ResourceKindFromKeepAliveType(h.Type),
-			Static: h.Expires.IsZero(),
-		})
-	}
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   h.Name,
+		Kind:   usagereporter.ResourceKindFromKeepAliveType(h.Type),
+		Static: h.Expires.IsZero(),
+	})
 
 	return nil
 }
