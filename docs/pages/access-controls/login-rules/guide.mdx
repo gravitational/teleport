@@ -23,10 +23,10 @@ Login Rules only operate on SSO logins, so make sure you have
 configured an OIDC, SAML, or GitHub connector before you begin.
 Check the [Single Sign-On](../sso/) docs to learn how to set this up.
 
-## Step 1/5. Configure a Teleport role with access to Login Rules objects
+## Step 1/5. Configure RBAC
 
 First, ensure you are logged into Teleport as a user that has permissions
-to read and modify `login_rule` objects. The default `editor` role
+to read and modify `login_rule` resources. The preset `editor` role
 has access to this already, but in case you are using a more customized configuration,
 create a role called `loginrule-manager.yaml` with the following contents:
 
