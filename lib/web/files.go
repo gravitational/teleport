@@ -106,7 +106,7 @@ func (f *fileTransfer) download(req fileTransferRequest, httpReq *http.Request, 
 		return trace.Wrap(err)
 	}
 
-	err = tc.ExecuteSCP(httpReq.Context(), cmd)
+	err = tc.ExecuteSCP(httpReq.Context(), req.server, cmd)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -130,7 +130,7 @@ func (f *fileTransfer) upload(req fileTransferRequest, httpReq *http.Request) er
 		return trace.Wrap(err)
 	}
 
-	err = tc.ExecuteSCP(httpReq.Context(), cmd)
+	err = tc.ExecuteSCP(httpReq.Context(), req.server, cmd)
 	if err != nil {
 		return trace.Wrap(err)
 	}
