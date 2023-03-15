@@ -35,9 +35,14 @@ TEAMID = $(TEAMID_$(ENVIRONMENT_NAME))
 DEVELOPER_ID_APPLICATION = $(call get_key_id,$(DEVELOPER_KEY_NAME_$(ENVIRONMENT_NAME)))
 DEVELOPER_ID_INSTALLER = $(call get_key_id,$(INSTALLER_KEY_NAME_$(ENVIRONMENT_NAME)))
 
-# Don't export DEVELOPER_ID_APPLICATION or DEVELOPER_ID_INSTALLER as it
-# evaluates them. They should only be evaluated them if used.
-unexport DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER
+# CSC_NAME is the key ID for signing used by electron-builder for signing
+# Teleport Connect.
+CSC_NAME = $(DEVELOPER_ID_APPLICATION)
+
+# Don't export DEVELOPER_ID_APPLICATION, DEVELOPER_ID_INSTALLER or CSC_NAME as
+# it causes them to be evaluated, which shells out to the `security` command.
+# They should only be evaluated if used.
+unexport CSC_NAME DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER
 
 # Bundle IDs identify packages/images. We use different bundle IDs for
 # release and development.
