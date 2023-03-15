@@ -1872,6 +1872,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, serverAddr string, cmd
 	nodeClient, err := tc.ConnectToNode(
 		ctx,
 		proxyClient,
+		// We append the ":0" so we pass "host:port" pattern, which eventually becomes "proxy:host:port"
 		NodeDetails{Addr: serverAddr + ":0", Namespace: tc.Namespace, Cluster: tc.SiteName},
 		tc.Config.HostLogin,
 	)
