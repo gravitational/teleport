@@ -30,7 +30,17 @@ to read and modify `login_rule` resources. The preset `editor` role
 has access to this already, but in case you are using a more customized configuration,
 create a role called `loginrule-manager.yaml` with the following contents:
 
-(!docs/pages/includes/access-controls/loginrule-manager-role.mdx!)
+```yaml
+kind: role
+metadata:
+  name: loginrule-manager
+spec:
+  allow:
+    rules:
+      - resources: [login_rule]
+        verbs: [list, create, read, update, delete]
+version: v6
+```
 
 Create the role with `tctl`:
 
