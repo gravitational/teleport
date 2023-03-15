@@ -452,7 +452,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 
 	userContext, err := f.cfg.Authz.Authorize(req.Context())
 	if err != nil {
-		return nil, authz.ConvertAuthorizerError(ctx, f.log, err)
+		return nil, authz.ConvertAuthorizerError(req.Context(), f.log, err)
 	}
 	peers := req.TLS.PeerCertificates
 	if len(peers) > 1 {
