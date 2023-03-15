@@ -704,22 +704,13 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 
 func TestServer_Authenticate_headless(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
 
-	// We don't mind about the specifics of the configuration, as long as we have
-	// a user and TOTP/WebAuthn devices.
-	mfa := configureForMFA(t, srv)
-	username := mfa.User
-
-	proxyClient, err := srv.NewClient(TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
-
-	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 	ctx := context.Background()
+	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
+	const timeout = time.Millisecond * 200
 
-	timeout := time.Millisecond * 200
-
-	updateHeadlessAuthnInGoroutine := func(ctx context.Context, update func(*types.HeadlessAuthentication)) chan error {
+	type updateHeadlessAuthnFn func(*types.HeadlessAuthentication, *types.MFADevice)
+	updateHeadlessAuthnInGoroutine := func(ctx context.Context, srv *TestTLSServer, mfa *types.MFADevice, update updateHeadlessAuthnFn) chan error {
 		errC := make(chan error)
 		go func() {
 			defer close(errC)
@@ -732,7 +723,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 
 			// create a shallow copy and update for the compare and swap below.
 			replaceHeadlessAuthn := *headlessAuthn
-			update(&replaceHeadlessAuthn)
+			update(&replaceHeadlessAuthn, mfa)
 
 			_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
 			if err != nil {
@@ -745,43 +736,55 @@ func TestServer_Authenticate_headless(t *testing.T) {
 
 	for _, tc := range []struct {
 		name     string
-		update   func(*types.HeadlessAuthentication)
+		update   updateHeadlessAuthnFn
 		checkErr require.ErrorAssertionFunc
 	}{
 		{
 			name: "OK approved",
-			update: func(ha *types.HeadlessAuthentication) {
+			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
-				ha.MfaDevice = mfa.WebDev.MFA
+				ha.MfaDevice = mfa
 			},
 			checkErr: require.NoError,
 		}, {
 			name: "NOK approved without MFA",
-			update: func(ha *types.HeadlessAuthentication) {
+			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 			},
 			checkErr: require.Error,
 		}, {
 			name: "NOK user mismatch",
-			update: func(ha *types.HeadlessAuthentication) {
+			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
-				ha.MfaDevice = mfa.WebDev.MFA
+				ha.MfaDevice = mfa
 				ha.User = "other-user"
 			},
 			checkErr: require.Error,
 		}, {
 			name: "NOK denied",
-			update: func(ha *types.HeadlessAuthentication) {
+			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
 			},
 			checkErr: require.Error,
 		}, {
 			name:     "NOK timeout",
-			update:   func(ha *types.HeadlessAuthentication) {},
+			update:   func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {},
 			checkErr: require.Error,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			tc := tc
+			t.Parallel()
+
+			srv := newTestTLSServer(t)
+			proxyClient, err := srv.NewClient(TestBuiltin(types.RoleProxy))
+			require.NoError(t, err)
+
+			// We don't mind about the specifics of the configuration, as long as we have
+			// a user and TOTP/WebAuthn devices.
+			mfa := configureForMFA(t, srv)
+			username := mfa.User
+
 			t.Cleanup(func() {
 				srv.Auth().DeleteHeadlessAuthentication(ctx, headlessID)
 			})
@@ -789,7 +792,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 
-			errC := updateHeadlessAuthnInGoroutine(ctx, tc.update)
+			errC := updateHeadlessAuthnInGoroutine(ctx, srv, mfa.WebDev.MFA, tc.update)
 			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: AuthenticateUserRequest{
 					Username:                 username,
