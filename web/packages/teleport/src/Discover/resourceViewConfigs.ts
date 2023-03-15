@@ -17,15 +17,13 @@
 import { ServerResource } from 'teleport/Discover/Server';
 import { DatabaseResource } from 'teleport/Discover/Database';
 import { KubernetesResource } from 'teleport/Discover/Kubernetes';
-import { ApplicationResource } from 'teleport/Discover/Application';
 import { DesktopResource } from 'teleport/Discover/Desktop';
 
-import { Resource } from './flow';
+import { ResourceViewConfig } from './flow';
 
-export const resources: Resource[] = [
+export const viewConfigs: ResourceViewConfig[] = [
   ServerResource,
   DatabaseResource,
   KubernetesResource,
-  ApplicationResource,
   DesktopResource,
 ];
