@@ -44,6 +44,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodIAM),
 	string(types.JoinMethodGitHub),
 	string(types.JoinMethodCircleCI),
+	string(types.JoinMethodAzure),
 }
 
 var log = logrus.WithFields(logrus.Fields{
@@ -150,7 +151,15 @@ type CLIConf struct {
 	RemainingArgs []string
 }
 
-// OnboardingConfig contains values only required on first connect.
+// AzureOnboardingConfig holds configuration relevant to the "azure" join method.
+type AzureOnboardingConfig struct {
+	// ClientID of the managed identity to use. Required if the VM has more
+	// than one assigned identity.
+	ClientID string `yaml:"client_id"`
+}
+
+// OnboardingConfig contains values relevant to how the bot authenticates with
+// the Teleport cluster.
 type OnboardingConfig struct {
 	// TokenValue is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
@@ -169,6 +178,9 @@ type OnboardingConfig struct {
 	// JoinMethod is the method the bot should use to exchange a token for the
 	// initial certificate
 	JoinMethod types.JoinMethod `yaml:"join_method"`
+
+	// Azure holds configuration relevant to the azure joining method.
+	Azure AzureOnboardingConfig `yaml:"azure"`
 }
 
 // HasToken gives the ability to check if there has been a token value stored

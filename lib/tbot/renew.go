@@ -474,6 +474,12 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		JoinMethod:         b.cfg.Onboarding.JoinMethod,
 		Expires:            &expires,
 	}
+	if params.JoinMethod == types.JoinMethodAzure {
+		params.AzureParams = auth.AzureParams{
+			ClientID: b.cfg.Onboarding.Azure.ClientID,
+		}
+	}
+
 	certs, err := auth.Register(params)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -502,6 +508,7 @@ func (b *Bot) renewIdentityViaAuth(
 	// renewing using existing credentials.
 	case types.JoinMethodIAM,
 		types.JoinMethodGitHub,
+		types.JoinMethodAzure,
 		types.JoinMethodCircleCI:
 		ident, err := b.getIdentityFromToken()
 		return ident, trace.Wrap(err)
