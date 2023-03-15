@@ -6,6 +6,7 @@ state: draft
 # RFD 107 - Desktop Access Performance
 
 ## Required Approvers
+
 Engineering: @zmb3 && @ibeckermayer
 
 ## What
@@ -18,7 +19,6 @@ access module.
 We want to improve user experience when using the desktop access module. Currently the main issue
 is insufficient performance of the video rendering which results in choppier experience or noticeable stuttering. Each frame in the RDP protocol as we're currently using it consists of (in most cases) 64x64 pixel bitmaps that are assembled into the full screen image. All of these bitmaps needs to be sent by the server, and received and processed by the client. There are different settings we can apply to RDP, which can be classified into two general ways in which we can reduce the time needed to render a frame.
 One of the ways is to reduce the amount of data that we need to send over the wire. The other way is to reduce the time required to process that data. In this document we'll discuss some solutions that achieve these goals.
-
 
 ## Solutions
 
@@ -34,12 +34,11 @@ Given that our clients can afford a 40MB cache, the obvious choice is to support
 Depending on the number of bits per pixel in bitmaps, the cache limits vary. Here's a full breakdown of the cache types and their sizes:
 
 | bpp | revision 1 | revision 2 |
-| --- |:----------:| ----------:|
-| 8   | 1.5 MB     |     10MB   |
-| 16  | 3.0 MB     |     20MB   |
-| 24  | 4.5 MB     |     30MB   |
-| 32  | 6.0 MB     |     40MB   |
-
+| --- | :--------: | ---------: |
+| 8   |   1.5 MB   |       10MB |
+| 16  |   3.0 MB   |       20MB |
+| 24  |   4.5 MB   |       30MB |
+| 32  |   6.0 MB   |       40MB |
 
 #### How it works on the protocol level
 
@@ -48,7 +47,7 @@ Two new types of messages need to be handled by our RDP library in order to enab
 
 #### TDP extension
 
-To make a bitmap caching work, the Teleport Desktop Protocol (TDP) needs to be extended with two messages: 
+To make bitmap caching work, the Teleport Desktop Protocol (TDP) needs to be extended with two messages:
 
 ##### 29 - bitmap cache store
 
@@ -67,7 +66,6 @@ This message is sent from the server to the client to render a bitmap stored in 
 ```
 
 Update to the UI is also required. The browser memory and javascript's array of hash tables, where cache id is the index of the array, and the cache index is a key in the hash table, will be used to store bitmap data.
-
 
 There's a sequence diagram which shows the flow of the messages between all components:
 
@@ -93,50 +91,191 @@ sequenceDiagram
 - web browser loads bitmap from the in-memory cache
 
 ##### UX
-From a user experience perspective implementing this solution will reduce data usage by re-using cached bitmaps. It might also improve latency and screen responsiveness over a slow connection as the data requirements will be lower. 
+
+From a user experience perspective implementing this solution will reduce data usage by re-using cached bitmaps. It might also improve latency and screen responsiveness over a slow connection as the data requirements will be lower.
 A proof of concept was created, with underwhelming results when using it over a fast connection. While it reduced the usage of data, the responsiveness of the screen hasn't changed much.
 
 ##### Security
+
 This solution won't change anything from the security point of view.
 
 ### 2) Process bitmaps in Rust library
+
 While interacting with the remote desktop using the RDP protocol, most of the protocol messages exchanged between the server and a client are related to rendering bitmaps. Messages almost always contain compressed data to reduce bandwidth usage and latency. Rendering compressed bitmaps on the screen requires uncompressing data first using decompress algorithm and encoding bitmaps into PNG.
 While decompression is already done in the Rust library, the encoding of bitmaps is done in the Go client.
 
 The best performance can be achieved by moving the PNG encoding procedure from the Go client to the Rust library. It'll also simplify the way we encode and decode PNG TDP messages.
 
 ##### UX
+
 From a user experience perspective implementing this solution will improve the overall experience of using Desktop Access by reducing the time it takes to process each frame when rendering display data by minimalizing the latency of processing each bitmap. It is purely a server-side change. It won't change anything in the client or in a way we already display bitmaps.
 During the tests, the average time it took to process messages (read, process, decompress, and encode) when the encoding took place in the Go side was around 500μs. After moving the encoding of bitmaps into PNGs to the Rust library, the time it took to process a message went down to 50μs.
 
 ##### Security
+
 This solution won't change anything from the security point of view.
 
-
-### 3) Remote Desktop Protocol: Graphics Pipeline Extension  [MS-RDPEGFX](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/da5c75f9-cd99-450c-98c4-014a496942b0)
-
+### 3) Remote Desktop Protocol: Graphics Pipeline Extension [MS-RDPEGFX](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/da5c75f9-cd99-450c-98c4-014a496942b0)
 
 The [MS-RDPEGFX] extension introduces a new way of drawing data by creating surfaces and using commands that utilize these surfaces to draw frames rather than just rendering bitmap data on the screen. This extension efficiently encode and transmit graphic display data from the server to the client. It alsow allows caching data locally to improve performance, can use different, newer, and more performant codecs to encode data e.g:
+
 - RemoteFX
 - ClearCodec
 - H.264/AVC444
 
 In essence, this protocol works in this way:
+
 - create surfaces
 - associate surfaces to the portions of graphics output buffer (this is what an user sees) that can be of different sizes
 - decode graphic data for surface and render it on the graphics output buffer
 
-There is already one implementation of the extension in the Rust language: [ironrdp-gui-client](https://github.com/Devolutions/IronRDP/tree/master/ironrdp-gui-client), but it is using native gui for rendering by utilising opengl. 
+There is already one implementation of the extension in the Rust language: [ironrdp-gui-client](https://github.com/Devolutions/IronRDP/tree/master/ironrdp-gui-client), but it is using native gui for rendering by utilising opengl.
 
 ##### Requirements
+
 This extension requires at least RDP 8, but for the best results it needs:
 
 - RDP 10
 - hadware support for encoding H.264/AVC444
 
-
 ##### UX changes
+
 From a user experience perspective implementing this solution will significantly improve rendering performance and overall experience using the Desktop Access module. A combination of the newest codecs and a different way of processing graphic data allows updating a screen with a high framerate.
 
 ##### Security
+
 This solution won't change anything from the security point of view.
+
+### 3) IronRDP
+
+#### Background
+
+Over the course of this feature's development, we've become aware of a RDP client written in Rust called [IronRDP](https://github.com/Devolutions/IronRDP/) which
+is actively built and maintained by [Devolutions](https://devolutions.net/), who are experts in Windows and RDP.
+
+Presuming IronRDP provides better performance and can be hooked into our existing system without too much trouble, it's an attractive option because it's built
+in a language we're already using, and is actively maintained. This is in
+contrast to our current RDP client, [rdp-rs](https://github.com/gravitational/rdp-rs), which is no longer actively maintained.
+
+#### RDP 7: Bitmaps with RemoteFX encoding
+
+According to our best judgement, the best bang for one's buck in terms of performance vs complexity of implementation is to go with RDP 7, which added bitmaps encoded by the RemoteFX codec
+(`rdp-rs` does not currently support the RemoteFX codec, and only supports RDP's original, less performant bitmap codec).
+
+It can oftentimes be difficult to decipher precisely what RDP version does what, and what that means, just by looking at the protocol specification itself. In
+practice what "using bitmaps encoded by the RemoteFX codec" means is that your client sends the
+[`CODEC_GUID_REMOTEFX`](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/86507fed-a0ee-4242-b802-237534a8f65e) value when exchanging
+capability sets with the server, which tells the server to relay the screen back to the client in the form of RemoteFX encoded bitmaps, which are communicated
+via the [Set Surface Bits](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/776dbdaf-7619-45fd-9a90-ebfd07802b24) and
+[Stream Surface Bits](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/b2218638-3cf9-4f2f-be61-b096ec3c8dc5) commands. The bitmaps encoded
+in these commands will be encoded with the [RemoteFX Codec](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdprfx/62495a4a-a495-46ea-b459-5cde04c44549), which the client must decode and display.
+
+##### Performance comparison
+
+The performance improvement between Teleport's current client to IronRDP is unmistakable. The first video below shows the first few seconds of a YouTube video being played over a Teleport
+connection, and the second shows the same clip over IronRDP.
+
+Teleport (unwatchable):
+
+https://user-images.githubusercontent.com/13578537/221960403-ab7ae7a2-7fe9-4391-9e5e-e34047098bf8.mov
+
+</br>
+
+IronRDP (uploaded to Google Drive because it exceeded GitHub's limit, probably because it wasn't dropping a sizeable chunk of the frames like the above):
+
+https://drive.google.com/file/d/1xyzkAWPyKu-zLQpx168zHH_i7DoqnacC/view?usp=sharing
+
+Clearly it appears that RemoteFX encoding is a sizeable improvement on the RDP default.
+I say "appears" because it's important to keep in mind that Teleport's client is a TDP client, which speaks in PNGs that have been translated from RDP bitmaps. In other words, Teleport does not speak RDP directly, there is an extra bitmap-to-PNG translation and network
+communication step as compared to IronRDP.
+Therefore, to confirm that it really is IronRDP's RemoteFX codec that's making up the majority of the performance improvement, and not the extra steps in Teleport's architecture, I tried playing the same video in a session using `FreeRDP`, with `FreeRDP` set to have the same RDP settings
+as does `rdp-rs` (bitmaps with default codec) in Teleport's system. Performance is similar to the naked eye to the unwatchable Teleport example above, suggesting that RemoteFX is indeed the critical variable for the visible improvements:
+
+https://drive.google.com/file/d/1XHHIdsSRyUw2lrftjOYrVSXTK-8URuf0/view?usp=sharing
+
+#### Technical Considerations
+
+##### Option 1: IronRDP in WDS
+
+Recall that Teleport's Windows desktop architecture currently looks like the following, with the `rdp-rs` RDP client and bitmap-to-PNG translation residing on the Teleport Windows Desktop Service (WDS).
+
+```
+                        Teleport Desktop Protocol                         RDP
+               ------------------------------------------        ---------------------
+               |                                        |        |                   |
++----------------------+     +------------------+  +------------------+     +------------------+
+|                      |     |                  |  | (rdp-rs & b-2-p) |     |                  |
+|  (TDP client)        |     |                  |  |    Teleport      |     |                  |
+|  User's Web Browser  ------|  Teleport Proxy -----  Windows Desktop ------|  Windows Desktop |
+|                      |     |                  |  |     Service      |     |                  |
++----------------------+     +------------------+  +------------------+     +------------------+
+```
+
+Meanwhile, IronRDP's default setup looks like this when built for a native target (MacOS/linux/Windows):
+
+```
+                                RDP
+               ------------------------------------------
+               |                                        |
++----------------------+                           +------------------+
+|                      |                           |                  |
+|  (IronRDP)           |                           |                  |
+|  User's Web Browser  -----------------------------  Windows Desktop |
+|                      |                           |                  |
++----------------------+                           +------------------+
+```
+
+Or like like this when the browser is targeted (using WASM):
+
+```
+                                     RDP
+               -----------------------------------------------
+               |                                             |
++----------------------+     +------------------+     +------------------+
+|                      |     |                  |     |                  |
+|  (IronRDP)           |     |                  |     |                  |
+|  User's Web Browser  -------  Devolutions     -------  Windows Desktop |
+|                      |     |  Gateway         |     |                  |
++----------------------+     +------------------+     +------------------+
+```
+
+Given that `IronRDP` and `rdp-rs` are both RDP clients written in Rust, the most obvious option is to simply swap one out for the other.
+This will require that `IronRDP` be built out to support device redirection (in order to
+support smartcard authentication and directory sharing), and clipboard sharing.
+
+The simplest version of this option keeps TDP as-is, and letting `IronRDP` take care of decoding the RemoteFX encoded bitmaps it receives, and then
+converting those to PNGs in the WDS to be sent over TDP. This is as opposed to the version of this option where we modify TDP to
+send the RemoteFX encoded bitmaps themselves, and doing the RemoteFX decoding on the client. This latter version may be more performant overall, but
+is considerably more difficult to implement. Thus the former, simpler PNG version should be considered preferable to start, with the latter idea being
+held in the backpocket as a means of squeezing out even more performance in the future.
+
+##### Option 2: IronRDP in browser
+
+Another option worth considering is throwing out TDP entirely, and just using IronRDP as an RDP client in the browser directly. Making this option especially enticing is the fact that IronRDP is being developed specifically with an eye
+towards running it in the browser, and it already has a WASM compilation target (to allow Rust to run in browser) and Svelte proof-of-concept client as part of the repository. In that case, our system diagram would look like
+
+```
+                                                 RDP
+               -----------------------------------------------------------------------
+               |                                                                     |
++----------------------+     +------------------+  +------------------+     +------------------+
+|                      |     |                  |  |                  |     |                  |
+|  (IronRDP)           |     |                  |  |    Teleport      |     |                  |
+|  User's Web Browser  ------|  Teleport Proxy -----  Windows Desktop ------|  Windows Desktop |
+|                      |     |                  |  |     Service      |     |                  |
++----------------------+     +------------------+  +------------------+     +------------------+
+```
+
+The primary problem with this option is that there's no obvious way for us to log audit events and do session recording. Currently this is all being done at the Teleport WDS, where the RDP client is translated to TDP
+and sent to the browser. In the proposed setup, however, the WDS is acting as merely another proxy, meaning that the RDP connection is not terminated there. This means that it's a non-trivial task to "unmask" the RDP
+messages at that point in the system, [particularly if we ever want to enable NLA](https://github.com/Devolutions/devolutions-gateway/issues/290).
+
+## Conclusions
+
+Processing bitmaps in the Rust library is a no-brainer per it being simple to build and offering a measureable 10x improvement. (In fact it is already impelemented at the time of this writing.)
+
+A proof of concept for bitmap caching was created, with underwhelming results. While there may be some overall improvement, it wasn't immediately obvious to the naked eye, which is the primary standard that's relevant
+to improving UX at this point in the feature's maturity.
+
+Contrast that with the clear improvements demonstrated in the performance comparison videos using `IronRDP` above. As such, we've decided to move forward with swapping out `rdp-rs` with `IronRDP`.
+Given the relative technical difficulty and related security risks of attempting to unmask RDP at the WDS were we to run IronRDP in browser, we are going to use architecture Option 1.
