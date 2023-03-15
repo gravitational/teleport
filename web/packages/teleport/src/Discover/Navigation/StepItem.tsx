@@ -16,23 +16,57 @@
 
 import React from 'react';
 import styled from 'styled-components';
+import { Flex } from 'design';
 
 import { StepList } from './StepList';
 
 import type { View } from 'teleport/Discover/flow';
+import type { ResourceSpec } from '../SelectResource';
 
-interface StepItemProps {
+// FirstStepItemProps are the required
+// props to render the first step item
+// in the step navigation.
+type FirstStepItemProps = {
+  view?: never;
+  currentStep?: never;
+  index?: never;
+  selectedResource: ResourceSpec;
+};
+
+// RestOfStepItemProps are the required
+// props to render the rest of the step item's
+// after the `FirstStepItemProps`.
+type RestOfStepItemProps = {
   view: View;
   currentStep: number;
   index: number;
-}
+  selectedResource?: never;
+};
+
+export type StepItemProps = FirstStepItemProps | RestOfStepItemProps;
 
 export function StepItem(props: StepItemProps) {
+  if (props.selectedResource) {
+    return (
+      <StepsContainer>
+        <StepTitle>
+          {getBulletIcon({
+            Icon: props.selectedResource.Icon,
+          })}
+          {props.selectedResource.name}
+        </StepTitle>
+      </StepsContainer>
+    );
+  }
+
   if (props.view.hide) {
     return null;
   }
 
   let isActive = props.currentStep === props.view.index;
+  // Make items for nested views.
+  // Nested views is possible when a view has it's
+  // own set of sub-steps.
   if (props.view.views) {
     return (
       <StepList
@@ -48,15 +82,32 @@ export function StepItem(props: StepItemProps) {
   return (
     <StepsContainer active={isDone || isActive}>
       <StepTitle>
-        {getBulletIcon(isDone, isActive, props.view.index + 1)}
-
+        {getBulletIcon({
+          isDone,
+          isActive,
+          stepNumber: props.view.index + 1,
+        })}
         {props.view.title}
       </StepTitle>
     </StepsContainer>
   );
 }
 
-function getBulletIcon(isDone: boolean, isActive: boolean, stepNumber: number) {
+function getBulletIcon({
+  isDone,
+  isActive,
+  Icon,
+  stepNumber,
+}: {
+  isDone?: boolean;
+  isActive?: boolean;
+  Icon?: JSX.Element;
+  stepNumber?: number;
+}) {
+  if (Icon) {
+    return <Flex mr={2}>{Icon}</Flex>;
+  }
+
   if (isActive) {
     return <ActiveBullet />;
   }
