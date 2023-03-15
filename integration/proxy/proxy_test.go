@@ -978,15 +978,44 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 		},
 	})
 
-	cookies := pack.CreateAppSession(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
-	status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, status)
+	t.Run("root cluster", func(t *testing.T) {
+		cookies := pack.CreateAppSession(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
+		status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+	})
 
-	cookies = pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
-	status, _, err = pack.MakeRequest(cookies, http.MethodGet, "/")
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, status)
+	t.Run("leaf cluster", func(t *testing.T) {
+		cookies := pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
+		status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+	})
+
+	t.Run("ALPN connection upgrade", func(t *testing.T) {
+		// Get client cert for app request.
+		clientCerts := pack.CreateAppSessionWithClientCert(t)
+
+		// Make a mock ALB which points to the Teleport Proxy Service. Then
+		// ALPN local proxies will point to this ALB instead.
+		albProxy := mustStartMockALBProxy(t, pack.RootWebAddr())
+
+		lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+			RemoteProxyAddr:         albProxy.Addr().String(),
+			Protocols:               []alpncommon.Protocol{alpncommon.ProtocolHTTP},
+			ALPNConnUpgradeRequired: true,
+			InsecureSkipVerify:      true,
+			Certs:                   clientCerts,
+		})
+
+		// Send the request to local proxy.
+		req, err := http.NewRequest(http.MethodGet, "http://"+lp.GetAddr(), nil)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
 }
 
 // TestALPNProxyRootLeafAuthDial tests dialing local/remote auth service based on ALPN
