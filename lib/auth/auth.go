@@ -1790,7 +1790,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 		user = req.impersonator
 	}
 
-	if err := a.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
+	a.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
 		UserName:        user,
 		Ttl:             durationpb.New(req.ttl),
 		IsBot:           bot,
@@ -1798,9 +1798,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 		UsageApp:        app,
 		UsageKubernetes: kubernetes,
 		UsageDesktop:    desktop,
-	}); err != nil {
-		log.Debugf("Unable to submit certificate issued usage event: %v", err)
-	}
+	})
 }
 
 // generateUserCert generates certificates signed with User CA
@@ -4178,9 +4176,7 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 		return trace.Wrap(err)
 	}
 
-	if err := a.AnonymizeAndSubmit(event); err != nil {
-		return trace.Wrap(err)
-	}
+	a.AnonymizeAndSubmit(event)
 
 	return nil
 }
