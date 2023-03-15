@@ -53,7 +53,7 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
-  - it: should set resources when set in values
+  - it: should set resources on auth predeploy job when set in values
     template: auth/predeploy_job.yaml
     values:
       - ../.lint/resources.yaml
