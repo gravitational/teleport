@@ -5698,23 +5698,22 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 
 // GetHeadlessAuthentication retrieves a headless authentication by id.
 func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error) {
-	waitCtx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
+	// GetHeadlessAuthentication will wait for the headless details
+	// if they don't yet exist in the backend.
+	ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
 	defer cancel()
 
-	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(waitCtx, id)
+	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// User can always get their own headless authentication state. Otherwise, check for associated rule.
+	// Only users can get their own headless authentication requests.
 	if !hasLocalUserRole(a.context) || headlessAuthn.User != a.context.User.GetName() {
-		if err := a.action(apidefaults.Namespace, types.KindHeadlessAuthentication, types.VerbRead); err != nil {
-			// If the headless authentication can not be accessed by the user, we will return a not
-			// found error. This method would usually time out above if the headless authentication
-			// does not exist, so we mimick this behavior here.
-			<-waitCtx.Done()
-			return nil, trace.Wrap(waitCtx.Err())
-		}
+		// This method would usually time out above if the headless authentication
+		// does not exist, so we mimick this behavior here for users without access.
+		<-ctx.Done()
+		return nil, trace.Wrap(ctx.Err())
 	}
 
 	return headlessAuthn, nil
@@ -5722,14 +5721,22 @@ func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, id stri
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
 func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
+	// GetHeadlessAuthentication will wait for the headless details
+	// if they don't yet exist in the backend.
+	ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
+	defer cancel()
+
 	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, id)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Only users can approve/deny their own headless auth requests.
+	// Only users can update their own headless authentication requests.
 	if !hasLocalUserRole(a.context) || headlessAuthn.User != a.context.User.GetName() {
-		return trace.NotFound("not found")
+		// This method would usually time out above if the headless authentication
+		// does not exist, so we mimick this behavior here for users without access.
+		<-ctx.Done()
+		return trace.Wrap(ctx.Err())
 	}
 
 	if headlessAuthn.State != types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING {
