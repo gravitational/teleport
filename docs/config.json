@@ -1100,6 +1100,10 @@
         {
           "title": "Architecture",
           "slug": "/api/architecture/"
+        },
+        {
+          "title": "How to Build an Access Request Plugin",
+          "slug": "/api/access-plugin/"
         }
       ]
     },
