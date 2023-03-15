@@ -37,7 +37,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http/httpproxy"
 
-	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -93,7 +92,7 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	rt := proxy.NewHTTPRoundTripper(&http.Transport{
+	rt := utils.NewHTTPRoundTripper(&http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: cfg.Insecure,
 			RootCAs:            cfg.Pool,

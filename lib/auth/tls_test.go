@@ -1774,7 +1774,7 @@ func TestGetCertAuthority(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// user gets a not found message if a CA doesn't exist
-	require.NoError(t, tt.server.Auth().DeleteCertAuthority(hostCAID))
+	require.NoError(t, tt.server.Auth().DeleteCertAuthority(ctx, hostCAID))
 	_, err = userClt.GetCertAuthority(ctx, hostCAID, false)
 	require.True(t, trace.IsNotFound(err))
 
