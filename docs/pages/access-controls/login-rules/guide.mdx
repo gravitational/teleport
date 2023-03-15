@@ -49,14 +49,7 @@ $ tctl create loginrule-manager.yaml
 role 'loginrule-manager' has been created
 ```
 
-Add the role to your user. Replace `teleport-admin` with your user name:
-
-```code
-$ tctl users update --set-roles $(tctl get users/<Var name="teleport-admin"/> --format=json | \
-jq -r '.[].spec.roles | join(",")'), loginrule-manager <Var name="teleport-admin"/>
-User teleport-admin has been updated:
-	New roles: auditor,editor,access,loginrule-manager
-```
+(!docs/pages/includes/add-role-to-user.mdx role="loginrule-manager" !)
 
 ## Step 2/5. Draft your Login Rule resource
 
