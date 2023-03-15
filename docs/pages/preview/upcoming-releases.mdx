@@ -15,13 +15,15 @@ The Teleport team delivers a new major release roughly every 3 months.
 New signed and hardened container images built on a distroless base which
 results in a reduced attack surface and smaller footprint.
 
+*Delayed from Teleport 12.0.0.*
+
 #### (Preview) IP-based validation for Kubernetes and Database Access
 
 Teleport will be able to pin Kubernetes and database credentials to a
 particular IP to prevent exfiltrated credentials from being used in a different
 environment.
 
-*Delayed from Teleport 12.1.0.*
+*Delayed from Teleport 12.0.0.*
 
 #### (Preview) Oracle support for Database Access
 
@@ -49,12 +51,12 @@ The key deliverables for Teleport Cloud in the next quarter:
 | March 13th, 2023 | Teleport 12.1 begins to roll out for Cloud customers                                        |
 | May 8th, 2023    | Add support for hosted Access Request plugins                                               |
 
-### Production readiness
+## Production readiness
 
 Teleport follows [semantic versioning](https://semver.org) for pre-releases and
 releases.
 
-#### Pre-releases
+### Pre-releases
 
 Pre-releases of Teleport (versions with suffixes like `-alpha`, `-beta`, `-rc`)
 should not be run in production environments.
@@ -63,7 +65,7 @@ Pre-releases of Teleport are great for testing new features, breaking changes,
 and backwards incompatibility issues either in development or staging
 environments.
 
-#### Major Releases
+### Major Releases
 
 Major releases look like `(=teleport.major_version=).0.0`.
 
@@ -73,7 +75,7 @@ breaking changes.
 Due to the scope and quantity of changes in a major release, we encourage
 deploying to staging first to verify your usage pattern has not changed.
 
-#### Minor Releases
+### Minor Releases
 
 Minor releases look like `(=teleport.major_version=).X.0`.
 
@@ -83,12 +85,12 @@ Minor releases can typically be deployed directly to production.
 Most customers upgrade to the next major version of Teleport during the first
 minor release, such as (=teleport.major_version=).1.0.
 
-#### Patch Releases
+### Patch Releases
 
 Patch releases contain small bug fixes and can typically be deployed directly
 to production.
 
-### Preview Policy
+## Preview Policy
 
 A product or feature may be marked as "Preview" if any of the following is
 true.
