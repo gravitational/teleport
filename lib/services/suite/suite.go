@@ -326,7 +326,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, cas[0], ca)
 
-	err = s.CAS.DeleteCertAuthority(*ca.ID())
+	err = s.CAS.DeleteCertAuthority(ctx, *ca.ID())
 	require.NoError(t, err)
 
 	// test compare and swap
@@ -928,6 +928,7 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
+	ctx := context.Background()
 	clusterName := "example.com"
 	out, err := s.PresenceS.GetRemoteClusters()
 	require.NoError(t, err)
@@ -966,10 +967,10 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(t *testing.T) {
 	require.Equal(t, len(out), 1)
 	require.Empty(t, cmp.Diff(out[0], rc))
 
-	err = s.PresenceS.DeleteRemoteCluster(clusterName)
+	err = s.PresenceS.DeleteRemoteCluster(ctx, clusterName)
 	require.NoError(t, err)
 
-	err = s.PresenceS.DeleteRemoteCluster(clusterName)
+	err = s.PresenceS.DeleteRemoteCluster(ctx, clusterName)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -1332,7 +1333,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				out, err := s.CAS.GetCertAuthority(ctx, *ca.ID(), true)
 				require.NoError(t, err)
 
-				require.NoError(t, s.CAS.DeleteCertAuthority(*ca.ID()))
+				require.NoError(t, s.CAS.DeleteCertAuthority(ctx, *ca.ID()))
 				return out
 			},
 		},
@@ -1353,7 +1354,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				out, err := s.CAS.GetCertAuthority(ctx, *ca.ID(), false)
 				require.NoError(t, err)
 
-				require.NoError(t, s.CAS.DeleteCertAuthority(*ca.ID()))
+				require.NoError(t, s.CAS.DeleteCertAuthority(ctx, *ca.ID()))
 				return out
 			},
 		},
@@ -1571,7 +1572,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			kind: types.WatchKind{
 				Kind: types.KindRemoteCluster,
 			},
-			crud: func(context.Context) types.Resource {
+			crud: func(ctx context.Context) types.Resource {
 				rc, err := types.NewRemoteCluster("example.com")
 				rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 				require.NoError(t, err)
@@ -1580,7 +1581,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				out, err := s.PresenceS.GetRemoteClusters()
 				require.NoError(t, err)
 
-				err = s.PresenceS.DeleteRemoteCluster(rc.GetName())
+				err = s.PresenceS.DeleteRemoteCluster(ctx, rc.GetName())
 				require.NoError(t, err)
 
 				return out[0]
