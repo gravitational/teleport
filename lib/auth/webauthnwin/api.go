@@ -192,7 +192,7 @@ type CheckSupportResult struct {
 func IsAvailable() bool {
 	supports := CheckSupport()
 	if supports.HasCompileSupport && !supports.IsAvailable {
-		log.Warn("WebAuthnWin: not supported on your windows version, supported from version 1903")
+		log.Warn("Webauthn is not supported on this version of Windows, supported from version 1903")
 	}
 
 	return supports.IsAvailable
