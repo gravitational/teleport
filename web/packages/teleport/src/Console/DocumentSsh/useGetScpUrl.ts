@@ -19,7 +19,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import cfg, { UrlScpParams } from 'teleport/config';
 import auth from 'teleport/services/auth/auth';
 
-export default function useMfaFileTransfer(addMfaToScrpUrls: boolean) {
+export default function useGetScpUrl(addMfaToScpUrls: boolean) {
   const { setAttempt, attempt, handleError } = useAttempt('');
 
   async function getScpUrl(params: UrlScpParams) {
@@ -27,7 +27,7 @@ export default function useMfaFileTransfer(addMfaToScrpUrls: boolean) {
       status: 'processing',
       statusText: '',
     });
-    if (!addMfaToScrpUrls) {
+    if (!addMfaToScpUrls) {
       return cfg.getScpUrl(params);
     }
     try {
