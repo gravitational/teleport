@@ -1850,7 +1850,7 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 
 // ExecuteSCP executes SCP command. It executes scp.Command using
 // lower-level API integrations that mimic SCP CLI command behavior
-func (tc *TeleportClient) ExecuteSCP(ctx context.Context, serverAddr string, cmd scp.Command) (err error) {
+func (tc *TeleportClient) ExecuteSCP(ctx context.Context, serverAddr string, cmd scp.Command) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ExecuteSCP",
@@ -1872,7 +1872,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, serverAddr string, cmd
 	nodeClient, err := tc.ConnectToNode(
 		ctx,
 		proxyClient,
-		// We append the ":0" so we pass "host:port" pattern, which eventually becomes "proxy:host:port"
+		// We append the ":0" to tell the server to figure out the port for us.
 		NodeDetails{Addr: serverAddr + ":0", Namespace: tc.Namespace, Cluster: tc.SiteName},
 		tc.Config.HostLogin,
 	)
