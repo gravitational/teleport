@@ -44,6 +44,7 @@ import {
   ActionButtons,
   Header,
   HeaderSubtitle,
+  HeaderWithBackBtn,
   Mark,
   ResourceKind,
   TextIcon,
@@ -156,7 +157,9 @@ export function DownloadScript(props: AgentStepProps) {
 
   return (
     <>
-      <Header>Configure Resource</Header>
+      <HeaderWithBackBtn onPrev={props.prevStep}>
+        Configure Resource
+      </HeaderWithBackBtn>
       <HeaderSubtitle>
         Install and configure the Teleport SSH Service.
         <br />

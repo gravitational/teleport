@@ -79,4 +79,5 @@ const props: State = {
   dbEngine: DatabaseEngine.PostgreSQL,
   dbLocation: DatabaseLocation.SelfHosted,
   isDbCreateErr: false,
+  prevStep: () => null,
 };

@@ -36,10 +36,10 @@ import { Timeout } from 'teleport/Discover/Shared/Timeout';
 import {
   ActionButtons,
   HeaderSubtitle,
-  Header,
   LabelsCreater,
   Mark,
   TextIcon,
+  HeaderWithBackBtn,
 } from '../../Shared';
 import { dbCU } from '../../yamlTemplates';
 import {
@@ -69,6 +69,7 @@ export function CreateDatabaseView({
   dbEngine,
   dbLocation,
   isDbCreateErr,
+  prevStep,
 }: State) {
   const [dbName, setDbName] = useState('');
   const [dbUri, setDbUri] = useState('');
@@ -123,7 +124,9 @@ export function CreateDatabaseView({
     <Validation>
       {({ validator }) => (
         <Box maxWidth="800px">
-          <Header>Register a Database</Header>
+          <HeaderWithBackBtn onPrev={prevStep}>
+            Register a Database
+          </HeaderWithBackBtn>
           <HeaderSubtitle>
             Create a new database resource for the database server.
           </HeaderSubtitle>

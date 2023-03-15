@@ -238,6 +238,7 @@ export function useCreateDatabase(props: AgentStepProps) {
     dbEngine: resource.dbMeta.engine,
     dbLocation: resource.dbMeta.location,
     isDbCreateErr,
+    prevStep: props.prevStep,
   };
 }
 
