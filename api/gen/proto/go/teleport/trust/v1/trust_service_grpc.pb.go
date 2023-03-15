@@ -30,6 +30,8 @@ type TrustServiceClient interface {
 	GetCertAuthorities(ctx context.Context, in *GetCertAuthoritiesRequest, opts ...grpc.CallOption) (*GetCertAuthoritiesResponse, error)
 	// DeleteCertAuthority deletes the matching cert authority.
 	DeleteCertAuthority(ctx context.Context, in *DeleteCertAuthorityRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// UpsertCertAuthority creates or updates the provided cert authority.
+	UpsertCertAuthority(ctx context.Context, in *UpsertCertAuthorityRequest, opts ...grpc.CallOption) (*types.CertAuthorityV2, error)
 }
 
 type trustServiceClient struct {
@@ -67,6 +69,15 @@ func (c *trustServiceClient) DeleteCertAuthority(ctx context.Context, in *Delete
 	return out, nil
 }
 
+func (c *trustServiceClient) UpsertCertAuthority(ctx context.Context, in *UpsertCertAuthorityRequest, opts ...grpc.CallOption) (*types.CertAuthorityV2, error) {
+	out := new(types.CertAuthorityV2)
+	err := c.cc.Invoke(ctx, "/teleport.trust.v1.TrustService/UpsertCertAuthority", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TrustServiceServer is the server API for TrustService service.
 // All implementations must embed UnimplementedTrustServiceServer
 // for forward compatibility
@@ -77,6 +88,8 @@ type TrustServiceServer interface {
 	GetCertAuthorities(context.Context, *GetCertAuthoritiesRequest) (*GetCertAuthoritiesResponse, error)
 	// DeleteCertAuthority deletes the matching cert authority.
 	DeleteCertAuthority(context.Context, *DeleteCertAuthorityRequest) (*emptypb.Empty, error)
+	// UpsertCertAuthority creates or updates the provided cert authority.
+	UpsertCertAuthority(context.Context, *UpsertCertAuthorityRequest) (*types.CertAuthorityV2, error)
 	mustEmbedUnimplementedTrustServiceServer()
 }
 
@@ -92,6 +105,9 @@ func (UnimplementedTrustServiceServer) GetCertAuthorities(context.Context, *GetC
 }
 func (UnimplementedTrustServiceServer) DeleteCertAuthority(context.Context, *DeleteCertAuthorityRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteCertAuthority not implemented")
+}
+func (UnimplementedTrustServiceServer) UpsertCertAuthority(context.Context, *UpsertCertAuthorityRequest) (*types.CertAuthorityV2, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertCertAuthority not implemented")
 }
 func (UnimplementedTrustServiceServer) mustEmbedUnimplementedTrustServiceServer() {}
 
@@ -160,6 +176,24 @@ func _TrustService_DeleteCertAuthority_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TrustService_UpsertCertAuthority_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertCertAuthorityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TrustServiceServer).UpsertCertAuthority(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/teleport.trust.v1.TrustService/UpsertCertAuthority",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TrustServiceServer).UpsertCertAuthority(ctx, req.(*UpsertCertAuthorityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TrustService_ServiceDesc is the grpc.ServiceDesc for TrustService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -178,6 +212,10 @@ var TrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteCertAuthority",
 			Handler:    _TrustService_DeleteCertAuthority_Handler,
+		},
+		{
+			MethodName: "UpsertCertAuthority",
+			Handler:    _TrustService_UpsertCertAuthority_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

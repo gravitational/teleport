@@ -6606,6 +6606,7 @@ func TestWebProxyInsecure(t *testing.T) {
 // TestTraitsPropagation makes sure that user traits are applied properly to
 // roles in root and leaf clusters.
 func TestTraitsPropagation(t *testing.T) {
+	ctx := context.Background()
 	log := utils.NewLoggerForTests()
 
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
@@ -6686,14 +6687,14 @@ func TestTraitsPropagation(t *testing.T) {
 	})
 
 	// Update root's certificate authority on leaf to configure role mapping.
-	ca, err := lc.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
+	ca, err := lc.Process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: rc.Secrets.SiteName,
 	}, false)
 	require.NoError(t, err)
 	ca.SetRoles(nil) // Reset roles, otherwise they will take precedence.
 	ca.SetRoleMap(types.RoleMap{{Remote: role.GetName(), Local: []string{role.GetName()}}})
-	err = lc.Process.GetAuthServer().UpsertCertAuthority(ca)
+	err = lc.Process.GetAuthServer().UpsertCertAuthority(ctx, ca)
 	require.NoError(t, err)
 
 	// Run command in root.

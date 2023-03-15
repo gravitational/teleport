@@ -786,7 +786,7 @@ func TestCertAuthorityWatcher(t *testing.T) {
 
 		// Create a CA and ensure we receive the event.
 		ca := newCertAuthority(t, "test", types.HostCA)
-		require.NoError(t, caService.UpsertCertAuthority(ca))
+		require.NoError(t, caService.UpsertCertAuthority(ctx, ca))
 		waitForEvent(t, sub, types.HostCA, "test", types.OpPut)
 
 		// Delete a CA and ensure we receive the event.
@@ -796,7 +796,7 @@ func TestCertAuthorityWatcher(t *testing.T) {
 		// Create a CA with a type that the watcher is NOT receiving and ensure
 		// we DO NOT receive the event.
 		signer := newCertAuthority(t, "test", types.JWTSigner)
-		require.NoError(t, caService.UpsertCertAuthority(signer))
+		require.NoError(t, caService.UpsertCertAuthority(ctx, signer))
 		ensureNoEvents(t, sub)
 	})
 
@@ -811,17 +811,17 @@ func TestCertAuthorityWatcher(t *testing.T) {
 		t.Cleanup(func() { require.NoError(t, sub.Close()) })
 
 		// Receives one HostCA event, matched by type and specific cluster name.
-		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "test", types.HostCA)))
+		require.NoError(t, caService.UpsertCertAuthority(ctx, newCertAuthority(t, "test", types.HostCA)))
 		waitForEvent(t, sub, types.HostCA, "test", types.OpPut)
 
 		// Receives one UserCA event, matched by type and wildcard cluster name.
-		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "unknown", types.UserCA)))
+		require.NoError(t, caService.UpsertCertAuthority(ctx, newCertAuthority(t, "unknown", types.UserCA)))
 		waitForEvent(t, sub, types.UserCA, "unknown", types.OpPut)
 
 		// Should NOT receive any HostCA events from another cluster.
 		// Should NOT receive any DatabaseCA events.
-		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "unknown", types.HostCA)))
-		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "test", types.DatabaseCA)))
+		require.NoError(t, caService.UpsertCertAuthority(ctx, newCertAuthority(t, "unknown", types.HostCA)))
+		require.NoError(t, caService.UpsertCertAuthority(ctx, newCertAuthority(t, "test", types.DatabaseCA)))
 		ensureNoEvents(t, sub)
 	})
 }
