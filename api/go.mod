@@ -22,7 +22,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.14.0
 	go.opentelemetry.io/otel/trace v1.14.0
 	go.opentelemetry.io/proto/otlp v0.19.0
-	golang.org/x/crypto v0.2.0 // replaced
+	golang.org/x/crypto v0.6.0 // replaced
 	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9
 	golang.org/x/net v0.8.0
 	google.golang.org/genproto v0.0.0-20230209215440-0dfe4f8abfcc
@@ -55,4 +55,4 @@ require (
 )
 
 // Use our internal crypto fork, to work around the issue with OpenSSH <= 7.6 mentioned here: https://github.com/golang/go/issues/53391
-replace golang.org/x/crypto => github.com/gravitational/crypto v0.0.0-20221221152432-903e65687e59
+replace golang.org/x/crypto => github.com/gravitational/crypto v0.6.0-1
