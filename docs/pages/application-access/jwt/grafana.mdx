@@ -64,11 +64,11 @@ $ docker run \
   -e GF_AUTH_JWT_JWK_SET_URL=https://proxy.example.com:3080/.well-known/jwks.json \
   -e GF_AUTH_JWT_AUTO_SIGN_UP=true \
   -p 3000:3000 grafana/grafana-oss
+```
 
 If your proxy is using self-signed certificates, you will also need to add your
 self-signed public key to `/etc/ssl/certs/ca-certificates.crt` within the
 container.
-```
 </Admonition>
 
 ## Step 2/3. Register with Grafana in Teleport
