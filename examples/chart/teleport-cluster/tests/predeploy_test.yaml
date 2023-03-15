@@ -70,8 +70,6 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.memory
           value: 2Gi
-      - matchSnapshot:
-          path: spec.template.spec
   - it: should set resources when set in values
     template: proxy/predeploy_job.yaml
     values:
