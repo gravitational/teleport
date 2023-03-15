@@ -389,8 +389,9 @@ func ResourceKindFromKeepAliveType(t types.KeepAlive_KeepAliveType) ResourceKind
 }
 
 type ResourceHeartbeatEvent struct {
-	Name string
-	Kind prehogv1.ResourceKind
+	Name   string
+	Kind   prehogv1.ResourceKind
+	Static bool
 }
 
 func (u *ResourceHeartbeatEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
@@ -399,6 +400,7 @@ func (u *ResourceHeartbeatEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEv
 			ResourceHeartbeat: &prehogv1.ResourceHeartbeatEvent{
 				ResourceName: a.AnonymizeNonEmpty(u.Name),
 				ResourceKind: u.Kind,
+				Static:       u.Static,
 			},
 		},
 	}
