@@ -276,7 +276,7 @@ func TestCA(t *testing.T) {
 	ctx := context.Background()
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
 	case <-p.eventsC:
@@ -340,7 +340,7 @@ func TestWatchers(t *testing.T) {
 	}
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
 	case e := <-w.Events():
@@ -397,7 +397,7 @@ func TestWatchers(t *testing.T) {
 	// this ca will not be matched by our filter, so the same reasoning applies
 	// as we upsert it and delete it
 	filteredCa := suite.NewTestCA(types.HostCA, "example.net")
-	require.NoError(t, p.trustS.UpsertCertAuthority(filteredCa))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, filteredCa))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, filteredCa.GetID()))
 
 	select {
@@ -481,7 +481,7 @@ func TestNodeCAFiltering(t *testing.T) {
 
 	// upsert and delete a local host CA, we expect to see a Put and a Delete event
 	localCA := suite.NewTestCA(types.HostCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(localCA))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, localCA))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, localCA.GetID()))
 
 	ev := fetchEvent()
@@ -496,7 +496,7 @@ func TestNodeCAFiltering(t *testing.T) {
 
 	// upsert and delete a nonlocal host CA, we expect to only see the Delete event
 	nonlocalCA := suite.NewTestCA(types.HostCA, "example.net")
-	require.NoError(t, p.trustS.UpsertCertAuthority(nonlocalCA))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, nonlocalCA))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, nonlocalCA.GetID()))
 
 	ev = fetchEvent()
@@ -506,7 +506,7 @@ func TestNodeCAFiltering(t *testing.T) {
 
 	// whereas we expect to see the Put and Delete for a trusted *user* CA
 	trustedUserCA := suite.NewTestCA(types.UserCA, "example.net")
-	require.NoError(t, p.trustS.UpsertCertAuthority(trustedUserCA))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, trustedUserCA))
 	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, trustedUserCA.GetID()))
 
 	ev = fetchEvent()
@@ -593,7 +593,7 @@ func TestCompletenessInit(t *testing.T) {
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
 		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
-		require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
 	for i := 0; i < inits; i++ {
@@ -672,7 +672,7 @@ func TestCompletenessReset(t *testing.T) {
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
 		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
-		require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
 	var err error
@@ -966,7 +966,7 @@ func initStrategy(t *testing.T) {
 	// NOTE 1: this could produce event processed
 	// below, based on whether watcher restarts to get the event
 	// or not, which is normal, but has to be accounted below
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	p.backend.SetReadError(nil)
 
 	// wait for watcher to restart
@@ -1002,7 +1002,7 @@ func initStrategy(t *testing.T) {
 
 	// add modification and expect the resource to recover
 	ca.SetRoleMap(types.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	// now, recover the backend and make sure the
 	// service is back and the new value has propagated
@@ -1021,12 +1021,13 @@ func initStrategy(t *testing.T) {
 // TestRecovery tests error recovery scenario
 func TestRecovery(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
 	case event := <-p.eventsC:
@@ -1045,7 +1046,7 @@ func TestRecovery(t *testing.T) {
 
 	// add modification and expect the resource to recover
 	ca2 := suite.NewTestCA(types.UserCA, "example2.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca2))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca2))
 
 	// wait for watcher to receive an event
 	select {

@@ -66,9 +66,11 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
@@ -174,6 +176,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("SFTP", suite.bind(testSFTP))
 	t.Run("EscapeSequenceTriggers", suite.bind(testEscapeSequenceTriggers))
 	t.Run("AuthLocalNodeControlStream", suite.bind(testAuthLocalNodeControlStream))
+	t.Run("AgentlessConnection", suite.bind(testAgentlessConnection))
 }
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
@@ -6606,6 +6609,7 @@ func TestWebProxyInsecure(t *testing.T) {
 // TestTraitsPropagation makes sure that user traits are applied properly to
 // roles in root and leaf clusters.
 func TestTraitsPropagation(t *testing.T) {
+	ctx := context.Background()
 	log := utils.NewLoggerForTests()
 
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
@@ -6686,14 +6690,14 @@ func TestTraitsPropagation(t *testing.T) {
 	})
 
 	// Update root's certificate authority on leaf to configure role mapping.
-	ca, err := lc.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
+	ca, err := lc.Process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: rc.Secrets.SiteName,
 	}, false)
 	require.NoError(t, err)
 	ca.SetRoles(nil) // Reset roles, otherwise they will take precedence.
 	ca.SetRoleMap(types.RoleMap{{Remote: role.GetName(), Local: []string{role.GetName()}}})
-	err = lc.Process.GetAuthServer().UpsertCertAuthority(ca)
+	err = lc.Process.GetAuthServer().UpsertCertAuthority(ctx, ca)
 	require.NoError(t, err)
 
 	// Run command in root.
@@ -7221,6 +7225,165 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 	sftpEvent, err := findEventInLog(teleport, events.SFTPEvent)
 	require.NoError(t, err)
 	require.Equal(t, testFilePath, sftpEvent.GetString(events.SFTPPath))
+}
+
+func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
+	// create Teleport instance
+	teleInst := suite.newTeleport(t, nil, true)
+	t.Cleanup(func() {
+		require.NoError(t, teleInst.StopAll())
+	})
+
+	tc, err := teleInst.NewClient(helpers.ClientConfig{
+		Login:   suite.Me.Username,
+		Cluster: helpers.Site,
+		Host:    Host,
+	})
+	require.NoError(t, err)
+
+	// get OpenSSH CA public key and create host certs
+	ctx := context.Background()
+	authClient := teleInst.Process.GetAuthServer()
+	openSSHCA, err := authClient.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.OpenSSHCA,
+		DomainName: helpers.Site,
+	}, false)
+	require.NoError(t, err)
+
+	caCheckers, err := sshutils.GetCheckers(openSSHCA)
+	require.NoError(t, err)
+
+	key, err := native.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	const nodeName string = "agentless-node"
+	hostCertBytes, err := authClient.GenerateHostCert(
+		ctx,
+		key.MarshalSSHPublicKey(),
+		"",
+		"",
+		[]string{nodeName, Loopback},
+		helpers.Site,
+		types.RoleNode,
+		0,
+	)
+	require.NoError(t, err)
+
+	hostCert, err := apisshutils.ParseCertificate(hostCertBytes)
+	require.NoError(t, err)
+	signer, err := ssh.NewSignerFromSigner(key.Signer)
+	require.NoError(t, err)
+	hostKeySigner, err := ssh.NewCertSigner(hostCert, signer)
+	require.NoError(t, err)
+
+	// start SSH server
+	sshAddr := startSSHServer(t, caCheckers, hostKeySigner)
+
+	// create node resource
+	_, err = authClient.UpsertNode(ctx, &types.ServerV2{
+		Kind:    types.KindNode,
+		SubKind: types.SubKindOpenSSHNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: nodeName,
+		},
+		Spec: types.ServerSpecV2{
+			Addr:     sshAddr,
+			Hostname: nodeName,
+		},
+	})
+	require.NoError(t, err)
+
+	// wait for node resource to be written to the backend
+	timedCtx, cancel := context.WithTimeout(ctx, time.Second)
+	t.Cleanup(cancel)
+	w, err := authClient.NewWatcher(timedCtx, types.Watch{
+		Name: "node-create watcher",
+		Kinds: []types.WatchKind{
+			{
+				Kind: types.KindNode,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	for nodeCreated := false; !nodeCreated; {
+		select {
+		case e := <-w.Events():
+			if e.Type == types.OpPut {
+				nodeCreated = true
+			}
+		case <-w.Done():
+			t.Fatal("Did not receive node create event")
+		}
+	}
+	require.NoError(t, w.Close())
+
+	// connect to node
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, proxyClient.Close())
+	})
+
+	nodeClient, err := tc.ConnectToNode(ctx, proxyClient, client.NodeDetails{
+		Addr:      sshAddr,
+		Namespace: tc.Namespace,
+		Cluster:   helpers.Site,
+	}, tc.Username)
+	require.NoError(t, err)
+
+	_, _, err = nodeClient.Client.Client.SendRequest("test-request", true, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, nodeClient.Close())
+}
+
+func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer) string {
+	sshCfg := ssh.ServerConfig{
+		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			cert, ok := key.(*ssh.Certificate)
+			if !ok {
+				return nil, fmt.Errorf("expected *ssh.Certificate, got %T", key)
+			}
+
+			for _, pubKey := range caPubKeys {
+				if bytes.Equal(cert.SignatureKey.Marshal(), pubKey.Marshal()) {
+					return &ssh.Permissions{}, nil
+				}
+			}
+
+			return nil, fmt.Errorf("signature key %v does not match OpenSSH CA", cert.SignatureKey)
+		},
+	}
+	sshCfg.AddHostKey(hostKey)
+
+	lis, err := net.Listen("tcp", Loopback+":")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, lis.Close())
+	})
+
+	go func() {
+		nConn, err := lis.Accept()
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = nConn.Close()
+		})
+
+		conn, _, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = conn.Close()
+		})
+
+		req := <-reqs
+		require.NoError(t, req.Reply(true, nil))
+
+		require.NoError(t, conn.Close())
+	}()
+
+	return lis.Addr().String()
 }
 
 // TestProxySSHPortMultiplexing ensures that the Proxy SSH port

@@ -3332,6 +3332,20 @@ func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) e
 	return trail.FromGRPC(err)
 }
 
+// UpsertCertAuthority creates or updates the provided cert authority.
+func (c *Client) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) (types.CertAuthority, error) {
+	cav2, ok := ca.(*types.CertAuthorityV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected ca type %T", ca)
+	}
+
+	out, err := c.TrustClient().UpsertCertAuthority(ctx, &trustpb.UpsertCertAuthorityRequest{
+		CertAuthority: cav2,
+	})
+
+	return out, trail.FromGRPC(err)
+}
+
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
 func (c *Client) UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error {
 	_, err := c.grpc.UpdateHeadlessAuthenticationState(ctx, &proto.UpdateHeadlessAuthenticationStateRequest{

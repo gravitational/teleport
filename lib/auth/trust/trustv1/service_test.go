@@ -305,6 +305,73 @@ func TestRBAC(t *testing.T) {
 			},
 			expectChecks: []check{{types.KindCertAuthority, types.VerbDelete}},
 		},
+		{
+			desc: "upsert without create",
+			f: func(t *testing.T, service *Service) {
+				_, err := service.UpsertCertAuthority(ctx, &trustpb.UpsertCertAuthorityRequest{
+					CertAuthority: newCertAuthority(t, types.UserCA, "user").(*types.CertAuthorityV2),
+				})
+
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
+			},
+			authorizer: fakeAuthorizer{
+				checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindCertAuthority, types.VerbCreate}: false,
+						{types.KindCertAuthority, types.VerbUpdate}: true,
+					},
+				},
+			},
+			expectChecks: []check{
+				{types.KindCertAuthority, types.VerbCreate},
+				{types.KindCertAuthority, types.VerbUpdate},
+			},
+		},
+		{
+			desc: "upsert without update",
+			f: func(t *testing.T, service *Service) {
+				_, err := service.UpsertCertAuthority(ctx, &trustpb.UpsertCertAuthorityRequest{
+					CertAuthority: newCertAuthority(t, types.UserCA, "user").(*types.CertAuthorityV2),
+				})
+
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
+			},
+			authorizer: fakeAuthorizer{
+				checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindCertAuthority, types.VerbCreate}: true,
+						{types.KindCertAuthority, types.VerbUpdate}: false,
+					},
+				},
+			},
+			expectChecks: []check{
+				{types.KindCertAuthority, types.VerbCreate},
+				{types.KindCertAuthority, types.VerbUpdate},
+			},
+		},
+		{
+			desc: "upsert",
+			f: func(t *testing.T, service *Service) {
+				ca, err := service.UpsertCertAuthority(ctx, &trustpb.UpsertCertAuthorityRequest{
+					CertAuthority: newCertAuthority(t, types.UserCA, "user").(*types.CertAuthorityV2),
+				})
+				require.NoError(t, err)
+				require.NotNil(t, ca)
+
+			},
+			authorizer: fakeAuthorizer{
+				checker: &fakeChecker{
+					allow: map[check]bool{
+						{types.KindCertAuthority, types.VerbCreate}: true,
+						{types.KindCertAuthority, types.VerbUpdate}: true,
+					},
+				},
+			},
+			expectChecks: []check{
+				{types.KindCertAuthority, types.VerbCreate},
+				{types.KindCertAuthority, types.VerbUpdate},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -322,7 +389,7 @@ func TestRBAC(t *testing.T) {
 			service, err := NewService(cfg)
 			require.NoError(t, err)
 
-			require.NoError(t, trust.CreateCertAuthority(ca))
+			require.NoError(t, trust.CreateCertAuthority(ctx, ca))
 
 			test.f(t, service)
 			require.ElementsMatch(t, test.expectChecks, test.authorizer.checker.checks)
@@ -357,7 +424,7 @@ func TestGetCertAuthority(t *testing.T) {
 
 	// bootstrap a CA
 	ca := newCertAuthority(t, types.HostCA, "test")
-	require.NoError(t, trust.CreateCertAuthority(ca))
+	require.NoError(t, trust.CreateCertAuthority(ctx, ca))
 
 	tests := []struct {
 		name      string
@@ -444,10 +511,10 @@ func TestGetCertAuthorities(t *testing.T) {
 
 	// bootstrap CAs
 	ca1 := newCertAuthority(t, types.HostCA, "test")
-	require.NoError(t, trust.CreateCertAuthority(ca1))
+	require.NoError(t, trust.CreateCertAuthority(ctx, ca1))
 
 	ca2 := newCertAuthority(t, types.HostCA, "test2")
-	require.NoError(t, trust.CreateCertAuthority(ca2))
+	require.NoError(t, trust.CreateCertAuthority(ctx, ca2))
 
 	expectedCAs := []*types.CertAuthorityV2{ca1.(*types.CertAuthorityV2), ca2.(*types.CertAuthorityV2)}
 
@@ -536,7 +603,7 @@ func TestDeleteCertAuthority(t *testing.T) {
 
 	// bootstrap a CA
 	ca := newCertAuthority(t, types.HostCA, "test")
-	require.NoError(t, trust.CreateCertAuthority(ca))
+	require.NoError(t, trust.CreateCertAuthority(ctx, ca))
 
 	tests := []struct {
 		name      string
@@ -574,6 +641,83 @@ func TestDeleteCertAuthority(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := service.DeleteCertAuthority(ctx, test.request)
 			test.assertion(t, err)
+		})
+	}
+}
+
+func TestUpsertCertAuthority(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p := newTestPack(t)
+
+	authorizer := &fakeAuthorizer{
+		checker: &fakeChecker{
+			allow: map[check]bool{
+				{types.KindCertAuthority, types.VerbCreate}: true,
+				{types.KindCertAuthority, types.VerbUpdate}: true,
+			},
+		},
+	}
+
+	trust := local.NewCAService(p.mem)
+	cfg := &ServiceConfig{
+		Cache:      trust,
+		Backend:    trust,
+		Authorizer: authorizer,
+	}
+
+	service, err := NewService(cfg)
+	require.NoError(t, err)
+
+	hostCA := newCertAuthority(t, types.HostCA, "test").(*types.CertAuthorityV2)
+
+	tests := []struct {
+		name      string
+		ca        func(ca *types.CertAuthorityV2) *types.CertAuthorityV2
+		assertion func(t *testing.T, ca *types.CertAuthorityV2, err error)
+	}{
+		{
+			name: "create ca",
+			ca: func(ca *types.CertAuthorityV2) *types.CertAuthorityV2 {
+				return ca
+			},
+			assertion: func(t *testing.T, ca *types.CertAuthorityV2, err error) {
+				require.NoError(t, err)
+				// Since the ca was created there should
+				// be no differences returned.
+				require.Empty(t, cmp.Diff(hostCA, ca))
+			},
+		},
+		{
+			name: "update ca",
+			ca: func(ca *types.CertAuthorityV2) *types.CertAuthorityV2 {
+				rotated := ca.Clone().(*types.CertAuthorityV2)
+
+				rotated.Spec.Rotation = &types.Rotation{LastRotated: time.Now().UTC()}
+
+				return rotated
+			},
+			assertion: func(t *testing.T, ca *types.CertAuthorityV2, err error) {
+				require.NoError(t, err)
+
+				// The ca was altered and updated so it shouldn't
+				// match the original ca.
+				require.NotEmpty(t, cmp.Diff(hostCA, ca))
+				// Validate that only the rotation was changed
+				require.Nil(t, hostCA.Spec.Rotation)
+				require.NotNil(t, ca.Spec.Rotation)
+
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ca, err := service.UpsertCertAuthority(ctx, &trustpb.UpsertCertAuthorityRequest{
+				CertAuthority: test.ca(hostCA),
+			})
+			test.assertion(t, ca, err)
 		})
 	}
 }

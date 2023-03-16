@@ -657,7 +657,7 @@ func (e certAuthorityExecutor) upsert(ctx context.Context, cache *Cache, value t
 		return nil
 	}
 
-	return cache.trustCache.UpsertCertAuthority(value)
+	return cache.trustCache.UpsertCertAuthority(ctx, value)
 }
 
 func (certAuthorityExecutor) isSingleton() bool { return false }
