@@ -21,8 +21,18 @@ Every login rule spec must contain either the `traits_map` field or a
 `traits_expression` field.
 
 They both serve the same purpose of transforming user traits.
-The difference lies only in the syntax you prefer for your use case, since you can write
+The logic difference lies only in the syntax you prefer for your use case, since you can write
 every `traits_map` as an equivalent `traits_expression`.
+
+`traits_map` will remove any traits not included while `trait_expression` will not.
+If lower priority Login Rules set traits those must be also included with higher priority `traits_map`
+to remain populated. For example this configuration will keep the `groups` trait unmodified.
+
+```yaml
+  traits_map:
+    groups:
+      - external["groups"]
+```
 
 ### `traits_map`
 
