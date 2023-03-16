@@ -418,7 +418,7 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 	aws := d.GetAWS()
 	switch d.Spec.Protocol {
 	case DatabaseTypeCassandra:
-		if aws.AccountID != "" {
+		if !aws.IsEmpty() {
 			return DatabaseTypeAWSKeyspaces, true
 		}
 	case DatabaseTypeDynamoDB:
@@ -507,16 +507,19 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	if d.Spec.Protocol == "" {
 		return trace.BadParameter("database %q protocol is empty", d.GetName())
 	}
-	if d.IsDynamoDB() {
-		// DynamoDB gets its own checking logic for its unusual config.
-		return trace.Wrap(d.handleDynamoDBConfig())
-	}
 	if d.Spec.URI == "" {
 		switch {
-		case d.IsAWSKeyspaces() && d.GetAWS().Region != "":
+		case d.IsAWSKeyspaces() && d.Spec.AWS.Region != "":
 			// In case of AWS Hosted Cassandra allow to omit URI.
 			// The URL will be constructed from the database resource based on the region and account ID.
 			d.Spec.URI = awsutils.CassandraEndpointURLForRegion(d.Spec.AWS.Region)
+		case d.IsDynamoDB():
+			if d.Spec.AWS.Region != "" {
+				d.Spec.URI = awsutils.DynamoDBURIForRegion(d.Spec.AWS.Region)
+			} else {
+				return trace.BadParameter("DynamoDB database %q URI is missing and cannot be derived from an empty configured AWS region",
+					d.GetName())
+			}
 		default:
 			return trace.BadParameter("database %q URI is empty", d.GetName())
 		}
@@ -529,6 +532,10 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	// In case of RDS, Aurora or Redshift, AWS information such as region or
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
+	case d.IsDynamoDB():
+		if err := d.handleDynamoDBConfig(); err != nil {
+			return trace.Wrap(err)
+		}
 	case awsutils.IsRDSEndpoint(d.Spec.URI):
 		details, err := awsutils.ParseRDSEndpoint(d.Spec.URI)
 		if err != nil {
@@ -697,7 +704,7 @@ func (d *DatabaseV3) handleDynamoDBConfig() error {
 		// so we check if the region is configured to see if this is really a configuration error.
 		if d.Spec.AWS.Region == "" {
 			// the AWS region is empty and we can't derive it from the URI, so this is a config error.
-			return trace.BadParameter("database %q AWS region is empty and cannot be derived from the URI %q",
+			return trace.BadParameter("database %q AWS region is missing and cannot be derived from the URI %q",
 				d.GetName(), d.Spec.URI)
 		}
 		if awsutils.IsAWSEndpoint(d.Spec.URI) {
