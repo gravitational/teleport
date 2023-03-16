@@ -216,7 +216,7 @@ func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) e
 	// Fallback to HTTP API
 	// DELETE IN 14.0.0
 	case trace.IsNotImplemented(err):
-		err = c.HTTPClient.DeleteCertAuthority(id)
+		err = c.HTTPClient.DeleteCertAuthority(ctx, id)
 		return trace.Wrap(err)
 	default:
 		return trace.Wrap(err)
