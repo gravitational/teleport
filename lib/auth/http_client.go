@@ -154,11 +154,9 @@ func (c *HTTPClientConfig) Clone() *HTTPClientConfig {
 
 // HTTPClient is a teleport HTTP API client.
 type HTTPClient struct {
-	roundtrip.Client
+	*roundtrip.Client
 	// cfg is the http client configuration.
 	cfg *HTTPClientConfig
-	// transport defines the methods by which the client can reach the server.
-	transport *http.Transport
 }
 
 // NewHTTPClient creates a new HTTP client with TLS authentication and the given dialer.
@@ -183,9 +181,8 @@ func NewHTTPClient(cfg *HTTPClientConfig, params ...roundtrip.ClientParam) (*HTT
 	}
 
 	return &HTTPClient{
-		cfg:       cfg,
-		Client:    *roundtripClient,
-		transport: transport,
+		cfg:    cfg,
+		Client: roundtripClient,
 	}, nil
 }
 
@@ -216,20 +213,24 @@ func newRoundtripClient(cfg *HTTPClientConfig, transport *http.Transport, params
 	return roundtripClient, nil
 }
 
-// Clone creates a new client with the same configuration.
-func (c *HTTPClient) Clone(params ...roundtrip.ClientParam) (*HTTPClient, error) {
+// CloneHTTPClient creates a new HTTP client with the same configuration.
+func (c *HTTPClient) CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error) {
 	cfg := c.cfg.Clone()
-	transport := c.transport.Clone()
 
-	roundtripClient, err := newRoundtripClient(c.cfg, transport)
+	// We copy the transport which may have had roundtrip.ClientParams applied on initial creation.
+	transport, err := c.getTransport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	roundtripClient, err := newRoundtripClient(c.cfg, transport, params...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &HTTPClient{
-		Client:    *roundtripClient,
-		cfg:       cfg,
-		transport: transport,
+		Client: roundtripClient,
+		cfg:    cfg,
 	}, nil
 }
 
@@ -244,11 +245,9 @@ func ClientParamTimeout(timeout time.Duration) roundtrip.ClientParam {
 // ClientParamResponseHeaderTimeout sets response header timeout of the HTTP transport used by the client.
 func ClientParamResponseHeaderTimeout(timeout time.Duration) roundtrip.ClientParam {
 	return func(c *roundtrip.Client) error {
-		transport, ok := (c.HTTPClient().Transport).(*http.Transport)
-		if !ok {
-			return nil
+		if t, err := getHTTPTransport(c); err == nil {
+			t.ResponseHeaderTimeout = timeout
 		}
-		transport.ResponseHeaderTimeout = timeout
 		return nil
 	}
 }
@@ -256,28 +255,44 @@ func ClientParamResponseHeaderTimeout(timeout time.Duration) roundtrip.ClientPar
 // ClientParamIdleConnTimeout sets idle connection header timeout of the HTTP transport used by the client.
 func ClientParamIdleConnTimeout(timeout time.Duration) roundtrip.ClientParam {
 	return func(c *roundtrip.Client) error {
-		transport, ok := (c.HTTPClient().Transport).(*http.Transport)
-		if !ok {
-			return nil
+		if t, err := getHTTPTransport(c); err == nil {
+			t.IdleConnTimeout = timeout
 		}
-		transport.IdleConnTimeout = timeout
 		return nil
 	}
 }
 
 // Close closes the HTTP client connection to the auth server.
 func (c *HTTPClient) Close() {
-	c.transport.CloseIdleConnections()
+	c.Client.HTTPClient().CloseIdleConnections()
 }
 
 // TLSConfig returns the HTTP client's TLS config.
 func (c *HTTPClient) TLSConfig() *tls.Config {
-	return c.transport.TLSClientConfig
+	return c.cfg.TLS
 }
 
 // GetTransport returns the HTTP client's transport.
-func (c *HTTPClient) GetTransport() *http.Transport {
-	return c.transport
+func (c *HTTPClient) getTransport() (*http.Transport, error) {
+	return getHTTPTransport(c.Client)
+}
+
+func getHTTPTransport(c *roundtrip.Client) (*http.Transport, error) {
+	type wrapper interface {
+		Unwrap() http.RoundTripper
+	}
+
+	transport := c.HTTPClient().Transport
+	for {
+		switch t := transport.(type) {
+		case wrapper:
+			transport = t.Unwrap()
+		case *http.Transport:
+			return t, nil
+		default:
+			return nil, trace.BadParameter("unexpected transport type %T", t)
+		}
+	}
 }
 
 // PostJSON is a generic method that issues http POST request to the server

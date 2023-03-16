@@ -831,4 +831,7 @@ type ClientI interface {
 	// still get an Okta client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	OktaClient() *okta.Client
+
+	// CloneHTTPClient creates a new HTTP client with the same configuration.
+	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
 }

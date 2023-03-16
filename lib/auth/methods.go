@@ -333,19 +333,19 @@ func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 }
 
 func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserRequest) (mfa *types.MFADevice, err error) {
-	// this authentication requires two client callbacks to create a headless authentication
-	// stub and approve/deny the headless authentication, so we use a standard callback timeout.
-	ctx, cancel := context.WithTimeout(ctx, defaults.CallbackTimeout)
-	defer cancel()
-
 	// Delete the headless authentication upon failure.
 	defer func() {
 		if err != nil {
-			if err := s.DeleteHeadlessAuthentication(ctx, req.HeadlessAuthenticationID); err != nil && !trace.IsNotFound(err) {
+			if err := s.DeleteHeadlessAuthentication(s.CloseContext(), req.HeadlessAuthenticationID); err != nil && !trace.IsNotFound(err) {
 				log.Debugf("Failed to delete headless authentication: %v", err)
 			}
 		}
 	}()
+
+	// this authentication requires two client callbacks to create a headless authentication
+	// stub and approve/deny the headless authentication, so we use a standard callback timeout.
+	ctx, cancel := context.WithTimeout(ctx, defaults.CallbackTimeout)
+	defer cancel()
 
 	headlessAuthn := &types.HeadlessAuthentication{
 		ResourceHeader: types.ResourceHeader{

@@ -3141,17 +3141,11 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		// WebAuthn only supports this endpoint for headless login.
 		authReq.HeadlessAuthenticationID = req.HeadlessAuthenticationID
 
-		clt, ok := authClient.(*auth.Client)
-		if !ok {
-			return nil, trace.Errorf("expected client type *auth.Client but got %T", authClient)
-		}
-
-		clientParams := []roundtrip.ClientParam{
+		// create a new http client with a standard callback timeout.
+		authenticationClient, err = authClient.CloneHTTPClient(
 			auth.ClientParamTimeout(defaults.CallbackTimeout),
 			auth.ClientParamResponseHeaderTimeout(defaults.CallbackTimeout),
-		}
-
-		authenticationClient, err = clt.HTTPClient.Clone(clientParams...)
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
