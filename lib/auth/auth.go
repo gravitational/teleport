@@ -4672,7 +4672,7 @@ func (a *Server) createSelfSignedCA(ctx context.Context, caID types.CertAuthID) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.CreateCertAuthority(ca); err != nil {
+	if err := a.CreateCertAuthority(ctx, ca); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

@@ -587,7 +587,7 @@ func (a *ServerWithRoles) GenerateOpenSSHCert(ctx context.Context, req *proto.Op
 }
 
 // CreateCertAuthority not implemented: can only be called locally.
-func (a *ServerWithRoles) CreateCertAuthority(ca types.CertAuthority) error {
+func (a *ServerWithRoles) CreateCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -617,15 +617,25 @@ func (a *ServerWithRoles) RotateExternalCertAuthority(ctx context.Context, ca ty
 }
 
 // UpsertCertAuthority updates existing cert authority or updates the existing one.
-func (a *ServerWithRoles) UpsertCertAuthority(ca types.CertAuthority) error {
-	if ca == nil {
-		return trace.BadParameter("missing certificate authority")
-	}
-	ctx := &services.Context{User: a.context.User, Resource: ca}
-	if err := a.actionWithContext(ctx, apidefaults.Namespace, types.KindCertAuthority, types.VerbCreate, types.VerbUpdate); err != nil {
+func (a *ServerWithRoles) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) error {
+	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:   a.authServer.Cache,
+		Backend: a.authServer.Services,
+	})
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertCertAuthority(ca)
+
+	cav2, ok := ca.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unexpected ca type %T", ca)
+	}
+
+	_, err = trust.UpsertCertAuthority(ctx, &trustpb.UpsertCertAuthorityRequest{CertAuthority: cav2})
+	return trace.Wrap(err)
 }
 
 // CompareAndSwapCertAuthority updates existing cert authority if the existing cert authority
@@ -701,11 +711,23 @@ func (a *ServerWithRoles) GetClusterCACert(
 	return a.authServer.GetClusterCACert(ctx)
 }
 
-func (a *ServerWithRoles) DeleteCertAuthority(id types.CertAuthID) error {
-	if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbDelete); err != nil {
+func (a *ServerWithRoles) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
+	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:   a.authServer.Cache,
+		Backend: a.authServer.Services,
+	})
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteCertAuthority(id)
+
+	if _, err := trust.DeleteCertAuthority(ctx, &trustpb.DeleteCertAuthorityRequest{Domain: id.DomainName, Type: string(id.Type)}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // ActivateCertAuthority not implemented: can only be called locally.
@@ -3992,11 +4014,11 @@ func (a *ServerWithRoles) filterRemoteClustersForUser(remoteClusters []types.Rem
 	return filteredClusters, nil
 }
 
-func (a *ServerWithRoles) DeleteRemoteCluster(clusterName string) error {
+func (a *ServerWithRoles) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteRemoteCluster(clusterName)
+	return a.authServer.DeleteRemoteCluster(ctx, clusterName)
 }
 
 func (a *ServerWithRoles) DeleteAllRemoteClusters() error {

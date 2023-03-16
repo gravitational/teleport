@@ -402,6 +402,9 @@ message AWS {
   ];
   // ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
   string ExternalID = 10 [(gogoproto.jsontag) = "external_id,omitempty"];
+  // AssumeRoleARN is an optional AWS role ARN to assume when accessing a database.
+  // Set this field and ExternalID to enable access across AWS accounts.
+  string AssumeRoleARN = 11 [(gogoproto.jsontag) = "assume_role_arn,omitempty"];
 }
 
 // SecretStore contains secret store configurations.

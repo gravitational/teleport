@@ -20,6 +20,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import useTeleport from 'teleport/useTeleport';
 import { useDiscover } from 'teleport/Discover/useDiscover';
 import { DiscoverEventStatus } from 'teleport/services/userEvent';
+import auth from 'teleport/services/auth/auth';
 import { getDatabaseProtocol } from 'teleport/Discover/Database/resources';
 
 import type {
@@ -63,7 +64,7 @@ export function useConnectionDiagnostic() {
     try {
       if (!mfaAuthnResponse) {
         const mfaReq = getMfaRequest(req, resourceState);
-        const sessionMfa = await ctx.mfaService.isMfaRequired(mfaReq);
+        const sessionMfa = await auth.checkMfaRequired(mfaReq);
         if (sessionMfa.required) {
           setShowMfaDialog(true);
           return;

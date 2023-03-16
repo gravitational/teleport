@@ -3311,7 +3311,7 @@ func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthTy
 		IncludeKey: loadKeys,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trail.FromGRPC(err)
 	}
 
 	cas := make([]types.CertAuthority, 0, len(resp.CertAuthoritiesV2))
@@ -3319,7 +3319,31 @@ func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthTy
 		cas = append(cas, ca)
 	}
 
-	return cas, trail.FromGRPC(err)
+	return cas, nil
+}
+
+// DeleteCertAuthority removes a CA matching the type and domain.
+func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
+	_, err := c.TrustClient().DeleteCertAuthority(ctx, &trustpb.DeleteCertAuthorityRequest{
+		Type:   string(id.Type),
+		Domain: id.DomainName,
+	})
+
+	return trail.FromGRPC(err)
+}
+
+// UpsertCertAuthority creates or updates the provided cert authority.
+func (c *Client) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) (types.CertAuthority, error) {
+	cav2, ok := ca.(*types.CertAuthorityV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected ca type %T", ca)
+	}
+
+	out, err := c.TrustClient().UpsertCertAuthority(ctx, &trustpb.UpsertCertAuthorityRequest{
+		CertAuthority: cav2,
+	})
+
+	return out, trail.FromGRPC(err)
 }
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.

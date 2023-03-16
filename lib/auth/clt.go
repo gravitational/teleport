@@ -298,7 +298,7 @@ func (c *Client) Close() error {
 }
 
 // CreateCertAuthority not implemented: can only be called locally.
-func (c *Client) CreateCertAuthority(ca types.CertAuthority) error {
+func (c *Client) CreateCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -325,17 +325,28 @@ func (c *Client) RotateExternalCertAuthority(ctx context.Context, ca types.CertA
 }
 
 // UpsertCertAuthority updates or inserts new cert authority
-func (c *Client) UpsertCertAuthority(ca types.CertAuthority) error {
+func (c *Client) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
-	data, err := services.MarshalCertAuthority(ca)
-	if err != nil {
+
+	_, err := c.APIClient.UpsertCertAuthority(ctx, ca)
+	switch {
+	case err == nil:
+		return nil
+	// Fallback to HTTP API
+	// DELETE IN 14.0.0
+	case trace.IsNotImplemented(err):
+		data, err := services.MarshalCertAuthority(ca)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = c.PostJSON(ctx, c.Endpoint("authorities", string(ca.GetType())),
+			&upsertCertAuthorityRawReq{CA: data})
+		return trace.Wrap(err)
+	default:
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("authorities", string(ca.GetType())),
-		&upsertCertAuthorityRawReq{CA: data})
-	return trace.Wrap(err)
 }
 
 // CompareAndSwapCertAuthority updates existing cert authority if the existing cert authority
@@ -354,6 +365,8 @@ func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthTy
 	switch {
 	case err == nil:
 		return cas, nil
+	// Fallback to HTTP API
+	// DELETE IN 14.0.0
 	case trace.IsNotImplemented(err):
 		resp, err := c.Get(ctx, c.Endpoint("authorities", string(caType)), url.Values{
 			"load_keys": []string{fmt.Sprintf("%t", loadKeys)},
@@ -392,6 +405,8 @@ func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, load
 	switch {
 	case err == nil:
 		return ca, nil
+	// Fallback to HTTP API
+	// DELETE IN 14.0.0
 	case trace.IsNotImplemented(err):
 		out, err := c.Get(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
 			"load_keys": []string{fmt.Sprintf("%t", loadSigningKeys)},
@@ -407,12 +422,23 @@ func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, load
 }
 
 // DeleteCertAuthority deletes cert authority by ID
-func (c *Client) DeleteCertAuthority(id types.CertAuthID) error {
+func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
 	if err := id.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("authorities", string(id.Type), id.DomainName))
-	return trace.Wrap(err)
+
+	err := c.APIClient.DeleteCertAuthority(ctx, id)
+	switch {
+	case err == nil:
+		return nil
+	// Fallback to HTTP API
+	// DELETE IN 14.0.0
+	case trace.IsNotImplemented(err):
+		_, err := c.Delete(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName))
+		return trace.Wrap(err)
+	default:
+		return trace.Wrap(err)
+	}
 }
 
 // ActivateCertAuthority not implemented: can only be called locally.
@@ -649,11 +675,12 @@ func (c *Client) GetRemoteCluster(clusterName string) (types.RemoteCluster, erro
 }
 
 // DeleteRemoteCluster deletes remote cluster by name
-func (c *Client) DeleteRemoteCluster(clusterName string) error {
+func (c *Client) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing parameter cluster name")
 	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("remoteclusters", clusterName))
+
+	_, err := c.Delete(ctx, c.Endpoint("remoteclusters", clusterName))
 	return trace.Wrap(err)
 }
 
