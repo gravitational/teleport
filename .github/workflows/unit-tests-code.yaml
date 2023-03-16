@@ -65,6 +65,11 @@ jobs:
       - name: Mount debugfs
         run: mount -t debugfs none /sys/kernel/debug/
 
+      - name: Build
+        run: |
+            pwd
+            ls -la
+            echo ${GITHUB_WORKSPACE}
 
       - name: Run tests
         timeout-minutes: 40
@@ -74,4 +79,5 @@ jobs:
           CGO_LDFLAGS: "-Wl,-Bstatic -L/usr/libbpf-1.0.1/lib64/ -lbpf -lelf -lz -Wl,-Bdynamic -Wl,--as-needed"
         uses: robherley/go-test-action@v0.1.0
         with:
-          testArguments: -race -shuffle on -tags "pam  bpf desktop_access_rdp  piv"  github.com/gravitational/teleport/lib/cache
+          moduleDirectory: ./
+          testArguments: -race -shuffle on -tags="pam bpf desktop_access_rdp piv"  github.com/gravitational/teleport/lib/cache
