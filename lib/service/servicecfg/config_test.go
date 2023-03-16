@@ -542,84 +542,48 @@ func TestVerifyEnabledService(t *testing.T) {
 		errAssertionFunc require.ErrorAssertionFunc
 	}{
 		{
-			desc: "auth enabled",
-			config: &Config{
-				Auth: AuthConfig{
-					Enabled: true,
-				},
-			},
+			desc:             "auth enabled",
+			config:           &Config{Auth: AuthConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,
 		},
 		{
-			desc: "ssh enabled",
-			config: &Config{
-				SSH: SSHConfig{
-					Enabled: true,
-				},
-			},
+			desc:             "ssh enabled",
+			config:           &Config{SSH: SSHConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,
 		},
 		{
-			desc: "proxy enabled",
-			config: &Config{
-				Proxy: ProxyConfig{
-					Enabled: true,
-				},
-			},
+			desc:             "proxy enabled",
+			config:           &Config{Proxy: ProxyConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,
 		},
 		{
-			desc: "kube enabled",
-			config: &Config{
-				Kube: KubeConfig{
-					Enabled: true,
-				},
-			},
+			desc:             "kube enabled",
+			config:           &Config{Kube: KubeConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,
 		},
 		{
-			desc: "apps enabled",
-			config: &Config{
-				Apps: AppsConfig{
-					Enabled: true,
-				},
-			},
+			desc:             "apps enabled",
+			config:           &Config{Apps: AppsConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,
 		},
 		{
-			desc: "databases enabled",
-			config: &Config{
-				Databases: DatabasesConfig{
-					Enabled: true,
-				},
-			},
+			desc:             "databases enabled",
+			config:           &Config{Databases: DatabasesConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,
 		},
 		{
-			desc: "windows desktop enabled",
-			config: &Config{
-				WindowsDesktop: WindowsDesktopConfig{
-					Enabled: true,
-				},
-			},
+			desc:             "windows desktop enabled",
+			config:           &Config{WindowsDesktop: WindowsDesktopConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,
 		},
 		{
-			desc: "discovery enabled",
-			config: &Config{
-				Discovery: DiscoveryConfig{
-					Enabled: true,
-				},
-			},
+			desc:             "discovery enabled",
+			config:           &Config{Discovery: DiscoveryConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,
 		},
 		{
-			desc: "okta enabled",
-			config: &Config{
-				Okta: OktaConfig{
-					Enabled: true,
-				},
-			},
+			desc:             "okta enabled",
+			config:           &Config{Okta: OktaConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,
 		},
 		{
