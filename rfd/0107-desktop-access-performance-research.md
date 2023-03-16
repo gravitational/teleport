@@ -270,6 +270,14 @@ The primary problem with this option is that there's no obvious way for us to lo
 and sent to the browser. In the proposed setup, however, the WDS is acting as merely another proxy, meaning that the RDP connection is not terminated there. This means that it's a non-trivial task to "unmask" the RDP
 messages at that point in the system, [particularly if we ever want to enable NLA](https://github.com/Devolutions/devolutions-gateway/issues/290).
 
+##### UX changes
+From a user experience perspective implementing this solution will improve rendering performance and overall experience using the Desktop Access module. A combination of changing RDP library to the well written and maintained library with a new codec will improve the time it takes to process single bitmap.
+
+##### Security
+
+This solution won't change anything from the security point of view.
+
+
 ## Alternatives considered
 
 ### [MS-RDPEUDP] Remote Desktop Protocol: UDP Transport Extension 
