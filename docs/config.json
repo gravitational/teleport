@@ -951,6 +951,10 @@
                "slug": "/database-access/guides/sql-server-ad/"
             },
             {
+               "title": "SQL Server with PKINIT (Preview)",
+               "slug": "/database-access/guides/sql-server-ad-pkinit/"
+            },
+            {
                "title": "Self-Hosted Cassandra & ScyllaDB",
                "slug": "/database-access/guides/cassandra-self-hosted/"
             },
