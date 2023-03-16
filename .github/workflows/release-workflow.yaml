@@ -1,0 +1,56 @@
+name: Release workflow
+
+on:
+  release:
+    types: [released]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release:
+    name: Determine required args
+    outputs:
+      type: ${{ steps.artifacts.outputs.type }}
+      version: ${{ steps.artifacts.outputs.version }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ vars.GITHUB_REF }}        
+
+      - name: Determine release latest flag and version
+        id: artifacts
+        run: |
+          LATEST_RELEASE_ID=$(gh release view --json id | jq '.id' | tr -d \")
+          CURRENT_RELEASE_ID=${{ github.event.release.node_id }}
+          
+          if [ $LATEST_RELEASE_ID == $CURRENT_RELEASE_ID ]; then
+            echo "type=latest" >> $GITHUB_OUTPUT
+          else
+            echo "type=other" >> $GITHUB_OUTPUT
+          fi
+
+          echo "version=$(make --no-print-directory print-version)" >> $GITHUB_OUTPUT          
+        env:
+          GITHUB_TOKEN: ${{ github.token }}          
+
+  # test-outputs:
+  #   runs-on: ubuntu-latest
+  #   needs: release
+  #   steps:
+  #     - env:
+  #         VERSION: ${{ needs.release.outputs.version }}
+  #         TYPE: ${{ needs.release.outputs.type }}
+  #       run: echo "$VERSION $TYPE"
+
+  update-ami:
+    name: Update AMI
+    needs: release    
+    if: needs.release.outputs.type == 'latest'
+    uses: ./.github/workflows/update-ami.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
