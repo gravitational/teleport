@@ -90,3 +90,5 @@ webassets/
 
 # jest --coverage
 coverage
+
+.direnv
