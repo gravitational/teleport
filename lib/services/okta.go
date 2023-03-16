@@ -30,6 +30,12 @@ import (
 var _ OktaImportRules = (*okta.Client)(nil)
 var _ OktaAssignments = (*okta.Client)(nil)
 
+// Okta is an Okta interface for both the rules and assignments.
+type Okta interface {
+	OktaImportRules
+	OktaAssignments
+}
+
 // OktaImportRules defines an interface for managing OktaImportRules.
 type OktaImportRules interface {
 	// ListOktaImportRules returns a paginated list of all Okta import rule resources.

@@ -345,13 +345,13 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 			}
 			collections[resourceKind] = &genericCollection[types.UserGroup, userGroupsExecutor]{cache: c, watch: watch}
 		case types.KindOktaImportRule:
-			if c.OktaImportRules == nil {
-				return nil, trace.BadParameter("missing parameter OktaImportRules")
+			if c.Okta == nil {
+				return nil, trace.BadParameter("missing parameter Okta")
 			}
 			collections[resourceKind] = &genericCollection[types.OktaImportRule, oktaImportRulesExecutor]{cache: c, watch: watch}
 		case types.KindOktaAssignment:
-			if c.OktaAssignments == nil {
-				return nil, trace.BadParameter("missing parameter OktaAssignments")
+			if c.Okta == nil {
+				return nil, trace.BadParameter("missing parameter Okta")
 			}
 			collections[resourceKind] = &genericCollection[types.OktaAssignment, oktaAssignmentsExecutor]{cache: c, watch: watch}
 		default:
@@ -1496,7 +1496,7 @@ func (oktaImportRulesExecutor) getAll(ctx context.Context, cache *Cache, loadSec
 	for {
 		var importRules []types.OktaImportRule
 		var err error
-		importRules, startKey, err = cache.OktaImportRules.ListOktaImportRules(ctx, 0, startKey)
+		importRules, startKey, err = cache.Okta.ListOktaImportRules(ctx, 0, startKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1512,19 +1512,19 @@ func (oktaImportRulesExecutor) getAll(ctx context.Context, cache *Cache, loadSec
 }
 
 func (oktaImportRulesExecutor) upsert(ctx context.Context, cache *Cache, resource types.OktaImportRule) error {
-	_, err := cache.oktaImportRulesCache.CreateOktaImportRule(ctx, resource)
+	_, err := cache.oktaCache.CreateOktaImportRule(ctx, resource)
 	if trace.IsAlreadyExists(err) {
-		_, err = cache.oktaImportRulesCache.UpdateOktaImportRule(ctx, resource)
+		_, err = cache.oktaCache.UpdateOktaImportRule(ctx, resource)
 	}
 	return trace.Wrap(err)
 }
 
 func (oktaImportRulesExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.oktaImportRulesCache.DeleteAllOktaImportRules(ctx)
+	return cache.oktaCache.DeleteAllOktaImportRules(ctx)
 }
 
 func (oktaImportRulesExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.oktaImportRulesCache.DeleteOktaImportRule(ctx, resource.GetName())
+	return cache.oktaCache.DeleteOktaImportRule(ctx, resource.GetName())
 }
 
 func (oktaImportRulesExecutor) isSingleton() bool { return false }
@@ -1541,7 +1541,7 @@ func (oktaAssignmentsExecutor) getAll(ctx context.Context, cache *Cache, loadSec
 	for {
 		var assignments []types.OktaAssignment
 		var err error
-		assignments, startKey, err = cache.OktaAssignments.ListOktaAssignments(ctx, 0, startKey)
+		assignments, startKey, err = cache.Okta.ListOktaAssignments(ctx, 0, startKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1557,19 +1557,19 @@ func (oktaAssignmentsExecutor) getAll(ctx context.Context, cache *Cache, loadSec
 }
 
 func (oktaAssignmentsExecutor) upsert(ctx context.Context, cache *Cache, resource types.OktaAssignment) error {
-	_, err := cache.oktaAssignmentsCache.CreateOktaAssignment(ctx, resource)
+	_, err := cache.oktaCache.CreateOktaAssignment(ctx, resource)
 	if trace.IsAlreadyExists(err) {
-		_, err = cache.oktaAssignmentsCache.UpdateOktaAssignment(ctx, resource)
+		_, err = cache.oktaCache.UpdateOktaAssignment(ctx, resource)
 	}
 	return trace.Wrap(err)
 }
 
 func (oktaAssignmentsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.oktaAssignmentsCache.DeleteAllOktaAssignments(ctx)
+	return cache.oktaCache.DeleteAllOktaAssignments(ctx)
 }
 
 func (oktaAssignmentsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.oktaAssignmentsCache.DeleteOktaAssignment(ctx, resource.GetName())
+	return cache.oktaCache.DeleteOktaAssignment(ctx, resource.GetName())
 }
 
 func (oktaAssignmentsExecutor) isSingleton() bool { return false }

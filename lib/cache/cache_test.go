@@ -85,8 +85,7 @@ type testPack struct {
 	windowsDesktops         services.WindowsDesktops
 	samlIDPServiceProviders services.SAMLIdPServiceProviders
 	userGroups              services.UserGroups
-	oktaImportRules         services.OktaImportRules
-	oktaAssignments         services.OktaAssignments
+	okta                    services.Okta
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -218,8 +217,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	p.oktaImportRules = oktaSvc
-	p.oktaAssignments = oktaSvc
+	p.okta = oktaSvc
 
 	return p, nil
 }
@@ -256,8 +254,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
-		OktaImportRules:         p.oktaImportRules,
-		OktaAssignments:         p.oktaAssignments,
+		Okta:                    p.okta,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -644,8 +641,7 @@ func TestCompletenessInit(t *testing.T) {
 			WindowsDesktops:         p.windowsDesktops,
 			SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 			UserGroups:              p.userGroups,
-			OktaImportRules:         p.oktaImportRules,
-			OktaAssignments:         p.oktaAssignments,
+			Okta:                    p.okta,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -712,8 +708,7 @@ func TestCompletenessReset(t *testing.T) {
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
-		OktaImportRules:         p.oktaImportRules,
-		OktaAssignments:         p.oktaAssignments,
+		Okta:                    p.okta,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -892,8 +887,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
-		OktaImportRules:         p.oktaImportRules,
-		OktaAssignments:         p.oktaAssignments,
+		Okta:                    p.okta,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -970,8 +964,7 @@ func initStrategy(t *testing.T) {
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
-		OktaImportRules:         p.oktaImportRules,
-		OktaAssignments:         p.oktaAssignments,
+		Okta:                    p.okta,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1890,11 +1883,11 @@ func TestOktaImportRules(t *testing.T) {
 			)
 		},
 		create: func(ctx context.Context, resource types.OktaImportRule) error {
-			_, err := p.oktaImportRules.CreateOktaImportRule(ctx, resource)
+			_, err := p.okta.CreateOktaImportRule(ctx, resource)
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]types.OktaImportRule, error) {
-			results, _, err := p.oktaImportRules.ListOktaImportRules(ctx, 0, "")
+			results, _, err := p.okta.ListOktaImportRules(ctx, 0, "")
 			return results, err
 		},
 		cacheGet: p.cache.GetOktaImportRule,
@@ -1903,10 +1896,10 @@ func TestOktaImportRules(t *testing.T) {
 			return results, err
 		},
 		update: func(ctx context.Context, resource types.OktaImportRule) error {
-			_, err := p.oktaImportRules.UpdateOktaImportRule(ctx, resource)
+			_, err := p.okta.UpdateOktaImportRule(ctx, resource)
 			return trace.Wrap(err)
 		},
-		deleteAll: p.oktaImportRules.DeleteAllOktaImportRules,
+		deleteAll: p.okta.DeleteAllOktaImportRules,
 	})
 }
 
@@ -1946,11 +1939,11 @@ func TestOktaAssignments(t *testing.T) {
 			)
 		},
 		create: func(ctx context.Context, resource types.OktaAssignment) error {
-			_, err := p.oktaAssignments.CreateOktaAssignment(ctx, resource)
+			_, err := p.okta.CreateOktaAssignment(ctx, resource)
 			return trace.Wrap(err)
 		},
 		list: func(ctx context.Context) ([]types.OktaAssignment, error) {
-			results, _, err := p.oktaAssignments.ListOktaAssignments(ctx, 0, "")
+			results, _, err := p.okta.ListOktaAssignments(ctx, 0, "")
 			return results, err
 		},
 		cacheGet: p.cache.GetOktaAssignment,
@@ -1959,10 +1952,10 @@ func TestOktaAssignments(t *testing.T) {
 			return results, err
 		},
 		update: func(ctx context.Context, resource types.OktaAssignment) error {
-			_, err := p.oktaAssignments.UpdateOktaAssignment(ctx, resource)
+			_, err := p.okta.UpdateOktaAssignment(ctx, resource)
 			return trace.Wrap(err)
 		},
-		deleteAll: p.oktaAssignments.DeleteAllOktaAssignments,
+		deleteAll: p.okta.DeleteAllOktaAssignments,
 	})
 }
 
@@ -2321,6 +2314,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		"ForKubernetes":     ForKubernetes(Config{}),
 		"ForApps":           ForApps(Config{}),
 		"ForDatabases":      ForDatabases(Config{}),
+		"ForOkta":           ForOkta(Config{}),
 	}
 
 	events := map[string]types.Resource{
@@ -2362,6 +2356,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubernetesCluster:       &types.KubernetesClusterV3{},
 		types.KindSAMLIdPServiceProvider:  &types.SAMLIdPServiceProviderV1{},
 		types.KindUserGroup:               &types.UserGroupV1{},
+		types.KindOktaImportRule:          &types.OktaImportRuleV1{},
+		types.KindOktaAssignment:          &types.OktaAssignmentV1{},
 	}
 
 	for name, cfg := range cases {

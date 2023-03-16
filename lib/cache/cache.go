@@ -111,6 +111,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
+		{Kind: types.KindOktaImportRule},
+		{Kind: types.KindOktaAssignment},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -451,8 +453,7 @@ type Cache struct {
 	windowsDesktopsCache         services.WindowsDesktops
 	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroupsCache              services.UserGroups
-	oktaImportRulesCache         services.OktaImportRules
-	oktaAssignmentsCache         services.OktaAssignments
+	oktaCache                    services.Okta
 	eventsFanout                 *services.FanoutSet
 
 	// closed indicates that the cache has been closed
@@ -519,8 +520,7 @@ func (c *Cache) read() (readGuard, error) {
 			windowsDesktops:         c.windowsDesktopsCache,
 			samlIdPServiceProviders: c.samlIdPServiceProvidersCache,
 			userGroups:              c.userGroupsCache,
-			oktaImportRules:         c.oktaImportRulesCache,
-			oktaAssignments:         c.oktaAssignmentsCache,
+			okta:                    c.oktaCache,
 		}, nil
 	}
 	c.rw.RUnlock()
@@ -545,8 +545,7 @@ func (c *Cache) read() (readGuard, error) {
 		windowsDesktops:         c.Config.WindowsDesktops,
 		samlIdPServiceProviders: c.Config.SAMLIdPServiceProviders,
 		userGroups:              c.Config.UserGroups,
-		oktaImportRules:         c.Config.OktaImportRules,
-		oktaAssignments:         c.Config.OktaAssignments,
+		okta:                    c.Config.Okta,
 		release:                 nil,
 	}, nil
 }
@@ -576,8 +575,7 @@ type readGuard struct {
 	windowsDesktops         services.WindowsDesktops
 	samlIdPServiceProviders services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroups              services.UserGroups
-	oktaImportRules         services.OktaImportRules
-	oktaAssignments         services.OktaAssignments
+	okta                    services.Okta
 	release                 func()
 	released                bool
 }
@@ -649,10 +647,8 @@ type Config struct {
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
 	// UserGroups is a user groups service.
 	UserGroups services.UserGroups
-	// OktaImportRules is an Okta import rules service.
-	OktaImportRules services.OktaImportRules
-	// OktaAssignments is an Okta assignments service.
-	OktaAssignments services.OktaAssignments
+	// Okta is an Okta service.
+	Okta services.Okta
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -819,8 +815,7 @@ func New(config Config) (*Cache, error) {
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
 		userGroupsCache:              local.NewUserGroupService(config.Backend),
-		oktaImportRulesCache:         oktaSvc,
-		oktaAssignmentsCache:         oktaSvc,
+		oktaCache:                    oktaSvc,
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -2317,7 +2312,7 @@ func (c *Cache) ListOktaImportRules(ctx context.Context, pageSize int, nextKey s
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.oktaImportRules.ListOktaImportRules(ctx, pageSize, nextKey)
+	return rg.okta.ListOktaImportRules(ctx, pageSize, nextKey)
 }
 
 // GetOktaImportRule returns the specified Okta import rule resources.
@@ -2330,7 +2325,7 @@ func (c *Cache) GetOktaImportRule(ctx context.Context, name string) (types.OktaI
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.oktaImportRules.GetOktaImportRule(ctx, name)
+	return rg.okta.GetOktaImportRule(ctx, name)
 }
 
 // ListOktaAssignments returns a paginated list of all Okta assignment resources.
@@ -2343,7 +2338,7 @@ func (c *Cache) ListOktaAssignments(ctx context.Context, pageSize int, nextKey s
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.oktaAssignments.ListOktaAssignments(ctx, pageSize, nextKey)
+	return rg.okta.ListOktaAssignments(ctx, pageSize, nextKey)
 }
 
 // GetOktaAssignment returns the specified Okta assignment resources.
@@ -2356,7 +2351,7 @@ func (c *Cache) GetOktaAssignment(ctx context.Context, name string) (types.OktaA
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.oktaAssignments.GetOktaAssignment(ctx, name)
+	return rg.okta.GetOktaAssignment(ctx, name)
 }
 
 // ListResources is a part of auth.Cache implementation

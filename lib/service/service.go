@@ -1859,10 +1859,6 @@ type accessCacheConfig struct {
 	// services is a collection
 	// of services to use as a cache base
 	services services.Services
-	// oktaImportRules is the okta import rules service
-	oktaImportRules services.OktaImportRules
-	// oktaAssignments is the okta assignments service
-	oktaAssignments services.OktaAssignments
 	// setup is a function that takes
 	// cache configuration and modifies it
 	setup cache.SetupConfigFn
@@ -1932,8 +1928,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		WindowsDesktops:         cfg.services,
 		SAMLIdPServiceProviders: cfg.services,
 		UserGroups:              cfg.services,
-		OktaImportRules:         cfg.oktaImportRules,
-		OktaAssignments:         cfg.oktaAssignments,
+		Okta:                    cfg.services.OktaClient(),
 		WebSession:              cfg.services.WebSessions(),
 		WebToken:                cfg.services.WebTokens(),
 		Component:               teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
@@ -2082,13 +2077,10 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI,
 
 // NewLocalCache returns new instance of access point
 func (process *TeleportProcess) NewLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
-	oktaClient := clt.OktaClient()
 	return process.newAccessCache(accessCacheConfig{
-		services:        clt,
-		oktaImportRules: oktaClient,
-		oktaAssignments: oktaClient,
-		setup:           setupConfig,
-		cacheName:       cacheName,
+		services:  clt,
+		setup:     setupConfig,
+		cacheName: cacheName,
 	})
 }
 
