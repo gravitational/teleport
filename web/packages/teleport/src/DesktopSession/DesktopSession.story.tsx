@@ -72,6 +72,7 @@ const props: State = {
     requested: false,
     authenticate: () => {},
     setState: () => {},
+    addMfaToScpUrls: false,
   },
   isUsingChrome: true,
   showAnotherSessionActiveDialog: false,
@@ -226,6 +227,7 @@ export const WebAuthnPrompt = () => (
       requested: true,
       authenticate: () => {},
       setState: () => {},
+      addMfaToScpUrls: false,
     }}
   />
 );
