@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/url"
 	"time"
@@ -133,8 +132,28 @@ func (c *Client) Close() error {
 }
 
 // CreateCertAuthority not implemented: can only be called locally.
-func (c *Client) CreateCertAuthority(ca types.CertAuthority) error {
+func (c *Client) CreateCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// UpsertCertAuthority updates or inserts new cert authority
+func (c *Client) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) error {
+	if err := services.ValidateCertAuthority(ca); err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err := c.APIClient.UpsertCertAuthority(ctx, ca)
+	switch {
+	case err == nil:
+		return nil
+	// Fallback to HTTP API
+	// DELETE IN 14.0.0
+	case trace.IsNotImplemented(err):
+		err := c.HTTPClient.UpsertCertAuthority(ctx, ca)
+		return trace.Wrap(err)
+	default:
+		return trace.Wrap(err)
+	}
 }
 
 // CompareAndSwapCertAuthority updates existing cert authority if the existing cert authority
@@ -153,6 +172,8 @@ func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthTy
 	switch {
 	case err == nil:
 		return cas, nil
+	// Fallback to HTTP API
+	// DELETE IN 14.0.0
 	case trace.IsNotImplemented(err):
 		cas, err := c.HTTPClient.GetCertAuthorities(ctx, caType, loadKeys)
 		return cas, trace.Wrap(err)
@@ -172,14 +193,10 @@ func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, load
 	switch {
 	case err == nil:
 		return ca, nil
+	// Fallback to HTTP API
+	// DELETE IN 14.0.0
 	case trace.IsNotImplemented(err):
-		out, err := c.Get(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
-			"load_keys": []string{fmt.Sprintf("%t", loadSigningKeys)},
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		ca, err := services.UnmarshalCertAuthority(out.Bytes())
+		ca, err := c.HTTPClient.GetCertAuthority(ctx, id, loadSigningKeys)
 		return ca, trace.Wrap(err)
 	default:
 		return nil, trace.Wrap(err)
@@ -196,6 +213,8 @@ func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) e
 	switch {
 	case err == nil:
 		return nil
+	// Fallback to HTTP API
+	// DELETE IN 14.0.0
 	case trace.IsNotImplemented(err):
 		err = c.HTTPClient.DeleteCertAuthority(id)
 		return trace.Wrap(err)

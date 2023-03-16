@@ -345,20 +345,19 @@ func (c *HTTPClient) RotateExternalCertAuthority(ctx context.Context, ca types.C
 }
 
 // UpsertCertAuthority updates or inserts new cert authority
-func (c *HTTPClient) UpsertCertAuthority(ca types.CertAuthority) error {
-	if err := services.ValidateCertAuthority(ca); err != nil {
-		return trace.Wrap(err)
-	}
+// DELETE IN 14.0.0
+func (c *HTTPClient) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	data, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("authorities", string(ca.GetType())),
+	_, err = c.PostJSON(ctx, c.Endpoint("authorities", string(ca.GetType())),
 		&upsertCertAuthorityRawReq{CA: data})
 	return trace.Wrap(err)
 }
 
 // GetCertAuthorities returns a list of certificate authorities
+// DELETE IN 14.0.0
 func (c *HTTPClient) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	resp, err := c.Get(ctx, c.Endpoint("authorities", string(caType)), url.Values{
 		"load_keys": []string{fmt.Sprintf("%t", loadKeys)},
@@ -383,9 +382,24 @@ func (c *HTTPClient) GetCertAuthorities(ctx context.Context, caType types.CertAu
 	return cas, nil
 }
 
+// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
+// controls if signing keys are loaded
+// DELETE IN 14.0.0
+func (c *HTTPClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
+	out, err := c.Get(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
+		"load_keys": []string{fmt.Sprintf("%t", loadSigningKeys)},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := services.UnmarshalCertAuthority(out.Bytes())
+	return ca, trace.Wrap(err)
+}
+
 // DeleteCertAuthority deletes cert authority by ID
-func (c *HTTPClient) DeleteCertAuthority(id types.CertAuthID) error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("authorities", string(id.Type), id.DomainName))
+// DELETE IN 14.0.0
+func (c *HTTPClient) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
+	_, err := c.Delete(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName))
 	return trace.Wrap(err)
 }
 
