@@ -270,6 +270,14 @@ The primary problem with this option is that there's no obvious way for us to lo
 and sent to the browser. In the proposed setup, however, the WDS is acting as merely another proxy, meaning that the RDP connection is not terminated there. This means that it's a non-trivial task to "unmask" the RDP
 messages at that point in the system, [particularly if we ever want to enable NLA](https://github.com/Devolutions/devolutions-gateway/issues/290).
 
+## Alternatives considered
+
+### [MS-RDPEUDP] Remote Desktop Protocol: UDP Transport Extension 
+
+This extension has been designed to improve the performance of the network connectivity compared to a corresponding TCP connection, especially on wide area networks or wireless networks.
+Due to the current architecture of Teleport, we can't use this extension as we heavily rely on TCP connections and TLS. Also, our client program is in the browser, and browsers don't support direct UDP connections.
+
+
 ## Conclusions
 
 Processing bitmaps in the Rust library is a no-brainer per it being simple to build and offering a measureable 10x improvement. (In fact it is already impelemented at the time of this writing.)
