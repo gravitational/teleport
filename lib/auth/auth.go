@@ -3815,7 +3815,8 @@ func (a *Server) UpsertKubernetesServer(ctx context.Context, server types.KubeSe
 	}
 
 	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
-		Name:   server.GetName(),
+		// the name of types.KubeServer might include a -proxy_service suffix
+		Name:   server.GetCluster().GetName(),
 		Kind:   usagereporter.ResourceKindKubeServer,
 		Static: server.Expiry().IsZero(),
 	})
