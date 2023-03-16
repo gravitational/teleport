@@ -163,7 +163,7 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 		},
 	})
 	require.NoError(t, err)
-	require.NoError(t, caService.CreateCertAuthority(ca))
+	require.NoError(t, caService.CreateCertAuthority(ctx, ca))
 
 	eventService := local.NewEventsService(backend)
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
