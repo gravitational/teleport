@@ -31,15 +31,11 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-)
-
-const (
-	// ComponentSAMLIdP is the component to be used in logs.
-	ComponentSAMLIdP = "saml_idp" //nolint:revive // Because we want this to be IdP.
 )
 
 type Config struct {
@@ -62,7 +58,7 @@ type Config struct {
 // Check makes sure the SAML identity provider service configuration is valid.
 func (c *Config) Check() error {
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, ComponentSAMLIdP)
+		c.Log = logrus.WithField(trace.Component, teleport.ComponentSAMLIdP)
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
