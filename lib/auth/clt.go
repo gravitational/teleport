@@ -137,6 +137,12 @@ func (c *Client) CreateCertAuthority(ca types.CertAuthority) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// CompareAndSwapCertAuthority updates existing cert authority if the existing cert authority
+// value matches the value stored in the backend.
+func (c *Client) CompareAndSwapCertAuthority(new, existing types.CertAuthority) error {
+	return trace.BadParameter("this function is not supported on the client")
+}
+
 // GetCertAuthorities returns a list of certificate authorities
 func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
 	if err := caType.Check(); err != nil {
