@@ -121,6 +121,8 @@ type License interface {
 	GetFeatureSource() FeatureSource
 }
 
+// FeatureSource defines where the list of features enabled
+// by the license is.
 type FeatureSource string
 
 const (
