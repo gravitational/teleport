@@ -184,6 +184,7 @@ function getRenderedContent(
               `}
               href={content.link.href}
               target="_blank"
+              onClick={e => e.stopPropagation()} // prevents notification from collapsing
             >
               {content.link.text}
             </Link>
