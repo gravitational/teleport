@@ -1572,11 +1572,6 @@
       "permanent": true
     },
     {
-      "source": "/kubernetes-access/guides/standalone-teleport/",
-      "destination": "/kubernetes-access/register-clusters/iam-joining/",
-      "permanent": true
-    },
-    {
       "source": "/kubernetes-access/",
       "destination": "/kubernetes-access/introduction/",
       "permanent": true

@@ -220,8 +220,6 @@ metadata:
   # the token name is not a secret because instances must prove that they are
   # running in your AWS account to use this token
   name: <Var name="kube-iam-token"/>
-  # set a long expiry time, the default for tokens is only 30 minutes
-  expires: "3000-01-01T00:00:00Z"
 spec:
   # use the minimal set of roles required
   roles: [Kube]
