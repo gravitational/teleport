@@ -161,6 +161,9 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 
 	h.GET("/enterprise/releases", h.WithAuth(p.getReleases))
 
+	h.GET("/enterprise/plugin", h.WithAuth(p.getPluginsHandle))
+	h.DELETE("/enterprise/plugin/:name", h.WithAuth(p.deletePluginHandle))
+
 	if p.h.ClusterFeatures.GetCloud() {
 		h.DELETE("/enterprise/cloud/card", p.withCloudAuth(p.removeCardHandle))
 		h.POST("/enterprise/cloud/card", p.withCloudAuth(p.addCardHandle))

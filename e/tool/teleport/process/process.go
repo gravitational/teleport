@@ -47,7 +47,8 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 	}
 
 	authPlugin, err := auth.NewPlugin(auth.Config{
-		License: licenseFile,
+		License:       licenseFile,
+		HostedPlugins: cfg.Auth.HostedPlugins,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

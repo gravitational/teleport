@@ -57,6 +57,7 @@ func (p *enterpriseModules) Features() modules.Features {
 		AdvancedAccessWorkflows: true,
 		HSM:                     true,
 		RecoveryCodes:           p.license.GetCloud().Value() || p.enableRecoveryCodes.Load(),
+		Plugins:                 p.enablePlugins.Load(),
 	}
 }
 

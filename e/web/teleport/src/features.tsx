@@ -3,9 +3,17 @@ import React from 'react';
 import * as Icons from 'design/Icon';
 import * as OSS from 'teleport/features';
 
-import { NavigationCategory } from 'teleport/Navigation/categories';
+import {
+  ManagementSection,
+  NavigationCategory,
+} from 'teleport/Navigation/categories';
 
-import { AccessRequestsIcon, DownloadsIcon, SupportIcon } from 'design/SVGIcon';
+import {
+  AccessRequestsIcon,
+  DownloadsIcon,
+  IntegrationsIcon,
+  SupportIcon,
+} from 'design/SVGIcon';
 
 import cfg from 'e-teleport/config';
 import { ReviewRequests, NewRequest } from 'e-teleport/Workflow';
@@ -22,6 +30,9 @@ const AuthConnectors = React.lazy(
 );
 const AccountE = React.lazy(
   () => import(/* webpackChunkName: "e-account" */ 'e-teleport/Account')
+);
+const Plugins = React.lazy(
+  () => import(/* webpackChunkName: "e-plugins" */ 'e-teleport/Plugins')
 );
 const SupportE = React.lazy(
   () => import(/* webpackChunkName: "e-support" */ 'e-teleport/Support')
@@ -148,6 +159,30 @@ class FeatureAuthConnectors extends OSS.FeatureAuthConnectors {
   };
 }
 
+class FeatureIntegrations implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.plugins;
+  }
+
+  route = {
+    title: 'Manage Integrations',
+    path: cfg.routes.integrations,
+    exact: false,
+    component: () => <Plugins />,
+  };
+
+  navigationItem = {
+    title: 'Integrations',
+    icon: <IntegrationsIcon />,
+    getLink() {
+      return cfg.routes.integrations;
+    },
+  };
+}
+
 // ****************************
 // Other Features
 // ****************************
@@ -192,6 +227,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new OSS.FeatureUsers(),
     new OSS.FeatureRoles(),
     new FeatureAuthConnectors(),
+    new FeatureIntegrations(),
     new OSS.FeatureDiscover(),
 
     // - Activity

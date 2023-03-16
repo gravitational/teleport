@@ -31,6 +31,9 @@ const cfg = {
 
     // allow SAML IdP handlers
     samlIdPHandler: '/enterprise/saml-idp/*',
+
+    integrations: '/web/integrations',
+    integrationEnroll: '/web/integrations/new',
   },
 
   api: {
@@ -58,6 +61,8 @@ const cfg = {
 
     releases: '/v1/enterprise/releases',
     license: '/v1/enterprise/license',
+
+    pluginPath: '/v1/enterprise/plugin/:name?',
   },
 
   getAccessRequestRoute(requestId?: string) {
@@ -98,6 +103,10 @@ const cfg = {
 
   getRecoveryTokenUrl(tokenId: string) {
     return generatePath(cfg.api.recoveryTokenPath, { tokenId });
+  },
+
+  getPluginUrl(name?: string) {
+    return generatePath(cfg.api.pluginPath, { name });
   },
 
   init(json: object) {

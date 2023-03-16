@@ -9,6 +9,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport-plugins/access/slack"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -27,7 +28,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/release"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -50,6 +53,9 @@ var ErrLicenseExpired = trace.AccessDenied("Teleport Enterprise license expired"
 type Config struct {
 	// License holds the license under which the Teleport instance is running.
 	License License
+
+	// HostedPlugins holds the configuration for plugins runtime
+	HostedPlugins servicecfg.HostedPluginsConfig
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -229,24 +235,34 @@ func (p *Plugin) registerLoginRuleService(server *auth.GRPCServer) error {
 }
 
 func (p *Plugin) registerPluginsService(server *auth.GRPCServer) error {
+	cfg := p.Config.HostedPlugins
+	if !cfg.Enabled {
+		return nil
+	}
+
 	grpcServer, err := server.GetServer()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	exchangers := &plugins.ExchangerSet{}
+	if c := cfg.OAuthProviders.Slack; c != nil {
+		exchangers.Slack = slack.NewAuthorizer(c.ID, c.Secret)
 	}
 
 	backendService := local.NewPluginsService(server.GetBackend)
 	service, err := pluginsv1.NewService(pluginsv1.ServiceConfig{
 		Authorizer:     p.authorizer,
 		BackendService: backendService,
-		Exchangers:     &plugins.ExchangerSet{
-			// TODO(justinas): intentionally left blank. Pending config boilerplate.
-		},
+		Exchangers:     exchangers,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	pluginspb.RegisterPluginServiceServer(grpcServer, service)
+	modules.GetModules().EnablePlugins()
+
 	return nil
 }
 
