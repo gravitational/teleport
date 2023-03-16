@@ -217,7 +217,7 @@ function List(props: { items: string[] }) {
 
 const textCss = css`
   line-height: 20px;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
   white-space: pre-line;
 `;
 
