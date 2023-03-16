@@ -146,7 +146,7 @@ From a user experience perspective implementing this solution will significantly
 
 This solution won't change anything from the security point of view.
 
-### 3) IronRDP
+### 4) IronRDP
 
 #### Background
 
