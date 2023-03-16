@@ -41,6 +41,7 @@ import (
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	sidecar2 "github.com/gravitational/teleport/integrations/operator/sidecar"
+	//+kubebuilder:scaffold:imports
 )
 
 var (
