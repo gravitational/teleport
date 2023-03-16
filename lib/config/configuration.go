@@ -22,7 +22,6 @@ package config
 
 import (
 	"crypto/x509"
-	"fmt"
 	"io"
 	stdlog "log"
 	"net"
@@ -2289,11 +2288,15 @@ func applyOktaConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if err != nil {
 		return trace.NewAggregate(trace.BadParameter("malformed URL %s", fc.Okta.APIEndpoint), err)
 	}
-	fmt.Printf("%s\n", url)
+
+	if url.Host == "" {
+		return trace.BadParameter("api_endpoint has no host")
+	} else if url.Scheme == "" {
+		return trace.BadParameter("api_endpoint has no scheme")
+	}
 
 	// Make sure the API token exists.
-	_, err = utils.StatFile(fc.Okta.APITokenPath)
-	if err != nil {
+	if _, err := utils.StatFile(fc.Okta.APITokenPath); err != nil {
 		return trace.NewAggregate(trace.BadParameter("error trying to find file %s", fc.Okta.APITokenPath), err)
 	}
 

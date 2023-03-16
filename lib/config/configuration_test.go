@@ -3613,6 +3613,32 @@ func TestApplyOktaConfig(t *testing.T) {
 			},
 		},
 		{
+			desc:            "no host",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: `http://`,
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter(`api_endpoint has no host`))
+			},
+		},
+		{
+			desc:            "no scheme",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: `//hostname`,
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter(`api_endpoint has no scheme`))
+			},
+		},
+		{
 			desc: "empty file",
 			oktaConfig: Okta{
 				Service: Service{
