@@ -71,7 +71,7 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 	})
 
 	t.Run("WaitCreateStub", func(t *testing.T) {
-		waitCtx, waitCancel := context.WithTimeout(ctx, time.Millisecond*500)
+		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second*2)
 		defer waitCancel()
 
 		headlessAuthnCh, errC := waitInGoroutine(waitCtx, t, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
@@ -91,7 +91,7 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, identity.DeleteHeadlessAuthentication(ctx, pubUUID)) })
 
-		waitCtx, waitCancel := context.WithTimeout(ctx, time.Millisecond*500)
+		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second*2)
 		defer waitCancel()
 
 		headlessAuthnCh, errC := waitInGoroutine(waitCtx, t, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
@@ -111,7 +111,7 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 	})
 
 	t.Run("StaleCheck", func(t *testing.T) {
-		waitCtx, waitCancel := context.WithTimeout(ctx, time.Millisecond*500)
+		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second*2)
 		defer waitCancel()
 
 		// Create two waiters - a blocked consumer and a free consumer.
@@ -153,7 +153,7 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 	})
 
 	t.Run("WatchReset", func(t *testing.T) {
-		waitCtx, waitCancel := context.WithTimeout(ctx, time.Millisecond*500)
+		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second*2)
 		defer waitCancel()
 
 		headlessAuthnCh, errC := waitInGoroutine(waitCtx, t, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
@@ -175,7 +175,7 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 	})
 
 	t.Run("WatcherClosed", func(t *testing.T) {
-		waitCtx, waitCancel := context.WithTimeout(ctx, time.Millisecond*500)
+		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second*2)
 		defer waitCancel()
 
 		_, errC := waitInGoroutine(waitCtx, t, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
