@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
@@ -2024,10 +2023,6 @@ func (c *Client) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, nam
 	for _, rawEvent := range response.Items {
 		event, err := events.FromOneOf(*rawEvent)
 		if err != nil {
-			if trace.IsBadParameter(err) {
-				log.Warnf("skipping unknown event: %v", err)
-				continue
-			}
 			return nil, "", trace.Wrap(err)
 		}
 		decodedEvents = append(decodedEvents, event)
