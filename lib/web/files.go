@@ -38,7 +38,7 @@ import (
 // fileTransferRequest describes HTTP file transfer request
 type fileTransferRequest struct {
 	// Server describes a server to connect to (serverId|hostname[:port]).
-	server string
+	serverID string
 	// Login is Linux username to connect as.
 	login string
 	// Namespace is node namespace.
@@ -58,7 +58,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 	req := fileTransferRequest{
 		cluster:        site.GetName(),
 		login:          p.ByName("login"),
-		server:         p.ByName("server"),
+		serverID:       p.ByName("server"),
 		remoteLocation: query.Get("location"),
 		filename:       query.Get("filename"),
 		namespace:      defaults.Namespace,
@@ -130,6 +130,7 @@ func (f *fileTransfer) download(req fileTransferRequest, httpReq *http.Request, 
 		return trace.Wrap(err)
 	}
 
+
 	if req.webauthn != "" {
 		err = f.issueSingleUseCert(req.webauthn, httpReq, tc)
 		if err != nil {
@@ -137,7 +138,7 @@ func (f *fileTransfer) download(req fileTransferRequest, httpReq *http.Request, 
 		}
 	}
 
-	err = tc.ExecuteSCP(httpReq.Context(), cmd)
+	err = tc.ExecuteSCP(httpReq.Context(), req.serverID, cmd)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -168,7 +169,7 @@ func (f *fileTransfer) upload(req fileTransferRequest, httpReq *http.Request) er
 		}
 	}
 
-	err = tc.ExecuteSCP(httpReq.Context(), cmd)
+	err = tc.ExecuteSCP(httpReq.Context(), req.serverID, cmd)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -190,9 +191,9 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	hostName, hostPort, err := resolveServerHostPort(req.server, servers)
+	hostName, hostPort, err := resolveServerHostPort(req.serverID, servers)
 	if err != nil {
-		return nil, trace.BadParameter("invalid server name %q: %v", req.server, err)
+		return nil, trace.BadParameter("invalid server name %q: %v", req.serverID, err)
 	}
 
 	cfg, err := makeTeleportClientConfig(httpReq.Context(), f.ctx)
