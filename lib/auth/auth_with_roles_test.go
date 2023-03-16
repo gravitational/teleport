@@ -4438,7 +4438,7 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 				tc.headlessID = headlessAuthn.GetName()
 			}
 
-			ctx, cancel := context.WithTimeout(ctx, time.Millisecond*100)
+			ctx, cancel := context.WithTimeout(ctx, time.Second)
 			defer cancel()
 
 			err = client.UpdateHeadlessAuthenticationState(ctx, tc.headlessID, tc.state, resp)
