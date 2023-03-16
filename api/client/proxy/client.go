@@ -212,8 +212,10 @@ func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
 	}
 
 	clt, sshErr := newSSHClient(ctx, &cfg)
-	if sshErr == nil {
-		return clt, nil
+	// Only aggregate errors if there was an issue dialing the grpc server so
+	// that helpers like trace.IsAccessDenied will still work.
+	if grpcErr == nil {
+		return clt, trace.Wrap(sshErr)
 	}
 
 	return nil, trace.NewAggregate(grpcErr, sshErr)

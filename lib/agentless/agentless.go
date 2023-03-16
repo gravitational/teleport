@@ -27,18 +27,48 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// SiteClientGetter returns an auth client to a given cluster.
-type SiteClientGetter interface {
-	GetSiteClient(ctx context.Context, clusterName string) (auth.ClientI, error)
+// CertGenerator generates cetificates from a certificate request.
+type CertGenerator interface {
+	GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error)
 }
 
-// CreateAuthSigner attempts to create a [ssh.Signer] that is signed with
+// SignerFromSSHCertificate returns a function that attempts to
+// create a [ssh.Signer] for the Identity in the provided [ssh.Certificate]
+// that is signed with the OpenSSH CA and can be used to authenticate to agentless nodes.
+func SignerFromSSHCertificate(certificate *ssh.Certificate, generator CertGenerator) func(context.Context) (ssh.Signer, error) {
+	return func(ctx context.Context) (ssh.Signer, error) {
+		validBefore := time.Unix(int64(certificate.ValidBefore), 0)
+		ttl := time.Until(validBefore)
+
+		clusterName := certificate.Permissions.Extensions[utils.CertExtensionAuthority]
+		user := certificate.Permissions.Extensions[utils.CertTeleportUser]
+
+		signer, err := createAuthSigner(ctx, user, clusterName, ttl, generator)
+		return signer, trace.Wrap(err)
+	}
+}
+
+// SignerFromAuthzContext returns a function that attempts to
+// create a [ssh.Signer] for the Identity in the provided [ssh.Certificate]
+// that is signed with the OpenSSH CA and can be used to authenticate to agentless nodes.
+func SignerFromAuthzContext(authzCtx *authz.Context, generator CertGenerator) func(context.Context) (ssh.Signer, error) {
+	return func(ctx context.Context) (ssh.Signer, error) {
+		identity := authzCtx.Identity.GetIdentity()
+		ttl := time.Until(identity.Expires)
+
+		signer, err := createAuthSigner(ctx, authzCtx.User.GetName(), identity.TeleportCluster, ttl, generator)
+		return signer, trace.Wrap(err)
+	}
+}
+
+// createAuthSigner creates a [ssh.Signer] that is signed with
 // OpenSSH CA and can be used to authenticate to agentless nodes.
-func CreateAuthSigner(ctx context.Context, username, clusterName string, ttl time.Duration, clientGetter SiteClientGetter) (ssh.Signer, error) {
+func createAuthSigner(ctx context.Context, username, clusterName string, ttl time.Duration, generator CertGenerator) (ssh.Signer, error) {
 	// generate a new key pair
 	priv, err := native.GeneratePrivateKey()
 	if err != nil {
@@ -46,11 +76,7 @@ func CreateAuthSigner(ctx context.Context, username, clusterName string, ttl tim
 	}
 
 	// sign new public key with OpenSSH CA
-	client, err := clientGetter.GetSiteClient(ctx, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	reply, err := client.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
+	reply, err := generator.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
 		Username:  username,
 		PublicKey: priv.MarshalSSHPublicKey(),
 		TTL:       proto.Duration(ttl),

@@ -191,16 +191,12 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 	}, nil
 }
 
-// SignerCreator allows the caller to configure a [ssh.Signer] if a ssh
-// user agent isn't available, ie when connecting to agentless nodes.
-type SignerCreator func() (ssh.Signer, error)
-
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
 // is found an error is returned. If more than one matching node is found and the cluster networking
 // configuration is not set to route to the most recent an error is returned. Also returns teleport version of the
 // target server if it's a teleport server
 // DELETE IN 14.0: remove returning teleport version, it was needed for compatibility
-func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter, singerCreator SignerCreator) (_ net.Conn, teleportVersion string, err error) {
+func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter, signer func(context.Context) (ssh.Signer, error)) (_ net.Conn, teleportVersion string, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",
@@ -279,9 +275,9 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	// if the node is a registered openssh node, create a signer for auth
 	// and don't set agentGetter so a SSH user agent will not be created
 	// when connecting to the remote node
-	var signer ssh.Signer
+	var sshSigner ssh.Signer
 	if isAgentlessNode {
-		signer, err = singerCreator()
+		sshSigner, err = signer(ctx)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -293,7 +289,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
 		OriginalClientDstAddr: clientDstAddr,
 		GetUserAgent:          agentGetter,
-		AgentlessSigner:       signer,
+		AgentlessSigner:       sshSigner,
 		Address:               host,
 		Principals:            principals,
 		ServerID:              serverID,
