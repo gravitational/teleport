@@ -130,7 +130,6 @@ func (f *fileTransfer) download(req fileTransferRequest, httpReq *http.Request, 
 		return trace.Wrap(err)
 	}
 
-
 	if req.webauthn != "" {
 		err = f.issueSingleUseCert(req.webauthn, httpReq, tc)
 		if err != nil {
