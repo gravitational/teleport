@@ -17,11 +17,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        branch: [ 'master', 'branch/v10', 'branch/v11', 'branch/v12' ]
         language: [ 'go', 'javascript' ]
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
+      with:
+        ref: ${{ matrix.branch }}
 
     - name: Initialize the CodeQL tools for scanning
       uses: github/codeql-action/init@v2
