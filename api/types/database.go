@@ -679,6 +679,11 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	if d.Spec.AWS.AssumeRoleARN == "" && d.Spec.AWS.ExternalID != "" {
+		return trace.BadParameter("AWS database %q has external_id %q, but assume_role_arn is missing",
+			d.GetName(), d.Spec.AWS.ExternalID)
+	}
+
 	// Validate Cloud SQL specific configuration.
 	switch {
 	case d.Spec.GCP.ProjectID != "" && d.Spec.GCP.InstanceID == "":

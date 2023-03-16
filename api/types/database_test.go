@@ -549,6 +549,8 @@ func TestDynamoDBConfig(t *testing.T) {
 		uri        string
 		region     string
 		account    string
+		roleARN    string
+		externalID string
 		wantSpec   DatabaseSpecV3
 		wantErrMsg string
 	}{
@@ -561,6 +563,22 @@ func TestDynamoDBConfig(t *testing.T) {
 				AWS: AWS{
 					Region:    "us-west-1",
 					AccountID: "123456789012",
+				},
+			},
+		},
+		{
+			desc:       "account and region and assume role is correct",
+			region:     "us-west-1",
+			account:    "123456789012",
+			roleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
+			externalID: "externalid123",
+			wantSpec: DatabaseSpecV3{
+				URI: "aws://dynamodb.us-west-1.amazonaws.com",
+				AWS: AWS{
+					Region:        "us-west-1",
+					AccountID:     "123456789012",
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID:    "externalid123",
 				},
 			},
 		},
@@ -658,6 +676,14 @@ func TestDynamoDBConfig(t *testing.T) {
 			account:    "12345",
 			wantErrMsg: "must be 12-digit",
 		},
+		{
+			desc:       "configured external ID but not assume role is an error",
+			uri:        "localhost:8080",
+			region:     "us-west-1",
+			account:    "123456789012",
+			externalID: "externalid123",
+			wantErrMsg: "assume_role_arn is missing",
+		},
 	}
 
 	for _, tt := range tests {
@@ -670,8 +696,10 @@ func TestDynamoDBConfig(t *testing.T) {
 				Protocol: "dynamodb",
 				URI:      tt.uri,
 				AWS: AWS{
-					Region:    tt.region,
-					AccountID: tt.account,
+					Region:        tt.region,
+					AccountID:     tt.account,
+					AssumeRoleARN: tt.roleARN,
+					ExternalID:    tt.externalID,
 				},
 			})
 			if tt.wantErrMsg != "" {

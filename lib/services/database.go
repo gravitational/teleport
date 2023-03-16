@@ -45,7 +45,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // DatabaseGetter defines interface for fetching database resources.
@@ -193,6 +194,23 @@ func ValidateDatabase(db types.Database) error {
 		}
 		if db.GetAD().SPN == "" {
 			return trace.BadParameter("missing service principal name for database %q", db.GetName())
+		}
+	}
+
+	awsMeta := db.GetAWS()
+	if awsMeta.AssumeRoleARN != "" {
+		if awsMeta.AccountID == "" {
+			return trace.BadParameter("database %q missing AWS account ID", db.GetName())
+		}
+		parsed, err := awsutils.ParseRoleARN(awsMeta.AssumeRoleARN)
+		if err != nil {
+			return trace.BadParameter("database %q assume_role_arn %q is invalid: %v",
+				db.GetName(), awsMeta.AssumeRoleARN, err)
+		}
+		err = awsutils.CheckARNPartitionAndAccount(parsed, awsMeta.Partition(), awsMeta.AccountID)
+		if err != nil {
+			return trace.BadParameter("database %q is incompatible with AWS assume_role_arn %q: %v",
+				db.GetName(), awsMeta.AssumeRoleARN, err)
 		}
 	}
 	return nil
@@ -586,7 +604,7 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 	for _, endpoint := range cluster.CustomEndpoints {
 		// RDS custom endpoint format:
 		// <endpointName>.cluster-custom-<customerDnsIdentifier>.<dnsSuffix>
-		endpointDetails, err := awsutils.ParseRDSEndpoint(aws.StringValue(endpoint))
+		endpointDetails, err := apiawsutils.ParseRDSEndpoint(aws.StringValue(endpoint))
 		if err != nil {
 			errors = append(errors, trace.Wrap(err))
 			continue
@@ -713,7 +731,7 @@ func NewDatabaseFromElastiCacheConfigurationEndpoint(cluster *elasticache.Replic
 		return nil, trace.BadParameter("missing configuration endpoint")
 	}
 
-	return newElastiCacheDatabase(cluster, cluster.ConfigurationEndpoint, awsutils.ElastiCacheConfigurationEndpoint, extraLabels)
+	return newElastiCacheDatabase(cluster, cluster.ConfigurationEndpoint, apiawsutils.ElastiCacheConfigurationEndpoint, extraLabels)
 }
 
 // NewDatabasesFromElastiCacheNodeGroups creates database resources from
@@ -722,7 +740,7 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 	var databases types.Databases
 	for _, nodeGroup := range cluster.NodeGroups {
 		if nodeGroup.PrimaryEndpoint != nil {
-			database, err := newElastiCacheDatabase(cluster, nodeGroup.PrimaryEndpoint, awsutils.ElastiCachePrimaryEndpoint, extraLabels)
+			database, err := newElastiCacheDatabase(cluster, nodeGroup.PrimaryEndpoint, apiawsutils.ElastiCachePrimaryEndpoint, extraLabels)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -730,7 +748,7 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 		}
 
 		if nodeGroup.ReaderEndpoint != nil {
-			database, err := newElastiCacheDatabase(cluster, nodeGroup.ReaderEndpoint, awsutils.ElastiCacheReaderEndpoint, extraLabels)
+			database, err := newElastiCacheDatabase(cluster, nodeGroup.ReaderEndpoint, apiawsutils.ElastiCacheReaderEndpoint, extraLabels)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -748,7 +766,7 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 	}
 
 	suffix := make([]string, 0)
-	if endpointType == awsutils.ElastiCacheReaderEndpoint {
+	if endpointType == apiawsutils.ElastiCacheReaderEndpoint {
 		suffix = []string{endpointType}
 	}
 
@@ -765,7 +783,7 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 // NewDatabaseFromMemoryDBCluster creates a database resource from a MemoryDB
 // cluster.
 func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[string]string) (types.Database, error) {
-	endpointType := awsutils.MemoryDBClusterEndpoint
+	endpointType := apiawsutils.MemoryDBClusterEndpoint
 
 	metadata, err := MetadataFromMemoryDBCluster(cluster, endpointType)
 	if err != nil {

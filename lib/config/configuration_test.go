@@ -354,6 +354,8 @@ func TestConfigReading(t *testing.T) {
 					Tags: map[string]apiutils.Strings{
 						"a": {"b"},
 					},
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID:    "externalID123",
 					InstallParams: &InstallParams{
 						JoinParams: JoinParams{
 							TokenName: "aws-discovery-iam-token",
@@ -471,6 +473,8 @@ func TestConfigReading(t *testing.T) {
 					Tags: map[string]apiutils.Strings{
 						"a": {"b"},
 					},
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID:    "externalID123",
 				},
 				{
 					Types:   []string{"rds"},
@@ -478,6 +482,7 @@ func TestConfigReading(t *testing.T) {
 					Tags: map[string]apiutils.Strings{
 						"c": {"d"},
 					},
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
 				},
 			},
 			AzureMatchers: []AzureMatcher{
@@ -828,6 +833,17 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 				},
 			},
 		}))
+	require.Empty(t, cmp.Diff(cfg.Databases.AWSMatchers,
+		[]services.AWSMatcher{
+			{
+				Types:   []string{"rds"},
+				Regions: []string{"us-west-1"},
+				AssumeRole: services.AssumeRole{
+					RoleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID: "externalID123",
+				},
+			},
+		}))
 
 	require.True(t, cfg.Kube.Enabled)
 	require.Empty(t, cmp.Diff(cfg.Kube.ResourceMatchers,
@@ -849,6 +865,8 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.True(t, cfg.Discovery.Enabled)
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].Regions, []string{"eu-central-1"})
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].Types, []string{"ec2"})
+	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.RoleARN, "arn:aws:iam::123456789012:role/DBDiscoverer")
+	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.ExternalID, "externalID123")
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].Params, services.InstallerParams{
 		InstallTeleport: true,
 		JoinMethod:      "iam",
@@ -1421,9 +1439,11 @@ func makeConfigFixture() string {
 	conf.Discovery.EnabledFlag = "true"
 	conf.Discovery.AWSMatchers = []AWSMatcher{
 		{
-			Types:   []string{"ec2"},
-			Regions: []string{"us-west-1", "us-east-1"},
-			Tags:    map[string]apiutils.Strings{"a": {"b"}},
+			Types:         []string{"ec2"},
+			Regions:       []string{"us-west-1", "us-east-1"},
+			Tags:          map[string]apiutils.Strings{"a": {"b"}},
+			AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+			ExternalID:    "externalID123",
 		},
 	}
 
@@ -1517,14 +1537,17 @@ func makeConfigFixture() string {
 	}
 	conf.Databases.AWSMatchers = []AWSMatcher{
 		{
-			Types:   []string{"rds"},
-			Regions: []string{"us-west-1", "us-east-1"},
-			Tags:    map[string]apiutils.Strings{"a": {"b"}},
+			Types:         []string{"rds"},
+			Regions:       []string{"us-west-1", "us-east-1"},
+			Tags:          map[string]apiutils.Strings{"a": {"b"}},
+			AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+			ExternalID:    "externalID123",
 		},
 		{
-			Types:   []string{"rds"},
-			Regions: []string{"us-central-1"},
-			Tags:    map[string]apiutils.Strings{"c": {"d"}},
+			Types:         []string{"rds"},
+			Regions:       []string{"us-central-1"},
+			Tags:          map[string]apiutils.Strings{"c": {"d"}},
+			AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
 		},
 	}
 	conf.Databases.AzureMatchers = []AzureMatcher{
@@ -2605,17 +2628,23 @@ func TestDatabaseCLIFlags(t *testing.T) {
 		{
 			desc: "RDS database",
 			inFlags: CommandLineFlags{
-				DatabaseName:      "rds",
-				DatabaseProtocol:  defaults.ProtocolMySQL,
-				DatabaseURI:       "localhost:3306",
-				DatabaseAWSRegion: "us-east-1",
+				DatabaseName:             "rds",
+				DatabaseProtocol:         defaults.ProtocolMySQL,
+				DatabaseURI:              "localhost:3306",
+				DatabaseAWSRegion:        "us-east-1",
+				DatabaseAWSAccountID:     "123456789012",
+				DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				DatabaseAWSExternalID:    "externalID123",
 			},
 			outDatabase: servicecfg.Database{
 				Name:     "rds",
 				Protocol: defaults.ProtocolMySQL,
 				URI:      "localhost:3306",
 				AWS: servicecfg.DatabaseAWS{
-					Region: "us-east-1",
+					Region:        "us-east-1",
+					AccountID:     "123456789012", // this gets derived from the assumed role.
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID:    "externalID123",
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,
@@ -2634,6 +2663,8 @@ func TestDatabaseCLIFlags(t *testing.T) {
 				DatabaseURI:                  "localhost:5432",
 				DatabaseAWSRegion:            "us-east-1",
 				DatabaseAWSRedshiftClusterID: "redshift-cluster-1",
+				DatabaseAWSAssumeRoleARN:     "arn:aws:iam::123456789012:role/DBDiscoverer",
+				DatabaseAWSExternalID:        "externalID123",
 			},
 			outDatabase: servicecfg.Database{
 				Name:     "redshift",
@@ -2644,6 +2675,9 @@ func TestDatabaseCLIFlags(t *testing.T) {
 					Redshift: servicecfg.DatabaseAWSRedshift{
 						ClusterID: "redshift-cluster-1",
 					},
+					AccountID:     "123456789012", // this gets derived from the assumed role.
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID:    "externalID123",
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,
@@ -2738,19 +2772,23 @@ func TestDatabaseCLIFlags(t *testing.T) {
 		{
 			desc: "AWS Keyspaces",
 			inFlags: CommandLineFlags{
-				DatabaseName:         "keyspace",
-				DatabaseProtocol:     defaults.ProtocolCassandra,
-				DatabaseURI:          "cassandra.us-east-1.amazonaws.com:9142",
-				DatabaseAWSAccountID: "123456789012",
-				DatabaseAWSRegion:    "us-east-1",
+				DatabaseName:             "keyspace",
+				DatabaseProtocol:         defaults.ProtocolCassandra,
+				DatabaseURI:              "cassandra.us-east-1.amazonaws.com:9142",
+				DatabaseAWSAccountID:     "123456789012",
+				DatabaseAWSRegion:        "us-east-1",
+				DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				DatabaseAWSExternalID:    "externalID123",
 			},
 			outDatabase: servicecfg.Database{
 				Name:     "keyspace",
 				Protocol: defaults.ProtocolCassandra,
 				URI:      "cassandra.us-east-1.amazonaws.com:9142",
 				AWS: servicecfg.DatabaseAWS{
-					Region:    "us-east-1",
-					AccountID: "123456789012",
+					Region:        "us-east-1",
+					AccountID:     "123456789012",
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID:    "externalID123",
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,
@@ -2764,21 +2802,23 @@ func TestDatabaseCLIFlags(t *testing.T) {
 		{
 			desc: "AWS DynamoDB",
 			inFlags: CommandLineFlags{
-				DatabaseName:          "ddb",
-				DatabaseProtocol:      defaults.ProtocolDynamoDB,
-				DatabaseURI:           "dynamodb.us-east-1.amazonaws.com",
-				DatabaseAWSAccountID:  "123456789012",
-				DatabaseAWSExternalID: "12345678901234",
-				DatabaseAWSRegion:     "us-east-1",
+				DatabaseName:             "ddb",
+				DatabaseProtocol:         defaults.ProtocolDynamoDB,
+				DatabaseURI:              "dynamodb.us-east-1.amazonaws.com",
+				DatabaseAWSAccountID:     "123456789012",
+				DatabaseAWSRegion:        "us-east-1",
+				DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+				DatabaseAWSExternalID:    "externalID123",
 			},
 			outDatabase: servicecfg.Database{
 				Name:     "ddb",
 				Protocol: defaults.ProtocolDynamoDB,
 				URI:      "dynamodb.us-east-1.amazonaws.com",
 				AWS: servicecfg.DatabaseAWS{
-					Region:     "us-east-1",
-					AccountID:  "123456789012",
-					ExternalID: "12345678901234",
+					Region:        "us-east-1",
+					AccountID:     "123456789012",
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID:    "externalID123",
 				},
 				StaticLabels: map[string]string{
 					types.OriginLabel: types.OriginConfigFile,
