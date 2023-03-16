@@ -305,7 +305,18 @@ type Forwarder struct {
 	sessions map[uuid.UUID]*session
 	// upgrades connections to websockets
 	upgrader websocket.Upgrader
+	// getKubernetesServersForKubeCluster is a function that returns a list of
+	// kubernetes services for a given kube cluster but uses different methods
+	// depending on the service type.
+	// For example, if the service type is KubeService, it will use the
+	// local kubernetes clusters. If the service type is Proxy, it will
+	// use the heartbeat clusters.
+	getKubernetesServersForKubeCluster getKubeServicesByNameFunc
 }
+
+// getKubeServicesByNameFunc is a function that returns a list of
+// kubernetes services that might contain the given kube cluster.
+type getKubeServicesByNameFunc = func(ctx context.Context, name string) ([]types.Server, error)
 
 // Close signals close to all outstanding or background operations
 // to complete
@@ -714,7 +725,7 @@ func (f *Forwarder) getKubeAccessDetails(
 	kubeClusterName string,
 	sessionTTL time.Duration,
 ) (kubeAccessDetails, error) {
-	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
+	kubeServices, err := f.getKubernetesServersForKubeCluster(f.ctx, kubeClusterName)
 	if err != nil {
 		return kubeAccessDetails{}, trace.Wrap(err)
 	}
@@ -761,7 +772,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization due to unknown kubernetes cluster name")
 		return nil
 	}
-	servers, err := f.cfg.CachingAuthClient.GetKubeServices(ctx)
+	servers, err := f.getKubernetesServersForKubeCluster(f.ctx, actx.kubeCluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1818,7 +1829,7 @@ func (f *Forwarder) newClusterSessionSameCluster(ctx authContext) (*clusterSessi
 		return sess, nil
 	}
 
-	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
+	kubeServices, err := f.getKubernetesServersForKubeCluster(f.ctx, ctx.kubeCluster)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
