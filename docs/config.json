@@ -262,6 +262,11 @@
               "title": "Device Trust (Preview)",
               "slug": "/access-controls/guides/device-trust/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "IP Pinning (Preview)",
+              "slug": "/access-controls/guides/ip-pinning/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
