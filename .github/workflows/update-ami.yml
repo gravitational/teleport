@@ -1,0 +1,60 @@
+name: Update AMI
+
+on:
+  # workflow_dispatch:
+  #   inputs:
+  #     version:
+  #       required: true
+  #       type: string
+  #       description: Release version tag
+
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+        description: Release version tag
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  create-pr:
+    name: Update AMI
+    runs-on: ubuntu-latest
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ vars.GITHUB_REF }}        
+
+      - name: Assume AWS Promotion Role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region:  us-west-2
+          # https://github.com/gravitational/teleport/issues/23066
+          role-to-assume: "arn:aws:iam::126027368216:role/tf-teleport-ami-gha-role"
+          role-session-name: "gha-docker-image-promotion-${{ github.run_number }}"
+          # Promotion should take roughly a minute, so 15 mins gives us plenty
+          # of leeway (and is the miminum value we can ask for).
+          role-duration-seconds: 900
+
+      - name: Update AMI
+        run: |
+          TELEPORT_VERSION=${{ inputs.version }} make -C assets/aws update-ami-ids-terraform
+
+      - name: Create Pull Request
+        if: steps.get_release.outputs.release == 'latest' || inputs.version != ''
+        uses: peter-evans/create-pull-request@v4
+        with:
+          token: ${{ github.token }}
+          commit-message: "[auto] Update AMI IDs for ${{ inputs.version }}"
+          title: "[auto] Update AMI IDs for ${{ inputs.version }}"
+          committer: GitHub <noreply@github.com>
+          branch: ami-auto-branch
+          branch-suffix: timestamp
+          delete-branch: true
+          labels: automated, terraform
