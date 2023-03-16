@@ -4241,7 +4241,6 @@ func getTestHeadlessAuthn(t *testing.T, user string) *types.HeadlessAuthenticati
 func TestGetHeadlessAuthentication(t *testing.T) {
 	ctx := context.Background()
 	username := "teleport-user"
-	headlessAuthn := getTestHeadlessAuthn(t, username)
 	otherUsername := "other-user"
 
 	for _, tc := range []struct {
@@ -4252,32 +4251,27 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 		expectedHeadlessAuthn *types.HeadlessAuthentication
 	}{
 		{
-			name:                  "OK same user",
-			headlessID:            headlessAuthn.GetName(),
-			identity:              TestUser(username),
-			assertError:           require.NoError,
-			expectedHeadlessAuthn: headlessAuthn,
+			name:        "OK same user",
+			identity:    TestUser(username),
+			assertError: require.NoError,
 		}, {
 			name:       "NOK not found",
 			headlessID: uuid.NewString(),
 			identity:   TestUser(username),
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
-
 				require.Error(t, err)
 				require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
 			},
 		}, {
-			name:       "NOK different user",
-			headlessID: headlessAuthn.GetName(),
-			identity:   TestUser(otherUsername),
+			name:     "NOK different user",
+			identity: TestUser(otherUsername),
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
 			},
 		}, {
-			name:       "NOK admin",
-			headlessID: headlessAuthn.GetName(),
-			identity:   TestAdmin(),
+			name:     "NOK admin",
+			identity: TestAdmin(),
 			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
@@ -4295,6 +4289,7 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 			require.NoError(t, err)
 
 			// create headless authn
+			headlessAuthn := getTestHeadlessAuthn(t, username)
 			stub, err := srv.Auth().CreateHeadlessAuthenticationStub(ctx, headlessAuthn.GetName())
 			require.NoError(t, err)
 			_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, stub, headlessAuthn)
@@ -4306,9 +4301,16 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 			ctx, cancel := context.WithTimeout(ctx, time.Millisecond*100)
 			defer cancel()
 
+			// default to same headlessAuthn
+			if tc.headlessID == "" {
+				tc.headlessID = headlessAuthn.GetName()
+			}
+
 			retrievedHeadlessAuthn, err := client.GetHeadlessAuthentication(ctx, tc.headlessID)
 			tc.assertError(t, err)
-			require.Equal(t, tc.expectedHeadlessAuthn, retrievedHeadlessAuthn)
+			if err == nil {
+				require.Equal(t, headlessAuthn, retrievedHeadlessAuthn)
+			}
 		})
 	}
 }
