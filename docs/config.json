@@ -262,6 +262,10 @@
               "title": "Device Trust (Preview)",
               "slug": "/access-controls/guides/device-trust/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Headless Login (Preview)",
+              "slug": "/access-controls/guides/headless-login/"
             }
           ]
         },
