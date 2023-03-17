@@ -61,13 +61,6 @@ type Presence interface {
 	// specified duration with second resolution if it's >= 1 second.
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
 
-	// DELETE IN: 5.1.0
-	//
-	// This logic has been moved to KeepAliveServer.
-	//
-	// KeepAliveNode updates node TTL in the storage
-	KeepAliveNode(ctx context.Context, h types.KeepAlive) error
-
 	// GetAuthServers returns a list of registered servers
 	GetAuthServers() ([]types.Server, error)
 

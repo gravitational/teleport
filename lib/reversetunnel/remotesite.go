@@ -611,7 +611,7 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 		// if CA is changed or does not exist, update backend
 		if err != nil || !services.CertAuthoritiesEquivalent(oldRemoteCA, remoteCA) {
 			s.logger.Debugf("Ingesting remote cert authority %v", remoteCA.GetID())
-			if err := s.localClient.UpsertCertAuthority(remoteCA); err != nil {
+			if err := s.localClient.UpsertCertAuthority(s.ctx, remoteCA); err != nil {
 				return trace.Wrap(err)
 			}
 		}

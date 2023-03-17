@@ -297,7 +297,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		// Don't re-create CA if it already exists, otherwise
 		// the existing cluster configuration will be corrupted;
 		// this part of code is only used in tests.
-		if err := asrv.CreateCertAuthority(ca); err != nil {
+		if err := asrv.CreateCertAuthority(ctx, ca); err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -1191,7 +1191,7 @@ func migrateDBAuthority(ctx context.Context, asrv *Server) error {
 			return trace.Wrap(err)
 		}
 
-		err = asrv.CreateCertAuthority(dbCA)
+		err = asrv.CreateCertAuthority(ctx, dbCA)
 		switch {
 		case trace.IsAlreadyExists(err):
 			// Probably another auth server have created the DB CA since we last check.

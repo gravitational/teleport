@@ -66,11 +66,12 @@ func (f *elastiCacheFetcher) GetType() string {
 
 // FetchDatabaseUsers fetches users for provided database. Implements Fetcher.
 func (f *elastiCacheFetcher) FetchDatabaseUsers(ctx context.Context, database types.Database) ([]User, error) {
-	if len(database.GetAWS().ElastiCache.UserGroupIDs) == 0 {
+	meta := database.GetAWS()
+	if len(meta.ElastiCache.UserGroupIDs) == 0 {
 		return nil, nil
 	}
 
-	client, err := f.cfg.Clients.GetAWSElastiCacheClient(database.GetAWS().Region)
+	client, err := f.cfg.Clients.GetAWSElastiCacheClient(meta.Region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -81,8 +82,8 @@ func (f *elastiCacheFetcher) FetchDatabaseUsers(ctx context.Context, database ty
 	}
 
 	users := []User{}
-	for _, userGroupID := range database.GetAWS().ElastiCache.UserGroupIDs {
-		managedUsers, err := f.getManagedUsersForGroup(ctx, database.GetAWS().Region, userGroupID, client)
+	for _, userGroupID := range meta.ElastiCache.UserGroupIDs {
+		managedUsers, err := f.getManagedUsersForGroup(ctx, meta.Region, userGroupID, client)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

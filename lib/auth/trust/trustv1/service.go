@@ -155,3 +155,24 @@ func (s *Service) DeleteCertAuthority(ctx context.Context, req *trustpb.DeleteCe
 
 	return &emptypb.Empty{}, nil
 }
+
+// UpsertCertAuthority creates or updates the provided cert authority.
+func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCertAuthorityRequest) (*types.CertAuthorityV2, error) {
+	if req.CertAuthority == nil {
+		return nil, trace.BadParameter("missing certificate authority")
+	}
+
+	if err := services.ValidateCertAuthority(req.CertAuthority); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, req.CertAuthority, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.UpsertCertAuthority(ctx, req.CertAuthority); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return req.CertAuthority, nil
+}
