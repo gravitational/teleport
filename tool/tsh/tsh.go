@@ -3317,7 +3317,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// If a TTY was requested, make sure to allocate it. Note this applies to
 	// "exec" command because a shell always has a TTY allocated.
 	if cf.Interactive || options.RequestTTY {
-		c.Interactive = true
+		c.InteractiveCommand = true
 	}
 
 	if !cf.NoCache {
@@ -3392,7 +3392,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	}
 
 	if cf.IdentityFileIn != "" {
-		c.SkipLocalAuth = true
+		c.NonInteractive = true
 	}
 
 	tc, err := client.NewClient(c)
