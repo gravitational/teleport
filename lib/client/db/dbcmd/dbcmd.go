@@ -200,6 +200,12 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolOracle:
 		return c.getOracleCommand()
+
+	case defaults.ProtocolClickHouseHTTP:
+		return c.getClickhouseHTTPCommand()
+	case defaults.ProtocolClickHouse:
+		return c.getClickhouseNativeCommand()
+
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
