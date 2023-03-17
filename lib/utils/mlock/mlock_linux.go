@@ -1,5 +1,3 @@
-//go:build linux
-
 /*
 Copyright 2023 Gravitational, Inc.
 
@@ -22,6 +20,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func lockMemory() error {
+// LockMemory locks the process memory to prevent secrets from being exposed in a swap.
+// This is a noop on unsupported systems (non-linux).
+func LockMemory() error {
 	return unix.Mlockall(unix.MCL_CURRENT | unix.MCL_FUTURE)
 }

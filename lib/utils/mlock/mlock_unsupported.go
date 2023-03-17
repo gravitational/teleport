@@ -18,11 +18,8 @@ limitations under the License.
 
 package mlock
 
-import (
-	"github.com/gravitational/trace"
-)
-
-func lockMemory() error {
-	// Mlockall is only available on linux.
-	return trace.NotImplemented("not implemented")
+// LockMemory locks the process memory to prevent secrets from being exposed in a swap.
+// This is a noop on unsupported systems (non-linux).
+func LockMemory() error {
+	return nil
 }
