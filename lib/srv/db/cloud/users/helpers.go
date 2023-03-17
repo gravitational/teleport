@@ -155,7 +155,8 @@ func genRandomPassword(length int) (string, error) {
 func newSecretStore(database types.Database, clients cloud.Clients) (secrets.Secrets, error) {
 	secretStoreConfig := database.GetSecretStore()
 
-	client, err := clients.GetAWSSecretsManagerClient(database.GetAWS().Region)
+	meta := database.GetAWS()
+	client, err := clients.GetAWSSecretsManagerClient(meta.Region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
