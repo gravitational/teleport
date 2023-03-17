@@ -367,7 +367,7 @@ func isTeleportAgentKey(key *agent.Key) bool {
 	return strings.HasPrefix(key.Comment, agentKeyCommentPrefix+agentKeyCommentSeparator)
 }
 
-// AsAgentKeys converts client.Key struct to an agent.AddedKey. Any agent.AddedKey
+// AsAgentKey converts client.Key struct to an agent.AddedKey. Any agent.AddedKey
 // can be added to a local agent (keyring), nut non-standard keys cannot be added
 // to an SSH system agent through the ssh agent protocol. Check canAddToSystemAgent
 // before adding this key to an SSH system agent.

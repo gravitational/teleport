@@ -343,6 +343,9 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		s.cfg.IngressReporter.ConnectionAuthenticated(ingress.DatabaseTLS, conn)
 		defer s.cfg.IngressReporter.AuthenticatedConnectionClosed(ingress.DatabaseTLS, conn)
 	}
+	if common.EnterpriseDBProtocolValidation(proxyCtx.Identity.RouteToDatabase.Protocol); err != nil {
+		return trace.Wrap(err)
+	}
 
 	switch proxyCtx.Identity.RouteToDatabase.Protocol {
 	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
@@ -355,6 +358,7 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	case defaults.ProtocolSQLServer:
 		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
 	}
+
 	serviceConn, err := s.Connect(s.closeCtx, proxyCtx, conn.RemoteAddr(), conn.LocalAddr())
 	if err != nil {
 		return trace.Wrap(err)

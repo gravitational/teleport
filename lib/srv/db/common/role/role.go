@@ -71,7 +71,9 @@ func databaseNameMatcher(dbProtocol, database string) *services.DatabaseNameMatc
 		// Elasticsearch integration doesn't support schema access control.
 		defaults.ProtocolElasticsearch,
 		// DynamoDB integration doesn't support schema access control.
-		defaults.ProtocolDynamoDB:
+		defaults.ProtocolDynamoDB,
+		// Oracle integration doesn't support schema access control.
+		defaults.ProtocolOracle:
 		return nil
 	default:
 		return &services.DatabaseNameMatcher{Name: database}

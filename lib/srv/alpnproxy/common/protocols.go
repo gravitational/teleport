@@ -39,6 +39,9 @@ const (
 	// ProtocolMongoDB is TLS ALPN protocol value used to indicate Mongo protocol.
 	ProtocolMongoDB Protocol = "teleport-mongodb"
 
+	// ProtocolOracle is TLS ALPN protocol value used to indicate Oracle protocol.
+	ProtocolOracle Protocol = "teleport-oracle"
+
 	// ProtocolRedisDB is TLS ALPN protocol value used to indicate Redis protocol.
 	ProtocolRedisDB Protocol = "teleport-redis"
 
@@ -145,6 +148,8 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolPostgres, nil
 	case defaults.ProtocolMongoDB:
 		return ProtocolMongoDB, nil
+	case defaults.ProtocolOracle:
+		return ProtocolOracle, nil
 	case defaults.ProtocolRedis:
 		return ProtocolRedisDB, nil
 	case defaults.ProtocolSQLServer:
@@ -170,6 +175,7 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 func IsDBTLSProtocol(protocol Protocol) bool {
 	dbTLSProtocols := []Protocol{
 		ProtocolMongoDB,
+		ProtocolOracle,
 		ProtocolRedisDB,
 		ProtocolSQLServer,
 		ProtocolSnowflake,
@@ -188,6 +194,7 @@ var DatabaseProtocols = []Protocol{
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
+	ProtocolOracle,
 	ProtocolRedisDB,
 	ProtocolSQLServer,
 	ProtocolSnowflake,

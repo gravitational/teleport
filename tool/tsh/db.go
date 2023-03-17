@@ -19,6 +19,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	"github.com/gravitational/teleport/lib/client/db/oracle"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -295,7 +297,7 @@ func checkAndSetDBRouteDefaults(r *tlsca.RouteToDatabase) error {
 	// Elasticsearch needs database username too.
 	if r.Username == "" {
 		switch r.Protocol {
-		case defaults.ProtocolMongoDB, defaults.ProtocolElasticsearch:
+		case defaults.ProtocolMongoDB, defaults.ProtocolElasticsearch, defaults.ProtocolOracle:
 			return trace.BadParameter("please provide the database user name using the --db-user flag")
 		case defaults.ProtocolRedis:
 			// Default to "default" in the same way as Redis does. We need the username to check access on our side.
@@ -309,6 +311,12 @@ func checkAndSetDBRouteDefaults(r *tlsca.RouteToDatabase) error {
 			log.Warnf("Database %v protocol %v does not support --db-name flag, ignoring --db-name=%v",
 				r.ServiceName, defaults.ReadableDatabaseProtocol(r.Protocol), r.Database)
 			r.Database = ""
+		}
+	} else {
+		switch r.Protocol {
+		// Always require db-name for Oracle Protocol.
+		case defaults.ProtocolOracle:
+			return trace.BadParameter("please provide the database name using the --db-user flag")
 		}
 	}
 	return nil
@@ -325,12 +333,12 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, route tlsca.RouteToDa
 		return trace.Wrap(err)
 	}
 
+	var key *client.Key
 	// Identity files themselves act as the database credentials (if any), so
 	// don't bother fetching new certs.
 	if profile.IsVirtual {
 		log.Info("Note: already logged in due to an identity file (`-i ...`); will only update database config files.")
 	} else {
-		var key *client.Key
 		if err = client.RetryWithRelogin(cf.Context, tc, func() error {
 			key, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 				RouteToCluster: tc.SiteName,
@@ -347,6 +355,16 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, route tlsca.RouteToDa
 			return trace.Wrap(err)
 		}
 		if err = tc.LocalAgent().AddDatabaseKey(key); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if route.Protocol == defaults.ProtocolOracle {
+		if err := generateDBLocalProxyCert(key, profile); err != nil {
+			return trace.Wrap(err)
+		}
+		err = oracle.GenerateClientConfiguration(key, route, profile)
+		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -590,7 +608,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 		log.Debugf("Starting local proxy because: %v", strings.Join(requires.localProxyReasons, ", "))
 	}
 
-	listener, err := net.Listen("tcp", "localhost:0")
+	listener, err := createLocalProxyListener("localhost:0", route, profile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -652,10 +670,30 @@ type localProxyConfig struct {
 	localProxyTunnel bool
 }
 
+func createLocalProxyListener(addr string, route *tlsca.RouteToDatabase, profile *client.ProfileStatus) (net.Listener, error) {
+	if route.Protocol == defaults.ProtocolOracle {
+		localCert, err := tls.LoadX509KeyPair(
+			profile.DatabaseLocalCAPath(),
+			profile.KeyPath(),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		l, err := tls.Listen("tcp", addr, &tls.Config{
+			Certificates: []tls.Certificate{localCert},
+			ServerName:   "localhost",
+		})
+		return l, trace.Wrap(err)
+	}
+	l, err := net.Listen("tcp", addr)
+	return l, trace.Wrap(err)
+}
+
 // prepareLocalProxyOptions created localProxyOpts needed to create local proxy from localProxyConfig.
 func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
 	certFile := arg.cliConf.LocalProxyCertFile
 	keyFile := arg.cliConf.LocalProxyKeyFile
+
 	if arg.localProxyTunnel && certFile == "" && keyFile == "" {
 		// --tunnel implies the local proxy is configured with db certs.
 		// If db certs are not specified but exist in the user profile, load
@@ -855,9 +893,17 @@ func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.D
 
 func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route *tlsca.RouteToDatabase, profile *client.ProfileStatus, requires *dbLocalProxyRequirement) (bool, error) {
 	if (requires.localProxy && requires.tunnel) || isLocalProxyTunnelRequested(cf) {
-		// We don't need to login if using a local proxy tunnel,
-		// because a local proxy tunnel will handle db login itself.
-		return false, nil
+		switch route.Protocol {
+		case defaults.ProtocolOracle:
+			// Oracle Protocol needs to generate a local configuration files.
+			// thus even is tunnel mode was requested the login flow should check
+			// if the Oracle client files should be updated.
+		default:
+			// We don't need to login if using a local proxy tunnel,
+			// because a local proxy tunnel will handle db login itself.
+			return false, nil
+
+		}
 	}
 	found := false
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
@@ -1108,7 +1154,9 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route *tlsca.RouteToD
 	case defaults.ProtocolSnowflake,
 		defaults.ProtocolDynamoDB,
 		defaults.ProtocolSQLServer,
-		defaults.ProtocolCassandra:
+		defaults.ProtocolCassandra,
+		defaults.ProtocolOracle:
+
 		// Some protocols only work in the local tunnel mode.
 		out.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
 	case defaults.ProtocolMySQL:
