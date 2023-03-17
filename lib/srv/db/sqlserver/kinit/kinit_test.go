@@ -179,6 +179,7 @@ func TestKRBConfString(t *testing.T) {
 			AdminServer: "host.example.com",
 			Command:     &staticCache{t: t, pass: true},
 			CertGetter:  &testCertGetter{pass: true},
+			DataDir:     t.TempDir(),
 		})
 
 	tmp := t.TempDir()
