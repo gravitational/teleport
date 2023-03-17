@@ -16,8 +16,10 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import styled from 'styled-components';
 
 import { Spinner } from 'design/Icon';
+import { Box, Flex } from 'design';
 
 import auth from 'teleport/services/auth';
 import { useParams } from 'teleport/components/Router';
@@ -64,13 +66,19 @@ export function HeadlessSso() {
   };
 
   if (state.status == 'pending') {
-    // Fix the spinner location.
     return (
-      <Spinner
+      <Flex
         css={`
-          vertical-align: top;
+          align-content: center;
+          flex-wrap: wrap;
+          justify-content: center;
+          min-height: 100vh;
         `}
-      />
+      >
+        <Spin>
+          <Spinner />
+        </Spin>
+      </Flex>
     );
   }
 
@@ -125,3 +133,17 @@ export function HeadlessSso() {
     />
   );
 }
+
+const Spin = styled(Box)`
+  line-height: 12px;
+  font-size: 24px;
+  animation: spin 1s linear infinite;
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+`;
