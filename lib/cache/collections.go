@@ -151,7 +151,8 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 			collections[resourceKind] = &genericCollection[types.CertAuthority, certAuthorityExecutor]{
 				cache: c,
 				watch: watch,
-				exec:  certAuthorityExecutor{filter: filter}}
+				exec:  certAuthorityExecutor{filter: filter},
+			}
 		case types.KindStaticTokens:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
@@ -280,11 +281,6 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter WebToken")
 			}
 			collections[resourceKind] = &genericCollection[types.WebToken, webTokenExecutor]{cache: c, watch: watch}
-		case types.KindKubeService:
-			if c.Presence == nil {
-				return nil, trace.BadParameter("missing parameter Presence")
-			}
-			collections[resourceKind] = &genericCollection[types.Server, kubeServiceExecutor]{cache: c, watch: watch}
 		case types.KindKubeServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -460,7 +456,7 @@ func (remoteClusterExecutor) getAll(ctx context.Context, cache *Cache, loadSecre
 }
 
 func (remoteClusterExecutor) upsert(ctx context.Context, cache *Cache, resource types.RemoteCluster) error {
-	err := cache.presenceCache.DeleteRemoteCluster(resource.GetName())
+	err := cache.presenceCache.DeleteRemoteCluster(ctx, resource.GetName())
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			cache.Logger.WithError(err).Warnf("Failed to delete remote cluster %v.", resource.GetName())
@@ -475,7 +471,7 @@ func (remoteClusterExecutor) deleteAll(ctx context.Context, cache *Cache) error 
 }
 
 func (remoteClusterExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteRemoteCluster(resource.GetName())
+	return cache.presenceCache.DeleteRemoteCluster(ctx, resource.GetName())
 }
 
 func (remoteClusterExecutor) isSingleton() bool { return false }
@@ -609,7 +605,7 @@ type certAuthorityExecutor struct {
 
 // delete implements executor[types.CertAuthority]
 func (certAuthorityExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	err := cache.trustCache.DeleteCertAuthority(types.CertAuthID{
+	err := cache.trustCache.DeleteCertAuthority(ctx, types.CertAuthID{
 		Type:       types.CertAuthType(resource.GetSubKind()),
 		DomainName: resource.GetName(),
 	})
@@ -661,7 +657,7 @@ func (e certAuthorityExecutor) upsert(ctx context.Context, cache *Cache, value t
 		return nil
 	}
 
-	return cache.trustCache.UpsertCertAuthority(value)
+	return cache.trustCache.UpsertCertAuthority(ctx, value)
 }
 
 func (certAuthorityExecutor) isSingleton() bool { return false }
@@ -1085,30 +1081,6 @@ func (webTokenExecutor) isSingleton() bool { return false }
 
 var _ executor[types.WebToken] = webTokenExecutor{}
 
-// DELETE in 13.0
-type kubeServiceExecutor struct{}
-
-func (kubeServiceExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Server, error) {
-	return cache.Presence.GetKubeServices(ctx)
-}
-
-func (kubeServiceExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	_, err := cache.presenceCache.UpsertKubeServiceV2(ctx, resource)
-	return trace.Wrap(err)
-}
-
-func (kubeServiceExecutor) deleteAll(ctx context.Context, cache *Cache) error {
-	return cache.presenceCache.DeleteAllKubeServices(ctx)
-}
-
-func (kubeServiceExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
-	return cache.presenceCache.DeleteKubeService(ctx, resource.GetName())
-}
-
-func (kubeServiceExecutor) isSingleton() bool { return false }
-
-var _ executor[types.Server] = kubeServiceExecutor{}
-
 type kubeServerExecutor struct{}
 
 func (kubeServerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.KubeServer, error) {
@@ -1321,7 +1293,7 @@ func (lockExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) 
 }
 
 func (lockExecutor) upsert(ctx context.Context, cache *Cache, resource types.Lock) error {
-	return cache.Access.UpsertLock(ctx, resource)
+	return cache.accessCache.UpsertLock(ctx, resource)
 }
 
 func (lockExecutor) deleteAll(ctx context.Context, cache *Cache) error {

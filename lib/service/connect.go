@@ -1198,7 +1198,10 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*auth.Client, error) {
 	var cltParams []roundtrip.ClientParam
 	if process.Config.ClientTimeout != 0 {
-		cltParams = []roundtrip.ClientParam{auth.ClientTimeout(process.Config.ClientTimeout)}
+		cltParams = []roundtrip.ClientParam{
+			auth.ClientParamIdleConnTimeout(process.Config.ClientTimeout),
+			auth.ClientParamResponseHeaderTimeout(process.Config.ClientTimeout),
+		}
 	}
 
 	var dialOpts []grpc.DialOption

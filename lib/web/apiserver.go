@@ -584,7 +584,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
 
 	// Issues SSH temp certificates based on 2FA access creds
-	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
+	h.POST("/webapi/ssh/certs", h.WithLimiter(h.createSSHCert))
 
 	// list available sites
 	h.GET("/webapi/sites", h.WithAuth(h.getClusters))
@@ -659,6 +659,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/github/login/console", h.WithLimiter(h.githubLoginConsole))
 
 	// MFA public endpoints.
+	h.POST("/webapi/sites/:site/mfa/required", h.WithClusterAuth(h.isMFARequired))
 	h.POST("/webapi/mfa/login/begin", h.WithLimiter(h.mfaLoginBegin))
 	h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
 	h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
@@ -3113,28 +3114,60 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	authClient := h.cfg.ProxyClient
+
 	cap, err := authClient.GetAuthPreference(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clientMeta := clientMetaFromReq(r)
+	var authenticationClient interface {
+		AuthenticateSSHUser(ctx context.Context, req auth.AuthenticateSSHRequest) (*auth.SSHLoginResponse, error)
+	} = authClient
 
-	var cert *auth.SSHLoginResponse
+	authReq := auth.AuthenticateUserRequest{
+		Username:       req.User,
+		PublicKey:      req.PubKey,
+		ClientMetadata: clientMetaFromReq(r),
+	}
 
 	switch cap.GetSecondFactor() {
 	case constants.SecondFactorOff:
-		cert, err = h.auth.GetCertificateWithoutOTP(r.Context(), req, clientMeta)
+		authReq.Pass = &auth.PassCreds{
+			Password: []byte(req.Password),
+		}
 	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
-		cert, err = h.auth.GetCertificateWithOTP(r.Context(), req, clientMeta)
+		authReq.OTP = &auth.OTPCreds{
+			Password: []byte(req.Password),
+			Token:    req.OTPToken,
+		}
+	case constants.SecondFactorWebauthn:
+		// WebAuthn only supports this endpoint for headless login.
+		authReq.HeadlessAuthenticationID = req.HeadlessAuthenticationID
+
+		// create a new http client with a standard callback timeout.
+		authenticationClient, err = authClient.CloneHTTPClient(
+			auth.ClientParamTimeout(defaults.CallbackTimeout),
+			auth.ClientParamResponseHeaderTimeout(defaults.CallbackTimeout),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	default:
-		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
+		return nil, trace.AccessDenied("unsupported second factor type: %q", cap.GetSecondFactor())
 	}
+
+	loginResp, err := authenticationClient.AuthenticateSSHUser(r.Context(), auth.AuthenticateSSHRequest{
+		AuthenticateUserRequest: authReq,
+		CompatibilityMode:       req.Compatibility,
+		TTL:                     req.TTL,
+		RouteToCluster:          req.RouteToCluster,
+		KubernetesCluster:       req.KubernetesCluster,
+		AttestationStatement:    req.AttestationStatement,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return cert, nil
+	return loginResp, nil
 }
 
 // validateTrustedCluster validates the token for a trusted cluster and returns it's own host and user certificate authority.
@@ -3565,10 +3598,10 @@ func makeTeleportClientConfig(ctx context.Context, sctx *SessionContext) (*clien
 	config := &client.Config{
 		Username:          sctx.GetUser(),
 		Agent:             agent,
-		SkipLocalAuth:     true,
+		NonInteractive:    true,
 		TLS:               tlsConfig,
 		AuthMethods:       []ssh.AuthMethod{ssh.PublicKeys(signers...)},
-		DefaultPrincipal:  cert.ValidPrincipals[0],
+		ProxySSHPrincipal: cert.ValidPrincipals[0],
 		HostKeyCallback:   callback,
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
 		Tracer:            apitracing.DefaultProvider().Tracer("webterminal"),

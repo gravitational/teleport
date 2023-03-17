@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 	toolcommon "github.com/gravitational/teleport/tool/common"
@@ -82,7 +82,7 @@ type GlobalCLIFlags struct {
 type CLICommand interface {
 	// Initialize allows a caller-defined command to plug itself into CLI
 	// argument parsing
-	Initialize(*kingpin.Application, *service.Config)
+	Initialize(*kingpin.Application, *servicecfg.Config)
 
 	// TryRun is executed after the CLI parsing is done. The command must
 	// determine if selectedCommand belongs to it and return match=true
@@ -114,7 +114,7 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	// cfg (teleport auth server configuration) is going to be shared by all
 	// commands
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// each command will add itself to the CLI parser:
@@ -230,11 +230,11 @@ func TryRun(commands []CLICommand, args []string) error {
 }
 
 // ApplyConfig takes configuration values from the config file and applies them
-// to 'service.Config' object.
+// to 'servicecfg.Config' object.
 //
 // The returned authclient.Config has the credentials needed to dial the auth
 // server.
-func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
+func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
 	// --debug flag
 	if ccf.Debug {
 		cfg.Debug = ccf.Debug
@@ -345,7 +345,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 }
 
 // LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
-func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
+func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
 	proxyAddr := ""
 	if len(ccf.AuthServerAddr) != 0 {
 		proxyAddr = ccf.AuthServerAddr[0]

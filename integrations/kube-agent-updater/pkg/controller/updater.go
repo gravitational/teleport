@@ -22,7 +22,7 @@ import (
 
 	"github.com/docker/distribution/reference"
 	"github.com/gravitational/trace"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/img"
@@ -42,7 +42,7 @@ type VersionUpdater struct {
 // validating the new image signature.
 // If all steps are successfully executed and there's a new version, it returns
 // a digested reference to the new image that should be deployed.
-func (r *VersionUpdater) GetVersion(ctx context.Context, obj v1.Object, currentVersion string) (img.NamedTaggedDigested, error) {
+func (r *VersionUpdater) GetVersion(ctx context.Context, obj client.Object, currentVersion string) (img.NamedTaggedDigested, error) {
 	// Those are debug logs only
 	log := ctrllog.FromContext(ctx).V(1)
 

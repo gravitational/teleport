@@ -18,6 +18,7 @@ package version
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/mod/semver"
@@ -48,4 +49,16 @@ func ValidVersionChange(ctx context.Context, current, next string) bool {
 	default:
 		return true
 	}
+}
+
+// EnsureSemver adds the 'v' prefix if needed and ensures the provided version
+// is semver-compliant.
+func EnsureSemver(current string) (string, error) {
+	if !strings.HasPrefix(current, "v") {
+		current = "v" + current
+	}
+	if !semver.IsValid(current) {
+		return "", trace.BadParameter("tag %s is not following semver", current)
+	}
+	return current, nil
 }

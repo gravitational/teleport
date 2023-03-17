@@ -34,6 +34,12 @@ export type ClusterAlert = {
   };
 };
 
+export const alertNames = {
+  RELEASE_ALERT_ID: 'upgrade-suggestion',
+  SEC_ALERT_ID: 'security-patch-available',
+  VER_IN_USE: 'teleport.internal/ver-in-use',
+};
+
 export function fetchClusterAlerts(clusterId: string) {
   const url = cfg.getClusterAlertsUrl(clusterId);
   return api.get(url).then(json => {

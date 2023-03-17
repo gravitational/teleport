@@ -57,6 +57,19 @@ $ go mod init client-demo
 $ go get github.com/gravitational/teleport/api/client
 ```
 
+<Admonition type="tip" title="API Version">
+To ensure compatibility, you should use a version of Teleport's API library that matches
+the major version of Teleport running in your cluster.
+
+To find the pseudoversion appropriate for a go.mod file for a specific git tag,
+run the following command from the `teleport` repository:
+
+```code
+$ go list -f '{{.Version}}' -m "github.com/gravitational/teleport/api@$(git rev-parse v12.1.0)"
+v0.0.0-20230307032901-49a6de744a3a
+```
+</Admonition>
+
 Create a file called `main.go`, modifying the `Addrs` strings as needed:
 
 ```go

@@ -34,14 +34,8 @@ metadata:
 spec:
   allow:
     rules:
-    - resources:
-      - saml_idp_service_provider
-      verbs:
-      - list
-      - create
-      - read
-      - update
-      - delete
+    - resources: [saml_idp_service_provider]
+      verbs: [list, create, read, update, delete]
 ```
 
 Create it with `tctl`:
@@ -51,14 +45,7 @@ $ tctl create sp-manager.yaml
 role 'saml-idp-service-provider-manager' has been created
 ```
 
-And then add the role to your user. Replace `teleport-admin` with your user name:
-
-```code
-$ tctl users update --set-roles $(tctl get users/<Var name="teleport-admin"/> --format=json | \
-jq -r '.[].spec.roles | join(",")'), sp-manager <Var name="teleport-admin"/>
-User teleport-admin has been updated:
-	New roles: auditor,editor,access,sp-manager
-```
+(!docs/pages/includes/add-role-to-user.mdx role="saml_idp_service_provider" !)
 
 ## Step 2/3. Configure Grafana to recognize Teleport's identity provider
 
@@ -67,7 +54,7 @@ SAML identity provider metadata. You can obtain this metadata in XML format by
 navigating to `https://<proxy-address>/enterprise/saml-idp/metadata`. Save
 it in an easy to remember file name like `teleport-metadata.xml`.
 
-Encode the metadata using base64 to provide to the Grafana config:
+Encode the metadata using `base64` to provide to the Grafana config:
 
 ```code
 $ cat teleport-metadata.xml | base64
@@ -94,10 +81,10 @@ assertion_attribute_groups = eduPersonAffiliation
 | `auto_login`       | When set to `true`, enables auto-login using SAML.             |
 | `private_key_path` | Path to the TLS key used to identify Grafana.                  |
 | `certificate_path` | Path to the TLS certificate used to identify Grafana.          |
-| `ipd_metadata`     | The base64-encoded contents of the Teleport metadata XML file. |
+| `idp_metadata`     | The base64-encoded contents of the Teleport metadata XML file. |
 | `assertion_*`      | Various Grafana user fields to be mapped to SAML assertions.   |
 
-For more information on editing `grafana.ini` for SAML, you can review their[Configure
+For more information on editing `grafana.ini` for SAML, you can review their [Configure
 SAML authentication in Grafana](https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/configure-authentication/saml/)
 page.
 

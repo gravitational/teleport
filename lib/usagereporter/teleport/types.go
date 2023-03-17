@@ -38,11 +38,16 @@ type Anonymizable interface {
 type UserLoginEvent prehogv1.UserLoginEvent
 
 func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	var deviceID string
+	if u.DeviceId != "" {
+		deviceID = a.AnonymizeString(u.DeviceId)
+	}
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UserLogin{
 			UserLogin: &prehogv1.UserLoginEvent{
 				UserName:      a.AnonymizeString(u.UserName),
 				ConnectorType: u.ConnectorType,
+				DeviceId:      deviceID,
 			},
 		},
 	}
@@ -329,6 +334,29 @@ func (u *SFTPEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 			Sftp: &prehogv1.SFTPEvent{
 				UserName: a.AnonymizeString(u.UserName),
 				Action:   u.Action,
+			},
+		},
+	}
+}
+
+// AgentMetadataEvent is an event emitted after an agent first connects to the auth server.
+type AgentMetadataEvent prehogv1.AgentMetadataEvent
+
+func (u *AgentMetadataEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_AgentMetadataEvent{
+			AgentMetadataEvent: &prehogv1.AgentMetadataEvent{
+				Version:               u.Version,
+				HostId:                a.AnonymizeString(u.HostId),
+				Services:              u.Services,
+				Os:                    u.Os,
+				OsVersion:             u.OsVersion,
+				HostArchitecture:      u.HostArchitecture,
+				GlibcVersion:          u.GlibcVersion,
+				InstallMethods:        u.InstallMethods,
+				ContainerRuntime:      u.ContainerRuntime,
+				ContainerOrchestrator: u.ContainerOrchestrator,
+				CloudEnvironment:      u.CloudEnvironment,
 			},
 		},
 	}

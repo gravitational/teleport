@@ -85,22 +85,18 @@ type Router struct {
 // MatchFunc is a type of the match route functions.
 type MatchFunc func(sni, alpn string) bool
 
-// MatchByProtocol creates match function based on client TLS ALPN protocol.
+// MatchByProtocol creates a match function that matches the client TLS ALPN
+// protocol against the provided list of ALPN protocols and their corresponding
+// Ping protocols.
 func MatchByProtocol(protocols ...common.Protocol) MatchFunc {
 	m := make(map[common.Protocol]struct{})
-	for _, v := range protocols {
+	for _, v := range common.WithPingProtocols(protocols) {
 		m[v] = struct{}{}
 	}
 	return func(sni, alpn string) bool {
 		_, ok := m[common.Protocol(alpn)]
 		return ok
 	}
-}
-
-// MatchByProtocolWithPing creates match function based on client TLS APLN
-// protocol matching also their ping protocol variations.
-func MatchByProtocolWithPing(protocols ...common.Protocol) MatchFunc {
-	return MatchByProtocol(append(protocols, common.ProtocolsWithPing(protocols...)...)...)
 }
 
 // MatchByALPNPrefix creates match function based on client TLS ALPN protocol prefix.

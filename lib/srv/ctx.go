@@ -42,8 +42,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -104,7 +104,7 @@ type AccessPoint interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
 	services.ConnectionDiagnosticTraceAppender
@@ -143,7 +143,7 @@ type Server interface {
 	GetDataDir() string
 
 	// GetPAM returns PAM configuration for this server.
-	GetPAM() (*pam.Config, error)
+	GetPAM() (*servicecfg.PAMConfig, error)
 
 	// GetClock returns a clock setup for the server
 	GetClock() clockwork.Clock
@@ -379,6 +379,12 @@ type ServerContext struct {
 
 	// JoinOnly is set if the connection was created using a join-only principal and may only be used to join other sessions.
 	JoinOnly bool
+
+	// ServerSubKind if the sub kind of the node this context is for.
+	ServerSubKind string
+
+	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
+	UserCreatedByTeleport bool
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -410,6 +416,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		clientIdleTimeout:      identityContext.AccessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		cancelContext:          cancelContext,
 		cancel:                 cancel,
+		ServerSubKind:          srv.TargetMetadata().ServerSubKind,
 	}
 
 	fields := log.Fields{
@@ -1062,6 +1069,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		ClientAddress:         c.ServerConn.RemoteAddr().String(),
 		RequestType:           requestType,
 		PermitUserEnvironment: c.srv.PermitUserEnvironment(),
+		UserCreatedByTeleport: c.UserCreatedByTeleport,
 		Environment:           buildEnvironment(c),
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,

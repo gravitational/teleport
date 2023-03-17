@@ -25,12 +25,10 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/teleport"
-	apiproxy "github.com/gravitational/teleport/api/client/proxy"
-	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/utils"
@@ -42,10 +40,7 @@ func NewInsecureWebClient() *http.Client {
 
 func newClient(insecure bool, pool *x509.CertPool, extraHeaders map[string]string) *http.Client {
 	return &http.Client{
-		Transport: otelhttp.NewTransport(
-			apiproxy.NewHTTPRoundTripper(httpTransport(insecure, pool), extraHeaders),
-			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
-		),
+		Transport: tracehttp.NewTransport(apiutils.NewHTTPRoundTripper(httpTransport(insecure, pool), extraHeaders)),
 	}
 }
 
