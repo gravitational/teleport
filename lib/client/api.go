@@ -229,16 +229,12 @@ type Config struct {
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
 
-	// SkipLocalAuth tells the client not to use its own SSH agent or ask user for passwords. This is
-	// used by external programs linking against Teleport client and obtaining credentials from elsewhere.
-	// e.g. from an identity file.
-	SkipLocalAuth bool
+	// NonInteractive tells the client not to trigger interactive features for non-interactive commands,
+	// such as prompting user to re-login on credential errors. This is used by external programs linking
+	// against Teleport client and obtaining credentials from elsewhere. e.g. from an identity file.
+	NonInteractive bool
 
-	// UseKeyPrincipals forces the use of the username from the key principals rather than using
-	// the current user username.
-	UseKeyPrincipals bool
-
-	// Agent is used when SkipLocalAuth is true
+	// Agent is an SSH agent to use for local Agent procedures. Defaults to in-memory agent keyring.
 	Agent agent.ExtendedAgent
 
 	ClientStore *Store
@@ -264,10 +260,10 @@ type Config struct {
 	// will use this TLS configuration to access API endpoints
 	TLS *tls.Config
 
-	// DefaultPrincipal determines the default SSH username (principal) the client should be using
-	// when connecting to auth/proxy servers. Usually it's returned with a certificate,
-	// but this variables provides a default (used by the web-based terminal client)
-	DefaultPrincipal string
+	// ProxySSHPrincipal determines the SSH username (principal) the client should be using
+	// when connecting to auth/proxy servers. By default, the SSH username is pulled from
+	// the user's certificate, but the web-based terminal provides this username explicitly.
+	ProxySSHPrincipal string
 
 	Stdout io.Writer
 	Stderr io.Writer
@@ -310,9 +306,9 @@ type Config struct {
 	// SessionID is a session ID to use when opening a new session.
 	SessionID string
 
-	// Interactive, when set to true, tells tsh to launch a remote command
-	// in interactive mode, i.e. attaching the temrinal to it
-	Interactive bool
+	// InteractiveCommand tells tsh to launch a remote exec command in interactive mode,
+	// i.e. attaching the terminal to it.
+	InteractiveCommand bool
 
 	// ClientAddr (if set) specifies the true client IP. Usually it's not needed (since the server
 	// can look at the connecting address to determine client's IP) but for cases when the
@@ -501,28 +497,22 @@ func VirtualPathEnvNames(kind VirtualPathKind, params VirtualPathParams) []strin
 // RetryWithRelogin is a helper error handling method, attempts to relogin and
 // retry the function once.
 func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) error {
-	err := fn()
-	if err == nil {
+	fnErr := fn()
+	switch {
+	case fnErr == nil:
 		return nil
+	case utils.IsPredicateError(fnErr):
+		return trace.Wrap(utils.PredicateError{Err: fnErr})
+	case tc.NonInteractive:
+		return trace.Wrap(fnErr)
+	case !IsErrorResolvableWithRelogin(fnErr):
+		return trace.Wrap(fnErr)
 	}
 
-	if utils.IsPredicateError(err) {
-		return trace.Wrap(utils.PredicateError{Err: err})
-	}
-
-	if !IsErrorResolvableWithRelogin(err) {
-		return trace.Wrap(err)
-	}
-
-	// Don't try to login when using an identity file / external identity.
-	if tc.SkipLocalAuth {
-		return trace.Wrap(err)
-	}
-
-	log.Debugf("Activating relogin on error %q.", err)
+	log.Debugf("Activating relogin on error %v.", fnErr)
 
 	// check if the error is a private key policy error.
-	if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(err); err == nil {
+	if privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr); err == nil {
 		// The current private key was rejected due to an unmet key policy requirement.
 		fmt.Fprintf(tc.Stderr, "Unmet private key policy %q\n", privateKeyPolicy)
 		fmt.Fprintf(tc.Stderr, "Relogging in with YubiKey generated private key.\n")
@@ -968,8 +958,9 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	}
 
 	if tc.ClientStore == nil {
-		if c.SkipLocalAuth {
-			// initialize empty client store to prevent panics.
+		if tc.TLS != nil || tc.AuthMethods != nil {
+			// Client will use static auth methods instead of client store.
+			// Initialize empty client store to prevent panics.
 			tc.ClientStore = NewMemClientStore()
 		} else {
 			tc.ClientStore = NewFSClientStore(c.KeysDir)
@@ -1114,6 +1105,23 @@ func (tc *TeleportClient) RootClusterName(ctx context.Context) (string, error) {
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
+
+	if tc.TLS != nil {
+		if len(tc.TLS.Certificates) == 0 || len(tc.TLS.Certificates[0].Certificate) == 0 {
+			return "", trace.BadParameter("missing tc.TLS.Certificates")
+		}
+
+		cert, err := x509.ParseCertificate(tc.TLS.Certificates[0].Certificate[0])
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		clusterName := cert.Issuer.CommonName
+		if clusterName == "" {
+			return "", trace.NotFound("failed to extract root cluster name from Teleport TLS cert")
+		}
+		return clusterName, nil
+	}
 
 	key, err := tc.LocalAgent().GetCoreKey()
 	if err != nil {
@@ -2506,7 +2514,7 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 		return trace.Wrap(err)
 	}
 	defer nodeSession.Close()
-	if err := nodeSession.runCommand(ctx, types.SessionPeerMode, command, tc.OnShellCreated, tc.Config.Interactive); err != nil {
+	if err := nodeSession.runCommand(ctx, types.SessionPeerMode, command, tc.OnShellCreated, tc.Config.InteractiveCommand); err != nil {
 		originErr := trace.Unwrap(err)
 		exitErr, ok := originErr.(*ssh.ExitError)
 		if ok {
@@ -2581,24 +2589,25 @@ func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, 
 
 // getProxyLogin determines which SSH principal to use when connecting to proxy.
 func (tc *TeleportClient) getProxySSHPrincipal() string {
-	proxyPrincipal := tc.Config.HostLogin
-	if tc.DefaultPrincipal != "" {
-		proxyPrincipal = tc.DefaultPrincipal
+	if tc.ProxySSHPrincipal != "" {
+		return tc.ProxySSHPrincipal
 	}
-	if len(tc.JumpHosts) > 1 && tc.JumpHosts[0].Username != "" {
+
+	// if we have any keys in the cache, pull the user's valid principals from it.
+	if tc.localAgent != nil {
+		signers, err := tc.localAgent.Signers()
+		if err == nil && len(signers) > 0 {
+			cert, ok := signers[0].PublicKey().(*ssh.Certificate)
+			if ok && len(cert.ValidPrincipals) > 0 {
+				return cert.ValidPrincipals[0]
+			}
+		}
+	}
+
+	proxyPrincipal := tc.Config.HostLogin
+	if len(tc.JumpHosts) > 0 && tc.JumpHosts[0].Username != "" {
 		log.Debugf("Setting proxy login to jump host's parameter user %q", tc.JumpHosts[0].Username)
 		proxyPrincipal = tc.JumpHosts[0].Username
-	}
-	// see if we already have a signed key in the cache, we'll use that instead
-	if (!tc.Config.SkipLocalAuth || tc.UseKeyPrincipals) && tc.localAgent != nil {
-		signers, err := tc.localAgent.Signers()
-		if err != nil || len(signers) == 0 {
-			return proxyPrincipal
-		}
-		cert, ok := signers[0].PublicKey().(*ssh.Certificate)
-		if ok && len(cert.ValidPrincipals) > 0 {
-			return cert.ValidPrincipals[0]
-		}
 	}
 	return proxyPrincipal
 }
@@ -3913,10 +3922,9 @@ func (tc *TeleportClient) AskPassword(ctx context.Context) (pwd string, err erro
 		ctx, tc.Stderr, prompt.Stdin(), fmt.Sprintf("Enter password for Teleport user %v", tc.Config.Username))
 }
 
-// LoadTLSConfig returns the user's TLS configuration for an external identity if the SkipLocalAuth flag was set
-// or teleport core TLS certificate for the local agent.
+// LoadTLSConfig returns the user's TLS configuration, either from static
+// configuration or from its key store.
 func (tc *TeleportClient) LoadTLSConfig() (*tls.Config, error) {
-	// if SkipLocalAuth flag is set use an external identity file instead of loading cert from the local agent.
 	if tc.TLS != nil {
 		return tc.TLS.Clone(), nil
 	}
@@ -3945,10 +3953,32 @@ func (tc *TeleportClient) LoadTLSConfig() (*tls.Config, error) {
 		}
 	}
 
-	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, clusters)
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil /* cipherSuites */, clusters)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}
+	tlsConfig.InsecureSkipVerify = tc.InsecureSkipVerify
+	return tlsConfig, nil
+}
+
+// LoadTLSConfigForClusters returns the client's TLS configuration, either from static
+// configuration or from its key store. If loaded from the key store, CA certs will be
+// loaded for the given clusters only.
+func (tc *TeleportClient) LoadTLSConfigForClusters(clusters []string) (*tls.Config, error) {
+	if tc.TLS != nil {
+		return tc.TLS.Clone(), nil
+	}
+
+	tlsKey, err := tc.localAgent.GetCoreKey()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", tc.Username)
+	}
+
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil /* cipherSuites */, clusters)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate client TLS config")
+	}
+	tlsConfig.InsecureSkipVerify = tc.InsecureSkipVerify
 	return tlsConfig, nil
 }
 
