@@ -3122,9 +3122,21 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	} = authClient
 
 	authReq := auth.AuthenticateUserRequest{
-		Username:       req.User,
-		PublicKey:      req.PubKey,
-		ClientMetadata: clientMetaFromReq(r),
+		HeadlessAuthenticationID: req.HeadlessAuthenticationID,
+		Username:                 req.User,
+		PublicKey:                req.PubKey,
+		ClientMetadata:           clientMetaFromReq(r),
+	}
+
+	if authReq.HeadlessAuthenticationID != "" {
+		// create a new http client with a standard callback timeout.
+		authenticationClient, err = authClient.CloneHTTPClient(
+			auth.ClientParamTimeout(defaults.CallbackTimeout),
+			auth.ClientParamResponseHeaderTimeout(defaults.CallbackTimeout),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	switch cap.GetSecondFactor() {
@@ -3138,17 +3150,7 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 			Token:    req.OTPToken,
 		}
 	case constants.SecondFactorWebauthn:
-		// WebAuthn only supports this endpoint for headless login.
-		authReq.HeadlessAuthenticationID = req.HeadlessAuthenticationID
-
-		// create a new http client with a standard callback timeout.
-		authenticationClient, err = authClient.CloneHTTPClient(
-			auth.ClientParamTimeout(defaults.CallbackTimeout),
-			auth.ClientParamResponseHeaderTimeout(defaults.CallbackTimeout),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		// WebAuthn supports this endpoint for headless login.
 	default:
 		return nil, trace.AccessDenied("unsupported second factor type: %q", cap.GetSecondFactor())
 	}

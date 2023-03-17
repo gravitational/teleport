@@ -202,6 +202,18 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 	var authErr error // error message kept obscure on purpose, use logging for details
 	switch {
 	// cases in order of preference
+	case req.HeadlessAuthenticationID != "":
+		// handle authentication before the user lock to prevent locking out users
+		// due to timed-out/canceled headless authentication attempts.
+		mfaDevice, err := s.authenticateHeadless(ctx, req)
+		if err != nil {
+			log.Debugf("Headless Authentication for user %q failed while waiting for approval: %v", user, err)
+			return nil, "", trace.Wrap(invalidHeadlessAuthenticationError)
+		}
+		authenticateFn = func() (*types.MFADevice, error) {
+			return mfaDevice, nil
+		}
+		authErr = invalidHeadlessAuthenticationError
 	case req.Webauthn != nil:
 		authenticateFn = func() (*types.MFADevice, error) {
 			mfaResponse := &proto.MFAAuthenticateResponse{
@@ -224,18 +236,6 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			return res.mfaDev, nil
 		}
 		authErr = invalidUserPass2FError
-	case req.HeadlessAuthenticationID != "":
-		// handle authentication before the user lock to prevent locking out users
-		// due to timed-out/canceled headless authentication attempts.
-		mfaDevice, err := s.authenticateHeadless(ctx, req)
-		if err != nil {
-			log.Debugf("Headless Authentication for user %q failed while waiting for approval: %v", user, err)
-			return nil, "", trace.Wrap(invalidHeadlessAuthenticationError)
-		}
-		authenticateFn = func() (*types.MFADevice, error) {
-			return mfaDevice, nil
-		}
-		authErr = invalidHeadlessAuthenticationError
 	}
 	if authenticateFn != nil {
 		var dev *types.MFADevice
