@@ -60,18 +60,16 @@ repository on GitHub.
 
 ## Step 1/7. Set up your Go project
 
-The first step is to create a project directory and initialize a Go module for
-your project: 
+Download the source code for our minimal Access Request plugin:
 
 ```code
-$ mkdir teleport-sheets
-$ cd teleport-sheets
-$ go mod init teleport-sheets
-go: creating new go.mod: module teleport-sheets
+$ git clone https://github.com/gravitational/teleport
+$ cd teleport/examples/access-plugin-minimal
 ```
 
-This creates a new file in your project directory, `go.mod`, which Go's package
-management system uses to fetch your plugin's dependencies.
+For the rest of this guide, we will show you how to set up this plugin and
+explore the way the plugin uses Teleport's API to integrate Access Requests with
+a particular workflow.
 
 ## Step 2/7. Set up the Google Sheets API
 
@@ -191,36 +189,11 @@ to work, we will set up Role Access Requests in your cluster.
 
 ## Step 4/7. Write the Access Request plugin
 
-At this point, we have completed the preparatory steps required to run an Access
-Request plugin, including setting up your Teleport roles to support Role Access
-Requests and getting credentials for the APIs the plugin will authenticate to.
-Next, we will write the Access Request plugin.
+In this step, we will walk you through the structure of the Access Request
+plugin in `examples/access-plugin-minimal/main.go`. You can use the example here
+to write your own Access Request plugin.
 
-### Add imports
-
-Create a file called `main.go` in your project directory with the following
-content:
-
-```go
-package main
-
-import (
-	"context"
-	"errors"
-	"fmt"
-	"strings"
-	"time"
-
-	"github.com/gravitational/teleport-plugins/lib"
-	"github.com/gravitational/teleport-plugins/lib/watcherjob"
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
-	"google.golang.org/api/option"
-	sheets "google.golang.org/api/sheets/v4"
-	"google.golang.org/grpc"
-)
-```
+### Imports
 
 Here are the packages our Access Request plugin will import from Go's standard
 library:
@@ -246,9 +219,9 @@ The plugin imports the following third-party code:
 |`google.golang.org/api/sheets/v4`|The Google Sheets API client library, aliased as `sheets` in our program.|
 |`google.golang.org/grpc`|The gRPC client and server library.|
 
-### Make some initial declarations
+### Initial declarations
 
-After the `import` block, add the following declarations:
+After the `import` block, you can find some globally scoped declarations:
 
 ```go
 const (
@@ -286,7 +259,7 @@ https://docs.google.com/spreadsheets/d/SPREADHSEET_ID/edit#gid=0
 ```
 
 Access Requests have one of four states: approved, denied, pending, and none.
-Later in the guide, we will need a way to map these states to strings that we
+Later in the program, we will need a way to map these states to strings that we
 can write to our Google Sheets spreadsheet. We obtain the request states from
 Teleport's `types` library and map them to strings in the `requestStates` map.
 
@@ -298,8 +271,7 @@ struct to organize these two clients, instead of, say, two separate variables.
 
 Whether creating a new row of the spreadsheet or updating an existing one, we
 need a way to extract data from an Access Request in order to provide it to
-Google Sheets. Below the `googleSheetsPlugin` type declaration, add the
-following functions:
+Google Sheets. We achieve this with the `makeRowData` method:
 
 ```go
 func stringPtr(s string) *string { return &s }
@@ -377,12 +349,11 @@ Users can review an Access Request by visiting a URL within the Teleport Web UI
 that corresponds to the request's ID. `makeRowData` assembles a `=HYPERLINK`
 formula that we can insert into the spreadsheet as a link to this URL.
 
-Next, we'll add two functions that call `makeRowData`, one to create a new row
-and one to update an existing row.
-
 ### Create a row
 
-Below `makeRowData`, add the following:
+The following function submits a request to the Google Sheets API to create a
+new row based on an incoming Access Request, using the data returned by
+`makeRowData`. It returns an error if the attempt to create a row failed:
 
 ```go
 func (g *googleSheetsPlugin) createRow(ar types.AccessRequest) error {
@@ -421,13 +392,9 @@ func (g *googleSheetsPlugin) createRow(ar types.AccessRequest) error {
 }
 ```
 
-`createRow` submits a request to the Google Sheets API to create a new row based
-on an incoming Access Request, using the data returned by `makeRowData`. It
-returns an error if the attempt to create a row failed. 
-
-It assembles a `sheets.BatchUpdateSpreadsheetRequest` and sends it to the Google
-Sheets API using `g.sheetsClient.BatchUpdate()`, returning errors encountered
-while sending the request.
+`createRow` assembles a `sheets.BatchUpdateSpreadsheetRequest` and sends it to
+the Google Sheets API using `g.sheetsClient.BatchUpdate()`, returning errors
+encountered while sending the request.
 
 We log unexpected HTTP status codes without returning an error since these may
 be transient server-side issues. A production Access Request plugin would handle
@@ -436,8 +403,7 @@ can retry it later.
 
 ### Update a row
 
-The code for updating a row is similar to the code for creating a new row. Add
-this function below `createRow`:
+The code for updating a row is similar to the code for creating a new row: 
 
 ```go
 func (g *googleSheetsPlugin) updateRow(ar types.AccessRequest, rowNum int64) error {
@@ -486,7 +452,9 @@ request to update that row with information from the provided Access Request.
 
 ### Determine where to update the spreadsheet
 
-Below `updateRow`, add this function:
+When our program receives an event that updates an Access Request, it needs a
+way to look up the row in the spreadsheet that corresponds to the Access Reqeust
+so it can update the row:
 
 ```go
 func (g *googleSheetsPlugin) updateSpreadsheet(ar types.AccessRequest) error {
@@ -526,10 +494,9 @@ It then calls `updateRow` with the Access Request and the row's number.
 
 ### Handle incoming Access Requests
 
-Next, we will determine whether to call `updateSpreadsheet` or `createRow`
+Our plugin determines whether to call `updateSpreadsheet` or `createRow`
 depending on whether an incoming Access Request event is a new Access Request or
-an update to an existing one. Add the following function below
-`updateSpreadsheet`:
+an update to an existing one:
 
 ```go
 func (g *googleSheetsPlugin) handleEvent(ctx context.Context, event types.Event) error {
@@ -559,9 +526,8 @@ signature for `handleEvent`.
 
 ### Run a watcher job
 
-Now that we have a function that can handle incoming Teleport events, we will
-add a function that calls our handler function when it receives an event. Add
-the following below `handleEvent`:
+The plugin will call our handler function when it receives an event. To set this
+up, we use the `run` method below: 
 
 ```go
 func (g *googleSheetsPlugin) run() error {
@@ -587,7 +553,7 @@ func (g *googleSheetsPlugin) run() error {
 }
 ```
 
-The `run` function starts a new background routine using `lib.NewProcess(ctx)`.
+The `run` method starts a new background routine using `lib.NewProcess(ctx)`.
 This returns an implementation of the `lib.Process` interface, which Access
 Request plugins use to run jobs independently of the main program. This function
 takes a Go *context*, an abstraction that Go libraries often use to control
@@ -626,9 +592,7 @@ to communicate with one another.
 Now we have all the code we need to use the Teleport and Google Sheets API
 clients to listen for Access Request events and use them to maintain a
 spreadsheet. The final step is to start our program by initializing the API
-clients. 
-
-Add the following below the `run` function we defined in the last section:
+clients:
 
 ```go
 func main() {
@@ -695,12 +659,11 @@ Make sure that:
 
 ## Step 7/7. Test your plugin
 
-Now that you have written your plugin, run it to forward Access Requests from
-your Teleport cluster to Google Sheets. Execute the following commands from
-within your project directory:
+Run the plugin to forward Access Requests from your Teleport cluster to Google
+Sheets. Execute the following commands from within
+`examples/access-plugin-minimal`:
 
 ```code
-$ go get
 $ go run main.go
 ```
 
