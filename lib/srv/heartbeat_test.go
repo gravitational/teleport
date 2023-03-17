@@ -34,7 +34,7 @@ import (
 func TestHeartbeatKeepAlive(t *testing.T) {
 	t.Parallel()
 
-	var tests = []struct {
+	tests := []struct {
 		name       string
 		mode       HeartbeatMode
 		makeServer func() types.Resource
@@ -89,30 +89,6 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 						Protocol: defaults.ProtocolPostgres,
 						URI:      "127.0.0.1:1234",
 						Hostname: "2",
-					},
-				}
-			},
-		},
-		{
-			name: "keep alive kubernetes server",
-			mode: HeartbeatModeKube,
-			makeServer: func() types.Resource {
-				return &types.KubernetesServerV3{
-					Kind:    types.KindKubeService,
-					Version: types.V2,
-					Metadata: types.Metadata{
-						Namespace: apidefaults.Namespace,
-						Name:      "1",
-					},
-					Spec: types.KubernetesServerSpecV3{
-						Hostname: "127.0.0.1:1234",
-						Cluster: &types.KubernetesClusterV3{
-							Metadata: types.Metadata{
-								Namespace: apidefaults.Namespace,
-								Name:      "1",
-							},
-							Spec: types.KubernetesClusterSpecV3{},
-						},
 					},
 				}
 			},
@@ -387,19 +363,6 @@ func (f *fakeAnnouncer) UpsertAuthServer(s types.Server) error {
 	return f.err
 }
 
-func (f *fakeAnnouncer) UpsertKubeService(ctx context.Context, s types.Server) error {
-	f.upsertCalls[HeartbeatModeKube]++
-	return f.err
-}
-
-func (f *fakeAnnouncer) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
-	f.upsertCalls[HeartbeatModeKube]++
-	if f.err != nil {
-		return nil, f.err
-	}
-	return &types.KeepAlive{}, f.err
-}
-
 func (f *fakeAnnouncer) UpsertKubernetesServer(ctx context.Context, s types.KubeServer) (*types.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeKube]++
 	if f.err != nil {
@@ -416,12 +379,7 @@ func (f *fakeAnnouncer) UpsertWindowsDesktopService(ctx context.Context, s types
 	return &types.KeepAlive{}, nil
 }
 
-func (f *fakeAnnouncer) CreateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
-	f.upsertCalls[HeartbeatModeWindowsDesktop]++
-	return f.err
-}
-
-func (f *fakeAnnouncer) UpdateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+func (f *fakeAnnouncer) UpsertWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
 	f.upsertCalls[HeartbeatModeWindowsDesktop]++
 	return f.err
 }
@@ -433,6 +391,7 @@ func (f *fakeAnnouncer) UpsertDatabaseService(ctx context.Context, s types.Datab
 	}
 	return &types.KeepAlive{}, nil
 }
+
 func (f *fakeAnnouncer) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 	return f, f.err
 }

@@ -121,6 +121,21 @@ $ tctl create github.yaml
   able to determine team memberships for these organizations.
 </Admonition>
 
+After a user authenticates, Teleport will add the user's GitHub username to their
+`internal.logins` trait for their Teleport session. The preset `access` role has this
+trait variable configured to include the GitHub user as an authorized SSH login.
+Here is an example role configuration snippet using the trait variable:
+
+```yaml
+  allow:
+    # List of allowed SSH logins
+    logins: ['{{internal.logins}}', ubuntu, debian]
+
+    # List of node labels that users can SSH into
+    node_labels:
+      '*': '*'
+```
+
 ## Step 3/3. Configure authentication preference
 
 Configure the Teleport Auth Service to enable the GitHub authentication
@@ -170,7 +185,6 @@ auth_service:
 
 You can now log in with Teleport using GitHub SSO.
 
-
 Run the following to log out of Teleport and log in again using GitHub SSO.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
@@ -179,6 +193,8 @@ Run the following to log out of Teleport and log in again using GitHub SSO.
 $ tsh logout
 # Logged out all users from all proxies.
 $ tsh login --proxy=tele.example.com
+If browser window does not open automatically, open it by clicking on the link:
+ http://127.0.0.1:56334/6bf976e6-a4be-4898-94eb-8a7b01af2158
 ```
 
 </ScopedBlock>
@@ -188,6 +204,8 @@ $ tsh login --proxy=tele.example.com
 $ tsh logout
 # Logged out all users from all proxies.
 $ tsh login --proxy=mytenant.teleport.sh
+If browser window does not open automatically, open it by clicking on the link:
+ http://127.0.0.1:56334/6bf976e6-a4be-4898-94eb-8a7b01af2158
 ```
 
 </ScopedBlock>
@@ -200,6 +218,43 @@ GitHub OAuth app:
 After logging in successfully, you will see the following:
 
 ![Login success view](../../../img/login-success.jpg)
+
+
+You will receive the details of your user session within the CLI. 
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+> Profile URL:        https://tele.example.com:443
+  Logged in as:       jeff
+  Cluster:            tele.example.com
+  Roles:              access
+  Logins:             jeff, ubuntu, debian, -teleport-internal-join
+  Kubernetes:         enabled
+  Kubernetes users:   dev
+  Kubernetes groups:  developer
+  Valid until:        2023-03-08 17:13:50 -0600 CST [valid for 7h51m0s]
+  Extensions:         permit-port-forwarding, permit-pty, private-key-policy
+```
+
+</ScopedBlock>
+
+<ScopedBlock scope={["cloud"]}>
+
+```code
+> Profile URL:        https://mytenant.teleport.sh:443
+  Logged in as:       jeff
+  Cluster:            mytenant.teleport.sh
+  Roles:              access
+  Logins:             jeff, ubuntu, debian, -teleport-internal-join
+  Kubernetes:         enabled
+  Kubernetes users:   dev
+  Kubernetes groups:  developer
+  Valid until:        2023-03-08 17:13:50 -0600 CST [valid for 7h51m0s]
+  Extensions:         permit-port-forwarding, permit-pty, private-key-policy
+
+```
+</ScopedBlock>
 
 ## Troubleshooting
 

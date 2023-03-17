@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ALPNAuthClient contains the required auth.ClientI methods to create a local ALPN proxy.
@@ -51,6 +50,10 @@ type ALPNAuthClient interface {
 
 // ALPNAuthTunnelConfig contains the required fields used to create an authed ALPN Proxy
 type ALPNAuthTunnelConfig struct {
+	// MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one
+	// of the MFA devices registered for a user.
+	MFAResponse *proto.MFAAuthenticateResponse
+
 	// AuthClient is the client that's used to interact with the cluster and obtain Certificates.
 	AuthClient ALPNAuthClient
 
@@ -81,48 +84,19 @@ type ALPNAuthTunnelConfig struct {
 // RunALPNAuthTunnel runs a local authenticated ALPN proxy to another service.
 // At least one Route (which defines the service) must be defined
 func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
-	protocols := []alpn.Protocol{cfg.Protocol}
-	if alpn.HasPingSupport(cfg.Protocol) {
-		protocols = append(alpn.ProtocolsWithPing(cfg.Protocol), protocols...)
-	}
-
-	var pool *x509.CertPool
-
-	alpnUpgradeRequired := alpnproxy.IsALPNConnUpgradeRequired(cfg.PublicProxyAddr, cfg.InsecureSkipVerify)
-
-	if alpnUpgradeRequired {
-		caCert, err := cfg.AuthClient.GetClusterCACert(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		pool = x509.NewCertPool()
-		if ok := pool.AppendCertsFromPEM(caCert.GetTLSCA()); !ok {
-			return trace.BadParameter("failed to append cert from cluster's TLS CA Cert")
-		}
-	}
-
-	address, err := utils.ParseAddr(cfg.PublicProxyAddr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	tlsCert, err := getUserCerts(ctx, cfg.AuthClient, cfg.Expires, cfg.RouteToDatabase, cfg.ConnectionDiagnosticID)
+	tlsCert, err := getUserCerts(ctx, cfg.AuthClient, cfg.MFAResponse, cfg.Expires, cfg.RouteToDatabase, cfg.ConnectionDiagnosticID)
 	if err != nil {
 		return trace.BadParameter("failed to parse private key: %v", err)
 	}
 
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify:      cfg.InsecureSkipVerify,
-		RemoteProxyAddr:         cfg.PublicProxyAddr,
-		Protocols:               protocols,
-		Listener:                cfg.Listener,
-		ParentContext:           ctx,
-		SNI:                     address.Host(),
-		Certs:                   []tls.Certificate{*tlsCert},
-		RootCAs:                 pool,
-		ALPNConnUpgradeRequired: alpnUpgradeRequired,
-	})
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		RemoteProxyAddr:    cfg.PublicProxyAddr,
+		Protocols:          []alpn.Protocol{cfg.Protocol},
+		Listener:           cfg.Listener,
+		ParentContext:      ctx,
+		Certs:              []tls.Certificate{*tlsCert},
+	}, alpnproxy.WithALPNConnUpgradeTest(ctx, getClusterCACertPool(cfg.AuthClient)))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -137,7 +111,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 	return nil
 }
 
-func getUserCerts(ctx context.Context, client ALPNAuthClient, expires time.Time, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID string) (*tls.Certificate, error) {
+func getUserCerts(ctx context.Context, client ALPNAuthClient, mfaResponse *proto.MFAAuthenticateResponse, expires time.Time, routeToDatabase proto.RouteToDatabase, connectionDiagnosticID string) (*tls.Certificate, error) {
 	key, err := GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -154,6 +128,7 @@ func getUserCerts(ctx context.Context, client ALPNAuthClient, expires time.Time,
 		Expires:                expires,
 		ConnectionDiagnosticID: connectionDiagnosticID,
 		RouteToDatabase:        routeToDatabase,
+		MFAResponse:            mfaResponse,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -165,4 +140,19 @@ func getUserCerts(ctx context.Context, client ALPNAuthClient, expires time.Time,
 	}
 
 	return &tlsCert, nil
+}
+
+func getClusterCACertPool(authClient ALPNAuthClient) alpnproxy.GetClusterCACertPoolFunc {
+	return func(ctx context.Context) (*x509.CertPool, error) {
+		caCert, err := authClient.GetClusterCACert(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		pool := x509.NewCertPool()
+		if ok := pool.AppendCertsFromPEM(caCert.GetTLSCA()); !ok {
+			return nil, trace.BadParameter("failed to append cert from cluster's TLS CA Cert")
+		}
+		return pool, nil
+	}
 }

@@ -786,17 +786,17 @@ func TestCertAuthorityWatcher(t *testing.T) {
 
 		// Create a CA and ensure we receive the event.
 		ca := newCertAuthority(t, "test", types.HostCA)
-		require.NoError(t, caService.UpsertCertAuthority(ca))
+		require.NoError(t, caService.UpsertCertAuthority(ctx, ca))
 		waitForEvent(t, sub, types.HostCA, "test", types.OpPut)
 
 		// Delete a CA and ensure we receive the event.
-		require.NoError(t, caService.DeleteCertAuthority(ca.GetID()))
+		require.NoError(t, caService.DeleteCertAuthority(ctx, ca.GetID()))
 		waitForEvent(t, sub, types.HostCA, "test", types.OpDelete)
 
 		// Create a CA with a type that the watcher is NOT receiving and ensure
 		// we DO NOT receive the event.
 		signer := newCertAuthority(t, "test", types.JWTSigner)
-		require.NoError(t, caService.UpsertCertAuthority(signer))
+		require.NoError(t, caService.UpsertCertAuthority(ctx, signer))
 		ensureNoEvents(t, sub)
 	})
 
@@ -811,17 +811,17 @@ func TestCertAuthorityWatcher(t *testing.T) {
 		t.Cleanup(func() { require.NoError(t, sub.Close()) })
 
 		// Receives one HostCA event, matched by type and specific cluster name.
-		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "test", types.HostCA)))
+		require.NoError(t, caService.UpsertCertAuthority(ctx, newCertAuthority(t, "test", types.HostCA)))
 		waitForEvent(t, sub, types.HostCA, "test", types.OpPut)
 
 		// Receives one UserCA event, matched by type and wildcard cluster name.
-		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "unknown", types.UserCA)))
+		require.NoError(t, caService.UpsertCertAuthority(ctx, newCertAuthority(t, "unknown", types.UserCA)))
 		waitForEvent(t, sub, types.UserCA, "unknown", types.OpPut)
 
 		// Should NOT receive any HostCA events from another cluster.
 		// Should NOT receive any DatabaseCA events.
-		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "unknown", types.HostCA)))
-		require.NoError(t, caService.UpsertCertAuthority(newCertAuthority(t, "test", types.DatabaseCA)))
+		require.NoError(t, caService.UpsertCertAuthority(ctx, newCertAuthority(t, "unknown", types.HostCA)))
+		require.NoError(t, caService.UpsertCertAuthority(ctx, newCertAuthority(t, "test", types.DatabaseCA)))
 		ensureNoEvents(t, sub)
 	})
 }
@@ -864,6 +864,68 @@ func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) type
 	return ca
 }
 
+type unhealthyWatcher struct{}
+
+func (f unhealthyWatcher) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	return nil, trace.LimitExceeded("too many watchers")
+}
+
+// TestNodeWatcherFallback validates that calling GetNodes on
+// a NodeWatcher will pull data from the cache if the resourceWatcher
+// run loop is unhealthy due to issues creating a types.Watcher.
+func TestNodeWatcherFallback(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.Presence
+		types.Events
+	}
+
+	presence := local.NewPresenceService(bk)
+	w, err := services.NewNodeWatcher(ctx, services.NodeWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client: &client{
+				Presence: presence,
+				Events:   unhealthyWatcher{},
+			},
+			MaxStaleness: time.Minute,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	// Add some servers.
+	nodes := make([]types.Server, 0, 5)
+	for i := 0; i < 5; i++ {
+		node := newNodeServer(t, fmt.Sprintf("node%d", i), "127.0.0.1:2023", i%2 == 0)
+		_, err = presence.UpsertNode(ctx, node)
+		require.NoError(t, err)
+		nodes = append(nodes, node)
+	}
+
+	require.Empty(t, w.NodeCount())
+	require.False(t, w.IsInitialized())
+
+	got := w.GetNodes(ctx, func(n services.Node) bool {
+		return true
+	})
+	require.Equal(t, len(nodes), len(got))
+
+	require.Equal(t, len(nodes), w.NodeCount())
+	require.False(t, w.IsInitialized())
+}
+
 func TestNodeWatcher(t *testing.T) {
 	t.Parallel()
 
@@ -889,6 +951,7 @@ func TestNodeWatcher(t *testing.T) {
 				Presence: presence,
 				Events:   local.NewEventsService(bk),
 			},
+			MaxStaleness: time.Minute,
 		},
 	})
 	require.NoError(t, err)
@@ -904,24 +967,24 @@ func TestNodeWatcher(t *testing.T) {
 	}
 
 	require.Eventually(t, func() bool {
-		filtered := w.GetNodes(func(n services.Node) bool {
+		filtered := w.GetNodes(ctx, func(n services.Node) bool {
 			return true
 		})
 		return len(filtered) == len(nodes)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
-	require.Len(t, w.GetNodes(func(n services.Node) bool { return n.GetUseTunnel() }), 3)
+	require.Len(t, w.GetNodes(ctx, func(n services.Node) bool { return n.GetUseTunnel() }), 3)
 
 	require.NoError(t, presence.DeleteNode(ctx, apidefaults.Namespace, nodes[0].GetName()))
 
 	require.Eventually(t, func() bool {
-		filtered := w.GetNodes(func(n services.Node) bool {
+		filtered := w.GetNodes(ctx, func(n services.Node) bool {
 			return true
 		})
 		return len(filtered) == len(nodes)-1
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
-	require.Empty(t, w.GetNodes(func(n services.Node) bool { return n.GetName() == nodes[0].GetName() }))
+	require.Empty(t, w.GetNodes(ctx, func(n services.Node) bool { return n.GetName() == nodes[0].GetName() }))
 }
 
 func newNodeServer(t *testing.T, name, addr string, tunnel bool) types.Server {

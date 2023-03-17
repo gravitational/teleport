@@ -89,4 +89,5 @@ export interface FeatureFlags {
   newAccessRequest: boolean;
   downloadCenter: boolean;
   discover: boolean;
+  plugins: boolean;
 }

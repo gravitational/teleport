@@ -150,7 +150,7 @@ function getRenderedContent(
           `}
         >
           <Text
-            fontSize={14}
+            fontSize={13}
             bold
             mr="30px"
             css={`
@@ -184,6 +184,7 @@ function getRenderedContent(
               `}
               href={content.link.href}
               target="_blank"
+              onClick={e => e.stopPropagation()} // prevents notification from collapsing
             >
               {content.link.text}
             </Link>
@@ -217,7 +218,7 @@ function List(props: { items: string[] }) {
 
 const textCss = css`
   line-height: 20px;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
   white-space: pre-line;
 `;
 

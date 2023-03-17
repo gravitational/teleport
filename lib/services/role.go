@@ -60,7 +60,6 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindSSHSession, RO()),
 	types.NewRule(types.KindAppServer, RO()),
 	types.NewRule(types.KindRemoteCluster, RO()),
-	types.NewRule(types.KindKubeService, RO()),
 	types.NewRule(types.KindKubeServer, RO()),
 	types.NewRule(types.KindDatabaseServer, RO()),
 	types.NewRule(types.KindDatabase, RO()),
@@ -2175,7 +2174,11 @@ func makeAlternativeNamesForAWSRole(db types.Database, user string) []string {
 	}
 
 	// If input database user is the short role name, try the full ARN.
-	return []string{awsutils.BuildRoleARN(user, metadata.Region, metadata.AccountID)}
+	roleARN, err := awsutils.BuildRoleARN(user, metadata.Region, metadata.AccountID)
+	if err != nil {
+		return nil
+	}
+	return []string{roleARN}
 }
 
 // DatabaseNameMatcher matches a role against database name.
