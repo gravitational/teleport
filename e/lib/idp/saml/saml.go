@@ -20,7 +20,6 @@ import (
 	"context"
 	"net/http"
 	"net/url"
-	"sync"
 
 	"github.com/crewjam/saml"
 	"github.com/gravitational/trace"
@@ -124,13 +123,16 @@ type IdPAccessPoint interface {
 type Service struct {
 	log         *logrus.Entry
 	clock       clockwork.Clock
-	idpMutex    sync.RWMutex
-	idp         saml.IdentityProvider
 	authorizer  authz.Authorizer
 	idpHandler  http.Handler
 	client      IdPAuthClient
 	accessPoint IdPAccessPoint
 	emitter     apievents.Emitter
+
+	signatureMethod string
+	domainName      string
+	metadataURL     url.URL
+	ssoURL          url.URL
 }
 
 // New creates a new SAML identity provider service.
@@ -140,25 +142,6 @@ func New(ctx context.Context, cfg Config) (*Service, error) {
 	}
 
 	domainName, err := cfg.Client.GetDomainName(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Use SAML IdP CA cert for the IdP.
-	ca, err := cfg.Client.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.SAMLIDPCA,
-		DomainName: domainName,
-	}, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsKeys := ca.GetTrustedTLSKeyPairs()
-	if len(tlsKeys) == 0 {
-		return nil, trace.BadParameter("no trusted TLS key pairs found")
-	}
-
-	cert, err := tlsca.ParseCertificatePEM(tlsKeys[0].Cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -179,23 +162,16 @@ func New(ctx context.Context, cfg Config) (*Service, error) {
 	parsedURL.Path = IdPRoute
 
 	service := &Service{
-		log:         cfg.Log,
-		clock:       cfg.Clock,
-		authorizer:  cfg.Authorizer,
-		client:      cfg.Client,
-		accessPoint: cfg.AccessPoint,
-		emitter:     cfg.Emitter,
-	}
-
-	service.idp = saml.IdentityProvider{
-		Logger:                  cfg.Log,
-		Certificate:             cert,
-		SignatureMethod:         dsig.RSASHA256SignatureMethod,
-		SessionProvider:         service,
-		ServiceProviderProvider: service,
-		AssertionMaker:          service,
-		MetadataURL:             *parsedURL.JoinPath("metadata"),
-		SSOURL:                  *parsedURL.JoinPath("sso"),
+		log:             cfg.Log,
+		clock:           cfg.Clock,
+		authorizer:      cfg.Authorizer,
+		client:          cfg.Client,
+		accessPoint:     cfg.AccessPoint,
+		emitter:         cfg.Emitter,
+		domainName:      domainName,
+		signatureMethod: dsig.RSASHA256SignatureMethod,
+		metadataURL:     *parsedURL.JoinPath("metadata"),
+		ssoURL:          *parsedURL.JoinPath("sso"),
 	}
 
 	service.idpHandler, err = service.initRouter()
@@ -204,6 +180,44 @@ func New(ctx context.Context, cfg Config) (*Service, error) {
 	}
 
 	return service, nil
+}
+
+// createIdP creates a saml.IdentityProvider with the most recent certificate baked into it
+// this will ensure that IdP always has the most recent SAMLIDPCA certificate. This is done
+// to account for certificate rotation.
+//
+//nolint:revive // Because we want this to be IdP.
+func (s *Service) createIdP(ctx context.Context) (saml.IdentityProvider, error) {
+	// Use SAML IdP CA cert for the IdP.
+	ca, err := s.client.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SAMLIDPCA,
+		DomainName: s.domainName,
+	}, false)
+	if err != nil {
+		return saml.IdentityProvider{}, trace.Wrap(err)
+	}
+
+	// TODO: list all of the signing keys when/if crewjam/saml supports it
+	tlsKeys := ca.GetTrustedTLSKeyPairs()
+	if len(tlsKeys) == 0 {
+		return saml.IdentityProvider{}, trace.BadParameter("no trusted TLS key pairs found")
+	}
+
+	cert, err := tlsca.ParseCertificatePEM(tlsKeys[0].Cert)
+	if err != nil {
+		return saml.IdentityProvider{}, trace.Wrap(err)
+	}
+
+	return saml.IdentityProvider{
+		Logger:                  s.log,
+		Certificate:             cert,
+		SignatureMethod:         s.signatureMethod,
+		SessionProvider:         s,
+		ServiceProviderProvider: s,
+		AssertionMaker:          s,
+		MetadataURL:             s.metadataURL,
+		SSOURL:                  s.ssoURL,
+	}, nil
 }
 
 // emitAuthAttemptEvent will emit an auth attempt event to the audit log.

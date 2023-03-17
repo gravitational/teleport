@@ -43,6 +43,9 @@ func TestMakeAssertion(t *testing.T) {
 	svcs := samlTestService(ctx, t, clock)
 	svcs.client.signingCtx = withRole(ctx, types.RoleProxy)
 
+	idp, err := svcs.samlIdP.createIdP(ctx)
+	require.NoError(t, err)
+
 	// The assertion maker will use the ServiceProviderProvider to ensure
 	// that associated entity IDs are present, so we need to add a service
 	// provider into the backend for testing.
@@ -74,10 +77,11 @@ func TestMakeAssertion(t *testing.T) {
 	}
 
 	// Create a valid IdpAuthnRequest.
+
 	reqBuffer, err := xml.Marshal(authnReq)
 	require.NoError(t, err)
 	req := &saml.IdpAuthnRequest{
-		IDP:                     &svcs.samlIdP.idp,
+		IDP:                     &idp,
 		SPSSODescriptor:         &saml.SPSSODescriptor{},
 		HTTPRequest:             testReq,
 		RequestBuffer:           reqBuffer,
@@ -109,7 +113,7 @@ func TestMakeAssertion(t *testing.T) {
 	trueBool := true
 
 	expectedReq := &saml.IdpAuthnRequest{
-		IDP: &svcs.samlIdP.idp,
+		IDP: &idp,
 		SPSSODescriptor: &saml.SPSSODescriptor{
 			XMLName: xml.Name{
 				Space: "urn:oasis:names:tc:SAML:2.0:metadata",
@@ -158,11 +162,11 @@ func TestMakeAssertion(t *testing.T) {
 	// Validate the signature of the resposne.
 	certStore := &dsig.MemoryX509CertificateStore{
 		Roots: []*x509.Certificate{
-			svcs.samlIdP.idp.Certificate,
+			idp.Certificate,
 		},
 	}
 	validationCtx := dsig.NewDefaultValidationContext(certStore)
-	validationCtx.Clock = dsig.NewFakeClock(clockwork.NewFakeClockAt(svcs.samlIdP.idp.Certificate.NotBefore))
+	validationCtx.Clock = dsig.NewFakeClock(clockwork.NewFakeClockAt(idp.Certificate.NotBefore))
 	_, err = validationCtx.Validate(req.ResponseEl)
 	require.NoError(t, err)
 }

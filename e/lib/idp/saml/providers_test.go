@@ -44,6 +44,9 @@ func TestGetSession(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	svcs := samlTestService(ctx, t, clock)
 
+	idp, err := svcs.samlIdP.createIdP(ctx)
+	require.NoError(t, err)
+
 	// Create testing user.
 	expireTime := clock.Now().Add(time.Hour)
 	localUserIdentity := &tlsca.Identity{
@@ -60,7 +63,7 @@ func TestGetSession(t *testing.T) {
 	// No user in the request.
 	rw := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "http://test-url/", nil)
-	authnReq := newAuthnReq(&svcs.samlIdP.idp, req, "")
+	authnReq := newAuthnReq(&idp, req, "")
 	require.Nil(t, svcs.samlIdP.GetSession(rw, req, authnReq))
 	require.Equal(t, http.StatusForbidden, rw.Code)
 
@@ -87,7 +90,7 @@ func TestGetSession(t *testing.T) {
 	rw = httptest.NewRecorder()
 	localUserCtx := context.WithValue(ctx, identityContextKey, localUserIdentity)
 	req = httptest.NewRequest(http.MethodGet, "https://test-url/", bytes.NewBuffer([]byte{})).WithContext(localUserCtx)
-	authnReq = newAuthnReq(&svcs.samlIdP.idp, req, entityID)
+	authnReq = newAuthnReq(&idp, req, entityID)
 	firstSession := svcs.samlIdP.GetSession(rw, req, authnReq)
 
 	require.Equal(t, http.StatusOK, rw.Code)
@@ -121,7 +124,7 @@ func TestGetSession(t *testing.T) {
 		Value: firstSession.ID,
 	})
 
-	authnReq = newAuthnReq(&svcs.samlIdP.idp, req, entityID)
+	authnReq = newAuthnReq(&idp, req, entityID)
 	secondSession := svcs.samlIdP.GetSession(rw, req, authnReq)
 	require.Equal(t, http.StatusOK, rw.Code)
 	require.Empty(t, cmp.Diff(firstSession, secondSession))
@@ -142,7 +145,7 @@ func TestGetSession(t *testing.T) {
 		Value: firstSession.ID,
 	})
 
-	authnReq = newAuthnReq(&svcs.samlIdP.idp, req, entityID)
+	authnReq = newAuthnReq(&idp, req, entityID)
 	mismatchedSession := svcs.samlIdP.GetSession(rw, req, authnReq)
 	require.Nil(t, mismatchedSession)
 	require.Equal(t, http.StatusForbidden, rw.Code)
@@ -161,7 +164,7 @@ func TestGetSession(t *testing.T) {
 		Name:  sessionCookieName,
 		Value: "non-existent-ID",
 	})
-	authnReq = newAuthnReq(&svcs.samlIdP.idp, req, entityID)
+	authnReq = newAuthnReq(&idp, req, entityID)
 	require.Nil(t, svcs.samlIdP.GetSession(rw, req, authnReq))
 	require.Equal(t, http.StatusForbidden, rw.Code)
 
@@ -183,7 +186,7 @@ func TestGetSession(t *testing.T) {
 		Name:  sessionCookieName,
 		Value: firstSession.ID,
 	})
-	authnReq = newAuthnReq(&svcs.samlIdP.idp, req, entityID)
+	authnReq = newAuthnReq(&idp, req, entityID)
 	require.Nil(t, svcs.samlIdP.GetSession(rw, req, authnReq))
 	require.Equal(t, http.StatusForbidden, rw.Code)
 

@@ -126,16 +126,22 @@ func (s *Service) authorize(ctx context.Context) (*tlsca.Identity, error) {
 
 // handleMetadata handles metadata requests.
 func (s *Service) handleMetadata(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	s.idpMutex.RLock()
-	defer s.idpMutex.RUnlock()
-	s.idp.ServeMetadata(w, r) // The saml.IdentityProvider does the response handling here.
+	idp, err := s.createIdP(r.Context())
+	if err != nil {
+		s.log.Errorf("Error creating IdP: %v", err)
+		s.writeError(w, http.StatusInternalServerError)
+	}
+	idp.ServeMetadata(w, r) // The saml.IdentityProvider does the response handling here.
 }
 
 // handleSSO handles SSO requests.
 func (s *Service) handleSSO(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	s.idpMutex.RLock()
-	defer s.idpMutex.RUnlock()
-	s.idp.ServeSSO(w, r) // The saml.IdentityProvider does the response handling here.
+	idp, err := s.createIdP(r.Context())
+	if err != nil {
+		s.log.Errorf("Error creating IdP: %v", err)
+		s.writeError(w, http.StatusInternalServerError)
+	}
+	idp.ServeSSO(w, r) // The saml.IdentityProvider does the response handling here.
 }
 
 // handleIdPInitiatedLogin will handle IdP initiated logins for a service provider.
@@ -144,7 +150,7 @@ func (s *Service) handleSSO(w http.ResponseWriter, r *http.Request, p httprouter
 func (s *Service) handleIdPInitiatedLogin(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	user, err := getUsernameFromCtx(r.Context())
 	if err != nil {
-		s.log.Warnf("error getting username from context: %v", err)
+		s.log.Warnf("Error getting username from context: %v", err)
 	}
 	shortcutName := p.ByName("shortcut")
 
@@ -170,9 +176,12 @@ func (s *Service) handleIdPInitiatedLogin(w http.ResponseWriter, r *http.Request
 
 	// TODO (mdwn): Implement configurable relay state.
 	// The saml.IdentityProvider does the response handling here.
-	s.idpMutex.RLock()
-	defer s.idpMutex.RUnlock()
-	s.idp.ServeIDPInitiated(w, r, sp.GetEntityID(), "" /* empty relay state for now */)
+	idp, err := s.createIdP(r.Context())
+	if err != nil {
+		s.log.Errorf("Error creating IdP: %v", err)
+		s.writeError(w, http.StatusInternalServerError)
+	}
+	idp.ServeIDPInitiated(w, r, sp.GetEntityID(), "" /* empty relay state for now */)
 }
 
 // handler returns the HTTP handler for the identity provider.

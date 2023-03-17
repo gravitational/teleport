@@ -236,8 +236,8 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 		Destination:                  req.ACSEndpoint.Location,
 		RequestId:                    req.Request.ID,
 		RequestTime:                  timestamppb.New(req.Now),
-		MetadataUrl:                  s.idp.MetadataURL.String(),
-		SignatureMethod:              s.idp.SignatureMethod,
+		MetadataUrl:                  s.metadataURL.String(),
+		SignatureMethod:              s.signatureMethod,
 		ServiceProviderSsoDescriptor: spssoDescriptor,
 	})
 	if err != nil {

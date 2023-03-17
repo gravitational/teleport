@@ -62,6 +62,7 @@ type testClient struct {
 	services.SAMLIdPSession
 	services.RoleGetter
 	samlidppb.SAMLIdPServiceServer
+	types.Events
 
 	// signingCtx is a context that can be injected into the signing service.
 	signingCtx     context.Context
@@ -122,6 +123,7 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 	require.NoError(t, err)
 	userService := local.NewIdentityService(backend)
 	accessService := local.NewAccessService(backend)
+	eventService := local.NewEventsService(backend)
 
 	// Set up default singletons
 	clusterService.SetAuthPreference(ctx, types.DefaultAuthPreference())
@@ -136,6 +138,7 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 		UsersService:            userService,
 		SAMLIdPSession:          userService,
 		RoleGetter:              accessService,
+		Events:                  eventService,
 	}
 
 	require.NoError(t, clusterService.SetAuthPreference(ctx, types.DefaultAuthPreference()))
@@ -149,23 +152,9 @@ func samlTestServiceWithURL(ctx context.Context, t *testing.T, clock clockwork.C
 	require.NoError(t, clusterService.SetClusterName(clusterName))
 
 	// Create testing CA.
-	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "test-cluster"}, nil, time.Hour)
-	require.NoError(t, err)
-
-	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        types.SAMLIDPCA,
-		ClusterName: "test-cluster",
-		ActiveKeys: types.CAKeySet{
-			TLS: []*types.TLSKeyPair{{
-				Cert: cert,
-				Key:  key,
-			}},
-		},
-	})
-	require.NoError(t, err)
+	ca := createCA(t)
 	require.NoError(t, caService.CreateCertAuthority(ctx, ca))
 
-	eventService := local.NewEventsService(backend)
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Client:    eventService,
@@ -229,6 +218,25 @@ func withRole(ctx context.Context, role types.SystemRole) context.Context {
 
 func newTestEntityDescriptor(entityID string) string {
 	return fmt.Sprintf(testEntityDescriptor, entityID)
+}
+
+func createCA(t *testing.T) types.CertAuthority {
+	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "test-cluster"}, nil, time.Hour)
+	require.NoError(t, err)
+
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.SAMLIDPCA,
+		ClusterName: "test-cluster",
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Cert: cert,
+				Key:  key,
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	return ca
 }
 
 // A test entity descriptor from https://sptest.iamshowcase.com/testsp_metadata.xml.
