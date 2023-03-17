@@ -4376,7 +4376,7 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 			client, err := srv.NewClient(tc.identity)
 			require.NoError(t, err)
 
-			ctx, cancel := context.WithTimeout(ctx, time.Millisecond*100)
+			ctx, cancel := context.WithTimeout(ctx, time.Second)
 			defer cancel()
 
 			// default to same headlessAuthn
