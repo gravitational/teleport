@@ -60,13 +60,13 @@ static int trace_connect_return(int ret, short ipver)
 {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 cgroup = bpf_get_current_cgroup_id();
-	  u32 id = (u32)pid_tgid;
-	  u64 *is_monitored;
+    u32 id = (u32)pid_tgid;
+    u64 *is_monitored;
 
     // Check if the cgroup should be monitored.
     is_monitored = bpf_map_lookup_elem(&monitored_cgroups, &cgroup);
     if (is_monitored == NULL) {
-        // Missed entry.
+        // cgroup has not been marked for monitoring, ignore.
         return 0;
     }
 

@@ -72,7 +72,7 @@ static int exit_open(int ret) {
     // Check if the cgroup should be monitored.
     is_monitored = bpf_map_lookup_elem(&monitored_cgroups, &cgroup);
     if (is_monitored == NULL) {
-        // Missed entry.
+        // cgroup has not been marked for monitoring, ignore.
         return 0;
     }
 

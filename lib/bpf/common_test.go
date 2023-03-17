@@ -138,8 +138,11 @@ func callEndpoint(endpoint string) error {
 	}
 
 	resp, err := http.Get(endpoint)
-	// Close the body to make our linter happy.
-	_ = resp.Body.Close()
+	if resp != nil {
+		// Close the body to make our linter happy.
+		_ = resp.Body.Close()
+	}
+
 	return err
 }
 

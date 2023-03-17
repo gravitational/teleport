@@ -233,15 +233,24 @@ func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
 		return 0, trace.Wrap(err)
 	}
 
-	for _, module := range []interface{ startSession(cgroupID uint64) error }{
+	// initializedModClosures holds all already opened modules closures.
+	initializedModClosures := make([]interface{ endSession(uint64) error }, 0)
+	for _, module := range []cgroupRegister{
 		s.open,
 		s.exec,
 		s.conn,
 	} {
 		// Register cgroup in the BPF module.
 		if err := module.startSession(cgroupID); err != nil {
+			// Clean up all already opened modules.
+			for _, closer := range initializedModClosures {
+				if closeErr := closer.endSession(cgroupID); closeErr != nil {
+					log.Debugf("failed to close session: %v", closeErr)
+				}
+			}
 			return 0, trace.Wrap(err)
 		}
+		initializedModClosures = append(initializedModClosures, module)
 	}
 
 	// Start watching for any events that come from this cgroup.
