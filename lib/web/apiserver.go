@@ -3114,6 +3114,10 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
+	var authenticationClient interface {
+		AuthenticateSSHUser(ctx context.Context, req auth.AuthenticateSSHRequest) (*auth.SSHLoginResponse, error)
+	} = authClient
+
 	authReq := auth.AuthenticateUserRequest{
 		Username:       req.User,
 		PublicKey:      req.PubKey,
@@ -3133,11 +3137,20 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	case constants.SecondFactorWebauthn:
 		// WebAuthn only supports this endpoint for headless login.
 		authReq.HeadlessAuthenticationID = req.HeadlessAuthenticationID
+
+		// create a new http client with a standard callback timeout.
+		authenticationClient, err = authClient.CloneHTTPClient(
+			auth.ClientParamTimeout(defaults.CallbackTimeout),
+			auth.ClientParamResponseHeaderTimeout(defaults.CallbackTimeout),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	default:
 		return nil, trace.AccessDenied("unsupported second factor type: %q", cap.GetSecondFactor())
 	}
 
-	loginResp, err := authClient.AuthenticateSSHUser(r.Context(), auth.AuthenticateSSHRequest{
+	loginResp, err := authenticationClient.AuthenticateSSHUser(r.Context(), auth.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authReq,
 		CompatibilityMode:       req.Compatibility,
 		TTL:                     req.TTL,
