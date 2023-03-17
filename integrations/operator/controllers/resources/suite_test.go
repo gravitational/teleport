@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	//+kubebuilder:scaffold:imports
 )
 
 func fastEventually(t *testing.T, condition func() bool) {

@@ -506,10 +506,11 @@ func (b *Bot) renewIdentityViaAuth(
 	switch joinMethod {
 	// When using join methods that are repeatable - renew fully rather than
 	// renewing using existing credentials.
-	case types.JoinMethodIAM,
+	case types.JoinMethodAzure,
+		types.JoinMethodCircleCI,
 		types.JoinMethodGitHub,
-		types.JoinMethodAzure,
-		types.JoinMethodCircleCI:
+		types.JoinMethodGitLab,
+		types.JoinMethodIAM:
 		ident, err := b.getIdentityFromToken()
 		return ident, trace.Wrap(err)
 	default:

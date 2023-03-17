@@ -21,7 +21,6 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/aws/aws-sdk-go/service/memorydb"
@@ -155,25 +154,20 @@ func (m *Metadata) fetchRDSProxyMetadata(ctx context.Context, database types.Dat
 
 // fetchRedshiftMetadata fetches metadata for the provided Redshift database.
 func (m *Metadata) fetchRedshiftMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
-	redshift, err := m.cfg.Clients.GetAWSRedshiftClient(database.GetAWS().Region)
+	meta := database.GetAWS()
+	redshift, err := m.cfg.Clients.GetAWSRedshiftClient(meta.Region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cluster, err := describeRedshiftCluster(ctx, redshift, database.GetAWS().Redshift.ClusterID)
+	cluster, err := describeRedshiftCluster(ctx, redshift, meta.Redshift.ClusterID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	parsedARN, err := arn.Parse(aws.StringValue(cluster.ClusterNamespaceArn))
+	fetchedMetadata, err := services.MetadataFromRedshiftCluster(cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &types.AWS{
-		Region:    parsedARN.Region,
-		AccountID: parsedARN.AccountID,
-		Redshift: types.Redshift{
-			ClusterID: aws.StringValue(cluster.ClusterIdentifier),
-		},
-	}, nil
+	return fetchedMetadata, nil
 }
 
 // fetchRedshiftServerlessMetadata fetches metadata for the provided Redshift
@@ -193,33 +187,35 @@ func (m *Metadata) fetchRedshiftServerlessMetadata(ctx context.Context, database
 
 // fetchElastiCacheMetadata fetches metadata for the provided ElastiCache database.
 func (m *Metadata) fetchElastiCacheMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
-	elastiCacheClient, err := m.cfg.Clients.GetAWSElastiCacheClient(database.GetAWS().Region)
+	meta := database.GetAWS()
+	elastiCacheClient, err := m.cfg.Clients.GetAWSElastiCacheClient(meta.Region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cluster, err := describeElastiCacheCluster(ctx, elastiCacheClient, database.GetAWS().ElastiCache.ReplicationGroupID)
+	cluster, err := describeElastiCacheCluster(ctx, elastiCacheClient, meta.ElastiCache.ReplicationGroupID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Endpoint type does not change.
-	endpointType := database.GetAWS().ElastiCache.EndpointType
+	endpointType := meta.ElastiCache.EndpointType
 	return services.MetadataFromElastiCacheCluster(cluster, endpointType)
 }
 
 // fetchMemoryDBMetadata fetches metadata for the provided MemoryDB database.
 func (m *Metadata) fetchMemoryDBMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
-	memoryDBClient, err := m.cfg.Clients.GetAWSMemoryDBClient(database.GetAWS().Region)
+	meta := database.GetAWS()
+	memoryDBClient, err := m.cfg.Clients.GetAWSMemoryDBClient(meta.Region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cluster, err := describeMemoryDBCluster(ctx, memoryDBClient, database.GetAWS().MemoryDB.ClusterName)
+	cluster, err := describeMemoryDBCluster(ctx, memoryDBClient, meta.MemoryDB.ClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Endpoint type does not change.
-	endpointType := database.GetAWS().MemoryDB.EndpointType
+	endpointType := meta.MemoryDB.EndpointType
 	return services.MetadataFromMemoryDBCluster(cluster, endpointType)
 }
 

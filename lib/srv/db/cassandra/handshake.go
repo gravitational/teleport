@@ -199,7 +199,11 @@ func (a *authAWSSigV4Auth) getSigV4Authenticator(username string) (gocql.Authent
 	}
 	region := a.ses.Database.GetAWS().Region
 	accountID := a.ses.Database.GetAWS().AccountID
-	cred, err := stscreds.NewCredentials(session, awsutils.BuildRoleARN(username, region, accountID)).Get()
+	roleARN, err := awsutils.BuildRoleARN(username, region, accountID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cred, err := stscreds.NewCredentials(session, roleARN).Get()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

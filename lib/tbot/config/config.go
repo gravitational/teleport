@@ -40,11 +40,12 @@ const (
 )
 
 var SupportedJoinMethods = []string{
-	string(types.JoinMethodToken),
-	string(types.JoinMethodIAM),
-	string(types.JoinMethodGitHub),
-	string(types.JoinMethodCircleCI),
 	string(types.JoinMethodAzure),
+	string(types.JoinMethodCircleCI),
+	string(types.JoinMethodGitHub),
+	string(types.JoinMethodGitLab),
+	string(types.JoinMethodIAM),
+	string(types.JoinMethodToken),
 }
 
 var log = logrus.WithFields(logrus.Fields{
