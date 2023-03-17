@@ -29,11 +29,17 @@ export function subscribeToFileStorageEvents(configService: FileStorage): void {
     (event, eventType: FileStorageEventType, item) => {
       switch (eventType) {
         case FileStorageEventType.Get:
-          return (event.returnValue = configService.get(item.path));
+          return (event.returnValue = configService.get(item.key));
         case FileStorageEventType.Put:
-          return configService.put(item.path, item.json);
-        case FileStorageEventType.PutAllSync:
-          return configService.putAllSync();
+          return configService.put(item.key, item.json);
+        case FileStorageEventType.Write:
+          return configService.write();
+        case FileStorageEventType.Replace:
+          return configService.replace(item.json);
+        case FileStorageEventType.GetFilePath:
+          return configService.getFilePath();
+        case FileStorageEventType.GetFileLoadingError:
+          return configService.getFileLoadingError();
       }
     }
   );
@@ -41,19 +47,35 @@ export function subscribeToFileStorageEvents(configService: FileStorage): void {
 
 export function createFileStorageClient(): FileStorage {
   return {
-    get: path =>
+    get: key =>
       ipcRenderer.sendSync(FileStorageEventChannel, FileStorageEventType.Get, {
-        path,
+        key,
       }),
-    put: (path, json) =>
+    put: (key, json) =>
       ipcRenderer.send(FileStorageEventChannel, FileStorageEventType.Put, {
-        path,
+        key,
         json,
       }),
-    putAllSync: () =>
-      ipcRenderer.send(
+    write: () =>
+      ipcRenderer.invoke(
         FileStorageEventChannel,
-        FileStorageEventType.PutAllSync,
+        FileStorageEventType.Write,
+        {}
+      ),
+    replace: json =>
+      ipcRenderer.send(FileStorageEventChannel, FileStorageEventType.Replace, {
+        json,
+      }),
+    getFilePath: () =>
+      ipcRenderer.sendSync(
+        FileStorageEventChannel,
+        FileStorageEventType.GetFilePath,
+        {}
+      ),
+    getFileLoadingError: () =>
+      ipcRenderer.sendSync(
+        FileStorageEventChannel,
+        FileStorageEventType.GetFileLoadingError,
         {}
       ),
   };

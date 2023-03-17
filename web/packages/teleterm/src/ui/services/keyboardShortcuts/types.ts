@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { KeyboardShortcutType } from 'teleterm/services/config';
+import { KeyboardShortcutAction } from 'teleterm/services/config';
 
 export interface KeyboardShortcutEvent {
-  type: KeyboardShortcutType;
+  action: KeyboardShortcutAction;
 }
 
 export type KeyboardShortcutEventSubscriber = (
@@ -25,5 +25,5 @@ export type KeyboardShortcutEventSubscriber = (
 ) => void;
 
 export type KeyboardShortcutHandlers = Partial<
-  Record<KeyboardShortcutType, () => void>
+  Record<KeyboardShortcutAction, () => void>
 >;
