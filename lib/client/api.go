@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -3450,7 +3451,12 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, priv *keys.PrivateK
 
 func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 	headlessAuthenticationID := services.NewHeadlessAuthenticationID(priv.MarshalSSHPublicKey())
-	webUILink := fmt.Sprintf("https://%s/web/headless/%s", tc.WebProxyAddr, headlessAuthenticationID)
+
+	webUILink, err := url.JoinPath(fmt.Sprintf("https://%s", tc.WebProxyAddr), "web", "headless", headlessAuthenticationID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	tshApprove := fmt.Sprintf("tsh headless approve --user=%v --proxy=%v %v", tc.Username, tc.WebProxyAddr, headlessAuthenticationID)
 
 	fmt.Fprintf(tc.Stdout, "Complete headless authentication in your local web browser:\n\n%s\n"+
