@@ -43,7 +43,7 @@ export function Clusters() {
   useKeyboardShortcuts(
     useMemo(
       () => ({
-        'toggle-clusters': togglePopover,
+        openClusters: togglePopover,
       }),
       [togglePopover]
     )
