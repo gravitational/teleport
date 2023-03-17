@@ -153,7 +153,7 @@ A request id will be derived from the client's public key so that an attacker ca
 
 Note: We could also use the public key directly (base64 encoded), but we choose to use a UUID to shorten the URL and improve its readability.
 
-As [explained above](#unauthenticated-headless-login-endpoint), the Auth server will write the request details to the backend under `/headless_authentication/<request_id>` on demand. It will have a 1 minute TTL, by which point the user should have completed the headless authentication flow. The request will begin in the pending state. The Auth server then waits for the user to approve the authentication request using a resource watcher.
+As [explained above](#unauthenticated-headless-login-endpoint), the Auth server will write the request details to the backend under `/headless_authentication/<request_id>` on demand. It will have a short TTL, matching the callback timeout of the request. The request will begin in the pending state. The Auth server then waits for the user to approve the authentication request using a resource watcher.
 
 #### Local authentication
 
@@ -335,8 +335,8 @@ type AuthenticateUserRequest struct {
   Session *SessionCreds `json:"session,omitempty"`
   // ClientMetadata includes forwarded information about a client
   ClientMetadata *ForwardedClientMetadata `json:"client_metadata,omitempty"`
-  // Headless determines whether headless authentication will be used
-  Headless bool `json:"headless"`
+  // HeadlessAuthenticationID is the ID for a headless authentication resource.
+  HeadlessAuthenticationID string `json:"headless_authentication_id"`
 }
 ```
 
