@@ -32,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgproto3/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type Suite struct {
@@ -208,12 +210,24 @@ func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, opts ...sign
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyRaw})
 	cert, err := tls.X509KeyPair(tlsCert, keyPEM)
 	require.NoError(t, err)
+	leaf, err := utils.TLSCertLeaf(cert)
+	require.NoError(t, err)
+	cert.Leaf = leaf
 	return cert
 }
 
+func mustSendPostgresMsg(t *testing.T, conn net.Conn, msg pgproto3.FrontendMessage) {
+	payload := msg.Encode(nil)
+	nWritten, err := conn.Write(payload)
+	require.NoError(t, err)
+	require.Equal(t, len(payload), nWritten, "failed to fully write payload")
+}
+
 func mustReadFromConnection(t *testing.T, conn net.Conn, want string) {
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(time.Second*5)))
 	buff, err := io.ReadAll(conn)
 	require.NoError(t, err)
+	require.NoError(t, conn.SetReadDeadline(time.Time{}))
 	require.Equal(t, string(buff), want)
 }
 
