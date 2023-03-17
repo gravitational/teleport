@@ -502,6 +502,7 @@ func (b *Bot) renewIdentityViaAuth(
 	// renewing using existing credentials.
 	case types.JoinMethodIAM,
 		types.JoinMethodGitHub,
+		types.JoinMethodGitLab,
 		types.JoinMethodCircleCI:
 		ident, err := b.getIdentityFromToken()
 		return ident, trace.Wrap(err)

@@ -621,6 +621,9 @@ type upsertCertAuthorityRawReq struct {
 	TTL time.Duration   `json:"ttl"`
 }
 
+// upsertCertAuthority creates or updates a cert authority.
+// Deprecated: Replaced by teleport.v1.trust.TrustService/UpsertCertAuthority
+// DELETE IN 14.0.0
 func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertCertAuthorityRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -633,10 +636,8 @@ func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *
 	if req.TTL != 0 {
 		ca.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
-	if err = services.ValidateCertAuthority(ca); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.UpsertCertAuthority(ca); err != nil {
+
+	if err := auth.UpsertCertAuthority(r.Context(), ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -662,7 +663,7 @@ func (s *APIServer) rotateExternalCertAuthority(auth ClientI, w http.ResponseWri
 }
 
 // getCertAuthorities returns all cert authorities that match the provided type.
-// Deprecated: Use teleport.v1.trust.TrustService/GetCertAuthorities instead.
+// Deprecated: Replaced by teleport.v1.trust.TrustService/GetCertAuthorities
 // DELETE IN 14.0.0
 func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
@@ -685,7 +686,7 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 }
 
 // getCertAuthority returns a single matching cert authority.
-// Deprecated: Use teleport.v1.trust.TrustService/GetCertAuthority instead.
+// Deprecated: Replaced by teleport.v1.trust.TrustService/GetCertAuthority
 // DELETE IN 14.0.0
 func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
@@ -704,7 +705,7 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 }
 
 // deleteCertAuthority removes the matching cert authority.
-// Deprecated: Use teleport.v1.trust.TrustService/DeleteCertAuthority instead.
+// Deprecated: Replaced by teleport.v1.trust.TrustService/DeleteCertAuthority.
 // DELETE IN 14.0.0
 func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	id := types.CertAuthID{

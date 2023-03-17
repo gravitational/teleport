@@ -273,7 +273,7 @@ func TestRemoteRotation(t *testing.T) {
 
 	// remote proxy can't upsert the certificate authority,
 	// only to rotate it (in remote rotation only certain fields are updated)
-	err = remoteProxy.UpsertCertAuthority(remoteCA)
+	err = remoteProxy.UpsertCertAuthority(ctx, remoteCA)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// remote proxy can't read local cert authority with secrets
@@ -341,7 +341,7 @@ func TestLocalProxyPermissions(t *testing.T) {
 	require.NoError(t, err)
 
 	// local proxy can't update local cert authorities
-	err = proxy.UpsertCertAuthority(ca)
+	err = proxy.UpsertCertAuthority(ctx, ca)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// local proxy is allowed to update host CA of remote cert authorities
@@ -351,7 +351,7 @@ func TestLocalProxyPermissions(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	err = proxy.UpsertCertAuthority(remoteCA)
+	err = proxy.UpsertCertAuthority(ctx, remoteCA)
 	require.NoError(t, err)
 }
 
@@ -2883,7 +2883,7 @@ func TestRegisterCAPin(t *testing.T) {
 	activeKeys := hostCA.GetActiveKeys()
 	activeKeys.TLS = append(activeKeys.TLS, activeKeys.TLS...)
 	hostCA.SetActiveKeys(activeKeys)
-	err = tt.server.AuthServer.AuthServer.UpsertCertAuthority(hostCA)
+	err = tt.server.AuthServer.AuthServer.UpsertCertAuthority(ctx, hostCA)
 	require.NoError(t, err)
 
 	// Calculate what CA pins should be.

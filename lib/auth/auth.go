@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/githubactions"
+	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
@@ -316,6 +317,17 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			},
 		)
 	}
+	if as.gitlabIDTokenValidator == nil {
+		as.gitlabIDTokenValidator, err = gitlab.NewIDTokenValidator(
+			gitlab.IDTokenValidatorConfig{
+				Clock:             as.clock,
+				ClusterNameGetter: services,
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if as.circleCITokenValidate == nil {
 		as.circleCITokenValidate = func(
 			ctx context.Context, organizationID, token string,
@@ -528,6 +540,10 @@ type Server struct {
 	// ghaIDTokenValidator allows ID tokens from GitHub Actions to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
 	ghaIDTokenValidator ghaIDTokenValidator
+
+	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
+	// the auth server. It can be overridden for the purpose of tests.
+	gitlabIDTokenValidator gitlabIDTokenValidator
 
 	// circleCITokenValidate allows ID tokens from CircleCI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
@@ -4656,7 +4672,7 @@ func (a *Server) createSelfSignedCA(ctx context.Context, caID types.CertAuthID) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.CreateCertAuthority(ca); err != nil {
+	if err := a.CreateCertAuthority(ctx, ca); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -4701,6 +4717,34 @@ func (a *Server) GetLicense(ctx context.Context) (string, error) {
 		return "", trace.NotFound("license not found")
 	}
 	return fmt.Sprintf("%s%s", a.license.CertPEM, a.license.KeyPEM), nil
+}
+
+// GetHeadlessAuthentication returns a headless authentication from the backend by name.
+// If it does not yet exist, a stub will be created to signal the login process to upsert
+// login details. This method will wait for the updated headless authentication and return it.
+func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+	// Try to create a stub if it doesn't already exist, then wait for full login details.
+	if _, err := a.Services.CreateHeadlessAuthenticationStub(ctx, name); err != nil && !trace.IsAlreadyExists(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// wait for the headless authentication to be updated with valid login details
+	// by the login process. If the headless authentication is already updated,
+	// Wait will return it immediately.
+	waitCtx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
+	defer cancel()
+
+	headlessAuthn, err := a.headlessAuthenticationWatcher.Wait(waitCtx, name, func(ha *types.HeadlessAuthentication) (bool, error) {
+		return services.ValidateHeadlessAuthentication(ha) == nil, nil
+	})
+	return headlessAuthn, trace.Wrap(err)
+}
+
+// CompareAndSwapHeadlessAuthentication performs a compare
+// and swap replacement on a headless authentication resource.
+func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
+	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
+	return headlessAuthn, trace.Wrap(err)
 }
 
 // authKeepAliver is a keep aliver using auth server directly

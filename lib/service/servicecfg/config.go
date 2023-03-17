@@ -103,6 +103,9 @@ type Config struct {
 	// Discovery defines the discovery service configuration.
 	Discovery DiscoveryConfig
 
+	// Okta defines the okta service configuration.
+	Okta OktaConfig
+
 	// Tracing defines the tracing service configuration.
 	Tracing TracingConfig
 
@@ -651,6 +654,7 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Databases.Enabled,
 		cfg.WindowsDesktop.Enabled,
 		cfg.Discovery.Enabled,
+		cfg.Okta.Enabled,
 	}
 
 	for _, item := range enabled {
@@ -660,5 +664,5 @@ func verifyEnabledService(cfg *Config) error {
 	}
 
 	return trace.BadParameter(
-		"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service or discovery_service")
+		"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, or okta_service")
 }
