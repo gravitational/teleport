@@ -106,6 +106,10 @@ type Server struct {
 	// userAgent is the SSH user agent that was forwarded to the proxy.
 	userAgent teleagent.Agent
 
+	// agentlessSigner is used for client authentication when no SSH
+	// user agent is provided, ie when connecting to agentless nodes.
+	agentlessSigner ssh.Signer
+
 	// hostCertificate is the SSH host certificate this in-memory server presents
 	// to the client.
 	hostCertificate ssh.Signer
@@ -179,6 +183,10 @@ type ServerConfig struct {
 	DstAddr         net.Addr
 	HostCertificate ssh.Signer
 
+	// AgentlessSigner is used for client authentication when no SSH
+	// user agent is provided, ie when connecting to agentless nodes.
+	AgentlessSigner ssh.Signer
+
 	// UseTunnel indicates of this server is connected over a reverse tunnel.
 	UseTunnel bool
 
@@ -241,8 +249,8 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.DataDir == "" {
 		return trace.BadParameter("missing parameter DataDir")
 	}
-	if s.UserAgent == nil {
-		return trace.BadParameter("user agent required to connect to remote host")
+	if s.UserAgent == nil && s.AgentlessSigner == nil {
+		return trace.BadParameter("user agent or agentless signer required to connect to remote host")
 	}
 	if s.TargetConn == nil {
 		return trace.BadParameter("connection to target connection required")
@@ -303,6 +311,7 @@ func New(c ServerConfig) (*Server, error) {
 		serverConn:      utils.NewTrackingConn(serverConn),
 		clientConn:      clientConn,
 		userAgent:       c.UserAgent,
+		agentlessSigner: c.AgentlessSigner,
 		hostCertificate: c.HostCertificate,
 		useTunnel:       c.UseTunnel,
 		address:         c.Address,
@@ -365,12 +374,18 @@ func New(c ServerConfig) (*Server, error) {
 
 // TargetMetadata returns metadata about the forwarding target.
 func (s *Server) TargetMetadata() apievents.ServerMetadata {
+	var subKind string
+	if s.targetServer != nil {
+		subKind = s.targetServer.GetSubKind()
+	}
+
 	return apievents.ServerMetadata{
 		ServerNamespace: s.GetNamespace(),
 		ServerID:        s.targetID,
 		ServerAddr:      s.targetAddr,
 		ServerHostname:  s.targetHostname,
 		ForwardedBy:     s.hostUUID,
+		ServerSubKind:   subKind,
 	}
 }
 
@@ -525,7 +540,9 @@ func (s *Server) Serve() {
 
 	sconn, chans, reqs, err := ssh.NewServerConn(s.serverConn, config)
 	if err != nil {
-		s.userAgent.Close()
+		if s.userAgent != nil {
+			s.userAgent.Close()
+		}
 		s.targetConn.Close()
 		s.clientConn.Close()
 		s.serverConn.Close()
@@ -541,7 +558,9 @@ func (s *Server) Serve() {
 	// Take connection and extract identity information for the user from it.
 	s.identityContext, err = s.authHandlers.CreateIdentityContext(sconn)
 	if err != nil {
-		s.userAgent.Close()
+		if s.userAgent != nil {
+			s.userAgent.Close()
+		}
 		s.targetConn.Close()
 		s.clientConn.Close()
 		s.serverConn.Close()
@@ -559,7 +578,9 @@ func (s *Server) Serve() {
 		s.rejectChannel(chans, err.Error())
 		sconn.Close()
 
-		s.userAgent.Close()
+		if s.userAgent != nil {
+			s.userAgent.Close()
+		}
 		s.targetConn.Close()
 		s.clientConn.Close()
 		s.serverConn.Close()
@@ -619,17 +640,19 @@ func (s *Server) Close() error {
 // newRemoteClient creates and returns a *ssh.Client and *ssh.Session
 // with a remote host.
 func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*tracessh.Client, error) {
-	// the proxy will use the agent that has been forwarded to it as the auth
-	// method when connecting to the remote host
-	if s.userAgent == nil {
-		return nil, trace.AccessDenied("agent must be forwarded to proxy")
+	// the proxy will use the agentless signer as the auth method when
+	// connecting to the remote host if it is available, otherwise the
+	// forwarded agent is used
+	var signers []ssh.Signer
+	if s.agentlessSigner != nil {
+		signers = []ssh.Signer{s.agentlessSigner}
+	} else if s.userAgent != nil {
+		s, err := s.userAgent.Signers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		signers = s
 	}
-
-	signers, err := s.userAgent.Signers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	authMethod := ssh.PublicKeysCallback(signersWithSHA1Fallback(signers))
 
 	clientConfig := &ssh.ClientConfig{
@@ -1117,6 +1140,11 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 }
 
 func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+	// TODO(capnspacehook): remove once SSH agent forwarding issue is fixed
+	if s.userAgent == nil {
+		return trace.BadParameter("SSH agent is not set")
+	}
+
 	// Check if the user's RBAC role allows agent forwarding.
 	err := s.authHandlers.CheckAgentForward(ctx)
 	if err != nil {

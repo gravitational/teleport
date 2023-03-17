@@ -402,6 +402,9 @@ message AWS {
   ];
   // ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
   string ExternalID = 10 [(gogoproto.jsontag) = "external_id,omitempty"];
+  // AssumeRoleARN is an optional AWS role ARN to assume when accessing a database.
+  // Set this field and ExternalID to enable access across AWS accounts.
+  string AssumeRoleARN = 11 [(gogoproto.jsontag) = "assume_role_arn,omitempty"];
 }
 
 // SecretStore contains secret store configurations.
@@ -1131,6 +1134,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2Kubernetes Kubernetes = 10 [(gogoproto.jsontag) = "kubernetes,omitempty"];
   // Azure allows the configuration of options specific to the "azure" join method.
   ProvisionTokenSpecV2Azure Azure = 11 [(gogoproto.jsontag) = "azure,omitempty"];
+  // GitLab allows the configuration of options specific to the "gitlab" join method.
+  ProvisionTokenSpecV2GitLab GitLab = 12 [(gogoproto.jsontag) = "gitlab,omitempty"];
 }
 
 // ProvisionTokenSpecV2Github contains the GitHub-specific part of the
@@ -1173,6 +1178,47 @@ message ProvisionTokenSpecV2GitHub {
   // include the scheme or a path. The instance must be accessible over HTTPS
   // at this hostname and the certificate must be trusted by the Auth Server.
   string EnterpriseServerHost = 2 [(gogoproto.jsontag) = "enterprise_server_host,omitempty"];
+}
+
+// ProvisionTokenSpecV2GitLab contains the GitLab-specific part of the
+// ProvisionTokenSpecV2
+message ProvisionTokenSpecV2GitLab {
+  message Rule {
+    // Sub roughly uniquely identifies the workload. Example:
+    // `project_path:mygroup/my-project:ref_type:branch:ref:main`
+    // project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}
+    string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
+    // Ref allows access to be limited to jobs triggered by a specific git ref.
+    // Ensure this is used in combination with ref_type.
+    string Ref = 2 [(gogoproto.jsontag) = "ref,omitempty"];
+    // RefType allows access to be limited to jobs triggered by a specific git
+    // ref type. Example:
+    // `branch` or `tag`
+    string RefType = 3 [(gogoproto.jsontag) = "ref_type,omitempty"];
+    // NamespacePath is used to limit access to jobs in a group or user's
+    // projects.
+    // Example:
+    // `mygroup`
+    string NamespacePath = 4 [(gogoproto.jsontag) = "namespace_path,omitempty"];
+    // ProjectPath is used to limit access to jobs belonging to an individual
+    // project. Example:
+    // `mygroup/myproject`
+    string ProjectPath = 5 [(gogoproto.jsontag) = "project_path,omitempty"];
+    // PipelineSource limits access by the job pipeline source type.
+    // https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules
+    // Example: `web`
+    string PipelineSource = 6 [(gogoproto.jsontag) = "pipeline_source,omitempty"];
+    // Environment limits access by the environment the job deploys to
+    // (if one is associated)
+    string Environment = 7 [(gogoproto.jsontag) = "environment,omitempty"];
+  }
+  // Allow is a list of TokenRules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+  // Domain is the domain of your GitLab instance. This will default to
+  // `gitlab.com` - but can be set to the domain of your self-hosted GitLab
+  // e.g `gitlab.example.com`.
+  string Domain = 2 [(gogoproto.jsontag) = "domain,omitempty"];
 }
 
 // ProvisionTokenSpecV2CircleCI contains the CircleCI-specific part of the

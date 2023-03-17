@@ -678,17 +678,11 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 				},
 			})
 	case types.RoleProxy:
-		// if in recording mode, return a different set of permissions than regular
-		// mode. recording proxy needs to be able to generate host certificates.
-		if services.IsRecordAtProxy(recConfig.GetMode()) {
-			return services.RoleFromSpec(
-				role.String(),
-				roleSpecForProxyWithRecordAtProxy(clusterName),
-			)
-		}
+		// to support connecting to Agentless nodes, proxy needs to be
+		// able to generate host certificates.
 		return services.RoleFromSpec(
 			role.String(),
-			roleSpecForProxy(clusterName),
+			roleSpecForProxyWithRecordAtProxy(clusterName),
 		)
 	case types.RoleSignup:
 		return services.RoleFromSpec(
@@ -801,6 +795,21 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					// wildcard any cluster available.
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+				},
+			})
+	case types.RoleOkta:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindAccessRequest, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindOktaImportRule, services.RO()),
+						types.NewRule(types.KindOktaAssignment, services.RW()),
+					},
 				},
 			})
 	}
