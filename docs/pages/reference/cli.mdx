@@ -288,7 +288,7 @@ authenticated to a Google Cloud application in Teleport before they can execute
 `tsh gcloud` commands.
 
 ```code
-$ tsh gcloud [--app] [<command>] 
+$ tsh gcloud [--app] [<command>]
 ```
 
 #### Arguments
@@ -309,7 +309,7 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 #### Examples
 
 ```code
-$ tsh gcloud compute instances list 
+$ tsh gcloud compute instances list
 ```
 
 ### tsh gsutil
@@ -320,7 +320,7 @@ authenticated to a Google Cloud application in Teleport before they can execute
 `tsh gsutil` commands.
 
 ```code
-$ tsh gsutil [--app] [<command>] 
+$ tsh gsutil [--app] [<command>]
 ```
 
 #### Arguments
@@ -447,6 +447,26 @@ $ tsh play c8e1b2c5-322a-4095-89e3-391edfd2da9b.tar
 ```
 </Admonition>
 
+### tsh recordings export
+
+Export recorded desktop sessions to video.
+
+```code
+$ tsh recordings export <session_id> [<flags>]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--out` | `<session_id>.avi` | a filename | Override the output file name. |
+
+#### Examples
+
+```code
+$ tsh recordings export c8e1b2c5-322a-4095-89e3-391edfd2da9b --out=recording.avi
+wrote recording to recording.avi
+```
 
 ### tsh play
 
@@ -745,7 +765,7 @@ in to at least one Google Cloud application via Teleport before the proxy can
 start.
 
 ```code
-$ tsh proxy gcloud [<flags>] 
+$ tsh proxy gcloud [<flags>]
 ```
 
 #### Flags
@@ -768,7 +788,7 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 $ tsh apps login google-cloud-app
 $ tsh proxy gcloud
 # Set env variables from output
-$ gcloud compute instances list 
+$ gcloud compute instances list
 $ gsutil ls
 ```
 

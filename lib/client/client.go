@@ -2073,8 +2073,9 @@ func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSiz
 		if remaining := max - len(sessions); remaining < pageSize {
 			pageSize = remaining
 		}
-		nextEvents, eventKey, err := authClient.SearchSessionEvents(fromUTC, toUTC,
-			pageSize, order, prevEventKey, nil /* where condition */, "" /* session ID */)
+		nextEvents, eventKey, err := authClient.SearchEvents(fromUTC, toUTC, apidefaults.Namespace,
+			[]string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent},
+			pageSize, order, prevEventKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
