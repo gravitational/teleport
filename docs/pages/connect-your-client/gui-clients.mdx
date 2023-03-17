@@ -296,6 +296,21 @@ more information.)
 ![DynamoDB local connection in NoSQL Workbench](../../img/database-access/nosql-workbench-connection.png)
 
 
+## SQL Server Azure Data Studio
+
+In Azure Data Studio create a connection using your proxy's endpoint. This is
+`localhost,62652` in the example above. Using the IP `127.0.0.1,62652` host could be required on
+a Windows machine instead of `localhost`. (See
+[Get connection information](./gui-clients.mdx#get-connection-information) for
+more information.)
+
+Create a connection with Microsoft SQL Server with the proxy endpoint `host`,`port`
+for the Server, SQL Login for the Authentication Type, keep the Password field empty
+and Encrypt set to `False`:
+
+![Azure Data Studio connection options](../../img/database-access/azure-data-studio-connection.png)
+
+Click Connect to connect.
 
 ## SQL Server DBeaver
 
@@ -323,6 +338,20 @@ empty:
 ![DataGrip connection options](../../img/database-access/guides/sqlserver/datagrip-connection@2x.png)
 
 Click "OK" to connect.
+
+## SQL Server Microsoft SQL Server Management Studio
+
+In Microsoft SQL Server Management Studio connect to a database engine using your proxy's endpoint. This is
+`localhost,62652` in the example above. Using the IP `127.0.0.1,62652` connection could be required on
+a Windows machine instead of `localhost`. (See
+[Get connection information](./gui-clients.mdx#get-connection-information) for
+more information.)
+
+Create a connection to a database engine with the proxy endpoint `host`,`port`
+for the Server name, SQL Server Authentication Type, keep the Password field empty
+and do not enable encryption:
+
+![Azure Data Studio connection options](../../img/database-access/msft-sql-server-mgmt-studio-connection.png)
 
 ## Redis Insight
 
