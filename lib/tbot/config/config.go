@@ -155,7 +155,7 @@ type CLIConf struct {
 type AzureOnboardingConfig struct {
 	// ClientID of the managed identity to use. Required if the VM has more
 	// than one assigned identity.
-	ClientID string `yaml:"client_id"`
+	ClientID string `yaml:"client_id,omitempty"`
 }
 
 // OnboardingConfig contains values relevant to how the bot authenticates with
@@ -180,7 +180,7 @@ type OnboardingConfig struct {
 	JoinMethod types.JoinMethod `yaml:"join_method"`
 
 	// Azure holds configuration relevant to the azure joining method.
-	Azure AzureOnboardingConfig `yaml:"azure"`
+	Azure AzureOnboardingConfig `yaml:"azure,omitempty"`
 }
 
 // HasToken gives the ability to check if there has been a token value stored
