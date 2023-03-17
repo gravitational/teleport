@@ -94,7 +94,9 @@ type CommandConfig struct {
 	DataDir string
 	// LDAPCA is the Windows LDAP Certificate for client signing
 	LDAPCA *x509.Certificate
-	// LDAPCA is the Windows LDAP Certificate in PEM format.
+	// LDAPCAPEM contains the same certificate as LDAPCA but in PEM format. It
+	// can be used to embed the LDAPCA into files without needing to convert
+	// it.
 	LDAPCAPEM string
 	// Command is a command generator that generates an executable command
 	Command CommandGenerator
