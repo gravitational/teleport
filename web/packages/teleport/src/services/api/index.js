@@ -22,4 +22,10 @@ import api, {
   getXCSRFToken,
 } from './api';
 export default api;
-export { getAuthHeaders, getNoCacheHeaders, getAccessToken, getHostName, getXCSRFToken };
+export {
+  getAuthHeaders,
+  getNoCacheHeaders,
+  getAccessToken,
+  getHostName,
+  getXCSRFToken,
+};
