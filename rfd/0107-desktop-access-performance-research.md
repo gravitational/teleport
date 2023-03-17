@@ -115,28 +115,62 @@ During the tests, the average time it took to process messages (read, process, d
 
 This solution won't change anything from the security point of view.
 
+
 ### 3) Remote Desktop Protocol: Graphics Pipeline Extension [MS-RDPEGFX](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/da5c75f9-cd99-450c-98c4-014a496942b0)
 
-The [MS-RDPEGFX] extension introduces a new way of drawing data by creating surfaces and using commands that utilize these surfaces to draw frames rather than just rendering bitmap data on the screen. This extension efficiently encode and transmit graphic display data from the server to the client. It alsow allows caching data locally to improve performance, can use different, newer, and more performant codecs to encode data e.g:
+The [MS-RDPEGFX] extension introduces a new way of drawing graphic data compared which is very similar to graphics APIs like OpenGL. Instead of just rendering bitmaps on the screen it defines surfaces, graphic contexts and graphics output buffer. Each surface is mapped to the part of the graphics output buffer which is a part visible for the end-user. Then graphic data is encoded using one of several codecs and transfered to specific surface. The protocol defines start and end frame messages which controll rendering process. There is also support for bitmap caches. It is embedded in a dynamic virtual channel transport, as specified in [MS-RDPEDYC](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpedyc/3bd53020-9b64-4c9a-97fc-90a79e7e1e06).
 
-- RemoteFX
-- ClearCodec
-- H.264/AVC444
+Here is an overview of commands defined in the protocol:
+![blit commands](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/ms-rdpegfx_files/image001.png)
 
-In essence, this protocol works in this way:
+- `WireToSurface` transfers encoded bitmap data to destination surface
+- `SurfaceToSurface` instruct the client to copy bitmap data from a source surface to a destination surface or to replicate bitmap data within the same surface
+- `SolidFill` instruct the client to fill a collection of rectangles on a destination surface with a solid color
+- `SurfaceToCache` instruct the client to copy bitmap data from a source surface to the bitmap cache
+- `CacheToSurface` instruct the client to copy bitmap data from the bitmap cache to a destination surface
 
-- create surfaces
-- associate surfaces to the portions of graphics output buffer (this is what an user sees) that can be of different sizes
-- decode graphic data for surface and render it on the graphics output buffer
+All these operations and usage of efficient codecs make this extension efficient in rendering and transporting graphic data.
 
-There is already one implementation of the extension in the Rust language: [ironrdp-gui-client](https://github.com/Devolutions/IronRDP/tree/master/ironrdp-gui-client), but it is using native gui for rendering by utilising opengl.
+
+##### Codecs
+This extension is only available starting in RDP 8.0, then updated in 8.1 and 10.0. The updates mainly brought support for new codecs. Here's a comparison of supported codecs between RDP versions:
+
+| codec | RDP 8.0 | RDP 8.1| RDP 10.0|
+| --- | :--------: | ---------: | ---: |
+|[RemoteFX Codec](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdprfx/e5afdc95-00bf-46f9-adea-6c641b54af26)|✓|✓|✓|
+|[ClearCodec Codec](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/6fa49bae-192f-4e25-888a-7cacfae303cf)|✓|✓|✓|
+| [NSCodec](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpnsc/) |✓|✓|✓|
+|[Planar Codec](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/0d2e1a03-e123-46b2-b2b8-ed730a794ae4)|✓|✓|✓|
+|[MPEG-4 AVC/H.264 Codec in YUV420p mode](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/5f12c20e-2ea1-4ad1-a2a0-019ee3893731)|X|✓|✓|
+|[MPEG-4 AVC/H.264 Codec in YUV444 mode](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/844018a5-d717-4bc9-bddb-8b4d6be5dd3f)|X|X|✓|
+|[MPEG-4 AVC/H.264 Codec in YUV444v2 mode](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/3b337b87-f478-4786-a63b-97794aa72075)|X|X|✓|
+
+
+The extension is already implemented in the Rust language in the IronRDP library with a reference client [ironrdp-gui-client](https://github.com/Devolutions/IronRDP/tree/master/ironrdp-gui-client) which uses native gui and OpenGL for rendering data.
 
 ##### Requirements
 
-This extension requires at least RDP 8, but for the best results it needs:
+This extension requires at least RDP 8.0, but for the best possible results it needs RDP 10.0 and hadware support for encoding H.264/AVC444 codec on the server.
 
-- RDP 10
-- hadware support for encoding H.264/AVC444
+
+##### RDP Host Group Policy Changes
+
+`Computer Configuration > Policies > Administrative Template > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Remote Session Enviorment`
+
+- Use hardware graphics adapters for all Remote Desktop Services Sessions - Enable
+- Configure H.264/AVC Hardware encoding for Remote Desktop Connections - Enable
+- Prioritize H.264/AVC 444 graphics mode for Remote Desktop Connections - Enable
+- Configure compression for Remote FX data - Enable
+- RDP compression algorithm: "Do not use an RDP compression algorithm"
+- RemoteFX encoding for RemoteFX clients designed for Windows Server 2008R2 SP1 - Enable
+
+#####  Performance metrics
+
+There are two protocol messages:
+- `RDPGFX_START_FRAME_PDU` which is message sent by the server to specify the start of a logical frame
+- `RDPGFX_END_FRAME_PDU` which is message sent by the server to specify the end of the logical frame.
+
+By capturing these messages, it would be possible to calculate time it takes to process one frame and calculate the number of frames per second (FPS).
 
 ##### UX changes
 
