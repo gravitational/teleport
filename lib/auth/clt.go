@@ -122,6 +122,9 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 	}
 
 	oktaClient, err := client.NewOktaClient(cfg.Context, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &Client{
 		APIClient:  apiClient,
