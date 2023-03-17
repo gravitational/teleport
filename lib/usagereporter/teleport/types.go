@@ -371,6 +371,7 @@ const (
 	ResourceKindKubeServer     = prehogv1.ResourceKind_RESOURCE_KIND_KUBE_SERVER
 	ResourceKindDBServer       = prehogv1.ResourceKind_RESOURCE_KIND_DB_SERVER
 	ResourceKindWindowsDesktop = prehogv1.ResourceKind_RESOURCE_KIND_WINDOWS_DESKTOP
+	ResourceKindNodeOpenSSH    = prehogv1.ResourceKind_RESOURCE_KIND_NODE_OPENSSH
 )
 
 func ResourceKindFromKeepAliveType(t types.KeepAlive_KeepAliveType) ResourceKind {
