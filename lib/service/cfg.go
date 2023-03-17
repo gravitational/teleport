@@ -141,6 +141,9 @@ type Config struct {
 	// Discovery defines the discovery service configuration.
 	Discovery DiscoveryConfig
 
+	// Okta defines the okta service configuration.
+	Okta OktaConfig
+
 	// Tracing defines the tracing service configuration.
 	Tracing TracingConfig
 

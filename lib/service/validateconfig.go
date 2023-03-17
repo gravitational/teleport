@@ -146,6 +146,7 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Databases.Enabled,
 		cfg.WindowsDesktop.Enabled,
 		cfg.Discovery.Enabled,
+		cfg.Okta.Enabled,
 	}
 
 	for _, item := range enabled {
