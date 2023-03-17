@@ -4,7 +4,7 @@ description: Learn how to use the Teleport API to start agents automatically whe
 ---
 
 You can use Teleport's API to automatically register resources in your
-infrastructure with your Teleport cluster. 
+infrastructure with your Teleport cluster.
 
 Teleport already supports the automatic discovery of [Kubernetes
 clusters](../kubernetes-access/discovery.mdx) in AWS, Azure, and Google Cloud,
@@ -78,18 +78,14 @@ user in order to generate credentials for the client.
 
 ### Create a user and role for the client application
 
-When writing a Teleport API client application, you must define a Teleport role
-that gives the application adequate permissions for the API operations it needs
-to perform.
+Our client application will authenticate to Teleport as a user with permissions
+to create join tokens, list applications, and delete records of Application
+Service instances registered with the Auth Service. The user will also have
+permissions to access applications with any label (`app_labels`), which is
+necessary for listing applications.
 
-This program will authenticate to Teleport as a user with permissions to create
-join tokens, list applications, and delete records of Application Service
-instances registered with the Auth Service. The user also has permissions to
-access applications with any label (`app_labels`), which is necessary for
-listing applications.
-
-Define a user and role called `register-apps` by adding the following content to
-a file called `register-apps.yaml`:
+Define a user and role with appropriate permissions for the client application
+by adding the following content to a file called `register-apps.yaml`:
 
 ```yaml
 kind: role
@@ -98,9 +94,9 @@ metadata:
   name: register-apps
 spec:
   allow:
+    app_labels:
+      '*': '*'
     rules:
-      app_labels:
-        '*': '*'
       - resources: ['token']
         verbs: ['create']
       - resources: ['app']
@@ -120,6 +116,8 @@ Create the user and role:
 
 ```code
 $ tctl create -f register-apps.yaml
+role 'register-apps' has been created
+user "register-apps" has been created
 ```
 
 ### Enable impersonation of the client application
@@ -132,9 +130,8 @@ role and user.
 <ScopedBlock scope={["oss", "enterprise"]}>If you are using `tctl` from the Auth
 Service host, you will already have impersonation privileges.</ScopedBlock>
 
-To grant your user impersonation privileges for `register-apps`, define a role
-called `register-apps-impersonator` by pasting the following YAML document into
-a file called `register-apps-impersonator.yaml`:
+To grant your user impersonation privileges for `register-apps`, create a file
+called `register-apps-impersonator.yaml` defining a role:
 
 ```yaml
 kind: role
@@ -154,6 +151,7 @@ Create the `register-apps-impersonator` role:
 
 ```code
 $ tctl create -f register-apps-impersonator.yaml
+role 'register-apps-impersonator' has been created
 ```
 
 (!docs/pages/includes/add-role-to-user.mdx role="register-apps-impersonator"!)
@@ -218,26 +216,26 @@ The program, which you can find in
 |---|---|
 |`context`|Includes the `context.Context` type. `context.Context` is an abstraction for controlling long-running routines, such as connections to external services, that might fail or time out. Programs can cancel contexts or assign them timeouts and metadata. |
 |`crypto/rand`|Includes cryptographic randomization functions, which we will use to generate join tokens for Application Services to use to establish trust with the Teleport Auth Service.|
-|`encoding/hex`|The number generator we use from `crypto/rand` returns data in bytes, so we will encode these as hexadecimal strings using this package.|
-|`fmt`|Formatting data for printing, strings, or errors.|
-|`net`|Dealing with network I/O.|
-|`net/url`|Parsing URLs.|
-|`strings`|Manipulating strings.|
-|`time`|Dealing with time. We will use this to define a timeout for connecting to the Auth Service along with a ticker for executing our discovery logic in a loop.|
+|<nobr>`encoding/hex`</nobr>|The number generator we use from `crypto/rand` returns data in bytes, so we will encode these as hexadecimal strings using this package.|
+|`fmt`|Formats data for printing, strings, or errors.|
+|`net`|Deals with network I/O.|
+|`net/url`|Parses URLs.|
+|`strings`|Manipulates strings.|
+|`time`|Deals with time. We will use this to define a timeout for connecting to the Auth Service along with a ticker for executing our discovery logic in a loop.|
 
 The client imports the following third-party code:
 
 |Package|Description|
 |---|---|
 |`github.com/docker/docker/api/types`|Types used in the Docker daemon API. Aliased as `dtypes` here. |
-|`github.com/docker/docker/api/types/container`|Container-specific types used in the Docker daemon API.|
+|<nobr>`github.com/docker/docker/api/types/container`</nobr>|Container-specific types used in the Docker daemon API.|
 |`github.com/docker/docker/api/types/filters`|Types used for filtering containers in the Docker daemon API.|
 |`github.com/docker/docker/api/types/strslice`|A utility package for working with slices of strings in Docker's API client library. (In Go, slices are similar to arrays, but with variable lengths and capacities. Arrays have a fixed size.)|
 |`github.com/docker/docker/client`|The Docker API client library, aliased as `docker` here.|
 |`github.com/gravitational/teleport/api/client`|A library for authenticating to the Auth Service's gRPC API and making requests, aliased as `teleport`.|
 |`github.com/gravitational/api/client/proto`|Teleport's protocol buffer API specification.|
 |`github.com/gravitational/teleport/api/types`|Types used in the Auth Service API, e.g., Application Service records.|
-|`github.com/gravitational/trace`|Presenting errors with more useful detail than the standard library provides.|
+|`github.com/gravitational/trace`|Presents errors with more useful detail than the standard library provides.|
 |`google.golang.org/grpc`|The gRPC client and server library.|
 
 ### Global declarations
@@ -267,9 +265,9 @@ want to change later, including:
 |---|---|
 |`proxyAddr`|The host and port of the Teleport Proxy Service, e.g., `mytenant.teleport.sh:443`, which we will use to connect the client to your cluster. **Assign this to your own Proxy Service's host and port.**|
 |`teleportImage`|The name of the Teleport container image, which the program will use to run instances of the Teleport Application Service.|
-|`initTimeout`|The timeout for connecting to the Teleport cluster. We have defined this as 30 seconds.|
-|`updateInterval`|How often the program will wait between reconciling Application Service instances and application containers (5 seconds).|
-|`tokenTTL`|How long of a TTL to set for join tokens that Application Service instances will use to establish trust with the Teleport cluster. This client application will use join tokens immediately after creating them, so we can set this TTL to a small value (5 minutes in this case) to prevent this credential from leaking.|
+|`initTimeout`|The timeout for connecting to the Teleport cluster (30 seconds).|
+|<nobr>`updateInterval`</nobr>|How often the program will wait between reconciling Application Service instances and application containers (5 seconds).|
+|`tokenTTL`|How long of a TTL to set for join tokens that Application Service instances will use to establish trust with the Teleport cluster. This client application will use join tokens immediately after creating them, so we can set this TTL to a small value (5 minutes) to prevent this credential from leaking.|
 |`networkName`|The name of the Docker network to search for application containers. `bridge` is the default local network managed by the Docker daemon.|
 |`managementPort`|The management API port of our RabbitMQ containers.|
 |`tokenLenBytes`| The length of join tokens to create, in bytes.|
@@ -303,10 +301,10 @@ Teleport represents registered resources in two ways:
 - **Service instances:** These are Teleport services proxying specific resources
   in your infrastructure, which you specify in the service's configuration file. 
 
-In our application, we will list Application Service instances and examine the
-resources they are proxying. This because we are spinning up one Application
-Service instance per application. Other client applications may need to look up
-dynamically registered resources instead.
+In our application, we're creating one Application Service instance per app, so
+we'll list Application Service instances and examine the resources they are
+proxying. Other client applications may need to look up dynamically registered
+resources instead.
 
 Here is the method that the application uses to fetch the URLs of registered
 applications: 
@@ -514,7 +512,8 @@ func (c *Client) CreateApp(ctx context.Context, app types.Application) error
 ```
 
 For this to work, you must have an instance of the Application Service already
-running. Your client application must also have the following permissions:
+running. Your API client application's Teleport user must also have the
+following permissions:
 
 ```yaml
 spec:
@@ -903,7 +902,7 @@ Connected to Teleport
 Connected to the Docker daemon
 ```
 
-Run three new RabbitMQ containers:
+In a new terminal, run three new RabbitMQ containers:
 
 ```code
 $ for i in {1..3}; do docker run -d rabbitmq:3-management; done;
