@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -416,14 +415,16 @@ func onProxyCommandDB(cf *CLIConf) error {
 		}
 	}()
 
+	tunnel := isLocalProxyTunnelRequested(cf)
 	proxyOpts, err := prepareLocalProxyOptions(&localProxyConfig{
-		cliConf:          cf,
-		teleportClient:   client,
+		cf:               cf,
+		tc:               client,
 		profile:          profile,
-		routeToDatabase:  route,
+		route:            *route,
 		database:         db,
 		listener:         listener,
-		localProxyTunnel: cf.LocalProxyTunnel,
+		autoReissueCerts: cf.LocalProxyTunnel, // only auto-reissue certs for --tunnel flag.
+		tunnel:           tunnel,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -438,7 +439,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		lp.Close()
 	}()
 
-	if isLocalProxyTunnelRequested(cf) {
+	if tunnel {
 		addr, err := utils.ParseAddr(lp.GetAddr())
 		if err != nil {
 			return trace.Wrap(err)
@@ -536,13 +537,14 @@ func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.Co
 
 // TODO(greedy52) replace localProxyOpts with []alpnproxy.LocalProxyConfigOpt and remove mkLocalProxy.
 type localProxyOpts struct {
-	proxyAddr  string
-	listener   net.Listener
-	protocols  []alpncommon.Protocol
-	insecure   bool
-	certs      []tls.Certificate
-	middleware alpnproxy.LocalProxyMiddleware
-	configOpts []alpnproxy.LocalProxyConfigOpt
+	proxyAddr        string
+	listener         net.Listener
+	protocols        []alpncommon.Protocol
+	insecure         bool
+	certs            []tls.Certificate
+	middleware       alpnproxy.LocalProxyMiddleware
+	configOpts       []alpnproxy.LocalProxyConfigOpt
+	checkCertsNeeded bool
 }
 
 func mkLocalProxy(ctx context.Context, opts *localProxyOpts) (*alpnproxy.LocalProxy, error) {
@@ -554,25 +556,12 @@ func mkLocalProxy(ctx context.Context, opts *localProxyOpts) (*alpnproxy.LocalPr
 		ParentContext:      ctx,
 		Certs:              opts.certs,
 		Middleware:         opts.middleware,
+		CheckCertsNeeded:   opts.checkCertsNeeded,
 	}, opts.configOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return lp, nil
-}
-
-func mkLocalProxyCerts(certFile, keyFile string) ([]tls.Certificate, error) {
-	if certFile == "" && keyFile == "" {
-		return []tls.Certificate{}, nil
-	}
-	if (certFile == "" && keyFile != "") || (certFile != "" && keyFile == "") {
-		return nil, trace.BadParameter("both --cert-file and --key-file are required")
-	}
-	cert, err := keys.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return []tls.Certificate{cert}, nil
 }
 
 func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
@@ -785,9 +774,25 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 	return tlsCert, nil
 }
 
+func loadDBCertificate(tc *libclient.TeleportClient, dbName string) (tls.Certificate, error) {
+	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithDBCerts{})
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	cert, ok := key.DBTLSCerts[dbName]
+	if !ok {
+		return tls.Certificate{}, trace.NotFound("please login into the database first. 'tsh db login'")
+	}
+	tlsCert, err := key.TLSCertificate(cert)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return tlsCert, nil
+}
+
 // getTLSCertExpireTime returns the certificate NotAfter time.
 func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
-	x509cert, err := utils.TLSCertToX509(cert)
+	x509cert, err := utils.TLSCertLeaf(cert)
 	if err != nil {
 		return time.Time{}, trace.Wrap(err)
 	}
