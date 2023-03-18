@@ -62,6 +62,11 @@ Yes, Teleport supports tunnel multiplexing on a single port. Set the
 setting in the `proxy_service` configuration. Teleport will automatically use
 multiplexing with that configuration.
 
+## I'm getting `ssh: subsystem request failed` while I try to copy files, what to do?
+
+Make sure that all Teleport components are at least at version 10.3.0. Older versions
+don't support the SFTP protocol, and it's enabled by default in `tsh` v11.0.0 and OpenSSH v9.0.
+
 ## How is Open Source different from Enterprise?
 
 Teleport provides three editions:
