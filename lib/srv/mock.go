@@ -95,6 +95,9 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	scx.contr, scx.contw, err = os.Pipe()
 	require.NoError(t, err)
 
+	scx.killShellr, scx.killShellw, err = os.Pipe()
+	require.NoError(t, err)
+
 	t.Cleanup(func() { require.NoError(t, scx.Close()) })
 
 	return scx

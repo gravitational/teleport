@@ -805,7 +805,24 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		} else {
 			fmt.Printf("%s has been deleted\n", rc.ref.Name)
 		}
-
+	case types.KindAppServer:
+		appServers, err := client.GetApplicationServers(ctx, rc.namespace)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		deleted := false
+		for _, server := range appServers {
+			if server.GetName() == rc.ref.Name {
+				if err := client.DeleteApplicationServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName()); err != nil {
+					return trace.Wrap(err)
+				}
+				deleted = true
+			}
+		}
+		if !deleted {
+			return trace.NotFound("application server %q not found", rc.ref.Name)
+		}
+		fmt.Printf("application server %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -1190,6 +1207,25 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.NotFound("database server %q not found", rc.ref.Name)
 		}
 		return &databaseServerCollection{servers: out}, nil
+	case types.KindAppServer:
+		servers, err := client.GetApplicationServers(ctx, rc.namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if rc.ref.Name == "" {
+			return &appServerCollection{servers: servers}, nil
+		}
+
+		var out []types.AppServer
+		for _, server := range servers {
+			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
+				out = append(out, server)
+			}
+		}
+		if len(out) == 0 {
+			return nil, trace.NotFound("application server %q not found", rc.ref.Name)
+		}
+		return &appServerCollection{servers: out}, nil
 	case types.KindNetworkRestrictions:
 		nr, err := client.GetNetworkRestrictions(ctx)
 		if err != nil {

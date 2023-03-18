@@ -17,9 +17,9 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-GOLANG_VERSION ?= go1.19.6
+GOLANG_VERSION ?= go1.19.7
 # run lint-rust check locally before merging code after you bump this
-RUST_VERSION ?= 1.67.0
+RUST_VERSION ?= 1.68.0
 NODE_VERSION ?= 16.13.2
 LIBBPF_VERSION ?= 0.7.0-teleport
 

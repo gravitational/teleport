@@ -96,7 +96,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 }
 
 func (s *Server) filterExistingNodes(instances *server.EC2Instances) {
-	nodes := s.NodeWatcher.GetNodes(func(n services.Node) bool {
+	nodes := s.NodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
 		labels := n.GetAllLabels()
 		_, accountOK := labels[types.AWSAccountIDLabel]
 		_, instanceOK := labels[types.AWSInstanceIDLabel]

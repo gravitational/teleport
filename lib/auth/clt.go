@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -38,7 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -163,7 +162,7 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 		// custom DialContext overrides this DNS name to the real address.
 		// In addition this dialer tries multiple addresses if provided
 		DialContext:           dialer.DialContext,
-		ResponseHeaderTimeout: apidefaults.DefaultDialTimeout,
+		ResponseHeaderTimeout: apidefaults.DefaultIOTimeout,
 		TLSClientConfig:       tls,
 
 		// Increase the size of the connection pool. This substantially improves the
@@ -195,11 +194,8 @@ func NewHTTPClient(cfg client.Config, tls *tls.Config, params ...roundtrip.Clien
 	clientParams := append(
 		[]roundtrip.ClientParam{
 			roundtrip.HTTPClient(&http.Client{
-				Timeout: defaults.HTTPRequestTimeout,
-				Transport: otelhttp.NewTransport(
-					breaker.NewRoundTripper(cb, transport),
-					otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
-				),
+				Timeout:   defaults.HTTPRequestTimeout,
+				Transport: tracehttp.NewTransport(breaker.NewRoundTripper(cb, transport)),
 			}),
 			roundtrip.SanitizerEnabled(true),
 		},

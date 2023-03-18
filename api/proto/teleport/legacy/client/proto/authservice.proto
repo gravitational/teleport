@@ -282,6 +282,11 @@ message UserCertsRequest {
   // ConnectionDiagnosticID is the ID of the ConnectionDiagnostic resource we should use to add
   // traces as we pass certain checkpoints.
   string ConnectionDiagnosticID = 16 [(gogoproto.jsontag) = "connection_diagnostic_id,omitempty"];
+
+  // MFAResponse is a response to a challenge from a user's MFA device.
+  // An optional field, that when provided, the response will be validated
+  // and the ID of the validated MFA device will be stored in the certificate.
+  MFAAuthenticateResponse MFAResponse = 17 [(gogoproto.jsontag) = "mfa_response,omitempty"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.

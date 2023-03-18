@@ -42,14 +42,15 @@ if (app.requestSingleInstanceLock()) {
 function initializeApp(): void {
   const settings = getRuntimeSettings();
   const logger = initMainLogger(settings);
+  logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
   const fileStorage = createFileStorage({
     filePath: path.join(settings.userDataDir, 'app_state.json'),
   });
   const configService = new ConfigServiceImpl();
   const windowsManager = new WindowsManager(fileStorage, settings);
 
-  process.on('uncaughtException', error => {
-    logger.error('', error);
+  process.on('uncaughtException', (error, origin) => {
+    logger.error(origin, error);
     app.quit();
   });
 

@@ -35,7 +35,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -62,7 +62,7 @@ func MakeHandler(fn HandlerFunc) httprouter.Handle {
 // MakeTracingHandler returns a new httprouter.Handle func that wraps the provided handler func
 // with one that will add a tracing span for each request.
 func MakeTracingHandler(h http.Handler, component string) http.Handler {
-	return otelhttp.NewHandler(h, component, otelhttp.WithSpanNameFormatter(tracing.HTTPHandlerFormatter))
+	return otelhttp.NewHandler(h, component, otelhttp.WithSpanNameFormatter(tracehttp.HandlerFormatter))
 }
 
 // MakeHandlerWithErrorWriter returns a httprouter.Handle from the HandlerFunc,

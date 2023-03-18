@@ -485,6 +485,7 @@ func (a *Server) runPeriodicOperations() {
 		FirstDuration: firstReleaseCheck,
 		Jitter:        utils.NewFullJitter(),
 	})
+	defer releaseCheck.Stop()
 
 	// more frequent release check that just re-calculates alerts based on previously
 	// pulled versioning info.
@@ -493,7 +494,27 @@ func (a *Server) runPeriodicOperations() {
 		FirstDuration: utils.HalfJitter(time.Second * 10),
 		Jitter:        utils.NewHalfJitter(),
 	})
-	defer releaseCheck.Stop()
+	defer localReleaseCheck.Stop()
+
+	// isolate the schedule of potentially long-running refreshRemoteClusters() from other tasks
+	go func() {
+		// reasonably small interval to ensure that users observe clusters as online within 1 minute of adding them.
+		remoteClustersRefresh := interval.New(interval.Config{
+			Duration: time.Second * 40,
+			Jitter:   utils.NewSeventhJitter(),
+		})
+		defer remoteClustersRefresh.Stop()
+
+		for {
+			select {
+			case <-a.closeCtx.Done():
+				return
+			case <-remoteClustersRefresh.Next():
+				a.refreshRemoteClusters(ctx, r)
+			}
+		}
+	}()
+
 	for {
 		select {
 		case <-a.closeCtx.Done():
@@ -800,6 +821,57 @@ func (a *Server) updateVersionMetrics() {
 	registeredAgents.Reset()
 	for version, count := range versionCount {
 		registeredAgents.WithLabelValues(version).Set(float64(count))
+	}
+}
+
+var (
+	// remoteClusterRefreshLimit is the maximum number of backend updates that will be performed
+	// during periodic remote cluster connection status refresh.
+	remoteClusterRefreshLimit = 50
+
+	// remoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
+	// of all remote clusters if their number exceeds remoteClusterRefreshLimit × remoteClusterRefreshBuckets.
+	remoteClusterRefreshBuckets = 12
+)
+
+// refreshRemoteClusters updates connection status of all remote clusters.
+func (a *Server) refreshRemoteClusters(ctx context.Context, rnd *insecurerand.Rand) {
+	remoteClusters, err := a.Services.GetRemoteClusters()
+	if err != nil {
+		log.WithError(err).Error("Failed to load remote clusters for status refresh")
+		return
+	}
+
+	netConfig, err := a.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		log.WithError(err).Error("Failed to load networking config for remote cluster status refresh")
+		return
+	}
+
+	// randomize the order to optimize for multiple auth servers running in parallel
+	rnd.Shuffle(len(remoteClusters), func(i, j int) {
+		remoteClusters[i], remoteClusters[j] = remoteClusters[j], remoteClusters[i]
+	})
+
+	// we want to limit the number of backend updates performed on each refresh to avoid overwhelming the backend.
+	updateLimit := remoteClusterRefreshLimit
+	if dynamicLimit := (len(remoteClusters) / remoteClusterRefreshBuckets) + 1; dynamicLimit > updateLimit {
+		// if the number of remote clusters is larger than remoteClusterRefreshLimit × remoteClusterRefreshBuckets,
+		// bump the limit to make sure all remote clusters will be updated within reasonable time.
+		updateLimit = dynamicLimit
+	}
+
+	var updateCount int
+	for _, remoteCluster := range remoteClusters {
+		if updated, err := a.updateRemoteClusterStatus(ctx, netConfig, remoteCluster); err != nil {
+			log.WithError(err).Error("Failed to perform remote cluster status refresh")
+		} else if updated {
+			updateCount++
+		}
+
+		if updateCount >= updateLimit {
+			break
+		}
 	}
 }
 

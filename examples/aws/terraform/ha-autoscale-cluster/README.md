@@ -1,6 +1,6 @@
 ## Terraform based provisioning example (Amazon single AMI)
 
-Terraform specifies example provisioning script for Teleport auth, proxy and nodes in HA mode.
+Terraform specifies example provisioning script for Teleport auth, proxy and nodes in High Availability (HA) mode.
 
 Use these examples as possible deployment patterns suggested by Teleport developers.
 
@@ -27,6 +27,7 @@ In order to spin up AWS resources using these Terraform examples, you need the f
 
 - terraform v0.12+ [install docs](https://learn.hashicorp.com/terraform/getting-started/install.html)
 - awscli v1.14+ [install docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
+- [Running Teleport Enterprise in High Availability mode on AWS](https://goteleport.com/docs/deploy-a-cluster/deployments/aws-terraform/)
 
 ```bash
 # Set variables for Terraform
