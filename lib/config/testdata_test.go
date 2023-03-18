@@ -202,6 +202,11 @@ discovery_service:
         regions: ["eu-central-1"]
         assume_role_arn: "arn:aws:iam::123456789012:role/DBDiscoverer"
         external_id: "externalID123"
+
+okta_service:
+    enabled: yes
+    api_endpoint: https://some-endpoint
+    api_token_path: %v
 `
 
 // NoServicesConfigString is a configuration file with no services enabled

@@ -684,6 +684,11 @@ func TestDynamoDBConfig(t *testing.T) {
 			externalID: "externalid123",
 			wantErrMsg: "assume_role_arn is missing",
 		},
+		{
+			region:     "us-west-1",
+			desc:       "missing account id",
+			wantErrMsg: "account ID is missing",
+		},
 	}
 
 	for _, tt := range tests {

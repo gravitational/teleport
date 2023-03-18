@@ -699,7 +699,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 // handleDynamoDBConfig handles DynamoDB configuration checking.
 func (d *DatabaseV3) handleDynamoDBConfig() error {
 	if d.Spec.AWS.AccountID == "" {
-		return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
+		return trace.BadParameter("database %q AWS account ID is missing", d.GetName())
 	}
 
 	info, err := awsutils.ParseDynamoDBEndpoint(d.Spec.URI)

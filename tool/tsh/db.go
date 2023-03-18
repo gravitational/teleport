@@ -19,6 +19,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -596,13 +597,14 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	}
 
 	opts, err := prepareLocalProxyOptions(&localProxyConfig{
-		cliConf:          cf,
-		teleportClient:   tc,
+		cf:               cf,
+		tc:               tc,
 		profile:          profile,
-		routeToDatabase:  route,
+		route:            *route,
 		database:         db,
 		listener:         listener,
-		localProxyTunnel: requires.tunnel,
+		autoReissueCerts: requires.tunnel,
+		tunnel:           requires.tunnel,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -640,66 +642,60 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 
 // localProxyConfig is an argument pack used in prepareLocalProxyOptions().
 type localProxyConfig struct {
-	cliConf         *CLIConf
-	teleportClient  *client.TeleportClient
-	profile         *client.ProfileStatus
-	routeToDatabase *tlsca.RouteToDatabase
-	database        types.Database
-	listener        net.Listener
-	// localProxyTunnel keeps the same value as cliConf.LocalProxyTunnel, but
-	// it's always true for Snowflake database. Value is copied here to not modify
-	// cli arguments directly.
-	localProxyTunnel bool
+	cf       *CLIConf
+	tc       *client.TeleportClient
+	profile  *client.ProfileStatus
+	route    tlsca.RouteToDatabase
+	database types.Database
+	listener net.Listener
+	// autoReissueCerts indicates whether a cert auto reissuer should be used
+	// for the local proxy to keep certificates valid.
+	// - when `tsh db connect` needs to tunnel it will set this field.
+	// - when `tsh proxy db` is used with `--tunnel` cli flag it will set this field.
+	autoReissueCerts bool
+	// tunnel controls whether client certs will always be used to dial upstream.
+	tunnel bool
 }
 
 // prepareLocalProxyOptions created localProxyOpts needed to create local proxy from localProxyConfig.
 func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
-	certFile := arg.cliConf.LocalProxyCertFile
-	keyFile := arg.cliConf.LocalProxyKeyFile
-	if arg.localProxyTunnel && certFile == "" && keyFile == "" {
-		// --tunnel implies the local proxy is configured with db certs.
-		// If db certs are not specified but exist in the user profile, load
-		// them from the profile.
-		certFile = arg.profile.DatabaseCertPathForCluster(arg.teleportClient.SiteName, arg.routeToDatabase.ServiceName)
-		keyFile = arg.profile.KeyPath()
+	if err := checkAndSetDBRouteDefaults(&arg.route); err != nil {
+		return nil, trace.Wrap(err)
 	}
-	certs, err := mkLocalProxyCerts(certFile, keyFile)
-	if err != nil {
-		if !arg.localProxyTunnel {
-			return nil, trace.Wrap(err)
-		}
-		// local proxy with --tunnel monitors and reissue its certs,
-		// so it's ok if certs can't be loaded here.
-		certs = nil
+	opts := &localProxyOpts{
+		proxyAddr:        arg.tc.WebProxyAddr,
+		listener:         arg.listener,
+		protocols:        []common.Protocol{common.Protocol(arg.route.Protocol)},
+		insecure:         arg.cf.InsecureSkipVerify,
+		checkCertsNeeded: !arg.tunnel && arg.route.Protocol == defaults.ProtocolPostgres,
 	}
 
-	alpnProtocol, err := common.ToALPNProtocol(arg.routeToDatabase.Protocol)
+	// load certs if local proxy needs to be able to tunnel.
+	// certs are needed for non-tunnel postgres cancel requests.
+	if arg.tunnel || arg.route.Protocol == defaults.ProtocolPostgres {
+		certs, err := getDBLocalProxyCerts(arg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		opts.certs = certs
+	}
+
+	if arg.autoReissueCerts {
+		opts.middleware = client.NewDBCertChecker(arg.tc, arg.route, nil)
+	}
+
+	alpnProtocol, err := common.ToALPNProtocol(arg.route.Protocol)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	opts := &localProxyOpts{
-		proxyAddr: arg.teleportClient.WebProxyAddr,
-		listener:  arg.listener,
-		protocols: []common.Protocol{alpnProtocol},
-		insecure:  arg.cliConf.InsecureSkipVerify,
-		certs:     certs,
-	}
-	opts.configOpts = append(opts.configOpts, alpnproxy.WithALPNConnUpgradeTest(arg.cliConf.Context, arg.teleportClient.RootClusterCACertPool))
-
-	if arg.localProxyTunnel {
-		dbRoute := *arg.routeToDatabase
-		if err := checkAndSetDBRouteDefaults(&dbRoute); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		opts.middleware = client.NewDBCertChecker(arg.teleportClient, dbRoute, nil)
-	}
+	opts.protocols = []common.Protocol{alpnProtocol}
+	opts.configOpts = append(opts.configOpts, alpnproxy.WithALPNConnUpgradeTest(arg.cf.Context, arg.tc.RootClusterCACertPool))
 
 	// To set correct MySQL server version DB proxy needs additional protocol.
-	if !arg.localProxyTunnel && arg.routeToDatabase.Protocol == defaults.ProtocolMySQL {
+	if !arg.tunnel && arg.route.Protocol == defaults.ProtocolMySQL {
 		if arg.database == nil {
 			var err error
-			arg.database, err = getDatabase(arg.cliConf, arg.teleportClient, arg.routeToDatabase.ServiceName)
+			arg.database, err = getDatabase(arg.cf, arg.tc, arg.route.ServiceName)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -710,8 +706,44 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
 			opts.protocols = append(opts.protocols, common.Protocol(mysqlServerVersionProto))
 		}
 	}
-
 	return opts, nil
+}
+
+// getDBLocalProxyCerts gets cert/key file specified by cli config, or
+// if both are not specified then it tries to load certs from the profile.
+// This is a helper func for preparing local proxy options.
+func getDBLocalProxyCerts(arg *localProxyConfig) ([]tls.Certificate, error) {
+	if arg.cf.LocalProxyCertFile != "" || arg.cf.LocalProxyKeyFile != "" {
+		return getUserSpecifiedLocalProxyCerts(arg)
+	}
+	// if neither --cert-file nor --key-file are specified, load db cert from client store.
+	cert, err := loadDBCertificate(arg.tc, arg.route.ServiceName)
+	if err != nil {
+		if arg.autoReissueCerts {
+			// If using a reissuer, just return nil certs and let the reissuer
+			// fetch new certs when the local proxy starts instead.
+			// We don't do this for user specified certs (above), because it is
+			// surprising UX to get a login prompt when a user passes
+			// --cert-file/--key-file, and we don't know how the user wants to
+			// proceed.
+			return nil, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+	return []tls.Certificate{cert}, nil
+}
+
+// getUserSpecifiedLocalProxyCerts loads certs from files specified by cli arguments.
+// This is a helper func for preparing local proxy options.
+func getUserSpecifiedLocalProxyCerts(arg *localProxyConfig) ([]tls.Certificate, error) {
+	if arg.cf.LocalProxyCertFile == "" || arg.cf.LocalProxyKeyFile == "" {
+		return nil, trace.BadParameter("both --cert-file and --key-file are required")
+	}
+	cert, err := keys.LoadX509KeyPair(arg.cf.LocalProxyCertFile, arg.cf.LocalProxyKeyFile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []tls.Certificate{cert}, nil
 }
 
 // mySQLVersionToProto returns base64 encoded MySQL server version with MySQL protocol prefix.

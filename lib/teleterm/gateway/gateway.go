@@ -271,7 +271,7 @@ func (g *Gateway) ReloadCert() error {
 //
 // Before using the cert for the proxy, we have to perform this check.
 func checkCertSubject(tlsCert tls.Certificate, dbRoute tlsca.RouteToDatabase) error {
-	cert, err := utils.TLSCertToX509(tlsCert)
+	cert, err := utils.TLSCertLeaf(tlsCert)
 	if err != nil {
 		return trace.Wrap(err)
 	}
