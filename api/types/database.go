@@ -508,16 +508,21 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("database %q protocol is empty", d.GetName())
 	}
 	if d.Spec.URI == "" {
-		switch {
-		case d.IsAWSKeyspaces() && d.Spec.AWS.Region != "":
-			// In case of AWS Hosted Cassandra allow to omit URI.
-			// The URL will be constructed from the database resource based on the region and account ID.
-			d.Spec.URI = awsutils.CassandraEndpointURLForRegion(d.Spec.AWS.Region)
-		case d.IsDynamoDB():
+		switch d.GetType() {
+		case DatabaseTypeAWSKeyspaces:
+			if d.Spec.AWS.Region != "" {
+				// In case of AWS Hosted Cassandra allow to omit URI.
+				// The URL will be constructed from the database resource based on the region and account ID.
+				d.Spec.URI = awsutils.CassandraEndpointURLForRegion(d.Spec.AWS.Region)
+			} else {
+				return trace.BadParameter("AWS Keyspaces database %q URI is empty and cannot be derived without a configured AWS region",
+					d.GetName())
+			}
+		case DatabaseTypeDynamoDB:
 			if d.Spec.AWS.Region != "" {
 				d.Spec.URI = awsutils.DynamoDBURIForRegion(d.Spec.AWS.Region)
 			} else {
-				return trace.BadParameter("DynamoDB database %q URI is missing and cannot be derived from an empty configured AWS region",
+				return trace.BadParameter("DynamoDB database %q URI is empty and cannot be derived without a configured AWS region",
 					d.GetName())
 			}
 		default:
@@ -679,8 +684,10 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 	}
 
-	if d.Spec.AWS.AssumeRoleARN == "" && d.Spec.AWS.ExternalID != "" {
-		return trace.BadParameter("AWS database %q has external_id %q, but assume_role_arn is missing",
+	if d.Spec.AWS.ExternalID != "" && d.Spec.AWS.AssumeRoleARN == "" && !d.RequireAWSIAMRolesAsUsers() {
+		// Databases that use database username to assume an IAM role do not
+		// need assume_role_arn in configuration when external_id is set.
+		return trace.BadParameter("AWS database %q has external_id %q, but assume_role_arn is empty",
 			d.GetName(), d.Spec.AWS.ExternalID)
 	}
 
@@ -699,7 +706,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 // handleDynamoDBConfig handles DynamoDB configuration checking.
 func (d *DatabaseV3) handleDynamoDBConfig() error {
 	if d.Spec.AWS.AccountID == "" {
-		return trace.BadParameter("database %q AWS account ID is missing", d.GetName())
+		return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
 	}
 
 	info, err := awsutils.ParseDynamoDBEndpoint(d.Spec.URI)
@@ -709,7 +716,7 @@ func (d *DatabaseV3) handleDynamoDBConfig() error {
 		// so we check if the region is configured to see if this is really a configuration error.
 		if d.Spec.AWS.Region == "" {
 			// the AWS region is empty and we can't derive it from the URI, so this is a config error.
-			return trace.BadParameter("database %q AWS region is missing and cannot be derived from the URI %q",
+			return trace.BadParameter("database %q AWS region is empty and cannot be derived from the URI %q",
 				d.GetName(), d.Spec.URI)
 		}
 		if awsutils.IsAWSEndpoint(d.Spec.URI) {

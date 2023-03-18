@@ -645,6 +645,21 @@ func TestDynamoDBConfig(t *testing.T) {
 			},
 		},
 		{
+			desc:       "configured external ID but not assume role is ok",
+			uri:        "localhost:8080",
+			region:     "us-west-1",
+			account:    "123456789012",
+			externalID: "externalid123",
+			wantSpec: DatabaseSpecV3{
+				URI: "localhost:8080",
+				AWS: AWS{
+					Region:     "us-west-1",
+					AccountID:  "123456789012",
+					ExternalID: "externalid123",
+				},
+			},
+		},
+		{
 			desc:       "region and different AWS URI region is an error",
 			uri:        "dynamodb.us-west-2.amazonaws.com",
 			region:     "us-west-1",
@@ -662,12 +677,12 @@ func TestDynamoDBConfig(t *testing.T) {
 			desc:       "custom URI and missing region is an error",
 			uri:        "localhost:8080",
 			account:    "123456789012",
-			wantErrMsg: "region is missing",
+			wantErrMsg: "region is empty",
 		},
 		{
 			desc:       "missing URI and missing region is an error",
 			account:    "123456789012",
-			wantErrMsg: "URI is missing",
+			wantErrMsg: "URI is empty",
 		},
 		{
 			desc:       "invalid AWS account ID is an error",
@@ -677,17 +692,9 @@ func TestDynamoDBConfig(t *testing.T) {
 			wantErrMsg: "must be 12-digit",
 		},
 		{
-			desc:       "configured external ID but not assume role is an error",
-			uri:        "localhost:8080",
-			region:     "us-west-1",
-			account:    "123456789012",
-			externalID: "externalid123",
-			wantErrMsg: "assume_role_arn is missing",
-		},
-		{
 			region:     "us-west-1",
 			desc:       "missing account id",
-			wantErrMsg: "account ID is missing",
+			wantErrMsg: "account ID is empty",
 		},
 	}
 
