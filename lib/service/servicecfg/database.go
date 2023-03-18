@@ -100,7 +100,7 @@ func (d *Database) CheckAndSetDefaults() error {
 		}
 	}
 
-	// if AWS account id is missing, but assume role arn is given,
+	// If AWS account ID is missing, but assume role ARN is given,
 	// try to parse the role arn and set the account id to match.
 	if d.AWS.AccountID == "" && d.AWS.AssumeRoleARN != "" {
 		parsed, err := awsutils.ParseRoleARN(d.AWS.AssumeRoleARN)
