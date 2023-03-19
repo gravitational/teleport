@@ -240,7 +240,7 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
 		makeBasicLocalProxyConfig(a.cf, tc, listener),
-		alpnproxy.WithClientCert(appCerts),
+		alpnproxy.WithClientCerts(appCerts),
 		alpnproxy.WithALPNConnUpgradeTest(a.cf.Context, tc.RootClusterCACertPool),
 		alpnproxy.WithHTTPMiddleware(&alpnproxy.AzureMSIMiddleware{
 			Key:    wsPK,

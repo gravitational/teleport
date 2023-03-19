@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"net"
@@ -46,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -602,7 +600,6 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 		profile:          profile,
 		route:            *route,
 		database:         db,
-		listener:         listener,
 		autoReissueCerts: requires.tunnel,
 		tunnel:           requires.tunnel,
 	})
@@ -610,7 +607,7 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 		return nil, trace.Wrap(err)
 	}
 
-	lp, err := mkLocalProxy(cf.Context, opts)
+	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -647,7 +644,6 @@ type localProxyConfig struct {
 	profile  *client.ProfileStatus
 	route    tlsca.RouteToDatabase
 	database types.Database
-	listener net.Listener
 	// autoReissueCerts indicates whether a cert auto reissuer should be used
 	// for the local proxy to keep certificates valid.
 	// - when `tsh db connect` needs to tunnel it will set this field.
@@ -658,16 +654,18 @@ type localProxyConfig struct {
 }
 
 // prepareLocalProxyOptions created localProxyOpts needed to create local proxy from localProxyConfig.
-func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
+func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConfigOpt, error) {
 	if err := checkAndSetDBRouteDefaults(&arg.route); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	opts := &localProxyOpts{
-		proxyAddr:        arg.tc.WebProxyAddr,
-		listener:         arg.listener,
-		protocols:        []common.Protocol{common.Protocol(arg.route.Protocol)},
-		insecure:         arg.cf.InsecureSkipVerify,
-		checkCertsNeeded: !arg.tunnel && arg.route.Protocol == defaults.ProtocolPostgres,
+
+	opts := []alpnproxy.LocalProxyConfigOpt{
+		alpnproxy.WithDatabaseProtocol(arg.route.Protocol),
+		alpnproxy.WithALPNConnUpgradeTest(arg.cf.Context, arg.tc.RootClusterCACertPool),
+	}
+
+	if !arg.tunnel && arg.route.Protocol == defaults.ProtocolPostgres {
+		opts = append(opts, alpnproxy.WithCheckCertsNeeded())
 	}
 
 	// load certs if local proxy needs to be able to tunnel.
@@ -677,19 +675,12 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		opts.certs = certs
+		opts = append(opts, alpnproxy.WithClientCerts(certs...))
 	}
 
 	if arg.autoReissueCerts {
-		opts.middleware = client.NewDBCertChecker(arg.tc, arg.route, nil)
+		opts = append(opts, alpnproxy.WithMiddleware(client.NewDBCertChecker(arg.tc, arg.route, nil)))
 	}
-
-	alpnProtocol, err := common.ToALPNProtocol(arg.route.Protocol)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	opts.protocols = []common.Protocol{alpnProtocol}
-	opts.configOpts = append(opts.configOpts, alpnproxy.WithALPNConnUpgradeTest(arg.cf.Context, arg.tc.RootClusterCACertPool))
 
 	// To set correct MySQL server version DB proxy needs additional protocol.
 	if !arg.tunnel && arg.route.Protocol == defaults.ProtocolMySQL {
@@ -701,10 +692,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
 			}
 		}
 
-		mysqlServerVersionProto := mySQLVersionToProto(arg.database)
-		if mysqlServerVersionProto != "" {
-			opts.protocols = append(opts.protocols, common.Protocol(mysqlServerVersionProto))
-		}
+		opts = append(opts, alpnproxy.WithMySQLVersionProto(arg.database))
 	}
 	return opts, nil
 }
@@ -744,20 +732,6 @@ func getUserSpecifiedLocalProxyCerts(arg *localProxyConfig) ([]tls.Certificate, 
 		return nil, trace.Wrap(err)
 	}
 	return []tls.Certificate{cert}, nil
-}
-
-// mySQLVersionToProto returns base64 encoded MySQL server version with MySQL protocol prefix.
-// If version is not set in the past database an empty string is returned.
-func mySQLVersionToProto(database types.Database) string {
-	version := database.GetMySQLServerVersion()
-	if version == "" {
-		return ""
-	}
-
-	versionBase64 := base64.StdEncoding.EncodeToString([]byte(version))
-
-	// Include MySQL server version
-	return string(common.ProtocolMySQLWithVerPrefix) + versionBase64
 }
 
 // onDatabaseConnect implements "tsh db connect" command.
