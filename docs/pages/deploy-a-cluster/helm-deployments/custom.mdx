@@ -39,7 +39,7 @@ auth_service:
   enabled: true
   cluster_name: custom.example.com
   tokens:
-  # These commands will generate random 32-chacter alphanumeric strings to use as join tokens
+  # These commands will generate random 32-character alphanumeric strings to use as join tokens
   - "proxy,node:$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)"
   - "trusted_cluster:$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)"
   listen_addr: 0.0.0.0:3025

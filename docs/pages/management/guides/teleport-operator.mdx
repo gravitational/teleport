@@ -199,7 +199,7 @@ loop. This loop is in charge of validating the resource, checking if it already 
 the Teleport API to create/update/delete the resource. The reconciliation loop also adds a `status` field on the
 Kubernetes resource.
 
-If an error happens and the reconciliation loop is not sucessful, an item in `status.conditions` will describe what
+If an error happens and the reconciliation loop is not successful, an item in `status.conditions` will describe what
 went wrong. This allows users to diagnose errors by inspecting Kubernetes resources with `kubectl`:
 
 ```code
