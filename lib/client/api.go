@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
@@ -373,6 +374,13 @@ type Config struct {
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool
 
+	// TLSRoutingConnUpgradeRequired indicates that ALPN connection upgrades
+	// are required for making TLS routing requests.
+	//
+	// Note that this is applicable to the Proxy's Web port regardless of
+	// whether the Proxy is in single-port or multi-port configuration.
+	TLSRoutingConnUpgradeRequired bool
+
 	// Reason is a reason attached to started sessions meant to describe their intent.
 	Reason string
 
@@ -593,6 +601,7 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.MySQLProxyAddr = profile.MySQLProxyAddr
 	c.MongoProxyAddr = profile.MongoProxyAddr
 	c.TLSRoutingEnabled = profile.TLSRoutingEnabled
+	c.TLSRoutingConnUpgradeRequired = profile.TLSRoutingConnUpgradeRequired
 	c.KeysDir = profile.Dir
 	c.AuthConnector = profile.AuthConnector
 	c.LoadAllCAs = profile.LoadAllCAs
@@ -612,6 +621,10 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 		log.Warnf("Unable to parse dynamic port forwarding in user profile: %v.", err)
 	}
 
+	if required, ok := alpnproxy.OverwriteALPNConnUpgradeRequiredByEnv(c.WebProxyAddr); ok {
+		c.TLSRoutingConnUpgradeRequired = required
+	}
+	log.Infof("ALPN connection upgrade required for %q: %v.", c.WebProxyAddr, c.TLSRoutingConnUpgradeRequired)
 	return nil
 }
 
@@ -623,20 +636,21 @@ func (c *Config) SaveProfile(makeCurrent bool) error {
 	}
 
 	p := &profile.Profile{
-		Username:          c.Username,
-		WebProxyAddr:      c.WebProxyAddr,
-		SSHProxyAddr:      c.SSHProxyAddr,
-		KubeProxyAddr:     c.KubeProxyAddr,
-		PostgresProxyAddr: c.PostgresProxyAddr,
-		MySQLProxyAddr:    c.MySQLProxyAddr,
-		MongoProxyAddr:    c.MongoProxyAddr,
-		ForwardedPorts:    c.LocalForwardPorts.String(),
-		SiteName:          c.SiteName,
-		TLSRoutingEnabled: c.TLSRoutingEnabled,
-		AuthConnector:     c.AuthConnector,
-		MFAMode:           c.AuthenticatorAttachment.String(),
-		LoadAllCAs:        c.LoadAllCAs,
-		PrivateKeyPolicy:  c.PrivateKeyPolicy,
+		Username:                      c.Username,
+		WebProxyAddr:                  c.WebProxyAddr,
+		SSHProxyAddr:                  c.SSHProxyAddr,
+		KubeProxyAddr:                 c.KubeProxyAddr,
+		PostgresProxyAddr:             c.PostgresProxyAddr,
+		MySQLProxyAddr:                c.MySQLProxyAddr,
+		MongoProxyAddr:                c.MongoProxyAddr,
+		ForwardedPorts:                c.LocalForwardPorts.String(),
+		SiteName:                      c.SiteName,
+		TLSRoutingEnabled:             c.TLSRoutingEnabled,
+		TLSRoutingConnUpgradeRequired: c.TLSRoutingConnUpgradeRequired,
+		AuthConnector:                 c.AuthConnector,
+		MFAMode:                       c.AuthenticatorAttachment.String(),
+		LoadAllCAs:                    c.LoadAllCAs,
+		PrivateKeyPolicy:              c.PrivateKeyPolicy,
 	}
 
 	if err := c.ClientStore.SaveProfile(p, makeCurrent); err != nil {
@@ -835,6 +849,13 @@ func (c *Config) DatabaseProxyHostPort(db tlsca.RouteToDatabase) (string, int) {
 		return c.MongoProxyHostPort()
 	}
 	return c.WebProxyHostPort()
+}
+
+// DoesDatabseUserWebProxyHostPort returns true if database is using web port.
+func (c *Config) DoesDatabseUserWebProxyHostPort(db tlsca.RouteToDatabase) bool {
+	dbHost, dbPort := c.DatabaseProxyHostPort(db)
+	webHost, webPort := c.WebProxyHostPort()
+	return dbHost == webHost && dbPort == webPort
 }
 
 // GetKubeTLSServerName returns k8s server name used in KUBECONFIG to leverage TLS Routing.
@@ -3055,6 +3076,9 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Perform the ALPN test once at login.
+	tc.TLSRoutingConnUpgradeRequired = alpnproxy.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	sshLoginFunc, err := tc.getSSHLoginFunc(pr)

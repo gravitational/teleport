@@ -661,7 +661,7 @@ func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConf
 
 	opts := []alpnproxy.LocalProxyConfigOpt{
 		alpnproxy.WithDatabaseProtocol(arg.route.Protocol),
-		alpnproxy.WithALPNConnUpgradeTest(arg.cf.Context, arg.tc.RootClusterCACertPool),
+		alpnproxy.WithClusterCAsIfConnUpgrade(arg.cf.Context, arg.tc.RootClusterCACertPool),
 	}
 
 	if !arg.tunnel && arg.route.Protocol == defaults.ProtocolPostgres {
@@ -1108,6 +1108,10 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route *tlsca.RouteToD
 	switch tc.PrivateKeyPolicy {
 	case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
 		out.addLocalProxyWithTunnel(formatKeyPolicyReason(tc.PrivateKeyPolicy))
+	}
+
+	if tc.TLSRoutingConnUpgradeRequired && tc.DoesDatabseUserWebProxyHostPort(*route) {
+		out.addLocalProxy("Teleport Proxy is behind a load balancer.")
 	}
 
 	switch route.Protocol {
