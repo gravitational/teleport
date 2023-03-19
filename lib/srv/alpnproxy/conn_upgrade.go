@@ -20,9 +20,11 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -31,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
@@ -46,6 +49,10 @@ import (
 // Proxy Service to establish a tunnel for the originally planned traffic to
 // preserve the ALPN and SNI information.
 func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
+	if result, ok := OverwriteALPNConnUpgradeRequiredByEnv(addr); ok {
+		return result
+	}
+
 	netDialer := &net.Dialer{
 		Timeout: defaults.DefaultIOTimeout,
 	}
@@ -55,14 +62,14 @@ func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
 	}
 	testConn, err := tls.DialWithDialer(netDialer, "tcp", addr, tlsConfig)
 	if err != nil {
-		// If dialing TLS fails for any reason, we assume connection upgrade is
-		// not required so it will fallback to original connection method.
-		//
-		// This includes handshake failures where both peers support ALPN but
-		// no common protocol is getting negotiated. We may have to revisit
-		// this situation or make it configurable if we have to get through a
-		// middleman with this behavior. For now, we are only interested in the
-		// case where the middleman does not support ALPN.
+		if isRemoteNoALPNError(err) {
+			logrus.Debugf("ALPN connection upgrade required for %q: %v. No ALPN protocol is negotiated by the server.", addr, true)
+			return true
+		}
+
+		// If dialing TLS fails for any other reason, we assume connection
+		// upgrade is not required so it will fallback to original connection
+		// method.
 		logrus.Infof("ALPN connection upgrade test failed for %q: %v.", addr, err)
 		return false
 	}
@@ -73,6 +80,57 @@ func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
 	result := testConn.ConnectionState().NegotiatedProtocol == ""
 	logrus.Debugf("ALPN connection upgrade required for %q: %v.", addr, result)
 	return result
+}
+
+func isRemoteNoALPNError(err error) bool {
+	if err = errors.Unwrap(err); err == nil {
+		return false
+	}
+	netOpError, ok := err.(*net.OpError)
+	if !ok {
+		return false
+	}
+	return netOpError.Op == "remote error" && strings.Contains(netOpError.Err.Error(), "tls: no application protocol")
+}
+
+// OverwriteALPNConnUpgradeRequiredByEnv overwrites ALPN connection upgrade
+// requirement by environment variable.
+func OverwriteALPNConnUpgradeRequiredByEnv(addr string) (bool, bool) {
+	envValue := os.Getenv(defaults.TLSRoutingConnUpgradeEnvVar)
+	if envValue == "" {
+		return false, false
+	}
+	result := isALPNConnUpgradeRequiredByEnv(addr, envValue)
+	logrus.WithField(defaults.TLSRoutingConnUpgradeEnvVar, envValue).Debugf("ALPN connection upgrade required for %q: %v.", addr, result)
+	return result, true
+}
+
+func isALPNConnUpgradeRequiredByEnv(addr, envValue string) bool {
+	tokens := strings.FieldsFunc(envValue, func(r rune) bool {
+		return r == ';' || r == ','
+	})
+
+	var upgradeRequiredForAll bool
+	for _, token := range tokens {
+		switch {
+		case strings.ContainsRune(token, '='):
+			if _, boolText, ok := strings.Cut(token, addr+"="); ok {
+				upgradeRequiredForAddr, err := utils.ParseBool(boolText)
+				if err != nil {
+					logrus.Debugf("Failed to parse %v: %v", envValue, err)
+				}
+				return upgradeRequiredForAddr
+			}
+
+		default:
+			if boolValue, err := utils.ParseBool(token); err != nil {
+				logrus.Debugf("Failed to parse %v: %v", envValue, err)
+			} else {
+				upgradeRequiredForAll = boolValue
+			}
+		}
+	}
+	return upgradeRequiredForAll
 }
 
 // alpnConnUpgradeDialer makes an "HTTP" upgrade call to the Proxy Service then

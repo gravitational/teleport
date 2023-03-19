@@ -42,12 +42,30 @@ type GetClusterCACertPoolFunc func(ctx context.Context) (*x509.CertPool, error)
 func WithALPNConnUpgradeTest(ctx context.Context, getClusterCertPool GetClusterCACertPoolFunc) LocalProxyConfigOpt {
 	return func(config *LocalProxyConfig) error {
 		config.ALPNConnUpgradeRequired = IsALPNConnUpgradeRequired(config.RemoteProxyAddr, config.InsecureSkipVerify)
+		return trace.Wrap(WithClusterCAsIfConnUpgrade(ctx, getClusterCertPool)(config))
+	}
+}
+
+// WithClusterCAsIfConnUpgrade is a LocalProxyConfigOpt that fetches the
+// cluster CAs when ALPN connection upgrades are required.
+func WithClusterCAsIfConnUpgrade(ctx context.Context, getClusterCertPool GetClusterCACertPoolFunc) LocalProxyConfigOpt {
+	return func(config *LocalProxyConfig) error {
 		if !config.ALPNConnUpgradeRequired {
 			return nil
 		}
 
 		// If ALPN connection upgrade is required, explicitly use the cluster
 		// CAs since the tunneled TLS routing connection serves the Host cert.
+		if config.RootCAs == nil && getClusterCertPool != nil {
+			return trace.Wrap(WithClusterCAs(ctx, getClusterCertPool)(config))
+		}
+		return nil
+	}
+}
+
+// WithClusterCAs is a LocalProxyConfigOpt that fetches the cluster CAs.
+func WithClusterCAs(ctx context.Context, getClusterCertPool GetClusterCACertPoolFunc) LocalProxyConfigOpt {
+	return func(config *LocalProxyConfig) error {
 		clusterCAs, err := getClusterCertPool(ctx)
 		if err != nil {
 			return trace.Wrap(err)
