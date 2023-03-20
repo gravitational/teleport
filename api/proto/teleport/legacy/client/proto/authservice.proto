@@ -2323,9 +2323,6 @@ service AuthService {
   // target.
   rpc IsMFARequired(IsMFARequiredRequest) returns (IsMFARequiredResponse);
 
-  // GetAccessRequests gets all pending access requests.
-  // DEPRECATED, DELETE IN 11.0.0: Use GetAccessRequestsV2 instead.
-  rpc GetAccessRequests(types.AccessRequestFilter) returns (AccessRequests);
   // GetAccessRequestsV2 gets all pending access requests.
   rpc GetAccessRequestsV2(types.AccessRequestFilter) returns (stream types.AccessRequestV3);
   // CreateAccessRequest creates a new access request.
