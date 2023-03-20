@@ -62,7 +62,7 @@ Teleport roles based on an external RBAC system.
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/6. Set up your Kubernetes cluster
+## Step 1/4. Set up your Kubernetes cluster
 
 In this step, we will launch a local Kubernetes cluster and set up role-based
 access controls within it. We will then use this Kubernetes cluster as a basis
@@ -221,7 +221,7 @@ clusterrole.rbac.authorization.k8s.io/rbac-sync created
 clusterrolebinding.rbac.authorization.k8s.io/rbac-sync created
 ```
 
-## Step 2/6. Set up Teleport 
+## Step 2/4. Set up Teleport 
 
 In this step, you will configure Teleport to enable your API client application
 to interact with your Kubernetes cluster.
@@ -371,7 +371,7 @@ Kube Cluster Name Labels           Selected
 minikube          environment=demo
 ```
 
-## Step 3/6. Write the client application
+## Step 3/4. Write the client application
 
 At this point, we have set up an external RBAC system to use for generating
 Teleport roles and configured Teleport to allow our API client to interact with
@@ -380,18 +380,16 @@ client application.
 
 ### Set up your Go project
 
-The first step is to create a project directory and initialize a Go module for
-your project: 
+Download the source code for the API client application:
 
 ```code
-$ mkdir sync-roles
-$ cd sync-roles
-$ go mod init sync-roles
-go: creating new go.mod: module sync-roles
+$ git clone https://github.com/gravitational/teleport
+$ cd teleport/examples/api-sync-roles
 ```
 
-This creates a new file in your project directory, `go.mod`, which Go's package
-management system uses to fetch your client application's dependencies.
+For the rest of this guide, we will show you how to set up the client
+application and explore the ways it uses Teleport's API to automatically
+generate Teleport roles.
 
 ### Export identity files for the client application
 
@@ -434,35 +432,9 @@ $ tctl auth sign --user=sync-kubernetes-rbac \
   --out=kubeconfig
 ```
 
-### Add imports
+### Imports
 
-Create a file called `main.go` in your project directory with the following
-content:
-
-```go
-package main
-
-import (
-	"context"
-	"fmt"
-	"io/ioutil"
-	"os"
-	"time"
-
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
-	"google.golang.org/grpc"
-	rbacv1 "k8s.io/api/rbac/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	v1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
-	"k8s.io/client-go/tools/clientcmd"
-)
-```
-
-Here are the packages our client application will import from Go's standard
-library:
+Here are the packages our client application imports from Go's standard library:
 
 |Package|Description|
 |---|---|
@@ -486,10 +458,10 @@ The client imports the following third-party code:
 |`k8s.io/client-go/kubernetes/typed/rbac/v1`|Types for the Kubernetes RBAC API.|
 |`k8s.io/client-go/tools/clientcmd`|Another general-purpose Kubernetes client library.|
 
-### Declare constants
+### Constants
 
-We will define constants for the program in a visible location so, later on,
-it's easier to make them configurable outside the program.
+The program defines constants in a visible location so, later on, it's easier to
+make them configurable outside the program.
 
 Add the following to `main.go` after the package imports:
 
@@ -522,7 +494,7 @@ authenticates to the API using mutual TLS, loading a client certificate,
 certificate authority, and private key from the file at `kubeconfigPath`.
 Earlier in the guide, we requested this from the Teleport Auth Service.
 
-Add the following below the `const` block:
+The program sets up a Kubernetes API client with the `getRBBACClient` function:
 
 ```go
 func getRBACClient() (v1.RbacV1Interface, error) {
@@ -560,7 +532,7 @@ Kubernetes cluster.
 
 ### Create a Teleport role from a Kubernetes cluster role binding
 
-Add the following function below `getRBACClient`. This creates a Teleport role
+The `createTeleportRoleFromClusterRoleBinding` function creates a Teleport role
 from a Kubernetes cluster role binding by populating fields in the former based
 on fields in latter:
 
@@ -614,7 +586,7 @@ func createTeleportRoleFromClusterRoleBinding(teleport *client.Client, k types.K
 }
 ```
 
-To avoid unexpected behavior, we will ignore Kubernetes-managed roles and
+To avoid unexpected behavior, this function ignores Kubernetes-managed roles and
 roles for internal systems like the Teleport Kubernetes Service. This function
 checks the cluster role binding's metatada for an annotation with a specific
 key, `roleAnnotationKey`, and ignores any resource where this key is not set to
@@ -626,7 +598,7 @@ according to the following attributes:
 
 - Kubernetes cluster name
 - Kubernetes role name
-- The suffix `-cluster`.  
+- The suffix `-cluster`.
 
 In our demo application, this function will create a Teleport role called
 `minikube-pod-ops-cluster`.
@@ -643,9 +615,7 @@ client's role type, based on the cluster role binding:
 ### Create a Teleport role from a Kubernetes role binding
 
 As with cluster role bindings, this program will also create Teleport roles
-based on Kubernetes role bindings.
-
-Add the following function to `main.go`:
+based on Kubernetes role bindings:
 
 ```go
 func createTeleportRoleFromRoleBinding(teleport *client.Client, k types.KubeCluster, r rbacv1.RoleBinding) error {
@@ -711,9 +681,7 @@ some differences in how we assign fields to Teleport roles:
 
 Now that we have functions to create Teleport roles based on individual
 Kubernetes RBAC resources, we can fetch all RBAC resources from our Kubernetes
-cluster and call these functions.
-
-Add the following to `main.go`:
+cluster and call these functions:
 
 ```go
 func createTeleportRolesForKubeCluster(teleport *client.Client, k types.KubeCluster) error {
@@ -763,10 +731,8 @@ defined earlier to set up a client for the Kubernetes cluster. It then:
 ### Initialize clients and start the application
 
 The functions we declared earlier require a Teleport API client and a
-Teleport-registered Kubernetes cluster, and we will initialize these in the
-entrypoint of the program, the `main` function.
-
-Add the following to `main.go`:
+Teleport-registered Kubernetes cluster, and we initialize these in the
+entrypoint of the program, the `main` function:
 
 ```go
 func main() {
@@ -837,13 +803,11 @@ If there is, the code calls the `createTeleportRolesForKubeClusters` function we
 defined earlier. If not, the program prints an error message and a stack trace
 by calling Go's built-in `panic` function.
 
-## Step 5/5. Test your client application
+## Step 4/4. Test your client application
 
-Now that you have written your client application, retreive its dependencies and
-start it up from within your Go project directory:
+To test the client application, start it up from within its project directory:
 
 ```code
-$ go get
 $ go run main.go
 ```
 
