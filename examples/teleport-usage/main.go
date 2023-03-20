@@ -192,7 +192,6 @@ func getParams() (params, error) {
 	var err error
 	if startDate == "" {
 		timestamp = time.Now().UTC().Add(-SCAN_DURATION)
-		return params{}, fmt.Errorf("START_DATE must be set")
 	} else {
 		timestamp, err = time.Parse(time.DateOnly, startDate)
 		if err != nil {
