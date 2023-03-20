@@ -67,7 +67,7 @@ func main() {
 		desktop: make(map[string]struct{}),
 	}
 
-	fmt.Println("Gathering data, this may take a minute...")
+	fmt.Println("Gathering data, this may take a minute")
 	for _, date := range daysBetween(params.startDate, params.startDate.Add(SCAN_DURATION)) {
 		err := scanDay(svc, limiter, params.tableName, date, state)
 		if err != nil {
