@@ -16,8 +16,8 @@ limitations under the License.
 
 package main
 
+// 1. UX/responsiveness improvements
 // 2. Add rate limiting so we don't cause throttling
-// 3. Add some test coverage
 
 import (
 	"fmt"
