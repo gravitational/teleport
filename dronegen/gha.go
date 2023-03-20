@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 type ghaBuildType struct {
@@ -26,6 +27,7 @@ type ghaBuildType struct {
 	ghaWorkflow  string
 	srcRefVar    string
 	workflowRef  string
+	timeout      time.Duration
 	slackOnError bool
 	dependsOn    []string
 	inputs       map[string]string
@@ -42,6 +44,7 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 	cmd.WriteString(`-owner ${DRONE_REPO_OWNER} `)
 	cmd.WriteString(`-repo teleport.e `)
 	cmd.WriteString(`-tag-workflow `)
+	fmt.Fprintf(&cmd, `-timeout %s `, b.timeout.String())
 	fmt.Fprintf(&cmd, `-workflow %s `, b.ghaWorkflow)
 	fmt.Fprintf(&cmd, `-workflow-ref=%s `, b.workflowRef)
 

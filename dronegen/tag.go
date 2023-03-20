@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 const (
@@ -197,6 +198,7 @@ func tagPipelines() []pipeline {
 		ghaWorkflow:  "release-linux-arm64.yml",
 		srcRefVar:    "DRONE_TAG",
 		workflowRef:  "${DRONE_TAG}",
+		timeout:      60 * time.Minute,
 		dependsOn:    []string{tagCleanupPipelineName},
 		inputs:       map[string]string{"upload-artifacts": "true"},
 	}))

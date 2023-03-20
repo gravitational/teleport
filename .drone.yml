@@ -1318,7 +1318,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -workflow release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH}
+    -tag-workflow -timeout 1h0m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
     -input "upload-artifacts=false" '
   environment:
@@ -5277,8 +5277,9 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -workflow release-linux-arm64.yml -workflow-ref=${DRONE_TAG} -input
-    oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} -input "upload-artifacts=true" '
+    -tag-workflow -timeout 1h0m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_TAG}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} -input
+    "upload-artifacts=true" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -20240,6 +20241,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 59835f9006a1945dcb345f0b740857d64b712982b83fd0ed45f5ada2a838775e
+hmac: 0f66eef0fd310ee80bb80671bffba2bb97b2f426888260d6bec8fb5aedd5c860
 
 ...
