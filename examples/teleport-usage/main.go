@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -29,8 +30,8 @@ import (
 )
 
 const (
-	SCAN_DURATION = time.Hour * 24 * 30
-	INDEX_NAME    = "timesearchV2"
+	scanDuration = time.Hour * 24 * 30
+	indexName    = "timesearchV2"
 )
 
 func main() {
@@ -68,7 +69,7 @@ func main() {
 	}
 
 	fmt.Println("Gathering data, this may take a moment")
-	for _, date := range daysBetween(params.startDate, params.startDate.Add(SCAN_DURATION)) {
+	for _, date := range daysBetween(params.startDate, params.startDate.Add(scanDuration)) {
 		err := scanDay(svc, limiter, params.tableName, date, state)
 		if err != nil {
 			log.Fatal(err)
@@ -76,7 +77,7 @@ func main() {
 	}
 
 	startDate := params.startDate.Format(time.DateOnly)
-	endDate := params.startDate.Add(SCAN_DURATION).Format(time.DateOnly)
+	endDate := params.startDate.Add(scanDuration).Format(time.DateOnly)
 	fmt.Printf("Monthly active users by product during the period %v to %v:\n  Server Access: %d\n  Kubernetes Access: %d\n  Database Access: %d\n  Application Access: %d\n  Desktop Access: %d\n", startDate, endDate, len(state.ssh), len(state.kube), len(state.db), len(state.app), len(state.desktop))
 }
 
@@ -103,14 +104,14 @@ outer:
 		fmt.Printf("  scanning date %v page %v...\n", date, pageCount)
 		scanOut, err := svc.Query(&dynamodb.QueryInput{
 			TableName:                 aws.String(tableName),
-			IndexName:                 aws.String(INDEX_NAME),
+			IndexName:                 aws.String(indexName),
 			KeyConditionExpression:    aws.String("CreatedAtDate = :date"),
 			ExpressionAttributeValues: attributeValues,
 			FilterExpression:          aws.String("EventType IN (:e1, :e2, :e3, :e4)"),
 			ExclusiveStartKey:         paginationKey,
 			ReturnConsumedCapacity:    aws.String(dynamodb.ReturnConsumedCapacityTotal),
 			// We limit the number of items returned to the current capacity to minimize any usage spikes
-			// that could affect Teleport.
+			// that could affect Teleport as RCU's may be consumed for multiple seconds if the response is large.
 			Limit: aws.Int64(int64(limiter.CurrentCapacity())),
 		})
 		switch {
@@ -140,7 +141,10 @@ outer:
 
 type event struct {
 	EventType string
-	FieldsMap map[string]interface{}
+	FieldsMap struct {
+		User              string
+		KubernetesCluster *string `dynamodbav:"kubernetes_cluster,omitempty"`
+	}
 }
 
 // applies a set of scanned raw events onto the tracked state.
@@ -152,17 +156,12 @@ func reduceEvents(rawEvents []map[string]*dynamodb.AttributeValue, state *tracke
 			log.Fatal(err)
 		}
 
-		user, ok := event.FieldsMap["user"].(string)
-		if !ok {
-			return fmt.Errorf("user not found in event")
-		}
-
 		var set map[string]struct{}
 		switch event.EventType {
 		case "session.start":
 			set = state.ssh
 
-			if _, ok := event.FieldsMap["kubernetes_cluster"]; ok {
+			if event.FieldsMap.KubernetesCluster != nil {
 				set = state.kube
 			}
 		case "db.session.start":
@@ -171,9 +170,11 @@ func reduceEvents(rawEvents []map[string]*dynamodb.AttributeValue, state *tracke
 			set = state.app
 		case "windows.desktop.session.start":
 			set = state.desktop
+		default:
+			return errors.New("unexpected event type: " + event.EventType)
 		}
 
-		set[user] = struct{}{}
+		set[event.FieldsMap.User] = struct{}{}
 	}
 
 	return nil
@@ -219,10 +220,18 @@ func getParams() (params, error) {
 	awsRegion := os.Getenv("AWS_REGION")
 	startDate := os.Getenv("START_DATE")
 
+	if tableName == "" {
+		return params{}, errors.New("TABLE_NAME environment variable is required")
+	}
+
+	if awsRegion == "" {
+		return params{}, errors.New("AWS_REGION environment variable is required")
+	}
+
 	var timestamp time.Time
 	var err error
 	if startDate == "" {
-		timestamp = time.Now().UTC().Add(-SCAN_DURATION)
+		timestamp = time.Now().UTC().Add(-scanDuration)
 	} else {
 		timestamp, err = time.Parse(time.DateOnly, startDate)
 		if err != nil {
