@@ -124,6 +124,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						Code: libevents.DatabaseSessionQueryCode,
 					},
 					DatabaseQuery: "\nselect 'foo' as 'bar'\n        ",
+					Status: events.Status{
+						Success: true,
+					},
 				}),
 			},
 		},
