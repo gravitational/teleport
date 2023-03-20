@@ -626,7 +626,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/sign/db", h.WithProvisionTokenAuth(h.signDatabaseCertificate))
 
 	// Returns the CA Certs
+	// Deprecated, use the `webapi/auth/export` endpoint.
+	// Returning other clusters (trusted cluster) CA certs would leak wether the TrustedCluster exists or not.
+	// Given that this is a public/unauthorized endpoint, we should refrain from exposing that kind of information.
 	h.GET("/webapi/sites/:site/auth/export", h.authExportPublic)
+	h.GET("/webapi/auth/export", h.authExportPublic)
 
 	// token generation
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
@@ -3711,6 +3715,7 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 // authExportPublic returns the CA Certs that can be used to set up a chain of trust which includes the current Teleport Cluster
 //
 // GET /webapi/sites/:site/auth/export?type=<auth type>
+// GET /webapi/auth/export?type=<auth type>
 func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	authorities, err := client.ExportAuthorities(
 		r.Context(),
