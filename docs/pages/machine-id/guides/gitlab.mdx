@@ -55,8 +55,20 @@ contain multiple constraints, and any pipeline that matches all of the
 constraints within a single rule is granted access.
 
 The following constraints exist:
+- `sub`: a string uniquely identifying the CI run's source. It follows the
+  following format:
+  `project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}`
+- `ref`: the git reference that triggered the CI run
+- `ref_type`: the type of reference that triggered the CI run. This will either
+  be `branch` or `tag`
+- `namespace_path`: the group or user that the project belongs to.
+- `project_path`: the full name of the project that the run belongs to. For
+example: `mygroup/myproject`
+- `pipeline_source`: the trigger of the CI run. For example: `web`
+- `environment`: the environment that the job is associated with
 
-
+A full explanation of these constraints values can be found on the [GitLab
+Documentation.](https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html#token-payload)
 
 In this example, you will create a rule that grants access to any GitLab CI job
 within a specific GitLab project. Determine the fully qualified path of your
