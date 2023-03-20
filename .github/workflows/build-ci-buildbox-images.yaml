@@ -1,6 +1,10 @@
 name: Build CI Buildbox Images
 run-name: Build CI Buildbox Images
 on:
+  pull_request:
+    branches:
+      - tcsc/force-buildbox
+      - codingllama/protoc-gen
   push:
     paths:
       - build.assets/Dockerfile
