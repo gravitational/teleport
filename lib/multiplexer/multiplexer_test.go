@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/jackc/pgproto3/v2"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
@@ -49,8 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/multiplexer/test"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
@@ -93,36 +93,20 @@ func TestMux(t *testing.T) {
 		backend1.StartTLS()
 		defer backend1.Close()
 
-		called := false
-		sshHandler := sshutils.NewChanHandlerFunc(func(_ context.Context, _ *sshutils.ConnectionContext, nch ssh.NewChannel) {
-			called = true
-			err := nch.Reject(ssh.Prohibited, "nothing to see here")
-			require.NoError(t, err)
-		})
+		go startSSHServer(t, mux.SSH())
 
-		srv, err := sshutils.NewServer(
-			"test",
-			utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-			sshHandler,
-			[]ssh.Signer{signer},
-			sshutils.AuthMethods{Password: pass("abc123")},
-		)
-		require.NoError(t, err)
-		go srv.Serve(mux.SSH())
-		defer srv.Close()
 		clt, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
-			Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 			Timeout:         time.Second,
-			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 		})
 		require.NoError(t, err)
 		defer clt.Close()
 
-		// call new session to initiate opening new channel
-		_, err = clt.NewSession()
-		require.NotNil(t, err)
-		// make sure the channel handler was called OK
-		require.True(t, called)
+		// Make sure the SSH connection works correctly
+		ok, response, err := clt.SendRequest("echo", true, []byte("beep"))
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, "beep", string(response))
 
 		client := testClient(backend1)
 		re, err := client.Get(backend1.URL)
@@ -424,36 +408,20 @@ func TestMux(t *testing.T) {
 		backend1.StartTLS()
 		defer backend1.Close()
 
-		called := false
-		sshHandler := sshutils.NewChanHandlerFunc(func(_ context.Context, _ *sshutils.ConnectionContext, nch ssh.NewChannel) {
-			called = true
-			err := nch.Reject(ssh.Prohibited, "nothing to see here")
-			require.NoError(t, err)
-		})
+		go startSSHServer(t, mux.SSH())
 
-		srv, err := sshutils.NewServer(
-			"test",
-			utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-			sshHandler,
-			[]ssh.Signer{signer},
-			sshutils.AuthMethods{Password: pass("abc123")},
-		)
-		require.NoError(t, err)
-		go srv.Serve(mux.SSH())
-		defer srv.Close()
 		clt, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
-			Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 			Timeout:         time.Second,
-			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 		})
 		require.NoError(t, err)
 		defer clt.Close()
 
-		// call new session to initiate opening new channel
-		_, err = clt.NewSession()
-		require.NotNil(t, err)
-		// make sure the channel handler was called OK
-		require.Equal(t, called, true)
+		// Make sure the SSH connection works correctly
+		ok, response, err := clt.SendRequest("echo", true, []byte("beep"))
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, "beep", string(response))
 
 		client := testClient(backend1)
 		re, err := client.Get(backend1.URL)
@@ -973,14 +941,6 @@ func TestMux(t *testing.T) {
 	})
 }
 
-type mockCAsGetter struct {
-	HostCA types.CertAuthority
-}
-
-func (m *mockCAsGetter) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
-	return m.HostCA, nil
-}
-
 func TestProtocolString(t *testing.T) {
 	for i := -1; i < len(protocolStrings)+1; i++ {
 		got := Protocol(i).String()
@@ -1024,15 +984,6 @@ func testClient(srv *httptest.Server) *http.Client {
 		Transport: &http.Transport{
 			TLSClientConfig: clientConfig(srv),
 		},
-	}
-}
-
-func pass(need string) sshutils.PasswordFunc {
-	return func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
-		if string(password) == need {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("passwords don't match")
 	}
 }
 
@@ -1096,8 +1047,10 @@ func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, Ce
 		},
 	})
 	require.NoError(t, err)
-	mockCAsGetter := &mockCAsGetter{HostCA: ca}
 
+	mockCAGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+		return ca, nil
+	}
 	proxyPriv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
 	require.NoError(t, err)
 
@@ -1120,22 +1073,61 @@ func getTestCertCAsGetterAndSigner(t testing.TB, clusterName string) ([]byte, Ce
 	tlsProxyCertPEM, err := tlsCA.GenerateCertificate(certReq)
 	require.NoError(t, err)
 	clock := clockwork.NewFakeClockAt(time.Now())
-	jwtSigner, err := services.GetJWTSigner(proxyPriv, clusterName, clock)
+	jwtSigner, err := jwt.New(&jwt.Config{
+		Clock:       clock,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
+		ClusterName: clusterName,
+		PrivateKey:  proxyPriv,
+	})
 	require.NoError(t, err)
 
 	tlsProxyCertDER, err := tlsca.ParseCertificatePEM(tlsProxyCertPEM)
 	require.NoError(t, err)
 
-	return tlsProxyCertDER.Raw, mockCAsGetter, jwtSigner
+	return tlsProxyCertDER.Raw, mockCAGetter, jwtSigner
+}
+
+func startSSHServer(t *testing.T, listener net.Listener) {
+	nConn, err := listener.Accept()
+	assert.NoError(t, err)
+
+	t.Cleanup(func() { nConn.Close() })
+
+	block, _ := pem.Decode(fixtures.LocalhostKey)
+	pkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	assert.NoError(t, err)
+
+	signer, err := ssh.NewSignerFromKey(pkey)
+	assert.NoError(t, err)
+
+	config := &ssh.ServerConfig{NoClientAuth: true}
+	config.AddHostKey(signer)
+
+	conn, _, reqs, err := ssh.NewServerConn(nConn, config)
+	assert.NoError(t, err)
+	if err != nil {
+		return
+	}
+	t.Cleanup(func() { conn.Close() })
+
+	go func() {
+		for newReq := range reqs {
+			if newReq.Type == "echo" {
+				newReq.Reply(true, newReq.Payload)
+			}
+			err := newReq.Reply(false, nil)
+			assert.NoError(t, err)
+		}
+	}()
 }
 
 func BenchmarkMux_ProxyV2Signature(b *testing.B) {
 	const clusterName = "test-teleport"
 
 	clock := clockwork.NewFakeClockAt(time.Now())
-	tlsProxyCert, casGetter, jwtSigner := getTestCertCAsGetterAndSigner(b, clusterName)
+	tlsProxyCert, caGetter, jwtSigner := getTestCertCAsGetterAndSigner(b, clusterName)
 
-	ca, err := casGetter.GetCertAuthority(context.Background(), types.CertAuthID{
+	ca, err := caGetter(context.Background(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName,
 	}, false)
