@@ -47,6 +47,21 @@
         "type": "github"
       }
     },
+    "flake-utils_2": {
+      "locked": {
+        "lastModified": 1678901627,
+        "narHash": "sha256-U02riOqrKKzwjsxc/400XnElV+UtPUQWpANPlyazjH0=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "93a2b84fc4b70d9e089d029deacc3583435c2ed6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
     "gccPkgs": {
       "locked": {
         "lastModified": 1678571061,
@@ -76,26 +91,6 @@
         "owner": "nixos",
         "repo": "nixpkgs",
         "rev": "8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8",
-        "type": "github"
-      }
-    },
-    "gitignore": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1660459072,
-        "narHash": "sha256-8DFJjXG8zqoONA1vXtgeKXy68KdJL5UaXR8NtVMUbx8=",
-        "owner": "hercules-ci",
-        "repo": "gitignore.nix",
-        "rev": "a20de23b925fd8264fd7fad6454652e142fd7f73",
-        "type": "github"
-      },
-      "original": {
-        "owner": "hercules-ci",
-        "repo": "gitignore.nix",
         "type": "github"
       }
     },
@@ -195,7 +190,57 @@
         "type": "github"
       }
     },
+    "nix-shell": {
+      "inputs": {
+        "addlicensePkgs": "addlicensePkgs",
+        "bufPkgs": "bufPkgs",
+        "flake-utils": "flake-utils_2",
+        "gccPkgs": "gccPkgs",
+        "gciPkgs": "gciPkgs",
+        "goPkgs": "goPkgs",
+        "golangci-lintPkgs": "golangci-lintPkgs",
+        "helmPkgs": "helmPkgs",
+        "libbpfPkgs": "libbpfPkgs",
+        "libfido2Pkgs": "libfido2Pkgs",
+        "libiconvPkgs": "libiconvPkgs",
+        "nixpkgs": "nixpkgs",
+        "nodePkgs": "nodePkgs",
+        "patchelfPkgs": "patchelfPkgs",
+        "protobufPkgs": "protobufPkgs",
+        "protoc-gen-goPkgs": "protoc-gen-goPkgs",
+        "pythonPkgs": "pythonPkgs",
+        "shellcheckPkgs": "shellcheckPkgs",
+        "yamllintPkgs": "yamllintPkgs",
+        "yarnPkgs": "yarnPkgs"
+      },
+      "locked": {
+        "lastModified": 1,
+        "narHash": "sha256-ltXARE+urKxofFrf2IAMeGQ/iPW5k0lFzPNnW6w7uxU=",
+        "path": "./build.assets/nix-shell",
+        "type": "path"
+      },
+      "original": {
+        "path": "./build.assets/nix-shell",
+        "type": "path"
+      }
+    },
     "nixpkgs": {
+      "locked": {
+        "lastModified": 1678571061,
+        "narHash": "sha256-0gI2FHID8XYD3504kLFRLH3C2GmMCzVMC50APV/kZp8=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8",
+        "type": "github"
+      }
+    },
+    "nixpkgs_2": {
       "locked": {
         "lastModified": 1678571061,
         "narHash": "sha256-0gI2FHID8XYD3504kLFRLH3C2GmMCzVMC50APV/kZp8=",
@@ -293,27 +338,9 @@
     },
     "root": {
       "inputs": {
-        "addlicensePkgs": "addlicensePkgs",
-        "bufPkgs": "bufPkgs",
         "flake-utils": "flake-utils",
-        "gccPkgs": "gccPkgs",
-        "gciPkgs": "gciPkgs",
-        "gitignore": "gitignore",
-        "goPkgs": "goPkgs",
-        "golangci-lintPkgs": "golangci-lintPkgs",
-        "helmPkgs": "helmPkgs",
-        "libbpfPkgs": "libbpfPkgs",
-        "libfido2Pkgs": "libfido2Pkgs",
-        "libiconvPkgs": "libiconvPkgs",
-        "nixpkgs": "nixpkgs",
-        "nodePkgs": "nodePkgs",
-        "patchelfPkgs": "patchelfPkgs",
-        "protobufPkgs": "protobufPkgs",
-        "protoc-gen-goPkgs": "protoc-gen-goPkgs",
-        "pythonPkgs": "pythonPkgs",
-        "shellcheckPkgs": "shellcheckPkgs",
-        "yamllintPkgs": "yamllintPkgs",
-        "yarnPkgs": "yarnPkgs"
+        "nix-shell": "nix-shell",
+        "nixpkgs": "nixpkgs_2"
       }
     },
     "shellcheckPkgs": {
