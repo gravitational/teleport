@@ -367,7 +367,11 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		RouteToDatabase:   u.Identity.RouteToDatabase,
 		MFAVerified:       u.Identity.MFAVerified,
 		LoginIP:           u.Identity.LoginIP,
+		PinnedIP:          u.Identity.PinnedIP,
 		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
+	}
+	if checker.PinSourceIP() && identity.PinnedIP == "" {
+		return nil, trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
 	}
 
 	return &Context{

@@ -3900,6 +3900,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				KubeServiceType:               kubeServiceType,
 				LockWatcher:                   lockWatcher,
 				CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
+				PROXYSigner:                   proxySigner,
 			},
 			TLS:             tlsConfig,
 			LimiterConfig:   cfg.Proxy.Limiter,
