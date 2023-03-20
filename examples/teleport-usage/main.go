@@ -18,6 +18,8 @@ package main
 
 // 1. UX/responsiveness improvements
 // 2. Add rate limiting so we don't cause throttling
+// 3. comments
+// 4. code quality
 
 import (
 	"fmt"
