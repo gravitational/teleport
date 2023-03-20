@@ -370,6 +370,10 @@ func ForOkta(cfg Config) Config {
 	cfg.target = "okta"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindUser},
+
+		// The access request entry here is primarily for event propagation and not for
+		// cache reads. The Okta service is not expected to read access requests from
+		// the cache.
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
