@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"time"
 
@@ -33,7 +33,7 @@ func getRBACClient() (v1.RbacV1Interface, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	kc, err := ioutil.ReadAll(f)
+	kc, err := io.ReadAll(f)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -184,7 +184,7 @@ func createTeleportRolesForKubeCluster(teleport *client.Client, k types.KubeClus
 
 func main() {
 	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, initTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), initTimeout)
 	defer cancel()
 	creds := client.LoadIdentityFile(identityFilePath)
 
