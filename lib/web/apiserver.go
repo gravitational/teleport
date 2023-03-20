@@ -622,7 +622,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/sign/db", h.WithProvisionTokenAuth(h.signDatabaseCertificate))
 
 	// Returns the CA Certs
-	// DELETE IN 14.0.0. Deprecated, use the `webapi/auth/export` endpoint.
+	// Deprecated, use the `webapi/auth/export` endpoint.
 	// Returning other clusters (trusted cluster) CA certs would leak wether the TrustedCluster exists or not.
 	// Given that this is a public/unauthorized endpoint, we should refrain from exposing that kind of information.
 	h.GET("/webapi/sites/:site/auth/export", h.authExportPublic)
