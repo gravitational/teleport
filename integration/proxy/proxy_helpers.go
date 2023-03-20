@@ -357,17 +357,18 @@ func createTestRole(username string) types.Role {
 func withStandardRoleMapping() proxySuiteOptionsFunc {
 	return func(options *suiteOptions) {
 		options.updateRoleMappingFunc = func(t *testing.T, suite *Suite) {
+			ctx := context.Background()
 			rc := suite.root
 			lc := suite.leaf
 			role := suite.root.Secrets.Users[helpers.MustGetCurrentUser(t).Username].Roles[0]
-			ca, err := lc.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
+			ca, err := lc.Process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
 				Type:       types.UserCA,
 				DomainName: rc.Secrets.SiteName,
 			}, false)
 			require.NoError(t, err)
 			ca.SetRoles(nil) // Reset roles, otherwise they will take precedence.
 			ca.SetRoleMap(types.RoleMap{{Remote: role.GetName(), Local: []string{role.GetName()}}})
-			err = lc.Process.GetAuthServer().UpsertCertAuthority(ca)
+			err = lc.Process.GetAuthServer().UpsertCertAuthority(ctx, ca)
 			require.NoError(t, err)
 		}
 	}
@@ -487,11 +488,6 @@ func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Prot
 func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxyConfig) *alpnproxy.LocalProxy {
 	if config.Listener == nil {
 		config.Listener = mustCreateListener(t)
-	}
-	if config.SNI == "" {
-		address, err := utils.ParseAddr(config.RemoteProxyAddr)
-		require.NoError(t, err)
-		config.SNI = address.Host()
 	}
 	if config.ParentContext == nil {
 		config.ParentContext = context.TODO()

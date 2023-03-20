@@ -28,6 +28,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
 )
 
 // DeploymentVersionUpdater Reconciles a deployment by changing its image
@@ -126,7 +128,7 @@ func getDeploymentVersion(deployment *appsv1.Deployment) (string, error) {
 		return "", trace.BadParameter("imageRef %s is not tagged", imageRef)
 	}
 	current = taggedImageRef.Tag()
-	current, err = ensureSemver(current)
+	current, err = version.EnsureSemver(current)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

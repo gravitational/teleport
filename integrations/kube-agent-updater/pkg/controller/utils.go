@@ -17,10 +17,7 @@ limitations under the License.
 package controller
 
 import (
-	"strings"
-
 	"github.com/gravitational/trace"
-	"golang.org/x/mod/semver"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -41,16 +38,4 @@ func setContainerImageFromPodSpec(spec *v1.PodSpec, container, image string) err
 		}
 	}
 	return trace.NotFound("container %q not found in podSpec", container)
-}
-
-// ensureSemver adds the 'v' prefix if needed and ensures the provided version
-// is semver-compliant.
-func ensureSemver(current string) (string, error) {
-	if !strings.HasPrefix(current, "v") {
-		current = "v" + current
-	}
-	if !semver.IsValid(current) {
-		return "", trace.BadParameter("tag %s is not following semver", current)
-	}
-	return current, nil
 }

@@ -114,6 +114,9 @@ message ServerMetadata {
   // place. We can't verify emit permissions fully for these events so care should be taken with
   // them.
   string ForwardedBy = 6 [(gogoproto.jsontag) = "forwarded_by,omitempty"];
+
+  // ServerSubKind is the sub kind of the server the session occurred on.
+  string ServerSubKind = 7 [(gogoproto.jsontag) = "server_sub_kind,omitempty"];
 }
 
 // Connection contains connection info

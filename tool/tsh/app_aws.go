@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -34,9 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
-	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -257,11 +254,6 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	address, err := utils.ParseAddr(tc.WebProxyAddr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	cred, err := a.GetAWSCredentials()
 	if err != nil {
 		return trace.Wrap(err)
@@ -282,16 +274,14 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	a.localALPNProxy, err = alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		Listener:           listener,
-		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocols:          []alpncommon.Protocol{alpncommon.ProtocolHTTP},
-		InsecureSkipVerify: a.cf.InsecureSkipVerify,
-		ParentContext:      a.cf.Context,
-		SNI:                address.Host(),
-		HTTPMiddleware:     &alpnproxy.AWSAccessMiddleware{AWSCredentials: cred},
-		Certs:              []tls.Certificate{appCerts},
-	})
+	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
+		makeBasicLocalProxyConfig(a.cf, tc, listener),
+		alpnproxy.WithClientCert(appCerts),
+		alpnproxy.WithALPNConnUpgradeTest(a.cf.Context, tc.RootClusterCACertPool),
+		alpnproxy.WithHTTPMiddleware(&alpnproxy.AWSAccessMiddleware{
+			AWSCredentials: cred,
+		}),
+	)
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
 			return trace.NewAggregate(err, cerr)

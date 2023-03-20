@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -37,12 +36,11 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -233,7 +231,7 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 	// if sp.tlsRouting is true, remoteProxyAddr is the ALPN listener port.
 	// if it is false, then remoteProxyAddr is the SSH proxy port.
 	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
-	httpsProxy := proxy.GetProxyURL(remoteProxyAddr)
+	httpsProxy := apiutils.GetProxyURL(remoteProxyAddr)
 
 	pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
 	if err != nil {
@@ -420,15 +418,16 @@ func onProxyCommandDB(cf *CLIConf) error {
 		}
 	}()
 
+	tunnel := isLocalProxyTunnelRequested(cf)
 	proxyOpts, err := prepareLocalProxyOptions(&localProxyConfig{
-		cliConf:          cf,
-		teleportClient:   client,
+		cf:               cf,
+		tc:               client,
 		profile:          profile,
-		routeToDatabase:  route,
+		route:            *route,
 		database:         db,
 		listener:         listener,
-		localProxyTunnel: cf.LocalProxyTunnel,
-		rootClusterName:  rootCluster,
+		autoReissueCerts: cf.LocalProxyTunnel, // only auto-reissue certs for --tunnel flag.
+		tunnel:           tunnel,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -443,7 +442,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		lp.Close()
 	}()
 
-	if isLocalProxyTunnelRequested(cf) {
+	if tunnel {
 		addr, err := utils.ParseAddr(lp.GetAddr())
 		if err != nil {
 			return trace.Wrap(err)
@@ -539,70 +538,33 @@ func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.Co
 	return dbProxyAuthMultiTpl
 }
 
+// TODO(greedy52) replace localProxyOpts with []alpnproxy.LocalProxyConfigOpt and remove mkLocalProxy.
 type localProxyOpts struct {
-	proxyAddr               string
-	listener                net.Listener
-	protocols               []alpncommon.Protocol
-	insecure                bool
-	certs                   []tls.Certificate
-	rootCAs                 *x509.CertPool
-	alpnConnUpgradeRequired bool
-	middleware              alpnproxy.LocalProxyMiddleware
-}
-
-// protocol returns the first protocol or string if configuration doesn't contain any protocols.
-func (l *localProxyOpts) protocol() string {
-	if len(l.protocols) == 0 {
-		return ""
-	}
-	return string(l.protocols[0])
+	proxyAddr        string
+	listener         net.Listener
+	protocols        []alpncommon.Protocol
+	insecure         bool
+	certs            []tls.Certificate
+	middleware       alpnproxy.LocalProxyMiddleware
+	configOpts       []alpnproxy.LocalProxyConfigOpt
+	checkCertsNeeded bool
 }
 
 func mkLocalProxy(ctx context.Context, opts *localProxyOpts) (*alpnproxy.LocalProxy, error) {
-	alpnProtocol, err := alpncommon.ToALPNProtocol(opts.protocol())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	address, err := utils.ParseAddr(opts.proxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	protocols := append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...)
-	if alpncommon.HasPingSupport(alpnProtocol) {
-		protocols = append(alpncommon.ProtocolsWithPing(alpnProtocol), protocols...)
-	}
-
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify:      opts.insecure,
-		RemoteProxyAddr:         opts.proxyAddr,
-		Protocols:               protocols,
-		Listener:                opts.listener,
-		ParentContext:           ctx,
-		SNI:                     address.Host(),
-		Certs:                   opts.certs,
-		RootCAs:                 opts.rootCAs,
-		ALPNConnUpgradeRequired: opts.alpnConnUpgradeRequired,
-		Middleware:              opts.middleware,
-	})
+		InsecureSkipVerify: opts.insecure,
+		RemoteProxyAddr:    opts.proxyAddr,
+		Protocols:          opts.protocols,
+		Listener:           opts.listener,
+		ParentContext:      ctx,
+		Certs:              opts.certs,
+		Middleware:         opts.middleware,
+		CheckCertsNeeded:   opts.checkCertsNeeded,
+	}, opts.configOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return lp, nil
-}
-
-func mkLocalProxyCerts(certFile, keyFile string) ([]tls.Certificate, error) {
-	if certFile == "" && keyFile == "" {
-		return []tls.Certificate{}, nil
-	}
-	if (certFile == "" && keyFile != "") || (certFile != "" && keyFile == "") {
-		return nil, trace.BadParameter("both --cert-file and --key-file are required")
-	}
-	cert, err := keys.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return []tls.Certificate{cert}, nil
 }
 
 func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
@@ -628,11 +590,6 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	address, err := utils.ParseAddr(tc.WebProxyAddr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	addr := "localhost:0"
 	if cf.LocalProxyPort != "" {
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
@@ -643,15 +600,12 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		Listener:           listener,
-		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocols:          []alpncommon.Protocol{alpnProtocolForApp(app)},
-		InsecureSkipVerify: cf.InsecureSkipVerify,
-		ParentContext:      cf.Context,
-		SNI:                address.Host(),
-		Certs:              []tls.Certificate{appCerts},
-	})
+	lp, err := alpnproxy.NewLocalProxy(
+		makeBasicLocalProxyConfig(cf, tc, listener),
+		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
+		alpnproxy.WithClientCert(appCerts),
+		alpnproxy.WithALPNConnUpgradeTest(cf.Context, tc.RootClusterCACertPool),
+	)
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
 			return trace.NewAggregate(err, cerr)
@@ -846,9 +800,25 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 	return tlsCert, nil
 }
 
+func loadDBCertificate(tc *libclient.TeleportClient, dbName string) (tls.Certificate, error) {
+	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithDBCerts{})
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	cert, ok := key.DBTLSCerts[dbName]
+	if !ok {
+		return tls.Certificate{}, trace.NotFound("please login into the database first. 'tsh db login'")
+	}
+	tlsCert, err := key.TLSCertificate(cert)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return tlsCert, nil
+}
+
 // getTLSCertExpireTime returns the certificate NotAfter time.
 func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
-	x509cert, err := utils.TLSCertToX509(cert)
+	x509cert, err := utils.TLSCertLeaf(cert)
 	if err != nil {
 		return time.Time{}, trace.Wrap(err)
 	}
@@ -869,6 +839,15 @@ func isLocalProxyTunnelRequested(cf *CLIConf) bool {
 	return cf.LocalProxyTunnel ||
 		cf.LocalProxyCertFile != "" ||
 		cf.LocalProxyKeyFile != ""
+}
+
+func makeBasicLocalProxyConfig(cf *CLIConf, tc *libclient.TeleportClient, listener net.Listener) alpnproxy.LocalProxyConfig {
+	return alpnproxy.LocalProxyConfig{
+		RemoteProxyAddr:    tc.WebProxyAddr,
+		InsecureSkipVerify: cf.InsecureSkipVerify,
+		ParentContext:      cf.Context,
+		Listener:           listener,
+	}
 }
 
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.

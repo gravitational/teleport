@@ -3156,8 +3156,6 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 }
 
 func TestAuthExport(t *testing.T) {
-	ctx := context.Background()
-
 	env := newWebPack(t, 1)
 	clusterName := env.server.ClusterName()
 
@@ -3238,40 +3236,51 @@ func TestAuthExport(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			// export host certificate
-			endpointExport := pack.clt.Endpoint("webapi", "sites", clusterName, "auth", "export")
-
-			if tt.authType != "" {
-				endpointExport = fmt.Sprintf("%s?type=%s", endpointExport, tt.authType)
-			}
-
-			reqCtx, cancel := context.WithTimeout(ctx, time.Second)
-			defer cancel()
-
-			req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, endpointExport, nil)
-			require.NoError(t, err)
-
-			anonHTTPClient := &http.Client{
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{
-						InsecureSkipVerify: true,
-					},
-				},
-			}
-
-			resp, err := anonHTTPClient.Do(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			bs, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-
-			require.Equal(t, tt.expectedStatus, resp.StatusCode, "invalid status code with body %s", string(bs))
-
-			require.NotEmpty(t, bs, "unexpected empty body from http response")
-			if tt.assertBody != nil {
-				tt.assertBody(t, bs)
-			}
+			t.Run("deprecated endpoint", func(t *testing.T) {
+				endpointExport := pack.clt.Endpoint("webapi", "sites", clusterName, "auth", "export")
+				authExportTestByEndpoint(t, endpointExport, tt.authType, tt.expectedStatus, tt.assertBody)
+			})
+			t.Run("new endpoint", func(t *testing.T) {
+				endpointExport := pack.clt.Endpoint("webapi", "auth", "export")
+				authExportTestByEndpoint(t, endpointExport, tt.authType, tt.expectedStatus, tt.assertBody)
+			})
 		})
+	}
+}
+
+func authExportTestByEndpoint(t *testing.T, endpointExport, authType string, expectedStatus int, assertBody func(t *testing.T, bs []byte)) {
+	ctx := context.Background()
+
+	if authType != "" {
+		endpointExport = fmt.Sprintf("%s?type=%s", endpointExport, authType)
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, endpointExport, nil)
+	require.NoError(t, err)
+
+	anonHTTPClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	resp, err := anonHTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	bs, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.Equal(t, expectedStatus, resp.StatusCode, "invalid status code with body %s", string(bs))
+
+	require.NotEmpty(t, bs, "unexpected empty body from http response")
+	if assertBody != nil {
+		assertBody(t, bs)
 	}
 }
 

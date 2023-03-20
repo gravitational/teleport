@@ -1,5 +1,7 @@
+//go:build !linux
+
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,20 +16,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package mlock
 
-// MinInt64 returns the numerically lesser of two signed 64-bit integers.
-func MinInt64(x, y int64) int64 {
-	if x > y {
-		return y
-	}
-	return x
-}
-
-// MaxInt64 returns the numerically greater of two signed 64-bit integers.
-func MaxInt64(x, y int64) int64 {
-	if x > y {
-		return x
-	}
-	return y
+// LockMemory locks the process memory to prevent secrets from being exposed in a swap.
+// This is a noop on unsupported systems (non-linux).
+func LockMemory() error {
+	return nil
 }
