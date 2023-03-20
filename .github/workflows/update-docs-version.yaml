@@ -1,0 +1,41 @@
+name: Update docs version
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Teleport version to update to (ex. 12.11.1)
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-pr:
+    name: Create PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ vars.GITHUB_REF }}
+
+      - name: Update versions
+        run: |
+          cat docs/config.json | \
+            jq '.variables.teleport.version = "${{ inputs.version }}"' | \
+            jq '.variables.teleport.plugin.version = "${{ inputs.version }}"' | \
+            jq '.variables.teleport.latest_ent_docker_image = "public.ecr.aws/gravitational/teleport-ent:${{ inputs.version }}"' | \
+            jq '.variables.teleport.latest_oss_docker_image = "public.ecr.aws/gravitational/teleport:${{ inputs.version }}"' \
+            > docs/config.json
+      
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v4
+        with:
+          token: ${{ github.token }}
+          commit-message: Update docs versions to ${{ inputs.version }}
+          title: "[auto] Update docs versions to ${{ inputs.version }}"
+          committer: GitHub <noreply@github.com>
+          branch: docs-update
+          branch-suffix: timestamp
+          delete-branch: true
