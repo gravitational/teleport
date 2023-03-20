@@ -3,20 +3,18 @@ title: Access Controls FAQ
 description: Frequently asked questions about Teleport RBAC
 ---
 
-## Access Controls FAQ
-
-### What if a node has multiple labels?
+## What if a node has multiple labels?
 
 In this case, the access will be granted only if **all of the labels** defined in the
 role are present. This effectively means Teleport uses an "AND" operator when evaluating
 node-level access using labels.
 
-### Can I use node-level RBAC with OpenSSH servers?
+## Can I use node-level RBAC with OpenSSH servers?
 
 No. OpenSSH servers running `sshd` can't label themselves. This is a factor in deciding
 to run the Teleport Node Service instead.
 
-### Why do I see a UUID instead of a hostname when reviewing access requests?
+## Why do I see a UUID instead of a hostname when reviewing access requests?
 
 Resource Access Requests embed the UUID of requested resources in order to ensure
 that extra access isn't mistakenly granted due to overlapping hostnames.
