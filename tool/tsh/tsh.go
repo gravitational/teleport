@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/mlock"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/common"
 )
@@ -2711,7 +2712,6 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 			formatUsersForDB(database, roleSet),
 			database.LabelsString(),
 			connect,
-			database.Expiry().Format(constants.HumanDateFormatSeconds),
 		)
 	} else {
 		row = append(row,
@@ -2738,7 +2738,7 @@ func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Data
 	}
 	var t asciitable.Table
 	if verbose {
-		t = asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"}, rows...)
+		t = asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect"}, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 	}
@@ -3287,6 +3287,13 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 			return nil, trace.BadParameter("either --headless or --auth can be specified, not both")
 		}
 		cf.AuthConnector = constants.HeadlessConnector
+	}
+
+	if cf.AuthConnector == constants.HeadlessConnector {
+		// Lock the process memory to prevent rsa keys and certificates from being exposed in a swap.
+		if err := mlock.LockMemory(); err != nil {
+			return nil, trace.Wrap(err, "failed to lock system memory for headless login")
+		}
 	}
 
 	c.ClientStore, err = initClientStore(cf, proxy)
