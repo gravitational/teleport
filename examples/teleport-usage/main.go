@@ -111,7 +111,7 @@ outer:
 			ExclusiveStartKey:         paginationKey,
 			ReturnConsumedCapacity:    aws.String(dynamodb.ReturnConsumedCapacityTotal),
 			// We limit the number of items returned to the current capacity to minimize any usage spikes
-			// that could affect Teleport as RCU's may be consumed for multiple seconds if the response is large.
+			// that could affect Teleport as RCUs may be consumed for multiple seconds if the response is large, slowing down Teleport significantly.
 			Limit: aws.Int64(int64(limiter.CurrentCapacity())),
 		})
 		switch {
