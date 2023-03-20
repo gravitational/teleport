@@ -795,9 +795,12 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			errC := updateHeadlessAuthnInGoroutine(ctx, srv, mfa.WebDev.MFA, tc.update)
 			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: AuthenticateUserRequest{
+					// HeadlessAuthenticationID should take precedence over WebAuthn and OTP fields.
+					HeadlessAuthenticationID: headlessID,
+					Webauthn:                 &wanlib.CredentialAssertionResponse{},
+					OTP:                      &OTPCreds{},
 					Username:                 username,
 					PublicKey:                []byte(sshPubKey),
-					HeadlessAuthenticationID: headlessID,
 					ClientMetadata: &ForwardedClientMetadata{
 						RemoteAddr: "0.0.0.0",
 					},
