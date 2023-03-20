@@ -286,13 +286,33 @@ func NewCertPoolFromPath(path string) (*x509.CertPool, error) {
 	return pool, nil
 }
 
-// TLSCertToX509 is a helper function that converts a tls.Certificate into an *x509.Certificate
-func TLSCertToX509(cert tls.Certificate) (*x509.Certificate, error) {
+// TLSCertLeaf is a helper function that extracts the parsed leaf *x509.Certificate
+// from a tls.Certificate.
+// If the leaf certificate is not parsed already, then this function parses it.
+func TLSCertLeaf(cert tls.Certificate) (*x509.Certificate, error) {
+	if cert.Leaf != nil {
+		return cert.Leaf, nil
+	}
 	if len(cert.Certificate) < 1 {
 		return nil, trace.NotFound("invalid certificate length")
 	}
 	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
 	return x509cert, trace.Wrap(err)
+}
+
+// InitCertLeaves initializes the Leaf field for each cert in a slice of certs,
+// to reduce per-handshake processing.
+// Typically, servers should avoid doing this since it will
+// consume more memory.
+func InitCertLeaves(certs []tls.Certificate) error {
+	for i := range certs {
+		leaf, err := TLSCertLeaf(certs[i])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		certs[i].Leaf = leaf
+	}
+	return nil
 }
 
 const pemBlockCertificate = "CERTIFICATE"

@@ -89,7 +89,7 @@ function getCategoryForRoute(
     );
 
   if (!feature) {
-    return NavigationCategory.Resources;
+    return;
   }
 
   return feature.category;
@@ -114,13 +114,17 @@ export function Navigation() {
       const previousPathName = location.pathname;
 
       const category = getCategoryForRoute(features, next);
+      const previousCategory = getCategoryForRoute(features, location);
 
       if (category && category !== view) {
-        setPreviousRoute(previous => ({
-          ...previous,
-          [view]: previousPathName,
-        }));
         setView(category);
+
+        if (previousCategory) {
+          setPreviousRoute(previous => ({
+            ...previous,
+            [previousCategory]: previousPathName,
+          }));
+        }
       }
     },
     [location, view]

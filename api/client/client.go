@@ -132,6 +132,15 @@ func NewTracingClient(ctx context.Context, cfg Config) (*tracing.Client, error) 
 	return tracing.NewClient(clt.GetConnection()), nil
 }
 
+// NewOktaClient creates a new Okta client for managing Okta resources.
+func NewOktaClient(ctx context.Context, cfg Config) (*okta.Client, error) {
+	clt, err := New(ctx, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return okta.NewClient(oktapb.NewOktaServiceClient(clt.GetConnection())), nil
+}
+
 // newClient constructs a new client.
 func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client {
 	return &Client{
@@ -868,31 +877,9 @@ func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessReque
 		}
 
 		if err != nil {
-			err := trail.FromGRPC(err)
-			if trace.IsNotImplemented(err) {
-				return c.getAccessRequestsLegacy(ctx, filter)
-			}
-
-			return nil, err
+			return nil, trail.FromGRPC(err)
 		}
 		reqs = append(reqs, req)
-	}
-
-	return reqs, nil
-}
-
-// getAccessRequestsLegacy retrieves a list of all access requests matching the provided filter using the old access request API.
-//
-// DELETE IN: 11.0.0. Used for compatibility with old auth servers that don't support the GetAccessRequestsV2 RPC.
-func (c *Client) getAccessRequestsLegacy(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-	requests, err := c.grpc.GetAccessRequests(ctx, &filter, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	reqs := make([]types.AccessRequest, len(requests.AccessRequests))
-	for i, request := range requests.AccessRequests {
-		reqs[i] = request
 	}
 
 	return reqs, nil
@@ -3285,14 +3272,6 @@ func (c *Client) DeleteLoginRule(ctx context.Context, name string) error {
 	return trail.FromGRPC(err)
 }
 
-// OktaClient returns an Okta client.
-// Clients connecting older Teleport versions still get an okta client when
-// calling this method, but all RPCs will return "not implemented" errors (as per
-// the default gRPC behavior).
-func (c *Client) OktaClient() *okta.Client {
-	return okta.NewClient(oktapb.NewOktaServiceClient(c.conn))
-}
-
 // GetCertAuthority retrieves a CA by type and domain.
 func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	ca, err := c.TrustClient().GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{
@@ -3330,6 +3309,20 @@ func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) e
 	})
 
 	return trail.FromGRPC(err)
+}
+
+// UpsertCertAuthority creates or updates the provided cert authority.
+func (c *Client) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) (types.CertAuthority, error) {
+	cav2, ok := ca.(*types.CertAuthorityV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected ca type %T", ca)
+	}
+
+	out, err := c.TrustClient().UpsertCertAuthority(ctx, &trustpb.UpsertCertAuthorityRequest{
+		CertAuthority: cav2,
+	})
+
+	return out, trail.FromGRPC(err)
 }
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.

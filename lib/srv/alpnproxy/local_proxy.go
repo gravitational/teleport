@@ -17,9 +17,11 @@ limitations under the License.
 package alpnproxy
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -27,8 +29,10 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/jackc/pgproto3/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	commonApp "github.com/gravitational/teleport/lib/srv/app/common"
@@ -47,7 +51,7 @@ type LocalProxy struct {
 
 // LocalProxyConfig is configuration for LocalProxy.
 type LocalProxyConfig struct {
-	// RemoteProxyAddr is the downstream destination address of remote ALPN proxy service.
+	// RemoteProxyAddr is the upstream destination address of remote ALPN proxy service.
 	RemoteProxyAddr string
 	// Protocol set for the upstream TLS connection.
 	Protocols []common.Protocol
@@ -73,6 +77,14 @@ type LocalProxyConfig struct {
 	Clock clockwork.Clock
 	// Log is the Logger.
 	Log logrus.FieldLogger
+	// CheckCertsNeeded determines if the local proxy will check if it should
+	// load certs for dialing upstream. Defaults to false, in which case
+	// the local proxy will always use whatever certs it has to dial upstream.
+	// For example postgres cancel requests are not sent with TLS even if the
+	// postgres client was configured to use client certs, so a local proxy
+	// needs to always have certs loaded for postgres in case they are needed,
+	// but only use those certs as needed.
+	CheckCertsNeeded bool
 	// verifyUpstreamConnection is a callback function to verify upstream connection state.
 	verifyUpstreamConnection func(tls.ConnectionState) error
 }
@@ -115,6 +127,12 @@ func (cfg *LocalProxyConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Log == nil {
 		cfg.Log = logrus.WithField(trace.Component, "localproxy")
+	}
+	// copy the cert slice to avoid races when the proxy is running.
+	cfg.Certs = slices.Clone(cfg.Certs)
+	// set tls cert chain leaf to reduce per-handshake processing.
+	if err := utils.InitCertLeaves(cfg.Certs); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// If SNI is not set, default to cfg.RemoteProxyAddr.
@@ -174,6 +192,7 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 			l.cfg.Log.WithError(err).Error("Failed to accept client connection.")
 			return trace.Wrap(err)
 		}
+		l.cfg.Log.Debug("Accepted downstream connection.")
 
 		if l.cfg.Middleware != nil {
 			if err := l.cfg.Middleware.OnNewConnection(ctx, l, conn); err != nil {
@@ -206,7 +225,12 @@ func (l *LocalProxy) GetAddr() string {
 func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn) error {
 	defer downstreamConn.Close()
 
-	tlsConn, err := DialALPN(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig())
+	certs, downstreamConn, err := l.getCertsForConn(ctx, downstreamConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tlsConn, err := DialALPN(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(certs))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -231,14 +255,14 @@ func (l *LocalProxy) Close() error {
 	return nil
 }
 
-func (l *LocalProxy) getALPNDialerConfig() ALPNDialerConfig {
+func (l *LocalProxy) getALPNDialerConfig(certs []tls.Certificate) ALPNDialerConfig {
 	return ALPNDialerConfig{
 		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
 		TLSConfig: &tls.Config{
 			NextProtos:         common.ProtocolsToString(l.cfg.Protocols),
 			InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 			ServerName:         l.cfg.SNI,
-			Certificates:       l.getCerts(),
+			Certificates:       certs,
 			RootCAs:            l.cfg.RootCAs,
 		},
 	}
@@ -282,7 +306,7 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 			http.Error(w, http.StatusText(code), code)
 		},
 		Transport: &http.Transport{
-			DialTLSContext: NewALPNDialer(l.getALPNDialerConfig()).DialContext,
+			DialTLSContext: NewALPNDialer(l.getALPNDialerConfig(l.getCerts())).DialContext,
 		},
 	}
 	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
@@ -305,8 +329,8 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 }
 
 // getCerts returns the local proxy's configured TLS certificates.
-// For thread-safety, it is important that the returned slice and its contents are not be mutated by callers,
-// therefore this method is not exported.
+// For thread-safety, it is important that the returned slice and its contents
+// are not be mutated by callers, therefore this method is not exported.
 func (l *LocalProxy) getCerts() []tls.Certificate {
 	l.certsMu.RLock()
 	defer l.certsMu.RUnlock()
@@ -321,7 +345,7 @@ func (l *LocalProxy) CheckDBCerts(dbRoute tlsca.RouteToDatabase) error {
 	if len(l.cfg.Certs) == 0 {
 		return trace.NotFound("local proxy has no TLS certificates configured")
 	}
-	cert, err := utils.TLSCertToX509(l.cfg.Certs[0])
+	cert, err := utils.TLSCertLeaf(l.cfg.Certs[0])
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -358,4 +382,63 @@ func (l *LocalProxy) SetCerts(certs []tls.Certificate) {
 	l.certsMu.Lock()
 	defer l.certsMu.Unlock()
 	l.cfg.Certs = certs
+}
+
+// getCertsForConn determines if certificates should be used when dialing
+// upstream to proxy a new downstream connection.
+// After calling getCertsForConn function, the returned
+// net.Conn should be used for further operation.
+func (l *LocalProxy) getCertsForConn(ctx context.Context, downstreamConn net.Conn) ([]tls.Certificate, net.Conn, error) {
+	if !l.cfg.CheckCertsNeeded {
+		return l.getCerts(), downstreamConn, nil
+	}
+	if l.isPostgresProxy() {
+		// `psql` cli doesn't send cancel requests with SSL, unfortunately.
+		// This is a problem when the local proxy has no certs configured,
+		// because normally the client is responsible for connecting with
+		// TLS certificates.
+		// So when the local proxy has no certs configured, we inspect
+		// the connection to see if it is a postgres cancel request and
+		// load certs for the connection.
+		startupMessage, conn, err := peekPostgresStartupMessage(ctx, downstreamConn)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		_, isCancelReq := startupMessage.(*pgproto3.CancelRequest)
+		if !isCancelReq {
+			return nil, conn, nil
+		}
+		certs := l.getCerts()
+		if len(certs) == 0 {
+			return nil, nil, trace.NotFound("local proxy has no TLS certificates configured")
+		}
+		return certs, conn, nil
+	}
+	return nil, downstreamConn, nil
+}
+
+func (l *LocalProxy) isPostgresProxy() bool {
+	for _, proto := range common.ProtocolsToString(l.cfg.Protocols) {
+		if strings.HasPrefix(proto, string(common.ProtocolPostgres)) {
+			return true
+		}
+	}
+	return false
+}
+
+// peekPostgresStartupMessage reads and returns the startup message from a
+// connection. After calling peekPostgresStartupMessage function, the returned
+// net.Conn should be used for further operation.
+func peekPostgresStartupMessage(ctx context.Context, conn net.Conn) (pgproto3.FrontendMessage, net.Conn, error) {
+	// buffer the bytes we read so we can peek at the conn.
+	buff := new(bytes.Buffer)
+	// wrap the conn in a read-only conn to be sure the conn is not written to.
+	rConn := readOnlyConn{reader: io.TeeReader(conn, buff)}
+	// backend acts as a server for the Postgres wire protocol.
+	backend := pgproto3.NewBackend(pgproto3.NewChunkReader(rConn), rConn)
+	startupMessage, err := backend.ReceiveStartupMessage()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return startupMessage, newBufferedConn(conn, buff), nil
 }

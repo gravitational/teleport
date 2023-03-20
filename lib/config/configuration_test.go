@@ -678,12 +678,17 @@ func TestApplyConfig(t *testing.T) {
 	err = os.WriteFile(pkcs11LibPath, []byte("fake-pkcs11-lib"), 0o644)
 	require.NoError(t, err)
 
+	oktaAPITokenPath := filepath.Join(tempDir, "okta-api-token")
+	err = os.WriteFile(oktaAPITokenPath, []byte("okta-api-token"), 0o644)
+	require.NoError(t, err)
+
 	conf, err := ReadConfig(bytes.NewBufferString(fmt.Sprintf(
 		SmallConfigString,
 		authTokenPath,
 		caPinPath,
 		staticTokenPath,
 		pkcs11LibPath,
+		oktaAPITokenPath,
 	)))
 	require.NoError(t, err)
 	require.NotNil(t, conf)
@@ -856,6 +861,10 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 		ScriptName:      "default-installer",
 		SSHDConfig:      defaults.SSHDConfigPath,
 	})
+
+	require.True(t, cfg.Okta.Enabled)
+	require.Equal(t, cfg.Okta.APIEndpoint, "https://some-endpoint")
+	require.Equal(t, cfg.Okta.APITokenPath, oktaAPITokenPath)
 }
 
 // TestApplyConfigNoneEnabled makes sure that if a section is not enabled,
@@ -3550,6 +3559,135 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 			cfg := servicecfg.MakeDefaultConfig()
 			require.NoError(t, applyDiscoveryConfig(fc, cfg))
 			require.Equal(t, tc.expectedDiscovery, cfg.Discovery)
+		})
+	}
+}
+
+func TestApplyOktaConfig(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		desc             string
+		createTokenFile  bool
+		oktaConfig       Okta
+		expectedOkta     servicecfg.OktaConfig
+		errAssertionFunc require.ErrorAssertionFunc
+	}{
+		{
+			desc:            "valid config",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: "https://test-endpoint",
+			},
+			expectedOkta: servicecfg.OktaConfig{
+				Enabled:     true,
+				APIEndpoint: "https://test-endpoint",
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:            "empty URL",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter(`okta_service is enabled but no api_endpoint is specified`))
+			},
+		},
+		{
+			desc:            "bad url",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: `bad%url`,
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter(`malformed URL bad%%url`))
+			},
+		},
+		{
+			desc:            "no host",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: `http://`,
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter(`api_endpoint has no host`))
+			},
+		},
+		{
+			desc:            "no scheme",
+			createTokenFile: true,
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: `//hostname`,
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter(`api_endpoint has no scheme`))
+			},
+		},
+		{
+			desc: "empty file",
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint: "https://test-endpoint",
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter(`okta_service is enabled but no api_token_path is specified`))
+			},
+		},
+		{
+			desc: "bad file",
+			oktaConfig: Okta{
+				Service: Service{
+					EnabledFlag: "yes",
+				},
+				APIEndpoint:  "https://test-endpoint",
+				APITokenPath: "/non-existent/path",
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter(`error trying to find file %s`, i...))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			fc, err := ReadConfig(bytes.NewBufferString(NoServicesConfigString))
+			require.NoError(t, err)
+
+			expectedOkta := test.expectedOkta
+
+			fc.Okta = test.oktaConfig
+			if test.createTokenFile {
+				file, err := os.CreateTemp("", "")
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					require.NoError(t, os.Remove(file.Name()))
+				})
+				fc.Okta.APITokenPath = file.Name()
+				expectedOkta.APITokenPath = file.Name()
+			}
+			cfg := servicecfg.MakeDefaultConfig()
+			err = applyOktaConfig(fc, cfg)
+			test.errAssertionFunc(t, err, fc.Okta.APITokenPath)
+			if err == nil {
+				require.Equal(t, expectedOkta, cfg.Okta)
+			}
 		})
 	}
 }

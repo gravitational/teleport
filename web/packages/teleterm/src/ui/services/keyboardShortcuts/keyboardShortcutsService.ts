@@ -57,7 +57,7 @@ export class KeyboardShortcutsService {
       previousTab: this.configService.get('keymap.previousTab').value,
       nextTab: this.configService.get('keymap.nextTab').value,
       newTab: this.configService.get('keymap.newTab').value,
-      openQuickInput: this.configService.get('keymap.openQuickInput').value,
+      openCommandBar: this.configService.get('keymap.openCommandBar').value,
       openConnections: this.configService.get('keymap.openConnections').value,
       openClusters: this.configService.get('keymap.openClusters').value,
       openProfiles: this.configService.get('keymap.openProfiles').value,

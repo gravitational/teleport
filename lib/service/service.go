@@ -777,7 +777,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	if cfg.FIPS {
 		if !modules.GetModules().IsBoringBinary() {
 			return nil, trace.BadParameter("binary not compiled against BoringCrypto, check " +
-				"that Enterprise release was downloaded from " +
+				"that Enterprise FIPS release was downloaded from " +
 				"https://dashboard.gravitational.com")
 		}
 	}
@@ -1928,6 +1928,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		WindowsDesktops:         cfg.services,
 		SAMLIdPServiceProviders: cfg.services,
 		UserGroups:              cfg.services,
+		Okta:                    cfg.services.OktaClient(),
 		WebSession:              cfg.services.WebSessions(),
 		WebToken:                cfg.services.WebTokens(),
 		Component:               teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
@@ -1945,7 +1946,7 @@ func (process *TeleportProcess) newLocalCacheForNode(clt auth.ClientI, cacheName
 		return clt, nil
 	}
 
-	cache, err := process.newLocalCache(clt, cache.ForNode, cacheName)
+	cache, err := process.NewLocalCache(clt, cache.ForNode, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1960,7 +1961,7 @@ func (process *TeleportProcess) newLocalCacheForKubernetes(clt auth.ClientI, cac
 		return clt, nil
 	}
 
-	cache, err := process.newLocalCache(clt, cache.ForKubernetes, cacheName)
+	cache, err := process.NewLocalCache(clt, cache.ForKubernetes, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1975,7 +1976,7 @@ func (process *TeleportProcess) newLocalCacheForDatabase(clt auth.ClientI, cache
 		return clt, nil
 	}
 
-	cache, err := process.newLocalCache(clt, cache.ForDatabases, cacheName)
+	cache, err := process.NewLocalCache(clt, cache.ForDatabases, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1989,7 +1990,7 @@ func (process *TeleportProcess) newLocalCacheForDiscovery(clt auth.ClientI, cach
 	if !process.Config.CachePolicy.Enabled {
 		return clt, nil
 	}
-	cache, err := process.newLocalCache(clt, cache.ForDiscovery, cacheName)
+	cache, err := process.NewLocalCache(clt, cache.ForDiscovery, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2003,7 +2004,7 @@ func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheNam
 		return clt, nil
 	}
 
-	cache, err := process.newLocalCache(clt, cache.ForProxy, cacheName)
+	cache, err := process.NewLocalCache(clt, cache.ForProxy, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2018,7 +2019,7 @@ func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, ca
 		return clt, nil
 	}
 
-	cache, err := process.newLocalCache(clt, cache.ForRemoteProxy, cacheName)
+	cache, err := process.NewLocalCache(clt, cache.ForRemoteProxy, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2036,7 +2037,7 @@ func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI,
 		return clt, nil
 	}
 
-	cache, err := process.newLocalCache(clt, cache.ForOldRemoteProxy, cacheName)
+	cache, err := process.NewLocalCache(clt, cache.ForOldRemoteProxy, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2051,7 +2052,7 @@ func (process *TeleportProcess) newLocalCacheForApps(clt auth.ClientI, cacheName
 		return clt, nil
 	}
 
-	cache, err := process.newLocalCache(clt, cache.ForApps, cacheName)
+	cache, err := process.NewLocalCache(clt, cache.ForApps, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2066,7 +2067,7 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI,
 		return clt, nil
 	}
 
-	cache, err := process.newLocalCache(clt, cache.ForWindowsDesktop, cacheName)
+	cache, err := process.NewLocalCache(clt, cache.ForWindowsDesktop, cacheName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2074,8 +2075,8 @@ func (process *TeleportProcess) newLocalCacheForWindowsDesktop(clt auth.ClientI,
 	return auth.NewWindowsDesktopWrapper(clt, cache), nil
 }
 
-// newLocalCache returns new instance of access point
-func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
+// NewLocalCache returns new instance of access point
+func (process *TeleportProcess) NewLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (*cache.Cache, error) {
 	return process.newAccessCache(accessCacheConfig{
 		services:  clt,
 		setup:     setupConfig,
@@ -2098,9 +2099,9 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 	return process.Config.Proxy.PublicAddrs[0]
 }
 
-// newAsyncEmitter wraps client and returns emitter that never blocks, logs some events and checks values.
+// NewAsyncEmitter wraps client and returns emitter that never blocks, logs some events and checks values.
 // It is caller's responsibility to call Close on the emitter once done.
-func (process *TeleportProcess) newAsyncEmitter(clt apievents.Emitter) (*events.AsyncEmitter, error) {
+func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.AsyncEmitter, error) {
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(), clt),
 		Clock: process.Clock,
@@ -2262,7 +2263,7 @@ func (process *TeleportProcess) initSSH() error {
 
 		// asyncEmitter makes sure that sessions do not block
 		// in case if connections are slow
-		asyncEmitter, err := process.newAsyncEmitter(conn.Client)
+		asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3388,7 +3389,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
-	asyncEmitter, err := process.newAsyncEmitter(conn.Client)
+	asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4700,7 +4701,7 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
-		asyncEmitter, err := process.newAsyncEmitter(conn.Client)
+		asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -5130,6 +5131,7 @@ func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBacke
 				types.JoinMethodCircleCI,
 				types.JoinMethodKubernetes,
 				types.JoinMethodGitHub,
+				types.JoinMethodGitLab,
 				types.JoinMethodAzure:
 				// Checking error instead of the usual uuid.New() in case uuid generation
 				// fails due to not enough randomness. It's been known to happen happen when

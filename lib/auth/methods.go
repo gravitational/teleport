@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"time"
@@ -30,6 +31,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -67,9 +69,12 @@ type AuthenticateUserRequest struct {
 }
 
 // ForwardedClientMetadata can be used by the proxy web API to forward information about
-// the client to the auth service for logging purposes.
+// the client to the auth service.
 type ForwardedClientMetadata struct {
-	UserAgent  string `json:"user_agent,omitempty"`
+	UserAgent string `json:"user_agent,omitempty"`
+	// RemoteAddr is the IP address of the end user. This IP address is derived
+	// either from a direct client connection, or from a PROXY protocol header
+	// if the connection is forwarded through a load balancer.
 	RemoteAddr string `json:"remote_addr,omitempty"`
 }
 
@@ -79,7 +84,7 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 	case a.Username == "" && a.Webauthn != nil: // OK, passwordless.
 	case a.Username == "":
 		return trace.BadParameter("missing parameter 'username'")
-	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil:
+	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil && a.HeadlessAuthenticationID == "":
 		return trace.BadParameter("at least one authentication method is required")
 	}
 	return nil
@@ -166,6 +171,9 @@ var (
 	// invalidUserpass2FError is the error for when either the provided username,
 	// password, or second factor is incorrect.
 	invalidUserPass2FError = trace.AccessDenied("invalid username, password or second factor")
+	// invalidHeadlessAuthenticationError is the generic error returned for failed headless
+	// authentication attempts.
+	invalidHeadlessAuthenticationError = trace.AccessDenied("invalid Headless authentication")
 )
 
 // IsInvalidLocalCredentialError checks if an error resulted from an incorrect username,
@@ -216,6 +224,18 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			return res.mfaDev, nil
 		}
 		authErr = invalidUserPass2FError
+	case req.HeadlessAuthenticationID != "":
+		// handle authentication before the user lock to prevent locking out users
+		// due to timed-out/canceled headless authentication attempts.
+		mfaDevice, err := s.authenticateHeadless(ctx, req)
+		if err != nil {
+			log.Debugf("Headless Authentication for user %q failed while waiting for approval: %v", user, err)
+			return nil, "", trace.Wrap(invalidHeadlessAuthenticationError)
+		}
+		authenticateFn = func() (*types.MFADevice, error) {
+			return mfaDevice, nil
+		}
+		authErr = invalidHeadlessAuthenticationError
 	}
 	if authenticateFn != nil {
 		var dev *types.MFADevice
@@ -234,8 +254,8 @@ func (s *Server) authenticateUser(ctx context.Context, req AuthenticateUserReque
 			return nil, "", trace.Wrap(authErr)
 		case dev == nil:
 			log.Debugf(
-				"MFA authentication returned nil device (Webauthn = %v, TOTP = %v): %v.",
-				req.Webauthn != nil, req.OTP != nil, err)
+				"MFA authentication returned nil device (Webauthn = %v, TOTP = %v, Headless = %v): %v.",
+				req.Webauthn != nil, req.OTP != nil, req.HeadlessAuthenticationID != "", err)
 			return nil, "", trace.Wrap(authErr)
 		default:
 			return dev, user, nil
@@ -310,6 +330,83 @@ func (s *Server) authenticatePasswordless(ctx context.Context, req AuthenticateU
 	}
 
 	return dev, user, nil
+}
+
+func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserRequest) (mfa *types.MFADevice, err error) {
+	// Delete the headless authentication upon failure.
+	defer func() {
+		if err != nil {
+			if err := s.DeleteHeadlessAuthentication(s.CloseContext(), req.HeadlessAuthenticationID); err != nil && !trace.IsNotFound(err) {
+				log.Debugf("Failed to delete headless authentication: %v", err)
+			}
+		}
+	}()
+
+	// this authentication requires two client callbacks to create a headless authentication
+	// stub and approve/deny the headless authentication, so we use a standard callback timeout.
+	ctx, cancel := context.WithTimeout(ctx, defaults.CallbackTimeout)
+	defer cancel()
+
+	headlessAuthn := &types.HeadlessAuthentication{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: req.HeadlessAuthenticationID,
+			},
+		},
+		User:            req.Username,
+		PublicKey:       req.PublicKey,
+		ClientIpAddress: req.ClientMetadata.RemoteAddr,
+	}
+
+	// Headless Authentication should expire when the callback expires.
+	headlessAuthn.SetExpiry(s.clock.Now().Add(defaults.CallbackTimeout))
+
+	if err := services.ValidateHeadlessAuthentication(headlessAuthn); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Wait for a headless authenticated stub to be inserted by an authenticated
+	// call to GetHeadlessAuthentication. We do this to avoid immediately inserting
+	// backend items from an unauthenticated endpoint.
+	headlessAuthnStub, err := s.headlessAuthenticationWatcher.Wait(ctx, req.HeadlessAuthenticationID, func(ha *types.HeadlessAuthentication) (bool, error) {
+		// Only headless authentication stub can be inserted without the standard validation.
+		if services.ValidateHeadlessAuthentication(ha) == nil {
+			return false, trace.AlreadyExists("headless auth request already exists")
+		}
+		return true, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Update headless authentication with login details.
+	if _, err := s.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthnStub, headlessAuthn); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Wait for the request to be approved/denied.
+	headlessAuthn, err = s.headlessAuthenticationWatcher.Wait(ctx, req.HeadlessAuthenticationID, func(ha *types.HeadlessAuthentication) (bool, error) {
+		switch ha.State {
+		case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED:
+			if ha.MfaDevice == nil {
+				return false, trace.AccessDenied("expected mfa approval for headless authentication approval")
+			}
+			return true, nil
+		case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED:
+			return false, trace.AccessDenied("headless authentication denied")
+		}
+		return false, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Verify that the headless authentication has not been tampered with.
+	if headlessAuthn.User != req.Username {
+		return nil, trace.AccessDenied("user mismatch")
+	}
+
+	return headlessAuthn.MfaDevice, nil
 }
 
 // AuthenticateWebUser authenticates web user, creates and returns a web session
@@ -509,7 +606,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
 	}
 
-	certs, err := s.generateUserCert(certRequest{
+	certReq := certRequest{
 		user:                 user,
 		ttl:                  req.TTL,
 		publicKey:            req.PublicKey,
@@ -520,7 +617,22 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		kubernetesCluster:    req.KubernetesCluster,
 		loginIP:              clientIP,
 		attestationStatement: req.AttestationStatement,
-	})
+	}
+
+	// For headless authentication, a short-lived mfa-verified cert should be generated.
+	if req.HeadlessAuthenticationID != "" {
+		ha, err := s.GetHeadlessAuthentication(ctx, req.HeadlessAuthenticationID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !bytes.Equal(req.PublicKey, ha.PublicKey) {
+			return nil, trace.AccessDenied("headless authentication public key mismatch")
+		}
+		certReq.mfaVerified = ha.MfaDevice.Metadata.Name
+		certReq.ttl = time.Minute
+	}
+
+	certs, err := s.generateUserCert(certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -45,10 +45,10 @@ type Trust interface {
 	AuthorityGetter
 
 	// CreateCertAuthority inserts a new certificate authority
-	CreateCertAuthority(ca types.CertAuthority) error
+	CreateCertAuthority(ctx context.Context, ca types.CertAuthority) error
 
 	// UpsertCertAuthority updates or inserts a new certificate authority
-	UpsertCertAuthority(ca types.CertAuthority) error
+	UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) error
 
 	// CompareAndSwapCertAuthority updates the cert authority value
 	// if existing value matches existing parameter,

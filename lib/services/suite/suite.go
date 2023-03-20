@@ -304,7 +304,7 @@ func (s *ServicesTestSuite) LoginAttempts(t *testing.T) {
 func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	ctx := context.Background()
 	ca := NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, s.CAS.UpsertCertAuthority(ca))
+	require.NoError(t, s.CAS.UpsertCertAuthority(ctx, ca))
 
 	out, err := s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
@@ -331,7 +331,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 
 	// test compare and swap
 	ca = NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, s.CAS.CreateCertAuthority(ca))
+	require.NoError(t, s.CAS.CreateCertAuthority(ctx, ca))
 
 	clock := clockwork.NewFakeClock()
 	newCA := *ca
@@ -1328,7 +1328,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 			crud: func(context.Context) types.Resource {
 				ca := NewTestCA(types.UserCA, "example.com")
-				require.NoError(t, s.CAS.UpsertCertAuthority(ca))
+				require.NoError(t, s.CAS.UpsertCertAuthority(ctx, ca))
 
 				out, err := s.CAS.GetCertAuthority(ctx, *ca.ID(), true)
 				require.NoError(t, err)
@@ -1349,7 +1349,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 			crud: func(context.Context) types.Resource {
 				ca := NewTestCA(types.UserCA, "example.com")
-				require.NoError(t, s.CAS.UpsertCertAuthority(ca))
+				require.NoError(t, s.CAS.UpsertCertAuthority(ctx, ca))
 
 				out, err := s.CAS.GetCertAuthority(ctx, *ca.ID(), false)
 				require.NoError(t, err)

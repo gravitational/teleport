@@ -165,13 +165,13 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
-	if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
+	if err := p.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
 		return p, trace.Wrap(err)
 	}
-	if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
+	if err := p.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
 		return p, trace.Wrap(err)
 	}
-	if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.OpenSSHCA, p.clusterName.GetClusterName())); err != nil {
+	if err := p.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.OpenSSHCA, p.clusterName.GetClusterName())); err != nil {
 		return p, trace.Wrap(err)
 	}
 
@@ -916,8 +916,8 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	_, err = s.a.Services.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 
-	require.NoError(t, s.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, "test")))
-	require.NoError(t, s.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, "test")))
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.UserCA, "test")))
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.HostCA, "test")))
 
 	err = s.a.createReverseTunnel(tc)
 	require.NoError(t, err)
