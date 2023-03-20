@@ -16,7 +16,6 @@ limitations under the License.
 
 package main
 
-// 1. Calculate MAU (paginating correctly so that it doesn't undercount)
 // 2. Add rate limiting so we don't cause throttling
 // 3. Add some test coverage
 
@@ -67,6 +66,10 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+
+	startDate := params.startDate.Format(time.DateOnly)
+	endDate := params.startDate.Add(SCAN_DURATION).Format(time.DateOnly)
+	fmt.Printf("Monthly active users by protocol during the period %v to %v:\nSSH: %d\nKube: %d\nDB: %d\nApp: %d\nDesktop: %d\n", startDate, endDate, len(state.ssh), len(state.kube), len(state.db), len(state.app), len(state.desktop))
 }
 
 func scanDay(svc *dynamodb.DynamoDB, tableName string, date string, state *trackedState) error {
