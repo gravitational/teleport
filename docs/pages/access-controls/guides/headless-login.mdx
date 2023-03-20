@@ -11,16 +11,16 @@ description: Headless Login
 
 Headless Login provides Teleport users with a secure way to authenticate with WebAuthn from a remote machine. This enables use cases which usually are not compatible with WebAuthn features, such as:
 
-* Logging into Teleport with WebAuthn from a remote dev box
-* Connecting to a Teleport Node from a remote dev box with Per-session MFA 
-* Performing `tsh scp` from one Teleport Node to another with Per-session MFA
+- Logging into Teleport with WebAuthn from a remote dev box
+- Connecting to a Teleport Node from a remote dev box with Per-session MFA 
+- Performing `tsh scp` from one Teleport Node to another with Per-session MFA
 
 <Admonition type="note" title="Headless Login Support">
   Headless Login only supports following `tsh` commands:
   
-  * `tsh ls`
-  * `tsh ssh`
-  * `tsh scp`
+  - `tsh ls`
+  - `tsh ssh`
+  - `tsh scp`
 
   In the future, Headless Login may be extended to other `tsh` commands.
 </Admonition>
@@ -132,9 +132,9 @@ $ tctl create -f cap.yaml
 
 Users can also set the following environment variables to reduce the number of flags passed to `tsh`:
 
-* `TELEPORT_PROXY` (string)
-* `TELEPORT_USER` (string)
-* `TELEPORT_HEADLESS` (bool)
+- `TELEPORT_PROXY` (string)
+- `TELEPORT_USER` (string)
+- `TELEPORT_HEADLESS` (bool)
 
 ### Disable Headless Login
 
