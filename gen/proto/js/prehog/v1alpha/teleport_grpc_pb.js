@@ -87,6 +87,28 @@ function deserialize_prehog_v1alpha_SubmitEventsResponse(buffer_arg) {
   return prehog_v1alpha_teleport_pb.SubmitEventsResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
+function serialize_prehog_v1alpha_SubmitUsageReportsRequest(arg) {
+  if (!(arg instanceof prehog_v1alpha_teleport_pb.SubmitUsageReportsRequest)) {
+    throw new Error('Expected argument of type prehog.v1alpha.SubmitUsageReportsRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_prehog_v1alpha_SubmitUsageReportsRequest(buffer_arg) {
+  return prehog_v1alpha_teleport_pb.SubmitUsageReportsRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_prehog_v1alpha_SubmitUsageReportsResponse(arg) {
+  if (!(arg instanceof prehog_v1alpha_teleport_pb.SubmitUsageReportsResponse)) {
+    throw new Error('Expected argument of type prehog.v1alpha.SubmitUsageReportsResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_prehog_v1alpha_SubmitUsageReportsResponse(buffer_arg) {
+  return prehog_v1alpha_teleport_pb.SubmitUsageReportsResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 
 var TeleportReportingServiceService = exports.TeleportReportingServiceService = {
   submitEvent: {
@@ -121,6 +143,17 @@ var TeleportReportingServiceService = exports.TeleportReportingServiceService = 
     requestDeserialize: deserialize_prehog_v1alpha_HelloTeleportRequest,
     responseSerialize: serialize_prehog_v1alpha_HelloTeleportResponse,
     responseDeserialize: deserialize_prehog_v1alpha_HelloTeleportResponse,
+  },
+  submitUsageReports: {
+    path: '/prehog.v1alpha.TeleportReportingService/SubmitUsageReports',
+    requestStream: false,
+    responseStream: false,
+    requestType: prehog_v1alpha_teleport_pb.SubmitUsageReportsRequest,
+    responseType: prehog_v1alpha_teleport_pb.SubmitUsageReportsResponse,
+    requestSerialize: serialize_prehog_v1alpha_SubmitUsageReportsRequest,
+    requestDeserialize: deserialize_prehog_v1alpha_SubmitUsageReportsRequest,
+    responseSerialize: serialize_prehog_v1alpha_SubmitUsageReportsResponse,
+    responseDeserialize: deserialize_prehog_v1alpha_SubmitUsageReportsResponse,
   },
 };
 

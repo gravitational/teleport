@@ -422,10 +422,62 @@ message SubmitEventsResponse {}
 message HelloTeleportRequest {}
 message HelloTeleportResponse {}
 
+message UserActivityReport {
+  // randomly generated UUID for this specific report, 16 bytes (in string order)
+  bytes report_uuid = 1;
+  // anonymized, 32 bytes (HMAC-SHA-256)
+  bytes cluster_name = 2;
+  // anonymized, 32 bytes (HMAC-SHA-256)
+  bytes reporter_hostid = 3;
+  // beginning of the time window for this data; ending is not specified but is
+  // intended to be at most 15 minutes
+  google.protobuf.Timestamp start_time = 4;
+
+  repeated UserActivityRecord records = 5;
+}
+
+message UserActivityRecord {
+  // anonymized, 32 bytes (HMAC-SHA-256)
+  bytes user_name = 1;
+
+  // counter of user.login events
+  uint64 logins = 2;
+
+  // counter of session.start events (non-Kube)
+  uint64 ssh_sessions = 3;
+  // counter of app.session.start events (non-TCP)
+  uint64 app_sessions = 4;
+  // counter of session.start events (only Kube)
+  uint64 kube_sessions = 5;
+  // counter of db.session.start events
+  uint64 db_sessions = 6;
+  // counter of windows.desktop.session.start events
+  uint64 desktop_sessions = 7;
+  // counter of app.session.start events (only TCP)
+  uint64 app_tcp_sessions = 8;
+  // counter of port events
+  uint64 ssh_port_sessions = 9;
+
+  // counter of kube.request events
+  uint64 kube_requests = 10;
+  // counter of sftp events
+  uint64 sftp_events = 11;
+}
+
+message SubmitUsageReportsRequest {
+  repeated UserActivityReport user_activity = 1;
+}
+message SubmitUsageReportsResponse {
+  // randomly generated UUID for this specific batch, 16 bytes (in string order)
+  bytes batch_uuid = 1;
+}
+
 service TeleportReportingService {
   rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {
     option deprecated = true;
   }
   rpc SubmitEvents(SubmitEventsRequest) returns (SubmitEventsResponse) {}
   rpc HelloTeleport(HelloTeleportRequest) returns (HelloTeleportResponse) {}
+
+  rpc SubmitUsageReports(SubmitUsageReportsRequest) returns (SubmitUsageReportsResponse) {}
 }
