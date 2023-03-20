@@ -77,7 +77,7 @@ func main() {
 
 	startDate := params.startDate.Format(time.DateOnly)
 	endDate := params.startDate.Add(SCAN_DURATION).Format(time.DateOnly)
-	fmt.Printf("Monthly active users by protocol during the period %v to %v:\nSSH: %d\nKube: %d\nDB: %d\nApp: %d\nDesktop: %d\n", startDate, endDate, len(state.ssh), len(state.kube), len(state.db), len(state.app), len(state.desktop))
+	fmt.Printf("Monthly active users by product during the period %v to %v:\nServer Access: %d\nKubernetes Access: %d\nDatabase Access: %d\nApplication Access: %d\nDesktop Access: %d\n", startDate, endDate, len(state.ssh), len(state.kube), len(state.db), len(state.app), len(state.desktop))
 }
 
 // scanDay scans a single day of events from the audit log table.
