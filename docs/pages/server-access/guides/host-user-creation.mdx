@@ -79,10 +79,10 @@ of the Linux distribution being used. See [User/Group Name Syntax](https://syste
 
 <Admonition type="warning">
 
-When a Teleport user accesses a Node, Teleport Server Access checks each of the
-user's roles that match the Node. If at least one role matches the Node but does not
-include `create_host_user: true`, automatic user creation will be disabled. Roles that
-do not match the Node will not be checked.
+When a Teleport user accesses an SSH Service instance, Teleport checks each of
+the user's roles that match the instance. If at least one role matches the
+instance but does not include `create_host_user: true`, automatic user creation
+will be disabled. Roles that do not match the Node will not be checked.
 
 </Admonition>
 
