@@ -97,7 +97,6 @@ spec:
       - project_path: my-user/my-project
 ```
 
-
 Apply this to your Teleport cluster using `tctl`:
 
 ```code
@@ -123,6 +122,36 @@ $ tctl bots add gitlab-demo --roles=access --token=gitlab-bot --logins=ci-user
 ```
 
 ## Step 3/3. Configure a GitLab Pipeline
+
+With the bot and join token created, you can now create a GitLab pipeline that
+uses these to access a node in your cluster.
+
+Create a file called `.gitlab-ci.yml` in the root of your repository. Replace
+`teleport.example.com:443` with the public address of your Teleport Proxy
+and `my-node` and `ci-user` with the user and host you wish to connect to.
+
+```yaml
+stages:
+  - deploy
+
+deploy-job:
+  stage: deploy
+  id_tokens:
+    TBOT_GITLAB_JWT:
+      aud: teleport.example.com
+  script:
+    - 'cd /tmp'
+    - 'curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz'
+    - 'tar -xvf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz'
+    - 'sudo ./teleport/install'
+    - 'tbot start --token=gitlab-demo --destination-dir=/tmp/tbot-user --data-dir=/tmp/tbot-data --auth-server=teleport.example.com:443 --join-method=gitlab --oneshot'
+    - 'tsh -i /tmp/tbot-user/identity --proxy teleport.example.com:443 ssh ci-user@my-node "echo $CI_JOB_ID >> ~/gitlab_run_log"'
+```
+
+Commit and push this to the repository. Check your GitLab CI status, and examine
+the log results from the commit for failure. If the job has succeeded, you
+should see a file in the home directory of `ci-user` called `gitlab_run_log`
+that includes the ID of the CI run.
 
 ## Further steps
 
