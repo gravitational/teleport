@@ -74,9 +74,9 @@ type UsageReporter interface {
 	AnonymizeAndSubmit(event ...Anonymizable)
 }
 
-// TeleportUsageReporter submits Teleport usage events
-// anonymized with the cluster name.
-type TeleportUsageReporter struct {
+// StreamingUsageReporter submits all Teleport usage events anonymized with the
+// cluster name, with a very short buffer for batches and no persistency.
+type StreamingUsageReporter struct {
 	// usageReporter is an actual reporter that batches and sends events
 	usageReporter *usagereporter.UsageReporter[prehogv1.SubmitEventRequest]
 	// anonymizer is the anonymizer used for filtered audit events.
@@ -87,9 +87,9 @@ type TeleportUsageReporter struct {
 	clock       clockwork.Clock
 }
 
-var _ UsageReporter = (*TeleportUsageReporter)(nil)
+var _ UsageReporter = (*StreamingUsageReporter)(nil)
 
-func (t *TeleportUsageReporter) AnonymizeAndSubmit(events ...Anonymizable) {
+func (t *StreamingUsageReporter) AnonymizeAndSubmit(events ...Anonymizable) {
 	for _, e := range events {
 		req := e.Anonymize(t.anonymizer)
 		req.Timestamp = timestamppb.New(t.clock.Now())
@@ -98,13 +98,18 @@ func (t *TeleportUsageReporter) AnonymizeAndSubmit(events ...Anonymizable) {
 	}
 }
 
-func (t *TeleportUsageReporter) Run(ctx context.Context) {
+func (t *StreamingUsageReporter) Run(ctx context.Context) {
 	t.usageReporter.Run(ctx)
 }
 
 type SubmitFunc = usagereporter.SubmitFunc[prehogv1.SubmitEventRequest]
 
-func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter SubmitFunc) (*TeleportUsageReporter, error) {
+// TODO(espadolini): change the call in e/lib/prehog/prehog.go:InitPreHogUsageReporting
+func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter SubmitFunc) (*StreamingUsageReporter, error) {
+	return NewStreamingUsageReporter(log, clusterName, submitter)
+}
+
+func NewStreamingUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter SubmitFunc) (*StreamingUsageReporter, error) {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}
@@ -133,7 +138,7 @@ func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterN
 		Clock:         clock,
 	})
 
-	return &TeleportUsageReporter{
+	return &StreamingUsageReporter{
 		usageReporter: reporter,
 		anonymizer:    anonymizer,
 		clusterName:   clusterName,
