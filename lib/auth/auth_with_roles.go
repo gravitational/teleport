@@ -5455,11 +5455,29 @@ func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *prot
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for a CA.
+//
+// This CRL can be requested by:
+//
+//   - Windows desktop service when updating the certificate authority contents
+//     on LDAP.
+//   - Cluster administrator using "tctl auth crl --type=db" command locally
+//     on the auth server to produce revocation list used to be configured on
+//     external services such as Windows certificate store.
+//   - Remote user using "tctl auth crl --type=db" command with a remote
+//     proxy (e.g. Teleport Cloud), as long as they have permission to create
+//     a revocation list.
 func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
-	// Only windows_desktop_service should be requesting CRLs
-	if !a.hasBuiltinRole(types.RoleAdmin, types.RoleWindowsDesktop) {
-		return nil, trace.AccessDenied("access denied")
+	err := a.action(apidefaults.Namespace, types.KindCertAuthorityRevocationList, types.VerbCreate)
+	if err != nil {
+		if !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		if !a.hasBuiltinRole(types.RoleAdmin, types.RoleWindowsDesktop) {
+			return nil, trace.AccessDenied("access denied")
+		}
 	}
+
 	crl, err := a.authServer.GenerateCertAuthorityCRL(ctx, caType)
 	if err != nil {
 		return nil, trace.Wrap(err)
