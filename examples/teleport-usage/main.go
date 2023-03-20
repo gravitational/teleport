@@ -49,14 +49,16 @@ func main() {
 	}
 
 	// Assume a base read capacity of 25 units per second to start off.
-	// If this is too high and we encounter throttling that could impede the main app, it will be reduced.
+	// If this is too high and we encounter throttling that could impede the main app, it will be adjusted automatically.
 	limiter := newAdaptiveRateLimiter(25)
 
 	// Reduce internal retry count so throttling errors bubble up to our rate limiter with less delay.
 	svc := dynamodb.New(session, &aws.Config{
 		MaxRetries: aws.Int(1),
+		Region:     aws.String(params.awsRegion),
 	})
 
+	// sets of unique users for calculating MAU
 	state := &trackedState{
 		ssh:     make(map[string]struct{}),
 		kube:    make(map[string]struct{}),
@@ -78,6 +80,7 @@ func main() {
 	fmt.Printf("Monthly active users by protocol during the period %v to %v:\nSSH: %d\nKube: %d\nDB: %d\nApp: %d\nDesktop: %d\n", startDate, endDate, len(state.ssh), len(state.kube), len(state.db), len(state.app), len(state.desktop))
 }
 
+// scanDay scans a single day of events from the audit log table.
 func scanDay(svc *dynamodb.DynamoDB, limiter *adaptiveRateLimiter, tableName string, date string, state *trackedState) error {
 	attributes := map[string]interface{}{
 		":date": date,
@@ -101,10 +104,13 @@ func scanDay(svc *dynamodb.DynamoDB, limiter *adaptiveRateLimiter, tableName str
 			FilterExpression:          aws.String(`EventType IN ("session.start", "db.session.start", "app.session.start", "windows.desktop.session.start")`),
 			ExclusiveStartKey:         paginationKey,
 			ReturnConsumedCapacity:    aws.String(dynamodb.ReturnConsumedCapacityTotal),
-			Limit:                     aws.Int64(int64(limiter.CurrentCapacity())),
+			// We limit the number of items returned to the current capacity to minimize any usage spikes
+			// that could affect the main application.
+			Limit: aws.Int64(int64(limiter.CurrentCapacity())),
 		})
 		switch {
 		case err != nil && err.Error() == dynamodb.ErrCodeProvisionedThroughputExceededException:
+			fmt.Println("  throttled by DynamoDB, adjusting request rate...")
 			limiter.ReportThrottleError()
 			continue
 		case err != nil:
@@ -132,6 +138,7 @@ type event struct {
 	FieldsMap map[string]interface{}
 }
 
+// applies a set of scanned raw events onto the tracked state.
 func reduceEvents(rawEvents []map[string]*dynamodb.AttributeValue, state *trackedState) error {
 	for _, rawEvent := range rawEvents {
 		var event event
@@ -187,6 +194,7 @@ func daysSinceEpoch(timestamp time.Time) int64 {
 	return timestamp.Unix() / (60 * 60 * 24)
 }
 
+// trackedState is a set of unique users for each protocol.
 type trackedState struct {
 	ssh     map[string]struct{}
 	kube    map[string]struct{}
@@ -197,11 +205,13 @@ type trackedState struct {
 
 type params struct {
 	tableName string
+	awsRegion string
 	startDate time.Time
 }
 
 func getParams() (params, error) {
 	tableName := os.Getenv("TABLE_NAME")
+	awsRegion := os.Getenv("AWS_REGION")
 	startDate := os.Getenv("START_DATE")
 
 	var timestamp time.Time
@@ -217,10 +227,15 @@ func getParams() (params, error) {
 
 	return params{
 		tableName: tableName,
+		awsRegion: awsRegion,
 		startDate: timestamp,
 	}, nil
 }
 
+// adaptiveRateLimiter is a rate limiter that dynamically adjusts its request rate based on throttling errors.
+// This unusual strategy was chosen since we cannot know how much free read capacity is available.
+//
+// This rate limiter progressively increases the request rate when it is not throttled for a longer period of time, and decreases it when it is.
 type adaptiveRateLimiter struct {
 	permitCapacity float64
 	streak         int
