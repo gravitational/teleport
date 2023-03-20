@@ -62,6 +62,8 @@ When configuring the provider, we'll need an AWS Role which Teleport uses to iss
 To store the configuration above, we'll create a new resource Kind: `Integration`.
 It'll leverage the `subkind` prop to distinguish future integrations.
 
+Multiple AWS Integrations might exist in the same cluster.
+
 ### High Level Flow
 Simplified flow of interactions between User, Teleport and AWS:
 
@@ -97,8 +99,8 @@ User────────────┤                                     
 ```
 
 #### User's Point of View
-When the user adds a new resource, using the Discover Wizard, they'll be asked where the resource lives.
-Choosing an RDS DB, the user is presented with the following flow:
+When a user adds a new AWS Integration, they will go through the following.
+Users will also be asked to set up an AWS integration when adding RDS databases in Discover flow.
 
 1. User is prompted to setup an OIDC Identity Provider pointing to its Teleport instance's url.
 2. User opens AWS, selects IAM and then, under `Access Management`, selects `Identity providers`.
@@ -117,13 +119,16 @@ To ease the necessary manual steps, the Discover wizard will provide a small vid
 
 At this point, the integration is configured and the user is able to discover RDS DBs without leaving Teleport.
 
+To do so, when trying to add a RDS Database, they will be asked to select which AWS Integration to use.
+If there's only one AWS Integration, that it will be selected without user's interaction to reduce the required steps.
+
 #### System's Point of View
 The first interaction between AWS and Teleport happens when the user clicks on `Get Thumbprint` (step 4 of the User's Point of View flow).
 This will trigger a request started by AWS to Teleport hitting the OpenID Configuration endpoint and subsequently the JSON Web Key Set endpoint.
 
 After this step, when the user tries to list RDS DBs, Teleport generates a token and issues the API call.
 
-To generate a token, Teleport creates a JWT with the claims described above and the configured role, and signs it with the private key (the public is provided in the public JWKS endpoint).
+To generate a token, Teleport creates a JWT with the claims described [below](#openid-configuration) and the configured role, and signs it with the private key (the public is provided in the public JWKS endpoint).
 
 AWS receives the request and validates the token against the public key provided by OIDC IdP (ie, Teleport) at the `jwks_uri`.
 If authenticated and authorized for the api call, AWS returns the response to the API call.
@@ -134,7 +139,8 @@ If authenticated and authorized for the api call, AWS returns the response to th
 One of the requirements to be an OIDC provider is to provide the public key in a known HTTP endpoint and sign a JSON object (with claims) with the private key.
 
 We'll create a new CA: OIDCCA.
-This will be similar to the JWTSigner key type used for App access.
+This will be similar to the SAML IdP CA.
+It'll use RS256.
 
 A single signing key will be used for this flow even if multiple AWS integrations are created (eg, multiple regions).
 
@@ -151,7 +157,7 @@ So, a new endpoint at `<proxyPublicAddr>/.well-known/openid-configuration` will 
 {
   "issuer": "https://proxy.example.com", 
   "jwks_uri": "https://proxy.example.com/.well-known/jwks-oidc",
-  "claims": ["iss", "sub", "aud", "jti", "iat", "exp", "nbf"],
+  "claims": ["iss", "sub", "obo", "aud", "jti", "iat", "exp", "nbf"],
   "id_token_signing_alg_values_supported": ["RS256"],
   "response_types_supported": ["id_token"],
   "scopes_supported": ["openid"],
@@ -163,7 +169,8 @@ So, a new endpoint at `<proxyPublicAddr>/.well-known/openid-configuration` will 
 - JWKS URI: the endpoint where the provider returns the public keys.
 - Claims Supported: a list of supported claims that the OpenID Provider (ie, Teleport) MAY be able to supply values for when issuing a token:
   - `iss`: the issuer identity, on our case it will be the same as the `issuer` key.
-  - `sub`: identifies the subject of the token, in our case it will contain the Teleport username prefixed by `user:`
+  - `sub`: identifies the subject of the token, in our case it will contain the Teleport proxy system `system:proxy`
+  - `obo`: identifies the Teleport username that requested the token prefixed by `user:`
   - `aud`: the audience for the token, on our case it will be the same as the `audience` defined when configuring the OIDC IdP in AWS (step 3.3 for the User's Point of View).
   - `jti`: is the token id (UUIDv4).
   - `iat`: unix epoch time of when the token was issued.
@@ -257,7 +264,12 @@ To do so, the user must add the following Trusted relationship:
 ```
 
 ### UX
-Besides the flow describe above (Users Point Of View), the Integration resource will have the usual CRUD operations via both API and `tctl`.
+
+#### Web flow
+Described [above](#user_s-point-of-view).
+
+#### Web API
+Integration resource will have the usual CRUD operations via Web API.
 The only updatable field is `aws_role_arn`.
 
 HTTP API:
@@ -279,6 +291,10 @@ JSON representation:
 	}
 }
 ```
+#### CLI
+Users can also create/update the resource using `tctl`.
+
+The only updatable field is `aws_role_arn`.
 
 `tctl`:
 
@@ -314,6 +330,15 @@ metadata:
 spec:
 	aws_role_arn: arn:aws:123:TeleportOIDC
 ```
+
+#### IaC - Terraform
+A new resource `Integration` must be created to allow for the Integration management from the Terraform provider.
+
+#### IaC - Kube Operator
+A new resource `Integration` must be created to allow for the Integration management from the Kube Operator.
+
+#### IaC - Helm Charts
+No change will be made to the Helm Charts because there's no new configuration changes.
 
 ### Security
 
