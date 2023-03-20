@@ -375,6 +375,7 @@ func ForOkta(cfg Config) Config {
 		// cache reads. The Okta service is not expected to read access requests from
 		// the cache.
 		{Kind: types.KindAccessRequest},
+		{Kind: types.KindUserGroup},
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
 	}
