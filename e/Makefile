@@ -146,8 +146,12 @@ ifeq ("$(ARCH)","amd64")
 CGOFLAG = CGO_ENABLED=1 CGO_CFLAGS="-I/usr/libbpf-${LIBBPF_VER}/include" CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
 CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"
 else ifeq ("$(ARCH)","arm")
+
 # ARM builds need to specify the correct C compiler
-CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
+CGOFLAG = CGO_ENABLED=1 $(if $(IS_CROSS_BUILD),CC=arm-linux-gnueabihf-gcc)
+# Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
+
 else ifeq ("$(ARCH)","arm64")
 
 # ARM64 requires CGO but does not need to do any special linkage due to its reduced
