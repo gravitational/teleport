@@ -231,9 +231,9 @@ As an example, we the following is the required policy to list RDS DBs (includin
     "Statement": [
         {
             "Effect": "Allow",
-            "Actions": "[
-				rds:DescribeDBClusters",
-				rds:DescribeDBInstances",
+            "Actions": [
+				"rds:DescribeDBClusters",
+				"rds:DescribeDBInstances"
 	        ],
             "Resource": "*"
         }
