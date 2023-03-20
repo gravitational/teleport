@@ -291,6 +291,45 @@ JSON representation:
 	}
 }
 ```
+
+In order to call an Integration action, we'll create a new Web API endpoint:
+```
+--->
+POST .../integration/:id/action/aws-oidc-list-databases
+{}
+
+<---
+{
+    "status": "success",
+    "response": {
+        "items": [
+            {
+                "status": "available",
+                "name": "marcodbtest",
+                "iamAuth": "true",
+                "engine": "postgres",
+                "engineVersion": "15.2",
+                "masterUsername": "postgres",
+                "tags": [],
+                "arn": "arn:aws:rds:us-east-1:<accid>:db:marcodbtest",
+                "addr": "marcodbtest.<someid>.us-east-1.rds.amazonaws.com",
+                "port": "5432"
+            }
+        ]
+    }
+}
+```
+
+This will generate a new token for the Integration `:id` and then call the `aws-oidc-list-databases` method which maps to a method that will do two AWS API Calls:
+- `rds describe-db-instances`
+- `rds describe-db-clusters`
+
+The response contains the following fields:
+- `status`: reports the result of calling the integration (other errors will come as usual: http status code)
+- `response`: specific to the requested action
+
+Pagination/Offset and search capabilities are out of scope for now.
+
 #### CLI
 Users can also create/update the resource using `tctl`.
 
