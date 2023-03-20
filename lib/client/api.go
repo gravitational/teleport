@@ -3452,7 +3452,7 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, priv *keys.PrivateK
 func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 	headlessAuthenticationID := services.NewHeadlessAuthenticationID(priv.MarshalSSHPublicKey())
 
-	webUILink, err := url.JoinPath(fmt.Sprintf("https://%s", tc.WebProxyAddr), "web", "headless", headlessAuthenticationID)
+	webUILink, err := url.JoinPath("https://"+tc.WebProxyAddr, "web", "headless", headlessAuthenticationID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

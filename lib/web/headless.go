@@ -32,10 +32,12 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 )
 
+const headlessAuthID = "headless_authentication_id"
+
 func (h *Handler) getHeadless(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
-	headlessAuthenticationID := params.ByName("headless_authentication_id")
-	if headlessAuthenticationID == "" {
-		return nil, trace.NotFound("failed to find Headless session") // TODO this or just failed?
+	headlessAuthenticationID, err := getHeadlessAuthID(params)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	authClient, err := sctx.GetClient()
@@ -51,10 +53,10 @@ func (h *Handler) getHeadless(_ http.ResponseWriter, r *http.Request, params htt
 	return headlessAuthn, nil
 }
 
-func (h *Handler) putHeadlessState(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
-	headlessAuthenticationID := params.ByName("headless_authentication_id")
-	if headlessAuthenticationID == "" {
-		return nil, trace.NotFound("failed to find Headless session") // TODO this or just failed?
+func (h *Handler) putHeadlessState(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
+	headlessAuthenticationID, err := getHeadlessAuthID(params)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	var req client.HeadlessRequest
@@ -90,8 +92,14 @@ func (h *Handler) putHeadlessState(w http.ResponseWriter, r *http.Request, param
 		return nil, trace.Wrap(err) // TODO replace with failed to authenticate always?
 	}
 
-	// TODO(jakule): webui expects JSON on POST ¯\_(ツ)_/¯
-	w.Write([]byte("{\"status\": \"OK\"}"))
+	// WebUI expects a JSON response.
+	return OK(), nil
+}
 
-	return nil, nil
+func getHeadlessAuthID(params httprouter.Params) (string, error) {
+	headlessAuthenticationID := params.ByName(headlessAuthID)
+	if headlessAuthenticationID == "" {
+		return "", trace.BadParameter("request is missing headless authentication ID")
+	}
+	return headlessAuthenticationID, nil
 }
