@@ -110,22 +110,6 @@
         "type": "github"
       }
     },
-    "golangci-lintPkgs": {
-      "locked": {
-        "lastModified": 1678571061,
-        "narHash": "sha256-0gI2FHID8XYD3504kLFRLH3C2GmMCzVMC50APV/kZp8=",
-        "owner": "nixos",
-        "repo": "nixpkgs",
-        "rev": "8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nixos",
-        "repo": "nixpkgs",
-        "rev": "8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8",
-        "type": "github"
-      }
-    },
     "helmPkgs": {
       "locked": {
         "lastModified": 1678571061,
@@ -198,7 +182,6 @@
         "gccPkgs": "gccPkgs",
         "gciPkgs": "gciPkgs",
         "goPkgs": "goPkgs",
-        "golangci-lintPkgs": "golangci-lintPkgs",
         "helmPkgs": "helmPkgs",
         "libbpfPkgs": "libbpfPkgs",
         "libfido2Pkgs": "libfido2Pkgs",
@@ -215,7 +198,7 @@
       },
       "locked": {
         "lastModified": 1,
-        "narHash": "sha256-ltXARE+urKxofFrf2IAMeGQ/iPW5k0lFzPNnW6w7uxU=",
+        "narHash": "sha256-H8oU5HlHd6Dh3wWlqCKfvT9SPkwE0casByvdvO169C8=",
         "path": "./build.assets/nix-shell",
         "type": "path"
       },

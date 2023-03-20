@@ -26,7 +26,7 @@
 
     # Linting dependencies
     helmPkgs.url = "github:nixos/nixpkgs/8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8"; # helm 3.11.1
-    golangci-lintPkgs.url = "github:nixos/nixpkgs/8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8"; # golangci-lint 1.51.2
+    #golangci-lintPkgs.url = "github:nixos/nixpkgs/8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8"; # golangci-lint 1.51.2
     shellcheckPkgs.url = "github:nixos/nixpkgs/8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8"; # shellcheck 0.9.0
     yamllintPkgs.url = "github:nixos/nixpkgs/8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8"; # yamllint 1.28.0
     gciPkgs.url = "github:nixos/nixpkgs/8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8"; # gci 0.9.1
@@ -58,7 +58,7 @@
               nixpkgs,
 
               helmPkgs,
-              golangci-lintPkgs,
+              #golangci-lintPkgs,
               shellcheckPkgs,
               yamllintPkgs,
               gciPkgs,
@@ -96,7 +96,7 @@
 
           # Wrap helm with the unittest plugin.
           helm = (pkgs.wrapHelm helmPkgs.legacyPackages.${system}.kubernetes-helm {plugins = [helm-unittest];});
-          golangci-lint = golangci-lintPkgs.legacyPackages.${system}.golangci-lint;
+          #golangci-lint = golangci-lintPkgs.legacyPackages.${system}.golangci-lint;
           shellcheck = shellcheckPkgs.legacyPackages.${system}.shellcheck;
           yamllint = yamllintPkgs.legacyPackages.${system}.yamllint;
           gci = gciPkgs.legacyPackages.${system}.gci;
@@ -121,6 +121,19 @@
           # pkgs is an alias for the nixpkgs at the system level. This will be used
           # for general utilities.
           pkgs = nixpkgs.legacyPackages.${system};
+
+          # Install golangci-lint
+          golangci-lint = pkgs.stdenv.mkDerivation {
+            name = "golangci-lint";
+            buildInputs = [
+              pkgs.cacert
+              pkgs.curl
+            ];
+            dontUnpack = true;
+            buildPhase = ''
+              curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $out/bin v1.52.0
+            '';
+          };
 
           # Compile protoc-gen-gogo for golang protobuf compilation.
           protoc-gen-gogo = pkgs.stdenv.mkDerivation {
