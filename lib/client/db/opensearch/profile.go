@@ -79,6 +79,7 @@ func WriteTempConfig(baseDir string, cfg Config) (string, error) {
 	}
 	// calculate config hash
 	h := fnv.New32()
+	// h.Write() will never return an error.
 	_, _ = h.Write(bytes)
 	hash := h.Sum32()
 

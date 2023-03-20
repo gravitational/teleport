@@ -68,8 +68,8 @@ const (
 	curlBin = "curl"
 	// elasticsearchSQLBin is the Elasticsearch SQL client program name.
 	elasticsearchSQLBin = "elasticsearch-sql-cli"
-	// openSearchCliBin is the OpenSearch CLI client program name.
-	openSearchCliBin = "opensearch-cli"
+	// openSearchCLIBin is the OpenSearch CLI client program name.
+	openSearchCLIBin = "opensearch-cli"
 	// awsBin is the aws CLI program name.
 	awsBin = "aws"
 	// oracleBin is the Oracle CLI program name.
@@ -423,9 +423,9 @@ func (c *CLICommandBuilder) isElasticsearchSQLBinAvailable() bool {
 	return err == nil
 }
 
-// isOpenSearchCliBinAvailable returns true if "opensearch-cli" binary is found in the system PATH.
-func (c *CLICommandBuilder) isOpenSearchCliBinAvailable() bool {
-	_, err := c.options.exe.LookPath(openSearchCliBin)
+// isopenSearchCLIBinAvailable returns true if "opensearch-cli" binary is found in the system PATH.
+func (c *CLICommandBuilder) isopenSearchCLIBinAvailable() bool {
+	_, err := c.options.exe.LookPath(openSearchCLIBin)
 	return err == nil
 }
 
@@ -647,7 +647,7 @@ func (c *CLICommandBuilder) getOpenSearchCommand() (*exec.Cmd, error) {
 	}
 	args = append(args, extraArgs...)
 
-	return c.options.exe.Command(openSearchCliBin, args...), nil
+	return c.options.exe.Command(openSearchCLIBin, args...), nil
 }
 
 func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
@@ -739,7 +739,7 @@ func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlter
 
 func (c *CLICommandBuilder) getOpenSearchAlternativeCommands() []CommandAlternative {
 	var commands []CommandAlternative
-	if c.isOpenSearchCliBinAvailable() {
+	if c.isopenSearchCLIBinAvailable() {
 		if len(c.options.extraArgs) == 0 {
 			c.options.extraArgs = []string{"curl", "get", "--path", "/"}
 		}
