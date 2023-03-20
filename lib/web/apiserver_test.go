@@ -6805,7 +6805,7 @@ func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
 	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn, SessionInactiveTimeoutMS: r.SessionInactiveTimeoutMS}, nil
 }
 
-func newWebPack(t *testing.T, numProxies int) *webPack {
+func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Now())
 
@@ -6917,7 +6917,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock))
+		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, opts...))
 	}
 
 	// Wait for proxies to fully register before starting the test.
@@ -6940,9 +6940,19 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	}
 }
 
+type proxyConfig struct {
+	minimalHandler bool
+}
+
+type proxyOption func(cfg *proxyConfig)
+
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *auth.TestTLSServer,
-	hostSigners []ssh.Signer, clock clockwork.FakeClock,
+	hostSigners []ssh.Signer, clock clockwork.FakeClock, opts ...proxyOption,
 ) *testProxy {
+	cfg := proxyConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 	// create reverse tunnel service:
 	client, err := authServer.NewClient(auth.TestIdentity{
 		I: authz.BuiltinRole{
@@ -7051,21 +7061,22 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
-		Proxy:                revTunServer,
-		AuthServers:          utils.FromAddr(authServer.Addr()),
-		DomainName:           authServer.ClusterName(),
-		ProxyClient:          client,
-		ProxyPublicAddrs:     utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
-		CipherSuites:         utils.DefaultCipherSuites(),
-		AccessPoint:          client,
-		Context:              ctx,
-		HostUUID:             proxyID,
-		Emitter:              client,
-		StaticFS:             fs,
-		ProxySettings:        &mockProxySettings{},
-		SessionControl:       sessionController,
-		Router:               router,
-		HealthCheckAppServer: func(context.Context, string, string) error { return nil },
+		Proxy:                          revTunServer,
+		AuthServers:                    utils.FromAddr(authServer.Addr()),
+		DomainName:                     authServer.ClusterName(),
+		ProxyClient:                    client,
+		ProxyPublicAddrs:               utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
+		CipherSuites:                   utils.DefaultCipherSuites(),
+		AccessPoint:                    client,
+		Context:                        ctx,
+		HostUUID:                       proxyID,
+		Emitter:                        client,
+		StaticFS:                       fs,
+		ProxySettings:                  &mockProxySettings{},
+		SessionControl:                 sessionController,
+		Router:                         router,
+		HealthCheckAppServer:           func(context.Context, string, string) error { return nil },
+		MinimalReverseTunnelRoutesOnly: cfg.minimalHandler,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 

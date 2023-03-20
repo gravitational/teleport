@@ -276,9 +276,12 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if redir, ok := app.HasName(r, h.handler.cfg.ProxyPublicAddrs); ok {
-		http.Redirect(w, r, redir, http.StatusFound)
-		return
+	// Only try to redirect if the handler is serving the full Web API.
+	if !h.handler.cfg.MinimalReverseTunnelRoutesOnly {
+		if redir, ok := app.HasName(r, h.handler.cfg.ProxyPublicAddrs); ok {
+			http.Redirect(w, r, redir, http.StatusFound)
+			return
+		}
 	}
 
 	// Serve the Web UI.
