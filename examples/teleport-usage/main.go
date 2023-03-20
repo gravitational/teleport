@@ -77,13 +77,17 @@ func main() {
 
 	startDate := params.startDate.Format(time.DateOnly)
 	endDate := params.startDate.Add(SCAN_DURATION).Format(time.DateOnly)
-	fmt.Printf("Monthly active users by product during the period %v to %v:\nServer Access: %d\nKubernetes Access: %d\nDatabase Access: %d\nApplication Access: %d\nDesktop Access: %d\n", startDate, endDate, len(state.ssh), len(state.kube), len(state.db), len(state.app), len(state.desktop))
+	fmt.Printf("Monthly active users by product during the period %v to %v:\n  Server Access: %d\n  Kubernetes Access: %d\n  Database Access: %d\n  Application Access: %d\n  Desktop Access: %d\n", startDate, endDate, len(state.ssh), len(state.kube), len(state.db), len(state.app), len(state.desktop))
 }
 
 // scanDay scans a single day of events from the audit log table.
 func scanDay(svc *dynamodb.DynamoDB, limiter *adaptiveRateLimiter, tableName string, date string, state *trackedState) error {
 	attributes := map[string]interface{}{
 		":date": date,
+		":e1":   "session.start",
+		":e2":   "db.session.start",
+		":e3":   "app.session.start",
+		":e4":   "windows.desktop.session.start",
 	}
 
 	attributeValues, err := dynamodbattribute.MarshalMap(attributes)
@@ -94,6 +98,7 @@ func scanDay(svc *dynamodb.DynamoDB, limiter *adaptiveRateLimiter, tableName str
 	var paginationKey map[string]*dynamodb.AttributeValue
 	pageCount := 1
 
+outer:
 	for {
 		fmt.Printf("  scanning date %v page %v...\n", date, pageCount)
 		scanOut, err := svc.Query(&dynamodb.QueryInput{
@@ -101,7 +106,7 @@ func scanDay(svc *dynamodb.DynamoDB, limiter *adaptiveRateLimiter, tableName str
 			IndexName:                 aws.String(INDEX_NAME),
 			KeyConditionExpression:    aws.String("CreatedAtDate = :date"),
 			ExpressionAttributeValues: attributeValues,
-			FilterExpression:          aws.String(`EventType IN ("session.start", "db.session.start", "app.session.start", "windows.desktop.session.start")`),
+			FilterExpression:          aws.String("EventType IN (:e1, :e2, :e3, :e4)"),
 			ExclusiveStartKey:         paginationKey,
 			ReturnConsumedCapacity:    aws.String(dynamodb.ReturnConsumedCapacityTotal),
 			// We limit the number of items returned to the current capacity to minimize any usage spikes
@@ -112,13 +117,13 @@ func scanDay(svc *dynamodb.DynamoDB, limiter *adaptiveRateLimiter, tableName str
 		case err != nil && err.Error() == dynamodb.ErrCodeProvisionedThroughputExceededException:
 			fmt.Println("  throttled by DynamoDB, adjusting request rate...")
 			limiter.ReportThrottleError()
-			continue
+			continue outer
 		case err != nil:
 			return err
 		}
 
 		pageCount++
-		limiter.Wait(*scanOut.ConsumedCapacity.ReadCapacityUnits)
+		limiter.Wait(*scanOut.ConsumedCapacity.CapacityUnits)
 		err = reduceEvents(scanOut.Items, state)
 		if err != nil {
 			return err
