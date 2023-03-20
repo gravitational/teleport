@@ -13,11 +13,12 @@ description: How to use Machine ID to SSH into Teleport nodes from GitLab CI
   Machine ID for GitLab is available starting from Teleport `v12.2`.
 </Details>
 
-In this guide, you will use Teleport Machine ID to allow a GitLab job to
+In this guide, you will use Teleport Machine ID to allow a GitLab pipeline to
 securely connect to a Teleport SSH node without the need for long-lived secrets.
 
 Machine ID for GitLab works with GitLab's cloud-hosted option and with
-self-hosted GitLab installations.
+self-hosted GitLab installations. **The minimum supported GitLab version is
+15.7**.
 
 This mitigates the risk of long-lived secrets such as passwords or SSH private
 keys being exfiltrated from your GitLab organization and provides many of
@@ -46,11 +47,21 @@ TLS certificate.**
 
 In order to allow your GitLab CI to authenticate to your Teleport cluster,
 you'll first need to create a join token. These tokens define the rules that
-allow a bot to join your Teleport cluster. In this example, you will create a
-rule that grants access to any GitLab CI job within a specific GitLab project.
+allow a bot to join your Teleport cluster.
 
-Determine the fully qualified path of your GitLab project. This will include
-your username (or group) and the name of your project, e.g `my-user/my-project`.
+A GitLab join token contains allow rules that describe which pipelines should
+be able to use that token in order to join the Teleport cluster. A rule can
+contain multiple constraints, and any pipeline that matches all of the
+constraints within a single rule is granted access.
+
+The following constraints exist:
+
+
+
+In this example, you will create a rule that grants access to any GitLab CI job
+within a specific GitLab project. Determine the fully qualified path of your
+GitLab project. This will include your username (or group) and the name of your
+project, e.g `my-user/my-project`.
 
 Create a file named `gitlab-token.yaml`. Ensure you substitute any values as
 suggested by the comments in this example.
@@ -74,7 +85,6 @@ spec:
       - project_path: my-user/my-project
 ```
 
-TODO explain fields
 
 Apply this to your Teleport cluster using `tctl`:
 
@@ -84,7 +94,23 @@ $ tctl create -f gitlab-token.yaml
 
 ## Step 2/3. Create a Machine ID bot
 
-## Step 4/4. Configure a GitLab Pipeline
+With the join token created, the next step is to create the Machine ID bot that
+the token will grant access to.
+
+In this example, the bot is given the default `access` role. In a production
+environment, the principle of least privilege should be applied and you should
+create a role that grants the bot access to the precise resources that will be
+needed in your CI/CD pipeline.
+
+Enter the following command from your workstation with `tsh` access, replacing
+the `ci-user` login with a Linux user on the host that you want your GitLab
+pipeline to be able to connect to:
+
+```code
+$ tctl bots add gitlab-demo --roles=access --token=gitlab-bot --logins=ci-user
+```
+
+## Step 3/3. Configure a GitLab Pipeline
 
 ## Further steps
 
