@@ -16,11 +16,6 @@ limitations under the License.
 
 package main
 
-// 1. UX/responsiveness improvements
-// 2. Add rate limiting so we don't cause throttling
-// 3. comments
-// 4. code quality
-
 import (
 	"fmt"
 	"log"
@@ -53,7 +48,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	svc := dynamodb.New(session)
+	// Assume a base read capacity of 25 units per second to start off.
+	// If this is too high and we encounter throttling that could impede the main app, it will be reduced.
+	limiter := newAdaptiveRateLimiter(25)
+
+	// Reduce internal retry count so throttling errors bubble up to our rate limiter with less delay.
+	svc := dynamodb.New(session, &aws.Config{
+		MaxRetries: aws.Int(1),
+	})
+
 	state := &trackedState{
 		ssh:     make(map[string]struct{}),
 		kube:    make(map[string]struct{}),
@@ -62,8 +65,9 @@ func main() {
 		desktop: make(map[string]struct{}),
 	}
 
+	fmt.Println("Gathering data, this may take a minute...")
 	for _, date := range daysBetween(params.startDate, params.startDate.Add(SCAN_DURATION)) {
-		err := scanDay(svc, params.tableName, date, state)
+		err := scanDay(svc, limiter, params.tableName, date, state)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -74,7 +78,7 @@ func main() {
 	fmt.Printf("Monthly active users by protocol during the period %v to %v:\nSSH: %d\nKube: %d\nDB: %d\nApp: %d\nDesktop: %d\n", startDate, endDate, len(state.ssh), len(state.kube), len(state.db), len(state.app), len(state.desktop))
 }
 
-func scanDay(svc *dynamodb.DynamoDB, tableName string, date string, state *trackedState) error {
+func scanDay(svc *dynamodb.DynamoDB, limiter *adaptiveRateLimiter, tableName string, date string, state *trackedState) error {
 	attributes := map[string]interface{}{
 		":date": date,
 	}
@@ -85,8 +89,10 @@ func scanDay(svc *dynamodb.DynamoDB, tableName string, date string, state *track
 	}
 
 	var paginationKey map[string]*dynamodb.AttributeValue
+	pageCount := 1
 
 	for {
+		fmt.Printf("  scanning date %v page %v...\n", date, pageCount)
 		scanOut, err := svc.Query(&dynamodb.QueryInput{
 			TableName:                 aws.String(tableName),
 			IndexName:                 aws.String(INDEX_NAME),
@@ -94,11 +100,19 @@ func scanDay(svc *dynamodb.DynamoDB, tableName string, date string, state *track
 			ExpressionAttributeValues: attributeValues,
 			FilterExpression:          aws.String(`EventType IN ("session.start", "db.session.start", "app.session.start", "windows.desktop.session.start")`),
 			ExclusiveStartKey:         paginationKey,
+			ReturnConsumedCapacity:    aws.String(dynamodb.ReturnConsumedCapacityTotal),
+			Limit:                     aws.Int64(int64(limiter.CurrentCapacity())),
 		})
-		if err != nil {
+		switch {
+		case err != nil && err.Error() == dynamodb.ErrCodeProvisionedThroughputExceededException:
+			limiter.ReportThrottleError()
+			continue
+		case err != nil:
 			return err
 		}
 
+		pageCount++
+		limiter.Wait(*scanOut.ConsumedCapacity.ReadCapacityUnits)
 		err = reduceEvents(scanOut.Items, state)
 		if err != nil {
 			return err
@@ -205,4 +219,35 @@ func getParams() (params, error) {
 		tableName: tableName,
 		startDate: timestamp,
 	}, nil
+}
+
+type adaptiveRateLimiter struct {
+	permitCapacity float64
+	streak         int
+}
+
+func (a *adaptiveRateLimiter) ReportThrottleError() {
+	a.permitCapacity *= 0.85
+	a.streak = 0
+}
+
+func (a *adaptiveRateLimiter) Wait(permits float64) {
+	durationToWait := time.Duration(permits / a.permitCapacity * float64(time.Second))
+	time.Sleep(durationToWait)
+
+	a.streak++
+	if a.streak > 10 {
+		a.streak = 0
+		a.permitCapacity *= 1.1
+	}
+}
+
+func (a *adaptiveRateLimiter) CurrentCapacity() float64 {
+	return a.permitCapacity
+}
+
+func newAdaptiveRateLimiter(permitsPerSecond float64) *adaptiveRateLimiter {
+	return &adaptiveRateLimiter{
+		permitCapacity: permitsPerSecond,
+	}
 }
