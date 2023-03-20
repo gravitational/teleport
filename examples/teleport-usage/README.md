@@ -20,6 +20,8 @@ The following information is required:
 | `AWS_REGION`         | AWS Region where the dynamoDB table is deployed                     |
 | `START_DATE`         | The date for when to start the query. The format must be YYYY-MM-DD |
 
+Optionally, the environment variable `SHOW_USERS` can be set to `true` to display a list of users for each protocol.
+
 ## Running Docker Container
 
 With prompt:

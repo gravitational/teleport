@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -78,7 +80,26 @@ func main() {
 
 	startDate := params.startDate.Format(time.DateOnly)
 	endDate := params.startDate.Add(scanDuration).Format(time.DateOnly)
-	fmt.Printf("Monthly active users by product during the period %v to %v:\n  Server Access: %d\n  Kubernetes Access: %d\n  Database Access: %d\n  Application Access: %d\n  Desktop Access: %d\n", startDate, endDate, len(state.ssh), len(state.kube), len(state.db), len(state.app), len(state.desktop))
+	fmt.Printf("Monthly active users by product during the period %v to %v:\n", startDate, endDate)
+	displayProductResults("Server Access", state.ssh, params.showUsers)
+	displayProductResults("Kubernetes Access", state.kube, params.showUsers)
+	displayProductResults("Database Access", state.db, params.showUsers)
+	displayProductResults("Application Access", state.app, params.showUsers)
+	displayProductResults("Desktop Access", state.desktop, params.showUsers)
+}
+
+func displayProductResults(name string, users map[string]struct{}, showUsers bool) {
+	fmt.Printf("  %v: %v", name, len(users))
+	if showUsers && len(users) > 0 {
+		userList := make([]string, 0, len(users))
+		for user := range users {
+			userList = append(userList, user)
+		}
+
+		fmt.Printf(" (%v)", strings.Join(userList, ", "))
+	}
+
+	fmt.Print("\n")
 }
 
 // scanDay scans a single day of events from the audit log table.
@@ -89,6 +110,7 @@ func scanDay(svc *dynamodb.DynamoDB, limiter *adaptiveRateLimiter, tableName str
 		":e2":   "db.session.start",
 		":e3":   "app.session.start",
 		":e4":   "windows.desktop.session.start",
+		":e5":   "kube.request",
 	}
 
 	attributeValues, err := dynamodbattribute.MarshalMap(attributes)
@@ -107,7 +129,7 @@ outer:
 			IndexName:                 aws.String(indexName),
 			KeyConditionExpression:    aws.String("CreatedAtDate = :date"),
 			ExpressionAttributeValues: attributeValues,
-			FilterExpression:          aws.String("EventType IN (:e1, :e2, :e3, :e4)"),
+			FilterExpression:          aws.String("EventType IN (:e1, :e2, :e3, :e4, :e5)"),
 			ExclusiveStartKey:         paginationKey,
 			ReturnConsumedCapacity:    aws.String(dynamodb.ReturnConsumedCapacityTotal),
 			// We limit the number of items returned to the current capacity to minimize any usage spikes
@@ -158,9 +180,10 @@ func reduceEvents(rawEvents []map[string]*dynamodb.AttributeValue, state *tracke
 
 		var set map[string]struct{}
 		switch event.EventType {
+		case "kube.request":
+			set = state.kube
 		case "session.start":
 			set = state.ssh
-
 			if event.FieldsMap.KubernetesCluster != nil {
 				set = state.kube
 			}
@@ -212,13 +235,23 @@ type trackedState struct {
 type params struct {
 	tableName string
 	awsRegion string
+	showUsers bool
 	startDate time.Time
 }
 
 func getParams() (params, error) {
 	tableName := os.Getenv("TABLE_NAME")
 	awsRegion := os.Getenv("AWS_REGION")
+	showUsersStr := os.Getenv("SHOW_USERS")
 	startDate := os.Getenv("START_DATE")
+
+	if showUsersStr == "" {
+		showUsersStr = "false"
+	}
+	showUsers, err := strconv.ParseBool(showUsersStr)
+	if err != nil {
+		return params{}, err
+	}
 
 	if tableName == "" {
 		return params{}, errors.New("TABLE_NAME environment variable is required")
@@ -229,7 +262,6 @@ func getParams() (params, error) {
 	}
 
 	var timestamp time.Time
-	var err error
 	if startDate == "" {
 		timestamp = time.Now().UTC().Add(-scanDuration)
 	} else {
@@ -242,6 +274,7 @@ func getParams() (params, error) {
 	return params{
 		tableName: tableName,
 		awsRegion: awsRegion,
+		showUsers: showUsers,
 		startDate: timestamp,
 	}, nil
 }
