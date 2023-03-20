@@ -97,9 +97,9 @@ namespace. A **cluster role** is a role that applies to all namespaces in a
 cluster. You can use a **role binding** or **cluster role binding** to attach a
 role or cluster role to Kubernetes users and groups. 
 
-Define a role and role binding that allows users in the `app-developer` group to
-read and list pods in the `app` namespace. Add the following to a file called
-`pod-reader.yaml`:
+Define a Kubernetes role and role binding that allows users in the
+`app-developer` group to read and list pods in the `app` namespace. Add the
+following to a file called `pod-reader.yaml`:
 
 ```yaml
 apiVersion: v1
@@ -236,7 +236,7 @@ Create a file called `sync-kubernetes-rbac.yaml` with the following content:
 
 ```yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: sync-kubernetes-rbac
 spec:
@@ -245,6 +245,10 @@ spec:
       '*': '*'
     kubernetes_users:
       - sync-kubernetes-rbac
+    kubernetes_resources:
+      - kind: pod
+        name: '*'
+        namespace: '*'
     rules:
       - resources: ['kubernetes_cluster']
         verbs: ['read']
@@ -440,7 +444,7 @@ Here are the packages our client application imports from Go's standard library:
 |---|---|
 |`context`|Includes the `context.Context` type. `context.Context` is an abstraction for controlling long-running routines, such as connections to external services, that might fail or time out. Programs can cancel contexts or assign them timeouts and metadata. |
 |`fmt`|Formatting data for printing, strings, or errors.|
-|`io/ioutil`|Helper functions for dealing with I/O operations, e.g., reading files or network sockets.|
+|`io`|Dealing with I/O operations, e.g., reading files or network sockets.|
 |`os`|Interacting with the operating system, e.g., to open files.|
 |`time`|Dealing with time. We will use this to define a timeout for connecting to the Auth Service along with a ticker for executing our discovery logic in a loop.|
 
@@ -503,7 +507,7 @@ func getRBACClient() (v1.RbacV1Interface, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	kc, err := ioutil.ReadAll(f)
+	kc, err := io.ReadAll(f)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -736,8 +740,7 @@ entrypoint of the program, the `main` function:
 
 ```go
 func main() {
-	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, initTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), initTimeout)
 	defer cancel()
 	creds := client.LoadIdentityFile(identityFilePath)
 
