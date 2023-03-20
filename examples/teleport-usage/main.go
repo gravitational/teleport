@@ -286,7 +286,7 @@ func getParams() (params, error) {
 //
 // This rate limiter progressively increases the request rate when it is not throttled for a longer period of time, and decreases it when it is.
 //
-// This will never cause actual interrupts to the Teleport since the AWS SDK there will retry generously to smooth over
+// This will never cause actual interrupts to Teleport since the AWS SDK there will retry generously to smooth over
 // any possible retries caused by us. The important element is that we back off as soon as we notice this which
 // allows Teleport to success eventually.
 type adaptiveRateLimiter struct {
