@@ -54,6 +54,33 @@ $ tsh ls --headless --proxy=example --user=user
 
 To approve the headless login, go to the URL in your local web browser or enter the `tsh` command in your local terminal. You will be prompted to approve the login with WebAuthn verification. Once approved, your initial `tsh --headless <command>` should continue as if you had logged in locally.
 
+Unlike a standard login session, headles login sessions are only available for the lifetime of a single `tsh` request. This means that for each `tsh --headless` command, you will need to go through the headless login flow:
+
+```code 
+$ tsh ls --headless --proxy=example --user=user
+# Complete headless authentication in your local web browser:
+# 
+# https://proxy.example.com:3080/web/headless/86172f78-af7c-5935-a7c1-ed06b94f17dc
+# 
+# or execute this command in your local terminal:
+# 
+# tsh headless approve --user=dev --proxy=proxy.example.com:3080 86172f78-af7c-5935-a7c1-ed06b94f17dc
+# # User approves through link
+# Node Name Address        Labels                                                                             
+# --------- -------------- -----------
+# server01  127.0.0.1:3022 arch=x86_64
+#
+$ tsh ssh --headless --proxy=example --user=user server01
+# Complete headless authentication in your local web browser:
+# 
+# https://proxy.example.com:3080/web/headless/864cccd9-2425-46d9-a9f2-636387e66ebf
+# 
+# or execute this command in your local terminal:
+# 
+# tsh headless approve --user=dev --proxy=proxy.example.com:3080 864cccd9-2425-46d9-a9f2-636387e66ebf
+# # User approves through link
+```
+
 ## Additional Options
 
 ### Set Headless login as default
