@@ -735,9 +735,9 @@ func TestServer_Authenticate_headless(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name     string
-		update   updateHeadlessAuthnFn
-		checkErr require.ErrorAssertionFunc
+		name      string
+		update    updateHeadlessAuthnFn
+		expectErr bool
 	}{
 		{
 			name: "OK approved",
@@ -745,13 +745,12 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 				ha.MfaDevice = mfa
 			},
-			checkErr: require.NoError,
 		}, {
 			name: "NOK approved without MFA",
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 			},
-			checkErr: require.Error,
+			expectErr: true,
 		}, {
 			name: "NOK user mismatch",
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
@@ -759,17 +758,17 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.MfaDevice = mfa
 				ha.User = "other-user"
 			},
-			checkErr: require.Error,
+			expectErr: true,
 		}, {
 			name: "NOK denied",
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
 			},
-			checkErr: require.Error,
+			expectErr: true,
 		}, {
-			name:     "NOK timeout",
-			update:   func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {},
-			checkErr: require.Error,
+			name:      "NOK timeout",
+			update:    func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {},
+			expectErr: true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -784,6 +783,20 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			// a user and TOTP/WebAuthn devices.
 			mfa := configureForMFA(t, srv)
 			username := mfa.User
+
+			// Fail a login attempt so have a non-empty list of attempts.
+			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+				AuthenticateUserRequest: AuthenticateUserRequest{
+					Username:  username,
+					Webauthn:  &wanlib.CredentialAssertionResponse{}, // bad response
+					PublicKey: []byte(sshPubKey),
+				},
+				TTL: 24 * time.Hour,
+			})
+			require.True(t, trace.IsAccessDenied(err), "got err = %v, want AccessDenied")
+			attempts, err := srv.Auth().GetUserLoginAttempts(username)
+			require.NoError(t, err)
+			require.NotEmpty(t, attempts, "Want at least one failed login attempt")
 
 			t.Cleanup(func() {
 				srv.Auth().DeleteHeadlessAuthentication(ctx, headlessID)
@@ -807,8 +820,22 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				},
 				TTL: defaults.CallbackTimeout,
 			})
-			tc.checkErr(t, err)
 			require.NoError(t, <-errC)
+			if tc.expectErr {
+				require.Error(t, err)
+				// Verify login attempts unchanged. This is a proxy for various other user
+				// checks (locked, etc).
+				updatedAttempts, err := srv.Auth().GetUserLoginAttempts(username)
+				require.NoError(t, err)
+				require.Equal(t, attempts, updatedAttempts, "Login attempts unexpectedly changed")
+			} else {
+				require.NoError(t, err)
+				// Verify zeroed login attempts. This is a proxy for various other user
+				// checks (locked, etc).
+				updatedAttempts, err := srv.Auth().GetUserLoginAttempts(username)
+				require.NoError(t, err)
+				require.Empty(t, updatedAttempts, "Login attempts not reset")
+			}
 		})
 	}
 }
