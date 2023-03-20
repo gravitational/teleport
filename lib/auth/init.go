@@ -214,6 +214,9 @@ type InitConfig struct {
 
 	// UsageReporter is a service that forwards cluster usage events.
 	UsageReporter usagereporter.UsageReporter
+
+	// Okta is a service that manages Okta resources.
+	Okta services.Okta
 }
 
 // Init instantiates and configures an instance of AuthServer
