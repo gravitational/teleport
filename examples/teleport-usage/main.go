@@ -49,7 +49,7 @@ func main() {
 	}
 
 	// Assume a base read capacity of 25 units per second to start off.
-	// If this is too high and we encounter throttling that could impede the main app, it will be adjusted automatically.
+	// If this is too high and we encounter throttling that could impede Teleport, it will be adjusted automatically.
 	limiter := newAdaptiveRateLimiter(25)
 
 	// Reduce internal retry count so throttling errors bubble up to our rate limiter with less delay.
@@ -67,7 +67,7 @@ func main() {
 		desktop: make(map[string]struct{}),
 	}
 
-	fmt.Println("Gathering data, this may take a minute")
+	fmt.Println("Gathering data, this may take a moment")
 	for _, date := range daysBetween(params.startDate, params.startDate.Add(SCAN_DURATION)) {
 		err := scanDay(svc, limiter, params.tableName, date, state)
 		if err != nil {
@@ -105,7 +105,7 @@ func scanDay(svc *dynamodb.DynamoDB, limiter *adaptiveRateLimiter, tableName str
 			ExclusiveStartKey:         paginationKey,
 			ReturnConsumedCapacity:    aws.String(dynamodb.ReturnConsumedCapacityTotal),
 			// We limit the number of items returned to the current capacity to minimize any usage spikes
-			// that could affect the main application.
+			// that could affect Teleport.
 			Limit: aws.Int64(int64(limiter.CurrentCapacity())),
 		})
 		switch {
@@ -236,6 +236,10 @@ func getParams() (params, error) {
 // This unusual strategy was chosen since we cannot know how much free read capacity is available.
 //
 // This rate limiter progressively increases the request rate when it is not throttled for a longer period of time, and decreases it when it is.
+//
+// This will never cause actual interrupts to the Teleport since the AWS SDK there will retry generously to smooth over
+// any possible retries caused by us. The important element is that we back off as soon as we notice this which
+// allows Teleport to success eventually.
 type adaptiveRateLimiter struct {
 	permitCapacity float64
 	streak         int
