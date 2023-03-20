@@ -18,3 +18,5 @@ build/tbot start \
 ```
 go run ./examples/go-client
 ```
+
+Need to test with auto disconnect expired certs or inject network failures.
