@@ -396,9 +396,12 @@ However, assuming the DNS is controlled by an attacker, then the users that are 
 We don't think this is a scenario we should focus on this RFD.
 
 #### AWS Calls from unauthorized Teleport Users
-We'll be able to call `DescribeDBInstances` AWS endpoint, however we must ensure that this is protected by RBAC.
+We'll be able to call `DescribeDBInstances/Clusters` AWS endpoint, however we must ensure that this is protected by RBAC.
 
-In order to do so, we'll re-use the `db` resource with the `list` verb to allow listing RDS Databases.
+In order to do so, we'll add a new verb: `use`.
+This verb defines whether the user can use an integration's action.
+
+The user needs the following rules in order to call an external integration endpoint:
 
 ```yaml
 kind: role
@@ -408,9 +411,9 @@ spec:
   allow:
     rules:
     - resources:
-      - db
+      - integration
       verbs:
-      - list
+      - use
 ```
 
 ## Proof of Concept
