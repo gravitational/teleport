@@ -29,8 +29,9 @@ cluster to Teleport.
 
 ## Step 3/7. Set up AWS IAM configuration
 
-For Teleport to be able to create the DynamoDB tables, indexes, and the S3 storage bucket it needs,
-you'll need to configure AWS IAM policies to allow access.
+For Teleport to be able to manage the DynamoDB tables, indexes, and the S3
+storage bucket it needs, you'll need to configure AWS IAM policies to allow
+access.
 
 <Admonition type="note">
   These IAM policies should be added to your AWS account, then granted to the instance role associated with the
@@ -44,10 +45,6 @@ you'll need to configure AWS IAM policies to allow access.
 ### S3 IAM policy
 
 (!docs/pages/includes/s3-iam-policy.mdx!)
-
-Note that Teleport will only use S3 buckets with versioning enabled. This
-ensures that a session log cannot be permanently altered or deleted, as
-Teleport will always look at the oldest version of a recording.
 
 ## Step 4/7. Configure TLS certificates for Teleport
 
