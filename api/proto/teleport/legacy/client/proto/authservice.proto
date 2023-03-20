@@ -395,11 +395,6 @@ message ChangePasswordRequest {
   webauthn.CredentialAssertionResponse Webauthn = 5 [(gogoproto.jsontag) = "webauthn"];
 }
 
-// AccessRequests is a collection of AccessRequest values.
-message AccessRequests {
-  repeated types.AccessRequestV3 AccessRequests = 1 [(gogoproto.jsontag) = "access_requests"];
-}
-
 // PluginDataSeq is a sequence of plugin data.
 message PluginDataSeq {
   repeated types.PluginDataV3 PluginData = 1 [(gogoproto.jsontag) = "plugin_data"];
