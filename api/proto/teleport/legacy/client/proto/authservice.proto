@@ -395,11 +395,6 @@ message ChangePasswordRequest {
   webauthn.CredentialAssertionResponse Webauthn = 5 [(gogoproto.jsontag) = "webauthn"];
 }
 
-// AccessRequests is a collection of AccessRequest values.
-message AccessRequests {
-  repeated types.AccessRequestV3 AccessRequests = 1 [(gogoproto.jsontag) = "access_requests"];
-}
-
 // PluginDataSeq is a sequence of plugin data.
 message PluginDataSeq {
   repeated types.PluginDataV3 PluginData = 1 [(gogoproto.jsontag) = "plugin_data"];
@@ -2323,9 +2318,6 @@ service AuthService {
   // target.
   rpc IsMFARequired(IsMFARequiredRequest) returns (IsMFARequiredResponse);
 
-  // GetAccessRequests gets all pending access requests.
-  // DEPRECATED, DELETE IN 11.0.0: Use GetAccessRequestsV2 instead.
-  rpc GetAccessRequests(types.AccessRequestFilter) returns (AccessRequests);
   // GetAccessRequestsV2 gets all pending access requests.
   rpc GetAccessRequestsV2(types.AccessRequestFilter) returns (stream types.AccessRequestV3);
   // CreateAccessRequest creates a new access request.
