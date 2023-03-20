@@ -449,6 +449,8 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 		}
 	case DatabaseTypeDynamoDB:
 		return DatabaseTypeDynamoDB, true
+	case DatabaseTypeOpenSearch:
+		return DatabaseTypeOpenSearch, true
 	}
 	if aws.Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift, true
@@ -825,6 +827,8 @@ const (
 	DatabaseTypeCassandra = "cassandra"
 	// DatabaseTypeDynamoDB is a DynamoDB database.
 	DatabaseTypeDynamoDB = "dynamodb"
+	// DatabaseTypeOpenSearch is AWS-hosted OpenSearch instance.
+	DatabaseTypeOpenSearch = "opensearch"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".

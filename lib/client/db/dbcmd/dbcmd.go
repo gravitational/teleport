@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
+	"github.com/gravitational/teleport/lib/client/db/opensearch"
 	"github.com/gravitational/teleport/lib/client/db/postgres"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -67,6 +68,8 @@ const (
 	curlBin = "curl"
 	// elasticsearchSQLBin is the Elasticsearch SQL client program name.
 	elasticsearchSQLBin = "elasticsearch-sql-cli"
+	// openSearchCliBin is the OpenSearch CLI client program name.
+	openSearchCliBin = "opensearch-cli"
 	// awsBin is the aws CLI program name.
 	awsBin = "aws"
 	// oracleBin is the Oracle CLI program name.
@@ -192,6 +195,9 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	case defaults.ProtocolElasticsearch:
 		return c.getElasticsearchCommand()
 
+	case defaults.ProtocolOpenSearch:
+		return c.getOpenSearchCommand()
+
 	case defaults.ProtocolDynamoDB:
 		return c.getDynamoDBCommand()
 
@@ -216,6 +222,8 @@ func (c *CLICommandBuilder) GetConnectCommandAlternatives() ([]CommandAlternativ
 	switch c.db.Protocol {
 	case defaults.ProtocolElasticsearch:
 		return c.getElasticsearchAlternativeCommands(), nil
+	case defaults.ProtocolOpenSearch:
+		return c.getOpenSearchAlternativeCommands(), nil
 	}
 
 	cmd, err := c.GetConnectCommand()
@@ -409,9 +417,15 @@ func (c *CLICommandBuilder) isMongoshBinAvailable() bool {
 	return err == nil
 }
 
-// isElasticsearchSqlBinAvailable returns true if "elasticsearch-sql-cli" binary is found in the system PATH.
+// isElasticsearchSQLBinAvailable returns true if "elasticsearch-sql-cli" binary is found in the system PATH.
 func (c *CLICommandBuilder) isElasticsearchSQLBinAvailable() bool {
 	_, err := c.options.exe.LookPath(elasticsearchSQLBin)
+	return err == nil
+}
+
+// isOpenSearchCliBinAvailable returns true if "opensearch-cli" binary is found in the system PATH.
+func (c *CLICommandBuilder) isOpenSearchCliBinAvailable() bool {
+	_, err := c.options.exe.LookPath(openSearchCliBin)
 	return err == nil
 }
 
@@ -606,6 +620,36 @@ func (c *CLICommandBuilder) getElasticsearchCommand() (*exec.Cmd, error) {
 	return nil, trace.BadParameter("%v interactive command is only supported in --tunnel mode.", elasticsearchSQLBin)
 }
 
+// getOpenSearchCommand returns a command to connect to OpenSearch.
+func (c *CLICommandBuilder) getOpenSearchCommand() (*exec.Cmd, error) {
+	// get config
+	var cfg opensearch.Config
+	if c.options.noTLS {
+		cfg = opensearch.ConfigNoTLS(c.host, c.port)
+	} else {
+		cfg = opensearch.ConfigTLS(c.host, c.port, c.options.caPath, c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName), c.profile.KeyPath())
+	}
+
+	// write it
+	tempCfg, err := opensearch.WriteTempConfig(c.profile.Dir, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// use "teleport" profile and custom config file.
+	args := []string{"--profile", opensearch.ProfileName, "--config", tempCfg}
+
+	// use extra args. if empty, replace with --help
+	extraArgs := c.options.extraArgs
+	if len(c.options.extraArgs) == 0 {
+		extraArgs = []string{"curl", "get", "--path", "/"}
+		c.options.log.Warnf("No extra arguments provided, using defaults instead: %v.", extraArgs)
+	}
+	args = append(args, extraArgs...)
+
+	return c.options.exe.Command(openSearchCliBin, args...), nil
+}
+
 func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
 	// we can't guess at what the user wants to do, so this command is for print purposes only,
 	// and it only works with a local proxy tunnel.
@@ -693,6 +737,48 @@ func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlter
 	return commands
 }
 
+func (c *CLICommandBuilder) getOpenSearchAlternativeCommands() []CommandAlternative {
+	var commands []CommandAlternative
+	if c.isOpenSearchCliBinAvailable() {
+		if len(c.options.extraArgs) == 0 {
+			c.options.extraArgs = []string{"curl", "get", "--path", "/"}
+		}
+		if cmd, err := c.getOpenSearchCommand(); err == nil {
+			commands = append(commands, CommandAlternative{Description: "run request with opensearch-cli", Command: cmd})
+		}
+	}
+
+	var curlCommand *exec.Cmd
+	if c.options.noTLS {
+		curlCommand = c.options.exe.Command(curlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
+	} else {
+		args := []string{
+			fmt.Sprintf("https://%v:%v/", c.host, c.port),
+			"--key", c.profile.KeyPath(),
+			"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+		}
+
+		if c.tc.InsecureSkipVerify {
+			args = append(args, "--insecure")
+		}
+
+		if c.options.caPath != "" {
+			args = append(args, []string{"--cacert", c.options.caPath}...)
+		}
+
+		// Force HTTP 1.1 when connecting to remote web proxy. Otherwise, HTTP2 can
+		// be negotiated which breaks the engine.
+		if c.options.localProxyHost == "" {
+			args = append(args, "--http1.1")
+		}
+
+		curlCommand = c.options.exe.Command(curlBin, args...)
+	}
+	commands = append(commands, CommandAlternative{Description: "run single request with curl", Command: curlCommand})
+
+	return commands
+}
+
 type connectionCommandOpts struct {
 	localProxyPort           int
 	localProxyHost           string
@@ -703,6 +789,7 @@ type connectionCommandOpts struct {
 	log                      *logrus.Entry
 	exe                      Execer
 	password                 string
+	extraArgs                []string
 }
 
 // ConnectCommandFunc is a type for functions returned by the "With*" functions in this package.
@@ -765,6 +852,13 @@ func WithPrintFormat() ConnectCommandFunc {
 func WithLogger(log *logrus.Entry) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.log = log
+	}
+}
+
+// WithExtraArgs passes along extra arguments provided to DB CLI client.
+func WithExtraArgs(extraArgs []string) ConnectCommandFunc {
+	return func(opts *connectionCommandOpts) {
+		opts.extraArgs = extraArgs
 	}
 }
 
