@@ -774,6 +774,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindWindowsDesktopService, services.RW()),
 						types.NewRule(types.KindWindowsDesktop, services.RW()),
+						types.NewRule(types.KindCertAuthorityRevocationList, services.RW()),
 					},
 				},
 			})
