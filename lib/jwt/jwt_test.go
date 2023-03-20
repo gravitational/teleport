@@ -191,7 +191,7 @@ func TestKey_SignAndVerifyPROXY(t *testing.T) {
 	destination := "4.3.2.1:666:"
 
 	// Sign a token with the new key.
-	token, err := key.SignPROXY(PROXYSignParams{
+	token, err := key.SignPROXYJWT(PROXYSignParams{
 		ClusterName:        clusterName,
 		SourceAddress:      source,
 		DestinationAddress: destination,

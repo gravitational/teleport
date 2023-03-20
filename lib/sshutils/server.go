@@ -313,7 +313,7 @@ func (s *Server) Addr() string {
 }
 
 func (s *Server) Serve(listener net.Listener) error {
-	if err := s.setListener(listener); err != nil {
+	if err := s.SetListener(listener); err != nil {
 		return trace.Wrap(err)
 	}
 	s.acceptConnections()
@@ -321,22 +321,22 @@ func (s *Server) Serve(listener net.Listener) error {
 }
 
 func (s *Server) Start() error {
-	listener, err := net.Listen(s.addr.AddrNetwork, s.addr.Addr)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
+	if s.listener == nil {
+		listener, err := net.Listen(s.addr.AddrNetwork, s.addr.Addr)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
 
-	listener = s.limiter.WrapListener(listener)
-
-	s.log.WithField("addr", listener.Addr().String()).Debug("Server start.")
-	if err := s.setListener(listener); err != nil {
-		return trace.Wrap(err)
+		if err := s.SetListener(s.limiter.WrapListener(listener)); err != nil {
+			return trace.Wrap(err)
+		}
 	}
+	s.log.WithField("addr", s.listener.Addr().String()).Debug("Server start.")
 	go s.acceptConnections()
 	return nil
 }
 
-func (s *Server) setListener(l net.Listener) error {
+func (s *Server) SetListener(l net.Listener) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.listener != nil {
@@ -442,7 +442,8 @@ func (s *Server) trackUserConnections(delta int32) int32 {
 // connection from a client.
 //
 // this is the foundation of all SSH connections in Teleport (between clients
-// and proxies, proxies and servers, servers and auth, etc).
+// and proxies, proxies and servers, servers and auth, etc), except for forwarding
+// SSH proxy that used when "recording on proxy" is enabled.
 func (s *Server) HandleConnection(conn net.Conn) {
 	if s.ingressReporter != nil {
 		s.ingressReporter.ConnectionAccepted(s.ingressService, conn)
@@ -453,7 +454,6 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	conn = utils.ObeyIdleTimeout(conn,
 		defaults.DefaultIdleConnectionDuration,
 		s.component)
-
 	// Wrap connection with a tracker used to monitor how much data was
 	// transmitted and received over the connection.
 	wconn := utils.NewTrackingConn(conn)
@@ -461,7 +461,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// create a new SSH server which handles the handshake (and pass the custom
 	// payload structure which will be populated only when/if this connection
 	// comes from another Teleport proxy):
-	wrappedConn := wrapConnection(wconn, s.log)
+	wrappedConn := WrapConnection(wconn, s.log)
 	sconn, chans, reqs, err := ssh.NewServerConn(wrappedConn, &s.cfg)
 	if err != nil {
 		// Ignore EOF as these are triggered by loadbalancer health checks
@@ -745,13 +745,13 @@ type ClusterDetails struct {
 	FIPSEnabled    bool
 }
 
-// connectionWrapper allows the SSH server to perform custom handshake which
+// ConnectionWrapper allows the SSH server to perform custom handshake which
 // lets teleport proxy servers to relay a true remote client IP address
 // to the SSH server.
 //
 // (otherwise connection.RemoteAddr (client IP) will always point to a proxy IP
 // instead of a true client IP)
-type connectionWrapper struct {
+type ConnectionWrapper struct {
 	net.Conn
 	logger logrus.FieldLogger
 
@@ -769,13 +769,13 @@ type connectionWrapper struct {
 }
 
 // RemoteAddr returns the behind-the-proxy client address
-func (c *connectionWrapper) RemoteAddr() net.Addr {
+func (c *ConnectionWrapper) RemoteAddr() net.Addr {
 	return c.clientAddr
 }
 
 // Read implements io.Read() part of net.Connection which allows us
 // peek at the beginning of SSH handshake (that's why we're wrapping the connection)
-func (c *connectionWrapper) Read(b []byte) (int, error) {
+func (c *ConnectionWrapper) Read(b []byte) (int, error) {
 	// handshake already took place, forward upstream:
 	if c.upstreamReader != nil {
 		return c.upstreamReader.Read(b)
@@ -805,19 +805,6 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 			if err = json.Unmarshal(payload, &hp); err != nil {
 				c.logger.Error(err)
 			} else {
-				if ca, err := utils.ParseAddr(hp.ClientAddr); err == nil {
-					// replace proxy's client addr with a real client address
-					// we just got from the custom payload:
-					c.clientAddr = ca
-					if ca.AddrNetwork == "tcp" {
-						// source-address check in SSH server requires TCPAddr
-						c.clientAddr = &net.TCPAddr{
-							IP:   net.ParseIP(ca.Host()),
-							Port: ca.Port(0),
-						}
-					}
-				}
-
 				c.traceContext = hp.TracingContext
 			}
 			skip = payloadBoundary + 1
@@ -827,10 +814,10 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	return c.upstreamReader.Read(b)
 }
 
-// wrapConnection takes a network connection, wraps it into connectionWrapper
+// WrapConnection takes a network connection, wraps it into ConnectionWrapper
 // object (which overrides Read method) and returns the wrapper.
-func wrapConnection(conn net.Conn, logger logrus.FieldLogger) *connectionWrapper {
-	return &connectionWrapper{
+func WrapConnection(conn net.Conn, logger logrus.FieldLogger) *ConnectionWrapper {
+	return &ConnectionWrapper{
 		Conn:       conn,
 		clientAddr: conn.RemoteAddr(),
 		logger:     logger,
