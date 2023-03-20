@@ -132,6 +132,15 @@ func NewTracingClient(ctx context.Context, cfg Config) (*tracing.Client, error) 
 	return tracing.NewClient(clt.GetConnection()), nil
 }
 
+// NewOktaClient creates a new Okta client for managing Okta resources.
+func NewOktaClient(ctx context.Context, cfg Config) (*okta.Client, error) {
+	clt, err := New(ctx, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return okta.NewClient(oktapb.NewOktaServiceClient(clt.GetConnection())), nil
+}
+
 // newClient constructs a new client.
 func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client {
 	return &Client{
@@ -3261,14 +3270,6 @@ func (c *Client) DeleteLoginRule(ctx context.Context, name string) error {
 		Name: name,
 	}, c.callOpts...)
 	return trail.FromGRPC(err)
-}
-
-// OktaClient returns an Okta client.
-// Clients connecting older Teleport versions still get an okta client when
-// calling this method, but all RPCs will return "not implemented" errors (as per
-// the default gRPC behavior).
-func (c *Client) OktaClient() *okta.Client {
-	return okta.NewClient(oktapb.NewOktaServiceClient(c.conn))
 }
 
 // GetCertAuthority retrieves a CA by type and domain.
