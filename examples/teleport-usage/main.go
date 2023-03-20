@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
@@ -136,12 +137,13 @@ outer:
 			// that could affect Teleport as RCUs may be consumed for multiple seconds if the response is large, slowing down Teleport significantly.
 			Limit: aws.Int64(int64(limiter.CurrentCapacity())),
 		})
-		switch {
-		case err != nil && err.Error() == dynamodb.ErrCodeProvisionedThroughputExceededException:
-			fmt.Println("  throttled by DynamoDB, adjusting request rate...")
-			limiter.ReportThrottleError()
-			continue outer
-		case err != nil:
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeProvisionedThroughputExceededException {
+				fmt.Println("  throttled by DynamoDB, adjusting request rate...")
+				limiter.ReportThrottleError()
+				continue outer
+			}
+
 			return err
 		}
 
