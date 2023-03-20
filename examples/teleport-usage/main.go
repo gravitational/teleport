@@ -135,12 +135,12 @@ outer:
 			ReturnConsumedCapacity:    aws.String(dynamodb.ReturnConsumedCapacityTotal),
 			// We limit the number of items returned to the current capacity to minimize any usage spikes
 			// that could affect Teleport as RCUs may be consumed for multiple seconds if the response is large, slowing down Teleport significantly.
-			Limit: aws.Int64(int64(limiter.CurrentCapacity())),
+			Limit: aws.Int64(int64(limiter.currentCapacity())),
 		})
 		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeProvisionedThroughputExceededException {
 				fmt.Println("  throttled by DynamoDB, adjusting request rate...")
-				limiter.ReportThrottleError()
+				limiter.reportThrottleError()
 				continue outer
 			}
 
@@ -148,7 +148,7 @@ outer:
 		}
 
 		pageCount++
-		limiter.Wait(*scanOut.ConsumedCapacity.CapacityUnits)
+		limiter.wait(*scanOut.ConsumedCapacity.CapacityUnits)
 		err = reduceEvents(scanOut.Items, state)
 		if err != nil {
 			return err
@@ -294,12 +294,12 @@ type adaptiveRateLimiter struct {
 	streak         int
 }
 
-func (a *adaptiveRateLimiter) ReportThrottleError() {
+func (a *adaptiveRateLimiter) reportThrottleError() {
 	a.permitCapacity *= 0.85
 	a.streak = 0
 }
 
-func (a *adaptiveRateLimiter) Wait(permits float64) {
+func (a *adaptiveRateLimiter) wait(permits float64) {
 	durationToWait := time.Duration(permits / a.permitCapacity * float64(time.Second))
 	time.Sleep(durationToWait)
 
@@ -310,7 +310,7 @@ func (a *adaptiveRateLimiter) Wait(permits float64) {
 	}
 }
 
-func (a *adaptiveRateLimiter) CurrentCapacity() float64 {
+func (a *adaptiveRateLimiter) currentCapacity() float64 {
 	return a.permitCapacity
 }
 
