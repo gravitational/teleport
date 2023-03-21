@@ -22,13 +22,15 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net"
+	"os"
+	"os/exec"
 	"path"
+	"strings"
 	"text/template"
 	"time"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -49,6 +51,7 @@ type proxyKubeCommand struct {
 	port              string
 	format            string
 	configPath        string
+	exec              string
 }
 
 func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
@@ -65,7 +68,7 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 	c.Flag("port", "Specifies the source port used by the proxy listener").Short('p').StringVar(&c.port)
 	c.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&c.format, envVarFormats...)
 	c.Flag("config-path", "Overwrites the default path for generating the ephemeral config.").StringVar(&c.configPath)
-	// TODO add exec support
+	c.Flag("exec", "Execute a command against the local proxy.").StringVar(&c.exec)
 	return c
 }
 
@@ -110,10 +113,6 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	}
 	defer removeFileIfExist(c.configPath)
 
-	if err := c.printTemplate(cf, lp.GetAddr()); err != nil {
-		return trace.Wrap(err)
-	}
-
 	waitCtx, cancel := context.WithCancel(cf.Context)
 	go func() {
 		if err := lp.Start(cf.Context); err != nil {
@@ -121,8 +120,27 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 		}
 		cancel()
 	}()
+
+	if c.exec != "" {
+		return trace.Wrap(c.runCommand(cf))
+	}
+
+	if err := c.printTemplate(cf, lp.GetAddr()); err != nil {
+		return trace.Wrap(err)
+	}
 	<-waitCtx.Done()
 	return nil
+}
+
+func (c *proxyKubeCommand) runCommand(cf *CLIConf) error {
+	args := strings.Fields(c.exec)
+	cmd := exec.CommandContext(cf.Context, args[0], args[1:]...)
+	cmd.Stdin = cf.Stdin()
+	cmd.Stdout = cf.Stdout()
+	cmd.Stderr = cf.Stderr()
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, fmt.Sprintf("KUBECONFIG=%v", c.configPath))
+	return trace.Wrap(cf.RunCommand(cmd))
 }
 
 func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*clientcmdapi.Config, []kubeconfig.LocalProxyClusterValues, error) {
@@ -148,7 +166,6 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 				KubeClusters:      c.kubeClusters,
 			})
 		}
-		logrus.Debugf("--as %v --as-groups %v", c.impersonateUser, c.impersonateGroups)
 		c.printPrepare(cf, "Preparing the following Teleport Kubernetes clusters:", clusters)
 		return defaultConfig, clusters, nil
 	}
@@ -187,6 +204,12 @@ func (c *proxyKubeCommand) writeConfig(profile *client.ProfileStatus, tc *client
 }
 
 func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters []kubeconfig.LocalProxyClusterValues) {
+	// Do not print anything if executing a command so that only the output of
+	// the executed command will be shown.
+	if c.exec != "" {
+		return
+	}
+
 	fmt.Fprintln(cf.Stdout(), title)
 	table := asciitable.MakeTable([]string{"Teleport Cluster Name", "Kube Cluster Name"})
 	for _, cluster := range clusters {
