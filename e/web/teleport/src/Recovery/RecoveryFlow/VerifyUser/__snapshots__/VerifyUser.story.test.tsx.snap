@@ -97,6 +97,35 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
 .c8 {
   appearance: none;
   border: none;
@@ -148,35 +177,6 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
 }
 
 .c9 {
@@ -478,6 +478,35 @@ exports[`render failed state form for authenticating with password 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
 .c8 {
   appearance: none;
   border: none;
@@ -519,35 +548,6 @@ exports[`render failed state form for authenticating with password 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 0px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
 }
 
 <form
@@ -736,6 +736,35 @@ exports[`render failed state form for authenticating with totp 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
 .c8 {
   appearance: none;
   border: none;
@@ -787,35 +816,6 @@ exports[`render failed state form for authenticating with totp 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
 }
 
 .c9 {
@@ -1145,6 +1145,35 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
 .c8 {
   appearance: none;
   border: none;
@@ -1196,35 +1225,6 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
 }
 
 .c9 {
@@ -1512,6 +1512,35 @@ exports[`render form for authenticating with multi option 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
 .c7 {
   appearance: none;
   border: none;
@@ -1563,35 +1592,6 @@ exports[`render form for authenticating with multi option 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
 }
 
 .c8 {
@@ -1864,6 +1864,35 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
 .c7 {
   appearance: none;
   border: none;
@@ -1905,35 +1934,6 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 0px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
 }
 
 <form
@@ -2093,6 +2093,35 @@ exports[`render form for authenticating with totp 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
 .c7 {
   appearance: none;
   border: none;
@@ -2144,35 +2173,6 @@ exports[`render form for authenticating with totp 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
 }
 
 .c8 {
@@ -2473,6 +2473,35 @@ exports[`render form for authenticating with webauthn 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
 .c7 {
   appearance: none;
   border: none;
@@ -2524,35 +2553,6 @@ exports[`render form for authenticating with webauthn 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
-}
-
-.c4 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
 }
 
 .c8 {

@@ -135,20 +135,6 @@ exports[`approved role escalation 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c12 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
-  margin-right: 4px;
-}
-
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -189,6 +175,20 @@ exports[`approved role escalation 1`] = `
   margin: 0px;
   margin-bottom: 8px;
   margin-top: 8px;
+}
+
+.c12 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-right: 4px;
 }
 
 .c7 {
@@ -513,20 +513,6 @@ exports[`failed state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c13 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
-  margin-right: 4px;
-}
-
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -555,6 +541,20 @@ exports[`failed state 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
+  margin-right: 4px;
+}
+
+.c13 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
   margin-right: 4px;
 }
 
@@ -818,20 +818,6 @@ exports[`loaded state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c12 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
-  margin-right: 4px;
-}
-
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -860,6 +846,20 @@ exports[`loaded state 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
+  margin-right: 4px;
+}
+
+.c12 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
   margin-right: 4px;
 }
 
@@ -1117,20 +1117,6 @@ exports[`processing state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c12 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
-  margin-right: 4px;
-}
-
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1159,6 +1145,20 @@ exports[`processing state 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
+  margin-right: 4px;
+}
+
+.c12 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
   margin-right: 4px;
 }
 

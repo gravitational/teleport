@@ -1,7 +1,6 @@
 import ReactDOM from 'react-dom';
 import React from 'react';
 import history from 'teleport/services/history';
-import { instantiateTelemetry } from 'teleport/telemetry-boot';
 
 import cfg from 'e-teleport/config';
 
@@ -15,7 +14,7 @@ cfg.init(window['GRV_CONFIG']);
 history.init();
 
 if (localStorage.getItem('enable-telemetry') === 'true') {
-  instantiateTelemetry();
+  import('teleport/telemetry-boot').then(m => m.instantiateTelemetry());
 }
 
 const teleportContextE = new TeleportContextE();

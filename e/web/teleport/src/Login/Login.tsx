@@ -4,9 +4,9 @@ import Logo from 'teleport/components/LogoHero';
 import history from 'teleport/services/history';
 import useLogin, { State } from 'teleport/Login/useLogin';
 
-import cfg from 'e-teleport/config';
+import logoSrc from 'design/assets/images/teleport-medallion.svg';
 
-const logoSrc = require('design/assets/images/teleport-medallion.svg');
+import cfg from 'e-teleport/config';
 
 export default function Container() {
   const state = useLogin() as State;

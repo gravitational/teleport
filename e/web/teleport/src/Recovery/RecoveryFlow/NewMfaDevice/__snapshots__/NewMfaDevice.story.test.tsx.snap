@@ -82,6 +82,42 @@ exports[`render correct form to add TOTP device 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  margin: 0px;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+}
+
 .c15 {
   appearance: none;
   border: none;
@@ -147,42 +183,6 @@ exports[`render correct form to add TOTP device 1`] = `
   display: block;
   outline: none;
   width: 152px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  margin: 0px;
-  margin-top: 8px;
-  text-align: center;
-}
-
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.56);
 }
 
 .c4 {
@@ -525,6 +525,33 @@ exports[`render correct form to add Webauthn device 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
 .c13 {
   appearance: none;
   border: none;
@@ -582,33 +609,6 @@ exports[`render correct form to add Webauthn device 1`] = `
   display: block;
   outline: none;
   width: 152px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-top: 16px;
 }
 
 .c4 {
@@ -912,6 +912,33 @@ exports[`render correct form to add with multi option 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
 .c13 {
   appearance: none;
   border: none;
@@ -969,33 +996,6 @@ exports[`render correct form to add with multi option 1`] = `
   display: block;
   outline: none;
   width: 152px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-top: 16px;
 }
 
 .c4 {
@@ -1321,6 +1321,33 @@ exports[`render failed state for form to add with multi option 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+  text-align: center;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
 .c14 {
   appearance: none;
   border: none;
@@ -1378,33 +1405,6 @@ exports[`render failed state for form to add with multi option 1`] = `
   display: block;
   outline: none;
   width: 152px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.56);
-  text-align: center;
-}
-
-.c7 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-top: 16px;
 }
 
 .c5 {

@@ -114,16 +114,6 @@ exports[`failed 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c9 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -140,6 +130,16 @@ exports[`failed 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 24px;
+}
+
+.c9 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .c1 {
@@ -380,16 +380,6 @@ exports[`loaded with custom prompt 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c8 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -406,6 +396,16 @@ exports[`loaded with custom prompt 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 24px;
+}
+
+.c8 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .c1 {
@@ -640,16 +640,6 @@ exports[`loaded without custom prompt 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c8 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -666,6 +656,16 @@ exports[`loaded without custom prompt 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 24px;
+}
+
+.c8 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .c1 {

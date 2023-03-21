@@ -147,16 +147,6 @@ exports[`failed state 1`] = `
   font-size: 13px;
 }
 
-.c21 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -183,6 +173,16 @@ exports[`failed state 1`] = `
   margin: 0px;
   margin-right: 8px;
   font-weight: 500;
+}
+
+.c21 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .c3 {
@@ -939,16 +939,6 @@ exports[`loaded state 1`] = `
   font-size: 13px;
 }
 
-.c20 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -975,6 +965,16 @@ exports[`loaded state 1`] = `
   margin: 0px;
   margin-right: 8px;
   font-weight: 500;
+}
+
+.c20 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .c3 {
@@ -1705,13 +1705,6 @@ exports[`success state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c8 {
-  display: block;
-  outline: none;
-  width: 250px;
-  height: 179px;
-}
-
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1730,6 +1723,13 @@ exports[`success state 1`] = `
   line-height: 24px;
   margin: 0px;
   color: rgba(255,255,255,0.56);
+}
+
+.c8 {
+  display: block;
+  outline: none;
+  width: 250px;
+  height: 179px;
 }
 
 .c7 {

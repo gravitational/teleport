@@ -68,6 +68,26 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: rgba(255,255,255,0.56);
+}
+
 .c6 {
   appearance: none;
   border: none;
@@ -109,26 +129,6 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 0px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
 }
 
 <form
@@ -268,6 +268,26 @@ exports[`render correct form for clicking forgot password 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 32px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: rgba(255,255,255,0.56);
+}
+
 .c6 {
   appearance: none;
   border: none;
@@ -309,26 +329,6 @@ exports[`render correct form for clicking forgot password 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 0px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 32px;
-  color: #FFFFFF;
-  text-align: center;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
 }
 
 <form

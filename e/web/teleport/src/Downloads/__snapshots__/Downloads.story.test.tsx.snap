@@ -68,23 +68,6 @@ exports[`renders loaded linux 1`] = `
   color: #FFFFFF;
 }
 
-.c4 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
-.c22 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -114,6 +97,23 @@ exports[`renders loaded linux 1`] = `
   margin: 0px;
   margin-bottom: 32px;
   margin-top: 16px;
+}
+
+.c4 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c22 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
 }
 
 .c5 {
@@ -1181,23 +1181,6 @@ exports[`renders loaded macOS 1`] = `
   color: #FFFFFF;
 }
 
-.c4 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
-.c22 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1227,6 +1210,23 @@ exports[`renders loaded macOS 1`] = `
   margin: 0px;
   margin-bottom: 32px;
   margin-top: 16px;
+}
+
+.c4 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c22 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
 }
 
 .c5 {
@@ -2196,15 +2196,6 @@ exports[`renders loaded windows 1`] = `
   color: #FFFFFF;
 }
 
-.c4 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2244,6 +2235,15 @@ exports[`renders loaded windows 1`] = `
   line-height: 32px;
   margin: 24px;
   color: rgba(255,255,255,0.87);
+}
+
+.c4 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
 }
 
 .c5 {
@@ -3224,23 +3224,6 @@ exports[`renders when license failed 1`] = `
   color: #FFFFFF;
 }
 
-.c5 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
-.c23 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3270,6 +3253,23 @@ exports[`renders when license failed 1`] = `
   margin: 0px;
   margin-bottom: 32px;
   margin-top: 16px;
+}
+
+.c5 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c23 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
 }
 
 .c6 {
@@ -4343,23 +4343,6 @@ exports[`renders when license is loading 1`] = `
   color: #FFFFFF;
 }
 
-.c4 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
-.c22 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4389,6 +4372,23 @@ exports[`renders when license is loading 1`] = `
   margin: 0px;
   margin-bottom: 32px;
   margin-top: 16px;
+}
+
+.c4 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
+}
+
+.c22 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
 }
 
 .c5 {
@@ -5452,15 +5452,6 @@ exports[`renders when releases are loading 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c4 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5490,6 +5481,15 @@ exports[`renders when releases are loading 1`] = `
   margin: 0px;
   margin-bottom: 32px;
   margin-top: 16px;
+}
+
+.c4 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
 }
 
 .c5 {
@@ -5683,15 +5683,6 @@ exports[`renders when releases failed 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c4 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  color: #FFFFFF;
-}
-
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5721,6 +5712,15 @@ exports[`renders when releases failed 1`] = `
   margin: 0px;
   margin-bottom: 32px;
   margin-top: 16px;
+}
+
+.c4 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  color: #FFFFFF;
 }
 
 .c5 {

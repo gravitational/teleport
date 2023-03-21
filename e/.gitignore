@@ -31,3 +31,6 @@ tmp
 /macos/tshdev/tsh.app/Contents/MacOS/tsh
 
 /tool/modules/fips.go
+
+# Vite
+.swc

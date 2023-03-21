@@ -175,83 +175,6 @@ exports[`loaded approved role based request state 1`] = `
   font-size: 26px;
 }
 
-.c10 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
-  margin-right: 4px;
-}
-
-.c4 {
-  box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
-  padding: 0 8px;
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
-  margin-right: 16px;
-  padding-left: 16px;
-  padding-right: 16px;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  background: #00bfa5;
-  color: #FFFFFF;
-  color: #FFFFFF;
-  font-size: 10px;
-}
-
-.c33 {
-  box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
-  padding: 0 8px;
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
-  padding: 0px;
-  background: #00bfa5;
-  color: #FFFFFF;
-  width: 10px;
-  color: #FFFFFF;
-  font-size: 10px;
-}
-
-.c34 {
-  box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
-  padding: 0 8px;
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
-  padding: 0px;
-  background: #ff9100;
-  color: #FFFFFF;
-  width: 10px;
-  color: #FFFFFF;
-  font-size: 10px;
-}
-
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -328,6 +251,83 @@ exports[`loaded approved role based request state 1`] = `
   line-height: 16px;
   margin: 0px;
   color: rgba(255,255,255,0.56);
+}
+
+.c10 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-right: 4px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  margin-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background: #00bfa5;
+  color: #FFFFFF;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c33 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  padding: 0px;
+  background: #00bfa5;
+  color: #FFFFFF;
+  width: 10px;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c34 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  padding: 0px;
+  background: #ff9100;
+  color: #FFFFFF;
+  width: 10px;
+  color: #FFFFFF;
+  font-size: 10px;
 }
 
 .c0 {
@@ -877,83 +877,6 @@ exports[`loaded denied role based request state 1`] = `
   font-size: 26px;
 }
 
-.c10 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
-  margin-right: 4px;
-}
-
-.c4 {
-  box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
-  padding: 0 8px;
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
-  margin-right: 16px;
-  padding-left: 16px;
-  padding-right: 16px;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  background: #f50057;
-  color: #FFFFFF;
-  color: #FFFFFF;
-  font-size: 10px;
-}
-
-.c32 {
-  box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
-  padding: 0 8px;
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
-  padding: 0px;
-  background: #f50057;
-  color: #FFFFFF;
-  width: 10px;
-  color: #FFFFFF;
-  font-size: 10px;
-}
-
-.c33 {
-  box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
-  padding: 0 8px;
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
-  padding: 0px;
-  background: #ff9100;
-  color: #FFFFFF;
-  width: 10px;
-  color: #FFFFFF;
-  font-size: 10px;
-}
-
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1030,6 +953,83 @@ exports[`loaded denied role based request state 1`] = `
   line-height: 16px;
   margin: 0px;
   color: rgba(255,255,255,0.56);
+}
+
+.c10 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-right: 4px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  margin-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background: #f50057;
+  color: #FFFFFF;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c32 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  padding: 0px;
+  background: #f50057;
+  color: #FFFFFF;
+  width: 10px;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c33 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  padding: 0px;
+  background: #ff9100;
+  color: #FFFFFF;
+  width: 10px;
+  color: #FFFFFF;
+  font-size: 10px;
 }
 
 .c0 {
@@ -1602,73 +1602,6 @@ exports[`loaded pending role based request state 1`] = `
   font-size: 26px;
 }
 
-.c10 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
-  margin-right: 4px;
-}
-
-.c29 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
-.c4 {
-  box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
-  padding: 0 8px;
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
-  margin-right: 16px;
-  padding-left: 16px;
-  padding-right: 16px;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  background: #ff9100;
-  color: #FFFFFF;
-  color: #FFFFFF;
-  font-size: 10px;
-}
-
-.c39 {
-  box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
-  padding: 0 8px;
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
-  padding: 0px;
-  background: #ff9100;
-  color: #FFFFFF;
-  width: 10px;
-  color: #FFFFFF;
-  font-size: 10px;
-}
-
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1755,6 +1688,73 @@ exports[`loaded pending role based request state 1`] = `
   line-height: 16px;
   margin: 0px;
   color: rgba(255,255,255,0.56);
+}
+
+.c10 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-right: 4px;
+}
+
+.c29 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  margin-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background: #ff9100;
+  color: #FFFFFF;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c39 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  padding: 0px;
+  background: #ff9100;
+  color: #FFFFFF;
+  width: 10px;
+  color: #FFFFFF;
+  font-size: 10px;
 }
 
 .c0 {
@@ -2439,73 +2439,6 @@ exports[`loaded pending search based request state 1`] = `
   font-size: 26px;
 }
 
-.c10 {
-  box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 500;
-  padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
-  margin-right: 4px;
-}
-
-.c33 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
-.c4 {
-  box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
-  padding: 0 8px;
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
-  margin-right: 16px;
-  padding-left: 16px;
-  padding-right: 16px;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  background: #ff9100;
-  color: #FFFFFF;
-  color: #FFFFFF;
-  font-size: 10px;
-}
-
-.c43 {
-  box-sizing: border-box;
-  border-radius: 100px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 16px;
-  line-height: 1.4;
-  padding: 0 8px;
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
-  padding: 0px;
-  background: #ff9100;
-  color: #FFFFFF;
-  width: 10px;
-  color: #FFFFFF;
-  font-size: 10px;
-}
-
 .c7 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2592,6 +2525,73 @@ exports[`loaded pending search based request state 1`] = `
   line-height: 16px;
   margin: 0px;
   color: rgba(255,255,255,0.56);
+}
+
+.c10 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-right: 4px;
+}
+
+.c33 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  margin-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  background: #ff9100;
+  color: #FFFFFF;
+  color: #FFFFFF;
+  font-size: 10px;
+}
+
+.c43 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  padding: 0px;
+  background: #ff9100;
+  color: #FFFFFF;
+  width: 10px;
+  color: #FFFFFF;
+  font-size: 10px;
 }
 
 .c0 {

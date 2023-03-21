@@ -108,16 +108,6 @@ exports[`failed state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c6 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -126,6 +116,16 @@ exports[`failed state 1`] = `
   line-height: 24px;
   margin: 0px;
   margin-right: 16px;
+}
+
+.c6 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .c7 .react-select-container {
@@ -403,16 +403,6 @@ exports[`loaded state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c5 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -421,6 +411,16 @@ exports[`loaded state 1`] = `
   line-height: 24px;
   margin: 0px;
   margin-right: 16px;
+}
+
+.c5 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .c6 .react-select-container {

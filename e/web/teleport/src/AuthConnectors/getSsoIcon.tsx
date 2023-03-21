@@ -3,7 +3,7 @@ import * as Icons from 'design/Icon';
 import Image from 'design/Image';
 import { AuthProviderType } from 'shared/services';
 
-const samlSvg = require('./saml-logo.svg');
+import samlSvg from './saml-logo.svg';
 
 export default function getSsoIcon(kind: AuthProviderType) {
   const desc = formatConnectorTypeDesc(kind);

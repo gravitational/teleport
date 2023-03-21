@@ -108,6 +108,26 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
 }
 
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+  color: #FFFFFF;
+}
+
+.c15 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+}
+
 .c16 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -184,26 +204,6 @@ exports[`loaded state 1`] = `
   width: 10px;
   color: #FFFFFF;
   font-size: 10px;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-  color: #FFFFFF;
-}
-
-.c15 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
 }
 
 .c4 {

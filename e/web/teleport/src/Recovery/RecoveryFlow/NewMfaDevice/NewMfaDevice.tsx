@@ -10,9 +10,9 @@ import {
 } from 'shared/components/Validation/rules';
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
-import useNewMfaDevice, { State, Props } from './useNewMfaDevice';
+import secKeyGraphic from 'design/assets/images/sec-key-graphic.svg';
 
-const secKeyGraphic = require('design/assets/images/sec-key-graphic.svg');
+import useNewMfaDevice, { State, Props } from './useNewMfaDevice';
 
 export default function Container(props: Props) {
   const state = useNewMfaDevice(props);
