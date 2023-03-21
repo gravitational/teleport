@@ -56,6 +56,7 @@ be manipulated with just three CLI commands:
 | [`tctl get`](./cli.mdx#tctl-get) | Get one or multiple resources. | `tctl get users` or `tctl get user/joe` |
 | [`tctl rm`](./cli.mdx#tctl-rm) | Delete a resource by type/name. | `tctl rm user/joe` |
 | [`tctl create`](./cli.mdx#tctl-create) | Create a new resource from a YAML file. Use the `-f` flag to update existing resources. | `tctl create -f joe.yaml` |
+| [`tctl edit`](./cli/#tctl-edit) | Edit a resource using a temporary local file | `tctl edit roles/contractor` |
 
 <Admonition
   type="warning"
@@ -149,6 +150,9 @@ $ tctl get devices
 
 # Fetch a specific device:
 $ tctl get devices/<asset-tag>
+
+Edit a role:
+$ tctl edit roles/contractor
 ```
 
 <Admonition type="note">
