@@ -3,13 +3,6 @@ title: Getting Started - Kubernetes with SSO
 description: Getting started with Teleport. Let's deploy Teleport in a Kubernetes with SSO and Audit logs
 ---
 
-<ScopedBlock title="Teleport Cloud customers" scope={["cloud"]}>
-This guide shows you how to deploy the Teleport Auth Service and Proxy Service on a Kubernetes cluster. These services are fully managed in Teleport Cloud.
-
-Instead, Teleport Cloud users should consult the following guide, which shows you how to connect a Teleport Kubernetes Service instance to an existing Teleport cluster:
-
-</ScopedBlock>
-
 Teleport can provide secure, unified access to your Kubernetes clusters. This guide will show you how to:
 
 <ScopedBlock scope={["enterprise"]}>
@@ -23,7 +16,10 @@ Teleport can provide secure, unified access to your Kubernetes clusters. This gu
 While completing this guide, you will deploy one Teleport pod each for the Auth Service and Proxy Service in your Kubernetes cluster, and a load balancer that allows outside traffic to your Teleport cluster. Users can then access your Kubernetes cluster via the Teleport cluster running within it.
 
 <Admonition type="tip" title="Have an existing Teleport cluster?">
-If you are already running Teleport on another platform, you can use your existing Teleport deployment to access your Kubernetes cluster. [Follow our guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes cluster to Teleport.
+If you are already running Teleport on another platform, you can use your
+existing Teleport deployment to access your Kubernetes cluster. [Follow our
+guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+cluster to Teleport.
 </Admonition>
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
