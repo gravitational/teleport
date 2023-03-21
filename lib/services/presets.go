@@ -84,7 +84,6 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindPlugin, RW()),
 					types.NewRule(types.KindOktaImportRule, RW()),
 					types.NewRule(types.KindOktaAssignment, RW()),
-					types.NewRule(types.KindCertAuthorityRevocationList, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -204,7 +203,6 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 			types.NewRule(types.KindOktaImportRule, RW()),
 			types.NewRule(types.KindOktaAssignment, RW()),
-			types.NewRule(types.KindCertAuthorityRevocationList, RW()),
 		},
 	}
 }

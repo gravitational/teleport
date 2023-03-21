@@ -338,10 +338,6 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
-	// KindCertAuthorityRevocationList is a resource to control certicate
-	// authority revocation lists generation.
-	KindCertAuthorityRevocationList = "cert_authority_revocation_list"
-
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 

@@ -5464,10 +5464,10 @@ func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *prot
 //     on the auth server to produce revocation list used to be configured on
 //     external services such as Windows certificate store.
 //   - Remote user using "tctl auth crl --type=db" command with a remote
-//     proxy (e.g. Teleport Cloud), as long as they have permission to create
-//     a revocation list.
+//     proxy (e.g. Teleport Cloud), as long as they have permission to read
+//     certificate authorities.
 func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
-	err := a.action(apidefaults.Namespace, types.KindCertAuthorityRevocationList, types.VerbCreate)
+	err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbRead)
 	if err != nil {
 		if !trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)
