@@ -537,6 +537,11 @@ func (process *TeleportProcess) WaitForConnector(identityEvent string, log logru
 	return conn, nil
 }
 
+// GetID returns the process ID.
+func (process *TeleportProcess) GetID() string {
+	return process.id
+}
+
 func (process *TeleportProcess) setClusterFeatures(features *proto.Features) {
 	process.Lock()
 	defer process.Unlock()
