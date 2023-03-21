@@ -294,15 +294,18 @@ func getParams() (params, error) {
 // allows Teleport to success eventually.
 type adaptiveRateLimiter struct {
 	permitCapacity float64
-	incStreak      int
-	decStreak      int
+	low            float64
+	high           float64
 }
 
 func (a *adaptiveRateLimiter) reportThrottleError() {
+	a.high = a.permitCapacity
+	if a.low >= a.high {
+		a.low = a.high / 2
+	}
+
 	old := a.permitCapacity
-	a.incStreak = 0
-	defer func() { a.decStreak++ }()
-	a.permitCapacity /= momentum(float64(a.decStreak), a.permitCapacity, 0.45)
+	a.permitCapacity = math.Abs(a.high-a.low)/2 + a.low
 	fmt.Printf("  throttled by DynamoDB. adjusting request rate from %v RCUs to %v RCUs\n", int(old), int(a.permitCapacity))
 }
 
@@ -311,19 +314,15 @@ func (a *adaptiveRateLimiter) wait(permits float64) {
 	time.Sleep(durationToWait)
 
 	if rand.Intn(10) == 0 {
+		a.low = a.permitCapacity
+		if a.high <= a.low {
+			a.high = a.low * 2
+		}
+
 		old := a.permitCapacity
-		a.decStreak = 0
-		defer func() { a.incStreak++ }()
-		a.permitCapacity *= momentum(float64(a.incStreak), a.permitCapacity, 0.5)
+		a.permitCapacity = math.Abs(a.high-a.low)/2 + a.low
 		fmt.Printf("  no throttling for a while. adjusting request rate from %v RCUs to %v RCUs\n", int(old), int(a.permitCapacity))
 	}
-}
-
-func momentum(streak float64, permitCapacity float64, offset float64) float64 {
-	r1 := math.Pow(1.01, -permitCapacity/5)
-	r2_1 := 2 - math.Pow(math.E, -(streak-offset))
-	r2_2 := 1.5/(math.Pow((streak-1), 2)+1) - 0.5
-	return 1 + (r1 * (r2_1 - r2_2))
 }
 
 func (a *adaptiveRateLimiter) currentCapacity() float64 {
@@ -334,5 +333,6 @@ func newAdaptiveRateLimiter(permitsPerSecond float64) *adaptiveRateLimiter {
 	fmt.Printf("  setting initial read rate to %v RCUs\n", int(permitsPerSecond))
 	return &adaptiveRateLimiter{
 		permitCapacity: permitsPerSecond,
+		high:           500,
 	}
 }
