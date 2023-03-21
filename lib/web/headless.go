@@ -47,7 +47,11 @@ func (h *Handler) getHeadless(_ http.ResponseWriter, r *http.Request, params htt
 
 	headlessAuthn, err := authClient.GetHeadlessAuthentication(r.Context(), headlessAuthenticationID)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// Log the error, but return something more user-friendly.
+		// Context exceeded or invalid request states are more confusing than helpful.
+		h.log.Debug("failed to get headless session: %v", err)
+
+		return nil, trace.BadParameter("requested invalid headless session")
 	}
 
 	return headlessAuthn, nil
@@ -89,7 +93,7 @@ func (h *Handler) putHeadlessState(_ http.ResponseWriter, r *http.Request, param
 	err = authClient.UpdateHeadlessAuthenticationState(r.Context(), headlessAuthenticationID,
 		action, resp)
 	if err != nil {
-		return nil, trace.Wrap(err) // TODO replace with failed to authenticate always?
+		return nil, trace.Wrap(err)
 	}
 
 	// WebUI expects a JSON response.
