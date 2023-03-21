@@ -108,6 +108,24 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   color: rgba(255,255,255,0.3);
 }
 
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  color: rgba(255,255,255,0.87);
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
 .c17 {
   appearance: none;
   border: none;
@@ -165,24 +183,6 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   display: block;
   outline: none;
   height: 168px;
-}
-
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: rgba(255,255,255,0.87);
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-top: 16px;
 }
 
 .c7 {
@@ -701,6 +701,24 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  color: rgba(255,255,255,0.87);
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
 .c18 {
   appearance: none;
   border: none;
@@ -758,24 +776,6 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   display: block;
   outline: none;
   height: 168px;
-}
-
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: rgba(255,255,255,0.87);
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-top: 16px;
 }
 
 .c8 {
@@ -1301,6 +1301,33 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   color: rgba(255,255,255,0.3);
 }
 
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  color: rgba(255,255,255,0.87);
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  margin: 0px;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+}
+
 .c19 {
   appearance: none;
   border: none;
@@ -1360,33 +1387,6 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   background: none;
   text-decoration: underline;
   text-transform: none;
-}
-
-.c5 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  color: rgba(255,255,255,0.87);
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 12px;
-  margin: 0px;
-  margin-top: 8px;
-  text-align: center;
-}
-
-.c11 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  color: rgba(255,255,255,0.56);
 }
 
 .c8 {

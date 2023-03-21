@@ -3,20 +3,23 @@
     "allowSyntheticDefaultImports": true,
     "allowJs": true,
     "baseUrl": ".",
+    "useDefineForClassFields": true,
     "esModuleInterop": true,
     "importHelpers": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
     "lib": [
       "dom",
+      "dom.iterable",
       "esnext"
     ],
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "module": "esnext",
     "moduleResolution": "node",
     "noEmitHelpers": true,
-    "pretty": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
-    "sourceMap": true,
-    "stripInternal": true,
+    "sourceMap": false,
     "target": "esnext",
     "types": [
       "node",
@@ -56,7 +59,20 @@
       ]
     }
   },
+  "include": [
+    "e/web/**/*.ts",
+    "e/web/**/*.tsx",
+    "e/web/**/*.js",
+    "e/web/**/*.jsx",
+    "web/**/*.ts",
+    "web/**/*.tsx",
+    "web/**/*.js",
+    "web/**/*.jsx"
+  ],
+  "references": [{ "path": "./tsconfig.node.json"}],
   "exclude": [
+    "**/vite.config.ts",
+    "web/packages/build/**/*",
     "node_modules",
     "**/node_modules/*",
     "dist",

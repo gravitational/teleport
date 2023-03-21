@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,20 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+import React from 'react';
 
-// MinInt64 returns the numerically lesser of two signed 64-bit integers.
-func MinInt64(x, y int64) int64 {
-	if x > y {
-		return y
-	}
-	return x
-}
+import { render } from 'design/utils/testing';
 
-// MaxInt64 returns the numerically greater of two signed 64-bit integers.
-func MaxInt64(x, y int64) int64 {
-	if x > y {
-		return x
-	}
-	return y
-}
+import { Sample } from './TopNav.story';
+
+test('rendering of TopNav and TopNavItem', () => {
+  const { container } = render(<Sample />);
+  expect(container.firstChild).toMatchSnapshot();
+});

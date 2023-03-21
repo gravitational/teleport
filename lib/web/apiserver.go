@@ -276,9 +276,12 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if redir, ok := app.HasName(r, h.handler.cfg.ProxyPublicAddrs); ok {
-		http.Redirect(w, r, redir, http.StatusFound)
-		return
+	// Only try to redirect if the handler is serving the full Web API.
+	if !h.handler.cfg.MinimalReverseTunnelRoutesOnly {
+		if redir, ok := app.HasName(r, h.handler.cfg.ProxyPublicAddrs); ok {
+			http.Redirect(w, r, redir, http.StatusFound)
+			return
+		}
 	}
 
 	// Serve the Web UI.
@@ -623,7 +626,11 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/sites/:site/sign/db", h.WithProvisionTokenAuth(h.signDatabaseCertificate))
 
 	// Returns the CA Certs
+	// Deprecated, use the `webapi/auth/export` endpoint.
+	// Returning other clusters (trusted cluster) CA certs would leak wether the TrustedCluster exists or not.
+	// Given that this is a public/unauthorized endpoint, we should refrain from exposing that kind of information.
 	h.GET("/webapi/sites/:site/auth/export", h.authExportPublic)
+	h.GET("/webapi/auth/export", h.authExportPublic)
 
 	// token generation
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
@@ -3117,50 +3124,55 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.Wrap(err)
 	}
 
-	var authenticationClient interface {
-		AuthenticateSSHUser(ctx context.Context, req auth.AuthenticateSSHRequest) (*auth.SSHLoginResponse, error)
-	} = authClient
-
-	authReq := auth.AuthenticateUserRequest{
-		Username:       req.User,
-		PublicKey:      req.PubKey,
-		ClientMetadata: clientMetaFromReq(r),
+	authSSHUserReq := auth.AuthenticateSSHRequest{
+		AuthenticateUserRequest: auth.AuthenticateUserRequest{
+			Username:       req.User,
+			PublicKey:      req.PubKey,
+			ClientMetadata: clientMetaFromReq(r),
+		},
+		CompatibilityMode:    req.Compatibility,
+		TTL:                  req.TTL,
+		RouteToCluster:       req.RouteToCluster,
+		KubernetesCluster:    req.KubernetesCluster,
+		AttestationStatement: req.AttestationStatement,
 	}
 
-	switch cap.GetSecondFactor() {
-	case constants.SecondFactorOff:
-		authReq.Pass = &auth.PassCreds{
-			Password: []byte(req.Password),
-		}
-	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
-		authReq.OTP = &auth.OTPCreds{
-			Password: []byte(req.Password),
-			Token:    req.OTPToken,
-		}
-	case constants.SecondFactorWebauthn:
-		// WebAuthn only supports this endpoint for headless login.
-		authReq.HeadlessAuthenticationID = req.HeadlessAuthenticationID
-
-		// create a new http client with a standard callback timeout.
-		authenticationClient, err = authClient.CloneHTTPClient(
+	if req.HeadlessAuthenticationID != "" {
+		// We need to use the default callback timeout rather than the standard client timeout.
+		// However, authClient is shared across all Proxy->Auth requests, so we need to create
+		// a new client to avoid applying the callback timeout to other concurrent requests. To
+		// this end, we create a clone of the HTTP Client with the desired timeout instead.
+		httpClient, err := authClient.CloneHTTPClient(
 			auth.ClientParamTimeout(defaults.CallbackTimeout),
 			auth.ClientParamResponseHeaderTimeout(defaults.CallbackTimeout),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		authSSHUserReq.AuthenticateUserRequest.HeadlessAuthenticationID = req.HeadlessAuthenticationID
+		loginResp, err := httpClient.AuthenticateSSHUser(r.Context(), authSSHUserReq)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return loginResp, nil
+	}
+
+	switch cap.GetSecondFactor() {
+	case constants.SecondFactorOff:
+		authSSHUserReq.AuthenticateUserRequest.Pass = &auth.PassCreds{
+			Password: []byte(req.Password),
+		}
+	case constants.SecondFactorOTP, constants.SecondFactorOn, constants.SecondFactorOptional:
+		authSSHUserReq.AuthenticateUserRequest.OTP = &auth.OTPCreds{
+			Password: []byte(req.Password),
+			Token:    req.OTPToken,
+		}
 	default:
 		return nil, trace.AccessDenied("unsupported second factor type: %q", cap.GetSecondFactor())
 	}
 
-	loginResp, err := authenticationClient.AuthenticateSSHUser(r.Context(), auth.AuthenticateSSHRequest{
-		AuthenticateUserRequest: authReq,
-		CompatibilityMode:       req.Compatibility,
-		TTL:                     req.TTL,
-		RouteToCluster:          req.RouteToCluster,
-		KubernetesCluster:       req.KubernetesCluster,
-		AttestationStatement:    req.AttestationStatement,
-	})
+	loginResp, err := authClient.AuthenticateSSHUser(r.Context(), authSSHUserReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3708,6 +3720,7 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 // authExportPublic returns the CA Certs that can be used to set up a chain of trust which includes the current Teleport Cluster
 //
 // GET /webapi/sites/:site/auth/export?type=<auth type>
+// GET /webapi/auth/export?type=<auth type>
 func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	authorities, err := client.ExportAuthorities(
 		r.Context(),
