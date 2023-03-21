@@ -45,7 +45,7 @@ func NewPluginsService(input any) *PluginsService {
 		return &PluginsService{backend: value}
 	}
 
-	panic("Unrecognized plugins service backend type")
+	panic(fmt.Sprintf("Unrecognized plugins service backend type: %T", input))
 }
 
 // CreatePlugin implements services.Plugins
