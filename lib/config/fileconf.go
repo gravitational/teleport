@@ -1003,6 +1003,22 @@ type Auth struct {
 	// HostedPlugins configures the hosted plugins runtime.
 	// This is currently Cloud-specific.
 	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
+
+	// PluginService is the section of the confi for configuring the plugin service.
+	PluginService PluginService `yaml:"plugin_service,omitempty"`
+}
+
+// PluginService represents the configuration for the plugin service.
+type PluginService struct {
+	Enabled bool `yaml:"enabled"`
+	// Plugins is a map of matchers for enabled plugin resources.
+	Plugins map[string]string `yaml:"plugins,omitempty"`
+}
+
+// Opsgenie represents the configuration for the Opsgenie plugin.
+type Opsgenie struct {
+	// APIKey is the path to a file containing an Opsgenie API key.
+	APIKey string `yaml:"api_key"`
 }
 
 // hasCustomNetworkingConfig returns true if any of the networking
