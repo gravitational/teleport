@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
