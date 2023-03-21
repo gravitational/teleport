@@ -319,6 +319,34 @@ This solution won't change anything from the security point of view.
 This extension has been designed to improve the performance of the network connectivity compared to a corresponding TCP connection, especially on wide area networks or wireless networks.
 Due to the current architecture of Teleport, we can't use this extension as we heavily rely on TCP connections and TLS. Also, our client program is in the browser, and browsers don't support direct UDP connections.
 
+### WebTransport
+
+#### What is WebTransport?
+WebTransport is a web API that uses the HTTP/3 protocol as a transport layer. It can be used like WebSockets but also supports multiple streams and out-of-order delivery of messages. It can send data reliably as well as unreliably with low latency. Its datagram API is very similar to the UDP messages but can be encrypted and is congestion-controlled. There are a lot of valid use cases for this protocol, but for us, it would allow us to unreliably receive media data with low latency. When using it via datagram API we don't have to worry about the [head-of-line blocking](https://en.wikipedia.org/wiki/Head-of-line_blocking) which in networking is a performance issue that occurs when packets in the single queue are blocked and waiting to be transmitted by a first packet in a queue that has been lost, dropped or is waiting to be retransmitted. We could also pair it with the [MS-RDPEUDP](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeudp/2744a3ee-04fb-407b-a9e3-b3b2ded422b1) to achieve even more performance and lower latency.
+
+
+#### Key features
+
+- reliable streams, like WebSockets
+- unreliable datagrams with minimal latency, like UDP messages
+- encryption and congestion control
+- uses HTTP3/3 protocol as transport layer
+
+#### It is not ready yet
+
+While there would be a lot of benefits to implementing WebTransport as a transport layer for our TDP packets between browser and proxy, it is not ready yet to be considered for production usage, and here is why:
+- specification is still in draft and there still might be some changes to it
+- there is not yet implementation of libraries or server for WebTransport in either Go or Rust. There are a few implementations, but nothing looks production grade.
+- high quality libraries are only for QUIC protocol, like [quiche](https://github.com/cloudflare/quiche)
+- lack of support in web browsers, support enabled in Chrome 97 (01/2022), and it is missing support from Firefox and Safari
+
+However, we should track progress of the WebTransport specification and the evolution of the ecosystem around it. Once it is mature enough, it will provide great benefit for our low latency media streaming use case.
+
+#### Documents:
+- [Editor's Draft Specificiaiton](https://w3c.github.io/webtransport/)
+- [WebTransport Explainer](https://github.com/w3c/webtransport/blob/main/explainer.md)
+- [MDN's WebTransport](https://developer.mozilla.org/en-US/docs/Web/API/WebTransport)
+
 
 ## Conclusions
 
