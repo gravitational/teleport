@@ -25,7 +25,7 @@ import Dialog, {
 import { Danger } from 'design/Alert';
 import { ButtonPrimary, ButtonSecondary, Text } from 'design';
 
-export default function HeadlessSsoDialog({
+export default function HeadlessRequestDialog({
   ipAddress,
   onAccept,
   onReject,
@@ -36,7 +36,8 @@ export default function HeadlessSsoDialog({
       if (errorText) {
         return (
           <Text textAlign="center">
-            The requested session doesn't exist or is invalid. Please generate a new request.
+            The requested session doesn't exist or is invalid. Please generate a
+            new request.
             <br />
             <br />
             You can close this window.
@@ -83,7 +84,7 @@ export default function HeadlessSsoDialog({
         <DialogFooter textAlign="center">{getButtons(errorText)}</DialogFooter>
       </>
     );
-  }
+  };
 
   return (
     <Dialog dialogCss={() => ({ width: '400px' })} open={true}>

@@ -23,8 +23,6 @@ import Authenticated from 'teleport/components/Authenticated';
 
 import { getOSSFeatures } from 'teleport/features';
 
-import HeadlessSso from './HeadlessSso';
-
 import TeleportContextProvider from './TeleportContextProvider';
 import TeleportContext from './teleportContext';
 import cfg from './config';
@@ -89,6 +87,10 @@ const Player = React.lazy(
 );
 const DesktopSession = React.lazy(
   () => import(/* webpackChunkName: "desktop-session" */ './DesktopSession')
+);
+
+const HeadlessRequest = React.lazy(
+  () => import(/* webpackChunkName: "headless-request" */ './HeadlessRequest')
 );
 
 const Main = React.lazy(() => import(/* webpackChunkName: "main" */ './Main'));
@@ -164,7 +166,7 @@ export function getSharedPrivateRoutes() {
     <Route
       key="headlessSSO"
       path={cfg.routes.headlessSso}
-      component={HeadlessSso}
+      component={HeadlessRequest}
     />,
   ];
 }

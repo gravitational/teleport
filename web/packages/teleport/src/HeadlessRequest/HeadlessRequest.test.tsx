@@ -20,7 +20,7 @@ import React from 'react';
 import { Route, Router } from 'react-router';
 import { createMemoryHistory } from 'history';
 
-import { HeadlessSso } from 'teleport/HeadlessSso/HeadlessSso';
+import { HeadlessRequest } from 'teleport/HeadlessRequest/HeadlessRequest';
 import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
 
@@ -40,7 +40,7 @@ test('ip address should be visible', async () => {
   render(
     <Router history={mockHistory}>
       <Route path={cfg.routes.headlessSso}>
-        <HeadlessSso />
+        <HeadlessRequest />
       </Route>
     </Router>
   );

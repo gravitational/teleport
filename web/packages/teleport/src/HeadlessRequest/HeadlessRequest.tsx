@@ -23,10 +23,10 @@ import { Box, Flex } from 'design';
 
 import auth from 'teleport/services/auth';
 import { useParams } from 'teleport/components/Router';
-import HeadlessSsoDialog from 'teleport/components/HeadlessSsoDialog/HeadlessSsoDialog';
-import { CardAccept, CardDenied } from 'teleport/HeadlessSso/Cards';
+import HeadlessRequestDialog from 'teleport/components/HeadlessRequestDialog/HeadlessRequestDialog';
+import { CardAccept, CardDenied } from 'teleport/HeadlessRequest/Cards';
 
-export function HeadlessSso() {
+export function HeadlessRequest() {
   const { requestId } = useParams<{ requestId: string }>();
 
   const [state, setState] = useState({
@@ -99,7 +99,7 @@ export function HeadlessSso() {
   }
 
   return (
-    <HeadlessSsoDialog
+    <HeadlessRequestDialog
       ipAddress={state.ipAddress}
       onAccept={() => {
         setState({ ...state, status: 'in-progress' });
