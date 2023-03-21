@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"crypto/sha256"
 	"fmt"
+	"os"
 	"reflect"
 	"runtime"
 	"sync"
@@ -33,7 +34,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
@@ -63,6 +66,8 @@ type Features struct {
 	RecoveryCodes bool
 	// Plugins enables hosted plugins
 	Plugins bool
+	// AutomaticUpgrades enables automatic upgrades of agents/services.
+	AutomaticUpgrades bool
 }
 
 // ToProto converts Features into proto.Features
@@ -80,6 +85,7 @@ func (f Features) ToProto() *proto.Features {
 		Desktop:                 f.Desktop,
 		RecoveryCodes:           f.RecoveryCodes,
 		Plugins:                 f.Plugins,
+		AutomaticUpgrades:       f.AutomaticUpgrades,
 	}
 }
 
@@ -162,11 +168,14 @@ func (p *defaultModules) PrintVersion() {
 
 // Features returns supported features
 func (p *defaultModules) Features() Features {
+	automaticUpgrades, _ := utils.ParseBool(os.Getenv(defaults.AutomaticUpgradesEnvar))
+
 	return Features{
-		Kubernetes: true,
-		DB:         true,
-		App:        true,
-		Desktop:    true,
+		Kubernetes:        true,
+		DB:                true,
+		App:               true,
+		Desktop:           true,
+		AutomaticUpgrades: automaticUpgrades,
 	}
 }
 

@@ -1101,12 +1101,18 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
+	pr, err := h.cfg.ProxyClient.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return webclient.PingResponse{
-		Auth:             authSettings,
-		Proxy:            *proxyConfig,
-		ServerVersion:    teleport.Version,
-		MinClientVersion: teleport.MinClientVersion,
-		ClusterName:      h.auth.clusterName,
+		Auth:              authSettings,
+		Proxy:             *proxyConfig,
+		ServerVersion:     teleport.Version,
+		MinClientVersion:  teleport.MinClientVersion,
+		ClusterName:       h.auth.clusterName,
+		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
 	}, nil
 }
 
@@ -1548,10 +1554,16 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		teleportPackage = fmt.Sprintf("%s-%s", teleport.ComponentTeleport, modules.BuildEnterprise)
 	}
 
+	// By default, it uses the stable/v<majorVersion> channel.
+	repoChannel := fmt.Sprintf("stable/%s", version)
+	if feats.Cloud && feats.AutomaticUpgrades {
+		repoChannel = cloudStableChannelRepo
+	}
+
 	tmpl := installers.Template{
 		PublicProxyAddr: h.cfg.PublicProxyAddr,
-		MajorVersion:    version,
 		TeleportPackage: teleportPackage,
+		RepoChannel:     repoChannel,
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)

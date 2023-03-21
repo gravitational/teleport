@@ -2299,6 +2299,119 @@ func TestMotD(t *testing.T) {
 	require.Equal(t, motd, motdResponse.Text)
 }
 
+// TestPingAutomaticUpgrades ensures /webapi/ping returns whether AutomaticUpgrades are enabled.
+func TestPingAutomaticUpgrades(t *testing.T) {
+
+	t.Run("Automatic Upgrades are enabled", func(t *testing.T) {
+		// Enable Automatic Upgrades
+		t.Setenv("TELEPORT_AUTOMATIC_UPGRADES", "yes")
+
+		// Set up
+		s := newWebSuite(t)
+		wc := s.client(t)
+		var pingResponse *webclient.PingResponse
+
+		// Get Ping response
+		re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+		require.NoError(t, err)
+
+		require.NoError(t, json.Unmarshal(re.Bytes(), &pingResponse))
+		require.True(t, pingResponse.AutomaticUpgrades, "expected automatic upgrades to be enabled")
+	})
+	t.Run("Automatic Upgrades are disabled", func(t *testing.T) {
+		// Disable Automatic Upgrades
+		t.Setenv("TELEPORT_AUTOMATIC_UPGRADES", "no")
+
+		// Set up
+		s := newWebSuite(t)
+		wc := s.client(t)
+		var pingResponse *webclient.PingResponse
+
+		// Get Ping response
+		re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+		require.NoError(t, err)
+
+		require.NoError(t, json.Unmarshal(re.Bytes(), &pingResponse))
+		require.False(t, pingResponse.AutomaticUpgrades, "expected automatic upgrades to be disabled")
+	})
+}
+
+// TestInstallerRepoChannel ensures the returned installer script has the proper repo channel
+func TestInstallerRepoChannel(t *testing.T) {
+	t.Run("cloud with automatic upgrades", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+			Cloud:             true,
+			AutomaticUpgrades: true,
+		}})
+
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOn,
+				Webauthn:     &types.Webauthn{RPID: "localhost"},
+			},
+		})
+		wc := s.client(t)
+
+		t.Run("default-installer", func(t *testing.T) {
+			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-installer"), url.Values{})
+			require.NoError(t, err)
+
+			responseString := string(re.Bytes())
+
+			// The repo's channel to use is cloud/stable
+			require.Contains(t, responseString, "cloud/stable")
+			require.NotContains(t, responseString, "stable/v")
+		})
+		t.Run("default-agentless-installer", func(t *testing.T) {
+			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
+			require.NoError(t, err)
+
+			responseString := string(re.Bytes())
+
+			// The repo's channel to use is cloud/stable
+			require.Contains(t, responseString, "cloud/stable")
+			require.NotContains(t, responseString, "stable/v")
+		})
+	})
+	t.Run("cloud without automatic upgrades", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+			Cloud:             true,
+			AutomaticUpgrades: false,
+		}})
+
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOn,
+				Webauthn:     &types.Webauthn{RPID: "localhost"},
+			},
+		})
+		wc := s.client(t)
+
+		t.Run("default-installer", func(t *testing.T) {
+			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-installer"), url.Values{})
+			require.NoError(t, err)
+
+			responseString := string(re.Bytes())
+
+			// The repo's channel to use is stable/v<majorVersion>
+			require.Contains(t, responseString, "stable/v")
+			require.NotContains(t, responseString, "cloud/stable")
+		})
+		t.Run("default-agentless-installer", func(t *testing.T) {
+			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
+			require.NoError(t, err)
+
+			responseString := string(re.Bytes())
+
+			// The repo's channel to use is stable/v<majorVersion>
+			require.Contains(t, responseString, "stable/v")
+			require.NotContains(t, responseString, "cloud/stable")
+		})
+	})
+}
+
 func TestMultipleConnectors(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)

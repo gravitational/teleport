@@ -24,7 +24,7 @@ import (
 )
 
 // ParseBool parses string as boolean value,
-// returns error in case if value is not recognized
+// returns false, error in case if value is not recognized
 func ParseBool(value string) (bool, error) {
 	switch strings.ToLower(value) {
 	case "yes", "yeah", "y", "true", "1", "on":
