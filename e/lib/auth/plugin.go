@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	apitypes "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
+	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
@@ -199,6 +201,10 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	}
 	samlidppb.RegisterSAMLIdPServiceServer(gRPCServer, signingService)
 
+	// register the start hour getter so that auth can use it during periodic MaintenanceWindow
+	// resource sync.
+	authServer.AuthServer.SetUpgradeWindowStartHourGetter(p.getAccountUpgradeWindowStartHour)
+
 	return nil
 }
 
@@ -285,4 +291,14 @@ func (p *Plugin) getLicenseCheckResult(w http.ResponseWriter, r *http.Request, p
 		},
 		"spec": map[string]any{},
 	}, nil
+}
+
+// getUpgradeWindowStartHour is passed to the oss auth server to let it pull the start
+// hour when trying to generate a 'MaintenanceWindow' resource.
+func (p *Plugin) getAccountUpgradeWindowStartHour(ctx context.Context) (int64, error) {
+	rsp, err := p.cloudClient.GetAccountUpgradeWindowStartHour(ctx, &v1.EmptyRequest{})
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return rsp.GetUpgradeWindowStartHour(), nil
 }
