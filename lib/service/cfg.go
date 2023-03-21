@@ -358,6 +358,8 @@ func (cfg *Config) DebugDumpToYAML() string {
 type CachePolicy struct {
 	// Enabled enables or disables caching
 	Enabled bool
+	// MaxRetryPeriod overrides the default cache watcher backoff.
+	MaxRetryPeriod time.Duration
 }
 
 // CheckAndSetDefaults checks and sets default values
