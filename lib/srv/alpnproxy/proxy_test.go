@@ -295,6 +295,10 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 		SNI:                "localhost",
 		ParentContext:      context.Background(),
 		InsecureSkipVerify: true,
+		// Since this a non-tunnel local proxy, we should check certs are needed
+		// for postgres.
+		// (this is how a local proxy would actually be configured for postgres).
+		CheckCertsNeeded: true,
 	}
 
 	mustStartLocalProxy(t, localProxyConfig)
@@ -302,8 +306,8 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 	conn, err := net.Dial("tcp", localProxyListener.Addr().String())
 	require.NoError(t, err)
 
-	// we have to send a request so that the local proxy will inspect
-	// the client conn, see it's not a CancelRequest, and determine
+	// we have to send a request because the local proxy will inspect
+	// the client conn. It should see it's not a CancelRequest, and determine
 	// that certs are not needed.
 	mustSendPostgresMsg(t, conn, &pgproto3.SSLRequest{})
 
@@ -678,6 +682,10 @@ func TestProxyPingConnections(t *testing.T) {
 					}
 					return nil
 				},
+				// Since this a non-tunnel local proxy, we should check certs are needed
+				// for postgres.
+				// (this is how a local proxy would actually be configured for postgres).
+				CheckCertsNeeded: protocol == common.ProtocolPostgres,
 			}
 			mustStartLocalProxy(t, localProxyConfig)
 
@@ -695,6 +703,9 @@ func TestProxyPingConnections(t *testing.T) {
 			}
 
 			if protocol == common.ProtocolPostgres {
+				// we have to send a request because the local proxy will inspect
+				// the client conn. It should see it's not a CancelRequest, and determine
+				// that certs are not needed.
 				mustSendPostgresMsg(t, conn, &pgproto3.SSLRequest{})
 			}
 
