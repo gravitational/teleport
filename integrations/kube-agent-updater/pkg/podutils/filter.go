@@ -63,7 +63,7 @@ func Not(filterFunc FilterFunc) FilterFunc {
 	}
 }
 
-const podReadinessGracePeriod = 10 * time.Minute
+const podReadinessGracePeriod = 5 * time.Minute
 
 // IsUnhealthy checks if a pod has not been ready since at least 10 minutes/
 // This heuristic also detects infrastructure issues like not enough room to
