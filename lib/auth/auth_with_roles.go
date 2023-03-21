@@ -282,7 +282,7 @@ func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 // OktaClient allows ServerWithRoles to implement ClientI.
 // It should not be called through ServerWithRoles,
 // as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) OktaClient() *okta.Client {
+func (a *ServerWithRoles) OktaClient() services.Okta {
 	return okta.NewClient(oktapb.NewOktaServiceClient(
 		utils.NewGRPCDummyClientConnection("OktaClient() should not be called on ServerWithRoles")))
 }

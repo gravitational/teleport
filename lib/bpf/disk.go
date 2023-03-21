@@ -22,7 +22,6 @@ package bpf
 import (
 	_ "embed"
 	"runtime"
-	"unsafe"
 
 	"github.com/aquasecurity/libbpfgo"
 	"github.com/gravitational/trace"
@@ -43,7 +42,6 @@ var (
 
 const (
 	diskEventsBuffer = "open_events"
-	monitoredCGroups = "monitored_cgroups"
 )
 
 // rawOpenEvent is sent by the eBPF program that Teleport pulls off the perf
@@ -74,7 +72,7 @@ type cgroupRegister interface {
 }
 
 type open struct {
-	module *libbpfgo.Module
+	session
 
 	eventBuf *RingBuffer
 	lost     *Counter
@@ -95,19 +93,19 @@ func startOpen(bufferSize int) (*open, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	o.module, err = libbpfgo.NewModuleFromBuffer(diskBPF, "disk")
+	o.session.module, err = libbpfgo.NewModuleFromBuffer(diskBPF, "disk")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Resizing the ring buffer must be done here, after the module
 	// was created but before it's loaded into the kernel.
-	if err = ResizeMap(o.module, diskEventsBuffer, uint32(bufferSize*pageSize)); err != nil {
+	if err = ResizeMap(o.session.module, diskEventsBuffer, uint32(bufferSize*pageSize)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Load into the kernel
-	if err = o.module.BPFLoadObject(); err != nil {
+	if err = o.session.module.BPFLoadObject(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -119,17 +117,17 @@ func startOpen(bufferSize int) (*open, error) {
 	}
 
 	for _, syscall := range syscalls {
-		if err = AttachSyscallTracepoint(o.module, syscall); err != nil {
+		if err = AttachSyscallTracepoint(o.session.module, syscall); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	o.eventBuf, err = NewRingBuffer(o.module, diskEventsBuffer)
+	o.eventBuf, err = NewRingBuffer(o.session.module, diskEventsBuffer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	o.lost, err = NewCounter(o.module, "lost", lostDiskEvents)
+	o.lost, err = NewCounter(o.session.module, "lost", lostDiskEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -142,41 +140,10 @@ func startOpen(bufferSize int) (*open, error) {
 func (o *open) close() {
 	o.lost.Close()
 	o.eventBuf.Close()
-	o.module.Close()
+	o.session.module.Close()
 }
 
 // events contains raw events off the perf buffer.
 func (o *open) events() <-chan []byte {
 	return o.eventBuf.EventCh
-}
-
-// startSession registers the given cgroup in the BPF module. Only registered
-// cgroups will return events to the userspace.
-func (o *open) startSession(cgroupID uint64) error {
-	cgroupMap, err := o.module.GetMap(monitoredCGroups)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	dummyVal := 0
-	err = cgroupMap.Update(unsafe.Pointer(&cgroupID), unsafe.Pointer(&dummyVal))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// endSession removes the previously registered cgroup from the BPF module.
-func (o *open) endSession(cgroupID uint64) error {
-	cgroupMap, err := o.module.GetMap(monitoredCGroups)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := cgroupMap.DeleteKey(unsafe.Pointer(&cgroupID)); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
 }

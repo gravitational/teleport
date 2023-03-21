@@ -624,53 +624,6 @@ func TestGetResources(t *testing.T) {
 	}
 }
 
-type mockAccessRequestServer struct {
-	*mockServer
-}
-
-func (g *mockAccessRequestServer) GetAccessRequests(ctx context.Context, f *types.AccessRequestFilter) (*proto.AccessRequests, error) {
-	req, err := types.NewAccessRequest("foo", "bob", "admin")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &proto.AccessRequests{
-		AccessRequests: []*types.AccessRequestV3{req.(*types.AccessRequestV3)},
-	}, nil
-}
-
-// TestAccessRequestDowngrade tests that the client will downgrade to the non stream API for fetching access requests
-// if the stream API is not available.
-func TestAccessRequestDowngrade(t *testing.T) {
-	ctx := context.Background()
-	l, err := net.Listen("tcp", "")
-	require.NoError(t, err)
-
-	m := &mockAccessRequestServer{
-		&mockServer{
-			addr:                           l.Addr().String(),
-			grpc:                           grpc.NewServer(),
-			UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
-		},
-	}
-	proto.RegisterAuthServiceServer(m.grpc, m)
-	t.Cleanup(m.grpc.Stop)
-
-	remoteErr := make(chan error)
-	go func() {
-		remoteErr <- m.grpc.Serve(l)
-	}()
-
-	clt, err := m.NewClient(ctx)
-	require.NoError(t, err)
-
-	items, err := clt.GetAccessRequests(ctx, types.AccessRequestFilter{})
-	require.NoError(t, err)
-	require.Len(t, items, 1)
-	m.grpc.Stop()
-	require.NoError(t, <-remoteErr)
-}
-
 type mockRoleServer struct {
 	*mockServer
 	roles map[string]*types.RoleV6
