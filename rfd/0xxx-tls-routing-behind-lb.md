@@ -129,7 +129,7 @@ from the remote when handshakes fail, but it is possible that a load balancer im
 text. An environment variable is provided to overwrite the decision per client, just in case:
 ```
 export TELEPORT_TLS_ROUTING_UPGRADE=false
-export TELEPORT_TLS_ROUTING_UPGRADE=my-teleport-leaf.com=true
+export TELEPORT_TLS_ROUTING_UPGRADE=my-teleport.com=true;another-teleport.com=false
 ```
 
 ### Supporting all TLS Routing protocols
@@ -163,19 +163,28 @@ clusters:
     certificate-authority: <path-to-self-signed-CA>
     server: https://127.0.0.1:8888
     tls-server-name: my-kube.kube-teleport-local.my-teleport.com
-  name: my-kube.kube-teleport-local.my-teleport.com
+  name: my-teleport.com-my-kube
 - cluster:
     certificate-authority: <path-to-self-signed-CA>
     server: https://127.0.0.1:8888
     tls-server-name: another-kube.kube-teleport-local.my-teleport-leaf.com
-  name: another-kube.kube-teleport-local.my-teleport-leaf.com
-...
+  name: my-teleport-leaf.com-another-kube
+contexts:
+- context:
+    cluster: my-teleport.com-my-kube
+    user: my-teleport.com-my-kube
+  name: my-teleport.com-my-kube
+- context:
+    cluster: my-teleport-leaf.com-another-kube
+    user: my-teleport-leaf.com-another-kube
+  name: my-teleport-leaf.com-another-kube
+current-context: my-teleport.com-my-kube
 users:
-- name: my-kube.kube-teleport-local.my-teleport.com
+- name:: my-teleport.com-my-kube
   user:
     client-certificate: <path-to-user-cert>
     client-key: <path-to-user-key>
-- name: another-kube.kube-teleport-local.my-teleport-leaf.com
+- name: my-teleport-leaf.com-another-kube
   user:
     client-certificate: <path-to-user-cert>
     client-key: <path-to-user-key>
