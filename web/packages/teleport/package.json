@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "g-start --config $(pwd)/webpack.dev.config.js",
-    "build": "g-build --config webpack.prod.config.js --progress --bail",
+    "start": "vite",
+    "build": "vite build",
     "test": "npx jest",
     "tdd": "jest . --watch"
   },
@@ -27,6 +27,6 @@
     "@gravitational/build": "^1.0.0",
     "@types/wicg-file-system-access": "^2020.9.5",
     "jest-canvas-mock": "^2.3.1",
-    "ts-loader": "^9.3.1"
+    "ts-loader": "^9.4.2"
   }
 }
