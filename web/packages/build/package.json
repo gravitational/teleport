@@ -92,7 +92,7 @@
     "typescript": "^4.9.4",
     "vite": "^4.2.0",
     "vite-tsconfig-paths": "^4.0.7",
-    "webpack": "^5.75.0",
+    "webpack": "^5.76.2",
     "webpack-bundle-analyzer": "^4.6.1",
     "webpack-cli": "^4.10.0",
     "webpack-dev-server": "^4.9.3"
