@@ -35,8 +35,13 @@ import (
 )
 
 const (
-	scanDuration = time.Hour * 24 * 30
-	indexName    = "timesearchV2"
+	scanDuration    = time.Hour * 24 * 30
+	indexName       = "timesearchV2"
+	protocolSSH     = "ssh"
+	protocolKube    = "kube"
+	protocolApp     = "app"
+	protocolDB      = "db"
+	protocolDesktop = "desktop"
 )
 
 func main() {
@@ -215,7 +220,7 @@ func daysBetween(start, end time.Time) []string {
 	startDay := daysSinceEpoch(start)
 	endDay := daysSinceEpoch(end)
 
-	for startDay <= endDay {
+	for startDay < endDay {
 		days = append(days, start.Format(time.DateOnly))
 		startDay++
 		start = start.Add(oneDay)
