@@ -346,7 +346,7 @@ func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client auth.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := client.UpsertCertAuthority(certAuthority); err != nil {
+	if err := client.UpsertCertAuthority(ctx, certAuthority); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("certificate authority '%s' has been updated\n", certAuthority.GetName())

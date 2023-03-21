@@ -29,6 +29,8 @@ service TrustService {
   rpc GetCertAuthorities(GetCertAuthoritiesRequest) returns (GetCertAuthoritiesResponse);
   // DeleteCertAuthority deletes the matching cert authority.
   rpc DeleteCertAuthority(DeleteCertAuthorityRequest) returns (google.protobuf.Empty);
+  // UpsertCertAuthority creates or updates the provided cert authority.
+  rpc UpsertCertAuthority(UpsertCertAuthorityRequest) returns (types.CertAuthorityV2);
 }
 
 // Request for GetCertAuthority
@@ -61,4 +63,10 @@ message DeleteCertAuthorityRequest {
   string type = 1;
   // The domain for the certificate authority.
   string domain = 2;
+}
+
+// Request for UpsertCertAuthority
+message UpsertCertAuthorityRequest {
+  // The certificate authority to create or update.
+  types.CertAuthorityV2 cert_authority = 1;
 }

@@ -136,7 +136,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		// to be equal to the name of the remote cluster it is connecting to.
 		trustedCluster.SetName(remoteCAs[0].GetClusterName())
 
-		if err := a.addCertAuthorities(trustedCluster, remoteCAs); err != nil {
+		if err := a.addCertAuthorities(ctx, trustedCluster, remoteCAs); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -155,7 +155,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		// Force name to the name of the trusted cluster.
 		trustedCluster.SetName(remoteCAs[0].GetClusterName())
 
-		if err := a.addCertAuthorities(trustedCluster, remoteCAs); err != nil {
+		if err := a.addCertAuthorities(ctx, trustedCluster, remoteCAs); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -317,7 +317,7 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 	return validateResponse.CAs, nil
 }
 
-func (a *Server) addCertAuthorities(trustedCluster types.TrustedCluster, remoteCAs []types.CertAuthority) error {
+func (a *Server) addCertAuthorities(ctx context.Context, trustedCluster types.TrustedCluster, remoteCAs []types.CertAuthority) error {
 	// the remote auth server has verified our token. add the
 	// remote certificate authority to our backend
 	for _, remoteCertAuthority := range remoteCAs {
@@ -335,7 +335,7 @@ func (a *Server) addCertAuthorities(trustedCluster types.TrustedCluster, remoteC
 
 		// we use create here instead of upsert to prevent people from wiping out
 		// their own ca if it has the same name as the remote ca
-		err := a.CreateCertAuthority(remoteCertAuthority)
+		err := a.CreateCertAuthority(ctx, remoteCertAuthority)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -526,7 +526,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 		}
 	}
 
-	err = a.UpsertCertAuthority(remoteCA)
+	err = a.UpsertCertAuthority(ctx, remoteCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

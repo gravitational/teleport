@@ -44,7 +44,7 @@ func (s *CA) DeleteAllCertAuthorities(caType types.CertAuthType) error {
 }
 
 // CreateCertAuthority updates or inserts a new certificate authority
-func (s *CA) CreateCertAuthority(ca types.CertAuthority) error {
+func (s *CA) CreateCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
@@ -58,7 +58,7 @@ func (s *CA) CreateCertAuthority(ca types.CertAuthority) error {
 		Expires: ca.Expiry(),
 	}
 
-	_, err = s.Create(context.TODO(), item)
+	_, err = s.Create(ctx, item)
 	if err != nil {
 		if trace.IsAlreadyExists(err) {
 			return trace.AlreadyExists("cluster %q already exists", ca.GetName())
@@ -69,13 +69,13 @@ func (s *CA) CreateCertAuthority(ca types.CertAuthority) error {
 }
 
 // UpsertCertAuthority updates or inserts a new certificate authority
-func (s *CA) UpsertCertAuthority(ca types.CertAuthority) error {
+func (s *CA) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// try to skip writes that would have no effect
-	if existing, err := s.GetCertAuthority(context.TODO(), types.CertAuthID{
+	if existing, err := s.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       ca.GetType(),
 		DomainName: ca.GetClusterName(),
 	}, true); err == nil {
@@ -95,7 +95,7 @@ func (s *CA) UpsertCertAuthority(ca types.CertAuthority) error {
 		ID:      ca.GetResourceID(),
 	}
 
-	_, err = s.Put(context.TODO(), item)
+	_, err = s.Put(ctx, item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -182,7 +182,7 @@ func (s *CA) ActivateCertAuthority(id types.CertAuthID) error {
 		return trace.Wrap(err)
 	}
 
-	err = s.UpsertCertAuthority(certAuthority)
+	err = s.UpsertCertAuthority(context.TODO(), certAuthority)
 	if err != nil {
 		return trace.Wrap(err)
 	}

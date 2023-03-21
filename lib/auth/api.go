@@ -57,10 +57,8 @@ type Announcer interface {
 	// UpsertWindowsDesktopService registers a Windows desktop service.
 	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
 
-	// CreateWindowsDesktop registers a Windows desktop host.
-	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
-	// UpdateWindowsDesktop updates a Windows desktop host.
-	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
+	// UpsertWindowsDesktop registers a Windows desktop host.
+	UpsertWindowsDesktop(context.Context, types.WindowsDesktop) error
 
 	// UpsertDatabaseService registers a DatabaseService.
 	UpsertDatabaseService(context.Context, types.DatabaseService) (*types.KeepAlive, error)

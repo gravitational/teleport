@@ -1,0 +1,64 @@
+### Maximum policy size exceeded errors
+
+Due to [IAM and STS character
+limits](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_iam-quotas.html#reference_iam-quotas-entity-length),
+you may encounter one of the following errors in the Database Service logs when
+large numbers of databases are registered:
+- `LimitExceeded: Maximum policy size of 2048 bytes exceeded for user <iam-user>`
+- `LimitExceeded: Maximum policy size of 10240 bytes exceeded for role <iam-role>`
+
+For reference, a user policy can maintain permissions for approximately 6
+Redshift databases, or 20 RDS databases due to the IAM policy character limits.
+A role policy can maintain permissions for approximately 30 Redshift databases,
+or 100 RDS databases.
+
+One way to work around this is to manually manage the IAM policy used for database
+connections, and use a wildcard `"*"` for `"Resource"` to reduce the policy size:
+
+<Details title="use a wildcard policy" opened={false}>
+
+Attach a policy with the following permissions to the IAM user or role:
+
+<Tabs>
+  <TabItem label="RDS or RDS Proxy">
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": "rds-db:connect",
+              "Resource": "*"
+          }
+      ]
+  }
+  ```
+  </TabItem>
+  <TabItem label="Redshift">
+  ```json
+  {
+      "Version": "2012-10-17",
+      "Statement": [
+          {
+              "Effect": "Allow",
+              "Action": "redshift:GetClusterCredentials",
+              "Resource": "*"
+          }
+      ]
+  }
+  ```
+  </TabItem>
+</Tabs>
+
+You can safely remove the inline policy created by the Database Service and the
+IAM permissions for the Database Service to `Get/Put/Delete` the user or role
+policy.
+
+</Details>
+
+Another option is to deploy [Database Access in a Highly Available (HA)
+configuration](../../database-access/guides/ha.mdx) where databases can be
+sharded to separate Database Services with different IAM roles.
+
+If the limit is exceeded for a user policy, it is also recommended to use an
+IAM role for the Database Service instead.
