@@ -56,10 +56,7 @@ func WithClusterCAsIfConnUpgrade(ctx context.Context, getClusterCertPool GetClus
 
 		// If ALPN connection upgrade is required, explicitly use the cluster
 		// CAs since the tunneled TLS routing connection serves the Host cert.
-		if config.RootCAs == nil && getClusterCertPool != nil {
-			return trace.Wrap(WithClusterCAs(ctx, getClusterCertPool)(config))
-		}
-		return nil
+		return trace.Wrap(WithClusterCAs(ctx, getClusterCertPool)(config))
 	}
 }
 

@@ -49,7 +49,7 @@ import (
 // Proxy Service to establish a tunnel for the originally planned traffic to
 // preserve the ALPN and SNI information.
 func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
-	if result, ok := OverwriteALPNConnUpgradeRequiredByEnv(addr); ok {
+	if result, ok := OverwriteALPNConnUpgradeRequirementByEnv(addr); ok {
 		return result
 	}
 
@@ -93,9 +93,9 @@ func isRemoteNoALPNError(err error) bool {
 	return netOpError.Op == "remote error" && strings.Contains(netOpError.Err.Error(), "tls: no application protocol")
 }
 
-// OverwriteALPNConnUpgradeRequiredByEnv overwrites ALPN connection upgrade
+// OverwriteALPNConnUpgradeRequirementByEnv overwrites ALPN connection upgrade
 // requirement by environment variable.
-func OverwriteALPNConnUpgradeRequiredByEnv(addr string) (bool, bool) {
+func OverwriteALPNConnUpgradeRequirementByEnv(addr string) (bool, bool) {
 	envValue := os.Getenv(defaults.TLSRoutingConnUpgradeEnvVar)
 	if envValue == "" {
 		return false, false

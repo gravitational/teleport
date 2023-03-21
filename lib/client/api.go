@@ -622,7 +622,7 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 		log.Warnf("Unable to parse dynamic port forwarding in user profile: %v.", err)
 	}
 
-	if required, ok := alpnproxy.OverwriteALPNConnUpgradeRequiredByEnv(c.WebProxyAddr); ok {
+	if required, ok := alpnproxy.OverwriteALPNConnUpgradeRequirementByEnv(c.WebProxyAddr); ok {
 		c.TLSRoutingConnUpgradeRequired = required
 	}
 	log.Infof("ALPN connection upgrade required for %q: %v.", c.WebProxyAddr, c.TLSRoutingConnUpgradeRequired)
@@ -852,8 +852,8 @@ func (c *Config) DatabaseProxyHostPort(db tlsca.RouteToDatabase) (string, int) {
 	return c.WebProxyHostPort()
 }
 
-// DoesDatabseUserWebProxyHostPort returns true if database is using web port.
-func (c *Config) DoesDatabseUserWebProxyHostPort(db tlsca.RouteToDatabase) bool {
+// DoesDatabseUseWebProxyHostPort returns true if database is using web port.
+func (c *Config) DoesDatabseUseWebProxyHostPort(db tlsca.RouteToDatabase) bool {
 	dbHost, dbPort := c.DatabaseProxyHostPort(db)
 	webHost, webPort := c.WebProxyHostPort()
 	return dbHost == webHost && dbPort == webPort
