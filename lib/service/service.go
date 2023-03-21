@@ -1111,7 +1111,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	// Enterprise services will be handled by the enterprise binary. We'll let these set serviceStarted
-	// to serviceStarted and let the enterprise binary error if need be.
+	// to true and let the enterprise binary error if need be.
 	if process.enterpriseServicesEnabled() {
 		serviceStarted = true
 	}
