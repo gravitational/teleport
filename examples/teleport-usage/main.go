@@ -35,13 +35,8 @@ import (
 )
 
 const (
-	scanDuration    = time.Hour * 24 * 30
-	indexName       = "timesearchV2"
-	protocolSSH     = "ssh"
-	protocolKube    = "kube"
-	protocolApp     = "app"
-	protocolDB      = "db"
-	protocolDesktop = "desktop"
+	scanDuration = time.Hour * 24 * 30
+	indexName    = "timesearchV2"
 )
 
 func main() {
