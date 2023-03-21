@@ -216,6 +216,9 @@ type InitConfig struct {
 	// UsageReporter is a service that forwards cluster usage events.
 	UsageReporter usagereporter.UsageReporter
 
+	// Okta is a service that manages Okta resources.
+	Okta services.Okta
+
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
