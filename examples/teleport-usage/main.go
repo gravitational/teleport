@@ -20,6 +20,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -52,10 +54,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Assume a base read capacity of 25 units per second to start off.
-	// If this is too high and we encounter throttling that could impede Teleport, it will be adjusted automatically.
-	limiter := newAdaptiveRateLimiter(25)
-
 	// Reduce internal retry count so throttling errors bubble up to our rate limiter with less delay.
 	svc := dynamodb.New(session, &aws.Config{
 		MaxRetries: aws.Int(1),
@@ -72,6 +70,11 @@ func main() {
 	}
 
 	fmt.Println("Gathering data, this may take a moment")
+
+	// Assume a base read capacity of 25 units per second to start off.
+	// If this is too high and we encounter throttling that could impede Teleport, it will be adjusted automatically.
+	limiter := newAdaptiveRateLimiter(25)
+
 	for _, date := range daysBetween(params.startDate, params.startDate.Add(scanDuration)) {
 		err := scanDay(svc, limiter, params.tableName, date, state)
 		if err != nil {
@@ -291,23 +294,36 @@ func getParams() (params, error) {
 // allows Teleport to success eventually.
 type adaptiveRateLimiter struct {
 	permitCapacity float64
-	streak         int
+	incStreak      int
+	decStreak      int
 }
 
 func (a *adaptiveRateLimiter) reportThrottleError() {
-	a.permitCapacity *= 0.85
-	a.streak = 0
+	old := a.permitCapacity
+	a.incStreak = 0
+	defer func() { a.decStreak++ }()
+	a.permitCapacity /= momentum(float64(a.decStreak), a.permitCapacity, 0.45)
+	fmt.Printf("  throttled by DynamoDB. adjusting request rate from %v RCUs to %v RCUs\n", int(old), int(a.permitCapacity))
 }
 
 func (a *adaptiveRateLimiter) wait(permits float64) {
 	durationToWait := time.Duration(permits / a.permitCapacity * float64(time.Second))
 	time.Sleep(durationToWait)
 
-	a.streak++
-	if a.streak > 10 {
-		a.streak = 0
-		a.permitCapacity *= 1.1
+	if rand.Intn(10) == 0 {
+		old := a.permitCapacity
+		a.decStreak = 0
+		defer func() { a.incStreak++ }()
+		a.permitCapacity *= momentum(float64(a.incStreak), a.permitCapacity, 0.5)
+		fmt.Printf("  no throttling for a while. adjusting request rate from %v RCUs to %v RCUs\n", int(old), int(a.permitCapacity))
 	}
+}
+
+func momentum(streak float64, permitCapacity float64, offset float64) float64 {
+	r1 := math.Pow(1.01, -permitCapacity/5)
+	r2_1 := 2 - math.Pow(math.E, -(streak-offset))
+	r2_2 := 1.5/(math.Pow((streak-1), 2)+1) - 0.5
+	return 1 + (r1 * (r2_1 - r2_2))
 }
 
 func (a *adaptiveRateLimiter) currentCapacity() float64 {
@@ -315,6 +331,7 @@ func (a *adaptiveRateLimiter) currentCapacity() float64 {
 }
 
 func newAdaptiveRateLimiter(permitsPerSecond float64) *adaptiveRateLimiter {
+	fmt.Printf("  setting initial read rate to %v RCUs\n", int(permitsPerSecond))
 	return &adaptiveRateLimiter{
 		permitCapacity: permitsPerSecond,
 	}
