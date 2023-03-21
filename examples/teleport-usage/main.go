@@ -300,7 +300,7 @@ type adaptiveRateLimiter struct {
 
 func (a *adaptiveRateLimiter) reportThrottleError() {
 	a.high = a.permitCapacity
-	if a.low >= a.high {
+	if math.Abs(a.high-a.low)/a.high < 0.05 {
 		a.low = a.high / 2
 	}
 
@@ -314,15 +314,19 @@ func (a *adaptiveRateLimiter) wait(permits float64) {
 	time.Sleep(durationToWait)
 
 	if rand.Intn(10) == 0 {
-		a.low = a.permitCapacity
-		if a.high <= a.low {
-			a.high = a.low * 2
-		}
-
-		old := a.permitCapacity
-		a.permitCapacity = math.Abs(a.high-a.low)/2 + a.low
-		fmt.Printf("  no throttling for a while. adjusting request rate from %v RCUs to %v RCUs\n", int(old), int(a.permitCapacity))
+		a.adjustUp()
 	}
+}
+
+func (a *adaptiveRateLimiter) adjustUp() {
+	a.low = a.permitCapacity
+	if math.Abs(a.high-a.low)/a.low < 0.05 {
+		a.high = a.low * 2
+	}
+
+	old := a.permitCapacity
+	a.permitCapacity = math.Abs(a.high-a.low)/2 + a.low
+	fmt.Printf("  no throttling for a while. adjusting request rate from %v RCUs to %v RCUs\n", int(old), int(a.permitCapacity))
 }
 
 func (a *adaptiveRateLimiter) currentCapacity() float64 {
