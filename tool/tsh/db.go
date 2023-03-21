@@ -1111,7 +1111,7 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route *tlsca.RouteToD
 	}
 
 	if tc.TLSRoutingConnUpgradeRequired && tc.DoesDatabseUseWebProxyHostPort(*route) {
-		out.addLocalProxy("Teleport Proxy is behind a load balancer.")
+		out.addLocalProxy("Teleport Proxy is behind a load balancer")
 	}
 
 	switch route.Protocol {
