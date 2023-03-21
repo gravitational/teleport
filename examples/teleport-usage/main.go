@@ -29,6 +29,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	awsrequest "github.com/aws/aws-sdk-go/aws/request"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
@@ -45,21 +46,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// create an AWS session using default SDK behavior, i.e. it will interpret
-	// the environment and ~/.aws directory just like an AWS CLI tool would:
-	session, err := awssession.NewSessionWithOptions(awssession.Options{
-		SharedConfigState: awssession.SharedConfigEnable,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Reduce internal retry count so throttling errors bubble up to our rate limiter with less delay.
-	svc := dynamodb.New(session, &aws.Config{
-		MaxRetries: aws.Int(1),
-		Region:     aws.String(params.awsRegion),
-	})
-
 	// sets of unique users for calculating MAU
 	state := &trackedState{
 		ssh:     make(map[string]struct{}),
@@ -74,6 +60,22 @@ func main() {
 	// Assume a base read capacity of 25 units per second to start off.
 	// If this is too high and we encounter throttling that could impede Teleport, it will be adjusted automatically.
 	limiter := newAdaptiveRateLimiter(25)
+
+	// create an AWS session using default SDK behavior, i.e. it will interpret
+	// the environment and ~/.aws directory just like an AWS CLI tool would:
+	session, err := awssession.NewSessionWithOptions(awssession.Options{
+		SharedConfigState: awssession.SharedConfigEnable,
+		Config: aws.Config{
+			Retryer: limiter,
+			Region:  aws.String(params.awsRegion),
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Reduce internal retry count so throttling errors bubble up to our rate limiter with less delay.
+	svc := dynamodb.New(session)
 
 	for _, date := range daysBetween(params.startDate, params.startDate.Add(scanDuration)) {
 		err := scanDay(svc, limiter, params.tableName, date, state)
@@ -333,10 +335,22 @@ func (a *adaptiveRateLimiter) currentCapacity() float64 {
 	return a.permitCapacity
 }
 
+func (a *adaptiveRateLimiter) RetryRules(r *awsrequest.Request) time.Duration {
+	return 0
+}
+
+func (a *adaptiveRateLimiter) ShouldRetry(*awsrequest.Request) bool {
+	return false
+}
+
+func (a *adaptiveRateLimiter) MaxRetries() int {
+	return 0
+}
+
 func newAdaptiveRateLimiter(permitsPerSecond float64) *adaptiveRateLimiter {
 	fmt.Printf("  setting initial read rate to %v RCUs\n", int(permitsPerSecond))
 	return &adaptiveRateLimiter{
 		permitCapacity: permitsPerSecond,
-		high:           500,
+		high:           250,
 	}
 }
