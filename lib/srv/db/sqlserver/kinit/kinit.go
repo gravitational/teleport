@@ -192,8 +192,6 @@ type DBCertGetter struct {
 	UserName string
 	// LDAPCA is the windows ldap certificate
 	LDAPCA *x509.Certificate
-	// CAFunc returns a TLSKeyPair of certificate bytes
-	CAFunc func(ctx context.Context, clusterName string) ([]byte, error)
 }
 
 func (d *DBCertGetter) caFunc(ctx context.Context, clusterName string) ([]byte, error) {
@@ -229,7 +227,7 @@ func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKe
 		return nil, trace.Wrap(err)
 	}
 
-	certPEM, keyPEM, err := windows.CertKeyPEM(ctx, &windows.GenerateCredentialsRequest{
+	certPEM, keyPEM, caCerts, err := windows.CertKeyPEM(ctx, &windows.GenerateCredentialsRequest{
 		Username:    d.UserName,
 		Domain:      d.RealmName,
 		TTL:         certTTL,
@@ -249,20 +247,7 @@ func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKe
 		return nil, trace.Wrap(err)
 	}
 
-	if d.CAFunc == nil {
-		d.CAFunc = d.caFunc
-	}
-
-	caCert, err := d.CAFunc(ctx, clusterName.GetClusterName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if caCert == nil {
-		return nil, trace.BadParameter("no certificate authority was found in userCA active keys")
-	}
-
-	return &WindowsCAAndKeyPair{certPEM: certPEM, keyPEM: keyPEM, caCert: caCert}, nil
+	return &WindowsCAAndKeyPair{certPEM: certPEM, keyPEM: keyPEM, caCert: bytes.Join(caCerts, []byte("\n"))}, nil
 }
 
 // UseOrCreateCredentials uses an existing cacheData or creates a new one

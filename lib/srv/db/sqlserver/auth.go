@@ -88,10 +88,6 @@ func (c *connector) kinitClient(ctx context.Context, session *common.Session, au
 		LDAPCA:          cert,
 	}
 
-	if c.caFunc != nil {
-		certGetter.CAFunc = c.caFunc
-	}
-
 	realmName := strings.ToUpper(session.Database.GetAD().Domain)
 	k := kinit.New(kinit.NewCommandLineInitializer(
 		kinit.CommandConfig{
