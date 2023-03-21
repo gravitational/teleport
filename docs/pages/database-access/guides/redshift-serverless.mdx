@@ -17,15 +17,15 @@ This guide will help you to:
 
 ## Prerequisites
 
-- A pre-existing Teleport `(=teleport.version=)` cluster. If you don't already
-  have Teleport running, see [How to Choose a Teleport Edition](../../choose-an-edition/introduction.mdx)
-  to learn more about your options, and how to set up Teleport.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - AWS account with a Redshift Serverless configuration and permissions to create
   and attach IAM policies.
 - Command-line client `psql` installed and added to your system's `PATH` environment variable.
 - A host where you will run the Teleport Database Service. This guide assumes an
   EC2 instance, and provides a corresponding example of access control.
-- (!docs/pages/includes/tctl.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Create an IAM policy for Teleport
 
