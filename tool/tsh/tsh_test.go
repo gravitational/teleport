@@ -3976,7 +3976,6 @@ func TestMakeProfileInfo_NoInternalLogins(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			madeProfile := makeProfileInfo(test.profile, nil /* env map */, false /* inactive */)
 			require.Equal(t, test.expectedLogins, madeProfile.Logins)
