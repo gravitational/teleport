@@ -5467,7 +5467,7 @@ func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *prot
 //     proxy (e.g. Teleport Cloud), as long as they have permission to read
 //     certificate authorities.
 func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
-	err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbRead)
+	err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbReadNoSecrets)
 	if err != nil {
 		if !trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)

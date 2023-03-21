@@ -4462,20 +4462,8 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 		context:    *setupAuthContext,
 	}
 
-	// Create an user with enough access.
-	permissionsRole, err := CreateRole(ctx, setupServer, "permissions-role", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				types.NewRule(types.KindCertAuthority, services.RO()),
-			},
-		},
-	})
-	require.NoError(t, err)
-	_, err = CreateUser(setupServer, "user-with-permissions", permissionsRole)
-	require.NoError(t, err)
-
-	// Create an user without any permissions.
-	_, err = CreateUser(setupServer, "user-without-permissions")
+	// Create a test user.
+	_, err = CreateUser(setupServer, "username")
 	require.NoError(t, err)
 
 	for _, tc := range []struct {
@@ -4489,14 +4477,9 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 			assertErr: require.NoError,
 		},
 		{
-			desc:      "UserWithPermissions",
-			identity:  TestUser("user-with-permissions"),
+			desc:      "User",
+			identity:  TestUser("username"),
 			assertErr: require.NoError,
-		},
-		{
-			desc:      "UserWithoutPermissions",
-			identity:  TestUser("user-without-permissions"),
-			assertErr: require.Error,
 		},
 		{
 			desc:      "WindowsDesktopService",
