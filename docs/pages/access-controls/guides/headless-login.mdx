@@ -6,23 +6,24 @@ description: Headless Login
 ## Introduction
 
 <Admonition type="warning" title="Preview">
-  Headless Login is currently in Preview mode.
+  Headless login is currently in Preview mode.
 </Admonition>
 
-Headless Login provides Teleport users with a secure way to authenticate with WebAuthn from a remote machine. This enables use cases which usually are not compatible with WebAuthn features, such as:
+Headless login provides Teleport users with a secure way to authenticate with WebAuthn from a remote machine. This enables use cases which usually are not compatible with WebAuthn features, such as:
 
 - Logging into Teleport with WebAuthn from a remote dev box
 - Connecting to a Teleport Node from a remote dev box with Per-session MFA 
 - Performing `tsh scp` from one Teleport Node to another with Per-session MFA
+- Logging into Teleport on a machine without a WebAuthn compatible browser
 
 <Admonition type="note" title="Headless Login Support">
-  Headless Login only supports following `tsh` commands:
+  Headless login only supports following `tsh` commands:
   
   - `tsh ls`
   - `tsh ssh`
   - `tsh scp`
 
-  In the future, Headless Login may be extended to other `tsh` commands.
+  In the future, headless login may be extended to other `tsh` commands.
 </Admonition>
 
 ## Prerequisites
@@ -33,9 +34,9 @@ Headless Login provides Teleport users with a secure way to authenticate with We
 - A Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/).
 
-A Teleport cluster capable of WebAuthn is automatically capable of Headless Login.
+A Teleport cluster capable of WebAuthn is automatically capable of Headless login.
 
-## Step 1/2. Initiate Headless Login
+## Step 1/2. Initiate headless login
 
 Run a headless tsh command with the `--headless` flag. This will initiate headless login, printing a URL and `tsh` command.
 
@@ -50,7 +51,7 @@ $ tsh ls --headless --proxy=example --user=user
 # tsh headless approve --user=dev --proxy=proxy.example.com:3080 86172f78-af7c-5935-a7c1-ed06b94f17dc
 ```
 
-## Step 2/2. Approve Headless Login
+## Step 2/2. Approve headless Login
 
 To approve the headless login, go to the URL in your local web browser or enter the `tsh` command in your local terminal. You will be prompted to approve the login with WebAuthn verification. Once approved, your initial `tsh --headless <command>` should continue as if you had logged in locally.
 
@@ -83,7 +84,7 @@ $ tsh ssh --headless --proxy=example --user=user server01
 
 ## Additional Options
 
-### Set Headless login as default
+### Set headless login as default
 
 To make headless login the default authentication method for your Teleport Cluster, add `connector_name: headless` to your cluster configuration:
 
@@ -159,13 +160,13 @@ $ tctl create -f cap.yaml
 
 Users can also set the following environment variables to reduce the number of flags passed to `tsh`:
 
-- `TELEPORT_PROXY` (string)
-- `TELEPORT_USER` (string)
-- `TELEPORT_HEADLESS` (bool)
+- `TELEPORT_PROXY`
+- `TELEPORT_USER`
+- `TELEPORT_HEADLESS`
 
-### Disable Headless Login
+### Disable Headless login
 
-Headless Login is enabled automatically when WebAuthn is configured. If you want to forbid headless login to your cluster, add `headless: false` to your configuration:
+Headless login is enabled automatically when WebAuthn is configured. If you want to forbid headless login to your cluster, add `headless: false` to your configuration:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 <Tabs>
