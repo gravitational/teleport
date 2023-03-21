@@ -3453,6 +3453,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				TLSConfig:   clientTLSConfig,
 				Log:         process.log,
 				Clock:       process.Clock,
+				ClusterName: clusterName,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -3679,6 +3680,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			TLSConfig:     serverTLSConfig,
 			ClusterDialer: clusterdial.NewClusterDialer(tsrv),
 			Log:           log,
+			ClusterName:   clusterName,
 		})
 		if err != nil {
 			return trace.Wrap(err)
