@@ -74,6 +74,16 @@ type UsageReporter interface {
 	AnonymizeAndSubmit(event ...Anonymizable)
 }
 
+// GracefulStopper is a UsageReporter that needs to do some work before
+// stopping; this is a separate interface because [UsageReporter] is embedded in
+// auth.Server.Services, and we don't want to expose extraneous methods as part
+// of auth.Server.
+type GracefulStopper interface {
+	UsageReporter
+
+	GracefulStop(context.Context) error
+}
+
 // StreamingUsageReporter submits all Teleport usage events anonymized with the
 // cluster name, with a very short buffer for batches and no persistency.
 type StreamingUsageReporter struct {
@@ -206,6 +216,7 @@ type DiscardUsageReporter struct{}
 
 var _ UsageReporter = DiscardUsageReporter{}
 
+// AnonymizeAndSubmit implements [UsageReporter]
 func (DiscardUsageReporter) AnonymizeAndSubmit(...Anonymizable) {
 	// do nothing
 }

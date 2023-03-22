@@ -22,14 +22,12 @@ import (
 	"github.com/bufbuild/connect-go"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
-	prehogv1c "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -37,49 +35,116 @@ import (
 
 const aggregateTimeGranularity = 15 * time.Minute
 
-const userActivityTTL = 60 * 24 * time.Hour
-
 const (
 	userActivityReportsPrefix = "userActivityReports"
-	userActivityReportsLock   = userActivityReportsPrefix
+	userActivityReportsLock   = "userActivityReportsLock"
+
+	// userActivityReportMaxSize is the maximum size for a backend value;
+	// dynamodb has a limit of 400KiB per item, we store values in base64,
+	// there's some framing, and a healthy 50% margin gets us to about 128KiB.
+	userActivityReportMaxSize = 131072
+
+	userActivityReportTTL = 60 * 24 * time.Hour
 )
 
-// AggregatingUsageReporter aggregates and persists all user activity events to
-// the backend, then periodically submits them.
-type AggregatingUsageReporter struct {
-	anonymizer utils.Anonymizer
-	backend    backend.Backend
-	client     prehogv1c.TeleportReportingServiceClient
-
-	clusterName    []byte
-	reporterHostID []byte
-
-	mu        sync.Mutex
-	startTime time.Time
-	records   map[string]*prehogv1.UserActivityRecord
+// userActivityReportKey returns the backend key for a user activity report with
+// a given UUID and start time, such that reports with an earlier start time
+// will appear earlier in lexicographic ordering.
+func userActivityReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
+	return backend.Key(userActivityReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
 }
 
 func NewAggregatingUsageReporter(
 	ctx context.Context,
 	anonymizer utils.Anonymizer,
 	backend backend.Backend,
+	submitter UsageReportsSubmitter,
 	clusterName string,
 	reporterHostID string,
 ) (*AggregatingUsageReporter, error) {
+	baseCtx, baseCancel := context.WithCancel(ctx)
+	periodicCtx, periodicCancel := context.WithCancel(baseCtx)
+
 	r := &AggregatingUsageReporter{
-		anonymizer:     anonymizer,
-		backend:        backend,
+		anonymizer: anonymizer,
+		backend:    backend,
+		submitter:  submitter,
+
 		clusterName:    anonymizer.AnonymizeNonEmpty(clusterName),
 		reporterHostID: anonymizer.AnonymizeNonEmpty(reporterHostID),
+
+		baseCtx:        baseCtx,
+		baseCancel:     baseCancel,
+		periodicCancel: periodicCancel,
 	}
 
-	go r.runPeriodicSubmit(ctx)
-	go r.runPeriodicFinalize(ctx)
+	r.wg.Add(2)
+	go r.runPeriodicSubmit(periodicCtx)
+	go r.runPeriodicFinalize(periodicCtx)
 
 	return r, nil
 }
 
-var _ UsageReporter = (*AggregatingUsageReporter)(nil)
+type UsageReportsSubmitter interface {
+	SubmitUsageReports(context.Context, *connect.Request[prehogv1.SubmitUsageReportsRequest]) (*connect.Response[prehogv1.SubmitUsageReportsResponse], error)
+}
+
+// AggregatingUsageReporter aggregates and persists all user activity events to
+// the backend, then periodically submits them.
+type AggregatingUsageReporter struct {
+	anonymizer utils.Anonymizer
+	backend    backend.Backend
+	submitter  UsageReportsSubmitter
+
+	clusterName    []byte
+	reporterHostID []byte
+
+	wg             sync.WaitGroup
+	baseCtx        context.Context
+	baseCancel     context.CancelFunc
+	periodicCancel context.CancelFunc
+
+	mu        sync.Mutex
+	stopping  bool
+	startTime time.Time
+	records   map[string]*prehogv1.UserActivityRecord
+}
+
+var _ GracefulStopper = (*AggregatingUsageReporter)(nil)
+
+// GracefulStop implements [GracefulStopper]
+func (r *AggregatingUsageReporter) GracefulStop(ctx context.Context) error {
+	defer r.baseCancel()
+	r.periodicCancel()
+
+	r.mu.Lock()
+
+	r.stopping = true
+
+	startTime := r.startTime
+	records := r.records
+	// don't hold up memory
+	r.records = nil
+
+	r.mu.Unlock()
+
+	if len(records) > 0 {
+		r.wg.Add(1)
+		go r.persistReport(startTime, records)
+	}
+
+	go func() {
+		select {
+		case <-ctx.Done():
+			r.baseCancel()
+		case <-r.baseCtx.Done():
+		}
+	}()
+
+	r.wg.Wait()
+
+	return r.baseCtx.Err()
+}
 
 // AnonymizeAndSubmit implements [UsageReporter].
 func (r *AggregatingUsageReporter) AnonymizeAndSubmit(events ...Anonymizable) {
@@ -101,6 +166,10 @@ func (r *AggregatingUsageReporter) AnonymizeAndSubmit(events ...Anonymizable) {
 func (r *AggregatingUsageReporter) anonymizeAndSubmit(events []Anonymizable) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	if r.stopping {
+		return
+	}
 
 	r.maybeFinalizeReportLocked()
 
@@ -142,16 +211,6 @@ func (r *AggregatingUsageReporter) anonymizeAndSubmit(events []Anonymizable) {
 	}
 }
 
-func (r *AggregatingUsageReporter) maybeFinalizeReport() {
-	// if r.mu is locked then something has just called
-	// maybeFinalizeReportLocked anyway
-	if !r.mu.TryLock() {
-		return
-	}
-	defer r.mu.Unlock()
-	r.maybeFinalizeReportLocked()
-}
-
 func (r *AggregatingUsageReporter) maybeFinalizeReportLocked() {
 	now := time.Now().UTC()
 
@@ -165,28 +224,13 @@ func (r *AggregatingUsageReporter) maybeFinalizeReportLocked() {
 	r.records = make(map[string]*prehogv1.UserActivityRecord, len(records))
 
 	if len(records) > 0 {
+		r.wg.Add(1)
 		go r.persistReport(startTime, records)
 	}
 }
 
-//nolint:unused // will be needed for graceful stopping
-func (r *AggregatingUsageReporter) blockingAlwaysFinalizeReport() {
-	now := time.Now().UTC()
-
-	startTime := r.startTime
-	r.startTime = now.Truncate(aggregateTimeGranularity)
-	records := r.records
-	r.records = make(map[string]*prehogv1.UserActivityRecord, len(records))
-
-	if len(records) > 0 {
-		r.persistReport(startTime, records)
-	}
-}
-
 func (r *AggregatingUsageReporter) persistReport(startTime time.Time, records map[string]*prehogv1.UserActivityRecord) {
-	if len(records) < 1 {
-		return
-	}
+	defer r.wg.Done()
 
 	pbRecords := make([]*prehogv1.UserActivityRecord, 0, len(records))
 	for userName, record := range records {
@@ -195,18 +239,18 @@ func (r *AggregatingUsageReporter) persistReport(startTime time.Time, records ma
 	}
 
 	pbStartTime := timestamppb.New(startTime)
-	expiry := startTime.Add(userActivityTTL)
+	expiry := startTime.Add(userActivityReportTTL)
 
 	for len(pbRecords) > 0 {
-		reportID, wire, rem, err := prepareReport(r.clusterName, r.reporterHostID, pbStartTime, pbRecords)
+		reportUUID, wire, rem, err := prepareReport(r.clusterName, r.reporterHostID, pbStartTime, pbRecords)
 		if err != nil {
 			// TODO
 			return
 		}
 		pbRecords = rem
 
-		if _, err := r.backend.Put(context.TODO(), backend.Item{
-			Key:     backend.Key(userActivityReportsPrefix, reportID.String()),
+		if _, err := r.backend.Put(r.baseCtx, backend.Item{
+			Key:     userActivityReportKey(reportUUID, startTime),
 			Value:   wire,
 			Expires: expiry,
 		}); err != nil {
@@ -218,40 +262,38 @@ func (r *AggregatingUsageReporter) persistReport(startTime time.Time, records ma
 
 func prepareReport(
 	clusterName, reporterHostID []byte,
-	pbStartTime *timestamppb.Timestamp,
-	pbRecords []*prehogv1.UserActivityRecord,
+	startTime *timestamppb.Timestamp,
+	records []*prehogv1.UserActivityRecord,
 ) (uuid.UUID, []byte, []*prehogv1.UserActivityRecord, error) {
-	reportID := uuid.New()
+	reportUUID := uuid.New()
 	report := &prehogv1.UserActivityReport{
-		ReportUuid:     reportID[:],
+		ReportUuid:     reportUUID[:],
 		ClusterName:    clusterName,
 		ReporterHostid: reporterHostID,
-		StartTime:      pbStartTime,
-		Records:        pbRecords,
+		StartTime:      startTime,
+		Records:        records,
+	}
+
+	for proto.Size(report) > userActivityReportMaxSize {
+		if len(report.Records) <= 1 {
+			return uuid.Nil, nil, records, trace.LimitExceeded("failed to marshal user activity report within size limit")
+		}
+
+		report.Records = report.Records[:len(report.Records)/2]
 	}
 
 	wire, err := proto.Marshal(report)
 	if err != nil {
-		return uuid.Nil, nil, pbRecords, trace.Wrap(err)
+		// TODO: sad marshal noises
+		return uuid.Nil, nil, records, trace.Wrap(err)
 	}
 
-	for len(wire) > 131072 {
-		if len(report.Records) <= 32 {
-			return uuid.Nil, nil, pbRecords, trace.LimitExceeded("failed to marshal user activity report within size limit")
-		}
-
-		report.Records = report.Records[:len(report.Records)/2]
-
-		wire, err = protojson.Marshal(report)
-		if err != nil {
-			return uuid.Nil, nil, pbRecords, trace.Wrap(err)
-		}
-	}
-
-	return reportID, wire, pbRecords[len(report.Records):], nil
+	return reportUUID, wire, records[len(report.Records):], nil
 }
 
 func (r *AggregatingUsageReporter) runPeriodicFinalize(ctx context.Context) {
+	defer r.wg.Done()
+
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 
@@ -262,11 +304,20 @@ func (r *AggregatingUsageReporter) runPeriodicFinalize(ctx context.Context) {
 		case <-ticker.C:
 		}
 
-		r.maybeFinalizeReport()
+		// if r.mu is locked then something has just called
+		// maybeFinalizeReportLocked anyway
+		if r.mu.TryLock() {
+			if !r.stopping {
+				r.maybeFinalizeReportLocked()
+			}
+			r.mu.Unlock()
+		}
 	}
 }
 
 func (r *AggregatingUsageReporter) runPeriodicSubmit(ctx context.Context) {
+	defer r.wg.Done()
+
 	iv := interval.New(interval.Config{
 		FirstDuration: utils.HalfJitter(10 * time.Minute),
 		Duration:      5 * time.Minute,
@@ -299,22 +350,26 @@ func (r *AggregatingUsageReporter) doSubmit(ctx context.Context) {
 	for _, item := range getResult.Items {
 		report := new(prehogv1.UserActivityReport)
 		if err := proto.Unmarshal(item.Value, report); err != nil {
-			// TODO: delete broken values? just skip and fetch more? if we only
-			// skip we can get in a situation where the first 10 items are
-			// broken with low UUIDs, and then we can't submit anything
 			return
 		}
 	}
 
-	if _, err := backend.AcquireLock(ctx, r.backend, userActivityReportsLock, 75*time.Second); err != nil {
-		// TODO: log that some other auth is already submitting
+	if _, err := r.backend.Create(ctx, backend.Item{
+		Key:     backend.Key(userActivityReportsLock),
+		Value:   []byte("null"),
+		Expires: r.backend.Clock().Now().UTC().Add(75 * time.Second),
+	}); err != nil {
+		if trace.IsAlreadyExists(err) {
+			// TODO: log that some other auth is already submitting
+			_ = 0
+		}
 		return
 	}
 
 	lockCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	if _, err = r.client.SubmitUsageReports(lockCtx,
+	if _, err = r.submitter.SubmitUsageReports(lockCtx,
 		connect.NewRequest(&prehogv1.SubmitUsageReportsRequest{
 			UserActivity: reports,
 		}),
@@ -326,7 +381,7 @@ func (r *AggregatingUsageReporter) doSubmit(ctx context.Context) {
 	for _, item := range getResult.Items {
 		if err := r.backend.Delete(ctx, item.Key); err != nil {
 			// TODO: log and try to delete the other items, might as well
-			continue
+			_ = 0
 		}
 	}
 }
