@@ -1081,14 +1081,14 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 	tests := []struct {
 		name       string
 		enterprise bool
-		config     *servicecfg.Config
+		config     *Config
 		expected   bool
 	}{
 		{
 			name:       "enterprise enabled, okta enabled",
 			enterprise: true,
-			config: &servicecfg.Config{
-				Okta: servicecfg.OktaConfig{
+			config: &Config{
+				Okta: OktaConfig{
 					Enabled: true,
 				},
 			},
@@ -1097,8 +1097,8 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 		{
 			name:       "enterprise disabled, okta enabled",
 			enterprise: false,
-			config: &servicecfg.Config{
-				Okta: servicecfg.OktaConfig{
+			config: &Config{
+				Okta: OktaConfig{
 					Enabled: true,
 				},
 			},
@@ -1107,8 +1107,8 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 		{
 			name:       "enterprise enabled, okta disabled",
 			enterprise: true,
-			config: &servicecfg.Config{
-				Okta: servicecfg.OktaConfig{
+			config: &Config{
+				Okta: OktaConfig{
 					Enabled: false,
 				},
 			},
