@@ -210,15 +210,3 @@ func newUserTestCase(t *testing.T, name string, roles []string, withSecrets bool
 	}
 	return &user
 }
-
-func runCreationChecks(t *testing.T, tt *servicesContext, resources ...types.Resource) {
-	for _, rsc := range resources {
-		switch r := rsc.(type) {
-		case types.User:
-			t.Logf("Creating User: %+v", r)
-		default:
-		}
-	}
-	err := CreateResources(context.TODO(), tt.bk, resources...)
-	require.NoError(t, err)
-}
