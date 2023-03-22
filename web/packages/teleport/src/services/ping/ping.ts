@@ -17,7 +17,7 @@ limitations under the License.
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import makePing from './makePing';
+import { makePing } from './makePing';
 
 const service = {
   fetchPing() {

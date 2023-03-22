@@ -79,8 +79,8 @@ class TeleportContext implements types.Context {
       localStorage.setOnboardDiscover({ hasResource });
     }
 
-    const pingResponse = pingService.fetchPing();
-    this.automaticUpgradesEnabled = (await pingResponse).automaticUpgrades;
+    const pingResponse = await pingService.fetchPing();
+    this.automaticUpgradesEnabled = pingResponse.automaticUpgrades;
   }
 
   getFeatureFlags(): types.FeatureFlags {
