@@ -130,6 +130,15 @@ func NewTracingClient(ctx context.Context, cfg Config) (*tracing.Client, error) 
 	return tracing.NewClient(clt.GetConnection()), nil
 }
 
+// NewOktaClient creates a new Okta client for managing Okta resources.
+func NewOktaClient(ctx context.Context, cfg Config) (*okta.Client, error) {
+	clt, err := New(ctx, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return okta.NewClient(oktapb.NewOktaServiceClient(clt.GetConnection())), nil
+}
+
 // newClient constructs a new client.
 func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client {
 	return &Client{
