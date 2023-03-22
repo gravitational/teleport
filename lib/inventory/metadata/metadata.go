@@ -245,7 +245,6 @@ func (c *fetchConfig) awsHTTPGetSuccess() bool {
 	url := "http://169.254.169.254/latest/meta-data/"
 	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
-		log.Debugf("Failed to create AWS http GET request '%s': %s", url, err)
 		return false
 	}
 
@@ -259,7 +258,6 @@ func (c *fetchConfig) gcpHTTPGetSuccess() bool {
 	url := "http://metadata.google.internal/computeMetadata/v1"
 	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
-		log.Debugf("Failed to create GCP http GET request '%s': %s", url, err)
 		return false
 	}
 
@@ -274,7 +272,6 @@ func (c *fetchConfig) azureHTTPGetSuccess() bool {
 	url := "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
 	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
-		log.Debugf("Failed to create Azure http GET request '%s': %s", url, err)
 		return false
 	}
 
@@ -286,7 +283,6 @@ func (c *fetchConfig) azureHTTPGetSuccess() bool {
 func (c *fetchConfig) exec(name string, args ...string) (string, error) {
 	out, err := c.execCommand(name, args...)
 	if err != nil {
-		log.Debugf("Failed to execute command '%s': %s", name, err)
 		return "", err
 	}
 
@@ -297,7 +293,6 @@ func (c *fetchConfig) exec(name string, args ...string) (string, error) {
 func (c *fetchConfig) read(name string) (string, error) {
 	out, err := c.readFile(name)
 	if err != nil {
-		log.Debugf("Failed to read file '%s': %s", name, err)
 		return "", err
 	}
 
@@ -309,7 +304,6 @@ func (c *fetchConfig) read(name string) (string, error) {
 func (c *fetchConfig) httpReqSuccess(req *http.Request) bool {
 	resp, err := c.httpDo(req)
 	if err != nil {
-		log.Debugf("Failed to perform http GET request: %s", err)
 		return false
 	}
 	defer resp.Body.Close()
