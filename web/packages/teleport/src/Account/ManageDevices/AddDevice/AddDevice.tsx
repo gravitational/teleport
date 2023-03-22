@@ -41,12 +41,12 @@ import FieldSelect from 'shared/components/FieldSelect';
 
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
+import secKeyGraphic from 'design/assets/images/sec-key-graphic.svg';
+
 import { DeviceUsage } from 'teleport/services/mfa';
 import useTeleport from 'teleport/useTeleport';
 
 import useAddDevice, { State, Props } from './useAddDevice';
-
-const secKeyGraphic = require('design/assets/images/sec-key-graphic.svg');
 
 const deviceUsageOpts: DeviceusageOpt[] = [
   {

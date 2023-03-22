@@ -703,9 +703,9 @@ dependencies = [
 
 [[package]]
 name = "iso7816-tlv"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "395d8e0ae63eb5016fbcf4a72864155880e34bce0158206fcfa7218efdd52e82"
+checksum = "d47365efc3b4c252f8a3384445c0f7e8a4e0ae5c22bf3bedd2dd16f9bb45016a"
 dependencies = [
  "untrusted 0.9.0",
 ]

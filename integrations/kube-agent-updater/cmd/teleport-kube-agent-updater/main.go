@@ -43,10 +43,6 @@ var (
 	scheme        = runtime.NewScheme()
 )
 
-const (
-	namespace = "namespace"
-)
-
 func init() {
 	SchemeBuilder.Register(
 		&appsv1.Deployment{},
