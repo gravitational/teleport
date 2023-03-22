@@ -226,6 +226,9 @@ func (c *fetchConfig) fetchContainerOrchestrator() string {
 	if err := json.Unmarshal(body, &version); err != nil {
 		return ""
 	}
+	if version.GitVersion == "" {
+		return ""
+	}
 
 	return fmt.Sprintf("kubernetes-%s", version.GitVersion)
 }
