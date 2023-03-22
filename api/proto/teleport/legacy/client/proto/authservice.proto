@@ -126,6 +126,10 @@ message Event {
     types.UserGroupV1 UserGroup = 38 [(gogoproto.jsontag) = "user_group,omitempty"];
     // UIConfig provides a way for users to adjust settings of the UI served by the proxy service.
     types.UIConfigV1 UIConfig = 39 [(gogoproto.jsontag) = "ui_config,omitempty"];
+    // OktaImportRule is an OktaImportRule resource.
+    types.OktaImportRuleV1 OktaImportRule = 40 [(gogoproto.jsontag) = "okta_import_rule,omitempty"];
+    // OktaAssignment is an OktaAssignment resource.
+    types.OktaAssignmentV1 OktaAssignment = 41 [(gogoproto.jsontag) = "okta_assignment,omitempty"];
   }
 }
 
