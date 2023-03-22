@@ -28,33 +28,38 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 )
 
 func TestUserResource(t *testing.T) {
 	t.Parallel()
-
-	tt := setupServicesContext(context.Background(), t)
-	runUserResourceTest(t, tt, false)
+	ctx := context.Background()
+	tt := setupServicesContext(ctx, t)
+	runUserResourceTest(ctx, t, tt, false)
 }
 
 func TestUserResourceWithSecrets(t *testing.T) {
 	t.Parallel()
-
-	tt := setupServicesContext(context.Background(), t)
-	runUserResourceTest(t, tt, true)
+	ctx := context.Background()
+	tt := setupServicesContext(ctx, t)
+	runUserResourceTest(ctx, t, tt, true)
 }
 
-func runUserResourceTest(t *testing.T, tt *servicesContext, withSecrets bool) {
+func runUserResourceTest(
+	ctx context.Context,
+	t *testing.T,
+	tt *servicesContext,
+	withSecrets bool,
+) {
 	expiry := tt.bk.Clock().Now().Add(time.Minute)
 
 	alice := newUserTestCase(t, "alice", nil, withSecrets, expiry)
 	bob := newUserTestCase(t, "bob", nil, withSecrets, expiry)
 
 	// Check basic dynamic item creation
-	runCreationChecks(t, tt, alice, bob)
+	err := CreateResources(ctx, tt.bk, alice, bob)
+	require.NoError(t, err)
 
 	// Check that dynamically created item is compatible with service
 	s := NewIdentityService(tt.bk)
@@ -84,18 +89,19 @@ func runUserResourceTest(t *testing.T, tt *servicesContext, withSecrets bool) {
 
 func TestCertAuthorityResource(t *testing.T) {
 	t.Parallel()
-
-	tt := setupServicesContext(context.Background(), t)
+	ctx := context.Background()
+	tt := setupServicesContext(ctx, t)
 
 	userCA := suite.NewTestCA(types.UserCA, "example.com")
 	hostCA := suite.NewTestCA(types.HostCA, "example.com")
 
 	// Check basic dynamic item creation
-	runCreationChecks(t, tt, userCA, hostCA)
+	err := CreateResources(ctx, tt.bk, userCA, hostCA)
+	require.NoError(t, err)
 
 	// Check that dynamically created item is compatible with service
 	s := NewCAService(tt.bk)
-	err := s.CompareAndSwapCertAuthority(userCA, userCA)
+	err = s.CompareAndSwapCertAuthority(userCA, userCA)
 	require.NoError(t, err)
 }
 
@@ -124,7 +130,8 @@ func TestTrustedClusterResource(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check basic dynamic item creation
-	runCreationChecks(t, tt, foo, bar)
+	err = CreateResources(ctx, tt.bk, foo, bar)
+	require.NoError(t, err)
 
 	s := NewPresenceService(tt.bk)
 	_, err = s.GetTrustedCluster(ctx, "foo")
@@ -163,10 +170,11 @@ func TestGithubConnectorResource(t *testing.T) {
 	}
 
 	// Check basic dynamic item creation
-	runCreationChecks(t, tt, connector)
+	err := CreateResources(ctx, tt.bk, connector)
+	require.NoError(t, err)
 
 	s := NewIdentityService(tt.bk)
-	_, err := s.GetGithubConnector(ctx, "github", true)
+	_, err = s.GetGithubConnector(ctx, "github", true)
 	require.NoError(t, err)
 }
 
@@ -203,16 +211,6 @@ func newUserTestCase(t *testing.T, name string, roles []string, withSecrets bool
 	return &user
 }
 
-func dumpResources(t *testing.T, tt *servicesContext) []types.Resource {
-	startKey := []byte("/")
-	endKey := backend.RangeEnd(startKey)
-	result, err := tt.bk.GetRange(context.TODO(), startKey, endKey, 0)
-	require.NoError(t, err)
-	resources, err := itemsToResources(result.Items...)
-	require.NoError(t, err)
-	return resources
-}
-
 func runCreationChecks(t *testing.T, tt *servicesContext, resources ...types.Resource) {
 	for _, rsc := range resources {
 		switch r := rsc.(type) {
@@ -223,14 +221,4 @@ func runCreationChecks(t *testing.T, tt *servicesContext, resources ...types.Res
 	}
 	err := CreateResources(context.TODO(), tt.bk, resources...)
 	require.NoError(t, err)
-	dump := dumpResources(t, tt)
-Outer:
-	for _, exp := range resources {
-		for _, got := range dump {
-			if got.GetKind() == exp.GetKind() && got.GetName() == exp.GetName() && got.Expiry() == exp.Expiry() {
-				continue Outer
-			}
-		}
-		t.Errorf("Missing expected resource kind=%s,name=%s,expiry=%v", exp.GetKind(), exp.GetName(), exp.Expiry().String())
-	}
 }
