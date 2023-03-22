@@ -23,6 +23,7 @@ to automatically join the cluster on subsequent restarts.
 - An existing [IAM OpenID Connect (OIDC)](https://docs.aws.amazon.com/eks/latest/userguide/enable-iam-roles-for-service-accounts.html) provider for your cluster
 - Helm >= (=helm.version=)
 - AWS CLI >= `2.10.3` or `1.27.81`
+- A Teleport cluster with TLS multiplexing
 
 (!docs/pages/includes/helm.mdx!)
 
@@ -201,9 +202,8 @@ At this point, the IAM role is ready to be used by the Teleport Kubernetes Servi
 
 ## Step 2/3. Create the AWS joining token
 
-Configure your Teleport Auth Service with a special dynamic token which will
-allow agents from your AWS account to join your Teleport cluster using the roles
-defined.
+Create a dynamic token which will allow agents from your AWS account to join
+your Teleport cluster using the roles defined.
 
 Under the hood, Kubernetes Service instances will prove that they are running in your AWS account by
 sending a signed Identity Document which matches an allow rule
