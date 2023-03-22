@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -1077,6 +1078,64 @@ func TestProxyGRPCServers(t *testing.T) {
 				grpc.FailOnNonTempDialError(true),
 			)
 			tt.assertErr(t, err)
+		})
+	}
+}
+
+func TestEnterpriseServicesEnabled(t *testing.T) {
+	tests := []struct {
+		name       string
+		enterprise bool
+		config     *servicecfg.Config
+		expected   bool
+	}{
+		{
+			name:       "enterprise enabled, okta enabled",
+			enterprise: true,
+			config: &servicecfg.Config{
+				Okta: servicecfg.OktaConfig{
+					Enabled: true,
+				},
+			},
+			expected: true,
+		},
+		{
+			name:       "enterprise disabled, okta enabled",
+			enterprise: false,
+			config: &servicecfg.Config{
+				Okta: servicecfg.OktaConfig{
+					Enabled: true,
+				},
+			},
+			expected: false,
+		},
+		{
+			name:       "enterprise enabled, okta disabled",
+			enterprise: true,
+			config: &servicecfg.Config{
+				Okta: servicecfg.OktaConfig{
+					Enabled: false,
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buildType := modules.BuildOSS
+			if tt.enterprise {
+				buildType = modules.BuildEnterprise
+			}
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: buildType,
+			})
+
+			process := &TeleportProcess{
+				Config: tt.config,
+			}
+
+			require.Equal(t, tt.expected, process.enterpriseServicesEnabled())
 		})
 	}
 }

@@ -3950,3 +3950,35 @@ func TestShowSessions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, buf.String())
 }
+
+func TestMakeProfileInfo_NoInternalLogins(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		profile        *client.ProfileStatus
+		expectedLogins []string
+	}{
+		{
+			name: "with internal logins",
+			profile: &client.ProfileStatus{
+				Logins: []string{constants.NoLoginPrefix, teleport.SSHSessionJoinPrincipal, "-teleport-something-else"},
+			},
+			expectedLogins: nil,
+		},
+		{
+			name: "with valid logins and internal logins",
+			profile: &client.ProfileStatus{
+				Logins: []string{constants.NoLoginPrefix, "alpaca", teleport.SSHSessionJoinPrincipal, "llama"},
+			},
+			expectedLogins: []string{"alpaca", "llama"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			madeProfile := makeProfileInfo(test.profile, nil /* env map */, false /* inactive */)
+			require.Equal(t, test.expectedLogins, madeProfile.Logins)
+		})
+	}
+}
