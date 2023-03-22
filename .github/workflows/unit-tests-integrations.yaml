@@ -42,6 +42,9 @@ jobs:
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport13
       options: --cap-add=SYS_ADMIN --privileged
+      env: 
+        TELEPORT_GET_VERSION: v12.1.0
+        TELEPORT_ENTERPRISE_LICENSE: ${{ secrets.TELEPORT_ENTERPRISE_LICENSE }}
 
     steps:
       - name: Checkout Teleport
@@ -49,6 +52,14 @@ jobs:
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
+
+      - name: Run access plugin tests
+        run: make test-access-integrations
+        timeout-minutes: 5
+
+      - name: Run integrations lib tests
+        run: make test-integrations-lib
+        timeout-minutes: 5
 
       - name: Run operator tests
         timeout-minutes: 40
