@@ -80,11 +80,12 @@ provider "teleport" {
 
 ## teleport_app
 
-|   Name   |  Type  | Required |              Description               |
-|----------|--------|----------|----------------------------------------|
-| metadata | object |          | Metadata is the app resource metadata. |
-| spec     | object |          | Spec is the app resource spec.         |
-| version  | string |          | Version is the resource version.       |
+|   Name   |  Type  | Required |               Description                |
+|----------|--------|----------|------------------------------------------|
+| metadata | object |          | Metadata is the app resource metadata.   |
+| spec     | object |          | Spec is the app resource spec.           |
+| sub_kind | string |          | SubKind is an optional resource subkind. |
+| version  | string |          | Version is the resource version.         |
 
 
 ### metadata
@@ -156,7 +157,8 @@ Headers is a list of headers to inject when passing the request over to the appl
 
 
 Example:
-```terraform
+
+```
 # Teleport App
 
 resource "teleport_app" "example" {
@@ -176,11 +178,12 @@ resource "teleport_app" "example" {
 
 ## teleport_auth_preference
 
-|   Name   |  Type  | Required |               Description               |
-|----------|--------|----------|-----------------------------------------|
-| metadata | object |          | Metadata is resource metadata           |
-| spec     | object | *        | Spec is an AuthPreference specification |
-| version  | string |          | Version is a resource version           |
+|   Name   |  Type  | Required |                           Description                            |
+|----------|--------|----------|------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                    |
+| spec     | object | *        | Spec is an AuthPreference specification                          |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
+| version  | string |          | Version is a resource version                                    |
 
 
 ### metadata
@@ -267,7 +270,8 @@ Webauthn are the settings for server-side Web Authentication support.
 
 
 Example:
-```terraform
+
+```
 # AuthPreference resource
 
 resource "teleport_auth_preference" "example" {
@@ -300,7 +304,8 @@ resource "teleport_auth_preference" "example" {
 
 
 Example:
-```terraform
+
+```
 # Teleport Machine ID Bot creation example
 
 locals {
@@ -341,11 +346,12 @@ resource "teleport_bot" "example" {
 
 ## teleport_cluster_networking_config
 
-|   Name   |  Type  | Required |                   Description                   |
-|----------|--------|----------|-------------------------------------------------|
-| metadata | object |          | Metadata is resource metadata                   |
-| spec     | object |          | Spec is a ClusterNetworkingConfig specification |
-| version  | string |          | Version is a resource version                   |
+|   Name   |  Type  | Required |                           Description                            |
+|----------|--------|----------|------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                    |
+| spec     | object |          | Spec is a ClusterNetworkingConfig specification                  |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
+| version  | string |          | Version is a resource version                                    |
 
 
 ### metadata
@@ -407,7 +413,8 @@ TunnelStrategyV1 determines the tunnel strategy used in the cluster.
 
 
 Example:
-```terraform
+
+```
 # Teleport Cluster Networking config
 
 resource "teleport_cluster_networking_config" "example" {
@@ -427,11 +434,12 @@ resource "teleport_cluster_networking_config" "example" {
 
 ## teleport_database
 
-|   Name   |  Type  | Required |            Description             |
-|----------|--------|----------|------------------------------------|
-| metadata | object |          | Metadata is the database metadata. |
-| spec     | object |          | Spec is the database spec.         |
-| version  | string |          | Version is the resource version.   |
+|   Name   |  Type  | Required |               Description                |
+|----------|--------|----------|------------------------------------------|
+| metadata | object |          | Metadata is the database metadata.       |
+| spec     | object |          | Spec is the database spec.               |
+| sub_kind | string |          | SubKind is an optional resource subkind. |
+| version  | string |          | Version is the resource version.         |
 
 
 ### metadata
@@ -637,7 +645,8 @@ TLS is the TLS configuration used when establishing connection to target databas
 
 
 Example:
-```terraform
+
+```
 # Teleport Database
 
 resource "teleport_database" "example" {
@@ -658,11 +667,12 @@ resource "teleport_database" "example" {
 
 ## teleport_github_connector
 
-|   Name   |  Type  | Required |                Description                 |
-|----------|--------|----------|--------------------------------------------|
-| metadata | object |          | Metadata holds resource metadata.          |
-| spec     | object | *        | Spec is an Github connector specification. |
-| version  | string |          | Version is a resource version.             |
+|   Name   |  Type  | Required |                            Description                            |
+|----------|--------|----------|-------------------------------------------------------------------|
+| metadata | object |          | Metadata holds resource metadata.                                 |
+| spec     | object | *        | Spec is an Github connector specification.                        |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources. |
+| version  | string |          | Version is a resource version.                                    |
 
 
 ### metadata
@@ -718,7 +728,8 @@ TeamsToRoles maps Github team memberships onto allowed roles.
 
 
 Example:
-```terraform
+
+```
 # Terraform Github connector
 
 variable "github_secret" {}
@@ -752,11 +763,12 @@ resource "teleport_github_connector" "github" {
 
 ## teleport_oidc_connector
 
-|   Name   |  Type  | Required |               Description                |
-|----------|--------|----------|------------------------------------------|
-| metadata | object |          | Metadata holds resource metadata.        |
-| spec     | object | *        | Spec is an OIDC connector specification. |
-| version  | string |          | Version is a resource version.           |
+|   Name   |  Type  | Required |                            Description                            |
+|----------|--------|----------|-------------------------------------------------------------------|
+| metadata | object |          | Metadata holds resource metadata.                                 |
+| spec     | object | *        | Spec is an OIDC connector specification.                          |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources. |
+| version  | string |          | Version is a resource version.                                    |
 
 
 ### metadata
@@ -807,7 +819,8 @@ ClaimsToRoles specifies a dynamic mapping from claims to roles.
 
 
 Example:
-```terraform
+
+```
 # Teleport OIDC connector
 # 
 # Please note that OIDC connector will work in Enterprise version only. Check the setup docs:
@@ -840,11 +853,12 @@ resource "teleport_oidc_connector" "example" {
 
 ## teleport_provision_token
 
-|   Name   |  Type  | Required |             Description              |
-|----------|--------|----------|--------------------------------------|
-| metadata | object |          | Metadata is resource metadata        |
-| spec     | object | *        | Spec is a provisioning token V2 spec |
-| version  | string |          | Version is version                   |
+|   Name   |  Type  | Required |                           Description                            |
+|----------|--------|----------|------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                    |
+| spec     | object | *        | Spec is a provisioning token V2 spec                             |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
+| version  | string |          | Version is version                                               |
 
 
 ### metadata
@@ -975,7 +989,8 @@ Allow is a list of Rules, nodes using this token must match one allow rule to us
 
 
 Example:
-```terraform
+
+```
 # Teleport Provision Token resource
 
 resource "teleport_provision_token" "example" {
@@ -998,11 +1013,12 @@ resource "teleport_provision_token" "example" {
 
 ## teleport_role
 
-|   Name   |  Type  | Required |          Description          |
-|----------|--------|----------|-------------------------------|
-| metadata | object |          | Metadata is resource metadata |
-| spec     | object |          | Spec is a role specification  |
-| version  | string |          | Version is version            |
+|   Name   |  Type  | Required |                           Description                            |
+|----------|--------|----------|------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                    |
+| spec     | object |          | Spec is a role specification                                     |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
+| version  | string |          | Version is version                                               |
 
 
 ### metadata
@@ -1410,7 +1426,8 @@ RecordDesktopSession indicates whether desktop access sessions should be recorde
 
 
 Example:
-```terraform
+
+```
 # Teleport Role resource
 
 resource "teleport_role" "example" {
@@ -1465,11 +1482,12 @@ resource "teleport_role" "example" {
 
 ## teleport_saml_connector
 
-|   Name   |  Type  | Required |               Description                |
-|----------|--------|----------|------------------------------------------|
-| metadata | object |          | Metadata holds resource metadata.        |
-| spec     | object | *        | Spec is an SAML connector specification. |
-| version  | string |          | Version is a resource version.           |
+|   Name   |  Type  | Required |                            Description                            |
+|----------|--------|----------|-------------------------------------------------------------------|
+| metadata | object |          | Metadata holds resource metadata.                                 |
+| spec     | object | *        | Spec is an SAML connector specification.                          |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources. |
+| version  | string |          | Version is a resource version.                                    |
 
 
 ### metadata
@@ -1539,7 +1557,8 @@ SigningKeyPair is an x509 key pair used to sign AuthnRequest.
 
 
 Example:
-```terraform
+
+```
 # Teleport SAML connector
 # 
 # Please note that SAML connector will work in Enterprise version only. Check the setup docs:
@@ -1587,11 +1606,12 @@ resource "teleport_saml_connector" "example" {
 
 ## teleport_session_recording_config
 
-|   Name   |  Type  | Required |                  Description                   |
-|----------|--------|----------|------------------------------------------------|
-| metadata | object |          | Metadata is resource metadata                  |
-| spec     | object |          | Spec is a SessionRecordingConfig specification |
-| version  | string |          | Version is a resource version                  |
+|   Name   |  Type  | Required |                           Description                            |
+|----------|--------|----------|------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                    |
+| spec     | object |          | Spec is a SessionRecordingConfig specification                   |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
+| version  | string |          | Version is a resource version                                    |
 
 
 ### metadata
@@ -1617,7 +1637,8 @@ Spec is a SessionRecordingConfig specification
 
 
 Example:
-```terraform
+
+```
 # Teleport session recording config
 
 resource "teleport_session_recording_config" "example" {
@@ -1637,11 +1658,12 @@ resource "teleport_session_recording_config" "example" {
 
 ## teleport_trusted_cluster
 
-|   Name   |  Type  | Required |               Description                |
-|----------|--------|----------|------------------------------------------|
-| metadata | object |          | Metadata holds resource metadata.        |
-| spec     | object | *        | Spec is a Trusted Cluster specification. |
-| version  | string |          | Version is a resource version.           |
+|   Name   |  Type  | Required |                            Description                            |
+|----------|--------|----------|-------------------------------------------------------------------|
+| metadata | object |          | Metadata holds resource metadata.                                 |
+| spec     | object | *        | Spec is a Trusted Cluster specification.                          |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources. |
+| version  | string |          | Version is a resource version.                                    |
 
 
 ### metadata
@@ -1682,7 +1704,8 @@ RoleMap specifies role mappings to remote roles.
 
 
 Example:
-```terraform
+
+```
 # Teleport trusted cluster
 #
 # https://goteleport.com/docs/setup/admin/trustedclusters/
@@ -1710,11 +1733,12 @@ resource "teleport_trusted_cluster" "cluster" {
 
 ## teleport_user
 
-|   Name   |  Type  | Required |          Description          |
-|----------|--------|----------|-------------------------------|
-| metadata | object |          | Metadata is resource metadata |
-| spec     | object |          | Spec is a user specification  |
-| version  | string |          | Version is version            |
+|   Name   |  Type  | Required |                           Description                            |
+|----------|--------|----------|------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                    |
+| spec     | object |          | Spec is a user specification                                     |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
+| version  | string |          | Version is version                                               |
 
 
 ### metadata
@@ -1774,7 +1798,8 @@ SAMLIdentities lists associated SAML identities that let user log in using exter
 
 
 Example:
-```terraform
+
+```
 # Teleport User resource
 
 resource "teleport_user" "example" {
@@ -1819,4 +1844,3 @@ resource "teleport_user" "example" {
   }
 }
 ```
-
