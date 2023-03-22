@@ -25,11 +25,17 @@ jobs:
     container:
       image: ghcr.io/gravitational/docs:latest
       volumes:
-        - ${{ github.workspace }}:/src/content
+        - ${{ github.workspace }}:/src/content/docs
 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
+      - name: Prepare config
+        run: echo "{\"versions\": [{\"name\": \"docs\", \"branch\": \"$GITHUB_REF_NAME\", \"deprecated\": false}]}" > /src/config.json 
+
+      - name: Test the docs build
+        run: yarn install && yarn build
 
       - name: Run tests
         run: cd /src && yarn markdown-lint
