@@ -205,21 +205,18 @@ func (c *fetchConfig) fetchContainerOrchestrator() string {
 	url := fmt.Sprintf("https://%s:%s/version", c.getenv("KUBERNETES_SERVICE_HOST"), c.getenv("KUBERNETES_SERVICE_PORT"))
 	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
-		log.Debugf("Failed to create kubernetes http GET request '%s': %s", url, err)
 		return ""
 	}
 
 	const insecureSkipVerify = true
 	resp, err := c.httpDo(req, insecureSkipVerify)
 	if err != nil {
-		log.Debugf("Failed to perform http GET request: %s", err)
 		return ""
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Debugf("Failed to read http response body: %s", err)
 		return ""
 	}
 
@@ -227,7 +224,7 @@ func (c *fetchConfig) fetchContainerOrchestrator() string {
 		GitVersion string `json:"gitVersion"`
 	}
 	if err := json.Unmarshal(body, &version); err != nil {
-		log.Debugf("Failed to unmarshal http response body: %s", err)
+		return ""
 	}
 
 	return fmt.Sprintf("kubernetes-%s", version.GitVersion)
