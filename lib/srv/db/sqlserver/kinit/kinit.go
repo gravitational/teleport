@@ -31,7 +31,6 @@ import (
 	"github.com/jcmturner/gokrb5/v8/credentials"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/windows"
 )
 
@@ -192,25 +191,6 @@ type DBCertGetter struct {
 	UserName string
 	// LDAPCA is the windows ldap certificate
 	LDAPCA *x509.Certificate
-}
-
-func (d *DBCertGetter) caFunc(ctx context.Context, clusterName string) ([]byte, error) {
-	dbCA, err := d.Auth.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: clusterName,
-	}, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var caCert []byte
-	keyPairs := dbCA.GetActiveKeys().TLS
-	for _, keyPair := range keyPairs {
-		if keyPair.KeyType == types.PrivateKeyType_RAW {
-			caCert = keyPair.Cert
-		}
-	}
-	return caCert, nil
 }
 
 // WindowsCAAndKeyPair is a wrapper around PEM bytes for Windows authentication
