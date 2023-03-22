@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -1500,6 +1501,90 @@ func TestSessionRecordingConfigRBAC(t *testing.T) {
 			return s.ResetSessionRecordingConfig(ctx)
 		},
 	})
+}
+
+func BenchmarkListNodes(b *testing.B) {
+	const nodeCount = 50_000
+	const roleCount = 32
+
+	ctx := context.Background()
+	srv := newTestTLSServer(b)
+
+	var values []string
+	for i := 0; i < roleCount; i++ {
+		values = append(values, uuid.New().String())
+	}
+
+	values[0] = "evil"
+
+	var evilNodes int
+	// Create test nodes.
+	for i := 0; i < nodeCount; i++ {
+		name := uuid.New().String()
+		val := values[i%len(values)]
+		if val == "evil" {
+			evilNodes++
+		}
+		node, err := types.NewServerWithLabels(
+			name,
+			types.KindNode,
+			types.ServerSpecV2{},
+			//map[string]string{"name": name},
+			map[string]string{"key": val},
+		)
+		require.NoError(b, err)
+
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(b, err)
+	}
+
+	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
+	require.NoError(b, err)
+	require.Len(b, testNodes, nodeCount)
+
+	var roles []types.Role
+	for _, val := range values {
+		role, err := types.NewRole(fmt.Sprintf("role-%s", val), types.RoleSpecV5{})
+		require.NoError(b, err)
+
+		if val == "evil" {
+			role.SetNodeLabels(types.Deny, types.Labels{"key": {val}})
+		} else {
+			role.SetNodeLabels(types.Allow, types.Labels{"key": {val}})
+		}
+		roles = append(roles, role)
+	}
+
+	// create user, role, and client
+	username := "user"
+
+	user, err := CreateUser(srv.Auth(), username, roles...)
+	require.NoError(b, err)
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(b, err)
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+		var resources []types.ResourceWithLabels
+		req := proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    apidefaults.Namespace,
+			Limit:        1_000,
+		}
+		for {
+			rsp, err := clt.ListResources(ctx, req)
+			require.NoError(b, err)
+
+			resources = append(resources, rsp.Resources...)
+			req.StartKey = rsp.NextKey
+			if req.StartKey == "" {
+				break
+			}
+		}
+		require.Len(b, resources, nodeCount-evilNodes)
+	}
 }
 
 // TestGetAndList_Nodes users can retrieve nodes with various filters

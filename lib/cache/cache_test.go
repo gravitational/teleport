@@ -707,7 +707,7 @@ cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
 BenchmarkGetMaxNodes-16     	       1	1029199093 ns/op
 */
 func BenchmarkGetMaxNodes(b *testing.B) {
-	benchGetNodes(b, backend.DefaultRangeLimit)
+	benchGetNodes(b, 50_000)
 }
 
 func benchGetNodes(b *testing.B, nodeCount int) {
@@ -736,6 +736,57 @@ func benchGetNodes(b *testing.B, nodeCount int) {
 		nodes, err := p.cache.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(b, err)
 		require.Len(b, nodes, nodeCount)
+	}
+}
+
+func BenchmarkBigListResources(b *testing.B) {
+	benchBigListResources(b, 50_000)
+}
+
+func benchBigListResources(b *testing.B, nodeCount int) {
+	p, err := newPack(b.TempDir(), ForAuth, memoryBackend(true))
+	require.NoError(b, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	for i := 0; i < nodeCount; i++ {
+		server := suite.NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
+		server.SetStaticLabels(map[string]string{
+			"key": uuid.New().String(),
+		})
+		_, err := p.presenceS.UpsertNode(ctx, server)
+		require.NoError(b, err)
+
+		select {
+		case event := <-p.eventsC:
+			require.Equal(b, EventProcessed, event.Type)
+		case <-time.After(200 * time.Millisecond):
+			b.Fatalf("timeout waiting for event, iteration=%d", i)
+		}
+	}
+
+	b.ResetTimer()
+
+	for n := 0; n < b.N; n++ {
+
+		var resources []types.ResourceWithLabels
+		req := proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    apidefaults.Namespace,
+			Limit:        1_000,
+		}
+		for {
+			rsp, err := p.cache.ListResources(ctx, req)
+			require.NoError(b, err)
+
+			resources = append(resources, rsp.Resources...)
+			req.StartKey = rsp.NextKey
+			if req.StartKey == "" {
+				break
+			}
+		}
+		require.Len(b, resources, nodeCount)
 	}
 }
 
