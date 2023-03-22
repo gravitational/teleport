@@ -23,6 +23,16 @@ exports[`renders 1`] = `
   border-radius: 8px;
 }
 
+.c3 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 28px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 24px;
+}
+
 .c0 {
   display: block;
   outline: none;
@@ -32,16 +42,6 @@ exports[`renders 1`] = `
   margin-bottom: 40px;
   max-width: 200px;
   max-height: 120px;
-}
-
-.c3 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 28px;
-  line-height: 32px;
-  margin: 0px;
-  margin-bottom: 24px;
 }
 
 <div>

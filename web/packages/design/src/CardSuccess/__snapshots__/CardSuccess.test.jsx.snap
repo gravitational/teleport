@@ -1,14 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`rendering of CardSuccess components 1`] = `
-.c1 {
-  display: inline-block;
-  transition: color 0.3s;
-  margin-bottom: 16px;
-  color: #00bfa5;
-  font-size: 56px;
-}
-
 .c0 {
   box-sizing: border-box;
   margin-left: auto;
@@ -21,6 +13,14 @@ exports[`rendering of CardSuccess components 1`] = `
   text-align: center;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
+}
+
+.c1 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-bottom: 16px;
+  color: #00bfa5;
+  font-size: 56px;
 }
 
 <div

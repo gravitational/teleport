@@ -133,15 +133,6 @@ exports[`empty state 1`] = `
   color: #FFFFFF;
 }
 
-.c7 {
-  display: block;
-  outline: none;
-  margin-bottom: 24px;
-  margin-left: auto;
-  margin-right: auto;
-  height: 160px;
-}
-
 .c8 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -160,6 +151,15 @@ exports[`empty state 1`] = `
   font-size: 14px;
   margin: 0px;
   font-weight: 400;
+}
+
+.c7 {
+  display: block;
+  outline: none;
+  margin-bottom: 24px;
+  margin-left: auto;
+  margin-right: auto;
+  height: 160px;
 }
 
 .c3 {
