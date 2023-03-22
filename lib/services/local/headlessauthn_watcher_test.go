@@ -114,40 +114,39 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second*2)
 		defer waitCancel()
 
-		// Create two waiters - a blocked consumer and a free consumer.
-		blockWait := make(chan struct{})
-		_, errC := waitInGoroutine(waitCtx, t, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
-			<-blockWait
-			return false, nil
-		})
-
+		// Create a waiter that we can block/unblock.
 		notifyReceived := make(chan struct{}, 1)
-		waitInGoroutine(waitCtx, t, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
+		blockWaiter := make(chan struct{})
+		_, errC := waitInGoroutine(waitCtx, t, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
 			notifyReceived <- struct{}{}
+			<-blockWaiter
 			return false, nil
 		})
 
-		// Create stub and wait for it to be caught by the free waiter.
+		// Create stub and wait for it to be caught by the waiter.
 		stub, err := identity.CreateHeadlessAuthenticationStub(ctx, pubUUID)
 		require.NoError(t, err)
 		<-notifyReceived
 
+		// perform a put to mark the blocked waiter as stale and
 		replace := *stub
 		replace.PublicKey = []byte(sshPubKey)
 		replace.User = "user"
-
-		// perform a put to mark the blocked waiter as stale and
-		// wait for it to be caught by the free waiter.
 		_, err = identity.CompareAndSwapHeadlessAuthentication(ctx, stub, &replace)
 		require.NoError(t, err)
-		<-notifyReceived
 
-		// delete the headless authentication and unblock.
+		require.Eventually(t, func() bool {
+			ok, err := w.CheckWaiterStale(pubUUID)
+			require.NoError(t, err)
+			return ok
+		}, time.Second, time.Millisecond, "Expected waiter to be marked as stale")
+
+		// delete the headless authentication.
 		err = identity.DeleteHeadlessAuthentication(ctx, pubUUID)
 		require.NoError(t, err)
-		close(blockWait)
 
-		// the blocked waiter should perform a stale check and return a not found error.
+		// unblock the waiter. It should perform a stale check and return a not found error.
+		close(blockWaiter)
 		err = <-errC
 		require.True(t, trace.IsNotFound(err), "Expected a not found error from Wait but got %v", err)
 	})

@@ -224,6 +224,24 @@ func (h *HeadlessAuthenticationWatcher) CheckWaiter(name string) bool {
 	return false
 }
 
+// CheckWaiterStale checks if the active waiter with the given
+// headless authentication ID is marked as stale. Used in tests.
+func (h *HeadlessAuthenticationWatcher) CheckWaiterStale(name string) (bool, error) {
+	h.mux.Lock()
+	defer h.mux.Unlock()
+	for i := range h.waiters {
+		if h.waiters[i].name == name {
+			select {
+			case <-h.waiters[i].stale:
+				return true, nil
+			default:
+				return false, nil
+			}
+		}
+	}
+	return false, trace.NotFound("no waiter found with ID %v", name)
+}
+
 // Wait watches for the headless authentication with the given id to be added/updated
 // in the backend, and waits for the given condition to be met, to result in an error,
 // or for the given context to close.
