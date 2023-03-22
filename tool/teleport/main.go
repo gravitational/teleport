@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -31,4 +32,5 @@ func main() {
 	common.Run(common.Options{
 		Args: os.Args[1:],
 	})
+	fmt.Println("test")
 }
