@@ -57,3 +57,7 @@ jobs:
       - name: Run kube-agent-updater tests
         timeout-minutes: 15
         run: make test-kube-agent-updater
+
+      - name: Run teleport-usage tests
+        timeout-minutes: 15
+        run: make test-teleport-usage

@@ -59,7 +59,7 @@ jobs:
       - name: Run base difftest
         uses: ./.github/actions/difftest
         with:
-          flags: -e "integrations/operator/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*"  -e "integrations/kube-agent-updater/**/*"
+          flags: -e "integrations/operator/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*"  -e "integrations/kube-agent-updater/**/*" -e "examples/teleport-usage/**/*"
           target: test-go-unit
 
       - name: Run libfido2 difftest
@@ -91,3 +91,9 @@ jobs:
         with:
           flags: --include "integrations/kube-agent-updater/**/*" --relative "integrations/kube-agent-updater"
           target: test-kube-agent-updater
+
+      - name: Run teleport-usage difftest
+        uses: ./.github/actions/difftest
+        with:
+          flags: --include "examples/teleport-usage/**/*" --relative "examples/teleport-usage"
+          target: test-teleport-usage
