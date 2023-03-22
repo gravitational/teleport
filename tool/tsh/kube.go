@@ -168,7 +168,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 			}
 
 			// Cache the new cert on disk for reuse.
-			if err := tc.LocalAgent().AddKey(k); err != nil {
+			if err := tc.LocalAgent().AddKubeKey(k); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -646,7 +646,7 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	// Cache the new cert on disk for reuse.
-	if err := tc.LocalAgent().AddKey(k); err != nil {
+	if err := tc.LocalAgent().AddKubeKey(k); err != nil {
 		return trace.Wrap(err)
 	}
 
