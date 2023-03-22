@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -59,6 +60,7 @@ func NewAggregatingUsageReporter(
 	anonymizer utils.Anonymizer,
 	backend backend.Backend,
 	submitter UsageReportsSubmitter,
+	status services.StatusInternal,
 	clusterName string,
 	reporterHostID string,
 ) (*AggregatingUsageReporter, error) {
@@ -69,6 +71,7 @@ func NewAggregatingUsageReporter(
 		anonymizer: anonymizer,
 		backend:    backend,
 		submitter:  submitter,
+		status:     status,
 
 		clusterName:    anonymizer.AnonymizeNonEmpty(clusterName),
 		reporterHostID: anonymizer.AnonymizeNonEmpty(reporterHostID),
@@ -95,6 +98,7 @@ type AggregatingUsageReporter struct {
 	anonymizer utils.Anonymizer
 	backend    backend.Backend
 	submitter  UsageReportsSubmitter
+	status     services.StatusInternal
 
 	clusterName    []byte
 	reporterHostID []byte
@@ -343,6 +347,7 @@ func (r *AggregatingUsageReporter) doSubmit(ctx context.Context) {
 		return
 	}
 	if len(getResult.Items) < 1 {
+		_ = r.status.DeleteClusterAlert(ctx, "reporting-failed")
 		return
 	}
 
@@ -374,6 +379,17 @@ func (r *AggregatingUsageReporter) doSubmit(ctx context.Context) {
 			UserActivity: reports,
 		}),
 	); err != nil {
+		if time.Since(reports[0].StartTime.AsTime()) > time.Hour*24 {
+			alert, err := types.NewClusterAlert(
+				"reporting-failed",
+				"Failed to sync usage data for over 24 hours",
+				types.WithAlertLabel(types.AlertOnLogin, "yes"),
+				types.WithAlertLabel(types.AlertPermitAll, "yes"),
+			)
+			if err == nil {
+				_ = r.status.UpsertClusterAlert(ctx, alert)
+			}
+		}
 		// TODO: log
 		return
 	}
