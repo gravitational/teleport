@@ -48,6 +48,11 @@ var watcherClosedErr = trace.Errorf("headless authentication watcher closed")
 type HeadlessAuthenticationWatcherConfig struct {
 	// Backend is the storage backend used to create watchers.
 	Backend backend.Backend
+	// WatcherService is a service used to create new watchers.
+	// If nil, Backend will be used as the watcher service.
+	WatcherService interface {
+		NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error)
+	}
 	// Log is a logger.
 	Log logrus.FieldLogger
 	// Clock is used to control time.
@@ -60,6 +65,9 @@ type HeadlessAuthenticationWatcherConfig struct {
 func (cfg *HeadlessAuthenticationWatcherConfig) CheckAndSetDefaults() error {
 	if cfg.Backend == nil {
 		return trace.BadParameter("missing parameter Backend")
+	}
+	if cfg.WatcherService == nil {
+		cfg.WatcherService = cfg.Backend
 	}
 	if cfg.Log == nil {
 		cfg.Log = logrus.StandardLogger()
@@ -145,7 +153,7 @@ func (h *HeadlessAuthenticationWatcher) runWatchLoop(ctx context.Context) {
 }
 
 func (h *HeadlessAuthenticationWatcher) watch(ctx context.Context) error {
-	watcher, err := h.Backend.NewWatcher(ctx, backend.Watch{
+	watcher, err := h.WatcherService.NewWatcher(ctx, backend.Watch{
 		Name:            types.KindHeadlessAuthentication,
 		MetricComponent: types.KindHeadlessAuthentication,
 		Prefixes:        [][]byte{headlessAuthenticationKey("")},
@@ -209,37 +217,6 @@ func (h *HeadlessAuthenticationWatcher) notify(headlessAuthns ...*types.Headless
 			}
 		}
 	}
-}
-
-// CheckWaiter checks if there is an active waiter matching the given
-// headless authentication ID. Used in tests.
-func (h *HeadlessAuthenticationWatcher) CheckWaiter(name string) bool {
-	h.mux.Lock()
-	defer h.mux.Unlock()
-	for i := range h.waiters {
-		if h.waiters[i].name == name {
-			return true
-		}
-	}
-	return false
-}
-
-// CheckWaiterStale checks if the active waiter with the given
-// headless authentication ID is marked as stale. Used in tests.
-func (h *HeadlessAuthenticationWatcher) CheckWaiterStale(name string) (bool, error) {
-	h.mux.Lock()
-	defer h.mux.Unlock()
-	for i := range h.waiters {
-		if h.waiters[i].name == name {
-			select {
-			case <-h.waiters[i].stale:
-				return true, nil
-			default:
-				return false, nil
-			}
-		}
-	}
-	return false, trace.NotFound("no waiter found with ID %v", name)
 }
 
 // Wait watches for the headless authentication with the given id to be added/updated
