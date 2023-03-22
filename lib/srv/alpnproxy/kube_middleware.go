@@ -21,7 +21,6 @@ import (
 	"net/http"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // KubeClientCerts is a map of Kubernetes client certs.
@@ -33,14 +32,12 @@ type KubeMiddleware struct {
 	DefaultLocalProxyHTTPMiddleware
 
 	certs KubeClientCerts
-	log   logrus.FieldLogger
 }
 
 // NewKubeMiddleware creates a new KubeMiddleware.
 func NewKubeMiddleware(certs KubeClientCerts) LocalProxyHTTPMiddleware {
 	return &KubeMiddleware{
 		certs: certs,
-		log:   logrus.WithField(trace.Component, "kube"),
 	}
 }
 
@@ -58,7 +55,6 @@ func (m *KubeMiddleware) OverwriteClientCerts(req *http.Request) ([]tls.Certific
 		return nil, trace.BadParameter("expect a TLS request")
 	}
 
-	m.log.Debugf("Received Kubernetes request for %v", req.TLS.ServerName)
 	cert, ok := m.certs[req.TLS.ServerName]
 	if !ok {
 		return nil, trace.NotFound("no client cert found for %v", req.TLS.ServerName)

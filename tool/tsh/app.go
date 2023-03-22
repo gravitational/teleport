@@ -513,13 +513,12 @@ func loadSelfSignedCA(profile *client.ProfileStatus, caPath string, dnsNames ...
 
 	caTLSCert, err := keys.LoadX509KeyPair(caPath, keyPath)
 	if err == nil {
-		var expire time.Time
-		if expire, err = getTLSCertExpireTime(caTLSCert); err == nil && time.Now().Before(expire) {
+		if expire, err := getTLSCertExpireTime(caTLSCert); err == nil && time.Now().Before(expire) {
 			return caTLSCert, nil
 		}
 	}
 	if err != nil && !trace.IsNotFound(err) {
-		log.WithError(err).Debugf("Failed to load certificate from %v. Generating local self signed CA.", caPath)
+		log.WithError(err).Debugf("Failed to load certificate from %v.", caPath)
 	}
 
 	// Generate and load again.
@@ -537,6 +536,7 @@ func loadSelfSignedCA(profile *client.ProfileStatus, caPath string, dnsNames ...
 // generateSelfSignedCA generates a new self-signed CA for provided dnsNames
 // and saves/overwrites the local CA file in the profile directory.
 func generateSelfSignedCA(profile *client.ProfileStatus, caPath string, dnsNames ...string) error {
+	log.Debugf("Generating local self signed CA at %v", caPath)
 	keyPem, err := utils.ReadPath(profile.KeyPath())
 	if err != nil {
 		return trace.Wrap(err)

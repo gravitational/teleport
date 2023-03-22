@@ -91,7 +91,7 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 	hint := fmt.Sprintf("MFA is required to access database %q", c.dbRoute.ServiceName)
 	var key *Key
 	if err := RetryWithRelogin(ctx, c.tc, func() error {
-		newKey, _, err := c.tc.IssueUserCertsWithMFA(ctx, ReissueParams{
+		newKey, err := c.tc.IssueUserCertsWithMFA(ctx, ReissueParams{
 			RouteToCluster: c.tc.SiteName,
 			RouteToDatabase: proto.RouteToDatabase{
 				ServiceName: c.dbRoute.ServiceName,

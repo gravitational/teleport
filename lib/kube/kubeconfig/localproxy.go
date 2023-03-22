@@ -45,11 +45,6 @@ type LocalProxyClusterValues struct {
 	KubeClusters []string
 }
 
-// ContextName returns a kubeconfig context name for this kube cluster.
-func (v *LocalProxyClusterValues) ContextName() string {
-	return ContextName(v.TeleportCluster, v.KubeCluster)
-}
-
 // TLSServerName returns the TLSServerName  for this kube cluster.
 func (v *LocalProxyClusterValues) TLSServerName() string {
 	// Hex encode to hide "." in kube cluster name so wildcard cert can be used.
@@ -95,7 +90,7 @@ func SaveLocalProxyValues(path string, defaultConfig *clientcmdapi.Config, local
 	removeByServerAddr(config, localProxyValues.TeleportKubeClusterAddr)
 
 	for _, cluster := range localProxyValues.Clusters {
-		contextName := cluster.ContextName()
+		contextName := ContextName(cluster.TeleportCluster, cluster.KubeCluster)
 
 		config.Clusters[contextName] = &clientcmdapi.Cluster{
 			ProxyURL:             localProxyValues.LocalProxyURL,

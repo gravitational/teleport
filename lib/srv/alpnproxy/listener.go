@@ -221,7 +221,6 @@ func (r *CertGenListener) generateCertFor(host string) (*tls.Certificate, error)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
 	if cert, found := r.certificatesByHost[host]; found {
 		return cert, nil
 	}

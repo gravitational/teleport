@@ -146,7 +146,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	// Loaded existing credentials and have a cert for this cluster? Return it
 	// right away.
 	if err == nil {
-		crt, err := k.KubeTLSCertificate(kubeCluster)
+		crt, err := k.KubeX509Cert(kubeCluster)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -155,7 +155,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 		} else {
 			err = client.RetryWithRelogin(cf.Context, tc, func() error {
 				var err error
-				k, _, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+				k, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 					RouteToCluster:    cluster,
 					KubernetesCluster: kubeCluster,
 				}, nil /*applyOpts*/)
@@ -608,8 +608,8 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	// Loaded existing credentials and have a cert for this cluster? Return it
 	// right away.
 	if err == nil {
-		_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/KubeTLSCertificate")
-		crt, err := k.KubeTLSCertificate(c.kubeCluster)
+		_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/KubeX509Cert")
+		crt, err := k.KubeX509Cert(c.kubeCluster)
 		span.End()
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -627,7 +627,7 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	ctx, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/RetryWithRelogin")
 	err = client.RetryWithRelogin(ctx, tc, func() error {
 		var err error
-		k, _, err = tc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+		k, err = tc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 			RouteToCluster:    c.teleportCluster,
 			KubernetesCluster: c.kubeCluster,
 		}, nil /*applyOpts*/)
@@ -696,7 +696,7 @@ func checkIfCertHasKubeGroupsAndUsers(certB []byte) (bool, error) {
 }
 
 func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, key *client.Key, kubeClusterName string) error {
-	crt, err := key.KubeTLSCertificate(kubeClusterName)
+	crt, err := key.KubeX509Cert(kubeClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}

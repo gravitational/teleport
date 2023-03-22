@@ -762,12 +762,6 @@ func (c *Config) KubeProxyHostPort() (string, int) {
 	return webProxyHost, defaults.KubeListenPort
 }
 
-// KubeProxyHost returns the host and port of the Kubernetes proxy.
-func (c *Config) KubeProxyHost() string {
-	host, _ := c.KubeProxyHostPort()
-	return host
-}
-
 // KubeClusterAddr returns a public HTTPS address of the proxy for use by
 // Kubernetes client.
 func (c *Config) KubeClusterAddr() string {
@@ -1271,7 +1265,7 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 // (according to RBAC), IssueCertsWithMFA will:
 // - for SSH certs, return the existing Key from the keystore.
 // - for TLS certs, fall back to ReissueUserCerts.
-func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, applyOpts func(opts *PromptMFAChallengeOpts)) (*Key, bool, error) {
+func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, applyOpts func(opts *PromptMFAChallengeOpts)) (*Key, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/IssueUserCertsWithMFA",
@@ -1281,15 +1275,16 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
-		return nil, false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 
-	return proxyClient.IssueUserCertsWithMFA(
+	key, _, err := proxyClient.IssueUserCertsWithMFA(
 		ctx, params,
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 			return tc.PromptMFAChallenge(ctx, proxyAddr, c, applyOpts)
 		})
+	return key, trace.Wrap(err)
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
