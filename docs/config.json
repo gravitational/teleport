@@ -845,6 +845,10 @@
               "slug": "/kubernetes-access/register-clusters/static-kubeconfig/"
             },
             {
+              "title": "Register a Cluster with IAM Joining",
+              "slug": "/kubernetes-access/register-clusters/iam-joining/"
+            },
+            {
               "title": "Register Clusters Dynamically",
               "slug": "/kubernetes-access/register-clusters/dynamic-registration/"
             }
