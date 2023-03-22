@@ -202,7 +202,13 @@ func (c *fetchConfig) fetchContainerRuntime() string {
 // This function performs the equivalent of the following:
 // curl -k https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT/version | jq .gitVersion
 func (c *fetchConfig) fetchContainerOrchestrator() string {
-	url := fmt.Sprintf("https://%s:%s/version", c.getenv("KUBERNETES_SERVICE_HOST"), c.getenv("KUBERNETES_SERVICE_PORT"))
+	host := c.getenv("KUBERNETES_SERVICE_HOST")
+	port := c.getenv("KUBERNETES_SERVICE_PORT")
+	if host == "" || port == "" {
+		return ""
+	}
+
+	url := fmt.Sprintf("https://%s:%s/version", host, port)
 	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
 		return ""
