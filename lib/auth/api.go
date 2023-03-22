@@ -1241,6 +1241,13 @@ func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) err
 	return w.NoCache.DeleteOktaAssignment(ctx, name)
 }
 
+// Close closes all associated resources
+func (w *OktaWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadOktaAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
+}
+
 // NewRemoteProxyCachingAccessPoint returns new caching access point using
 // access point policy
 type NewRemoteProxyCachingAccessPoint func(clt ClientI, cacheName []string) (RemoteProxyAccessPoint, error)
