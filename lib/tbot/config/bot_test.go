@@ -45,15 +45,19 @@ const (
 	// mockClusterName is the cluster name for the mock auth client, used in
 	// tests
 	mockClusterName = "tele.blackmesa.gov"
+	// mockRemoteClusterName is the remote cluster name used for the mock auth
+	// client
+	mockRemoteClusterName = "tele.aperture.labs"
 )
 
 // mockAuth is a minimal fake auth client, used in tests
 type mockAuth struct {
 	auth.ClientI
 
-	clusterName string
-	proxyAddr   string
-	t           *testing.T
+	clusterName       string
+	remoteClusterName string
+	proxyAddr         string
+	t                 *testing.T
 }
 
 func (m *mockAuth) GetDomainName(ctx context.Context) (string, error) {
@@ -69,6 +73,12 @@ func (m *mockAuth) GetClusterName(opts ...services.MarshalOption) (types.Cluster
 	return cn, nil
 }
 
+func (m *mockAuth) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+	rc, err := types.NewRemoteCluster(m.remoteClusterName)
+	require.NoError(m.t, err)
+	return []types.RemoteCluster{rc}, nil
+}
+
 func (m *mockAuth) Ping(ctx context.Context) (proto.PingResponse, error) {
 	require.NotNil(m.t, ctx)
 	return proto.PingResponse{
@@ -78,13 +88,17 @@ func (m *mockAuth) Ping(ctx context.Context) (proto.PingResponse, error) {
 
 func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	require.NotNil(m.t, ctx)
-	require.Equal(m.t, m.clusterName, id.DomainName)
+	require.Contains(
+		m.t,
+		[]string{m.clusterName, m.remoteClusterName},
+		id.DomainName,
+	)
 	require.False(m.t, loadKeys)
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		// Pretend to be the correct type.
 		Type:        id.Type,
-		ClusterName: m.clusterName,
+		ClusterName: id.DomainName,
 		ActiveKeys: types.CAKeySet{
 			TLS: []*types.TLSKeyPair{
 				{
@@ -126,9 +140,10 @@ func (m *mockAuth) GetCertAuthorities(ctx context.Context, caType types.CertAuth
 
 func newMockAuth(t *testing.T) *mockAuth {
 	return &mockAuth{
-		t:           t,
-		clusterName: mockClusterName,
-		proxyAddr:   mockProxyAddr,
+		t:                 t,
+		clusterName:       mockClusterName,
+		proxyAddr:         mockProxyAddr,
+		remoteClusterName: mockRemoteClusterName,
 	}
 }
 

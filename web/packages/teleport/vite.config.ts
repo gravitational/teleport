@@ -14,18 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+import { resolve } from 'path';
 
-import (
-	"golang.org/x/exp/rand"
-)
+import { createViteConfig } from '../build/vite/config';
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
+const rootDirectory = resolve(__dirname, '../../..');
+const outputDirectory = resolve(rootDirectory, 'webassets/teleport');
 
-func validRandomResourceName(prefix string) string {
-	b := make([]rune, 5)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	return prefix + string(b)
-}
+const config = createViteConfig(rootDirectory, outputDirectory);
+
+export { config as default };

@@ -474,6 +474,12 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		JoinMethod:         b.cfg.Onboarding.JoinMethod,
 		Expires:            &expires,
 	}
+	if params.JoinMethod == types.JoinMethodAzure {
+		params.AzureParams = auth.AzureParams{
+			ClientID: b.cfg.Onboarding.Azure.ClientID,
+		}
+	}
+
 	certs, err := auth.Register(params)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -500,10 +506,11 @@ func (b *Bot) renewIdentityViaAuth(
 	switch joinMethod {
 	// When using join methods that are repeatable - renew fully rather than
 	// renewing using existing credentials.
-	case types.JoinMethodIAM,
+	case types.JoinMethodAzure,
+		types.JoinMethodCircleCI,
 		types.JoinMethodGitHub,
 		types.JoinMethodGitLab,
-		types.JoinMethodCircleCI:
+		types.JoinMethodIAM:
 		ident, err := b.getIdentityFromToken()
 		return ident, trace.Wrap(err)
 	default:

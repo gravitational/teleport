@@ -14,18 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+export function getStyledComponentsConfig(mode: string) {
+  // https://nextjs.org/docs/advanced-features/compiler#styled-components
+  if (mode === 'production') {
+    return {
+      ssr: false,
+      pure: false, // not currently supported by SWC
+      displayName: false,
+      fileName: false,
+      cssProp: true,
+    };
+  }
 
-import (
-	"golang.org/x/exp/rand"
-)
-
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
-
-func validRandomResourceName(prefix string) string {
-	b := make([]rune, 5)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	return prefix + string(b)
+  return {
+    ssr: false,
+    pure: true, // not currently supported by SWC
+    displayName: true,
+    fileName: true,
+    cssProp: true,
+  };
 }

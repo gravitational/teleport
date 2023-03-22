@@ -39,7 +39,7 @@ func (m TriggerMock) CanStart(_ context.Context, _ client.Object) (bool, error) 
 	return m.canStart, nil
 }
 
-// Default returns the default behaviour if the trigger fails. This cannot
+// Default returns the default behavior if the trigger fails. This cannot
 // happen for a TriggerMock and is here solely to implement the Trigger
 // interface.
 func (m TriggerMock) Default() bool {

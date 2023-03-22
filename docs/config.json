@@ -639,6 +639,10 @@
           "slug": "/connect-your-client/tsh/"
         },
         {
+          "title": "Using the Web UI",
+          "slug": "/connect-your-client/web-ui/"
+        },
+        {
           "title": "Using Teleport Connect",
           "slug": "/connect-your-client/teleport-connect/"
         },
@@ -1376,7 +1380,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.1.1",
+      "version": "12.1.2",
       "major_version": "12",
       "sla": {
         "monthly_percentage": "99.5%",

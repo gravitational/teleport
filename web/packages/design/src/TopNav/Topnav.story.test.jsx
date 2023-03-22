@@ -14,18 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+import React from 'react';
 
-import (
-	"golang.org/x/exp/rand"
-)
+import { render } from 'design/utils/testing';
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz1234567890")
+import { Sample } from './TopNav.story';
 
-func validRandomResourceName(prefix string) string {
-	b := make([]rune, 5)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	return prefix + string(b)
-}
+test('rendering of TopNav and TopNavItem', () => {
+  const { container } = render(<Sample />);
+  expect(container.firstChild).toMatchSnapshot();
+});
