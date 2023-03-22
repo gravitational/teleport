@@ -43,5 +43,4 @@ limitations under the License.
 // `teleport/integrations/kube-agent-updater/hack/cosign-fixtures.go`. The
 // executable generates a go file declaring all blobs and manifests to be
 // loaded in the test registry.
-
 package img

@@ -368,15 +368,15 @@ func formatCommand(cmd *exec.Cmd) string {
 }
 
 func onProxyCommandDB(cf *CLIConf) error {
-	client, err := makeClient(cf, false)
+	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.ProfileStatus()
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	route, db, err := getDatabaseInfo(cf, client, cf.DatabaseService)
+	route, db, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -386,18 +386,18 @@ func onProxyCommandDB(cf *CLIConf) error {
 	// 2. check if db login is required.
 	// These steps are not needed with `--tunnel`, because the local proxy tunnel
 	// will manage database certificates itself and reissue them as needed.
-	requires := getDBLocalProxyRequirement(client, route)
+	requires := getDBLocalProxyRequirement(tc, route)
 	if requires.tunnel && !isLocalProxyTunnelRequested(cf) {
 		// Some scenarios require a local proxy tunnel, e.g.:
 		// - Snowflake, DynamoDB protocol
 		// - Hardware-backed private key policy
 		return trace.BadParameter(formatDbCmdUnsupported(cf, route, requires.tunnelReasons...))
 	}
-	if err := maybeDatabaseLogin(cf, client, profile, route, requires); err != nil {
+	if err := maybeDatabaseLogin(cf, tc, profile, route, requires); err != nil {
 		return trace.Wrap(err)
 	}
 
-	rootCluster, err := client.RootClusterName(cf.Context)
+	rootCluster, err := tc.RootClusterName(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -421,11 +421,10 @@ func onProxyCommandDB(cf *CLIConf) error {
 	tunnel := isLocalProxyTunnelRequested(cf)
 	proxyOpts, err := prepareLocalProxyOptions(&localProxyConfig{
 		cf:               cf,
-		tc:               client,
+		tc:               tc,
 		profile:          profile,
 		route:            *route,
 		database:         db,
-		listener:         listener,
 		autoReissueCerts: cf.LocalProxyTunnel, // only auto-reissue certs for --tunnel flag.
 		tunnel:           tunnel,
 	})
@@ -433,7 +432,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	lp, err := mkLocalProxy(cf.Context, proxyOpts)
+	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), proxyOpts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -458,7 +457,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		commands, err := dbcmd.NewCmdBuilder(client, profile, route, rootCluster,
+		commands, err := dbcmd.NewCmdBuilder(tc, profile, route, rootCluster,
 			opts...,
 		).GetConnectCommandAlternatives()
 		if err != nil {
@@ -469,7 +468,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		templateArgs := map[string]any{
 			"database":   route.ServiceName,
 			"type":       defaults.ReadableDatabaseProtocol(route.Protocol),
-			"cluster":    client.SiteName,
+			"cluster":    tc.SiteName,
 			"address":    listener.Addr().String(),
 			"randomPort": randomPort,
 		}
@@ -538,35 +537,6 @@ func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.Co
 	return dbProxyAuthMultiTpl
 }
 
-// TODO(greedy52) replace localProxyOpts with []alpnproxy.LocalProxyConfigOpt and remove mkLocalProxy.
-type localProxyOpts struct {
-	proxyAddr        string
-	listener         net.Listener
-	protocols        []alpncommon.Protocol
-	insecure         bool
-	certs            []tls.Certificate
-	middleware       alpnproxy.LocalProxyMiddleware
-	configOpts       []alpnproxy.LocalProxyConfigOpt
-	checkCertsNeeded bool
-}
-
-func mkLocalProxy(ctx context.Context, opts *localProxyOpts) (*alpnproxy.LocalProxy, error) {
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify: opts.insecure,
-		RemoteProxyAddr:    opts.proxyAddr,
-		Protocols:          opts.protocols,
-		Listener:           opts.listener,
-		ParentContext:      ctx,
-		Certs:              opts.certs,
-		Middleware:         opts.middleware,
-		CheckCertsNeeded:   opts.checkCertsNeeded,
-	}, opts.configOpts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return lp, nil
-}
-
 func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
 	if app.IsTCP() {
 		return alpncommon.ProtocolTCP
@@ -603,7 +573,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 	lp, err := alpnproxy.NewLocalProxy(
 		makeBasicLocalProxyConfig(cf, tc, listener),
 		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
-		alpnproxy.WithClientCert(appCerts),
+		alpnproxy.WithClientCerts(appCerts),
 		alpnproxy.WithALPNConnUpgradeTest(cf.Context, tc.RootClusterCACertPool),
 	)
 	if err != nil {
