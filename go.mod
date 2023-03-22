@@ -51,6 +51,7 @@ require (
 	github.com/go-mysql-org/go-mysql v1.5.0 // replaced
 	github.com/go-piv/piv-go v1.10.0
 	github.com/go-redis/redis/v9 v9.0.0-rc.1 // replaced
+	github.com/go-resty/resty/v2 v2.7.0
 	github.com/go-webauthn/webauthn v0.5.0
 	github.com/gobuffalo/flect v1.0.0 // indirect
 	github.com/gocql/gocql v1.3.1
@@ -75,6 +76,7 @@ require (
 	github.com/gravitational/trace v1.2.1
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2 v2.0.0-rc.3
+	github.com/hashicorp/go-version v1.2.0
 	github.com/hashicorp/golang-lru v0.6.0
 	github.com/jackc/pgconn v1.13.0
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
@@ -97,6 +99,7 @@ require (
 	github.com/moby/term v0.0.0-20221128092401-c43b287e0e0f
 	github.com/okta/okta-sdk-golang/v2 v2.17.0
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.4.1
+	github.com/pelletier/go-toml v1.2.0
 	github.com/pkg/sftp v1.13.5 // replaced
 	github.com/pquerna/otp v1.4.0
 	github.com/prometheus/client_golang v1.14.0
