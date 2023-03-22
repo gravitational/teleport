@@ -3160,8 +3160,6 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 }
 
 func TestAuthExport(t *testing.T) {
-	ctx := context.Background()
-
 	env := newWebPack(t, 1)
 	clusterName := env.server.ClusterName()
 
@@ -3242,40 +3240,51 @@ func TestAuthExport(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			// export host certificate
-			endpointExport := pack.clt.Endpoint("webapi", "sites", clusterName, "auth", "export")
-
-			if tt.authType != "" {
-				endpointExport = fmt.Sprintf("%s?type=%s", endpointExport, tt.authType)
-			}
-
-			reqCtx, cancel := context.WithTimeout(ctx, time.Second)
-			defer cancel()
-
-			req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, endpointExport, nil)
-			require.NoError(t, err)
-
-			anonHTTPClient := &http.Client{
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{
-						InsecureSkipVerify: true,
-					},
-				},
-			}
-
-			resp, err := anonHTTPClient.Do(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			bs, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-
-			require.Equal(t, tt.expectedStatus, resp.StatusCode, "invalid status code with body %s", string(bs))
-
-			require.NotEmpty(t, bs, "unexpected empty body from http response")
-			if tt.assertBody != nil {
-				tt.assertBody(t, bs)
-			}
+			t.Run("deprecated endpoint", func(t *testing.T) {
+				endpointExport := pack.clt.Endpoint("webapi", "sites", clusterName, "auth", "export")
+				authExportTestByEndpoint(t, endpointExport, tt.authType, tt.expectedStatus, tt.assertBody)
+			})
+			t.Run("new endpoint", func(t *testing.T) {
+				endpointExport := pack.clt.Endpoint("webapi", "auth", "export")
+				authExportTestByEndpoint(t, endpointExport, tt.authType, tt.expectedStatus, tt.assertBody)
+			})
 		})
+	}
+}
+
+func authExportTestByEndpoint(t *testing.T, endpointExport, authType string, expectedStatus int, assertBody func(t *testing.T, bs []byte)) {
+	ctx := context.Background()
+
+	if authType != "" {
+		endpointExport = fmt.Sprintf("%s?type=%s", endpointExport, authType)
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, endpointExport, nil)
+	require.NoError(t, err)
+
+	anonHTTPClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	resp, err := anonHTTPClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	bs, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.Equal(t, expectedStatus, resp.StatusCode, "invalid status code with body %s", string(bs))
+
+	require.NotEmpty(t, bs, "unexpected empty body from http response")
+	if assertBody != nil {
+		assertBody(t, bs)
 	}
 }
 
@@ -6800,7 +6809,7 @@ func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
 	return &CreateSessionResponse{TokenType: r.TokenType, Token: r.Token, TokenExpiresIn: r.TokenExpiresIn, SessionInactiveTimeoutMS: r.SessionInactiveTimeoutMS}, nil
 }
 
-func newWebPack(t *testing.T, numProxies int) *webPack {
+func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Now())
 
@@ -6912,7 +6921,7 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	var proxies []*testProxy
 	for p := 0; p < numProxies; p++ {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock))
+		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, opts...))
 	}
 
 	// Wait for proxies to fully register before starting the test.
@@ -6935,9 +6944,19 @@ func newWebPack(t *testing.T, numProxies int) *webPack {
 	}
 }
 
+type proxyConfig struct {
+	minimalHandler bool
+}
+
+type proxyOption func(cfg *proxyConfig)
+
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *auth.TestTLSServer,
-	hostSigners []ssh.Signer, clock clockwork.FakeClock,
+	hostSigners []ssh.Signer, clock clockwork.FakeClock, opts ...proxyOption,
 ) *testProxy {
+	cfg := proxyConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 	// create reverse tunnel service:
 	client, err := authServer.NewClient(auth.TestIdentity{
 		I: authz.BuiltinRole{
@@ -7046,21 +7065,22 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
-		Proxy:                revTunServer,
-		AuthServers:          utils.FromAddr(authServer.Addr()),
-		DomainName:           authServer.ClusterName(),
-		ProxyClient:          client,
-		ProxyPublicAddrs:     utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
-		CipherSuites:         utils.DefaultCipherSuites(),
-		AccessPoint:          client,
-		Context:              ctx,
-		HostUUID:             proxyID,
-		Emitter:              client,
-		StaticFS:             fs,
-		ProxySettings:        &mockProxySettings{},
-		SessionControl:       sessionController,
-		Router:               router,
-		HealthCheckAppServer: func(context.Context, string, string) error { return nil },
+		Proxy:                          revTunServer,
+		AuthServers:                    utils.FromAddr(authServer.Addr()),
+		DomainName:                     authServer.ClusterName(),
+		ProxyClient:                    client,
+		ProxyPublicAddrs:               utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
+		CipherSuites:                   utils.DefaultCipherSuites(),
+		AccessPoint:                    client,
+		Context:                        ctx,
+		HostUUID:                       proxyID,
+		Emitter:                        client,
+		StaticFS:                       fs,
+		ProxySettings:                  &mockProxySettings{},
+		SessionControl:                 sessionController,
+		Router:                         router,
+		HealthCheckAppServer:           func(context.Context, string, string) error { return nil },
+		MinimalReverseTunnelRoutesOnly: cfg.minimalHandler,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
 	require.NoError(t, err)
 
