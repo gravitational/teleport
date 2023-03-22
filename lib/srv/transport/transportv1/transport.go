@@ -18,6 +18,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -196,15 +197,8 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		return trace.BadParameter("dial target contains an invalid hostport")
 	}
 
-	// create a stream for SSH Agent protocol
-	agentStream := newSSHStream(stream, func(payload []byte) *transportv1pb.ProxySSHResponse {
-		return &transportv1pb.ProxySSHResponse{Frame: &transportv1pb.ProxySSHResponse_Agent{Agent: &transportv1pb.Frame{Payload: payload}}}
-	})
-
-	// create a stream for SSH protocol
-	sshStream := newSSHStream(stream, func(payload []byte) *transportv1pb.ProxySSHResponse {
-		return &transportv1pb.ProxySSHResponse{Frame: &transportv1pb.ProxySSHResponse_Ssh{Ssh: &transportv1pb.Frame{Payload: payload}}}
-	})
+	// create streams for SSH and Agent protocols
+	sshStream, agentStream := newSSHStreams(stream)
 
 	// multiplex incoming frames to the appropriate protocol
 	// handlers for the duration of the stream
@@ -212,8 +206,6 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		for {
 			req, err := stream.Recv()
 			if err != nil {
-				agentStream.Close()
-				sshStream.Close()
 				if !utils.IsOKNetworkError(err) {
 					s.cfg.Logger.Errorf("ssh stream terminated unexpectedly: %v", err)
 				}
@@ -272,28 +264,33 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 // channel that is fed by the multiplexer.
 type sshStream struct {
 	incomingC  chan []byte
-	stream     transportv1pb.TransportService_ProxySSHServer
-	done       chan struct{}
 	responseFn func(payload []byte) *transportv1pb.ProxySSHResponse
+	wLock      *sync.Mutex
+	stream     transportv1pb.TransportService_ProxySSHServer
 }
 
-func newSSHStream(stream transportv1pb.TransportService_ProxySSHServer, responseFn func(payload []byte) *transportv1pb.ProxySSHResponse) *sshStream {
-	return &sshStream{
-		incomingC:  make(chan []byte, 10),
-		done:       make(chan struct{}),
-		stream:     stream,
-		responseFn: responseFn,
-	}
-}
+func newSSHStreams(stream transportv1pb.TransportService_ProxySSHServer) (ssh *sshStream, agent *sshStream) {
+	mu := &sync.Mutex{}
 
-func (s *sshStream) Close() error {
-	select {
-	case <-s.done:
-	default:
-		close(s.done)
+	ssh = &sshStream{
+		incomingC: make(chan []byte, 10),
+		stream:    stream,
+		responseFn: func(payload []byte) *transportv1pb.ProxySSHResponse {
+			return &transportv1pb.ProxySSHResponse{Frame: &transportv1pb.ProxySSHResponse_Ssh{Ssh: &transportv1pb.Frame{Payload: payload}}}
+		},
+		wLock: mu,
 	}
 
-	return nil
+	agent = &sshStream{
+		incomingC: make(chan []byte, 10),
+		stream:    stream,
+		responseFn: func(payload []byte) *transportv1pb.ProxySSHResponse {
+			return &transportv1pb.ProxySSHResponse{Frame: &transportv1pb.ProxySSHResponse_Agent{Agent: &transportv1pb.Frame{Payload: payload}}}
+		},
+		wLock: mu,
+	}
+
+	return ssh, agent
 }
 
 // Recv consumes ssh frames from the gRPC stream.
@@ -301,7 +298,7 @@ func (s *sshStream) Close() error {
 // leaking the multiplexing goroutine in Service.ProxySSH.
 func (s *sshStream) Recv() ([]byte, error) {
 	select {
-	case <-s.done:
+	case <-s.stream.Context().Done():
 		return nil, io.EOF
 	case frame := <-s.incomingC:
 		return frame, nil
@@ -309,5 +306,8 @@ func (s *sshStream) Recv() ([]byte, error) {
 }
 
 func (s *sshStream) Send(frame []byte) error {
+	s.wLock.Lock()
+	defer s.wLock.Unlock()
+
 	return trace.Wrap(s.stream.Send(s.responseFn(frame)))
 }

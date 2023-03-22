@@ -49,6 +49,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -7333,8 +7334,15 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	}, tc.Username)
 	require.NoError(t, err)
 
-	_, _, err = nodeClient.Client.Client.SendRequest("test-request", true, nil)
+	// forward SSH agent
+	sshClient := nodeClient.Client.Client
+	session, err := sshClient.NewSession()
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, session.Close())
+	})
+	require.NoError(t, agent.ForwardToAgent(sshClient, tc.LocalAgent()))
+	require.NoError(t, agent.RequestAgentForwarding(session))
 
 	require.NoError(t, nodeClient.Close())
 }
@@ -7366,21 +7374,41 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 
 	go func() {
 		nConn, err := lis.Accept()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		t.Cleanup(func() {
+			// the error is ignored here to avoid failing on net.ErrClosed
 			_ = nConn.Close()
 		})
 
-		conn, _, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
-		require.NoError(t, err)
+		conn, channels, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
+		assert.NoError(t, err)
 		t.Cleanup(func() {
+			// the error is ignored here to avoid failing on net.ErrClosed
 			_ = conn.Close()
 		})
+		go ssh.DiscardRequests(reqs)
 
-		req := <-reqs
-		require.NoError(t, req.Reply(true, nil))
+		var agentForwarded bool
+		for channelReq := range channels {
+			assert.Equal(t, "session", channelReq.ChannelType())
+			channel, reqs, err := channelReq.Accept()
+			assert.NoError(t, err)
+			t.Cleanup(func() {
+				// the error is ignored here to avoid failing on net.ErrClosed
+				_ = channel.Close()
+			})
 
-		require.NoError(t, conn.Close())
+			for req := range reqs {
+				if req.WantReply {
+					assert.NoError(t, req.Reply(true, nil))
+				}
+				if req.Type == sshutils.AgentForwardRequest {
+					agentForwarded = true
+					break
+				}
+			}
+		}
+		assert.True(t, agentForwarded)
 	}()
 
 	return lis.Addr().String()

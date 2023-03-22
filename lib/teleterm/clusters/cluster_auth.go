@@ -19,7 +19,6 @@ package clusters
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 
 	"github.com/gravitational/trace"
@@ -65,15 +64,8 @@ func (c *Cluster) Logout(ctx context.Context) error {
 		}
 	}
 
-	// Get the address of the active Kubernetes proxy to find AuthInfos,
-	// Clusters, and Contexts in kubeconfig.
-	clusterName, _ := c.clusterClient.KubeProxyHostPort()
-	if c.clusterClient.SiteName != "" {
-		clusterName = fmt.Sprintf("%v.%v", c.clusterClient.SiteName, clusterName)
-	}
-
 	// Remove cluster entries from kubeconfig
-	if err := kubeconfig.Remove("", clusterName); err != nil {
+	if err := kubeconfig.RemoveByServerAddr("", c.clusterClient.KubeClusterAddr()); err != nil {
 		return trace.Wrap(err)
 	}
 

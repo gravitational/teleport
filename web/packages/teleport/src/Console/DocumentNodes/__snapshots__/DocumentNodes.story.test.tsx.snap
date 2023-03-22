@@ -84,16 +84,6 @@ exports[`render DocumentNodes 1`] = `
   font-size: 16px;
 }
 
-.c5 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
 .c23 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -112,6 +102,16 @@ exports[`render DocumentNodes 1`] = `
   margin: 0px;
   margin-right: 4px;
   color: #FFFFFF;
+}
+
+.c5 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .c0 {

@@ -207,11 +207,7 @@ export function SelectResource(props: SelectResourceProps) {
 }
 
 const TabItem = ({ iconSrc, title }: { iconSrc: string; title: string }) => (
-  <Flex
-    css={`
-      align-items: center;
-    `}
-  >
+  <Flex alignItems="center">
     <Image src={iconSrc} width="32px" mr={2} />
     <Text bold typography="h5">
       {title}
