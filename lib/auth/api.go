@@ -732,8 +732,8 @@ type DiscoveryAccessPoint interface {
 // ReadOktaAccessPoint is a read only API interface to be
 // used by an Okta component.
 //
-// NOTE: This interface must match the resources replicated in cache.ForOkta except for
-// access requests, which are expected to only be used by events.
+// NOTE: This interface must provide read interfaces for the resources seen in cache.ForOkta
+// except for access requests, which are expected to only be used by events.
 type ReadOktaAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
@@ -763,7 +763,7 @@ type ReadOktaAccessPoint interface {
 	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
 }
 
-// OktaAccessPoint is a read only cache interface used by an Okta component.
+// OktaAccessPoint is a read caching interface used by an Okta component.
 type OktaAccessPoint interface {
 	// ReadOktaAccessPoint provides methods to read data
 	ReadOktaAccessPoint
