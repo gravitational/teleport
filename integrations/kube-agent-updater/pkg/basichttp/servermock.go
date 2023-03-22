@@ -36,7 +36,7 @@ type ServerMock struct {
 	path     string
 }
 
-// SetResponse sets the ServerMock's reponse.
+// SetResponse sets the ServerMock's response.
 func (m *ServerMock) SetResponse(t *testing.T, code int, response string) {
 	m.t = t
 	m.code = code
