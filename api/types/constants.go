@@ -473,7 +473,8 @@ const (
 )
 
 // OriginValues lists all possible origin values.
-var OriginValues = []string{OriginDefaults,
+var OriginValues = []string{
+	OriginDefaults,
 	OriginConfigFile,
 	OriginDynamic,
 	OriginCloud,
