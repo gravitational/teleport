@@ -208,7 +208,7 @@ func dumpResources(t *testing.T, tt *servicesContext) []types.Resource {
 	endKey := backend.RangeEnd(startKey)
 	result, err := tt.bk.GetRange(context.TODO(), startKey, endKey, 0)
 	require.NoError(t, err)
-	resources, err := ItemsToResources(result.Items...)
+	resources, err := itemsToResources(result.Items...)
 	require.NoError(t, err)
 	return resources
 }

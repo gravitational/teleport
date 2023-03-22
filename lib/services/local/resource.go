@@ -31,12 +31,12 @@ import (
 // CreateResources attempts to dynamically create the supplied resources.
 // This function returns `trace.AlreadyExistsError` if one or more resources
 // would be overwritten, and `trace.NotImplementedError` if any resources
-// are of an unsupported type (see `ItemsFromResources(...)`).
+// are of an unsupported type (see `itemsFromResources(...)`).
 //
 // NOTE: This function is non-atomic and performs no internal synchronization;
 // backend must be locked by caller when operating in parallel environment.
 func CreateResources(ctx context.Context, b backend.Backend, resources ...types.Resource) error {
-	items, err := ItemsFromResources(resources...)
+	items, err := itemsFromResources(resources...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -60,9 +60,9 @@ func CreateResources(ctx context.Context, b backend.Backend, resources ...types.
 	return nil
 }
 
-// ItemsFromResources attempts to convert resources into instances of backend.Item.
+// itemsFromResources attempts to convert resources into instances of backend.Item.
 // NOTE: this is not necessarily a 1-to-1 conversion.
-func ItemsFromResources(resources ...types.Resource) ([]backend.Item, error) {
+func itemsFromResources(resources ...types.Resource) ([]backend.Item, error) {
 	var allItems []backend.Item
 	for _, rsc := range resources {
 		items, err := itemsFromResource(rsc)
@@ -99,6 +99,8 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromOIDCConnector(r)
 	case types.SAMLConnector:
 		item, err = itemFromSAMLConnector(r)
+	case types.ProvisionToken:
+		item, err = itemFromProvisionToken(r)
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}
@@ -111,9 +113,9 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 	return items, nil
 }
 
-// ItemsToResources converts one or more items into one or more resources.
+// itemsToResources converts one or more items into one or more resources.
 // NOTE: This is not necessarily a 1-to-1 conversion, and order is not preserved.
-func ItemsToResources(items ...backend.Item) ([]types.Resource, error) {
+func itemsToResources(items ...backend.Item) ([]types.Resource, error) {
 	var resources []types.Resource
 	// User resources may be split across multiple items, so we must extract them first.
 	users, rem, err := collectUserItems(items)
@@ -226,6 +228,25 @@ func itemFromCertAuthority(ca types.CertAuthority) (*backend.Item, error) {
 		Value:   value,
 		Expires: ca.Expiry(),
 		ID:      ca.GetResourceID(),
+	}
+	return item, nil
+}
+
+// itemFromProvisionToken attempts to encode the supplied provision token
+// as an instance of `backend.Item` suitable for storage.
+func itemFromProvisionToken(p types.ProvisionToken) (*backend.Item, error) {
+	if err := p.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalProvisionToken(p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item := &backend.Item{
+		Key:     backend.Key(tokensPrefix, p.GetName()),
+		Value:   value,
+		Expires: p.Expiry(),
+		ID:      p.GetResourceID(),
 	}
 	return item, nil
 }
