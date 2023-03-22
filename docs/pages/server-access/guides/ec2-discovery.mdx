@@ -8,7 +8,7 @@ discover and enroll EC2 instances matching configured labels. It will then
 execute an install script on these discovered instances using AWS Systems
 Manager that will install Teleport, start it and join the cluster.
 
-In this scenario, Teleport Disocvery Service uses an IAM invite token with a
+In this scenario, Teleport Discovery Service uses an IAM invite token with a
 long time-to-live (TTL), so that new instances can be discovered and added to
 the Teleport cluster for the lifetime of the token.
 
