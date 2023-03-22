@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -76,6 +75,8 @@ type Client struct {
 	*APIClient
 	// HTTPClient is used to make http requests to the server
 	*HTTPClient
+	// oktaClient is used to make Okta resoruce requests to the server.
+	oktaClient services.Okta
 }
 
 // Make sure Client implements all the necessary methods.
@@ -108,9 +109,15 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		return nil, trace.Wrap(err)
 	}
 
+	oktaClient, err := client.NewOktaClient(cfg.Context, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Client{
 		APIClient:  apiClient,
 		HTTPClient: httpClient,
+		oktaClient: oktaClient,
 	}, nil
 }
 
@@ -1354,6 +1361,10 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 	return c.APIClient.ListReleases(ctx, &proto.ListReleasesRequest{})
 }
 
+func (c *Client) OktaClient() services.Okta {
+	return c.oktaClient
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
@@ -1720,5 +1731,5 @@ type ClientI interface {
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
 	// still get an Okta client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
-	OktaClient() *okta.Client
+	OktaClient() services.Okta
 }
