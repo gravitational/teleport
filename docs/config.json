@@ -602,6 +602,10 @@
           "slug": "/connect-your-client/tsh/"
         },
         {
+          "title": "Using the Web UI",
+          "slug": "/connect-your-client/web-ui/"
+        },
+        {
           "title": "Using Teleport Connect",
           "slug": "/connect-your-client/teleport-connect/"
         },
