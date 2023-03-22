@@ -9,8 +9,7 @@ how to forward Teleport audit events to Datadog using Fluentd.
 The Teleport Event Handler is designed to communicate with Fluentd using mTLS
 to establish a secure channel. In this setup, the Event Handler sends events to Fluentd, which forwards them to Datadog using an API key to authenticate.
 
-{/*
-The Graph below is made with this mermaidjs logic:
+```mermaid
 graph LR
 style e fill: #a379ff,color: #ffffff
 style f fill: #a379ff,color: #ffffff
@@ -45,9 +44,7 @@ subgraph local [Local Network]
 end
 e-->c
 d-->h(Datadog)
-*/}
-
-![Flowchart of Teleport with events forwarded to Datadog](../../../img/management/datadog-flowchart.png)
+```
 
 ## Prerequisites
 
