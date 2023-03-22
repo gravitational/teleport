@@ -309,7 +309,7 @@ func (c *fetchConfig) read(name string) (string, error) {
 // httpReqSuccess performs an http request, returning true if the status code
 // is 200.
 func (c *fetchConfig) httpReqSuccess(req *http.Request) bool {
-	insecureSkipVerify := false
+	const insecureSkipVerify = false
 	resp, err := c.httpDo(req, insecureSkipVerify)
 	if err != nil {
 		return false
