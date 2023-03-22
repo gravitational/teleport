@@ -79,6 +79,9 @@ module.exports = {
             onlyCompileBundledFiles: true,
             configFile: tsconfigPath,
             transpileOnly: configType === 'DEVELOPMENT',
+            compilerOptions: {
+              jsx: 'preserve',
+            },
           },
         },
       ],
