@@ -19,11 +19,10 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gravitational/teleport/api/defaults"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -86,7 +85,8 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.authorize(ctx, contextCA, readVerb); err != nil {
+	_, err = authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, contextCA, readVerb)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -97,7 +97,8 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.authorize(ctx, ca, readVerb); err != nil {
+	_, err = authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, ca, readVerb)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -109,47 +110,69 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 	return authority, nil
 }
 
-// authorize ensures the client has access to perform the requested
-// actions on the certificate on the provided certificate authority.
-func (s *Service) authorize(ctx context.Context, ca types.CertAuthority, verbs ...string) error {
-	authCtx, err := s.authorizer.Authorize(ctx)
+// GetCertAuthorities retrieves the cert authorities with the specified type.
+func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAuthoritiesRequest) (*trustpb.GetCertAuthoritiesResponse, error) {
+	verbs := []string{types.VerbList, types.VerbReadNoSecrets}
+
+	if req.IncludeKey {
+		verbs = append(verbs, types.VerbRead)
+	}
+
+	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, verbs...)
 	if err != nil {
-		switch {
-		// propagate connection problem errors, so we can differentiate
-		// between connection failed and access denied
-		case trace.IsConnectionProblem(err):
-			return trace.ConnectionProblem(err, "failed to connect to the database")
-		case trace.IsNotFound(err):
-			// user not found, wrap error with access denied
-			return trace.Wrap(err, "access denied")
-		case trace.IsAccessDenied(err):
-			// don't print stack trace, just log the warning
-			s.logger.Warn(err)
-		case keys.IsPrivateKeyPolicyError(err):
-			// private key policy errors should be returned to the client
-			// unaltered so that they know to reauthenticate with a valid key.
-			return trace.Unwrap(err)
-		default:
-			s.logger.Warn(trace.DebugReport(err))
+		return nil, trace.Wrap(err)
+	}
+
+	cas, err := s.cache.GetCertAuthorities(ctx, types.CertAuthType(req.Type), req.IncludeKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &trustpb.GetCertAuthoritiesResponse{CertAuthoritiesV2: make([]*types.CertAuthorityV2, 0, len(cas))}
+
+	for _, ca := range cas {
+		cav2, ok := ca.(*types.CertAuthorityV2)
+		if !ok {
+			return nil, trace.BadParameter("cert authority has invalid type %T", ca)
 		}
 
-		return trace.AccessDenied("access denied")
+		resp.CertAuthoritiesV2 = append(resp.CertAuthoritiesV2, cav2)
 	}
 
-	ruleCtx := &services.Context{
-		User:     authCtx.User,
-		Resource: ca,
+	return resp, nil
+}
+
+// DeleteCertAuthority deletes the matching cert authority.
+func (s *Service) DeleteCertAuthority(ctx context.Context, req *trustpb.DeleteCertAuthorityRequest) (*emptypb.Empty, error) {
+	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, types.VerbDelete)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	var errs []error
-	for _, verb := range verbs {
-		errs = append(errs, authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, types.KindCertAuthority, verb, false))
+	if err := s.backend.DeleteCertAuthority(ctx, types.CertAuthID{DomainName: req.Domain, Type: types.CertAuthType(req.Type)}); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// Convert generic aggregate error to AccessDenied.
-	if err := trace.NewAggregate(errs...); err != nil {
-		return trace.AccessDenied(err.Error())
+	return &emptypb.Empty{}, nil
+}
+
+// UpsertCertAuthority creates or updates the provided cert authority.
+func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCertAuthorityRequest) (*types.CertAuthorityV2, error) {
+	if req.CertAuthority == nil {
+		return nil, trace.BadParameter("missing certificate authority")
 	}
 
-	return nil
+	if err := services.ValidateCertAuthority(req.CertAuthority); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, req.CertAuthority, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.UpsertCertAuthority(ctx, req.CertAuthority); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return req.CertAuthority, nil
 }

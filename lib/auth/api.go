@@ -57,10 +57,8 @@ type Announcer interface {
 	// UpsertWindowsDesktopService registers a Windows desktop service.
 	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
 
-	// CreateWindowsDesktop registers a Windows desktop host.
-	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
-	// UpdateWindowsDesktop updates a Windows desktop host.
-	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
+	// UpsertWindowsDesktop registers a Windows desktop host.
+	UpsertWindowsDesktop(context.Context, types.WindowsDesktop) error
 
 	// UpsertDatabaseService registers a DatabaseService.
 	UpsertDatabaseService(context.Context, types.DatabaseService) (*types.KeepAlive, error)
@@ -104,7 +102,7 @@ type ReadNodeAccessPoint interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -162,7 +160,7 @@ type ReadProxyAccessPoint interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -319,7 +317,7 @@ type ReadRemoteProxyAccessPoint interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -410,7 +408,7 @@ type ReadKubernetesAccessPoint interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -476,7 +474,7 @@ type ReadAppsAccessPoint interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -543,7 +541,7 @@ type ReadDatabaseAccessPoint interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -610,7 +608,7 @@ type ReadWindowsDesktopAccessPoint interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -677,7 +675,7 @@ type ReadDiscoveryAccessPoint interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -729,7 +727,7 @@ type AccessCache interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -793,7 +791,7 @@ type Cache interface {
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetUser returns a services.User for this cluster.
 	GetUser(name string, withSecrets bool) (types.User, error)

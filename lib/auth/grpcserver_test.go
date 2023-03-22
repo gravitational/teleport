@@ -3296,6 +3296,7 @@ func TestExport(t *testing.T) {
 			// Setup the server
 			if tt.authorizer != nil {
 				srv.TLSServer.grpcServer.Authorizer = tt.authorizer
+				require.NoError(t, err)
 			}
 
 			// Get a client for the test identity

@@ -126,6 +126,10 @@ message Event {
     types.UserGroupV1 UserGroup = 38 [(gogoproto.jsontag) = "user_group,omitempty"];
     // UIConfig provides a way for users to adjust settings of the UI served by the proxy service.
     types.UIConfigV1 UIConfig = 39 [(gogoproto.jsontag) = "ui_config,omitempty"];
+    // OktaImportRule is an OktaImportRule resource.
+    types.OktaImportRuleV1 OktaImportRule = 40 [(gogoproto.jsontag) = "okta_import_rule,omitempty"];
+    // OktaAssignment is an OktaAssignment resource.
+    types.OktaAssignmentV1 OktaAssignment = 41 [(gogoproto.jsontag) = "okta_assignment,omitempty"];
   }
 }
 
@@ -200,6 +204,27 @@ message HostCertsRequest {
   // system roles are held.
   // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
   string UnstableSystemRoleAssertionID = 12 [(gogoproto.jsontag) = "system_role_assertion_id,omitempty"];
+}
+
+// OpenSSHCertRequest specifies certificate-generation parameters
+// for a certificates used to connect to Agentless nodes.
+message OpenSSHCertRequest {
+  // Username is the Teleport username.
+  string Username = 1 [(gogoproto.jsontag) = "username"];
+  // PublicKey is the public key to sign.
+  bytes PublicKey = 2 [(gogoproto.jsontag) = "public_key"];
+  // TTL is the duration the certificate will be valid for.
+  int64 TTL = 3 [
+    (gogoproto.jsontag) = "ttl",
+    (gogoproto.casttype) = "Duration"
+  ];
+  // Cluster is the Teleport cluster name.
+  string Cluster = 4 [(gogoproto.jsontag) = "cluster"];
+}
+
+// OpenSSHCert is a SSH certificate signed by OpenSSH CA.
+message OpenSSHCert {
+  bytes Cert = 1 [(gogoproto.jsontag) = "cert"];
 }
 
 // UserCertRequest specifies certificate-generation parameters
@@ -372,11 +397,6 @@ message ChangePasswordRequest {
   bytes NewPassword = 3 [(gogoproto.jsontag) = "new_password"];
   string SecondFactorToken = 4 [(gogoproto.jsontag) = "second_factor_token"];
   webauthn.CredentialAssertionResponse Webauthn = 5 [(gogoproto.jsontag) = "webauthn"];
-}
-
-// AccessRequests is a collection of AccessRequest values.
-message AccessRequests {
-  repeated types.AccessRequestV3 AccessRequests = 1 [(gogoproto.jsontag) = "access_requests"];
 }
 
 // PluginDataSeq is a sequence of plugin data.
@@ -2295,13 +2315,13 @@ service AuthService {
   // GenerateUserSingleUseCerts generates a set of single-use user
   // certificates.
   rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest) returns (stream UserSingleUseCertsResponse);
+  // GenerateOpenSSHCert signs a SSH certificate that can be used
+  // to connect to Agentless nodes.
+  rpc GenerateOpenSSHCert(OpenSSHCertRequest) returns (OpenSSHCert);
   // IsMFARequired checks whether MFA is required to access the specified
   // target.
   rpc IsMFARequired(IsMFARequiredRequest) returns (IsMFARequiredResponse);
 
-  // GetAccessRequests gets all pending access requests.
-  // DEPRECATED, DELETE IN 11.0.0: Use GetAccessRequestsV2 instead.
-  rpc GetAccessRequests(types.AccessRequestFilter) returns (AccessRequests);
   // GetAccessRequestsV2 gets all pending access requests.
   rpc GetAccessRequestsV2(types.AccessRequestFilter) returns (stream types.AccessRequestV3);
   // CreateAccessRequest creates a new access request.

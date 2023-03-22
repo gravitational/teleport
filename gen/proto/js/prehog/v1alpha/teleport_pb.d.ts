@@ -15,6 +15,9 @@ export class UserLoginEvent extends jspb.Message {
     getConnectorType(): string;
     setConnectorType(value: string): UserLoginEvent;
 
+    getDeviceId(): string;
+    setDeviceId(value: string): UserLoginEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserLoginEvent.AsObject;
@@ -30,6 +33,7 @@ export namespace UserLoginEvent {
     export type AsObject = {
         userName: string,
         connectorType: string,
+        deviceId: string,
     }
 }
 

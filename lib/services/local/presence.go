@@ -678,11 +678,11 @@ func (s *PresenceService) GetRemoteCluster(clusterName string) (types.RemoteClus
 }
 
 // DeleteRemoteCluster deletes remote cluster by name
-func (s *PresenceService) DeleteRemoteCluster(clusterName string) error {
+func (s *PresenceService) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing parameter cluster name")
 	}
-	return s.Delete(context.TODO(), backend.Key(remoteClustersPrefix, clusterName))
+	return s.Delete(ctx, backend.Key(remoteClustersPrefix, clusterName))
 }
 
 // DeleteAllRemoteClusters deletes all remote clusters

@@ -123,11 +123,11 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	require.Len(t, allRC, 2)
 
 	// delete cluster
-	err = presenceBackend.DeleteRemoteCluster("foo")
+	err = presenceBackend.DeleteRemoteCluster(ctx, "foo")
 	require.NoError(t, err)
 
 	// make sure it's really gone
-	err = presenceBackend.DeleteRemoteCluster("foo")
+	err = presenceBackend.DeleteRemoteCluster(ctx, "foo")
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.NotFound("key /remoteClusters/foo is not found"))
 }

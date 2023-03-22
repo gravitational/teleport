@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -569,26 +570,70 @@ func (m *mockAgent) Signers() ([]ssh.Signer, error) {
 	return []ssh.Signer{&mockSigner{ValidPrincipals: m.ValidPrincipals}}, nil
 }
 
-func TestNewClient_UseKeyPrincipals(t *testing.T) {
-	cfg := &Config{
-		Username:         "xyz",
-		HostLogin:        "xyz",
-		WebProxyAddr:     "localhost",
-		SkipLocalAuth:    true,
-		UseKeyPrincipals: true, // causes VALID to be returned, as key was used
-		Agent:            &mockAgent{ValidPrincipals: []string{"VALID"}},
-		AuthMethods:      []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
-		Tracer:           tracing.NoopProvider().Tracer("test"),
+func TestNewClient_getProxySSHPrincipal(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		cfg             *Config
+		expectPrincipal string
+	}{
+		{
+			name: "ProxySSHPrincipal override",
+			cfg: &Config{
+				Username:          "teleport_user",
+				HostLogin:         "host_login",
+				WebProxyAddr:      "localhost",
+				ProxySSHPrincipal: "proxy_ssh_principal_override",
+				Agent:             &mockAgent{ValidPrincipals: []string{"key_principal"}},
+				AuthMethods:       []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
+				Tracer:            tracing.NoopProvider().Tracer("test"),
+			},
+			expectPrincipal: "proxy_ssh_principal_override",
+		}, {
+			name: "Key principal",
+			cfg: &Config{
+				Username:     "teleport_user",
+				HostLogin:    "host_login",
+				WebProxyAddr: "localhost",
+				Agent:        &mockAgent{ValidPrincipals: []string{"key_principal"}},
+				AuthMethods:  []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
+				Tracer:       tracing.NoopProvider().Tracer("test"),
+			},
+			expectPrincipal: "key_principal",
+		}, {
+			name: "Host login default",
+			cfg: &Config{
+				Username:     "teleport_user",
+				HostLogin:    "host_login",
+				WebProxyAddr: "localhost",
+				Agent:        &mockAgent{ /* no agent key principals */ },
+				AuthMethods:  []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
+				Tracer:       tracing.NoopProvider().Tracer("test"),
+			},
+			expectPrincipal: "host_login",
+		}, {
+			name: "Jump host",
+			cfg: &Config{
+				Username:     "teleport_user",
+				HostLogin:    "host_login",
+				WebProxyAddr: "localhost",
+				JumpHosts: []utils.JumpHost{
+					{
+						Username: "jumphost_user",
+					},
+				},
+				Agent:       &mockAgent{ /* no agent key principals */ },
+				AuthMethods: []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
+				Tracer:      tracing.NoopProvider().Tracer("test"),
+			},
+			expectPrincipal: "jumphost_user",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client, err := NewClient(tc.cfg)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectPrincipal, client.getProxySSHPrincipal(), "ProxySSHPrincipal mismatch")
+		})
 	}
-	client, err := NewClient(cfg)
-	require.NoError(t, err)
-	require.Equal(t, "VALID", client.getProxySSHPrincipal(), "ProxySSHPrincipal mismatch")
-
-	cfg.UseKeyPrincipals = false // causes xyz to be returned as key was not used
-
-	client, err = NewClient(cfg)
-	require.NoError(t, err)
-	require.Equal(t, "xyz", client.getProxySSHPrincipal(), "ProxySSHPrincipal mismatch")
 }
 
 func TestParseSearchKeywords(t *testing.T) {
@@ -962,6 +1007,134 @@ func TestCommandLimit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tt.expected, commandLimit(context.Background(), tt.getter, tt.mfaRequired))
+		})
+	}
+}
+
+func TestRootClusterName(t *testing.T) {
+	ctx := context.Background()
+	ca := newTestAuthority(t)
+
+	rootCluster := ca.trustedCerts.ClusterName
+	leafCluster := "leaf-cluster"
+	key := ca.makeSignedKey(t, KeyIndex{
+		ProxyHost:   "proxy.example.com",
+		ClusterName: leafCluster,
+		Username:    "teleport-user",
+	}, false)
+
+	for _, tc := range []struct {
+		name      string
+		modifyCfg func(t *Config)
+	}{
+		{
+			name: "static TLS",
+			modifyCfg: func(c *Config) {
+				tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{leafCluster, rootCluster})
+				require.NoError(t, err)
+				c.TLS = tlsConfig
+			},
+		}, {
+			name: "key store",
+			modifyCfg: func(c *Config) {
+				c.ClientStore = NewMemClientStore()
+				err := c.ClientStore.AddKey(key)
+				require.NoError(t, err)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{
+				WebProxyAddr: "proxy.example.com",
+				Username:     "teleport-user",
+				SiteName:     leafCluster,
+			}
+			tc.modifyCfg(cfg)
+
+			tc, err := NewClient(cfg)
+			require.NoError(t, err)
+
+			clusterName, err := tc.RootClusterName(ctx)
+			require.NoError(t, err)
+			require.Equal(t, rootCluster, clusterName)
+		})
+	}
+}
+
+func TestLoadTLSConfigForClusters(t *testing.T) {
+	rootCA := newTestAuthority(t)
+
+	rootCluster := rootCA.trustedCerts.ClusterName
+	key := rootCA.makeSignedKey(t, KeyIndex{
+		ProxyHost:   "proxy.example.com",
+		ClusterName: rootCluster,
+		Username:    "teleport-user",
+	}, false)
+
+	tlsCertPoolNoCA, err := key.clientCertPool()
+	require.NoError(t, err)
+	tlsCertPoolRootCA, err := key.clientCertPool(rootCluster)
+	require.NoError(t, err)
+
+	tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{rootCluster})
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name      string
+		clusters  []string
+		modifyCfg func(t *Config)
+		expectCAs *x509.CertPool
+	}{
+		{
+			name:     "static TLS",
+			clusters: []string{rootCluster},
+			modifyCfg: func(c *Config) {
+				c.TLS = tlsConfig.Clone()
+			},
+			expectCAs: tlsCertPoolRootCA,
+		}, {
+			name:     "key store no clusters",
+			clusters: []string{},
+			modifyCfg: func(c *Config) {
+				c.ClientStore = NewMemClientStore()
+				err := c.ClientStore.AddKey(key)
+				require.NoError(t, err)
+			},
+			expectCAs: tlsCertPoolNoCA,
+		}, {
+			name:     "key store root cluster",
+			clusters: []string{rootCluster},
+			modifyCfg: func(c *Config) {
+				c.ClientStore = NewMemClientStore()
+				err := c.ClientStore.AddKey(key)
+				require.NoError(t, err)
+			},
+			expectCAs: tlsCertPoolRootCA,
+		}, {
+			name:     "key store unknown clusters",
+			clusters: []string{"leaf-1", "leaf-2"},
+			modifyCfg: func(c *Config) {
+				c.ClientStore = NewMemClientStore()
+				err := c.ClientStore.AddKey(key)
+				require.NoError(t, err)
+			},
+			expectCAs: tlsCertPoolNoCA,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				WebProxyAddr: "proxy.example.com",
+				Username:     "teleport-user",
+				SiteName:     rootCluster,
+			}
+			tt.modifyCfg(cfg)
+
+			tc, err := NewClient(cfg)
+			require.NoError(t, err)
+
+			tlsConfig, err := tc.LoadTLSConfigForClusters(tt.clusters)
+			require.NoError(t, err)
+			require.True(t, tlsConfig.RootCAs.Equal(tt.expectCAs))
 		})
 	}
 }

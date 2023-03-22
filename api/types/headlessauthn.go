@@ -45,3 +45,17 @@ func (h *HeadlessAuthentication) CheckAndSetDefaults() error {
 func (h *HeadlessAuthentication) setStaticFields() {
 	h.Kind = KindHeadlessAuthentication
 }
+
+// Stringify returns the readable string for a headless authentication state.
+func (h HeadlessAuthenticationState) Stringify() string {
+	switch h {
+	case HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING:
+		return "pending"
+	case HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED:
+		return "denied"
+	case HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED:
+		return "approved"
+	default:
+		return "unknown"
+	}
+}

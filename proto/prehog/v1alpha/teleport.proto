@@ -26,6 +26,8 @@ message UserLoginEvent {
   string user_name = 1;
   // local/github/saml/oidc
   string connector_type = 2;
+  // The anonymized device ID, for logins where device trust is enabled.
+  string device_id = 3;
 }
 
 message SSOCreateEvent {

@@ -14,7 +14,10 @@
 
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // pushCheckoutCommands builds a list of commands for Drone to check out a git commit on a push build
 func pushCheckoutCommands(b buildType) []string {
@@ -76,6 +79,7 @@ func pushPipelines() []pipeline {
 		trigger:      triggerPush,
 		pipelineName: "push-build-linux-arm64",
 		ghaWorkflow:  "release-linux-arm64.yml",
+		timeout:      60 * time.Minute,
 		slackOnError: true,
 		srcRefVar:    "DRONE_COMMIT",
 		workflowRef:  "${DRONE_BRANCH}",

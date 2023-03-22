@@ -169,6 +169,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindDatabase, nil
 	case types.KindApp, "apps":
 		return types.KindApp, nil
+	case types.KindAppServer, "app_servers":
+		return types.KindAppServer, nil
 	case types.KindWindowsDesktopService, "windows_service", "win_desktop_service", "win_service":
 		return types.KindWindowsDesktopService, nil
 	case types.KindWindowsDesktop, "win_desktop":

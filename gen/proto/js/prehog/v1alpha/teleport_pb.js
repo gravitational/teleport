@@ -1001,7 +1001,8 @@ proto.prehog.v1alpha.UserLoginEvent.prototype.toObject = function(opt_includeIns
 proto.prehog.v1alpha.UserLoginEvent.toObject = function(includeInstance, msg) {
   var f, obj = {
     userName: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    connectorType: jspb.Message.getFieldWithDefault(msg, 2, "")
+    connectorType: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    deviceId: jspb.Message.getFieldWithDefault(msg, 3, "")
   };
 
   if (includeInstance) {
@@ -1046,6 +1047,10 @@ proto.prehog.v1alpha.UserLoginEvent.deserializeBinaryFromReader = function(msg, 
       var value = /** @type {string} */ (reader.readString());
       msg.setConnectorType(value);
       break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setDeviceId(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -1089,6 +1094,13 @@ proto.prehog.v1alpha.UserLoginEvent.serializeBinaryToWriter = function(message, 
       f
     );
   }
+  f = message.getDeviceId();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
 };
 
 
@@ -1125,6 +1137,24 @@ proto.prehog.v1alpha.UserLoginEvent.prototype.getConnectorType = function() {
  */
 proto.prehog.v1alpha.UserLoginEvent.prototype.setConnectorType = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string device_id = 3;
+ * @return {string}
+ */
+proto.prehog.v1alpha.UserLoginEvent.prototype.getDeviceId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.UserLoginEvent} returns this
+ */
+proto.prehog.v1alpha.UserLoginEvent.prototype.setDeviceId = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
 };
 
 

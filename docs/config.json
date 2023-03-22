@@ -486,6 +486,10 @@
             {
               "title": "Run Teleport with Self-Signed Certificates",
               "slug": "/management/admin/self-signed-certs/"
+            },
+            {
+              "title": "Uninstall Teleport",
+              "slug": "/management/admin/uninstall-teleport/"
             }
           ]
         },
@@ -635,6 +639,10 @@
           "slug": "/connect-your-client/tsh/"
         },
         {
+          "title": "Using the Web UI",
+          "slug": "/connect-your-client/web-ui/"
+        },
+        {
           "title": "Using Teleport Connect",
           "slug": "/connect-your-client/teleport-connect/"
         },
@@ -698,6 +706,10 @@
             {
               "title": "AWS DynamoDB",
               "slug": "/application-access/guides/dynamodb/"
+            },
+            {
+              "title": "High Availability",
+              "slug": "/application-access/guides/ha/"
             }
           ]
         },
@@ -1181,6 +1193,10 @@
         {
           "title": "Architecture",
           "slug": "/api/architecture/"
+        },
+        {
+          "title": "How to Build an Access Request Plugin",
+          "slug": "/api/access-plugin/"
         }
       ]
     },
@@ -1364,8 +1380,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "11.3.5",
-      "major_version": "11",
+      "version": "12.1.2",
+      "major_version": "12",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"

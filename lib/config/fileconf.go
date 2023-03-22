@@ -89,6 +89,9 @@ type FileConfig struct {
 	// Discovery is the "discovery_service" section in the Teleport
 	// configuration file
 	Discovery Discovery `yaml:"discovery_service,omitempty"`
+
+	// Okta is the "okta_service" section in the Teleport configuration file
+	Okta Okta `yaml:"okta_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -435,6 +438,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	conf.Proxy.defaultEnabled = true
 	conf.SSH.defaultEnabled = true
 	conf.Kube.defaultEnabled = false
+	conf.Okta.defaultEnabled = false
 	if conf.Version == "" {
 		conf.Version = defaults.TeleportConfigVersionV1
 	}
@@ -827,6 +831,8 @@ type CachePolicy struct {
 	EnabledFlag string `yaml:"enabled,omitempty"`
 	// TTL sets maximum TTL for the cached values
 	TTL string `yaml:"ttl,omitempty"`
+	// MaxBackoff sets the maximum backoff on error.
+	MaxBackoff time.Duration `yaml:"max_backoff,omitempty"`
 }
 
 // Enabled determines if a given "_service" section has been set to 'true'
@@ -841,7 +847,8 @@ func (c *CachePolicy) Enabled() bool {
 // Parse parses cache policy from Teleport config
 func (c *CachePolicy) Parse() (*servicecfg.CachePolicy, error) {
 	out := servicecfg.CachePolicy{
-		Enabled: c.Enabled(),
+		Enabled:        c.Enabled(),
+		MaxRetryPeriod: c.MaxBackoff,
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -2285,4 +2292,15 @@ func (s *TracingService) Enabled() bool {
 		return false
 	}
 	return v
+}
+
+// Okta represents an okta_service section in the config file.
+type Okta struct {
+	Service `yaml:",inline"`
+
+	// APIEndpoint is the Okta API endpoint to use.
+	APIEndpoint string `yaml:"api_endpoint,omitempty"`
+
+	// APITokenPath is the path to the Okta API token.
+	APITokenPath string `yaml:"api_token_path,omitempty"`
 }

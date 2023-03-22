@@ -30,6 +30,7 @@ import type {
 
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
+import type { WebauthnAssertionResponse } from './services/auth';
 
 import type { ParticipantMode } from 'teleport/services/session';
 
@@ -515,10 +516,19 @@ const cfg = {
     });
   },
 
-  getScpUrl(params: UrlScpParams) {
-    return generatePath(cfg.api.scp, {
+  getScpUrl({ webauthn, ...params }: UrlScpParams) {
+    let path = generatePath(cfg.api.scp, {
       ...params,
     });
+    if (!webauthn) {
+      return path;
+    }
+    // non-required MFA will mean this param is undefined and generatePath doesn't like undefined
+    // or optional params. So we append it ourselves here. Its ok to be undefined when sent to the server
+    // as the existence of this param is what will issue certs
+    return `${path}&webauthn=${JSON.stringify({
+      webauthnAssertionResponse: webauthn,
+    })}`;
   },
 
   getRenewTokenUrl() {
@@ -593,6 +603,7 @@ export interface UrlScpParams {
   login: string;
   location: string;
   filename: string;
+  webauthn?: WebauthnAssertionResponse;
 }
 
 export interface UrlSshParams {

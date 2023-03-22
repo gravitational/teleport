@@ -38,11 +38,16 @@ type Anonymizable interface {
 type UserLoginEvent prehogv1.UserLoginEvent
 
 func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	var deviceID string
+	if u.DeviceId != "" {
+		deviceID = a.AnonymizeString(u.DeviceId)
+	}
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UserLogin{
 			UserLogin: &prehogv1.UserLoginEvent{
 				UserName:      a.AnonymizeString(u.UserName),
 				ConnectorType: u.ConnectorType,
+				DeviceId:      deviceID,
 			},
 		},
 	}
