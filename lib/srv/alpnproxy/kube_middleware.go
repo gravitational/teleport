@@ -18,43 +18,14 @@ package alpnproxy
 
 import (
 	"crypto/tls"
-	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-
-	"github.com/gravitational/teleport/api/constants"
 )
 
-// KubeClientCertKey is the key used for caching client keys.
-type KubeClientCertKey struct {
-	// TeleportCluster is the name of the Teleport cluster.
-	TeleportCluster string
-	// KubeCluster is the name of the Kubernetes cluster.
-	KubeCluster string
-}
-
-// String implements Stringer interface.
-func (k KubeClientCertKey) String() string {
-	return fmt.Sprintf("Teleport cluster %q Kubernetes cluster %q", k.TeleportCluster, k.KubeCluster)
-}
-
-func newKubeClientCertKeyFromSNI(sni string) (KubeClientCertKey, error) {
-	kubeCluster, teleportCluster, found := strings.Cut(sni, constants.KubeTeleportLocalProxyDelimiter)
-	if !found || kubeCluster == "" || teleportCluster == "" {
-		return KubeClientCertKey{}, trace.BadParameter("expect tls-server-name in format of <kube-cluster>%s<teleport-cluster>", constants.KubeTeleportLocalProxyDelimiter)
-	}
-
-	return KubeClientCertKey{
-		TeleportCluster: teleportCluster,
-		KubeCluster:     kubeCluster,
-	}, nil
-}
-
 // KubeClientCerts is a map of Kubernetes client certs.
-type KubeClientCerts map[KubeClientCertKey]tls.Certificate
+type KubeClientCerts map[string]tls.Certificate
 
 // KubeMiddleware is a LocalProxyHTTPMiddleware for handling Kubernetes
 // requests.
@@ -87,15 +58,10 @@ func (m *KubeMiddleware) OverwriteClientCerts(req *http.Request) ([]tls.Certific
 		return nil, trace.BadParameter("expect a TLS request")
 	}
 
-	key, err := newKubeClientCertKeyFromSNI(req.TLS.ServerName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	m.log.Debugf("Received Kubernetes request for %v", key)
-	cert, ok := m.certs[key]
+	m.log.Debugf("Received Kubernetes request for %v", req.TLS.ServerName)
+	cert, ok := m.certs[req.TLS.ServerName]
 	if !ok {
-		return nil, trace.NotFound("no client cert found for %v", key)
+		return nil, trace.NotFound("no client cert found for %v", req.TLS.ServerName)
 	}
 	return []tls.Certificate{cert}, nil
 }

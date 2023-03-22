@@ -159,10 +159,6 @@ func NewLocalProxy(cfg LocalProxyConfig, opts ...LocalProxyConfigOpt) (*LocalPro
 
 // Start starts the LocalProxy.
 func (l *LocalProxy) Start(ctx context.Context) error {
-	if l.cfg.HTTPMiddleware != nil {
-		return trace.Wrap(l.StartHTTPAccessProxy(ctx))
-	}
-
 	if l.cfg.Middleware != nil {
 		err := l.cfg.Middleware.OnStart(ctx, l)
 		if err != nil {
@@ -210,15 +206,6 @@ func (l *LocalProxy) Start(ctx context.Context) error {
 // GetAddr returns the LocalProxy listener address.
 func (l *LocalProxy) GetAddr() string {
 	return l.cfg.Listener.Addr().String()
-}
-
-// GetPort returns the port used by the listener.
-func (l *LocalProxy) GetPort() string {
-	_, port, err := net.SplitHostPort(l.GetAddr())
-	if err != nil {
-		return ""
-	}
-	return port
 }
 
 // handleDownstreamConnection proxies the downstreamConn (connection established to the local proxy) and forward the

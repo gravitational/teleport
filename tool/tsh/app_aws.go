@@ -187,7 +187,7 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		// https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
 		"AWS_ACCESS_KEY_ID":     credValues.AccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": credValues.SecretAccessKey,
-		"AWS_CA_BUNDLE":         a.profile.LocalCAPath(),
+		"AWS_CA_BUNDLE":         a.profile.AppLocalCAPath(a.appName),
 	}
 
 	// Set proxy settings.
@@ -249,7 +249,7 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	localCA, err := loadSelfSignedCA(a.profile)
+	localCA, err := loadAppSelfSignedCA(a.profile, a.appName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -259,10 +259,15 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
+	listenAddr := "localhost:0"
+	if port != "" {
+		listenAddr = fmt.Sprintf("localhost:%s", port)
+	}
+
 	// Create a listener that is able to sign certificates when receiving AWS
 	// requests tunneled from the local forward proxy.
 	listener, err := alpnproxy.NewCertGenListener(alpnproxy.CertGenListenerConfig{
-		ListenAddr: localListenAddr(port),
+		ListenAddr: listenAddr,
 		CA:         localCA,
 	})
 	if err != nil {
@@ -294,9 +299,14 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 
 // startLocalForwardProxy starts the local forward proxy.
 func (a *awsApp) startLocalForwardProxy(port string) error {
+	listenAddr := "localhost:0"
+	if port != "" {
+		listenAddr = fmt.Sprintf("localhost:%s", port)
+	}
+
 	// Note that the created forward proxy serves HTTP instead of HTTPS, to
 	// eliminate the need to install temporary CA for various AWS clients.
-	listener, err := net.Listen("tcp", localListenAddr(port))
+	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -168,6 +168,11 @@ func (k *Key) TLSCAs() (result [][]byte) {
 	return result
 }
 
+// TLSCertByte returns TLS cert byte.
+func (k *Key) TLSCertByte() []byte {
+	return k.TLSCert
+}
+
 func (k *Key) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName string) (*tls.Config, error) {
 	rootCluster, err := k.RootClusterName()
 	if err != nil {

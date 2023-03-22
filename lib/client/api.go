@@ -762,6 +762,12 @@ func (c *Config) KubeProxyHostPort() (string, int) {
 	return webProxyHost, defaults.KubeListenPort
 }
 
+// KubeProxyHost returns the host and port of the Kubernetes proxy.
+func (c *Config) KubeProxyHost() string {
+	host, _ := c.KubeProxyHostPort()
+	return host
+}
+
 // KubeClusterAddr returns a public HTTPS address of the proxy for use by
 // Kubernetes client.
 func (c *Config) KubeClusterAddr() string {

@@ -60,6 +60,8 @@ const (
 	currentProfileFilename = "current-profile"
 	// profileFileExt is the suffix of a profile file.
 	profileFileExt = ".yaml"
+	// fileLocalCA is the filename where a self-signed localhost CA cert is stored.
+	fileLocalCA = "localca.pem"
 )
 
 // Here's the file layout of all these keypaths.
@@ -75,7 +77,6 @@ const (
 //    │   ├── foo.pub                  --> Public Key
 //    │   ├── foo.ppk                  --> PuTTY PPK-formatted keypair for user "foo"
 //    │   ├── foo-x509.pem             --> TLS client certificate for Auth Server
-//    │   ├── foo-localca.pem          --> Self-signed localhost CA cert for user "foo"
 //    │   ├── foo-ssh                  --> SSH certs for user "foo"
 //    │   │   ├── root-cert.pub        --> SSH cert for Teleport cluster "root"
 //    │   │   └── leaf-cert.pub        --> SSH cert for Teleport cluster "leaf"
@@ -83,6 +84,7 @@ const (
 //    │   │   ├── root                 --> Database access certs for cluster "root"
 //    │   │   │   ├── appA-x509.pem    --> TLS cert for app service "appA"
 //    │   │   │   └── appB-x509.pem    --> TLS cert for app service "appB"
+//    │   │   │   └── appB-localca.pem --> Self-signed localhost CA cert for app service "appB"
 //    │   │   └── leaf                 --> Database access certs for cluster "leaf"
 //    │   │       └── appC-x509.pem    --> TLS cert for app service "appC"
 //    │   ├── foo-db                   --> App access certs for user "foo"
@@ -96,7 +98,8 @@ const (
 //    │   |    │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
 //    │   |    │   ├── kubeA-x509.pem   --> TLS cert for Kubernetes cluster "kubeA"
 //    │   |    │   ├── kubeB-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeB"
-//    │   |    │   └── kubeB-x509.pem   --> TLS cert for Kubernetes cluster "kubeB"
+//    │   |    │   ├── kubeB-x509.pem   --> TLS cert for Kubernetes cluster "kubeB"
+//    │   |    │   └── localca.pem      --> Self-signed localhost CA cert for Teleport cluster "root"
 //    │   |    └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
 //    │   |        ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
 //    │   |        └── kubeC-x509.pem   --> TLS cert for Kubernetes cluster "kubeC"
@@ -235,12 +238,20 @@ func AppCertPath(baseDir, proxy, username, cluster, appname string) string {
 	return filepath.Join(AppCertDir(baseDir, proxy, username, cluster), appname+fileExtTLSCert)
 }
 
-// LocalCAPath returns the path to a self-signed localhost CA for the given
-// user.
+// AppLocalCAPath returns the path to a self-signed localhost CA for the given
+// proxy, cluster, and app.
 //
-// <baseDir>/keys/<proxy>/<username>-localca.pem
-func LocalCAPath(baseDir, proxy, username string) string {
-	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+fileExtLocalCA)
+// <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>-localca.pem
+func AppLocalCAPath(baseDir, proxy, username, cluster, appname string) string {
+	return filepath.Join(AppCertDir(baseDir, proxy, username, cluster), appname+fileExtLocalCA)
+}
+
+// KubeLocalCAPath returns the path to a self-signed localhost CA for the given
+// proxy, cluster, and app.
+//
+// <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>-localca.pem
+func KubeLocalCAPath(baseDir, proxy, username, cluster string) string {
+	return filepath.Join(KubeCertDir(baseDir, proxy, username, cluster), fileLocalCA)
 }
 
 // DatabaseDir returns the path to the user's database directory

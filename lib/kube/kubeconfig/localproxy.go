@@ -15,10 +15,12 @@
 package kubeconfig
 
 import (
+	"encoding/hex"
+	"fmt"
+
 	"github.com/gravitational/trace"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -50,19 +52,25 @@ func (v *LocalProxyClusterValues) ContextName() string {
 
 // TLSServerName returns the TLSServerName  for this kube cluster.
 func (v *LocalProxyClusterValues) TLSServerName() string {
-	return v.KubeCluster + constants.KubeTeleportLocalProxyDelimiter + v.TeleportCluster
+	// Hex encode to hide "." in kube cluster name so wildcard cert can be used.
+	return fmt.Sprintf("%s.%s", hex.EncodeToString([]byte(v.KubeCluster)), v.TeleportCluster)
+}
+
+// String implements Stringer interface.
+func (v *LocalProxyClusterValues) String() string {
+	return fmt.Sprintf("Teleport cluster %q Kubernetes cluster %q", v.TeleportCluster, v.KubeCluster)
 }
 
 // LocalProxyValues contains values for generating local proxy kubeconfig
 type LocalProxyValues struct {
-	// LocalProxyCAPath is the path to local proxy's self-signed CA.
-	LocalProxyCAPath string
-	// LocalProxyAddr is the local proxy's server address.
-	LocalProxyAddr string
+	// TeleportKubeClusterAddr is the Teleport Kubernetes access address.
+	TeleportKubeClusterAddr string
+	// LocalProxyURL is the local forward proxy's URL.
+	LocalProxyURL string
+	// LocalProxyCAPaths are the paths to local proxy's self-signed CA by Teleport cluster name.
+	LocalProxyCAPaths map[string]string
 	// ClientKeyPath is the path to the client key.
 	ClientKeyPath string
-	// ClientKeyPath is the path to the client client.
-	CliertCertPath string
 	// Clusters is a list of Teleport kube clusters to include.
 	Clusters []LocalProxyClusterValues
 }
@@ -77,21 +85,22 @@ func (v *LocalProxyValues) TeleportClusterNames() []string {
 }
 
 // SaveLocalProxyValues creates a kubeconfig for local proxy.
-func SaveLocalProxyValues(path, clusterAddr string, defaultConfig *clientcmdapi.Config, localProxyValues *LocalProxyValues) error {
+func SaveLocalProxyValues(path string, defaultConfig *clientcmdapi.Config, localProxyValues *LocalProxyValues) error {
 	prevContext := defaultConfig.CurrentContext
 
 	// Make a deep copy from default config then remove existing Teleport
 	// entries before adding the ones for local proxy.
 	config := defaultConfig.DeepCopy()
 	config.CurrentContext = ""
-	removeByServerAddr(config, clusterAddr)
+	removeByServerAddr(config, localProxyValues.TeleportKubeClusterAddr)
 
 	for _, cluster := range localProxyValues.Clusters {
 		contextName := cluster.ContextName()
 
 		config.Clusters[contextName] = &clientcmdapi.Cluster{
-			Server:               localProxyValues.LocalProxyAddr,
-			CertificateAuthority: localProxyValues.LocalProxyCAPath,
+			ProxyURL:             localProxyValues.LocalProxyURL,
+			Server:               localProxyValues.TeleportKubeClusterAddr,
+			CertificateAuthority: localProxyValues.LocalProxyCAPaths[cluster.TeleportCluster],
 			TLSServerName:        cluster.TLSServerName(),
 		}
 		config.Contexts[contextName] = &clientcmdapi.Context{
@@ -100,7 +109,7 @@ func SaveLocalProxyValues(path, clusterAddr string, defaultConfig *clientcmdapi.
 			AuthInfo:  contextName,
 		}
 		config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
-			ClientCertificate: localProxyValues.CliertCertPath,
+			ClientCertificate: localProxyValues.LocalProxyCAPaths[cluster.TeleportCluster],
 			ClientKey:         localProxyValues.ClientKeyPath,
 			Impersonate:       cluster.Impersonate,
 			ImpersonateGroups: cluster.ImpersonateGroups,

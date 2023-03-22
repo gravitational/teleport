@@ -29,7 +29,6 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -314,6 +313,8 @@ func onAppLogout(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		removeAppLocalFiles(profile, app.Name)
 	}
 	if len(logout) == 1 {
 		fmt.Printf("Logged out of app %q\n", logout[0].Name)
@@ -484,6 +485,11 @@ func pickActiveApp(cf *CLIConf) (*tlsca.RouteToApp, error) {
 	return nil, trace.NotFound("not logged into app %q", name)
 }
 
+// removeAppLocalFiles removes generated local files for the provided app.
+func removeAppLocalFiles(profile *client.ProfileStatus, appName string) {
+	removeFileIfExist(profile.AppLocalCAPath(appName))
+}
+
 // removeFileIfExist removes a local file if it exists.
 func removeFileIfExist(filePath string) {
 	if !utils.FileExists(filePath) {
@@ -495,10 +501,14 @@ func removeFileIfExist(filePath string) {
 	}
 }
 
-// loadSelfSignedCA loads self-signed CA for provided profile, or tries to
+// loadAppSelfSignedCA loads self-signed CA for provided app, or tries to
 // generate a new CA if first load fails.
-func loadSelfSignedCA(profile *client.ProfileStatus) (tls.Certificate, error) {
-	caPath := profile.LocalCAPath()
+func loadAppSelfSignedCA(profile *client.ProfileStatus, appName string) (tls.Certificate, error) {
+	cert, err := loadSelfSignedCA(profile, profile.AppLocalCAPath(appName), "localhost")
+	return cert, trace.Wrap(err)
+}
+
+func loadSelfSignedCA(profile *client.ProfileStatus, caPath string, dnsNames ...string) (tls.Certificate, error) {
 	keyPath := profile.KeyPath()
 
 	caTLSCert, err := keys.LoadX509KeyPair(caPath, keyPath)
@@ -508,15 +518,12 @@ func loadSelfSignedCA(profile *client.ProfileStatus) (tls.Certificate, error) {
 			return caTLSCert, nil
 		}
 	}
-
-	if trace.IsNotFound(err) {
-		log.Debug("Local self signed CA not found.")
-	} else {
-		log.WithError(err).Debugf("Failed to load local self signed CA.")
+	if err != nil && !trace.IsNotFound(err) {
+		log.WithError(err).Debugf("Failed to load certificate from %v. Generating local self signed CA.", caPath)
 	}
 
 	// Generate and load again.
-	if err = generateSelfSignedCA(profile); err != nil {
+	if err = generateSelfSignedCA(profile, caPath, dnsNames...); err != nil {
 		return tls.Certificate{}, err
 	}
 
@@ -527,16 +534,9 @@ func loadSelfSignedCA(profile *client.ProfileStatus) (tls.Certificate, error) {
 	return caTLSCert, nil
 }
 
-// generateSelfSignedCA generates a new self-signed CA.
-func generateSelfSignedCA(profile *client.ProfileStatus) error {
-	log.Debugf("Generating local self signed CA at %v.", profile.LocalCAPath())
-
-	// This should not happen as loadSelfSignedCA is usually called after the
-	// session is validated. Checking just in case.
-	if profile.IsExpired(clockwork.NewRealClock()) {
-		return trace.BadParameter("Your tsh session is expired. Please login again with `tsh login`.")
-	}
-
+// generateSelfSignedCA generates a new self-signed CA for provided dnsNames
+// and saves/overwrites the local CA file in the profile directory.
+func generateSelfSignedCA(profile *client.ProfileStatus, caPath string, dnsNames ...string) error {
 	keyPem, err := utils.ReadPath(profile.KeyPath())
 	if err != nil {
 		return trace.Wrap(err)
@@ -553,7 +553,7 @@ func generateSelfSignedCA(profile *client.ProfileStatus) error {
 			Organization: []string{"Teleport"},
 		},
 		Signer:      key,
-		DNSNames:    []string{"localhost"},
+		DNSNames:    dnsNames,
 		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
 		TTL:         time.Until(profile.ValidUntil),
 	})
@@ -562,7 +562,7 @@ func generateSelfSignedCA(profile *client.ProfileStatus) error {
 	}
 
 	// WriteFile truncates existing file before writing.
-	if err = os.WriteFile(profile.LocalCAPath(), certPem, 0600); err != nil {
+	if err = os.WriteFile(caPath, certPem, 0600); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	return nil

@@ -402,7 +402,13 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	listener, err := net.Listen("tcp", localListenAddr(cf.LocalProxyPort))
+	addr := "localhost:0"
+	randomPort := true
+	if cf.LocalProxyPort != "" {
+		randomPort = false
+		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
+	}
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -464,7 +470,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			"type":       defaults.ReadableDatabaseProtocol(route.Protocol),
 			"cluster":    tc.SiteName,
 			"address":    listener.Addr().String(),
-			"randomPort": cf.LocalProxyPort == "",
+			"randomPort": randomPort,
 		}
 
 		tmpl := chooseProxyCommandTemplate(templateArgs, commands)
@@ -480,7 +486,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			"ca":         profile.CACertPathForCluster(rootCluster),
 			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, route.ServiceName),
 			"key":        profile.KeyPath(),
-			"randomPort": cf.LocalProxyPort == "",
+			"randomPort": randomPort,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -554,7 +560,12 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	listener, err := net.Listen("tcp", localListenAddr(cf.LocalProxyPort))
+	addr := "localhost:0"
+	if cf.LocalProxyPort != "" {
+		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
+	}
+
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -808,13 +819,6 @@ func makeBasicLocalProxyConfig(cf *CLIConf, tc *libclient.TeleportClient, listen
 		Listener:                listener,
 		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 	}
-}
-
-func localListenAddr(port string) string {
-	if port == "" {
-		return "localhost:0"
-	}
-	return fmt.Sprintf("localhost:%s", port)
 }
 
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.

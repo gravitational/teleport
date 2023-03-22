@@ -245,7 +245,7 @@ func (a *gcpApp) GetEnvVars() (map[string]string, error) {
 
 		// Set core.custom_ca_certs_file via env variable, customizing the path to CA certs file.
 		// https://cloud.google.com/sdk/gcloud/reference/config/set#:~:text=custom_ca_certs_file
-		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.profile.LocalCAPath(),
+		"CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE": a.profile.AppLocalCAPath(a.app.Name),
 
 		// We need to set project ID. This is sourced from the account name.
 		// https://cloud.google.com/sdk/gcloud/reference/config#GROUP:~:text=authentication%20to%20gsutil.-,project,-Project%20ID%20of
@@ -302,15 +302,20 @@ func (a *gcpApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	localCA, err := loadSelfSignedCA(a.profile)
+	localCA, err := loadAppSelfSignedCA(a.profile, a.app.Name)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	listenAddr := "localhost:0"
+	if port != "" {
+		listenAddr = fmt.Sprintf("localhost:%s", port)
 	}
 
 	// Create a listener that is able to sign certificates when receiving GCP
 	// requests tunneled from the local forward proxy.
 	listener, err := alpnproxy.NewCertGenListener(alpnproxy.CertGenListenerConfig{
-		ListenAddr: localListenAddr(port),
+		ListenAddr: listenAddr,
 		CA:         localCA,
 	})
 	if err != nil {
@@ -343,9 +348,14 @@ func (a *gcpApp) startLocalALPNProxy(port string) error {
 
 // startLocalForwardProxy starts the local forward proxy.
 func (a *gcpApp) startLocalForwardProxy(port string) error {
+	listenAddr := "localhost:0"
+	if port != "" {
+		listenAddr = fmt.Sprintf("localhost:%s", port)
+	}
+
 	// Note that the created forward proxy serves HTTP instead of HTTPS, to
 	// eliminate the need to install temporary CA for various GCP clients.
-	listener, err := net.Listen("tcp", localListenAddr(port))
+	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}

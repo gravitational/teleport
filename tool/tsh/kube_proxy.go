@@ -22,8 +22,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net"
-	"os"
-	"os/exec"
 	"path"
 	"strings"
 	"text/template"
@@ -33,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
@@ -51,7 +50,6 @@ type proxyKubeCommand struct {
 	port              string
 	format            string
 	configPath        string
-	exec              string
 }
 
 func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
@@ -68,7 +66,7 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 	c.Flag("port", "Specifies the source port used by the proxy listener").Short('p').StringVar(&c.port)
 	c.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&c.format, envVarFormats...)
 	c.Flag("config-path", "Overwrites the default path for generating the ephemeral config.").StringVar(&c.configPath)
-	c.Flag("exec", "Execute a command against the local proxy.").StringVar(&c.exec)
+	// TODO support --exec to execute a command against the local proxy.
 	return c
 }
 
@@ -83,64 +81,28 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	profile, certs, err := loadAllKubeCerts(cf.Context, tc, clusters)
+	localProxy, err := newKubeLocalProxy(cf, tc, clusters, c.port)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	listener, err := kubeLocalProxyListener(profile, c.port)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	lp, err := alpnproxy.NewLocalProxy(
-		makeBasicLocalProxyConfig(cf, tc, listener),
-		alpnproxy.WithHTTPMiddleware(alpnproxy.NewKubeMiddleware(certs)),
-		alpnproxy.WithSNI(client.GetKubeTLSServerName(tc.WebProxyHost())),
-		alpnproxy.WithClusterCAs(cf.Context, tc.RootClusterCACertPool),
-	)
-	if err != nil {
-		if cerr := listener.Close(); cerr != nil {
-			return trace.NewAggregate(err, cerr)
-		}
-		return trace.Wrap(err)
-	}
-	defer lp.Close()
+	defer localProxy.Close()
 
 	// Save the config for local proxy.
-	if err := c.writeConfig(profile, tc, defaultConfig, clusters, lp); err != nil {
+	if err := c.writeConfig(tc, defaultConfig, clusters, localProxy); err != nil {
 		return trace.Wrap(err)
 	}
-	defer removeFileIfExist(c.configPath)
 
-	waitCtx, cancel := context.WithCancel(cf.Context)
-	go func() {
-		if err := lp.Start(cf.Context); err != nil {
-			log.WithError(err).Errorf("Failed to start local ALPN proxy.")
-		}
-		cancel()
-	}()
-
-	if c.exec != "" {
-		return trace.Wrap(c.runCommand(cf))
-	}
-
-	if err := c.printTemplate(cf, lp.GetAddr()); err != nil {
+	if err := c.printTemplate(cf, localProxy.GetAddr()); err != nil {
 		return trace.Wrap(err)
 	}
-	<-waitCtx.Done()
-	return nil
-}
 
-func (c *proxyKubeCommand) runCommand(cf *CLIConf) error {
-	args := strings.Fields(c.exec)
-	cmd := exec.CommandContext(cf.Context, args[0], args[1:]...)
-	cmd.Stdin = cf.Stdin()
-	cmd.Stdout = cf.Stdout()
-	cmd.Stderr = cf.Stderr()
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, fmt.Sprintf("KUBECONFIG=%v", c.configPath))
-	return trace.Wrap(cf.RunCommand(cmd))
+	errChan := localProxy.Start(cf.Context)
+	select {
+	case err := <-errChan:
+		return trace.Wrap(err)
+	case <-cf.Context.Done():
+		return nil
+	}
 }
 
 func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*clientcmdapi.Config, []kubeconfig.LocalProxyClusterValues, error) {
@@ -187,29 +149,27 @@ Or login the Kubernetes cluster first:
 	return defaultConfig, clusters, nil
 }
 
-func (c *proxyKubeCommand) writeConfig(profile *client.ProfileStatus, tc *client.TeleportClient, defaultConfig *clientcmdapi.Config, clusters []kubeconfig.LocalProxyClusterValues, lp *alpnproxy.LocalProxy) error {
+func (c *proxyKubeCommand) writeConfig(tc *client.TeleportClient, defaultConfig *clientcmdapi.Config, clusters []kubeconfig.LocalProxyClusterValues, localProxy *kubeLocalProxy) error {
 	if c.configPath == "" {
-		c.configPath = path.Join(profile.KubeConfigPath(fmt.Sprintf("localproxy-%v", lp.GetPort())))
+		_, port, _ := net.SplitHostPort(localProxy.GetAddr())
+		c.configPath = path.Join(localProxy.KubeConfigPath(fmt.Sprintf("localproxy-%v", port)))
 	}
 
 	// Let clients use the same cert as the local proxy server for simplicity.
 	values := &kubeconfig.LocalProxyValues{
-		LocalProxyAddr:   fmt.Sprintf("https://%s", lp.GetAddr()),
-		LocalProxyCAPath: profile.LocalCAPath(),
-		ClientKeyPath:    profile.KeyPath(),
-		CliertCertPath:   profile.LocalCAPath(),
-		Clusters:         clusters,
+		TeleportKubeClusterAddr: tc.KubeClusterAddr(),
+		LocalProxyURL:           "http://" + localProxy.GetAddr(),
+		LocalProxyCAPaths:       make(map[string]string),
+		ClientKeyPath:           localProxy.KeyPath(),
+		Clusters:                clusters,
 	}
-	return trace.Wrap(kubeconfig.SaveLocalProxyValues(c.configPath, tc.KubeClusterAddr(), defaultConfig, values))
+	for _, cluster := range clusters {
+		values.LocalProxyCAPaths[cluster.TeleportCluster] = localProxy.KubeLocalCAPathForCluster(cluster.TeleportCluster)
+	}
+	return trace.Wrap(kubeconfig.SaveLocalProxyValues(c.configPath, defaultConfig, values))
 }
 
 func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters []kubeconfig.LocalProxyClusterValues) {
-	// Do not print anything if executing a command so that only the output of
-	// the executed command will be shown.
-	if c.exec != "" {
-		return
-	}
-
 	fmt.Fprintln(cf.Stdout(), title)
 	table := asciitable.MakeTable([]string{"Teleport Cluster Name", "Kube Cluster Name"})
 	for _, cluster := range clusters {
@@ -228,26 +188,126 @@ func (c *proxyKubeCommand) printTemplate(cf *CLIConf, addr string) error {
 	}))
 }
 
-func kubeLocalProxyListener(profile *client.ProfileStatus, port string) (net.Listener, error) {
-	localCA, err := loadSelfSignedCA(profile)
+type kubeLocalProxy struct {
+	*client.ProfileStatus
+	lp *alpnproxy.LocalProxy
+	fp *alpnproxy.ForwardProxy
+}
+
+func newKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters []kubeconfig.LocalProxyClusterValues, port string) (*kubeLocalProxy, error) {
+	profile, certs, err := loadAllKubeCerts(cf.Context, tc, clusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	x509ca, err := utils.TLSCertLeaf(localCA)
+	lpListener, err := kubeLocalProxyListener(profile, teleportClustersFromKubeClusters(clusters))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lp, err := alpnproxy.NewLocalProxy(
+		makeBasicLocalProxyConfig(cf, tc, lpListener),
+		alpnproxy.WithHTTPMiddleware(alpnproxy.NewKubeMiddleware(certs)),
+		alpnproxy.WithSNI(client.GetKubeTLSServerName(tc.WebProxyHost())),
+		alpnproxy.WithClusterCAs(cf.Context, tc.RootClusterCACertPool),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Let clients use the same cert as the local proxy server for simplicity.
-	clientCertPool := x509.NewCertPool()
-	clientCertPool.AddCert(x509ca)
+	addr := "localhost:0"
+	if port != "" {
+		addr = "localhost:" + port
+	}
+	fpListener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	fp, err := alpnproxy.NewForwardProxy(alpnproxy.ForwardProxyConfig{
+		Listener:     fpListener,
+		CloseContext: cf.Context,
+		Handlers: []alpnproxy.ConnectRequestHandler{
+			alpnproxy.NewForwardToHostHandler(alpnproxy.ForwardToHostHandlerConfig{
+				MatchFunc: alpnproxy.MatchAllRequests,
+				Host:      lp.GetAddr(),
+			}),
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	listener, err := alpnproxy.NewCertGenListener(alpnproxy.CertGenListenerConfig{
-		ListenAddr: localListenAddr(port),
-		CA:         localCA,
-		ClientAuth: tls.RequireAndVerifyClientCert,
-		ClientCAs:  clientCertPool,
+	return &kubeLocalProxy{
+		ProfileStatus: profile,
+		lp:            lp,
+		fp:            fp,
+	}, nil
+}
+
+func (k *kubeLocalProxy) Start(ctx context.Context) chan error {
+	errChan := make(chan error, 2)
+	go func() {
+		if err := k.fp.Start(); err != nil {
+			errChan <- err
+		}
+	}()
+	go func() {
+		if err := k.lp.StartHTTPAccessProxy(ctx); err != nil {
+			errChan <- err
+		}
+	}()
+	return errChan
+}
+
+func (k *kubeLocalProxy) Close() error {
+	return trace.NewAggregate(k.fp.Close(), k.lp.Close())
+}
+
+func (k *kubeLocalProxy) GetAddr() string {
+	return k.fp.GetAddr()
+}
+
+func teleportClustersFromKubeClusters(clusters []kubeconfig.LocalProxyClusterValues) []string {
+	teleportClusters := make([]string, 0, len(clusters))
+	for _, cluster := range clusters {
+		teleportClusters = append(teleportClusters, cluster.TeleportCluster)
+	}
+	return apiutils.Deduplicate(teleportClusters)
+}
+
+func kubeLocalProxyListener(profile *client.ProfileStatus, teleportClusters []string) (net.Listener, error) {
+	configs := make(map[string]*tls.Config)
+	for _, teleportCluster := range teleportClusters {
+		localCA, err := loadSelfSignedCA(profile, profile.KubeLocalCAPathForCluster(teleportCluster), "*."+teleportCluster)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		x509ca, err := utils.TLSCertLeaf(localCA)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		localCA.Leaf = x509ca
+
+		// Server and client are using the same certs.
+		clientCerts := x509.NewCertPool()
+		clientCerts.AddCert(x509ca)
+
+		configs[teleportCluster] = &tls.Config{
+			Certificates: []tls.Certificate{localCA},
+			ClientAuth:   tls.RequireAndVerifyClientCert,
+			ClientCAs:    clientCerts,
+		}
+	}
+
+	listener, err := tls.Listen("tcp", "localhost:0", &tls.Config{
+		GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+			_, teleportCluster, _ := strings.Cut(hello.ServerName, ".")
+			config, ok := configs[teleportCluster]
+			if !ok {
+				return nil, trace.NotFound("unknown Teleport cluster %q", teleportCluster)
+			}
+			return config, nil
+		},
 	})
 	return listener, trace.Wrap(err)
 }
@@ -271,19 +331,16 @@ func loadAllKubeCerts(ctx context.Context, tc *client.TeleportClient, clusters [
 		return nil, nil, trace.Wrap(err)
 	}
 
-	keys := newKeyCache(tc.SiteName, key)
+	keys := map[string]*client.Key{
+		tc.SiteName: key,
+	}
 	all := make(alpnproxy.KubeClientCerts)
-	for _, clusterValues := range clusters {
-		clusterKey := alpnproxy.KubeClientCertKey{
-			TeleportCluster: clusterValues.TeleportCluster,
-			KubeCluster:     clusterValues.KubeCluster,
-		}
-
+	for _, cluster := range clusters {
 		// Try load from store.
-		cert, err := kubeCertFromClientStore(tc, keys, clusterKey)
+		cert, err := kubeCertFromClientStore(tc, keys, cluster.TeleportCluster, cluster.KubeCluster)
 		if err == nil {
-			log.Debugf("Client cert loaded from keystore for %v.", clusterKey)
-			all[clusterKey] = cert
+			log.Debugf("Client cert loaded from keystore for %v.", cluster)
+			all[cluster.TLSServerName()] = cert
 			continue
 		}
 		if !trace.IsNotFound(err) {
@@ -291,23 +348,23 @@ func loadAllKubeCerts(ctx context.Context, tc *client.TeleportClient, clusters [
 		}
 
 		// Try issue.
-		cert, err = issueKubeCert(ctx, tc, proxy, clusterKey)
+		cert, err = issueKubeCert(ctx, tc, proxy, cluster.TeleportCluster, cluster.KubeCluster)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		log.Debugf("Client cert issued for %v.", clusterKey)
-		all[clusterKey] = cert
+		log.Debugf("Client cert issued for %v.", cluster)
+		all[cluster.TLSServerName()] = cert
 	}
 	return profile, all, nil
 }
 
-func issueKubeCert(ctx context.Context, tc *client.TeleportClient, proxy *client.ProxyClient, cluster alpnproxy.KubeClientCertKey) (tls.Certificate, error) {
+func issueKubeCert(ctx context.Context, tc *client.TeleportClient, proxy *client.ProxyClient, teleportCluster, kubeCluster string) (tls.Certificate, error) {
 	key, mfaRequired, err := proxy.IssueUserCertsWithMFA(
 		ctx,
 		client.ReissueParams{
-			RouteToCluster:    cluster.TeleportCluster,
-			KubernetesCluster: cluster.KubeCluster,
+			RouteToCluster:    teleportCluster,
+			KubernetesCluster: kubeCluster,
 		},
 		nil, /*applyOpts*/ // TODO provide a hint for each cluster?
 	)
@@ -320,7 +377,7 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, proxy *client
 	// via the RBAC rules, but we also need to make sure that the user has
 	// access to the cluster with at least one kubernetes_user or kubernetes_group
 	// defined.
-	if err := checkIfCertsAreAllowedToAccessCluster(key, cluster.KubeCluster); err != nil {
+	if err := checkIfCertsAreAllowedToAccessCluster(key, kubeCluster); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
@@ -331,48 +388,26 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, proxy *client
 		}
 	}
 
-	cert, err := kubeCertFromAgentKey(key, cluster.KubeCluster)
+	cert, err := kubeCertFromAgentKey(key, kubeCluster)
 	return cert, trace.Wrap(err)
 }
 
-type keyCache map[string]*client.Key
+func kubeCertFromClientStore(tc *client.TeleportClient, keys map[string]*client.Key, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+	key := keys[teleportCluster]
+	if key == nil {
+		index := client.KeyIndex{
+			ProxyHost:   tc.WebProxyAddr,
+			Username:    tc.Username,
+			ClusterName: teleportCluster,
+		}
+		key, err := tc.ClientStore.KeyStore.GetKey(index, client.WithKubeCerts{})
+		if err != nil {
+			return tls.Certificate{}, trace.Wrap(err)
+		}
+		keys[teleportCluster] = key
+	}
 
-func newKeyCache(siteName string, siteKey *client.Key) keyCache {
-	return map[string]*client.Key{
-		siteName: siteKey,
-	}
-}
-
-func (c keyCache) get(tc *client.TeleportClient, siteName string) (*client.Key, error) {
-	if key, ok := c[siteName]; ok {
-		return key, nil
-	}
-	if err := c.load(tc, siteName); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return c[siteName], nil
-}
-
-func (c keyCache) load(tc *client.TeleportClient, siteName string) error {
-	index := client.KeyIndex{
-		ProxyHost:   tc.WebProxyAddr,
-		Username:    tc.Username,
-		ClusterName: siteName,
-	}
-	key, err := tc.ClientStore.KeyStore.GetKey(index, client.WithKubeCerts{})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	c[siteName] = key
-	return nil
-}
-
-func kubeCertFromClientStore(tc *client.TeleportClient, keys keyCache, cluster alpnproxy.KubeClientCertKey) (tls.Certificate, error) {
-	key, err := keys.get(tc, cluster.TeleportCluster)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	x509cert, err := key.KubeTLSCertificate(cluster.KubeCluster)
+	x509cert, err := key.KubeTLSCertificate(kubeCluster)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -380,7 +415,7 @@ func kubeCertFromClientStore(tc *client.TeleportClient, keys keyCache, cluster a
 		return tls.Certificate{}, trace.NotFound("TLS cert is expiring in a minute")
 	}
 
-	cert, err := kubeCertFromAgentKey(key, cluster.KubeCluster)
+	cert, err := kubeCertFromAgentKey(key, kubeCluster)
 	return cert, trace.Wrap(err)
 }
 

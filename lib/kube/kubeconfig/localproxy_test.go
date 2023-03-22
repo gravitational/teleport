@@ -88,10 +88,12 @@ func TestLocalProxy(t *testing.T) {
 
 	t.Run("SaveLocalProxyValues", func(t *testing.T) {
 		values := &LocalProxyValues{
-			LocalProxyCAPath: "/path/to/ca",
-			LocalProxyAddr:   "https://localhost:12345",
-			ClientKeyPath:    "/path/to/client/key",
-			CliertCertPath:   "/path/to/client/cert",
+			LocalProxyCAPaths: map[string]string{
+				rootClusterName: "/path/to/ca",
+			},
+			TeleportKubeClusterAddr: rootKubeClusterAddr,
+			LocalProxyURL:           "http://localhost:12345",
+			ClientKeyPath:           "/path/to/key",
 			Clusters: []LocalProxyClusterValues{{
 				TeleportCluster:   rootClusterName,
 				KubeCluster:       "kube1",
@@ -100,7 +102,7 @@ func TestLocalProxy(t *testing.T) {
 				ImpersonateGroups: []string{"group1", "group2"},
 			}},
 		}
-		require.NoError(t, SaveLocalProxyValues(kubeconfigPath, rootKubeClusterAddr, configAfterLogins, values))
+		require.NoError(t, SaveLocalProxyValues(kubeconfigPath, configAfterLogins, values))
 
 		generatedConfig, err := Load(kubeconfigPath)
 		require.NoError(t, err)
@@ -110,9 +112,10 @@ func TestLocalProxy(t *testing.T) {
 
 		// Check for root-cluster-kube1.
 		wantConfig.Clusters["root-cluster-kube1"] = &clientcmdapi.Cluster{
-			Server:               "https://localhost:12345",
+			ProxyURL:             "http://localhost:12345",
+			Server:               rootKubeClusterAddr,
 			CertificateAuthority: "/path/to/ca",
-			TLSServerName:        "kube1.kube-teleport-localproxy-alpn.root-cluster",
+			TLSServerName:        "6b75626531.root-cluster",
 			LocationOfOrigin:     kubeconfigPath,
 			Extensions:           map[string]runtime.Object{},
 		}
@@ -124,8 +127,8 @@ func TestLocalProxy(t *testing.T) {
 			Extensions:       map[string]runtime.Object{},
 		}
 		wantConfig.AuthInfos["root-cluster-kube1"] = &clientcmdapi.AuthInfo{
-			ClientCertificate: "/path/to/client/cert",
-			ClientKey:         "/path/to/client/key",
+			ClientCertificate: "/path/to/ca",
+			ClientKey:         "/path/to/key",
 			Impersonate:       "as",
 			ImpersonateGroups: []string{"group1", "group2"},
 			LocationOfOrigin:  kubeconfigPath,

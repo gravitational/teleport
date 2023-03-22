@@ -162,7 +162,7 @@ func (a *azureApp) GetEnvVars() (map[string]string, error) {
 		// This isn't portable and applications other than az CLI may have to set different env variables,
 		// add the application cert to system root store (not recommended, ultimate fallback)
 		// or use equivalent of --insecure flag.
-		"REQUESTS_CA_BUNDLE": a.profile.LocalCAPath(),
+		"REQUESTS_CA_BUNDLE": a.profile.AppLocalCAPath(a.app.Name),
 	}
 
 	// Set proxy settings.
@@ -207,15 +207,20 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	localCA, err := loadSelfSignedCA(a.profile)
+	localCA, err := loadAppSelfSignedCA(a.profile, a.app.Name)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	listenAddr := "localhost:0"
+	if port != "" {
+		listenAddr = fmt.Sprintf("localhost:%s", port)
 	}
 
 	// Create a listener that is able to sign certificates when receiving Azure
 	// requests tunneled from the local forward proxy.
 	listener, err := alpnproxy.NewCertGenListener(alpnproxy.CertGenListenerConfig{
-		ListenAddr: localListenAddr(port),
+		ListenAddr: listenAddr,
 		CA:         localCA,
 	})
 	if err != nil {
@@ -265,9 +270,14 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 
 // startLocalForwardProxy starts the local forward proxy.
 func (a *azureApp) startLocalForwardProxy(port string) error {
+	listenAddr := "localhost:0"
+	if port != "" {
+		listenAddr = fmt.Sprintf("localhost:%s", port)
+	}
+
 	// Note that the created forward proxy serves HTTP instead of HTTPS, to
 	// eliminate the need to install temporary CA for various Azure clients.
-	listener, err := net.Listen("tcp", localListenAddr(port))
+	listener, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}

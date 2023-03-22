@@ -461,11 +461,20 @@ func (p *ProfileStatus) AppCertPath(name string) string {
 	return keypaths.AppCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
 
-// LocalCAPath returns the self-signed localhost CA path for this profile.
+// AppLocalCAPath returns the specified app's self-signed localhost CA path for
+// this profile.
 //
-// It's kept in <profile-dir>/keys/<proxy>/<user>-localca.pem
-func (p *ProfileStatus) LocalCAPath() string {
-	return keypaths.LocalCAPath(p.Dir, p.Name, p.Username)
+// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>-localca.pem
+func (p *ProfileStatus) AppLocalCAPath(name string) string {
+	return keypaths.AppLocalCAPath(p.Dir, p.Name, p.Username, p.Cluster, name)
+}
+
+// KubeLocalCAPathForCluster returns the specified cluster's self-signed
+// localhost CA path for this profile.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<user>-kube/<cluster>/localca.pem
+func (p *ProfileStatus) KubeLocalCAPathForCluster(cluster string) string {
+	return keypaths.KubeLocalCAPath(p.Dir, p.Name, p.Username, cluster)
 }
 
 // KubeConfigPath returns path to the specified kubeconfig for this profile.
