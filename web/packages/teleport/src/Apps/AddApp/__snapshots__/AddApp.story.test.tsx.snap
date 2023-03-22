@@ -99,6 +99,32 @@ exports[`render automatic tab 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  margin-right: auto;
+  color: rgba(255,255,255,0.87);
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 8px;
+}
+
 .c11 {
   appearance: none;
   border: none;
@@ -140,32 +166,6 @@ exports[`render automatic tab 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 0px;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  margin-right: auto;
-  color: rgba(255,255,255,0.87);
-}
-
-.c13 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 16px;
-}
-
-.c14 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-top: 8px;
 }
 
 .c4 {
@@ -463,6 +463,32 @@ exports[`render automatic tab on created state 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  margin-right: auto;
+  color: rgba(255,255,255,0.87);
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 8px;
+}
+
 .c11 {
   appearance: none;
   border: none;
@@ -504,32 +530,6 @@ exports[`render automatic tab on created state 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 0px;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  margin-right: auto;
-  color: rgba(255,255,255,0.87);
-}
-
-.c13 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 16px;
-}
-
-.c14 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-top: 8px;
 }
 
 .c4 {
@@ -848,6 +848,32 @@ exports[`render failed automatic tab 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  margin-right: auto;
+  color: rgba(255,255,255,0.87);
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 8px;
+}
+
 .c11 {
   appearance: none;
   border: none;
@@ -889,32 +915,6 @@ exports[`render failed automatic tab 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 0px;
-}
-
-.c6 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  text-transform: uppercase;
-  margin: 0px;
-  margin-right: auto;
-  color: rgba(255,255,255,0.87);
-}
-
-.c13 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-bottom: 16px;
-}
-
-.c14 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-top: 8px;
 }
 
 .c4 {
@@ -1218,23 +1218,6 @@ exports[`render manual tab with local user 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c11 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  margin-right: 8px;
-}
-
-.c12 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1252,6 +1235,23 @@ exports[`render manual tab with local user 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
+}
+
+.c11 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  margin-right: 8px;
+}
+
+.c12 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
 }
 
 .c4 {
@@ -1690,23 +1690,6 @@ exports[`render manual tab with sso user 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c11 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  margin-right: 8px;
-}
-
-.c12 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1724,6 +1707,23 @@ exports[`render manual tab with sso user 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
+}
+
+.c11 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  margin-right: 8px;
+}
+
+.c12 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
 }
 
 .c4 {
@@ -2176,23 +2176,6 @@ exports[`render manual tab with token 1`] = `
   background: #222C59;
 }
 
-.c11 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  margin-right: 8px;
-}
-
-.c12 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2217,6 +2200,23 @@ exports[`render manual tab with token 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-top: 4px;
+}
+
+.c11 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  margin-right: 8px;
+}
+
+.c12 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
 }
 
 .c4 {
