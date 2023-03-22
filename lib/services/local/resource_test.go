@@ -19,6 +19,7 @@ package local
 import (
 	"context"
 	"encoding/base32"
+	"github.com/google/go-cmp/cmp"
 	"testing"
 	"time"
 
@@ -31,6 +32,25 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 )
+
+func TestCreateResources_ProvisionToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	tt := setupServicesContext(ctx, t)
+
+	token, err := types.NewProvisionToken(
+		"foo",
+		types.SystemRoles{types.RoleNode},
+		time.Time{},
+	)
+	require.NoError(t, err)
+	require.NoError(t, CreateResources(ctx, tt.bk, token))
+
+	s := NewProvisioningService(tt.bk)
+	fetchedToken, err := s.GetToken(ctx, "foo")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(token, fetchedToken))
+}
 
 func TestUserResource(t *testing.T) {
 	t.Parallel()
