@@ -209,7 +209,7 @@ func (c *fetchConfig) fetchContainerOrchestrator() string {
 		return ""
 	}
 
-	insecureSkipVerify := true
+	const insecureSkipVerify = true
 	resp, err := c.httpDo(req, insecureSkipVerify)
 	if err != nil {
 		log.Debugf("Failed to perform http GET request: %s", err)
