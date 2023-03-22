@@ -251,6 +251,16 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter UserGroups")
 			}
 			collections[resourceKind] = &userGroups{watch: watch, Cache: c}
+		case types.KindOktaImportRule:
+			if c.Okta == nil {
+				return nil, trace.BadParameter("missing parameter Okta")
+			}
+			collections[resourceKind] = &oktaImports{watch: watch, Cache: c}
+		case types.KindOktaAssignment:
+			if c.Okta == nil {
+				return nil, trace.BadParameter("missing parameter Okta")
+			}
+			collections[resourceKind] = &oktaAssignments{watch: watch, Cache: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -3017,5 +3027,161 @@ func (s *userGroups) processEvent(ctx context.Context, event types.Event) error 
 }
 
 func (s *userGroups) watchKind() types.WatchKind {
+	return s.watch
+}
+
+type oktaImports struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (s *oktaImports) erase(ctx context.Context) error {
+	if err := s.oktaCache.DeleteAllOktaImportRules(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (s *oktaImports) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	var resources []types.OktaImportRule
+
+	nextKey := ""
+	for {
+		var oktaImports []types.OktaImportRule
+		var err error
+		oktaImports, nextKey, err = s.Okta.ListOktaImportRules(ctx, 0, nextKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, oktaImports...)
+		if nextKey == "" {
+			break
+		}
+	}
+
+	return func(ctx context.Context) error {
+		if err := s.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			_, err = s.oktaCache.CreateOktaImportRule(ctx, resource)
+			if trace.IsAlreadyExists(err) {
+				_, err = s.oktaCache.UpdateOktaImportRule(ctx, resource)
+			}
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (s *oktaImports) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := s.oktaCache.DeleteOktaImportRule(ctx, event.Resource.GetName())
+		if err != nil && !trace.IsNotFound(err) {
+			s.Logger.WithError(err).Warn("Failed to delete resource.")
+			return trace.Wrap(err)
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.OktaImportRule)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		_, err := s.oktaCache.CreateOktaImportRule(ctx, resource)
+		if trace.IsAlreadyExists(err) {
+			_, err = s.oktaCache.UpdateOktaImportRule(ctx, resource)
+		}
+		return trace.Wrap(err)
+	default:
+		s.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (s *oktaImports) watchKind() types.WatchKind {
+	return s.watch
+}
+
+type oktaAssignments struct {
+	*Cache
+	watch types.WatchKind
+}
+
+func (s *oktaAssignments) erase(ctx context.Context) error {
+	if err := s.oktaCache.DeleteAllOktaAssignments(ctx); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (s *oktaAssignments) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	var resources []types.OktaAssignment
+
+	nextKey := ""
+	for {
+		var oktaAssignments []types.OktaAssignment
+		var err error
+		oktaAssignments, nextKey, err = s.Okta.ListOktaAssignments(ctx, 0, nextKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, oktaAssignments...)
+		if nextKey == "" {
+			break
+		}
+	}
+
+	return func(ctx context.Context) error {
+		if err := s.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, resource := range resources {
+			_, err = s.oktaCache.CreateOktaAssignment(ctx, resource)
+			if trace.IsAlreadyExists(err) {
+				_, err = s.oktaCache.UpdateOktaAssignment(ctx, resource)
+			}
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (s *oktaAssignments) processEvent(ctx context.Context, event types.Event) error {
+	switch event.Type {
+	case types.OpDelete:
+		err := s.oktaCache.DeleteOktaAssignment(ctx, event.Resource.GetName())
+		if err != nil && !trace.IsNotFound(err) {
+			s.Logger.WithError(err).Warn("Failed to delete resource.")
+			return trace.Wrap(err)
+		}
+	case types.OpPut:
+		resource, ok := event.Resource.(types.OktaAssignment)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		_, err := s.oktaCache.CreateOktaAssignment(ctx, resource)
+		if trace.IsAlreadyExists(err) {
+			_, err = s.oktaCache.UpdateOktaAssignment(ctx, resource)
+		}
+		return trace.Wrap(err)
+	default:
+		s.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (s *oktaAssignments) watchKind() types.WatchKind {
 	return s.watch
 }
