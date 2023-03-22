@@ -107,7 +107,7 @@ Users will also be asked to set up an AWS integration when adding RDS databases 
 3. Configures the Teleport instance as an OIDC IdP:
    1. Clicks `Add provider` of type `OpenID Connect`.
    2. Fills in the Provider URL as provided by the Discover Wizard.
-   3. Fills in the Audience as provided by the Discover Wizard `sts.amazonaws.com`.
+   3. Fills in the Audience as provided by the Discover Wizard `discover.teleport`.
 4. The user is then asked to enter the Thumbprint in Teleport, to ensure the user entered the correct `Provider URL`.
 5. Configures the role associated with that IdP
    1. The user is asked to create or assign an existing role.
@@ -255,7 +255,7 @@ To do so, the user must add the following Trusted relationship:
             "Action": "sts:AssumeRoleWithWebIdentity",
             "Condition": {
                 "StringEquals": {
-                    "proxy.example.com:aud": "sts.amazonaws.com"
+                    "proxy.example.com:aud": "discover.teleport"
                 }
             }
         }
@@ -549,7 +549,7 @@ func main() {
 			Issuer:   "https://" + URL,
 			Subject:  "some-subject",
 			ID:       "id1",
-			Audience: jwt.Audience{"sts.amazonaws.com"},
+			Audience: jwt.Audience{"discover.teleport"},
 			IssuedAt: jwt.NewNumericDate(time.Now()),
 			Expiry:   jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 		}
