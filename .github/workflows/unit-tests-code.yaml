@@ -62,6 +62,12 @@ jobs:
       - name: Mount debugfs
         run: mount -t debugfs none /sys/kernel/debug/
 
+      # Run Teleport Unit tests.
       - name: Run tests
         timeout-minutes: 40
         run: make test-go test-sh test-api
+
+      # Run tests for the script located under "examples/teleport-usage".
+      - name: Run teleport-usage tests
+        timeout-minutes: 15
+        run: make test-teleport-usage
