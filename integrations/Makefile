@@ -13,8 +13,16 @@ update-test-version:
 	curl https://get.gravitational.com/teleport-{ent-,}${TELEPORT_GET_VERSION}-{darwin-amd64,linux-{amd64,arm64,arm}}-bin.tar.gz.sha256 > \
 	lib/testing/integration/download_sha.dsv
 	(cd ../ && \
-		$(SED) 's/TELEPORT_GET_VERSION: .*/TELEPORT_GET_VERSION: $(TELEPORT_GET_VERSION)/g' .github/workflows/flaky-tests.yaml && \
-		$(SED) 's/TELEPORT_GET_VERSION: .*/TELEPORT_GET_VERSION: $(TELEPORT_GET_VERSION)/g' .github/workflows/integration-tests-non-root.yaml  && \
-		$(SED) 's/TELEPORT_GET_VERSION: .*/TELEPORT_GET_VERSION: $(TELEPORT_GET_VERSION)/g' .github/workflows/unit-tests-code.yaml \
+		$(SED) 's/TELEPORT_GET_VERSION: .*/TELEPORT_GET_VERSION: $(TELEPORT_GET_VERSION)/g' .github/workflows/unit-tests-integrations.yaml \
 	)
 
+.PHONY: test
+test: test-access test-lib
+
+.PHONY: test-access
+test-access:
+	go test -v ./access/...
+
+.PHONY: test-lib
+test-lib:
+	go test ./lib/...

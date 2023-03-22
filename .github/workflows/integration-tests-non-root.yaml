@@ -36,10 +36,6 @@ jobs:
         TELEPORT_ETCD_TEST: yes
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
         WEBASSETS_SKIP_BUILD: 1
-
-        # ./integrations/lib/testing/integration
-        TELEPORT_GET_VERSION: v12.1.0
-        TELEPORT_ENTERPRISE_LICENSE: ${{ secrets.TELEPORT_ENTERPRISE_LICENSE }}
       options: --cap-add=SYS_ADMIN --privileged
 
     services:

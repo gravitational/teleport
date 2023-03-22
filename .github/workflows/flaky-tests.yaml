@@ -26,10 +26,6 @@ jobs:
         TELEPORT_XAUTH_TEST: yes
         TELEPORT_BPF_TEST: yes
         WEBASSETS_SKIP_BUILD: 1
-
-        # ./integrations/lib/testing/integration
-        TELEPORT_GET_VERSION: v12.1.0
-        TELEPORT_ENTERPRISE_LICENSE: ${{ secrets.TELEPORT_ENTERPRISE_LICENSE }}
       options: --cap-add=SYS_ADMIN --privileged
 
     services:
@@ -63,7 +59,7 @@ jobs:
       - name: Run base difftest
         uses: ./.github/actions/difftest
         with:
-          flags: -e "integrations/operator/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*"  -e "integrations/kube-agent-updater/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/slack/slack_test.go" -e "integrations/lib/testing/integration/**" -e "integrations/lib/backoff/backoff_test.go"
+          flags: -e "integrations/operator/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*"  -e "integrations/kube-agent-updater/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/**" -e "integrations/lib/**" -e "integrations/lib/backoff/backoff_test.go"
           target: test-go-unit
 
       - name: Run libfido2 difftest
